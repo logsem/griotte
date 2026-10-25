@@ -8,10 +8,11 @@ From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
+From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
 
 (** * Segment (d): blocks 16-20
 
-    Check the free result (halting on failure), quarantine the buffer in the
+    Check the free result (returning on failure), quarantine the buffer in the
     world, and call [adv(0)]: the saved alias of the buffer is dangling. *)
 
 Section HTS_Spec_Dangling.
@@ -59,8 +60,9 @@ Section HTS_Spec_Dangling.
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as "[Herr|Hok]".
-    { (* Block 16: halt when free failed. *)
-      iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & _ & Hcode_main)".
+    { (* Block 16: return when free failed. *)
+      iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & [%wct0 Hct0] & Hcs0 & [%wcra Hcra]
+        & [%wctp Hctp] & [%wct2 Hct2] & Hcstk & %Hframes & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
       focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
@@ -68,14 +70,18 @@ Section HTS_Spec_Dangling.
       (* Jne 2 ca0 0. *)
       iInstr "Hcode".
       { apply nonZero_WInt. intros [= ->]. done. }
-      (* Halt. *)
+      (* Jmp .Lhts_return *)
       iInstr "Hcode".
-      wp_end. by iIntros (?). }
+      { jump_to (pc_a ^+ hts_label_offset ".Lhts_return")%a. }
+      unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iApply (hts_return_spec with
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+                 $Hcstk $Hcode_main]"); [done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & [%wcs0 Hcs0]
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -201,7 +207,7 @@ Section HTS_Spec_Dangling.
     iApply (switcher_cc_specification (hts_Wfree Wret ι) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
-      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f stk
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
@@ -224,7 +230,8 @@ Section HTS_Spec_Dangling.
        & Hna & _ & _ & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & _ & _ & Hrmap & _ & _ & %Hrestored)".
-    destruct Hrestored as (Hgp_ret2 & Hra_ret2 & _ & _).
+    destruct Hrestored as (Hgp_ret2 & Hra_ret2 & Hs0_ret2 & _).
+    apply load_heap_nonheap in Hs0_ret2; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret2.
     2: { destruct Hcgp_heap as [Hcgp_nonheap _].
          rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
@@ -232,7 +239,7 @@ Section HTS_Spec_Dangling.
     apply load_heap_nonheap in Hra_ret2.
     2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
            Hpc_nonheap /=. reflexivity. }
-    subst rcgp rcra.
+    subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
     iApply "Hcontinue".
     iFrame "∗#%".

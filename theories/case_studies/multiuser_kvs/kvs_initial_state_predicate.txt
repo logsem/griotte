@@ -108,7 +108,13 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   pcc σ        = (RX, Global, cmpt_b_pcc main, cmpt_e_pcc main, cmpt_b_pcc main ^+ 7)  -- main, export entry
   reg σ !! cgp = Some (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main)
   reg σ !! csp = Some (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f)
-  ∀ r : RegName, r ∉ {[cgp; csp]} → reg σ !! r = Some (WInt 0)                         -- every other register cleared
+  reg σ !! cra = Some                                                                  -- the switcher's return sentry: a return from the entry exits the thread
+    (E-RetDisable XSRW_,
+     Local,
+     b_switcher sw,
+     e_switcher sw,
+     a_switcher_return sw)
+  ∀ r : RegName, r ∉ {[cgp; cra; csp]} → reg σ !! r = Some (WInt 0)                    -- every other register cleared
   sreg σ !! mtdc    = Some (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0)
   sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))    -- interrupts disabled
   sreg σ !! mtcc    = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")

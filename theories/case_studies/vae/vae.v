@@ -12,7 +12,7 @@ Section VAE_Main.
     init:
       set a := 0
       call B.adv
-      halt
+      return
 
     awkward:
       set a := 0
@@ -40,9 +40,11 @@ Section VAE_Main.
       #".Lvae_init_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
       [ #".Lvae_init_call";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         jalr cra ct0; (* jmp to entry point *)
-        #".Lvae_init_halt";
-        halt
+        #".Lvae_init_return";
+        mov cra cs0;
+        ret
       ];
       (* awkward *)
       (* set a := 0 *)

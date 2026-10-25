@@ -70,9 +70,11 @@ int __cheri_compartment("known") run()
       #".Llse_run_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1; (* ct1 -> {B.adv}_(ot_switcher)  *)
       [ #".Llse_run_call";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         jalr cra ct0; (* jmp to entry point *)
-        #".Llse_run_halt";
-        halt
+        #".Llse_run_return";
+        mov cra cs0;
+        ret
       ];
       (* f *)
       (* push a := (RW, Global, a, a+1, a) *)

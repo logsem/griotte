@@ -10,16 +10,16 @@ Section Heap_Temporal_Safety.
 
       p = 0;
       buf = malloc(sealed_alloc, 1);
-      if (malloc failed) halt;
+      if (malloc failed) return;
       saved_buf = buf;
       buf[0] = 0;
       adv(buf);
       buf = saved_buf;             // this load consults the shadow table
       buf[0] = &p;
-      if (free(sealed_alloc, buf) failed) halt;
+      if (free(sealed_alloc, buf) failed) return;
       adv(0);
       assert(p == 0);
-      halt;
+      return;
 
       [sealed_alloc] is the imported allocator capability of this
       compartment ([allocator_capability]): it points to a read-only word in
@@ -73,15 +73,16 @@ Section Heap_Temporal_Safety.
       fetch_asm ".Limport_malloc" ct1;
       [
         #".Lhts_call_malloc";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         jalr cra ctp
       ];
       [
         #".Lhts_malloc_result";
-        (* if (malloc failed) halt; the result is tagged only on success:
+        (* if (malloc failed) return; the result is tagged only on success:
            allocator errors and switcher failures return an integer in ca0. *)
         gettag ct0 ca0;
         jnez (".hts_malloc_result_end")%asm ct0;
-        halt;
+        jmp (".Lhts_return")%asm;
         #".hts_malloc_result_end"
       ];
       [
@@ -121,18 +122,18 @@ Section Heap_Temporal_Safety.
       fetch_asm ".Limport_free" ct1;
       [
         #".Lhts_call_free";
-        (* free(sealed_alloc, buf); halt if free or the switcher fails. *)
+        (* free(sealed_alloc, buf); return if free or the switcher fails. *)
         jalr cra ctp
       ];
       [
         #".Lhts_free_result";
         (* ca0 is ALLOC_OK = 0 only after a successful free. A nonzero value
            is a switcher failure: buf is then still live and holds &p, so we
-           must halt. *)
+           must stop: return (the thread exits). *)
         jnez (".hts_free_result_bad")%asm ca0;
         jmp (".hts_free_result_end")%asm;
         #".hts_free_result_bad";
-        halt;
+        jmp (".Lhts_return")%asm;
         #".hts_free_result_end"
       ];
       [
@@ -157,9 +158,10 @@ Section Heap_Temporal_Safety.
       #".Lhts_assert" ::
       assert_asm ".Limport_assert" ct2 ca2;
       [
-        #".Lhts_halt";
-        (* halt; *)
-        halt
+        #".Lhts_return";
+        (* return; *)
+        mov cra cs0;
+        ret
       ]
     ].
 

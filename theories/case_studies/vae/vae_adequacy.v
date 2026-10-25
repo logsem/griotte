@@ -61,7 +61,7 @@ Section vae_obligations.
     assert (image.cmpt_imports (cmpt_of img "main") = @vae_main_imports swl asl C_f)
       as main_imports'.
     { rewrite main_imports /vae_main_imports. done. }
-    assert (WInt (encode_entry_point InterruptEnabled 1%nat 4%nat 10%nat) =
+    assert (WInt (encode_entry_point InterruptEnabled 1%nat 4%nat 12%nat) =
               WInt (encode_entry_point InterruptEnabled 1 4
                       (length (@vae_main_imports swl asl C_f ++ VAE_main_code_init))))
       as Hentry_awk_word.
@@ -212,7 +212,7 @@ Section vae_obligations.
                          $Hawk_inv $Hrel_i
                          $Hna
                          $Hworld_C
-                         $HPC $Hcgp $Hcsp $Hregs
+                         $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher

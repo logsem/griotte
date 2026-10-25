@@ -15,7 +15,7 @@ Section DLE_Main.
     set b := 42
     call B.adv null
     assert (b==0)
-    halt
+    return
 
    *)
 
@@ -59,9 +59,9 @@ Section DLE_Main.
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
       #".Ldle_fetch_B_f" ::
       fetch_asm ".Limport_B_f" ct1; (* ct1 -> {B.f}_(ot_switcher)  *)
-      [ (* Use cs0 and cs1 to save ct0 and ct1 through the call *)
+      [ (* cs0 keeps the return-to-switcher, cs1 {B.f} through the call *)
         #".Ldle_call_B";
-        mov cs0 ct0; (* cs0 -> switcher entry point *)
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         mov cs1 ct1; (* cs1 -> {B.f}_(ot_switcher)  *)
         (* switcher_call to B.f *)
         jalr cra ct0;
@@ -69,8 +69,11 @@ Section DLE_Main.
         #".Ldle_overwrite";
         store cgp 42;      (* b <- 0 *)
         (* call B.adv null *)
-        mov ca0 0;
-        mov ct0 cs0; (* ct0 -> switcher entry point *)
+        mov ca0 0
+      ];
+      #".Ldle_refetch_switcher" ::
+      fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
+      [ #".Ldle_call_B_2";
         mov ct1 cs1; (* ct1 -> {B.f}_(ot_switcher)  *)
         (* switcher_call to B.f *)
         jalr cra ct0;
@@ -81,9 +84,10 @@ Section DLE_Main.
       ];
       #".Ldle_assert" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
-      [ (* halt *)
-        #".Ldle_halt";
-        halt
+      [ (* return *)
+        #".Ldle_return";
+        mov cra cs0;
+        ret
       ]
     ].
 
@@ -100,7 +104,9 @@ Section DLE_Main.
     dle_main_instrs_n 2 ++
     dle_main_instrs_n 3 ++
     dle_main_instrs_n 4 ++
-    dle_main_instrs_n 5.
+    dle_main_instrs_n 5 ++
+    dle_main_instrs_n 6 ++
+    dle_main_instrs_n 7.
 
   Definition dle_main_data : list Word := [WInt 0; WInt 0].
 

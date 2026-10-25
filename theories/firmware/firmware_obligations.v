@@ -9,6 +9,7 @@ From griotte Require Import stack_world_resources mkregion_helpers disjoint_regi
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Import firmware_ok firmware_adequacy.
+From griotte Require Import switcher_spec_return.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)
 From griotte Require Import image firmware.
@@ -36,7 +37,8 @@ From griotte Require Import image firmware.
     - [iNamed] on [fw_init_res] gives the invariants of the switcher and of
       the assert library, the compartments ["Hcmpts"] (a list, destructed
       after [cbv] of the firmware), the registers in the form of the main
-      specifications (cleared registers: [fw_cleared_regs_dom] and
+      specifications ([cra] the switcher's return sentry; cleared
+      registers: [fw_cleared_regs_dom] and
       [fw_cleared_regs_lookup]), the stack and the fact that it holds the
       minimum stack size of the entry of the first thread plus the reserved
       space (["%Hstack_min"]), the worlds and the sealing types of the firmware.
@@ -141,7 +143,7 @@ Section obligation_facts.
     (revoker_addr < revoker_addr ^+ 1)%a.
   Proof. intros (_ & _ & _ & Hwf). exact (img_wf_heap_machine _ _ Hwf). Qed.
 
-  Lemma fw_cleared_regs_dom : dom fw_cleared_regs = all_registers_s ∖ {[cgp; csp]}.
+  Lemma fw_cleared_regs_dom : dom fw_cleared_regs = all_registers_s ∖ {[cgp; cra; csp]}.
   Proof. by rewrite /fw_cleared_regs dom_gset_to_gmap. Qed.
 
   Lemma fw_cleared_regs_lookup r :
@@ -150,6 +152,11 @@ Section obligation_facts.
     rewrite fw_cleared_regs_dom. intros Hr.
     by rewrite /fw_cleared_regs lookup_gset_to_gmap option_guard_True.
   Qed.
+
+  (** The image's return sentry is the one of the switcher's layout. *)
+  Lemma fw_thread_cra_eq img :
+    fw_thread_cra img = thread_return_sentry (swlayout := fw_switcher_layout img).
+  Proof. reflexivity. Qed.
 
   (** The stack of the first thread holds the minimum stack size of the
       export it starts at plus the reserved space. *)
@@ -400,6 +407,7 @@ Section prepared.
     "HPC" ∷ PC ↦ₚ WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
     "Hcgp" ∷ cgp ↦ᵣ WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
     "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
+    "Hcra" ∷ cra ↦ᵣ thread_return_sentry (swlayout := fw_switcher_layout img) ∗
     "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
@@ -511,6 +519,7 @@ Proof.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
   iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
+  iEval (rewrite fw_thread_cra_eq) in "Hcra".
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseg sealsg stsg relg cstackg Hok).

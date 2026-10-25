@@ -445,7 +445,7 @@ Section kvs_obligations.
                  with "[ $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
                         $Hkvs_logical_user_K
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
-                        $Hna $HPC $Hcgp $Hcsp $Hregs
+                        $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data $Hmain_static_sealed
                         $HK_lukvs_1
                         $Hworld_B $Hcstk

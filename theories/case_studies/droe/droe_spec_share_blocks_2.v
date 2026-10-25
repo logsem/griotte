@@ -31,7 +31,8 @@ Section DROE_Share_Blocks_2.
     cra ↦ᵣ wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
     ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_return")%a ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+          (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
         ct0 ↦ᵣ droe_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ wcra ∗
@@ -76,7 +77,7 @@ Section DROE_Share_Blocks_2.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_label_offset ".Ldroe_return")%a) as ->
+    assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; rewrite /droe_static_mem /droe_switcher_entry; iFrame "∗ Hcode_main".
   Qed.

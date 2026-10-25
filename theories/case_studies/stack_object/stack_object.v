@@ -20,7 +20,8 @@ Section SO_Asm.
       fetch_asm ".Limport_switcher" ct0;
       #".Lso_run_fetch_adv" ::
       fetch_asm ".Limport_B_adv" ct1;
-      [ #".Lso_run_call"; jalr cra ct0; #".Lso_run_halt"; halt ];
+      [ #".Lso_run_call"; mov cs0 cra; jalr cra ct0;
+        #".Lso_run_return"; mov cra cs0; ret ];
       (* f *)
       [ #".Lso_f"; mov ct1 ca1 ];
       #".Lso_f_checkra" ::

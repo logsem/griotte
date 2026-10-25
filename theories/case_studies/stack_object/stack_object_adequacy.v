@@ -61,7 +61,7 @@ Section so_obligations.
     assert (image.cmpt_imports (cmpt_of img "main") = @so_main_imports swl asl C_f)
       as main_imports'.
     { rewrite main_imports /so_main_imports. done. }
-    assert (WInt (encode_entry_point InterruptEnabled 2%nat 6%nat 9%nat) =
+    assert (WInt (encode_entry_point InterruptEnabled 2%nat 6%nat 11%nat) =
               WInt (encode_entry_point InterruptEnabled 2 6
                       (length (@so_main_imports swl asl C_f ++ SO_main_code_run))))
       as Hentry_f_word.
@@ -198,7 +198,7 @@ Section so_obligations.
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
                          $Hna
                          $Hworld_C
-                         $HPC $Hcgp $Hcsp $Hregs
+                         $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher

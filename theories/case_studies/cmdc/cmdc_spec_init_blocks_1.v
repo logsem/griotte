@@ -4,7 +4,8 @@ From griotte Require Import cmdc_spec_states.
 
 (** * Cmdc, block 0: initialisation of the data
 
-    Block 0 sets [b := 0] and [c := 0], and prepares the argument
+    Block 0 saves the return address of the thread in [cs0], sets [b := 0]
+    and [c := 0], and prepares the argument
     [(RW, Global, b, b+1, b)] of the call to [B.f] in [ca0]. The group ends
     with [cgp] pointing to [c]. *)
 
@@ -21,7 +22,7 @@ Section CMDC_Init_Blocks_1.
 
   Lemma cmdc_init_blocks_1_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
-    (wca0 wct0 wct1 : LWord) :
+    (wca0 wct0 wct1 wcs0 wcra : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     is_mmio_address cgp_b = false ->
@@ -32,6 +33,8 @@ Section CMDC_Init_Blocks_1.
     ca0 ↦ᵣ wca0 ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
+    cs0 ↦ᵣ wcs0 ∗
+    cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
     codefrag_pers pc_a cmdc_main_code ∗
@@ -40,6 +43,8 @@ Section CMDC_Init_Blocks_1.
         ca0 ↦ᵣ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
         (∃ w, ct0 ↦ᵣ w) ∗
         (∃ w, ct1 ↦ᵣ w) ∗
+        cs0 ↦ᵣ wcra ∗
+        cra ↦ᵣ wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
         (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
         codefrag_pers pc_a cmdc_main_code
@@ -47,11 +52,14 @@ Section CMDC_Init_Blocks_1.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio Hcgp_heap Hcgp1_mmio)
-      "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcgp_b & Hcgp_c & Hcode_main & Hpost)".
+      "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b & Hcgp_c & Hcode_main
+        & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
 
     (* Block 0: initialisation *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
     { by apply not_mmio_not_shadow. }

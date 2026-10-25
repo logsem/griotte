@@ -6,9 +6,10 @@ From griotte Require Import lse_spec_states.
 
     Block 0 stores [2] in [a] (at [cgp_b]), block 1 fetches the entry point
     of the switcher in [ct0], block 2 fetches the entry point of [C_f] in
-    [ct1], and the first instruction of block 3 jumps to the switcher. The
-    group ends at the entry point of the switcher, with the return address
-    of the call in [cra]. *)
+    [ct1], and the first two instructions of block 3 save the return address
+    of the thread in [cs0] and jump to the switcher. The group ends at the
+    entry point of the switcher, with the return address of the call in
+    [cra]. *)
 
 Section LSE_Run_Blocks_1.
   Context
@@ -24,7 +25,7 @@ Section LSE_Run_Blocks_1.
   Lemma lse_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr)
-    (wct0 wct1 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
@@ -33,6 +34,7 @@ Section LSE_Run_Blocks_1.
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
+    cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     cgp_b ↦ₐ WInt 2 ∗
     pc_b ↦ₐ□ lse_switcher_entry ∗
@@ -42,7 +44,9 @@ Section LSE_Run_Blocks_1.
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ lse_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_halt")%a ∗
+        cs0 ↦ᵣ wcra ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+          (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ□ lse_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
@@ -51,7 +55,7 @@ Section LSE_Run_Blocks_1.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hsealed_nonheap)
-      "(HPC & Hcgp & Hct0 & Hct1 & Hcra
+      "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
       & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
@@ -88,13 +92,15 @@ Section LSE_Run_Blocks_1.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 3: jump to the switcher *)
+    (* Block 3: save the return address and jump to the switcher *)
     focus_block (lse_block ".Llse_run_call") "Hcode_main" of lse_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ lse_label_offset ".Llse_run_halt")%a) as ->
+    assert ((a_call ^+ 2)%a = (pc_a ^+ lse_label_offset ".Llse_run_return")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

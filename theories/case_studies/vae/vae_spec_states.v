@@ -12,7 +12,7 @@ From griotte Require Export case_study_spec_helpers.
     - [vae_spec_init_blocks_1]: blocks 0-3, set the flag to [0], fetch the
       imports and jump to the switcher, for the call to [B.adv],
     - [vae_spec_init_blocks_2]: block 3, from the return of the call to
-      [B.adv], halt,
+      [B.adv], return: the thread exits,
     - [vae_spec_awkward_blocks_1]: blocks 4-6, set the flag to [0], fetch
       the switcher and jump to it, for the first call to [g],
     - [vae_spec_awkward_blocks_2]: blocks 7-9, from the return of the first

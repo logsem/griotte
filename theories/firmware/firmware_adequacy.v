@@ -906,6 +906,12 @@ Section entry.
          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
            ".Lswitch_csp_check" "exception_entry_asm")%a.
 
+  (** The return sentry the loader gives the thread in [cra]: into the
+      switcher, at [switcher_after_compartment_call], interrupts disabled. *)
+  Definition fw_thread_cra (img : fw_image) : Word :=
+    let sw := img_sw img in
+    WSentry RetDisable true XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_return sw).
+
   Definition fw_trap_vector (img : fw_image) : trapVector :=
     {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.
 
@@ -925,7 +931,8 @@ Section entry.
     pcc σ = fw_entry_pc fw img 0 ∧
     reg σ !! cgp = Some (fw_entry_cgp fw img 0) ∧
     reg σ !! csp = Some (fw_thread_csp img 0) ∧
-    (∀ r, r ∉ ({[cgp; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
+    reg σ !! cra = Some (fw_thread_cra img) ∧
+    (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
     (∀ sr, sreg σ !! sr = Some (fw_initial_sreg img sr)).
   Proof.
     rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_fc
@@ -933,7 +940,8 @@ Section entry.
     destruct (fw_threads fw) as [|ft fts]; first done.
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|] eqn:Hbody;
       last done.
-    intros (Hpc & Hcgp & Hcsp & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause & Hmtval).
+    intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause
+            & Hmtval).
     destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
     split_and!; [by exists fts | done..|].
     intros sr. by destruct sr.
@@ -1231,16 +1239,16 @@ Section ghost_init.
     change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh.
     rewrite /note in Hmem Hsh. subst m sh.
     destruct (regs_ok_inv _ _ _ Hregs)
-      as ([fts Hthreads] & Hentry & Hname & Hpc & Hcgp & Hcsp & Hzero & Hsreg).
+      as ([fts Hthreads] & Hentry & Hname & Hpc & Hcgp & Hcsp & Hcra & Hzero & Hsreg).
     clear Hregs.
     change (pcc (w_pc, regs, sregs, _, _)) with w_pc in Hpc.
-    change (reg (w_pc, regs, sregs, _, _)) with regs in Hcgp, Hcsp, Hzero.
+    change (reg (w_pc, regs, sregs, _, _)) with regs in Hcgp, Hcsp, Hcra, Hzero.
     change (sreg (w_pc, regs, sregs, _, _)) with sregs in Hsreg.
     subst w_pc.
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hentry) as Hm. rewrite Hname in Hm.
     pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
     pose proof (img_wf_heap_roots _ _ Hwf) as Hroots.
-    assert (cnull ∉ ({[cgp; csp]} : gset RegName)) as Hcnull by set_solver+.
+    assert (cnull ∉ ({[cgp; cra; csp]} : gset RegName)) as Hcnull by set_solver+.
     split; last by apply Hzero.
     pose proof Hwf as (Hsw_wf & Hasrt_wf & Hcmpts_wf & Hthreads_wf & _).
     pose proof Hsw_wf as (_ & _ & _ & [Hsw_not_heap _] & Hsw_end).
@@ -1276,7 +1284,13 @@ Section ghost_init.
       destruct (decide (r = csp)) as [->|Hne2].
       { rewrite Hcsp in Hr. injection Hr as <-.
         apply word_rooted_cap_disjoint. exact (isl_stack_not_heap _ _ _ Hsw). }
-      rewrite Hzero in Hr; last set_solver+Hne1 Hne2. injection Hr as <-. apply word_rooted_int.
+      destruct (decide (r = cra)) as [->|Hne3].
+      { (* the switcher's return sentry, outside the heap *)
+        rewrite Hcra in Hr. injection Hr as <-.
+        apply word_rooted_nonheap.
+        by rewrite /fw_thread_cra /heap_cap_base /= (proj1 Hsw_not_heap). }
+      rewrite Hzero in Hr; last set_solver+Hne1 Hne2 Hne3. injection Hr as <-.
+      apply word_rooted_int.
     - assert (disjoint_from_heap (b_trusted_stack (thread_of img 0))
                 (e_trusted_stack (thread_of img 0))) as Hts_heap.
       { rewrite Hthreads in Hthreads_wf.
@@ -1323,7 +1337,12 @@ Section ghost_init.
       { rewrite Hcgp in Hr. injection Hr as <-. by apply word_exec_ok_not_executable. }
       destruct (decide (r = csp)) as [->|Hne2].
       { rewrite Hcsp in Hr. injection Hr as <-. by apply word_exec_ok_not_executable. }
-      rewrite Hzero in Hr; last set_solver+Hne1 Hne2. injection Hr as <-. apply word_exec_ok_int.
+      destruct (decide (r = cra)) as [->|Hne3].
+      { (* the switcher's return sentry, with closed bounds outside the heap *)
+        rewrite Hcra in Hr. injection Hr as <-.
+        eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end]. }
+      rewrite Hzero in Hr; last set_solver+Hne1 Hne2 Hne3. injection Hr as <-.
+      apply word_exec_ok_int.
     - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
       destruct sr; try by apply word_exec_ok_not_executable.
       (* MTCC: the switcher's capability, with closed bounds outside the heap *)
@@ -1417,9 +1436,9 @@ Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
     (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
     (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)).
 
-(** The registers other than [cgp] and [csp], cleared. *)
+(** The registers other than [cgp], [cra] and [csp], cleared. *)
 Definition fw_cleared_regs : LReg :=
-  gset_to_gmap (lword_of_word (WInt 0)) (all_registers_s ∖ {[cgp; csp]}).
+  gset_to_gmap (lword_of_word (WInt 0)) (all_registers_s ∖ {[cgp; cra; csp]}).
 
 Section resources.
   Context
@@ -1461,6 +1480,7 @@ Section resources.
     "HPC" ∷ PC ↦ₚ fw_entry_pc fw img i ∗
     "Hcgp" ∷ cgp ↦ᵣ fw_entry_cgp fw img i ∗
     "Hcsp" ∷ csp ↦ᵣ fw_thread_csp img i ∗
+    "Hcra" ∷ cra ↦ᵣ fw_thread_cra img ∗
     "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
@@ -1557,24 +1577,30 @@ Section memory_split.
     PC ↦ₚ fw_entry_pc fw img 0 ∗
     cgp ↦ᵣ fw_entry_cgp fw img 0 ∗
     csp ↦ᵣ fw_thread_csp img 0 ∗
+    cra ↦ᵣ fw_thread_cra img ∗
     [∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w.
   Proof.
     intros (_ & _ & Hregs & _).
-    destruct (regs_ok_inv _ _ _ Hregs) as (_ & _ & _ & Hpc & Hcgp & Hcsp & Hzero & _).
+    destruct (regs_ok_inv _ _ _ Hregs) as (_ & _ & _ & Hpc & Hcgp & Hcsp & Hcra & Hzero & _).
     rewrite Hpc. iIntros "[$ Hreg]".
     iDestruct (big_sepM_delete _ _ cgp with "Hreg") as "[$ Hreg]";
       first by rewrite lookup_fmap Hcgp.
     iDestruct (big_sepM_delete _ _ csp with "Hreg") as "[$ Hreg]";
       first by rewrite lookup_delete_ne // lookup_fmap Hcsp.
-    assert (delete csp (delete cgp (lword_of_word <$> reg σ)) = fw_cleared_regs) as ->;
-      last done.
+    iDestruct (big_sepM_delete _ _ cra with "Hreg") as "[$ Hreg]";
+      first by rewrite !lookup_delete_ne // lookup_fmap Hcra.
+    assert (delete cra (delete csp (delete cgp (lword_of_word <$> reg σ))) = fw_cleared_regs)
+      as ->; last done.
     apply map_eq. intros r. rewrite /fw_cleared_regs lookup_gset_to_gmap.
-    destruct (decide (r = csp)) as [->|Hne2].
+    destruct (decide (r = cra)) as [->|Hne3].
     { rewrite lookup_delete option_guard_False //. }
-    destruct (decide (r = cgp)) as [->|Hne1].
+    destruct (decide (r = csp)) as [->|Hne2].
     { rewrite lookup_delete_ne // lookup_delete option_guard_False //. }
-    rewrite !lookup_delete_ne // lookup_fmap Hzero; last set_solver+Hne1 Hne2.
-    rewrite option_guard_True //. pose proof (all_registers_s_correct r). set_solver+Hne1 Hne2.
+    destruct (decide (r = cgp)) as [->|Hne1].
+    { rewrite lookup_delete_ne // lookup_delete_ne // lookup_delete option_guard_False //. }
+    rewrite !lookup_delete_ne // lookup_fmap Hzero; last set_solver+Hne1 Hne2 Hne3.
+    rewrite option_guard_True //. pose proof (all_registers_s_correct r).
+    set_solver+Hne1 Hne2 Hne3.
   Qed.
 End memory_split.
 
@@ -1616,7 +1642,7 @@ Proof.
   destruct σ' as [ [ [ [w_pc' regs'] sregs'] m'] sh'].
   pose proof Hok as (_ & [_ Hsh] & Hregs & Hwf).
   change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh. rewrite /note in Hsh.
-  destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _ & _ & _ & _ & _ & _ & Hsreg).
+  destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _ & _ & _ & _ & _ & _ & _ & Hsreg).
   clear Hregs.
   change (sreg (w_pc, regs, sregs, m, sh)) with sregs in Hsreg.
   pose proof (img_wf_switcher_layout _ _ _ _ Hthreads Hwf) as Hsw.
@@ -1644,7 +1670,7 @@ Proof.
   iDestruct (firmware_ok_mem_split fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")
     as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthread)".
   iDestruct (firmware_ok_regs_split fw img (w_pc, regs, sregs, m, sh) Hok with "[$HPC $Hreg]")
-    as "(HPC & Hcgp & Hcsp & Hregs)".
+    as "(HPC & Hcgp & Hcsp & Hcra & Hregs)".
   subst sh.
   (* The assert library. *)
   rewrite (assert_mem_layout _ Hasrt).
@@ -1686,8 +1712,8 @@ Proof.
   { rewrite /fw_entry_cmpt fw_thread_of_0. exact Htbl_cap. }
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseg sealsg stsg relg cstackg Hok) as "Hobl".
-  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hregs Hstack Hcstk_frag Hna]
-                     [$HPC $Hcgp $Hcsp $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
+  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]
+                     [$HPC $Hcgp $Hcsp $Hcra $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
     iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
   iModIntro. iFrame "Hwp Hflag".

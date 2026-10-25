@@ -23,6 +23,7 @@ Section CMDC_Main.
 
         (* set b <- 0 *)
         #".Lcmdc_init";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         store cgp 0;
         mov ca0 cgp;
 
@@ -75,7 +76,7 @@ Section CMDC_Main.
       ];
       #".Lcmdc_assert_C" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
-      [ #".Lcmdc_halt"; halt ]
+      [ #".Lcmdc_return"; mov cra cs0; ret ]
     ].
 
   Definition cmdc_main_assembled :=

@@ -8,10 +8,11 @@ From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants heap_ghost.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
+From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
 
 (** * Segment (b): blocks 5-9
 
-    Check the malloc result (halting on failure), push the buffer on the
+    Check the malloc result (returning on failure), push the buffer on the
     stack, above the callee frames, and initialize it, share the buffer
     in the world, and call [adv(buf)]. *)
 
@@ -61,8 +62,9 @@ Section HTS_Spec_Share.
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
     iDestruct "Hret" as "[Herr|Hok]".
-    { (* Block 5: halt when malloc returned an integer. *)
-      iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcode_main)".
+    { (* Block 5: return when malloc returned an integer. *)
+      iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcs0 & [%wcra Hcra]
+        & [%wctp Hctp] & [%wct2 Hct2] & Hcstk & %Hframes & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
       focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
@@ -70,14 +72,18 @@ Section HTS_Spec_Share.
       iInstr "Hcode".
       (* Jne 2 ct0 0. *)
       iInstr "Hcode".
-      (* Halt. *)
+      (* Jmp .Lhts_return *)
       iInstr "Hcode".
-      wp_end. iIntros (_). iFrame "Hna". }
+      { jump_to (pc_a ^+ hts_label_offset ".Lhts_return")%a. }
+      unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iApply (hts_return_spec with
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+                 $Hcstk $Hcode_main]"); [done | done]. }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & [%wcs0 Hcs0]
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -252,7 +258,7 @@ Section HTS_Spec_Share.
     iApply (switcher_cc_specification (hts_Wshare W_init_C ι b) C
       (WCap true RW Global cgp_b cgp_e cgp_b)
       (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
-      wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f
       (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e ^+ -1)%a)
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
@@ -278,7 +284,8 @@ Section HTS_Spec_Share.
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & [%warg0 [Hca0 _]] & [%warg1 [Hca1 _]]
        & Hrmap & Hstk & HK & %Hrestored)".
-    destruct Hrestored as (Hgp_ret & Hra_ret & _ & _).
+    destruct Hrestored as (Hgp_ret & Hra_ret & Hs0_ret & _).
+    apply load_heap_nonheap in Hs0_ret; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret.
     2: { destruct Hcgp_heap as [Hcgp_nonheap _].
          rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
@@ -286,7 +293,7 @@ Section HTS_Spec_Share.
     apply load_heap_nonheap in Hra_ret.
     2: { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=
            Hpc_nonheap /=. reflexivity. }
-    subst rcgp rcra.
+    subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
     iApply "Hcontinue".
     iExists ι, b, Wret.

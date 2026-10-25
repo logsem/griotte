@@ -253,7 +253,7 @@ Section hts_obligations.
                   (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] _
                  with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
                         $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
-                        $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hregs
+                        $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B]")

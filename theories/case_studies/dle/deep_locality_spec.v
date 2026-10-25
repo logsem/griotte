@@ -57,7 +57,7 @@ Section DLE.
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length dle_main_code)%a ->
 
@@ -81,6 +81,7 @@ Section DLE.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -107,18 +108,18 @@ Section DLE.
        - [dle_world_share]: share the data in the world,
        - [switcher_cc_specification]: first call to the adversary,
        - [dle_world_return]: revoke the world to get [b] back,
-       - [dle_overwrite_blocks_3_spec]: block 3, overwrite [b] and jump to the
-         switcher,
+       - [dle_overwrite_blocks_3_spec]: blocks 3-5, overwrite [b], fetch the
+         switcher again and jump to it,
        - [switcher_cc_specification]: second call to the adversary,
-       - [dle_assert_blocks_4_spec]: blocks 3-5, assert that [b] is unchanged
-         and halt. *)
+       - [dle_assert_blocks_4_spec]: blocks 5-7, assert that [b] is unchanged
+         and return: the thread exits. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hrmap_dom Hrmap_init
                HsubBounds Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap
                Hframe_match
             )
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
       & HK
@@ -127,8 +128,8 @@ Section DLE.
       & #HentryC_f
       & #Hinterp_W0_csp
       )".
-    iExtractList "Hrmap" [cra;ca0;ca1;ct0;ct1;ct2;cs0;cs1]
-      as ["Hcra"; "Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [ca0;ca1;ct0;ct1;ct2;cs0;cs1]
+      as ["Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
     iEval (cbn [fmap list_fmap dle_main_data dle_main_imports]) in "Hcgp_main Himports_main".
     iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_a]".
     iRegionSplit "Himports_main" as "Himports".
@@ -210,7 +211,7 @@ Section DLE.
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    apply load_heap_nonheap in Hrcs0; [|exact switcher_call_sentry_not_heap].
+    apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hrcs1; [|exact Hsealed_nonheap].
     subst rcgp rcra rcs0 rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
@@ -221,11 +222,13 @@ Section DLE.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2] as ["Hct0"; "Hct1"; "Hct2"].
 
-    (* Block 3: overwrite b and jump to the switcher *)
+    (* Blocks 3-5: overwrite b, fetch the switcher again and jump to it *)
     iApply (dle_overwrite_blocks_3_spec with
-             "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcra $Hcs0 $Hcs1 $Hcgp_b $Hcode_main]");
-      [done|done|done|].
-    iNext; iIntros (mie') "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Hcode_main)".
+             "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcra $Hcs0 $Hcs1 $Hcgp_b $Himport_switcher
+              $Hcode_main]");
+      [rewrite /dle_code_bounds; eauto 10|done|done|].
+    iNext; iIntros (mie') "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b
+                            & Himport_switcher & Hcode_main)".
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].
     iDestruct (switcher_call_args_1 (revoke W4) C with "Hca0 [] Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -255,24 +258,25 @@ Section DLE.
     clear dependent arg_rmap rmap' stk_mem rmap.
     iIntros (W6 rmap stk_mem l0 rcgp rcra rcs0 rcs1)
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
-      & Hna & _ & _ & _
-      & HPC & Hcgp & Hcra & _ & _ & _ & _ & _
+      & Hna & _ & _ & Hcstk_frag
+      & HPC & Hcgp & Hcra & Hcs0 & _ & _ & _ & _
       & Hrmap & _ & _ & %Hrestored)".
-    destruct Hrestored as (Hrcgp & Hrcra & _ & _).
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    subst rcgp rcra.
+    apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
+    subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
-      as ["Hct0"; "Hct1"; "Hct2"; "Hca2"].
+    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2]
+      as ["Hctp"; "Hct0"; "Hct1"; "Hct2"; "Hca2"].
 
-    (* Blocks 3-5: assert that b is unchanged and halt *)
+    (* Blocks 5-7: assert that b is unchanged and return, the thread exits *)
     iApply (dle_assert_blocks_4_spec _ _ _ _ _ C_f with
-             "[$Hassert $Hna $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
-              $Hcgp_b $Himport_assert $Hcode_main]");
+             "[$Hassert $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hctp $Hct0 $Hct1 $Hct2
+              $Hca2 $Hcra $Hcs0 $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main]");
       [rewrite /dle_code_bounds; eauto 10|done..].
   Qed.
 

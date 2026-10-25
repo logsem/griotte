@@ -72,7 +72,7 @@ Section DROE_Main.
         mov cs0 cra; (* stores the return-to-switcher *)
         (* clear the arguments *)
         jalr cra ct0;
-        #".Ldroe_return";
+        #".Ldroe_ret_B";
         mov cra cs0; (* restores the return-to-switcher *)
         (* -- return from the call -- *)
         (* assert b == 42 *)
@@ -81,11 +81,11 @@ Section DROE_Main.
       ];
       #".Ldroe_assert" ::
       assert_asm ".Limport_assert" ct2 ca2; (* asserts that ( *ct0 = *ct1 ) *)
-      [ (* erase returned values from the call *)
-        #".Ldroe_halt";
+      [ (* erase returned values from the call, and return *)
+        #".Ldroe_return";
         mov ca0 0;
         mov ca1 0;
-        halt
+        ret
       ]
     ].
 

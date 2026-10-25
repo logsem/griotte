@@ -68,7 +68,7 @@ Section KVS_main_spec.
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
 
@@ -99,6 +99,7 @@ Section KVS_main_spec.
       PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
       csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+      cra ↦ᵣ thread_return_sentry ∗
       ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
 
       (* initial memory layout *)
@@ -131,7 +132,7 @@ Section KVS_main_spec.
       & #Hkvs_static & #Hkvs & #Hkvs_logical
       & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & #Himports_main & #Hcode_main & Hcgp_main & Hstatic_sealed_main
       & HLUKVS & Hkvs_1
       & Hworld_B
@@ -177,7 +178,7 @@ Section KVS_main_spec.
       with
       "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
-       $Hna $HPC $Hcgp $Hcsp $Hrmap
+       $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
        $Himport_sealed_user_key $Hcode_main
        $Hstatic_sealed_b $HLUKVS $Hkvs_1 $Hstk $Hcstk_frag]");
@@ -185,7 +186,7 @@ Section KVS_main_spec.
     iNext.
     iIntros (rmap_ret)
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & [%wcra Hcra]
-       & [%wcs0 Hcs0] & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
+       & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
        & Hstk & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & _ & _ & _ & _)".
     iEval (cbn [kvs_main_add_phase_instrs]) in "HPC".
@@ -263,7 +264,7 @@ Section KVS_main_spec.
     iApply (kvs_main_adversary_phase_spec W1 B
              (WCap true RW Global cgp_b cgp_e cgp_b)
              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
-             wcs0 (kvs_user_seal_key Global static_sealed_b)
+             thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
     all: [> exact Hstk_shadow | exact Hstk_heap
@@ -298,14 +299,14 @@ Section KVS_main_spec.
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
+    apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hrcs1;
       [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
-    subst rcgp rcra rcs1.
+    subst rcgp rcra rcs0 rcs1.
     iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".
-    iEval (cbn) in "Hcs0".
     iEval (cbn) in "Hcs1".
     assert ((a_call ^+ 1)%a =
       (pc_a ^+ length
@@ -318,7 +319,7 @@ Section KVS_main_spec.
     iApply (kvs_main_read_assert_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a) rcs0
+      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
       KVS_USER_KEY_MAIN b_assert e_assert a_flag
       stk_mem cstk0 with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical

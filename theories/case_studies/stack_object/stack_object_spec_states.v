@@ -13,7 +13,7 @@ From griotte Require Export case_study_spec_helpers.
     - [stack_object_spec_run_blocks_1]: blocks 0-2, fetch the imports and
       jump to the switcher, for the call to [C.adv],
     - [stack_object_spec_run_blocks_2]: block 2, from the return of the call
-      to [C.adv], halt,
+      to [C.adv], return: the thread exits,
     - [stack_object_spec_check_blocks_1]: blocks 3-5, save the callback
       and check that the stack object [in] is readable and does not overlap
       with the stack frame,

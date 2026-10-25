@@ -1,8 +1,13 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
+From griotte Require Import switcher_base.
 From griotte Require Import cmdc_spec_states.
 
-(** * Cmdc, block 10: halt *)
+(** * Cmdc, block 10: return
+
+    Block 10 restores the return address of the thread, the switcher's
+    return sentry saved in [cs0], and returns through it: the thread
+    exits. *)
 
 Section CMDC_Halt_Blocks_5.
   Context
@@ -15,23 +20,39 @@ Section CMDC_Halt_Blocks_5.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
   .
 
-  Lemma cmdc_halt_blocks_5_spec
-    (pc_b pc_e pc_a : Addr) (φ : language.val griotte_lang -> iProp Σ) :
+  Lemma cmdc_return_spec
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_halt")%a ∗
-    codefrag_pers pc_a cmdc_main_code ∗
-    ▷ WP Instr Halted {{ φ }}
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+    cstk.(cstk_frames) = [] ->
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
+    na_own cerise_nais ⊤ ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_return")%a ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    cra ↦ᵣ wcra ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct2 ↦ᵣ wct2 ∗
+    cstack_frag cstk ∗
+    codefrag_pers pc_a cmdc_main_code
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HsubBounds) "(HPC & Hcode_main & Hpost)".
+    iIntros (HsubBounds Hframes)
+      "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
+        & Hcstk & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code cmdc_main_code "Hcode_main".
 
-    (* Block 10: halt *)
-    focus_block (cmdc_block ".Lcmdc_halt") "Hcode_main" of cmdc_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
-    (* Halt *)
+    (* Block 10: return *)
+    focus_block (cmdc_block ".Lcmdc_return") "Hcode_main" of cmdc_main_blocks at pc_a
+      as a_ret Ha_ret "Hcode" "Hcont".
+    (* Mov cra cs0 *)
     iInstr "Hcode".
-    iApply "Hpost".
+    (* Jalr cnull cra *)
+    iInstr "Hcode".
+    iEval (rewrite thread_return_sentry_pc) in "HPC".
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
   Qed.
 
 End CMDC_Halt_Blocks_5.

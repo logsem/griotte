@@ -5,8 +5,9 @@ From griotte Require Import dle_spec_states.
 (** * Deep locality, blocks 1-3: first call to the adversary
 
     Blocks 1 and 2 fetch the entry point of the switcher and the entry point
-    of the adversary from the imports. Block 3 saves them in [cs0] and
-    [cs1], and jumps to the switcher. The group ends at the entry point of
+    of the adversary from the imports. Block 3 saves the return address of
+    the thread in [cs0] and the entry point of the adversary in [cs1], and
+    jumps to the switcher. The group ends at the entry point of
     the switcher, with the return address of the first call in [cra]. *)
 
 Section DLE_Share_Blocks_2.
@@ -35,7 +36,7 @@ Section DLE_Share_Blocks_2.
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
         ct0 ↦ᵣ dle_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ dle_switcher_entry ∗
+        cs0 ↦ᵣ wcra ∗
         cs1 ↦ᵣ WSealed ot_switcher C_f ∗
         dle_static_mem pc_b pc_a C_f
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
@@ -70,10 +71,11 @@ Section DLE_Share_Blocks_2.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 3: save the entry points and call the adversary *)
+    (* Block 3: save the return address and the entry point, and call the
+       adversary *)
     focus_block (dle_block ".Ldle_call_B") "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* Mov cs0 ct0 *)
+    (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Mov cs1 ct1 *)
     iInstr "Hcode".

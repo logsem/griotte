@@ -1,13 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
-From griotte Require Import error_handling_spec_states.
+From griotte Require Import switcher_base.
+From griotte Require Import error_handling_spec_states error_handling_spec_main_blocks_3.
 
 (** * [main], blocks 7-14: the first two asserts, and the call to
     [stats_read] with the untagged capability of [x]
 
-    From the return of the first call to [stats_read], block 7 halts when
-    the call returned [ENOTENOUGHTRUSTEDSTACK] (the trusted stack is
-    exhausted), and block 8 asserts that it returned [X_INIT]
+    From the return of the first call to [stats_read], block 7 returns
+    ([main_return_spec]) when the call returned [ENOTENOUGHTRUSTEDSTACK]
+    (the trusted stack is exhausted), and block 8 asserts that it returned [X_INIT]
     ([main_check_1_spec]). Block 9 puts the capability of [x] without its
     tag in [ca0], blocks 10 and 11 fetch the entry points of the switcher
     and of [stats_read], and block 12 jumps to the switcher
@@ -27,19 +28,25 @@ Section Error_Handling_Main_Blocks_2.
   .
 
   Lemma main_check_1_spec
-    (pc_b pc_e pc_a : Addr) (v : Z)
-    (wct0 wct1 wct2 wca2 wcra : LWord) :
+    (pc_b pc_e pc_a : Addr) (v : Z) (cstk : CSTK)
+    (wctp wct0 wct1 wct2 wca2 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
+    cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
     ca0 ↦ᵣ WInt v ∗
+    ctp ↦ᵣ wctp ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
     cra ↦ᵣ wcra ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    cstack_frag cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own cerise_nais ⊤ ∗
@@ -50,28 +57,36 @@ Section Error_Handling_Main_Blocks_2.
         ct2 ↦ᵣ WInt 0 ∗
         ca2 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
+        ctp ↦ᵣ wctp ∗
+        cs0 ↦ᵣ thread_return_sentry ∗
+        cstack_frag cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hv)
-      "(#Hassert & Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-      & #Himport_assert & #Hcode_main & Hpost)".
+    iIntros (Hbounds Hv Hframes)
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hca0 & Hctp & Hct0 & Hct1
+      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & #Himport_assert & #Hcode_main & Hpost)".
+    pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
     rewrite /main_assert_entry.
 
-    (* Block 7: halt on trusted-stack exhaustion *)
+    (* Block 7: return on trusted-stack exhaustion *)
     focus_block (main_block ".Lmain_ret_read_1") "Hcode_main" of error_handling_main_blocks
       at pc_a as a_check Ha_check "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     destruct Hv as [-> | ->].
     { (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
       iInstr "Hcode".
-      (* Halt *)
+      (* Jmp .Lmain_return *)
       iInstr "Hcode".
-      wp_end; iIntros (_); iFrame "Hna". }
+      { jump_to (pc_a ^+ main_label_offset ".Lmain_return")%a. }
+      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iApply (main_return_spec with
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+                 $Hcstk $Hcode_main]"); [exact Hbounds | exact Hframes]. }
     (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
     iInstr "Hcode".
     (* Mov ct0 ca0 *)
@@ -91,7 +106,7 @@ Section Error_Handling_Main_Blocks_2.
     { apply withinBounds_true_iff; offsets_compute; solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & _ & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_assert ^+ length (assert_instrs (-18) ct2 ca2))%a =
+    assert ((a_assert ^+ length (assert_instrs (-19) ct2 ca2))%a =
               (pc_a ^+ main_label_offset ".Lmain_arg_2")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
@@ -179,19 +194,25 @@ Section Error_Handling_Main_Blocks_2.
   Qed.
 
   Lemma main_check_2_spec
-    (pc_b pc_e pc_a : Addr) (v : Z)
-    (wct0 wct1 wct2 wca2 wcra : LWord) :
+    (pc_b pc_e pc_a : Addr) (v : Z) (cstk : CSTK)
+    (wctp wct0 wct1 wct2 wca2 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = ECOMPARTMENTFAIL ->
+    cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
     na_own cerise_nais ⊤ ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_2")%a ∗
     ca0 ↦ᵣ WInt v ∗
+    ctp ↦ᵣ wctp ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
     ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
     cra ↦ᵣ wcra ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    cstack_frag cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own cerise_nais ⊤ ∗
@@ -202,28 +223,36 @@ Section Error_Handling_Main_Blocks_2.
         ct2 ↦ᵣ WInt 0 ∗
         ca2 ↦ᵣ WInt 0 ∗
         cra ↦ᵣ wcra ∗
+        ctp ↦ᵣ wctp ∗
+        cs0 ↦ᵣ thread_return_sentry ∗
+        cstack_frag cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hv)
-      "(#Hassert & Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-      & #Himport_assert & #Hcode_main & Hpost)".
+    iIntros (Hbounds Hv Hframes)
+      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hca0 & Hctp & Hct0 & Hct1
+      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & #Himport_assert & #Hcode_main & Hpost)".
+    pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
     rewrite /main_assert_entry.
 
-    (* Block 13: halt on trusted-stack exhaustion *)
+    (* Block 13: return on trusted-stack exhaustion *)
     focus_block (main_block ".Lmain_ret_read_2") "Hcode_main" of error_handling_main_blocks
       at pc_a as a_check Ha_check "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     destruct Hv as [-> | ->].
     { (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
       iInstr "Hcode".
-      (* Halt *)
+      (* Jmp .Lmain_return *)
       iInstr "Hcode".
-      wp_end; iIntros (_); iFrame "Hna". }
+      { jump_to (pc_a ^+ main_label_offset ".Lmain_return")%a. }
+      subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iApply (main_return_spec with
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+                 $Hcstk $Hcode_main]"); [exact Hbounds | exact Hframes]. }
     (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
     iInstr "Hcode".
     (* Mov ct0 ca0 *)
@@ -243,7 +272,7 @@ Section Error_Handling_Main_Blocks_2.
     { apply withinBounds_true_iff; offsets_compute; solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & _ & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_assert ^+ length (assert_instrs (-35) ct2 ca2))%a =
+    assert ((a_assert ^+ length (assert_instrs (-36) ct2 ca2))%a =
               (pc_a ^+ main_label_offset ".Lmain_arg_3")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".

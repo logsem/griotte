@@ -8,7 +8,56 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 
 (** * Segment (e): blocks 21-23
 
-    Assert that [p] still holds [0], and halt. *)
+    Assert that [p] still holds [0], and return: the thread exits. Block 23,
+    the return, is also reached from the failed result checks of the
+    segments (b) and (d) ([hts_return_spec]). *)
+
+Section HTS_Return.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {Cname : CmptNameG}
+    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
+  .
+
+  (** Block 23: return through the switcher's return sentry, saved in
+      [cs0]: the thread exits. *)
+  Lemma hts_return_spec
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    cstk.(cstk_frames) = [] ->
+    na_inv cerise_nais Nswitcher switcher_inv ∗
+    switcher_static ∗
+    na_own cerise_nais ⊤ ∗
+    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_return")%a ∗
+    cs0 ↦ᵣ thread_return_sentry ∗
+    cra ↦ᵣ wcra ∗
+    ctp ↦ᵣ wctp ∗
+    ct0 ↦ᵣ wct0 ∗
+    ct2 ↦ᵣ wct2 ∗
+    cstack_frag cstk ∗
+    codefrag_pers pc_a hts_main_code
+    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+  Proof.
+    iIntros (HsubBounds Hframes)
+      "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
+        & Hcstk & Hcode_main)".
+    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
+    unfold_code hts_main_code "Hcode_main".
+    focus_block (hts_block ".Lhts_return") "Hcode_main" of hts_main_blocks at pc_a
+      as a_ret Ha_ret "Hcode" "Hcont".
+    (* Mov cra cs0 *)
+    iInstr "Hcode".
+    (* Jalr cnull cra *)
+    iInstr "Hcode".
+    iEval (rewrite thread_return_sentry_pc) in "HPC".
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+  Qed.
+End HTS_Return.
 
 Section HTS_Spec_Assert.
   Context
@@ -31,6 +80,7 @@ Section HTS_Spec_Assert.
     csp_b csp_e C_f owner_a cstk).
 
   Lemma hts_spec_assert :
+    cstk.(cstk_frames) = [] ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow cgp_b cgp_e ->
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
@@ -40,11 +90,11 @@ Section HTS_Spec_Assert.
     adv2_ret
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds Himports_contiguous)
+    iIntros (Hframes Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds Himports_contiguous)
       "(#Hctx & Hret)".
-    iDestruct "Hctx" as "(#Hassert & _)".
+    iDestruct "Hctx" as "(#Hassert & _ & _ & #Hswitcher & #Hswitcher_static & _)".
     iDestruct "Hret" as "(Hframe & Hregs)".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & _ & _ & _
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0 & _ & Hcstk
       & Himports & Hcode_main & Hp & _)".
     iDestruct "Himports" as "(_ & Himport_assert & _)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
@@ -69,8 +119,8 @@ Section HTS_Spec_Assert.
     (* Block 22: fetch and call the assertion service. *)
     focus_block (hts_block ".Lhts_assert") "Hcode_main" of hts_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iExtractList "Hrmap" [ct2;ca2] as
-      ["[Hct2 _]";"[Hca2 _]"].
+    iExtractList "Hrmap" [ctp;ct2;ca2] as
+      ["[Hctp _]";"[Hct2 _]";"[Hca2 _]"].
     iApply (assert_success_spec 1 with
       "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1
         $Hcra $Hcode $Himport_assert]"); auto; try (by intros ?).
@@ -80,11 +130,12 @@ Section HTS_Spec_Assert.
       & Hct1 & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 23: halt with the assertion service token restored. *)
-    focus_block (hts_block ".Lhts_halt") "Hcode_main" of hts_main_blocks at pc_a as a_halt Ha_halt "Hcode" "Hcont".
-    iHide "Hcont" as hcont.
-    (* Halt. *)
-    iInstr "Hcode".
-    wp_end; iIntros "_"; iFrame.
+    (* Block 23: return, the thread exits *)
+    assert ((a_assert ^+ length (assert_instrs (-47) ct2 ca2))%a =
+              (pc_a ^+ hts_label_offset ".Lhts_return")%a) as ->
+      by (offsets_compute; solve_addr).
+    iApply (hts_return_spec with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+               $Hcstk $Hcode_main]"); [done | done].
   Qed.
 End HTS_Spec_Assert.

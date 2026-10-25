@@ -22,12 +22,13 @@ Section SO_Run_Blocks_1.
 
   Lemma so_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     ct0 ↦ᵣ wct0 ∗
     ct1 ↦ᵣ wct1 ∗
+    cs0 ↦ᵣ wcs0 ∗
     cra ↦ᵣ wcra ∗
     pc_b ↦ₐ□ so_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
@@ -35,7 +36,9 @@ Section SO_Run_Blocks_1.
     ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ct0 ↦ᵣ so_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_halt")%a ∗
+        cs0 ↦ᵣ wcra ∗
+        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+          (pc_a ^+ so_label_offset ".Lso_run_return")%a ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a so_main_code
@@ -43,7 +46,7 @@ Section SO_Run_Blocks_1.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
-      "(HPC & Hct0 & Hct1 & Hcra & Himport_switcher & Himport_C_f
+      "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & Himport_switcher & Himport_C_f
       & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
@@ -73,13 +76,15 @@ Section SO_Run_Blocks_1.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 2: jump to the switcher *)
+    (* Block 2: save the return address and jump to the switcher *)
     focus_block (so_block ".Lso_run_call") "Hcode_main" of so_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ so_label_offset ".Lso_run_halt")%a) as ->
+    assert ((a_call ^+ 2)%a = (pc_a ^+ so_label_offset ".Lso_run_return")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
