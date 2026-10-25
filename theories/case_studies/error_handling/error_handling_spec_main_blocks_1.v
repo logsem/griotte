@@ -6,10 +6,11 @@ From griotte Require Import error_handling_spec_states.
     capability of [x] one past its end
 
     Blocks 0 and 1 fetch the entry point of the switcher in [ctp] and the
-    entry point of [adv] in [ct1], and block 2 jumps to the switcher
-    ([main_call_adv_spec]). From the return of [adv], block 3 puts the
-    capability of [x], with its address one past its end, in [ca0], blocks 4 and 5 fetch the
-    entry points of the switcher and of [stats_read], and block 6 jumps to
+    entry point of [adv] in [ct1], and block 2 saves the return address of
+    the thread in [cs0] and jumps to the switcher ([main_call_adv_spec]).
+    From the return of [adv], block 3 puts the capability of [x], with its
+    address one past its end, in [ca0], blocks 4 and 5 fetch the entry
+    points of the switcher and of [stats_read], and block 6 jumps to
     the switcher ([main_call_read_1_spec]). Each group ends at the entry
     point of the switcher, with the return address of the call in [cra]. *)
 
@@ -27,13 +28,14 @@ Section Error_Handling_Main_Blocks_1.
 
   Lemma main_call_adv_spec
     (pc_b pc_e pc_a : Addr) (adv_f : Sealable)
-    (wctp wct1 wcra : LWord) :
+    (wctp wct1 wcra wcs0 : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ wctp ∗
     ct1 ↦ᵣ wct1 ∗
     cra ↦ᵣ wcra ∗
+    cs0 ↦ᵣ wcs0 ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f ∗
     codefrag_pers pc_a error_handling_main_code ∗
@@ -42,12 +44,13 @@ Section Error_Handling_Main_Blocks_1.
         ct1 ↦ᵣ WSealed ot_switcher adv_f ∗
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
+        cs0 ↦ᵣ wcra ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
-      "(HPC & Hctp & Hct1 & Hcra & #Himport_switcher & #Himport_adv & #Hcode_main & Hpost)".
+      "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
@@ -78,14 +81,16 @@ Section Error_Handling_Main_Blocks_1.
     iEval (cbn) in "Hct1".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
-    (* Block 2: jump to the switcher *)
+    (* Block 2: save the return address of the thread and jump to the switcher *)
     focus_block (main_block ".Lmain_call_adv") "Hcode_main" of error_handling_main_blocks
       at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
     (* Jalr cra ctp *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
+    assert ((a_call ^+ 2)%a = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

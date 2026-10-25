@@ -229,7 +229,7 @@ Section error_handling_obligations.
                   (statslayout := statsl) (C := C)
                   _ _ _ _ _ _ _ _ adv_f _ [] [] _
                  with "[$Hassert $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
-                        $Hna $HPC $Hcgp $Hcsp $Hregs $Hmain_imports $Hmain_code $Hmain_data
+                        $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C]")
       as "Hspec".
     all: [> exact Hstats_switcher

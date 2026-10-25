@@ -176,8 +176,8 @@ Qed.
 
 (** ** The run
 
-    [error_handling_demo_state] runs to [Halted], at the final [halt] of
-    [main], and [error_handling_adequacy] applies to it: the flag of the
+    [error_handling_demo_state] runs to [Halted], at the switcher's thread
+    exit after [main] returns, and [error_handling_adequacy] applies to it: the flag of the
     assert library is still zero. [error_handling_demo_adv_results] shows
     the results of [adv]'s last two calls. *)
 Theorem error_handling_runs_and_gracefully_halts :

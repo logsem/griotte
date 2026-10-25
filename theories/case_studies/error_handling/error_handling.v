@@ -291,6 +291,7 @@ Section Main.
       fetch_asm ".Limport_adv" ct1;
       (* 2: adv() *)
       [ #".Lmain_call_adv";
+        mov cs0 cra; (* cs0 -> return-to-switcher *)
         jalr cra ctp ];
       (* 3: the capability of x, one past its end *)
       [ #".Lmain_ret_adv";
@@ -304,10 +305,10 @@ Section Main.
       (* 6: stats_read(&x + 1) *)
       [ #".Lmain_call_read_1";
         jalr cra ctp ];
-      (* 7: halt on trusted-stack exhaustion; prepare the assert *)
+      (* 7: return on trusted-stack exhaustion; prepare the assert *)
       [ #".Lmain_ret_read_1";
         jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
-        halt;
+        jmp ".Lmain_return";
         mov ct0 ca0;
         mov ct1 X_INIT ];
       (* 8: assert (ret == X_INIT), that is ( ct0 = ct1 ) *)
@@ -325,10 +326,10 @@ Section Main.
       (* 12: stats_read(untagged &x) *)
       [ #".Lmain_call_read_2";
         jalr cra ctp ];
-      (* 13: halt on trusted-stack exhaustion; prepare the assert *)
+      (* 13: return on trusted-stack exhaustion; prepare the assert *)
       [ #".Lmain_ret_read_2";
         jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
-        halt;
+        jmp ".Lmain_return";
         mov ct0 ca0;
         mov ct1 ECOMPARTMENTFAIL ];
       (* 14: assert (ret == ECOMPARTMENTFAIL), that is ( ct0 = ct1 ) *)
@@ -346,18 +347,19 @@ Section Main.
       (* 18: stats_read(&x) *)
       [ #".Lmain_call_read_3";
         jalr cra ctp ];
-      (* 19: halt on trusted-stack exhaustion; prepare the assert *)
+      (* 19: return on trusted-stack exhaustion; prepare the assert *)
       [ #".Lmain_ret_read_3";
         jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
-        halt;
+        jmp ".Lmain_return";
         mov ct0 ca0;
         mov ct1 X_INIT ];
       (* 20: assert (ret == X_INIT), that is ( ct0 = ct1 ) *)
       #".Lmain_assert_3" ::
       assert_asm ".Limport_assert" ct2 ca2;
-      (* 21 *)
-      [ #".Lmain_halt";
-        halt ]
+      (* 21: return, the thread exits *)
+      [ #".Lmain_return";
+        mov cra cs0;
+        ret ]
     ].
 
   Definition error_handling_main_assembled :=
@@ -395,7 +397,7 @@ Section Main.
     error_handling_main_instrs_n 14.
 
   (** Blocks 15-21: the call to [stats_read] with the capability of [x],
-      its assert, and the halt. *)
+      its assert, and the return. *)
   Definition error_handling_main_read_3_phase_code : list Word :=
     error_handling_main_instrs_n 15 ++
     error_handling_main_instrs_n 16 ++

@@ -19,7 +19,7 @@ From griotte Require Export case_study_spec_helpers.
       the second result and its assert),
     - [error_handling_spec_main_blocks_3]: blocks 15-18 (the call to
       [stats_read] with the capability of [x]) and blocks 19-21 (the check
-      of the last result, its assert, and the halt),
+      of the last result, its assert, and the return),
     - [error_handling_spec_read_blocks]: the blocks of [stats_read],
     - [error_handling_spec_handler_blocks]: the blocks of the error handler
       of [stats].
