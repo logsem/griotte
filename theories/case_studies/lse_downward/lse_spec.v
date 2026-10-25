@@ -62,7 +62,7 @@ Section LSE.
     is_heap_address pc_b = false ->
     (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
 
@@ -89,6 +89,7 @@ Section LSE.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -112,7 +113,7 @@ Section LSE.
          imports and jump to the switcher;
        - [switcher_call_args_0] and [switcher_cc_specification]: call to
          [C_f];
-       - [lse_run_blocks_2_spec]: block 3, halt. *)
+       - [lse_run_return_spec]: block 3, return: the thread exits. *)
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
@@ -127,7 +128,7 @@ Section LSE.
       & #Hlse_exp_tbl_CGP
       & #Hlse_exp_tbl_awkward
       & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Hworld_interp_C
       & HK
       & Hcstk_frag
@@ -144,8 +145,8 @@ Section LSE.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_mmio Hstk_heap]; first done.
-    iExtractList "Hrmap" [cra;ct0;ct1;cs0;cs1]
-      as ["Hcra"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [ct0;ct1;cs0;cs1]
+      as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
     (* Revoke the world, to get the stack frame *)
     iMod (lse_world_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
@@ -155,9 +156,9 @@ Section LSE.
     (* Blocks 0-3: set [a] to [2], fetch the imports and jump to the
        switcher *)
     iApply (lse_run_blocks_1_spec with
-             "[- $HPC $Hcgp $Hct0 $Hct1 $Hcra $Hcgp_b
+             "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|done|].
-    iNext; iIntros (mie) "(HPC & Hcgp & Hct0 & Hct1 & Hcra & Hcgp_b
+    iNext; iIntros (mie) "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
                     & _ & _ & _)".
     iMod ("Hlse_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hct0"].
@@ -198,22 +199,25 @@ Section LSE.
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
     iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1)
-      "(_ & _ & _ & _ & _ & _ & _ & _
+      "(_ & _ & _ & _ & _ & %Hrmap'_dom & _ & _
       & Hna & _
       & _
-      & _
+      & Hcstk_frag
       & HPC & Hrest)".
-    iDestruct "Hrest" as "(_ & _ & _ & _ & _ & _ & _ & _ & _ & _ & %Hrestored)".
-    destruct Hrestored as (_ & Hrcra & _ & _).
+    iDestruct "Hrest" as "(_ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored)".
+    destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    subst rcra.
+    apply load_heap_nonheap in Hrcs0; last exact thread_return_sentry_not_heap.
+    subst rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp"; "Hct0"; "Hct2"].
 
-    (* Block 3: halt *)
-    iApply (lse_run_blocks_2_spec with "[- $HPC $Hcode_main]"); first done.
-    iNext; iIntros "_ !>".
-    iExact "Hna".
+    (* Block 3: return, the thread exits *)
+    iApply (lse_run_return_spec with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+               $Hcstk_frag $Hcode_main]"); [done | done].
   Qed.
 
 End LSE.

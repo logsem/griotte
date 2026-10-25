@@ -61,7 +61,7 @@ Section lse_obligations.
     assert (image.cmpt_imports (cmpt_of img "main") = @lse_main_imports swl asl C_f)
       as main_imports'.
     { rewrite main_imports /lse_main_imports. done. }
-    assert (WInt (encode_entry_point InterruptEnabled 0%nat 1%nat 10%nat) = @lse_exp_tbl_entry_f _ swl asl)
+    assert (WInt (encode_entry_point InterruptEnabled 0%nat 1%nat 12%nat) = @lse_exp_tbl_entry_f _ swl asl)
       as Hentry_f_word.
     { reflexivity. }
 
@@ -183,7 +183,7 @@ Section lse_obligations.
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
                          $Hna
                          $Hworld_C
-                         $HPC $Hcgp $Hcsp $Hregs
+                         $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
                          $Hseal_switcher

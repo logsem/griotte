@@ -12,7 +12,7 @@ From griotte Require Export case_study_spec_helpers.
     - [lse_spec_run_blocks_1]: blocks 0-3, store [2] in [a], fetch the
       imports and jump to the switcher, for the call to [C_f],
     - [lse_spec_run_blocks_2]: block 3, from the return of the call to
-      [C_f], halt,
+      [C_f], return: the thread exits,
     - [lse_spec_f_blocks_1]: block 4, push the capability of [a] on the
       stack and load [a],
     - [lse_spec_f_blocks_2]: blocks 5-6, assert that [a] contains [2], and
