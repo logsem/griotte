@@ -64,7 +64,9 @@ Section helpers_switcher_adequacy.
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
     { destruct cstk as [ef [|frm frms] ]; first done.
-      rewrite /top_export_tbl /= in Htop_tbl. rewrite /top_cmpt_untrusted /= Htop_tbl.
+      rewrite /top_export_tbl /= in Htop_tbl.
+      rewrite /top_cmpt_untrusted /top_tframe /= Htop_tbl.
+      iSplit; last done.
       iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
       iSplit; last (iPureIntro; by apply tf_export_tbl_ok_nonzero).
       iIntros "!>" (W'' Hrelated').

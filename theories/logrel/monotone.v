@@ -607,6 +607,28 @@ Section monotone.
     intros _. by apply heap_cap_valid_disjoint.
   Qed.
 
+  (** [top_cmpt_untrusted] is monotone along public transitions: the table
+      facts hold in every private future world, and the thread's stack, at
+      depth 0, lies outside the heap. *)
+  Lemma top_cmpt_untrusted_mono_pub W W' C cstk :
+    related_sts_pub_world W W' →
+    top_cmpt_untrusted interp W C cstk -∗ top_cmpt_untrusted interp W' C cstk.
+  Proof.
+    iIntros (Hrelated) "[Htbl Hstk]".
+    iSplitL "Htbl".
+    { iDestruct "Htbl" as (pcc cgp eh ehs) "(Hpcc & Hcgp & Heh & Hehs & #Hinterp & %Htbl_set)".
+      iExists pcc, cgp, eh, ehs. iFrame "Hpcc Hcgp Heh Hehs". iSplit; last done.
+      iIntros "!>" (W'' Hrelated').
+      iApply "Hinterp". iPureIntro.
+      eapply related_sts_priv_trans_world; last exact Hrelated'.
+      by apply related_sts_pub_priv_world. }
+    destruct (cstk_frames cstk); last done.
+    iDestruct "Hstk" as (p g b e a Hcsp Hheap) "#Hcsp".
+    iExists p, g, b, e, a. do 2 (iSplit; first done).
+    rewrite Hcsp. iModIntro.
+    by iApply (interp_monotone_cap_nonheap with "Hcsp").
+  Qed.
+
 Lemma interp_monotone_continuation
   (W W' : WORLD) (C : CmptName)
   (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :

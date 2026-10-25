@@ -206,11 +206,35 @@ Section Switcher_Exception.
   Lemma top_cmpt_untrusted_header (W : WORLD) (C : CmptName) (cstk : CSTK) :
     top_cmpt_untrusted interp W C cstk -∗ handler_header cstk.
   Proof.
-    destruct cstk as [ef [|frm frms] ]; first by iIntros "[]".
-    iIntros "(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & #Heh & #Hehs & _ & %Htbl_set)".
+    iIntros "[(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & #Heh & #Hehs & _ & %Htbl_set) _]".
     iSplit; first done.
     iExists eh, ehs. iFrame "Heh Hehs".
     iIntros "_". iExists pcc, cgp. iFrame "Hpcc Hcgp".
+  Qed.
+
+  (** The PCC and the CGP of the table of an untrusted topmost
+      compartment, safe in the current world. *)
+  Lemma top_cmpt_untrusted_pcc_cgp (W : WORLD) (C : CmptName) (cstk : CSTK) :
+    top_cmpt_untrusted interp W C cstk -∗
+    ∃ wpcc wcgp : LWord,
+      top_export_tbl cstk ↦ₐ□ wpcc ∗
+      (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
+      interp W C wpcc ∗ interp W C wcgp.
+  Proof.
+    iIntros "[(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & _ & _ & #Hsafe & _) _]".
+    iExists pcc, cgp. iFrame "Hpcc Hcgp".
+    iApply "Hsafe". iPureIntro. apply related_sts_priv_refl_world.
+  Qed.
+
+  (** At depth 0, the stackless handler's stack is the thread's stack,
+      which the untrusted entry compartment holds. *)
+  Lemma top_cmpt_untrusted_stackless_csp (W : WORLD) (C : CmptName) (cstk : CSTK) :
+    cstk.(cstk_frames) = [] →
+    top_cmpt_untrusted interp W C cstk -∗ interp W C (stackless_csp cstk).
+  Proof.
+    destruct cstk as [ef frms]; cbn. intros ->.
+    rewrite /stackless_csp /=.
+    iIntros "[_ (%p & %g & %b & %e & %a & _ & _ & #$)]".
   Qed.
 
   (** The handler's PC is safe when the table's PCC is: [interp] does not
@@ -346,15 +370,8 @@ Section Switcher_Exception.
     iIntros (Hfull Hnz Hframe)
       "#Hinv_switcher #Hstatic #Htrap #Hregs #Htop HPC Hrmap Hworld_interp Hcont Hna Hcstk".
     (* The PCC of the topmost table is safe *)
-    iAssert (∃ wpcc, top_export_tbl cstk ↦ₐ□ wpcc ∗ interp W C wpcc)%I
-      as (wpcc) "[#Hpcc #Hpcc_interp]".
-    { destruct (cstk_frames cstk) as [|frm frms] eqn:Hframes.
-      { by rewrite /top_cmpt_untrusted Hframes. }
-      iEval (rewrite /top_cmpt_untrusted Hframes) in "Htop".
-      iDestruct "Htop" as (pcc cgp eh ehs) "(Hpcc' & _ & _ & _ & #Hsafe & _)".
-      iExists pcc. rewrite /top_export_tbl /top_tframe Hframes. iFrame "Hpcc'".
-      iDestruct ("Hsafe" $! W with "[%]") as "[$ _]".
-      apply related_sts_priv_refl_world. }
+    iDestruct (top_cmpt_untrusted_pcc_cgp with "Htop")
+      as (wpcc wcgp) "(#Hpcc & _ & #Hpcc_interp & _)".
     iDestruct (top_cmpt_untrusted_header with "Htop") as "[%Htbl_set _]".
     iAssert (interp W C (rmap !!! csp)) as "#Hcsp".
     { iApply "Hregs". iPureIntro.
@@ -477,15 +494,12 @@ Section Switcher_Exception.
     iIntros (Hframe Hstack Hentry Hinv_regs)
       "#Hinv_switcher #Hstatic #Htrap #Htop #Hpcc #Hcgp #Hcsp_fault HPC Hregs Hworld_interp
        Hcont Hcstk Hna".
-    destruct (cstk_frames cstk) as [|frm frms] eqn:Hframes.
-    { by rewrite /top_cmpt_untrusted Hframes. }
     iAssert (interp W C wpcc ∗ interp W C wcgp)%I as "[#Hpcc_interp #Hcgp_interp]".
-    { iEval (rewrite /top_cmpt_untrusted Hframes) in "Htop".
-      iDestruct "Htop" as (pcc cgp eh ehs') "(Hpcc' & Hcgp' & _ & _ & #Hsafe & _)".
-      rewrite /top_export_tbl /top_tframe Hframes.
+    { iDestruct (top_cmpt_untrusted_pcc_cgp with "Htop")
+        as (pcc cgp) "(Hpcc' & Hcgp' & Hpcc_i & Hcgp_i)".
       iDestruct (pointsto_agree with "Hpcc Hpcc'") as %->.
       iDestruct (pointsto_agree with "Hcgp Hcgp'") as %->.
-      iApply "Hsafe". iPureIntro. apply related_sts_priv_refl_world. }
+      iFrame "Hpcc_i Hcgp_i". }
     iDestruct (interp_handler_word with "Hpcc_interp") as "#Hwpc"; first exact Hentry.
     destruct Hinv_regs as (Hfull & [mie Hcra] & Hcgp_r & Hkind & Hzero).
     (* The stack and the arguments *)
@@ -506,8 +520,13 @@ Section Switcher_Exception.
         iFrame "Hcont Hcsp_i Ha0_i".
         iSplit; iApply interp_int.
       - destruct Hkind as (Hcsp_r & Hca0 & Hca1 & Hca2).
-        iDestruct (interp_cont_stackless_csp with "Hcont") as "[Hcont #Hcsp_i]";
-          [done | done | by rewrite Hframes |].
+        iAssert (interp_continuation cstk Ws Cs ∗ interp W C (stackless_csp cstk))%I
+          with "[Hcont]" as "[Hcont #Hcsp_i]".
+        { destruct (cstk_frames cstk) as [|frm frms] eqn:Hframes.
+          - (* depth 0: the thread's stack, held by the entry compartment *)
+            iFrame "Hcont". by iApply top_cmpt_untrusted_stackless_csp.
+          - iApply (interp_cont_stackless_csp with "Hcont");
+              [done | done | by rewrite Hframes]. }
         iExists _, _, _, _.
         do 4 (iSplit; first done).
         iFrame "Hcont Hcsp_i".
