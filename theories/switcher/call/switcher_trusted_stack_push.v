@@ -177,10 +177,6 @@ Section Switcher_Trusted_Stack_Push.
     iDestruct (region_pointsto_cons _
                  ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a
                  with "Htstk") as "[Hframe_error_count Htstk]"; [tstack_unfold; solve_addr..|].
-    assert (((a_tstk ^+ TrustedStackFrame_size) + TrustedStackFrame_offset_calleeExportTable)%a
-            = Some ((a_tstk ^+ TrustedStackFrame_size)
-                    ^+ TrustedStackFrame_offset_calleeExportTable)%a)
-      as Ha_export_table by (tstack_unfold; solve_addr).
     assert (((a_tstk ^+ TrustedStackFrame_size) + TrustedStackFrame_offset_errorHandlerCount)%a
             = Some ((a_tstk ^+ TrustedStackFrame_size)
                     ^+ TrustedStackFrame_offset_errorHandlerCount)%a)
@@ -190,10 +186,6 @@ Section Switcher_Trusted_Stack_Push.
     { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     (* Store ctp 0 TrustedStackFrame_offset_errorHandlerCount *)
-    iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { rewrite /withinBounds; tstack_unfold; solve_addr. }
-    (* Store ctp 0 TrustedStackFrame_offset_calleeExportTable *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }

@@ -214,8 +214,7 @@ Section Switcher.
         store_imm ctp csp TrustedStackFrame_offset_csp;
         (* csh zero, TrustedStackFrame_offset_errorHandlerCount(ctp) *)
         store_imm ctp 0 TrustedStackFrame_offset_errorHandlerCount;
-        (* csc cnull, TrustedStackFrame_offset_calleeExportTable(ctp) *)
-        store_imm ctp 0 TrustedStackFrame_offset_calleeExportTable;
+        (* [deviation] no csc cnull, TrustedStackFrame_offset_calleeExportTable(ctp): dead store *)
         (* clhu s1, TrustedStack_offset_frameoffset(ct2) *)
         load_imm cs1 ct2 TrustedStack_offset_frameoffset;
         (* addi s1, s1, TrustedStackFrame_size *)
