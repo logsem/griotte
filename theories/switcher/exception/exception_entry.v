@@ -181,7 +181,8 @@ Section Exception_Entry.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hca0 $Hct1]"
         as "(HPC & Hca0 & Hct1)".
       { reflexivity. }
-      { switcher_jump_label ".Lhandle_error". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
+          by switcher_addr_eq. }
       iApply ("Hpost" with "HPC Hca0 Hct1").
     - (* Jeq .Lhandle_error ca0 ct1 *)
       iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hca0 $Hct1]"
@@ -194,7 +195,8 @@ Section Exception_Entry.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct1 $Hca0]"
         as "(HPC & Hct1 & Hca0)".
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; destruct (HP_mcause _ Hcause); lia. }
-      { switcher_jump_label ".Lhandle_error". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
+          by switcher_addr_eq. }
       iApply ("Hpost" with "HPC Hca0 Hct1").
   Qed.
 

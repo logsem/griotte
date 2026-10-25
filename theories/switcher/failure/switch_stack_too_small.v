@@ -39,7 +39,8 @@ Section Switch_Stack_Too_Small.
     iInstr "Hcode".
     (* Jmp switcher_after_compartment_call *)
     iInstr "Hcode".
-    { switcher_jump_label "switcher_after_compartment_call". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call")%a
+        by switcher_addr_eq. }
     destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
     iApply "Hpost". iFrame "HPC Hca0 Hca1".
   Qed.

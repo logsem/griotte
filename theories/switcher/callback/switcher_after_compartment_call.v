@@ -212,7 +212,8 @@ Section Switcher_After_Compartment_Call.
     iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hct0]"
       as "(HPC & Hct2 & Hct0)".
     { cbn; apply Z.leb_le; lia. }
-    { switcher_jump_label ".Lcommon_defer_irqs_and_thread_exit". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_defer_irqs_and_thread_exit")%a
+        by switcher_addr_eq. }
     subst hpost.
     iApply "Hpost".
     iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset Hhazard".

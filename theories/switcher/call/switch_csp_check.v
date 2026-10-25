@@ -61,7 +61,8 @@ Section Switch_Csp_Check.
         as "(HPC & Hctp & Hct2)".
       { cbn [jcond_test get_a lw].
         apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hp0'; rewrite -Heq; reflexivity. }
-      { switcher_jump_label ".Lcommon_force_unwind". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iSplit.
@@ -84,7 +85,8 @@ Section Switch_Csp_Check.
         as "(HPC & Hctp & Hct2)".
       { cbn [jcond_test get_a lw].
         apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hg0'; rewrite -Heq; reflexivity. }
-      { switcher_jump_label ".Lcommon_force_unwind". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iSplit.

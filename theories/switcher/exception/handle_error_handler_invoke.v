@@ -129,7 +129,8 @@ Section Handle_Error_Handler_Invoke.
     destruct (nonZero wca0.(lw)) eqn:Hnz.
     - (* Jne .Lcommon_force_unwind ca0 0 *)
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
-      { switcher_jump_label ".Lcommon_force_unwind". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+          by switcher_addr_eq. }
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[//]"). iFrame "HPC Hca0".
     - (* Jne .Lcommon_force_unwind ca0 0 *)

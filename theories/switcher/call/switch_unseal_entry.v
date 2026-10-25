@@ -222,7 +222,8 @@ Section Switch_Unseal_Entry.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hctp]"
         as "(HPC & Hct2 & Hctp)".
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; lia. }
-      { switcher_jump_label ".Lswitch_stack_too_small". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_stack_too_small")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".

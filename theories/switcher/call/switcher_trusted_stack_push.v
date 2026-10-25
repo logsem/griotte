@@ -148,7 +148,8 @@ Section Switcher_Trusted_Stack_Push.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs0 $Hctp]"
         as "(HPC & Hcs0 & Hctp)".
       { cbn [jcond_test get_a lw]; apply Z.leb_le; lia. }
-      { switcher_jump_label ".Lswitch_trusted_stack_exhausted". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_trusted_stack_exhausted")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hframeoffset Htstk". }

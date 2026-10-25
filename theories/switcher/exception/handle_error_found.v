@@ -128,7 +128,8 @@ Section Handle_Error_Found.
     2: { (* Jeq .Lcommon_force_unwind cra 0 *)
          iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hcra]" as "(HPC & Hcra)".
          { reflexivity. }
-         { switcher_jump_label ".Lcommon_force_unwind". }
+         { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+             by switcher_addr_eq. }
          subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
@@ -144,7 +145,8 @@ Section Handle_Error_Found.
          iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcra $Hcs1]"
            as "(HPC & Hcra & Hcs1)".
          { cbn [jcond_test get_a lw]; apply Z.ltb_lt; rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL in Hmax; lia. }
-         { switcher_jump_label ".Lcommon_force_unwind". }
+         { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+             by switcher_addr_eq. }
          subst hpost.
          iDestruct "Hpost" as "[Hpost _]".
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
@@ -190,7 +192,8 @@ Section Handle_Error_Found.
     - (* Jeq .Lhandle_error_stack_setup ca0 0 *)
       iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
       { reflexivity. }
-      { switcher_jump_label ".Lhandle_error_stack_setup". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_stack_setup")%a
+          by switcher_addr_eq. }
       subst hpost.
       iDestruct "Hpost" as "(_ & _ & Hpost)".
       iApply ("Hpost" with "[//] [//]").
@@ -258,7 +261,8 @@ Section Handle_Error_Found.
     iInstr "Hcode".
     (* Jmp .Lhandle_error_handler_invoke *)
     iInstr "Hcode".
-    { switcher_jump_label ".Lhandle_error_handler_invoke". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_invoke")%a
+        by switcher_addr_eq. }
     iApply "Hpost". iFrame "HPC Hcsp Hct0 Hca0 Hca1 Hca2 Htok". by iApply "Hsave".
   Qed.
 

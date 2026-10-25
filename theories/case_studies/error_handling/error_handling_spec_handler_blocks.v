@@ -24,10 +24,6 @@ From griotte Require Import error_handling_spec_states.
     The specifications are stated over plain points-to: they hold no
     invariant and no token. *)
 
-(** The jump to the label [s] of [stats_asm], out of the focused block. *)
-Ltac stats_jump_label pc_b s :=
-  transitivity (Some (pc_b ^+ stats_label s)%a); [offsets_compute; solve_addr | reflexivity].
-
 Section Error_Handling_Handler_Blocks.
   Context
     {Σ:gFunctors}
@@ -102,7 +98,7 @@ Section Error_Handling_Handler_Blocks.
         by (apply negb_true_iff, Z.eqb_neq; done).
       (* Jne .Lstats_handler_unwind ca1 MCAUSE_CHERI *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca1 $Hca2 $Hcode_stats Hct0]"); last by iExists _.
@@ -117,7 +113,7 @@ Section Error_Handling_Handler_Blocks.
         by (apply negb_true_iff, Z.eqb_neq; done).
       (* Jne .Lstats_handler_unwind ct0 (cause_code_num BoundsViolation) *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca1 $Hca2 $Hcode_stats Hct0]"); last by iExists _.
@@ -135,7 +131,7 @@ Section Error_Handling_Handler_Blocks.
         by (apply Z.ltb_lt; done).
       (* Jlt .Lstats_handler_unwind ct0 TrustedStack_offset_cra *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca1 $Hca2 $Hcode_stats Hct0]"); last by iExists _.
@@ -149,7 +145,7 @@ Section Error_Handling_Handler_Blocks.
         by (apply Z.ltb_lt; done).
       (* Jlt .Lstats_handler_unwind TrustedStack_offset_ca5 ct0 *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca1 $Hca2 $Hcode_stats Hct0]"); last by iExists _.
@@ -254,7 +250,7 @@ Section Error_Handling_Handler_Blocks.
       assert ((e - b <=? 0)%Z = true) as Hjmp by (apply Z.leb_le; solve_addr).
       (* Jle .Lstats_handler_unwind ct0 0 *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca0 $Hcode_stats Hct0 Hct1 Hct2 Hctp Hes]");
@@ -294,7 +290,7 @@ Section Error_Handling_Handler_Blocks.
       assert ((b <? a16 + 16)%Z = true) as Hjmp by (apply Z.ltb_lt; done).
       (* Jlt .Lstats_handler_unwind ct0 ctp *)
       iInstr "Hcode".
-      { stats_jump_label pc_b ".Lstats_handler_unwind". }
+      { jump_label ".Lstats_handler_unwind" of stats_asm at pc_b. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[%] [$HPC $Hca0 $Hcode_stats Hct0 Hct1 Hct2 Hctp Hes]").
