@@ -4,16 +4,6 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base rules_Lea.
 
-(* TODO: move to machine_utils/theories/finz_lemmas.v *)
-(** Moving a [finz] by the difference to [n] gives [n], if it is in range. *)
-Lemma finz_incr_of_z {fb : Z} (f : finz.finz fb) (n : Z) :
-  finz.incr f (n - finz.to_z f) = finz.of_z n.
-Proof.
-  destruct (finz_of_z_spec fb n) as [(f' & -> & Hf') | [-> Hn]].
-  - apply finz_incr_Some_prove_spec. pose proof (finz_spec f'). lia.
-  - destruct (finz_incr_spec fb f (n - finz.to_z f)) as [(f' & _ & ?) | [-> _]]; [lia|done].
-Qed.
-
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ}.
