@@ -13,7 +13,7 @@ Inductive LAddr :=
 | LNonHeap (a : Addr)
 | LHeap (a : Addr) (ι : AId).
 
-Coercion LNonHeap : Addr >-> LAddr.
+#[warning="-uniform-inheritance"] Coercion LNonHeap : Addr >-> LAddr.
 
 (** The address of a region key. *)
 Definition laddr_addr (k : LAddr) : Addr :=
