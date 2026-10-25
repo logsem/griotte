@@ -1302,6 +1302,8 @@ Section ghost_init.
       apply mem_avoids_mmio_union; first apply mem_avoids_mmio_initial_heap.
       eapply mem_in_avoids_mmio; first exact Hmem_in.
       by apply img_wf_ranges_ok.
+    - (* The memory covers the heap. *)
+      repeat apply heap_mapped_union_l. apply heap_mapped_initial_heap.
     - by apply Hzero.
     - (* The executable words of the memory avoid the heap. *)
       apply mem_exec_ok_union;

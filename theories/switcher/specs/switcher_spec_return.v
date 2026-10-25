@@ -117,8 +117,8 @@ Section Switcher.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
                Hno_resume)
       "#Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
-    iApply (trap_safe_exception_entry ⊤ with "Hswitcher Hstatic");
-      [set_solver | set_solver |].
+    iApply (trap_safe_exception_entry mcause_ok ⊤ with "Hswitcher Hstatic");
+      [done | set_solver | set_solver |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp])".
     iModIntro.

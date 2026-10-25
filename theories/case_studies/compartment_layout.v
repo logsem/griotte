@@ -773,6 +773,13 @@ Section CmptLayout.
       by rewrite revoker_not_heap in Ha.
   Qed.
 
+  (** The initial heap memory covers the heap. *)
+  Lemma heap_mapped_initial_heap : heap_mapped initial_heap_memory.
+  Proof.
+    intros a Ha. rewrite /initial_heap_memory dom_gset_to_gmap.
+    by apply elem_of_heap_addresses.
+  Qed.
+
   (** ** Heap roots of the initial memory
 
       The words of an initial memory with heap authority are based on the

@@ -90,6 +90,7 @@ Section initial_rootedness.
     (∀ r w, reg !! r = Some w → word_rooted R w) →
     (∀ sr w, sreg !! sr = Some w → word_rooted R w) →
     mem_avoids_mmio m →
+    heap_mapped m →
     reg !! cnull = Some (WInt 0) →
     mem_exec_ok m →
     word_exec_ok pc →
@@ -102,7 +103,7 @@ Section initial_rootedness.
     (∃ z, sreg !! MTVAL = Some (WInt z)) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc
+    intros HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok Hreserved Hmtcc
       Hmtval.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
@@ -118,6 +119,7 @@ Section initial_rootedness.
     - intros r w b _ Hw. by eapply Hreg.
     - intros sr w b Hw. by eapply Hsreg.
     - exact Hmmio.
+    - exact Hheap.
     - intros w Hw. rewrite Hnull in Hw. by injection Hw as <-.
     - exact Hmx.
     - exact Hpcx.

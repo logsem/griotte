@@ -106,6 +106,31 @@ Section mem_avoids_mmio.
   Qed.
 End mem_avoids_mmio.
 
+(** Memory covers every heap address: a load or a store in the heap never
+    reaches an absent address. *)
+Definition heap_mapped `{MachineParameters} (m : Mem) : Prop :=
+  ∀ a, is_heap_address a = true → a ∈ dom m.
+
+Section heap_mapped.
+  Context `{MachineParameters}.
+
+  Lemma heap_mapped_lookup m a :
+    heap_mapped m → is_heap_address a = true → is_Some (m !! a).
+  Proof. intros Hm Ha. apply elem_of_dom. by apply Hm. Qed.
+
+  Lemma heap_mapped_insert m a w :
+    heap_mapped m → heap_mapped (<[a := w]> m).
+  Proof. intros Hm a' Ha'. rewrite dom_insert_L elem_of_union. right. by apply Hm. Qed.
+
+  Lemma heap_mapped_sweep shadow m :
+    heap_mapped m → heap_mapped (sweep_mem shadow m).
+  Proof. intros Hm a. rewrite dom_sweep_mem. apply Hm. Qed.
+
+  Lemma heap_mapped_union_l m1 m2 :
+    heap_mapped m1 → heap_mapped (m1 ∪ m2).
+  Proof. intros Hm a Ha. rewrite dom_union_L elem_of_union. left. by apply Hm. Qed.
+End heap_mapped.
+
 (** The heap addresses. *)
 Definition heap_addresses `{HeapRegion} : gset Addr :=
   list_to_set (finz.seq_between heap_b heap_e).
@@ -420,7 +445,7 @@ Section erasure.
       logical ones by the register clause. The system registers other than
       MTDC, which legalise the words written to them, hold no word with
       authority and identifier, and a tagged MTCC or MEPCC is an unsealed
-      executable capability. *)
+      executable capability. Memory covers the heap. *)
   Record erasure R C (σ : ExecConf) (lpc : LWord) (lreg : LReg) (lsreg : LSReg)
       (lmem : LMem) : Prop := {
     er_registry : registry_ok R C (shadowtbl σ);
@@ -438,6 +463,7 @@ Section erasure.
     er_pc : reg_phys R lpc (pcc σ);
     er_pc_word : reg_word_ok R C lpc;
     er_pc_ok : pc_ok lpc.(lw);
+    er_heap_mapped : heap_mapped (mem σ);
   }.
 
   (** *** Words *)
@@ -899,7 +925,7 @@ Section erasure.
     reg_phys R v w →
     erasure R C (pc, insert_reg x w r, sr, m, st) lpc (<[x := v]ₗ> lreg) lsreg lmem.
   Proof.
-    intros Her Hok Hw. destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    intros Her Hok Hw. destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     constructor; cbn in *; try done.
     - split.
       + rewrite /insert_reg /linsert_reg !dom_insert_L. by rewrite Hrdom.
@@ -939,7 +965,7 @@ Section erasure.
     erasure R C (pc, r, <[x := w]> sr, m, st) lpc lreg (<[x := v]> lsreg) lmem.
   Proof.
     intros Her Hok Hπ Hxpc Hw.
-    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     constructor; cbn in *; try done.
     - intros y v'. destruct (decide (x = y)) as [<-|Hne].
       + rewrite !lookup_insert_eq. intros [= <-]. by eexists.
@@ -1034,7 +1060,7 @@ Section erasure.
     erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
   Proof.
     intros Her Hok Hw Hpcok'.
-    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     by constructor.
   Qed.
 
@@ -1198,7 +1224,7 @@ Section erasure.
     mem_word_ok R C v pw →
     erasure R C (pc, r, sr, <[a := pw]> m, st) lpc lreg lsreg (<[a := v]> lmem).
   Proof.
-    intros Her Ha Hok. destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    intros Her Ha Hok. destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     constructor; cbn in *; try done.
     - rewrite !dom_insert_L. by rewrite Hdom.
     - intros a' v'' pw'. destruct (decide (a = a')) as [<-|Hne].
@@ -1207,6 +1233,7 @@ Section erasure.
     - assert (is_Some (m !! a)) as [pw0 Hpw0].
       { apply elem_of_dom. rewrite -Hdom. by apply elem_of_dom_2 in Ha. }
       by eapply mem_avoids_mmio_update.
+    - by apply heap_mapped_insert.
   Qed.
 
   (** *** Shadow stores *)
@@ -1225,7 +1252,7 @@ Section erasure.
     shadow_store_ok R C st a s →
     erasure R C (pc, r, sr, m, <[a := s]> st) lpc lreg lsreg lmem.
   Proof.
-    intros Her Hst Hok. destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    intros Her Hst Hok. destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     constructor; cbn in *; try done.
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     (* The cells whose shadow bit matters are those of live or quarantined
@@ -1282,7 +1309,7 @@ Section erasure.
     erasure (<[ι := (b, e, γ, s')]> R) C σ lpc lreg lsreg lmem.
   Proof.
     intros Her HR Hs Hs' Hs'live Hquar' Hclean.
-    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     set (R' := <[ι := (b, e, γ, s')]> R).
     (* Lookups in the new registry *)
@@ -1378,7 +1405,7 @@ Section erasure.
     erasure (<[ι := (b, e, γ, ALive)]> R) C' σ lpc lreg lsreg lmem.
   Proof.
     intros Her HR Hcells HC'.
-    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok].
+    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap].
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     set (R' := <[ι := (b, e, γ, ALive)]> R).
     assert (∀ ι', ι' ≠ ι → R' !! ι' = R !! ι') as HR'ne.
@@ -1480,7 +1507,7 @@ Section erasure.
     erasure R' C' (pc, r, sr, sweep_mem st m, st) lpc lreg lsreg lmem.
   Proof.
     intros Her HK HR' HC'.
-    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok]; cbn in *.
+    destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio Hpc Hpcw Hpcok Hhmap]; cbn in *.
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     (* Lookups in [R'] *)
     assert (∀ ι x', R' !! ι = Some x' → ∃ x, R !! ι = Some x ∧ re_b x' = re_b x ∧
@@ -1591,6 +1618,7 @@ Section erasure.
     - by apply Hphys.
     - destruct Hpcw as (Hp & Hauth & Hexec).
       split_and!; [by apply Hprov | by apply Hauth' | done].
+    - by apply heap_mapped_sweep.
   Qed.
 
   (** *** Loads *)

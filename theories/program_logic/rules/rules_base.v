@@ -682,7 +682,8 @@ Section griotte_lang_rules.
 
   (* The resources trap entry consumes, and those it gives back to the
      continuation from the trap vector, for a fault from the PC [w]: the
-     trap-entry token, and MEPCC and mcause with a fault cause. Sealed:
+     trap-entry token, and MEPCC and mcause with a cause that satisfies the
+     cause predicate [P_mcause] ([trap_entry_out] for the fault causes). Sealed:
      [trap_entry_res_split] relates the token to the non-atomic token, and
      [trap_entry_out_unfold] gives the registers. *)
   Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑N_trap).
@@ -691,13 +692,13 @@ Section griotte_lang_rules.
   #[local] Definition trap_entry_res_unseal :
     @trap_entry_res = @trap_entry_res_def := trap_entry_res_aux.(seal_eq).
 
-  Definition trap_entry_out_def (w : LWord) : iProp Σ :=
+  Definition trap_entry_out_def (P_mcause : Z → Prop) (w : LWord) : iProp Σ :=
     MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
   #[local] Definition trap_entry_out_aux : seal (@trap_entry_out_def). Proof. by eexists. Qed.
-  Definition trap_entry_out := trap_entry_out_aux.(unseal).
+  Definition trap_entry_out_cause := trap_entry_out_aux.(unseal).
   #[local] Definition trap_entry_out_unseal :
-    @trap_entry_out = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
+    @trap_entry_out_cause = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
 
   (** The trap-entry token is part of the non-atomic token of any mask that
       contains [N_trap]. *)
@@ -712,11 +713,21 @@ Section griotte_lang_rules.
 
   (** The resources trap entry gives back, unfolded into MEPCC and mcause
       ([rules_vcsr] turns them into the views of the lent registers). *)
-  Lemma trap_entry_out_unfold w :
-    trap_entry_out w ⊣⊢
+  Lemma trap_entry_out_unfold P_mcause w :
+    trap_entry_out_cause P_mcause w ⊣⊢
     MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)).
   Proof. by rewrite trap_entry_out_unseal. Qed.
+
+  (** A weaker cause predicate. *)
+  Lemma trap_entry_out_cause_mono (P_mcause P_mcause' : Z → Prop) w :
+    (∀ c : Z, P_mcause c → P_mcause' c) →
+    trap_entry_out_cause P_mcause w -∗
+    trap_entry_out_cause P_mcause' w.
+  Proof.
+    rewrite trap_entry_out_unseal. iIntros (HP_mcause) "[$ (%c & %Hc & Hmcause)]".
+    iExists c. iFrame. iPureIntro. by apply HP_mcause.
+  Qed.
 
   (** Lending MEPCC and mcause from the state interpretation, against the
       trap-entry token. *)
@@ -787,32 +798,49 @@ Section griotte_lang_rules.
      Sealed: clients consume it with [wp_trap] and produce it through the
      closing lemmas [interp_trap_safe] (logical relation) and those of the
      exception entry of the switcher (trusted code); [trap_safe_entry_intro]
-     is used only by those lemmas. *)
-  Definition trap_safe_def (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
+     is used only by those lemmas. The continuation receives a cause that
+     satisfies the cause predicate [P_mcause] ([trap_safe] for the fault
+     causes). *)
+  Definition trap_safe_def (P_mcause : Z → Prop) (w : LWord) (E : coPset)
+    (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
     (|={E}=> trap_entry_res ∗
-       ▷ (trap_entry_out w -∗
+       ▷ (trap_entry_out_cause P_mcause w -∗
           PC ↦ₚ lword_of_word mtcc_vec -∗
           WP Seq (Instr Executable) @ E {{ Φ }})) ∧
     ▷ Φ FaultedV.
   #[local] Definition trap_safe_aux : seal (@trap_safe_def). Proof. by eexists. Qed.
-  Definition trap_safe := trap_safe_aux.(unseal).
-  #[local] Definition trap_safe_unseal : @trap_safe = @trap_safe_def := trap_safe_aux.(seal_eq).
+  Definition trap_safe_cause := trap_safe_aux.(unseal).
+  #[local] Definition trap_safe_unseal :
+    @trap_safe_cause = @trap_safe_def := trap_safe_aux.(seal_eq).
 
-  Lemma trap_safe_entry_intro w E Φ :
+  Lemma trap_safe_entry_intro P_mcause w E Φ :
     ((|={E}=> trap_entry_res ∗
-       ▷ (trap_entry_out w -∗
+       ▷ (trap_entry_out_cause P_mcause w -∗
           PC ↦ₚ lword_of_word mtcc_vec -∗
           WP Seq (Instr Executable) @ E {{ Φ }})) ∧
      ▷ Φ FaultedV) -∗
-    trap_safe w E Φ.
+    trap_safe_cause P_mcause w E Φ.
   Proof. rewrite trap_safe_unseal. by iIntros "H". Qed.
 
-  (** [trap_safe] under an update, for a postcondition that holds of a
+  (** A stronger cause predicate. *)
+  Lemma trap_safe_cause_mono (P_mcause P_mcause' : Z → Prop) w E Φ :
+    (∀ c : Z, P_mcause c → P_mcause' c) →
+    trap_safe_cause P_mcause' w E Φ -∗
+    trap_safe_cause P_mcause w E Φ.
+  Proof.
+    rewrite trap_safe_unseal /trap_safe_def. iIntros (HP_mcause) "H". iSplit.
+    - iDestruct "H" as "[H _]". iMod "H" as "[$ H]". iIntros "!> !> Hout".
+      iApply "H". by iApply (trap_entry_out_cause_mono with "Hout").
+    - iDestruct "H" as "[_ $]".
+  Qed.
+
+  (** [trap_safe_cause] under an update, for a postcondition that holds of a
       fault. *)
-  Lemma trap_safe_fupd (w : LWord) (E : coPset) (Φ : griotte_lang.val → iProp Σ) :
-    (|={E}=> trap_safe w E Φ) ∗
+  Lemma trap_safe_fupd (P_mcause : Z → Prop) (w : LWord) (E : coPset)
+    (Φ : griotte_lang.val → iProp Σ) :
+    (|={E}=> trap_safe_cause P_mcause w E Φ) ∗
     ▷ Φ FaultedV ⊢
-    trap_safe w E Φ.
+    trap_safe_cause P_mcause w E Φ.
   Proof.
     rewrite trap_safe_unseal /trap_safe_def.
     iIntros "[H HΦ]". iSplit; last done.
@@ -823,7 +851,7 @@ Section griotte_lang_rules.
      entry, then the continuation from the trap vector. *)
   Lemma wp_trap E Φ w :
     PC ↦ₚ w -∗
-    trap_safe w E Φ -∗
+    trap_safe_cause mcause_ok w E Φ -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
     rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
@@ -833,11 +861,89 @@ Section griotte_lang_rules.
     iApply ("HΦ" with "[$Hmepcc $Hmcause] HPC").
   Qed.
 
+  (* A fault, for a cause predicate [P_mcause] that the physical cause satisfies
+     in every state that erases to logical registers and memory containing
+     [lregs] and [lm]. The register and memory points-to are given back
+     before the obligation [trap_safe_cause P_mcause w E Φ]. *)
+  Lemma wp_trap_gen E Φ w (P_mcause : Z → Prop) (lregs : LReg) (lm : LMem) dq :
+    (∀ R C σ lreg lsreg lmem,
+       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → lm ⊆ lmem → P_mcause (trap_cause σ)) →
+    PC ↦ₚ w -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+     trap_safe_cause P_mcause w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
+    iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
+    iApply wp_lift_base_step; first done.
+    iIntros (σ1 ns κ κs nt) "Hσ /=".
+    iNamed "Hσ".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hregs") as %Hregs.
+    iAssert ⌜lm ⊆ lmem⌝%I as %Hmem.
+    { rewrite map_subseteq_spec. iIntros (a x Ha).
+      iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Ha.
+      iApply (gen_heap_valid with "Hm Ha"). }
+    pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as Hcause.
+    iDestruct ("Hsafe" with "Hregs Hmem") as "[>[Htok HΦ] _]".
+    iDestruct (sreg_interp_mtcc with "Hsr") as %Htcc.
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
+    (* The trap vector is an executable capability, so its physical copy is
+       exact. *)
+    assert (wtcc = mtcc_vec) as ->.
+    { destruct (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC _ eq_refl Htcc mtcc_vec_tagged)
+        as [_ Hx].
+      apply (reg_phys_executable R C (lword_of_word mtcc_vec)).
+      - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
+      - exact Hreltcc.
+      - apply mtcc_vec_tagged.
+      - exact Hx. }
+    assert (trap_halts σ1 = false) as Hnh.
+    { by rewrite /trap_halts /sreg_word Hwtcc /= mtcc_vec_tagged andb_false_r. }
+    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
+    iSplit.
+    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
+    iNext. iIntros (e2 σ2 efs Hstep) "_".
+    inversion Hstep as [| | | σ' Hnh' | σ' Hh]; subst; last congruence.
+    iMod "Hclose" as "_".
+    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
+      as Her'.
+    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    (* With the token in hand, MEPCC and mcause are held. *)
+    iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
+    { iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
+      destruct (nclose_infinite N_trap []) as (i & Hi & _). set_solver. }
+    iDestruct "Hmepcc" as (vepcc) "Hmepcc".
+    iDestruct "Hmstatus" as (vst) "Hmstatus".
+    iDestruct "Hmcause" as (vcause) "Hmcause".
+    iDestruct "Hmtval" as (ztval) "Hmtval".
+    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
+    iMod (gen_heap_update _ _ _
+            (lword_of_word (WInt (mstatus_enc InterruptDisabled
+                                    (mie_of (get_a (sreg_word σ1 MSTATUS))))))
+           with "Hsr Hmstatus") as "[Hsr Hmstatus]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
+           with "Hsr Hmcause") as "[Hsr Hmcause]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
+           with "Hsr Hmtval") as "[Hsr Hmtval]".
+    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
+    iModIntro. iSplitR "HΦ HPC Hmepcc Hmcause".
+    - iExists (lword_of_word mtcc_vec), lreg,
+        (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg), lmem, R, C.
+      rewrite /lsregs_enter_exc /=. iFrame. by iPureIntro.
+    - iSplitL; last done.
+      iApply ("HΦ" with "[$Hmepcc Hmcause] HPC").
+      iExists (trap_cause σ1). by iFrame.
+  Qed.
+
   (* A fetch fault: the PC is not a correct PC. *)
   Lemma wp_notCorrectPC_trap E Φ w :
     ¬ isCorrectPC w.(lw) →
     PC ↦ₚ w -∗
-    trap_safe w E Φ -∗
+    trap_safe_cause mcause_ok w E Φ -∗
     WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
     iIntros (Hnpc) "HPC Htrap".
@@ -848,6 +954,11 @@ Section griotte_lang_rules.
   Qed.
 
 End griotte_lang_rules.
+
+(** The resources and the obligation of trap entry for the fault causes
+    [mcause_ok]. *)
+Notation trap_entry_out := (trap_entry_out_cause mcause_ok).
+Notation trap_safe := (trap_safe_cause mcause_ok).
 
 (* Closes a fault [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap], from
    the PC points-to [PC ↦ₚ w] of the context.

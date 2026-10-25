@@ -128,16 +128,16 @@ Section Error_Handling_Read.
                Htbl Hcount Htbl_set)
       "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hclose Hlock Harea Hret".
     pose proof Nswitcher_Nstats as Hdisj_stats.
-    iApply (trap_safe_exception_entry (⊤ ∖ ↑Nstats)
+    iApply (trap_safe_exception_entry mcause_ok (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
-      [solve_ndisj | rewrite /N_trap /Nstats; solve_ndisj |].
+      [done | solve_ndisj | rewrite /N_trap /Nstats; solve_ndisj |].
     iModIntro. iExists rfault, cstk. iFrame "Hna Hregs Hcstk". iSplit; first done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     rewrite -Htbl.
     assert (error_state_stores_ok (rfault !!! csp)) as Hstores.
     { by rewrite /error_state_stores_ok Hcsp /=. }
-    iApply (trap_handler_ok_handler _ _ _ _ stats_P_fault stats_handler_pcc_off
+    iApply (trap_handler_ok_handler _ _ _ _ _ stats_P_fault stats_handler_pcc_off
              with "Hhandler Htbl_eh [Harea] [-]").
     { rewrite /trap_no_resume /lmepcc_of_pc /= get_b_mepcc_of_pc /=.
       left. intros Hb. apply Hswitcher. solve_addr. }
@@ -155,7 +155,7 @@ Section Error_Handling_Read.
     - (* The switcher invokes the handler: no unwind *)
       iLeft. iExists stats_handler_pcc_off, stats_wpcc. iFrame "Htbl_eh Htbl_pcc".
       iPureIntro. by eapply stats_read_handler_runs.
-    - rewrite /stats_P_fault. iFrame "Hlock Hclose Hret". iPureIntro.
+    - iIntros (mcause _). rewrite /stats_P_fault. iFrame "Hlock Hclose Hret". iPureIntro.
       split; last done.
       rewrite /stats_fault_facts. split_and!; try done.
       by exists g, b, e, a.

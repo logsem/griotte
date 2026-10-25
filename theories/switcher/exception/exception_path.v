@@ -163,15 +163,16 @@ Section Switcher_Spec_Exception.
       deep-read-only: the handler gets the words of the table. The
       destination holds the words of the [ErrorState] that the switcher
       wrote for this kind. A stackless handler is invoked only when the
-      stackful one is not. *)
-  Definition path_invoke_k (F : coPset) (cstk : CSTK) (rmap : LReg) (w : LWord)
+      stackful one is not. The cause satisfies the cause predicate [P_mcause]. *)
+  Definition path_invoke_k (P_mcause : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
+    (w : LWord)
     (error_state_written : nat → iProp Σ) : iProp Σ :=
     ∀ (kind : handler_kind) (wpcc wcgp wpc : LWord) (off mcause mtval : Z) (regs : LReg),
       ⌜¬ switcher_fault_pc w⌝ -∗
       ⌜Z.even (top_error_count cstk) = true⌝ -∗
       ⌜top_frame_stack_ok cstk⌝ -∗
       ⌜off ≠ ExportTable_no_handler⌝ -∗
-      ⌜mcause_ok mcause⌝ -∗
+      ⌜P_mcause mcause⌝ -∗
       ⌜handler_entry wpcc off = Some wpc⌝ -∗
       ⌜handler_invocation_regs kind cstk wcgp rmap mcause mtval regs⌝ -∗
       (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) -∗
@@ -442,7 +443,7 @@ Section Switcher_Spec_Exception.
       [kind] at offset [off], once the invariant of the switcher is closed:
       the registers are cleared but the handler's, and the [cjalr] invokes
       the handler or faults. *)
-  #[local] Lemma switcher_exception_invoke
+  #[local] Lemma switcher_exception_invoke (P_mcause : Z → Prop)
     (F : coPset) (cstk : CSTK) (rmap : LReg) (w : LWord) (error_state_written : nat → iProp Σ)
     (kind : handler_kind) (p : Perm) (off mcause mtval : Z) (wpcc wcgp : LWord)
     (wcsp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
@@ -452,7 +453,7 @@ Section Switcher_Spec_Exception.
     Z.even (top_error_count cstk) = true ->
     top_frame_stack_ok cstk ->
     off ≠ ExportTable_no_handler ->
-    mcause_ok mcause ->
+    P_mcause mcause ->
     handler_args kind cstk rmap mcause mtval wcsp wca0 wca1 wca2 ->
 
     PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
@@ -485,7 +486,7 @@ Section Switcher_Spec_Exception.
     (⌜jalr_target_ok cra cra (handler_word wpcc off).(lw) = false⌝ →
        handler_skipped cstk w rmap) ∗
     (path_nested_k F cstk w rmap error_state_written ∧
-     path_invoke_k F cstk rmap w error_state_written)
+     path_invoke_k P_mcause F cstk rmap w error_state_written)
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     iIntros (Hfull Hload Hnot_switcher Hev Hframe_stack Hoff Hcause Hargs)
@@ -596,10 +597,12 @@ Section Switcher_Spec_Exception.
       invocation of a handler. The header of the table of the topmost frame
       is needed for a fault outside the switcher. The destination
       [error_state_written] of the [ErrorState] goes to the continuation
-      reached. *)
-  Lemma switcher_exception_path_spec
+      reached. The cause satisfies the cause predicate [P_mcause] of fault
+      causes. *)
+  Lemma switcher_exception_path_spec (P_mcause : Z → Prop)
     (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
     (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord) :
+    (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
@@ -608,7 +611,7 @@ Section Switcher_Spec_Exception.
     switcher_static ∗
     PC ↦ₚ lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
-    trap_entry_out w ∗
+    trap_entry_out_cause P_mcause w ∗
     na_own cerise_nais (F ∖ ↑N_trap) ∗
     (if decide (trap_no_resume w) then cstack_frag cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
@@ -617,7 +620,7 @@ Section Switcher_Spec_Exception.
     ▷ ( path_unwind_k F cstk w rmap error_state_written ∧
         path_resume_k F R_resume rmap w error_state_written ∧
         path_nested_k F cstk w rmap error_state_written ∧
-        path_invoke_k F cstk rmap w error_state_written )
+        path_invoke_k P_mcause F cstk rmap w error_state_written )
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     (* Outline of the proof:
@@ -637,7 +640,7 @@ Section Switcher_Spec_Exception.
          stackless handler, or the setup of a stackful handler with the
          stores of the [ErrorState]; then the invocation;
        - close the switcher invariant, and recombine the token. *)
-    iIntros (HF HFtrap Hfull)
+    iIntros (HP_mcause HF HFtrap Hfull)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hout & Hna & Hcstk & #Hheader & Hwritten
        & #Hes_acc & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc)".
@@ -658,10 +661,10 @@ Section Switcher_Spec_Exception.
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hrmap)"; try eassumption.
 
     (* The exception entry *)
-    iApply (exception_entry_asm_spec with
+    iApply (exception_entry_asm_spec P_mcause with
              "[- $HPC $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hmtdc $Hsave_area $Hout $Hcode]");
-      first done.
+      [done | done |].
     iNext; iIntros (wst cause zca0)
       "(%Hcause & HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok)".
@@ -903,7 +906,7 @@ Section Switcher_Spec_Exception.
             as "Hna".
           { save_area_hazard. }
           (* The invocation *)
-          iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackless p ehs
+          iApply (switcher_exception_invoke _ _ _ _ _ error_state_written Stackless p ehs
                     cause mtval
                    with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                           $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Hehs
@@ -968,7 +971,7 @@ Section Switcher_Spec_Exception.
                as "Hna".
              { save_area_hazard. }
              (* The invocation *)
-             iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackful p eh
+             iApply (switcher_exception_invoke _ _ _ _ _ error_state_written Stackful p eh
                        cause mtval
                       with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                              $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Heh

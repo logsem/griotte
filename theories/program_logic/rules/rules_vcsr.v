@@ -69,15 +69,16 @@ Section vcsr.
   Proof. rewrite vcsr_res_unseal. by iIntros "H". Qed.
 
   (** The resources of trap entry are the views of the lent volatile
-      registers: MEPCC holds the faulting PC, mcause a fault cause. *)
-  Lemma trap_entry_out_vcsr_frag w :
-    trap_entry_out w -∗
+      registers: MEPCC holds the faulting PC, mcause a cause that satisfies
+      the cause predicate [P_mcause]. *)
+  Lemma trap_entry_out_vcsr_frag P_mcause w :
+    trap_entry_out_cause P_mcause w -∗
     vcsr_frag MEPCC (lmepcc_of_pc w) ∗
-    (∃ cause : Z, ⌜mcause_ok cause⌝ ∗ vcsr_frag MCAUSE (lword_of_word (WInt cause))).
+    (∃ cause : Z, ⌜P_mcause cause⌝ ∗ vcsr_frag MCAUSE (lword_of_word (WInt cause))).
   Proof. rewrite trap_entry_out_unfold vcsr_frag_unseal. by iIntros "H". Qed.
 
-  Lemma trap_entry_out_vcsr_res w :
-    trap_entry_out w -∗
+  Lemma trap_entry_out_vcsr_res P_mcause w :
+    trap_entry_out_cause P_mcause w -∗
     vcsr_res.
   Proof.
     iIntros "Hout".
