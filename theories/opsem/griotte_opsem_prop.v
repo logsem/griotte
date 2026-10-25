@@ -407,9 +407,20 @@ Qed.
     trap_cause φ ∈ [MCAUSE_INST_ACCESS_FAULT; MCAUSE_ILLEGAL_INSTRUCTION;
                     MCAUSE_LOAD_ACCESS_FAULT; MCAUSE_STORE_ACCESS_FAULT;
                     MCAUSE_CHERI].
+  Proof. rewrite /trap_cause. destruct (trap_fault φ); set_solver. Qed.
+
+  (** A bounds violation on a data access implies that the earlier checks
+      passed: the capability is tagged, unsealed, with the permission. *)
+  Lemma data_cap_check_bounds perm_ok perm_code r w imm :
+    perm_code ≠ BoundsViolation →
+    data_cap_check perm_ok perm_code r w imm = inl (FaultCheri BoundsViolation (CheriGPR r)) →
+    ∃ p g b e a, w = WCap true p g b e a ∧ perm_ok p = true.
   Proof.
-    rewrite /trap_cause /instr_cause /load_cause /store_cause.
-    repeat case_match; set_solver.
+    intros Hcode. rewrite /data_cap_check.
+    destruct w as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try (intros [=]; fail);
+      try (intros [= ?]; congruence).
+    destruct (perm_ok p) eqn:Hp; last (intros [= ?]; congruence).
+    intros _. by exists p, g, b, e, a.
   Qed.
 
 End opsem_prop.

@@ -111,7 +111,9 @@ Section Common_Context_Install.
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wst.
     (* SpecialRW cnull mstatus cra *)
     iInstrApply "Hcode" wp_csrw_mstatus with "[$HPC $Hcra]" as "(HPC & Hcra)".
-    (* The trap-entry token lends the volatile registers *)
+    (* The trap-entry token, without its part for mtval, lends MEPCC and
+       mcause *)
+    iDestruct (trap_entry_res_vcsr_tval with "Htok") as "[Htok Htval]".
     iApply (wp_vcsr_lend with "Htok"); first done.
     iIntros (wepcc wcause) "Hmepcc Hmcause".
     (* SpecialRW cnull mepcc ct2 *)
@@ -156,6 +158,7 @@ Section Common_Context_Install.
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wcsp.
     (* Mret *)
     iInstrApply "Hcode" wp_mret_vcsr with "[$HPC $Hmepcc $Hmcause]" as "(HPC & Htok)".
+    iDestruct (trap_entry_res_vcsr_tval with "[$Htok $Htval]") as "Htok".
     iApply "Hpost".
     iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Htok".
     iRegionMerge. iFrame.

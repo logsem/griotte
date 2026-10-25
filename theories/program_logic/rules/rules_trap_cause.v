@@ -1,27 +1,31 @@
 From iris.proofmode Require Import proofmode environments spec_patterns.
 From griotte Require Export rules_base.
 
-(** * The exact cause of a fault
+(** * The exact cause and value of a fault
 
-    Trap entry writes [trap_cause σ] to mcause, computed from the physical
-    state. [lcause] computes it from the logical view: the logical PC, the
-    logical registers and the logical memory, with the shadow table of a
-    heap whose every address has an entry. Under erasure, which covers the
-    heap with memory ([er_heap_mapped]), the two agree
-    ([erasure_trap_cause]).
+    Trap entry writes the cause and the value of the fault [trap_fault σ],
+    computed from the physical state, to mcause and mtval. [lfault]
+    computes the fault from the logical view: the logical PC, the logical
+    registers and the logical memory, with the shadow table of a heap whose
+    every address has an entry. Under erasure, which covers the heap with
+    memory ([er_heap_mapped]), the two agree on the cause
+    ([erasure_trap_cause]), and the physical fault is the logical one, or a
+    tag violation on the authority of the instruction (the capability of a
+    load or a store, the target of a jump) when its logical word may have
+    been stripped ([erasure_trap_fault], [fault_ok]).
 
     A fault site that owns the code points-to, the registers that the
     instruction reads and, for an access past the capability checks, the
-    points-to of the effective address, computes the cause from these
-    fragments ([lcause_frag]), and hands it to trap entry with
-    [wp_trap_cause]. A fragment cannot tell an absent address from one that
-    it does not own, so the access-fault causes are excluded
-    ([lcause_known]). *)
+    points-to of the effective address, computes the fault from these
+    fragments ([lfault_frag]), and hands it to trap entry with
+    [wp_trap_fault]. A fragment cannot tell an absent address from one
+    that it does not own, so the access faults are excluded
+    ([lfault_known]). *)
 
 Section trap_cause.
   Context `{MP : MachineParameters}.
 
-  (** * The logical cause *)
+  (** * The logical fault *)
 
   (** A shadow table with an entry at every heap address. *)
   Definition heap_shadow : ShadowTbl := gset_to_gmap ShadowLive heap_addresses.
@@ -34,39 +38,66 @@ Section trap_cause.
   Qed.
 
   (** The logical view as a configuration: the logical words without their
-      identifiers. [trap_cause] reads no system register. *)
+      identifiers. [trap_fault] reads no system register. *)
   Definition lview (lpc : LWord) (lregs : LReg) (lm : LMem) : ExecConf :=
     (lpc.(lw), lw <$> lregs, ∅, lw <$> lm, heap_shadow).
 
-  (** The logical cause of a fault at the PC [lpc], from the logical
-      registers [lregs] and the logical memory [lm]. *)
+  (** The logical fault at the PC [lpc], from the logical registers [lregs]
+      and the logical memory [lm], and its cause. *)
+  Definition lfault (lpc : LWord) (lregs : LReg) (lm : LMem) : fault :=
+    trap_fault (lview lpc lregs lm).
+
   Definition lcause (lpc : LWord) (lregs : LReg) (lm : LMem) : Z :=
     trap_cause (lview lpc lregs lm).
+
+  Lemma lcause_lfault lpc lregs lm : lcause lpc lregs lm = fault_mcause (lfault lpc lregs lm).
+  Proof. done. Qed.
+
+  (** The register whose capability authorises the instruction [i], whose
+      tag the fault reads: the capability of a load or a store, the target
+      of a jump. *)
+  Definition fault_auth_reg (i : instr) : option RegName :=
+    match i with
+    | CLoad _ src _ => Some src
+    | Store dst _ _ => Some dst
+    | Jalr _ rsrc => Some rsrc
+    | _ => None
+    end.
 
   (** * An agreement relation between two configurations *)
 
   (** A physical register word is the logical one, or its untagged copy; in
-      the latter case a tagged logical capability addresses heap memory only
-      (it is stale, or has no authority and so empty bounds). *)
-  Definition word_agree (x y : Word) : Prop :=
+      the latter case a tagged logical word satisfies [P], and a tagged
+      logical capability addresses heap memory only (it is stale, or has no
+      authority and so empty bounds). *)
+  Definition word_agree (P : Prop) (x y : Word) : Prop :=
     y = x ∨
-    (y = clear_tag x ∧
+    (y = clear_tag x ∧ (get_tag x = true → P) ∧
      ∀ p g b e a ea, x = WCap true p g b e a → withinBounds b e ea = true →
        is_heap_address ea = true).
 
-  (** Memory words agree on what the causes read: the decoded instruction and
+  (** Memory words agree on what the faults read: the decoded instruction and
       the heap base. *)
   Definition mem_agree (x y : Word) : Prop :=
     decodeInstrW x = decodeInstrW y ∧ heap_cap_base x = heap_cap_base y.
 
-  Record cause_rel (φl φp : ExecConf) : Prop := {
+  (** The agreement, where a register [r] whose physical word is stripped
+      satisfies [S r]. *)
+  Record cause_rel (S : RegName → Prop) (φl φp : ExecConf) : Prop := {
     cr_pc : pcc φl = pcc φp;
-    cr_reg r : option_Forall2 word_agree (reg φl !! r) (reg φp !! r);
+    cr_reg r : option_Forall2 (word_agree (S r)) (reg φl !! r) (reg φp !! r);
     cr_mem a : option_Forall2 mem_agree (mem φl !! a) (mem φp !! a);
     cr_shadow_l a : is_heap_address a = true → is_Some (shadowtbl φl !! a);
     cr_shadow_p a : is_heap_address a = true → is_Some (shadowtbl φp !! a);
     cr_heap_mapped : heap_mapped (mem φp);
   }.
+
+  (** The physical fault [fp] of an instruction with authority [r] is the
+      logical one [fl], or a tag violation on [r] when [r] may be stripped,
+      while the logical fault is a CHERI fault. *)
+  Definition fault_rel (S : RegName → Prop) (r : RegName) (fl fp : fault) : Prop :=
+    fp = fl ∨
+    (fp = FaultCheri TagViolation (CheriGPR r) ∧ S r ∧ fault_mcause fl = MCAUSE_CHERI).
 
   Lemma heap_not_shadow a : is_heap_address a = true → is_shadow_address a = false.
   Proof.
@@ -92,128 +123,199 @@ Section trap_cause.
     destruct (is_heap_address f) eqn:Hh; last done. by intros [= <-].
   Qed.
 
-  Lemma lookup_reg_rel φl φp r :
-    cause_rel φl φp → option_Forall2 word_agree (reg φl !!ᵣ r) (reg φp !!ᵣ r).
+  Lemma lookup_reg_rel S φl φp r :
+    cause_rel S φl φp → option_Forall2 (word_agree (S r)) (reg φl !!ᵣ r) (reg φp !!ᵣ r).
   Proof.
     intros Hrel. rewrite /lookup_reg.
-    destruct (cr_reg _ _ Hrel r) as [x y Hxy|]; cbn; constructor.
+    destruct (cr_reg _ _ _ Hrel r) as [x y Hxy|]; cbn; constructor.
     case_decide; [by left | done].
   Qed.
 
-  Lemma word_of_argument_rel φl φp ρ :
-    cause_rel φl φp →
-    option_Forall2 word_agree (word_of_argument (reg φl) ρ) (word_of_argument (reg φp) ρ).
+  Lemma word_of_argument_rel S φl φp ρ :
+    cause_rel S φl φp →
+    option_Forall2 (λ x y, y = x ∨ y = clear_tag x)
+      (word_of_argument (reg φl) ρ) (word_of_argument (reg φp) ρ).
   Proof.
-    intros Hrel. destruct ρ as [z|r]; cbn; last by apply lookup_reg_rel.
-    constructor. by left.
+    intros Hrel. destruct ρ as [z|r]; cbn; first (constructor; by left).
+    destruct (lookup_reg_rel _ _ _ r Hrel) as [x y [-> | [-> _]] |]; constructor;
+      [by left | by right].
   Qed.
 
   (** Under the agreement, a heap address read logically is mapped there. *)
-  Lemma rel_mem_mapped φl φp ea :
-    cause_rel φl φp → is_heap_address ea = true → is_Some (mem φl !! ea).
+  Lemma rel_mem_mapped S φl φp ea :
+    cause_rel S φl φp → is_heap_address ea = true → is_Some (mem φl !! ea).
   Proof.
-    intros Hrel Hea. pose proof (cr_mem _ _ Hrel ea) as Hm.
-    destruct (heap_mapped_lookup _ _ (cr_heap_mapped _ _ Hrel) Hea) as [? Hp].
+    intros Hrel Hea. pose proof (cr_mem _ _ _ Hrel ea) as Hm.
+    destruct (heap_mapped_lookup _ _ (cr_heap_mapped _ _ _ Hrel) Hea) as [? Hp].
     rewrite Hp in Hm. inversion Hm. eauto.
   Qed.
 
+  (** An untagged authority fails the tag check. *)
+  Lemma data_cap_check_untagged perm_ok perm_code r w imm :
+    get_tag w = false →
+    data_cap_check perm_ok perm_code r w imm = inl (FaultCheri TagViolation (CheriGPR r)).
+  Proof. by destruct w as [| [[] | [] ] | ? [] | ? [ [] | [] ] ]. Qed.
+
+  Lemma data_cap_check_clear_tag perm_ok perm_code r w imm :
+    data_cap_check perm_ok perm_code r (clear_tag w) imm =
+    inl (FaultCheri TagViolation (CheriGPR r)).
+  Proof. apply data_cap_check_untagged, get_tag_clear_tag. Qed.
+
   (** ** Loads *)
 
-  Lemma load_cause_rel φl φp src imm :
-    cause_rel φl φp → load_cause φl src imm = load_cause φp src imm.
+  Lemma load_fault_rel S φl φp src imm :
+    cause_rel S φl φp →
+    fault_rel S src (load_fault φl src imm) (load_fault φp src imm).
   Proof.
-    intros Hrel. rewrite /load_cause.
-    destruct (lookup_reg_rel _ _ src Hrel) as [x y [-> | [-> Hheap]] |]; [| | done].
+    intros Hrel. rewrite /load_fault.
+    destruct (lookup_reg_rel _ _ _ src Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
+      [| | by left].
     - (* Exact copy: the same branches; memory agrees on the heap base, and
          both shadow tables have an entry at every heap address. *)
-      destruct x as [| [[] p g b e a | ] | | ]; try done.
-      destruct (a + imm)%a as [ea|]; last done.
-      destruct (readAllowed p && withinBounds b e ea); last done.
+      left.
+      destruct (data_cap_check readAllowed PermitLoadViolation src x imm) as [f|ea];
+        first done.
       destruct (is_shadow_address ea).
       { destruct (shadow_to_heap ea) as [ha|] eqn:Hha; last done.
         pose proof (shadow_to_heap_heap _ _ Hha) as Hh.
-        by destruct (cr_shadow_l _ _ Hrel ha Hh) as [? ->],
-          (cr_shadow_p _ _ Hrel ha Hh) as [? ->]. }
+        by destruct (cr_shadow_l _ _ _ Hrel ha Hh) as [? ->],
+          (cr_shadow_p _ _ _ Hrel ha Hh) as [? ->]. }
       destruct (is_revoker_address ea); first done.
-      destruct (cr_mem _ _ Hrel ea) as [x' y' [_ Hb]|]; last done.
+      destruct (cr_mem _ _ _ Hrel ea) as [x' y' [_ Hb]|]; last done.
       rewrite Hb. destruct (heap_cap_base y') as [base|] eqn:Hbase; last done.
       pose proof (heap_cap_base_heap _ _ Hbase) as Hh.
-      by destruct (cr_shadow_l _ _ Hrel base Hh) as [? ->],
-        (cr_shadow_p _ _ Hrel base Hh) as [? ->].
-    - (* Untagged physical copy: the physical cause is 28, and so is the
-         logical one, since a stale capability reads mapped heap memory whose
+      by destruct (cr_shadow_l _ _ _ Hrel base Hh) as [? ->],
+        (cr_shadow_p _ _ _ Hrel base Hh) as [? ->].
+    - (* Untagged physical copy: a tag violation; the logical fault is a
+         CHERI fault, since a stale capability reads mapped heap memory whose
          loaded heap base has a shadow entry. *)
-      destruct x as [| [[] p g b e a | ] | | ]; try done; cbn.
+      rewrite data_cap_check_clear_tag.
+      destruct (get_tag x) eqn:Htag; last (left; by rewrite data_cap_check_untagged).
+      right. split_and!; [done | by apply Hstrip |].
+      destruct x as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
+      destruct (readAllowed p); last done.
       destruct (a + imm)%a as [ea|]; last done.
-      destruct (readAllowed p && withinBounds b e ea) eqn:Hrw; last done.
-      apply andb_true_iff in Hrw as [_ Hwb].
+      destruct (withinBounds b e ea) eqn:Hwb; last done.
       pose proof (Hheap p g b e a ea eq_refl Hwb) as Hea.
       rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea).
-      destruct (rel_mem_mapped _ _ ea Hrel Hea) as [x' ->].
+      destruct (rel_mem_mapped _ _ _ ea Hrel Hea) as [x' ->].
       destruct (heap_cap_base x') as [base|] eqn:Hbase; last done.
-      by destruct (cr_shadow_l _ _ Hrel base (heap_cap_base_heap _ _ Hbase)) as [? ->].
+      by destruct (cr_shadow_l _ _ _ Hrel base (heap_cap_base_heap _ _ Hbase)) as [? ->].
   Qed.
 
   (** ** Stores *)
 
-  Lemma store_cause_rel φl φp dst ρ imm :
-    cause_rel φl φp → store_cause φl dst ρ imm = store_cause φp dst ρ imm.
+  Lemma store_fault_rel S φl φp dst ρ imm :
+    cause_rel S φl φp →
+    fault_rel S dst (store_fault φl dst ρ imm) (store_fault φp dst ρ imm).
   Proof.
-    intros Hrel. rewrite /store_cause.
-    destruct (word_of_argument_rel _ _ ρ Hrel) as [t t' Ht|]; last done.
-    destruct (lookup_reg_rel _ _ dst Hrel) as [x y [-> | [-> Hheap]] |]; [| | done].
+    intros Hrel. rewrite /store_fault.
+    destruct (word_of_argument_rel _ _ _ ρ Hrel) as [t t' Ht|]; last by left.
+    destruct (lookup_reg_rel _ _ _ dst Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
+      [| | by left].
     - (* Exact copy: the stored words have the same shape, memory the same
          domain. *)
-      destruct x as [| [[] p g b e a | ] | | ]; try done.
-      destruct (a + imm)%a as [ea|]; last done.
-      destruct (writeAllowed p && withinBounds b e ea); last done.
+      left.
+      destruct (data_cap_check writeAllowed PermitStoreViolation dst x imm) as [f|ea];
+        first done.
       destruct (is_shadow_address ea).
-      { destruct Ht as [-> | [-> _]]; first done. by destruct t as [| [] | | ? []]. }
+      { destruct Ht as [-> | ->]; first done. by destruct t as [| [] | | ? []]. }
       destruct (is_revoker_address ea); first done.
-      by destruct (cr_mem _ _ Hrel ea).
-    - (* Untagged physical copy: a stale capability writes mapped heap
-         memory. *)
-      destruct x as [| [[] p g b e a | ] | | ]; try done; cbn.
+      by destruct (cr_mem _ _ _ Hrel ea).
+    - (* Untagged physical copy: a tag violation; a stale capability writes
+         mapped heap memory. *)
+      rewrite data_cap_check_clear_tag.
+      destruct (get_tag x) eqn:Htag; last (left; by rewrite data_cap_check_untagged).
+      right. split_and!; [done | by apply Hstrip |].
+      destruct x as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
+      destruct (writeAllowed p); last done.
       destruct (a + imm)%a as [ea|]; last done.
-      destruct (writeAllowed p && withinBounds b e ea) eqn:Hrw; last done.
-      apply andb_true_iff in Hrw as [_ Hwb].
+      destruct (withinBounds b e ea) eqn:Hwb; last done.
       pose proof (Hheap p g b e a ea eq_refl Hwb) as Hea.
       rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea).
-      by destruct (rel_mem_mapped _ _ ea Hrel Hea) as [x' ->].
+      by destruct (rel_mem_mapped _ _ _ ea Hrel Hea) as [x' ->].
+  Qed.
+
+  (** ** Jumps *)
+
+  Lemma jalr_fault_rel S φl φp rdst rsrc :
+    cause_rel S φl φp →
+    fault_rel S rsrc (jalr_fault φl rdst rsrc) (jalr_fault φp rdst rsrc).
+  Proof.
+    intros Hrel. rewrite /jalr_fault.
+    destruct (lookup_reg_rel _ _ _ rsrc Hrel) as [x y [-> | (-> & Hstrip & _)] |];
+      [by left | | by left].
+    rewrite get_tag_clear_tag /=.
+    destruct (get_tag x) eqn:Htag; last by left.
+    right. split_and!; [done | by apply Hstrip | by repeat case_match].
   Qed.
 
   (** ** Every fault class *)
 
-  Lemma instr_cause_rel i φl φp :
-    cause_rel φl φp → instr_cause i φl = instr_cause i φp.
+  Lemma instr_fault_rel S i p φl φp :
+    cause_rel S φl φp →
+    match fault_auth_reg i with
+    | Some r => fault_rel S r (instr_fault i p φl) (instr_fault i p φp)
+    | None => instr_fault i p φp = instr_fault i p φl
+    end.
   Proof.
     intros Hrel. destruct i; cbn; try done.
-    - by apply load_cause_rel.
-    - by apply store_cause_rel.
+    - by apply jalr_fault_rel.
+    - by apply load_fault_rel.
+    - by apply store_fault_rel.
   Qed.
 
   (** Fetch faults (PC checks, unmapped PC address), then the decoded
-      instruction's cause. *)
-  Lemma trap_cause_rel φl φp : cause_rel φl φp → trap_cause φl = trap_cause φp.
+      instruction's fault. *)
+  Lemma trap_fault_rel S φl φp :
+    cause_rel S φl φp →
+    trap_fault φp = trap_fault φl ∨
+    (fault_mcause (trap_fault φl) = MCAUSE_CHERI ∧
+     ∃ p g b e a wi r,
+       pcc φl = WCap true p g b e a ∧ isCorrectPCb (pcc φl) = true ∧
+       mem φl !! a = Some wi ∧ fault_auth_reg (decodeInstrW wi) = Some r ∧ S r ∧
+       trap_fault φp = FaultCheri TagViolation (CheriGPR r)).
   Proof.
-    intros Hrel. rewrite /trap_cause (cr_pc _ _ Hrel).
-    destruct (pcc φp) as [| [[] p g b e a | ] | | ]; try done.
-    destruct (isCorrectPCb _); last done.
-    destruct (cr_mem _ _ Hrel a) as [x y [Hdec _]|]; last done.
-    rewrite Hdec. by apply instr_cause_rel.
+    intros Hrel. pose proof (cr_pc _ _ _ Hrel) as Hpc.
+    rewrite /trap_fault -Hpc.
+    destruct (pcc φl) as [| [[] p g b e a | ] | | ] eqn:Hpcl; try by left.
+    destruct (isCorrectPCb _) eqn:Hcorrect; last by left.
+    pose proof (cr_mem _ _ _ Hrel a) as Hm.
+    destruct (mem φl !! a) as [x|] eqn:Hx; inversion Hm as [? y [Hdec _] Hx' Hy|];
+      last by left.
+    rewrite -Hdec.
+    pose proof (instr_fault_rel S (decodeInstrW x) p _ _ Hrel) as Hi.
+    destruct (fault_auth_reg (decodeInstrW x)) as [r|] eqn:Hr; last by left.
+    destruct Hi as [-> | (Hp & HS & Hl)]; first by left.
+    right. split; first done.
+    by exists p, g, b, e, a, x, r.
   Qed.
 
   (** * Erasure gives the agreement *)
 
-  (** The register clause: an untagged copy of a tagged capability is the
-      copy of a stale capability, whose in-bounds addresses its registered
-      range covers, or of a word without authority, whose bounds are
-      empty. *)
-  Lemma reg_phys_word_agree R C st v w :
-    registry_ok R C st → reg_word_ok R C v → reg_phys R v w → word_agree v.(lw) w.
+  (** A logical word whose physical copy may be untagged: a tagged word with
+      an identifier, or with a heap base (an over-approximation of
+      [reg_strip_ok], which does not depend on the registry). *)
+  Definition may_strip (v : LWord) : Prop :=
+    get_tag v.(lw) = true ∧ (is_Some v.(lprov) ∨ is_Some (heap_cap_base v.(lw))).
+
+  (** The registers whose physical copy may be untagged. *)
+  Definition reg_may_strip (lreg : LReg) (r : RegName) : Prop :=
+    ∃ v, lreg !! r = Some v ∧ may_strip v.
+
+  (** The register clause: an untagged copy of a tagged word is the copy of
+      a word that may be stripped; an untagged copy of a tagged capability
+      is the copy of a stale capability, whose in-bounds addresses its
+      registered range covers, or of a word without authority, whose bounds
+      are empty. *)
+  Lemma reg_phys_word_agree R C st lreg r v w :
+    registry_ok R C st → lreg !! r = Some v → reg_word_ok R C v → reg_phys R v w →
+    word_agree (reg_may_strip lreg r) v.(lw) w.
   Proof.
-    intros Hreg Hok [[-> | [-> Hstrip]] _]; first by left.
-    right. split; first done.
+    intros Hreg Hr Hok [[-> | [-> Hstrip]] _]; first by left.
+    right. split; first done. split.
+    { intros Htag. exists v. split; first done. split; first done.
+      destruct Hstrip as [[(ι & x & Hι & _) _] | [_ Hb]]; [left | right]; by eauto. }
     intros p g b e a ea Hv Hwb.
     pose proof Hwb as Hwb'. apply withinBounds_true_iff in Hwb'.
     destruct Hstrip as [[(ι & x & Hι & Hx & _) _] | [Hna [b' Hhb]]].
@@ -238,14 +340,15 @@ Section trap_cause.
 
   Lemma erasure_cause_rel R C σ lpc lreg lsreg lmem :
     erasure R C σ lpc lreg lsreg lmem →
-    cause_rel (lview lpc lreg lmem) σ.
+    cause_rel (reg_may_strip lreg) (lview lpc lreg lmem) σ.
   Proof.
     intros Her. constructor; cbn.
     - symmetry. by eapply erasure_pc_exact.
     - intros r. rewrite lookup_fmap.
       destruct (lreg !! r) as [v|] eqn:Hv; cbn.
       + destruct (erasure_lookup_reg _ _ _ _ _ _ _ _ _ Her Hv) as (w & -> & Hw).
-        constructor. eapply reg_phys_word_agree; [apply Her | by eapply er_reg_words | done].
+        constructor.
+        eapply reg_phys_word_agree; [apply Her | done | by eapply er_reg_words | done].
       + destruct (reg σ !! r) eqn:Hr; last constructor. exfalso.
         apply elem_of_dom_2 in Hr. rewrite (proj1 (er_regs _ _ _ _ _ _ _ Her)) in Hr.
         apply elem_of_dom in Hr as [? ?]. congruence.
@@ -261,81 +364,125 @@ Section trap_cause.
     - apply (er_heap_mapped _ _ _ _ _ _ _ Her).
   Qed.
 
-  (** Agreement: under erasure, which covers the heap with memory, the
-      logical cause is the physical one, for every fault class (fetch,
-      illegal instruction, load, store, every other CHERI fault). *)
+  (** Agreement on the cause: under erasure, which covers the heap with
+      memory, the logical cause is the physical one, for every fault class
+      (fetch, illegal instruction, load, store, every other CHERI fault). *)
   Theorem erasure_trap_cause R C σ lpc lreg lsreg lmem :
     erasure R C σ lpc lreg lsreg lmem →
     trap_cause σ = lcause lpc lreg lmem.
-  Proof. intros Her. symmetry. apply trap_cause_rel. by eapply erasure_cause_rel. Qed.
+  Proof.
+    intros Her. rewrite /lcause /trap_cause.
+    destruct (trap_fault_rel _ _ _ (erasure_cause_rel _ _ _ _ _ _ _ Her))
+      as [-> | (Hl & _ & _ & _ & _ & _ & _ & r & _ & _ & _ & _ & _ & ->)]; first done.
+    by rewrite Hl.
+  Qed.
 
-  (** * The cause from fragments *)
+  (** The instruction word that the PC [lpc] fetches from the logical memory
+      [lm], if it is a correct PC. *)
+  Definition instr_at (lpc : LWord) (lm : LMem) : option LWord :=
+    match lpc.(lw) with
+    | WCap true _ _ _ _ a => if isCorrectPCb lpc.(lw) then lm !! a else None
+    | _ => None
+    end.
 
-  (** The cause is known from the registers [lregs] and the memory [lm]:
+  (** The faults that the logical view allows: the logical fault, or a tag
+      violation on the authority of the instruction at the PC, when its
+      logical word may have been stripped. *)
+  Definition fault_ok (lpc : LWord) (lregs : LReg) (lm : LMem) (f : fault) : Prop :=
+    f = lfault lpc lregs lm ∨
+    ∃ wi r v,
+      instr_at lpc lm = Some wi ∧ fault_auth_reg (decodeInstrW wi.(lw)) = Some r ∧
+      lregs !! r = Some v ∧ may_strip v ∧ f = FaultCheri TagViolation (CheriGPR r).
+
+  (** Agreement on the fault: under erasure, the physical fault is one that
+      the logical view allows. *)
+  Theorem erasure_trap_fault R C σ lpc lreg lsreg lmem :
+    erasure R C σ lpc lreg lsreg lmem →
+    fault_ok lpc lreg lmem (trap_fault σ).
+  Proof.
+    intros Her.
+    destruct (trap_fault_rel _ _ _ (erasure_cause_rel _ _ _ _ _ _ _ Her))
+      as [-> | (_ & p & g & b & e & a & wi & r & Hpc & Hcorrect & Hwi & Hr & (v & Hv & Hs) & ->)];
+      first by left.
+    right. cbn [lview pcc mem fst snd] in Hpc, Hcorrect, Hwi. rewrite lookup_fmap in Hwi.
+    destruct (lmem !! a) as [wi'|] eqn:Hwi'; inversion Hwi; subst wi.
+    exists wi', r, v. split_and!; try done.
+    by rewrite /instr_at Hcorrect Hpc.
+  Qed.
+
+  (** * The fault from fragments *)
+
+  (** Whether a fault is an access fault. *)
+  Definition fault_is_access (f : fault) : bool :=
+    match f with
+    | FaultInstAccess _ | FaultLoadAccess _ | FaultStoreAccess _ => true
+    | _ => false
+    end.
+
+  (** The fault is known from the registers [lregs] and the memory [lm]:
       they contain the registers that the instruction at the PC reads, and
-      the cause is not an access fault, which an address that the fragment
+      the fault is not an access fault, which an address that the fragment
       misses would give. *)
-  Definition lcause_known (lpc : LWord) (lregs : LReg) (lm : LMem) : Prop :=
+  Definition lfault_known (lpc : LWord) (lregs : LReg) (lm : LMem) : Prop :=
     (∀ p g b e a wi, lpc.(lw) = WCap true p g b e a → lm !! a = Some wi →
        regs_of (decodeInstrW wi.(lw)) ⊆ dom lregs) ∧
-    lcause lpc lregs lm ≠ MCAUSE_INST_ACCESS_FAULT ∧
-    lcause lpc lregs lm ≠ MCAUSE_LOAD_ACCESS_FAULT ∧
-    lcause lpc lregs lm ≠ MCAUSE_STORE_ACCESS_FAULT.
+    fault_is_access (lfault lpc lregs lm) = false.
 
-  Lemma load_cause_frag φf φ src imm :
+  Lemma load_fault_frag φf φ src imm :
     reg φf !! src = reg φ !! src →
     mem φf ⊆ mem φ →
     shadowtbl φf = shadowtbl φ →
-    load_cause φf src imm ≠ MCAUSE_LOAD_ACCESS_FAULT →
-    load_cause φ src imm = load_cause φf src imm.
+    fault_is_access (load_fault φf src imm) = false →
+    load_fault φ src imm = load_fault φf src imm.
   Proof.
-    intros Hsrc Hmem Hsh. rewrite /load_cause /lookup_reg Hsrc Hsh.
+    intros Hsrc Hmem Hsh. rewrite /load_fault /lookup_reg Hsrc Hsh.
     destruct (reg φ !! src) as [w|]; last done. cbn.
     case_decide; first done.
-    destruct w as [| [[] p g b e a | ] | | ]; try done.
-    destruct (a + imm)%a as [ea|]; last done.
-    destruct (readAllowed p && withinBounds b e ea); last done.
+    destruct (data_cap_check readAllowed PermitLoadViolation src w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
     destruct (mem φf !! ea) as [x|] eqn:Hx; last done.
     by rewrite (lookup_weaken _ _ _ _ Hx Hmem).
   Qed.
 
-  Lemma store_cause_frag φf φ dst ρ imm :
+  Lemma store_fault_frag φf φ dst ρ imm :
     reg φf !! dst = reg φ !! dst →
     (∀ r, ρ = inr r → reg φf !! r = reg φ !! r) →
     mem φf ⊆ mem φ →
-    store_cause φf dst ρ imm ≠ MCAUSE_STORE_ACCESS_FAULT →
-    store_cause φ dst ρ imm = store_cause φf dst ρ imm.
+    fault_is_access (store_fault φf dst ρ imm) = false →
+    store_fault φ dst ρ imm = store_fault φf dst ρ imm.
   Proof.
-    intros Hdst Hρ Hmem. rewrite /store_cause /lookup_reg Hdst.
+    intros Hdst Hρ Hmem. rewrite /store_fault /lookup_reg Hdst.
     assert (word_of_argument (reg φf) ρ = word_of_argument (reg φ) ρ) as ->.
     { destruct ρ as [z|r]; first done. cbn. rewrite /lookup_reg (Hρ r eq_refl). done. }
     destruct (word_of_argument (reg φ) ρ) as [t|]; last done.
     destruct (reg φ !! dst) as [w|]; last done. cbn.
     case_decide; first done.
-    destruct w as [| [[] p g b e a | ] | | ]; try done.
-    destruct (a + imm)%a as [ea|]; last done.
-    destruct (writeAllowed p && withinBounds b e ea); last done.
+    destruct (data_cap_check writeAllowed PermitStoreViolation dst w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
     destruct (mem φf !! ea) as [x|] eqn:Hx; last done.
     by rewrite (lookup_weaken _ _ _ _ Hx Hmem).
   Qed.
 
-  (** The cause from fragments is the cause from any registers and memory
+  Lemma jalr_fault_frag φf φ rdst rsrc :
+    reg φf !! rsrc = reg φ !! rsrc →
+    jalr_fault φ rdst rsrc = jalr_fault φf rdst rsrc.
+  Proof. intros Hsrc. by rewrite /jalr_fault /lookup_reg Hsrc. Qed.
+
+  (** The fault from fragments is the fault from any registers and memory
       that contain them. *)
-  Lemma lcause_frag lpc lregs lm lreg lmem :
-    lcause_known lpc lregs lm →
+  Lemma lfault_frag lpc lregs lm lreg lmem :
+    lfault_known lpc lregs lm →
     lregs ⊆ lreg →
     lm ⊆ lmem →
-    lcause lpc lreg lmem = lcause lpc lregs lm.
+    lfault lpc lreg lmem = lfault lpc lregs lm.
   Proof.
-    intros (Hregs & Hfetch & Hload & Hstore) Hsub Hmsub.
+    intros (Hregs & Hknown) Hsub Hmsub.
     assert ((lw <$> lm) ⊆ (lw <$> lmem)) as Hmsub' by by apply map_fmap_mono.
     assert (∀ r, r ∈ dom lregs → (lw <$> lregs) !! r = (lw <$> lreg) !! r) as Hr.
     { intros r [v Hv]%elem_of_dom. by rewrite !lookup_fmap Hv (lookup_weaken _ _ _ _ Hv Hsub). }
-    revert Hfetch Hload Hstore. rewrite /lcause /trap_cause /lview /=.
+    revert Hknown. rewrite /lfault /trap_fault /lview /=.
     destruct lpc as [w π]; cbn in Hregs |- *.
     destruct w as [| [[] p g b e a | ] | | ]; try done.
     destruct (isCorrectPCb _); last done.
@@ -344,50 +491,98 @@ Section trap_cause.
     rewrite (lookup_weaken _ _ _ _ Hwi Hmsub) /=.
     pose proof (Hregs _ _ _ _ _ _ eq_refl Hwi) as Hdom.
     destruct (decodeInstrW wi.(lw)) eqn:Hi; cbn in Hdom |- *; try done.
-    - intros _ Hload _. apply load_cause_frag; [| done | done | done].
+    - intros _. apply jalr_fault_frag. apply Hr. set_solver.
+    - intros Hload. apply load_fault_frag; [| done | done | done].
       apply Hr. set_solver.
-    - intros _ _ Hstore. apply store_cause_frag; [| | done | done].
+    - intros Hstore. apply store_fault_frag; [| | done | done].
       + apply Hr. set_solver.
       + intros r ->. apply Hr. set_solver.
   Qed.
 
-  (** * The fault rule with the exact cause *)
+  Lemma lcause_frag lpc lregs lm lreg lmem :
+    lfault_known lpc lregs lm →
+    lregs ⊆ lreg →
+    lm ⊆ lmem →
+    lcause lpc lreg lmem = lcause lpc lregs lm.
+  Proof. intros. rewrite !lcause_lfault. f_equal. by apply lfault_frag. Qed.
+
+  Lemma fault_auth_reg_regs_of i r : fault_auth_reg i = Some r → r ∈ regs_of i.
+  Proof. destruct i; cbn; intros [=<-]; set_solver. Qed.
+
+  (** The faults that the full view allows are those that fragments
+      allow. *)
+  Lemma fault_ok_frag lpc lregs lm lreg lmem f :
+    lfault_known lpc lregs lm →
+    lregs ⊆ lreg →
+    lm ⊆ lmem →
+    fault_ok lpc lreg lmem f →
+    fault_ok lpc lregs lm f.
+  Proof.
+    intros Hknown Hsub Hmsub [-> | (wi & r & v & Hwi & Hr & Hv & Hs & ->)].
+    { left. by apply lfault_frag. }
+    right. destruct Hknown as [Hregs Hacc].
+    rewrite /instr_at in Hwi.
+    destruct lpc as [w π]; cbn in Hwi, Hregs.
+    destruct w as [| [[] p g b e a | ] | | ]; try done.
+    destruct (isCorrectPCb _) eqn:Hcorrect; last done.
+    (* The fragment has the instruction word: otherwise the fault would be a
+       fetch access fault. *)
+    destruct (lm !! a) as [wi'|] eqn:Hwi'; last first.
+    { exfalso. revert Hacc. rewrite /lfault /trap_fault /lview. cbn [pcc mem fst snd lw].
+      by rewrite Hcorrect lookup_fmap Hwi'. }
+    rewrite (lookup_weaken _ _ _ _ Hwi' Hmsub) in Hwi. injection Hwi as ->.
+    pose proof (Hregs _ _ _ _ _ _ eq_refl Hwi') as Hdom.
+    pose proof (fault_auth_reg_regs_of _ _ Hr) as Hrr.
+    destruct (elem_of_dom lregs r) as [[v' Hv'] _]; first set_solver.
+    rewrite (lookup_weaken _ _ _ _ Hv' Hsub) in Hv. injection Hv as ->.
+    exists wi, r, v. split_and!; try done.
+    rewrite /instr_at. cbn [lw]. by rewrite Hcorrect.
+  Qed.
+
+  (** * The fault rule with the exact cause and value *)
 
   Context `{ceriseg : ceriseG Σ}.
 
-  (** A fault with the exact cause, from the PC [w], the registers [lregs]
-      and the memory [lm] (the code, and the effective address of an access
-      past the capability checks): the obligation receives a cause in
-      [mcause_ok] that is [lcause w lregs lm]. *)
-  Lemma wp_trap_cause E Φ w (lregs : LReg) (lm : LMem) dq :
-    lcause_known w lregs lm →
+  (** A fault with the exact cause and value, from the PC [w], the
+      registers [lregs] and the memory [lm] (the code, and the effective
+      address of an access past the capability checks): the obligation
+      receives a cause in [mcause_ok] that is [lcause w lregs lm], and the
+      value of a fault that [fault_ok] allows. *)
+  Lemma wp_trap_fault E Φ w (lregs : LReg) (lm : LMem) dq :
+    lfault_known w lregs lm →
     PC ↦ₚ w -∗
     ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
     (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
      ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-     trap_safe_cause (λ c : Z, (mcause_ok c ∧ c = lcause w lregs lm)%type) w E Φ) -∗
+     trap_safe_cause
+       (λ c : Z, (mcause_ok c ∧ c = lcause w lregs lm)%type)
+       (λ v : Z, (∃ f, fault_ok w lregs lm f ∧ v = fault_mtval f)%type)
+       w E Φ) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
     intros Hknown. iApply wp_trap_gen.
-    intros R C σ lreg lsreg lmem Her Hregs Hmem. split; first apply trap_cause_ok.
-    rewrite (erasure_trap_cause _ _ _ _ _ _ _ Her). by apply lcause_frag.
+    intros R C σ lreg lsreg lmem Her Hregs Hmem. split_and!.
+    - apply trap_cause_ok.
+    - rewrite (erasure_trap_cause _ _ _ _ _ _ _ Her). by apply lcause_frag.
+    - exists (trap_fault σ). split; last done.
+      eapply fault_ok_frag; [done | done | done |]. by eapply erasure_trap_fault.
   Qed.
 
 End trap_cause.
 
 (* [iTrap cause with "Hregs" "Hmem"] closes a fault
-   [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap_cause], from the PC
+   [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap_fault], from the PC
    points-to of the context, the register map ["Hregs"] and the memory map
    ["Hmem"]. The maps come back under the same names, for the obligation
-   [trap_safe_cause] with the exact cause, after the side condition
-   [lcause_known], which is left to the caller. *)
+   [trap_safe_cause] with the exact cause and value, after the side
+   condition [lfault_known], which is left to the caller. *)
 Tactic Notation "iTrap" "cause" "with" constr(Hregs) constr(Hmem) :=
   lazymatch goal with
   | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
   | _ => fail "iTrap cause: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in
-  iApply (wp_trap_cause with
+  iApply (wp_trap_fault with
            [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil]);
   last (iIntros Hregs; iIntros Hmem).
