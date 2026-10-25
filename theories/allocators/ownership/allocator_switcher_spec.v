@@ -214,9 +214,9 @@ Section AllocatorSwitcherSpec.
       [solve_ndisj|solve_ndisj|].
     iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
     iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
-      _ _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rframe with
+      _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
-       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hcnull $Hframe $Hmtdc $Hmem]");
+       $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
       | exact Hbounds | exact Hlen | | | intros _; reflexivity | intros _; reflexivity
       | apply jalr_target_ok_switcher_return_sentry |].
@@ -229,7 +229,7 @@ Section AllocatorSwitcherSpec.
       by rewrite (Hzero _ _ Hr). }
     iNext.
     iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hca0 & Hca1
-      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hcnull & Hframe & Hmtdc & #Hq & _)".
+      & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hframe & Hmtdc & #Hq & _)".
     iMod ("Hsw_close" with "[$Hna Hmtdc Hsw]") as "Hna".
     { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
     iEval (cbn) in "HPC".

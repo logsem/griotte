@@ -334,7 +334,7 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
       iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rmap
+        (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rmap
         (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
         | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
@@ -348,12 +348,12 @@ Section Heap_Temporal_Safety_Interp.
         clear -Hca1 Hca0 Hcra Hcgp.
         rewrite /allocator_free_nargs /dom_arg_rmap /=. set_solver. }
       iFrame "Hservice Hstatic Hna Hid Ha_owner Hobj Hheld HPCr Hcgpr Hcrar Hca0 Hca1 Hca2
-        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap Hmtdc Hcells".
+        Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hrmap Hmtdc Hcells".
       iNext.
       iIntros "(Hna_post & Hid & Ha_owner & HPCr_post & Hcgpr_post &
         Hcrar_post & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
         Hct1_post & Hct2_post & Hct3_post & Hct4_post & Hctp_post &
-        Hcnull_post & Hrmap & Hmtdc & #Hq & Hlc)".
+        Hrmap & Hmtdc & #Hq & Hlc)".
       iMod ("Hsw_close" with "[$Hna_post Hmtdc Hsw]") as "Hna_post".
       { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
       subst rmap. iExtract "Hrmap" csp as "Hcspr".

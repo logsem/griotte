@@ -72,7 +72,7 @@ Section rules_registry.
       ([cnull] always holds the null word, and the other system registers
       hold no word with authority and identifier). *)
   Lemma reg_quarantine E ι b e' lpc (regs : LReg) (vmtdc : LWord) :
-    (∀ x, is_Some (regs !! x)) →
+    (∀ x, x ≠ cnull → is_Some (regs !! x)) →
     (∀ v, (v = lpc ∨ v = vmtdc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
        has_authority v.(lw) → v.(lprov) ≠ Some ι) →
     alloc_obj ι b e' -∗
@@ -121,7 +121,7 @@ Section rules_registry.
       { (* [cnull] holds the null word, which has no authority. *)
         rewrite (er_cnull _ _ _ _ _ _ _ Her _ Hx) in Hauth. by inversion Hauth. }
       apply Hclean; last done.
-      right; right. exists x. split; first done. destruct (Hfull x) as [v' Hv'].
+      right; right. exists x. split; first done. destruct (Hfull x Hxn) as [v' Hv'].
       by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
     - destruct (decide (x = MTDC)) as [->|Hxn].
       { rewrite Hmtdc in Hx. simplify_eq. apply Hclean; [by right; left | done]. }
