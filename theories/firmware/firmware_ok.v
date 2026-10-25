@@ -282,7 +282,7 @@ Section translation.
   (** *** Registers
 
       The first thread starts at an export of a trusted compartment, with
-      interrupts disabled. *)
+      interrupts disabled, and the switcher's return sentry in [cra]. *)
 
   Definition regs_ok (σ : ExecConf) : Prop :=
     match fw_threads fw with
@@ -302,8 +302,12 @@ Section translation.
             reg σ !! csp =
               Some (WCap true RWL Local (b_stack t) (e_stack t)
                       (e_stack t ^+ (- StackEntry_reserved_space))%a) ∧
+            note "the switcher's return sentry: a return from the entry exits the thread"
+              (reg σ !! cra =
+                 Some (WSentry RetDisable true XSRW_ Local (b_switcher (img_sw img))
+                         (e_switcher (img_sw img)) (a_switcher_return (img_sw img)))) ∧
             note "every other register cleared"
-              (∀ r, r ∉ ({[cgp; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
+              (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
             sreg σ !! MTDC =
               Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
             note "interrupts disabled (the posture of the export is not used yet)"

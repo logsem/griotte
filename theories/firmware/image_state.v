@@ -38,10 +38,13 @@ Section img_state.
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
     let c := cmpt_of img (thread0_entry fw).1 in
     let t := thread_of img 0 in
+    let sw := img_sw img in
     <[cgp := WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
-      (<[csp := WCap true RWL Local (b_stack t) (e_stack t)
-                   (e_stack t ^+ (- StackEntry_reserved_space))%a]>
-         (gset_to_gmap (WInt 0) all_registers_s)).
+      (<[cra := WSentry RetDisable true XSRW_ Local (b_switcher sw) (e_switcher sw)
+                  (a_switcher_return sw)]>
+         (<[csp := WCap true RWL Local (b_stack t) (e_stack t)
+                      (e_stack t ^+ (- StackEntry_reserved_space))%a]>
+            (gset_to_gmap (WInt 0) all_registers_s))).
 
   Definition img_sregs (img : fw_image) : SReg :=
     let t := thread_of img 0 in
