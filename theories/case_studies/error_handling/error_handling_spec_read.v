@@ -257,12 +257,14 @@ Section Error_Handling_Read.
   Proof.
     iIntros (Hinstr Hf Hnaccess) "HPC Hca0 Hlm Hcont".
     iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 wptr with "Hca0") as "Hregs".
-    iApply (wp_trap_fault _ _ _ {[ca0 := wptr]} lm with "HPC Hregs Hlm").
+    iTrap cause with "Hregs" "Hlm".
     { split; last by rewrite Hf.
-      intros p g b e a wi Hpc Hwi. rewrite /stats_pcc /= in Hpc. injection Hpc as <- <- <- <- <-.
+      intros p g b e a wi Hpc Hwi. rewrite /stats_pcc /= in Hpc.
+      injection Hpc as <- <- <- <- <-.
       rewrite Hinstr in Hwi. injection Hwi as <-.
-      rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /= dom_singleton_L. set_solver. }
-    iIntros "Hregs Hlm".
+      rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /=
+        dom_singleton_L.
+      set_solver. }
     iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 wptr with "Hregs") as "Hca0".
     iApply (trap_safe_cause_mono with "(Hcont Hca0 Hlm)").
     - intros c [Hok ->]. split; first done. by rewrite lcause_lfault Hf.

@@ -387,60 +387,6 @@ Section region_invariant_revocation.
         revert Hin Hdomρ. clear; intros Hin Hdom. rewrite Hdom. set_solver.
   Qed.
 
-  Lemma monotone_revoke_list_sts_full_world_keep W C (l : list LAddr) (l' : list LAddr) :
-    ⊢ ⌜Forall (λ a, heap_key_live (heap_std W) a) l'⌝ → ⌜NoDup l'⌝ → ⌜NoDup l⌝ → ⌜l' ⊆+ l⌝ →
-    ([∗ list] a ∈ l', ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke_list l W) C
-     ∗ region W C
-     ∗ close_list_resources C W l' true).
-  Proof.
-    iIntros (Hlive Hdup' Hdup Hsub) "(Hl & Hfull & Hr)".
-    iMod (monotone_revoke_list_sts_full_world_keep_open _ _ _ _ []
-            with "[] [] [] [] [] [$Hl $Hfull Hr]") as "(Hfull & Hr & Hl)"; auto.
-    { iPureIntro. apply disjoint_nil_r. }
-    { by iApply region_open_nil. }
-    iModIntro. iFrame. by iApply region_open_nil.
-  Qed.
-
-  Lemma monotone_revoke_sts_full_world_keep W C (l : list LAddr)
-     :
-    Forall (λ a, heap_key_live (heap_std W) a) l ->
-    ⌜NoDup l⌝ -∗
-    ([∗ list] a ∈ l, ⌜(std W) !! a = Some Temporary⌝)
-    ∗ sts_full_world W C ∗ region W C
-    ==∗
-    (sts_full_world (revoke W) C
-     ∗ region W C
-     ∗ close_list_resources C W l true).
-  Proof.
-    intros Hlive.
-    iIntros (Hdup) "(Hl & Hfull & Hr)".
-    rewrite revoke_list_dom.
-    iAssert (⌜l ⊆+ (map_to_list (std W)).*1⌝)%I as %Hsub.
-    { iClear "Hfull Hr". clear Hlive. iInduction l as [| x l] "IH".
-      - iPureIntro. apply submseteq_nil_l.
-      - iDestruct "Hl" as "[ Hin Hl]".
-        iDestruct "Hin" as %Hin. apply NoDup_cons in Hdup as [Hnin Hdup].
-        iDestruct ("IH" with "[] Hl") as %Hsub; auto.
-        iPureIntro.
-        assert (x ∈ (map_to_list (std W)).*1) as Helem.
-        { apply map_to_list_fst. exists Temporary. by apply elem_of_map_to_list. }
-        apply elem_of_Permutation in Helem as [l' Hl']. rewrite Hl'.
-        apply submseteq_skip. revert Hsub. rewrite Hl'; intros Hsub.
-        apply submseteq_cons_r in Hsub as [Hsub | [l'' [Heq _] ] ]; auto.
-        assert (countable.encode x ∈ countable.encode <$> l) as Hcontr.
-        { rewrite Heq. apply list_elem_of_here. }
-        apply list_elem_of_fmap_1 in Hcontr as [y [Hxy Hy] ].
-        apply encode_inj in Hxy. subst. contradiction.
-    }
-    iMod (monotone_revoke_list_sts_full_world_keep _ _ (map_to_list (std W)).*1 l
-            with "[] [] [] [] [$Hl $Hfull $Hr]") as "(Hfull & Hr & Hi)"; auto.
-    { iPureIntro. apply (NoDup_fst_map_to_list (M:=gmap LAddr) (A:=region_type)). }
-    by iFrame.
-  Qed.
-
   (* ---------------------------------------------------------------------------------------- *)
   (* ------------------------- REVOCATION OF A WORLD OPEN ON SOME KEYS ---------------------- *)
   (* ---------------------------------------------------------------------------------------- *)

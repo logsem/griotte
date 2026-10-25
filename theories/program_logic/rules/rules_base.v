@@ -596,8 +596,9 @@ Section griotte_lang_rules.
 
   (* ----------------------------------- TRAPS --------------------------------------- *)
 
-  (* Clients close faults with [wp_trap] (through [iTrap]) only; the lemmas
-     below are its proof. *)
+  (* Clients close faults with [wp_trap] (through [iTrap]) or with the
+     cause-aware rules of [rules_trap_cause.v]; the lemmas below are their
+     proof. *)
 
   (** The fault causes: the named causes below 8, and the CHERI cause. *)
   Definition mcause_ok (z : Z) : Prop := (0 ≤ z < 8)%Z ∨ z = 28%Z.
@@ -636,80 +637,6 @@ Section griotte_lang_rules.
   Proof.
     iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
     destruct (nclose_infinite Ntval []) as (i & Hi & _). set_solver.
-  Qed.
-
-  (** Trap entry from any faulting PC [w]: MTCC holds the tagged trap vector
-      [mtcc_vec], so the machine never stops on a fault. MEPCC receives the
-      PC, untagged if it is not a correct PC and without identifier
-      ([lmepcc_of_pc]), and the PC receives the trap vector. The trap-entry
-      token goes to the state interpretation, which lends MEPCC, mcause,
-      with a fault cause, and mtval to the continuation. *)
-  Lemma wp_trap_entry E Φ w :
-    PC ↦ₚ w -∗
-    na_own cerise_nais (↑Ntrap) -∗
-    ▷ (PC ↦ₚ lword_of_word mtcc_vec -∗
-       MEPCC ↦ₛᵣ lmepcc_of_pc w -∗
-       (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)) -∗
-       (∃ v : Z, MTVAL ↦ₛᵣ lword_of_word (WInt v)) -∗
-       WP Seq (Instr Executable) @ E {{ Φ }}) -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    iIntros "HPC Htok HΦ".
-    iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct (PC_agree with "HPCa HPC") as %->.
-    iDestruct (sreg_interp_mtcc with "Hsr") as %Htcc.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
-    (* The trap vector is an executable capability, so its physical copy is
-       exact. *)
-    assert (wtcc = mtcc_vec) as ->.
-    { destruct (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC _ eq_refl Htcc mtcc_vec_tagged)
-        as [_ Hx].
-      apply (reg_phys_executable R C (lword_of_word mtcc_vec)).
-      - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
-      - exact Hreltcc.
-      - apply mtcc_vec_tagged.
-      - exact Hx. }
-    assert (trap_halts σ1 = false) as Hnh.
-    { by rewrite /trap_halts /sreg_word Hwtcc /= mtcc_vec_tagged andb_false_r. }
-    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
-    iSplit.
-    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
-    iNext. iIntros (e2 σ2 efs Hstep) "_".
-    inversion Hstep as [| | | σ' Hnh' | σ' Hh]; subst; last congruence.
-    iMod "Hclose" as "_".
-    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
-      as Her'.
-    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
-    (* With the token in hand, MEPCC, mcause and mtval are held. *)
-    iDestruct (trap_token_split with "Htok") as "[Htok Htok_tval]".
-    iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
-    { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
-    iDestruct "Hwin_tval" as "[Hmtval | Htok']"; last first.
-    { iDestruct (trap_tval_token_excl with "Htok_tval Htok'") as %[]. }
-    iDestruct "Hmepcc" as (vepcc) "Hmepcc".
-    iDestruct "Hmstatus" as (vst) "Hmstatus".
-    iDestruct "Hmcause" as (vcause) "Hmcause".
-    iDestruct "Hmtval" as (ztval) "Hmtval".
-    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
-    iMod (gen_heap_update _ _ _
-            (lword_of_word (WInt (mstatus_enc InterruptDisabled
-                                    (mie_of (get_a (sreg_word σ1 MSTATUS))))))
-           with "Hsr Hmstatus") as "[Hsr Hmstatus]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
-           with "Hsr Hmcause") as "[Hsr Hmcause]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
-           with "Hsr Hmtval") as "[Hsr Hmtval]".
-    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "HΦ HPC Hmepcc Hmcause Hmtval".
-    - iExists (lword_of_word mtcc_vec), lreg,
-        (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg), lmem, R, C.
-      rewrite /lsregs_enter_exc /=. iFrame. by iPureIntro.
-    - iSplitL; last done.
-      iApply ("HΦ" with "HPC Hmepcc [Hmcause] [Hmtval]").
-      + iExists (trap_cause σ1). iFrame. iPureIntro. apply trap_cause_ok.
-      + by iExists (trap_tval σ1).
   Qed.
 
   (* The resources trap entry consumes, and those it gives back to the
@@ -962,20 +889,6 @@ Section griotte_lang_rules.
     iMod "H" as "[H _]". iExact "H".
   Qed.
 
-  (* A fault, from the configuration a faulting instruction returns: trap
-     entry, then the continuation from the trap vector. *)
-  Lemma wp_trap E Φ w :
-    PC ↦ₚ w -∗
-    trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
-    iIntros "HPC [>[Htok HΦ] _]".
-    iApply (wp_trap_entry with "HPC Htok"). iNext.
-    iIntros "HPC Hmepcc Hmcause [%v Hmtval]".
-    iApply ("HΦ" with "[$Hmepcc $Hmcause Hmtval] HPC"). by iExists v; iFrame.
-  Qed.
-
   (* A fault, for a cause predicate [P_mcause] and a value predicate
      [P_mtval] that the physical cause and value satisfy in every state that
      erases to logical registers and memory containing [lregs] and the words
@@ -1061,6 +974,25 @@ Section griotte_lang_rules.
     - iSplitL; last done.
       iApply ("HΦ" with "[$Hmepcc Hmcause Hmtval] HPC").
       iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
+  Qed.
+
+  (* A fault, from the configuration a faulting instruction returns: trap
+     entry, then the continuation from the trap vector. MTCC holds the tagged
+     trap vector [mtcc_vec], so the machine never stops on a fault. MEPCC
+     receives the PC, untagged if it is not a correct PC and without
+     identifier ([lmepcc_of_pc]), and the PC receives the trap vector. *)
+  Lemma wp_trap E Φ w :
+    PC ↦ₚ w -∗
+    trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros "HPC Hsafe".
+    iApply (wp_trap_gen_frac _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅
+             with "HPC [] [] [Hsafe]").
+    - intros R C σ lreg lsreg lmem _ _ _. split; [apply trap_cause_ok | done].
+    - by rewrite big_sepM_empty.
+    - by rewrite big_sepM_empty.
+    - iIntros "_ _". iExact "Hsafe".
   Qed.
 
   (* A fault, for a cause predicate [P_mcause] and a value predicate
