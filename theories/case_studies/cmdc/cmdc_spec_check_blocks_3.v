@@ -99,7 +99,7 @@ Section CMDC_Check_Blocks_3.
     - (* Return from [C.g], blocks 8-9 *)
       cmdc_check_blocks_proof
         ".Lcmdc_return_C"%string ".Lcmdc_assert_C"%string
-        ".Lcmdc_halt"%string pc_a.
+        ".Lcmdc_return"%string pc_a.
   Qed.
 
 End CMDC_Check_Blocks_3.

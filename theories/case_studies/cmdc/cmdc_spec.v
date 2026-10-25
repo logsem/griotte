@@ -49,8 +49,6 @@ Section CMDC.
     (w_main_tbl : LWord)
 
     (csp_content : list LWord)
-
-    (φ : language.val griotte_lang -> iProp Σ)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -64,7 +62,7 @@ Section CMDC.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
@@ -96,6 +94,7 @@ Section CMDC.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -120,9 +119,6 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-
-      ∗ ▷ (na_own cerise_nais ⊤
-              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
       ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
   Proof.
     (* Outline of the proof:
@@ -143,7 +139,7 @@ Section CMDC.
        - [switcher_cc_specification]: call to [C.g],
        - [cmdc_check_blocks_3_spec cmdc_call_C]: blocks 8-9, assert that
          [b] is unchanged,
-       - [cmdc_halt_blocks_5_spec]: block 10, halt. *)
+       - [cmdc_return_spec]: block 10, return: the thread exits. *)
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
@@ -151,7 +147,7 @@ Section CMDC.
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
       & Hworld_interp_C
@@ -159,14 +155,11 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hstack_revoked_B & Hstack_revoked_C
-      & Hφ)".
-    assert (rmap !! cs0 = Some (lword_of_word (WInt 0))) as Hcs0_init.
-    { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
+      & Hstack_revoked_B & Hstack_revoked_C)".
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
-    iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1;cra]
-      as ["Hca0";"Hca1";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1";"Hcra"].
+    iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
+      as ["Hca0";"Hca1";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1"].
     iEval (cbn [fmap list_fmap cmdc_main_data cmdc_main_imports]) in "Hcgp_main Himports_main".
     iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_c]".
     iRegionSplit "Himports_main"
@@ -176,9 +169,9 @@ Section CMDC.
 
     (* Block 0: initialise b and c *)
     iApply (cmdc_init_blocks_1_spec with
-             "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcgp_b $Hcgp_c $Hcode_main]");
+             "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b $Hcgp_c $Hcode_main]");
       [done..|].
-    iNext; iIntros "(HPC & Hcgp & Hca0 & [%wct0' Hct0] & [%wct1' Hct1]
+    iNext; iIntros "(HPC & Hcgp & Hca0 & [%wct0' Hct0] & [%wct1' Hct1] & Hcs0 & Hcra
                     & Hcgp_b & Hcgp_c & Hcode_main)".
 
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
@@ -244,7 +237,7 @@ Section CMDC.
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    apply load_heap_nonheap in Hrcs0; [|done].
+    apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hrcs1; [|done].
     subst rcgp rcra rcs0 rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
@@ -322,29 +315,31 @@ Section CMDC.
     clear dependent arg_rmap rmap' rmap stk_mem.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
-      & Hna & _ & _ & _
-      & HPC & Hcgp & Hcra & _ & _ & _ & _ & _
+      & Hna & _ & _ & Hcstk_frag
+      & HPC & Hcgp & Hcra & Hcs0 & _ & _ & _ & _
       & Hrmap & _ & _ & %Hrestored)".
-    destruct Hrestored as (Hrcgp & Hrcra & _ & _).
+    destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    subst rcgp rcra.
+    apply load_heap_nonheap in Hrcs0; last exact thread_return_sentry_not_heap.
+    subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
-    iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
-      as ["Hct0";"Hct1";"Hct2";"Hca2"].
+    iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2]
+      as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2"].
 
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
              "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_b $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & _ & _ & _ & _ & _ & _ & _ & _ & Hcode_main)".
+    iNext; iIntros "(HPC & _ & Hct0 & _ & Hct2 & _ & Hcra & _ & _ & Hcode_main)".
 
-    (* Block 10: halt *)
-    iApply (cmdc_halt_blocks_5_spec with "[$HPC $Hcode_main Hφ Hna]"); first done.
-    iNext; iApply ("Hφ" with "Hna").
+    (* Block 10: return, the thread exits *)
+    iApply (cmdc_return_spec with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+               $Hcstk_frag $Hcode_main]"); [done | done].
   Qed.
 
   Lemma cmdc_spec_full
@@ -366,8 +361,6 @@ Section CMDC.
     (w_main_tbl : LWord)
 
     (csp_content : list LWord)
-
-    (φ : language.val griotte_lang -> iProp Σ)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -381,7 +374,7 @@ Section CMDC.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
 
@@ -409,6 +402,7 @@ Section CMDC.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -433,9 +427,6 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-
-      ∗ ▷ ( na_own cerise_nais ⊤
-              -∗ WP Instr Halted {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
       ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
@@ -445,7 +436,7 @@ Section CMDC.
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
       & Hworld_interp_C
@@ -453,13 +444,12 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hstack_revoked_B & Hstack_revoked_C
-      & Hφ)".
+      & Hstack_revoked_B & Hstack_revoked_C)".
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 B_f C_g W_init_B W_init_C
-               Ws Cs w_main_tbl csp_content φ); eauto; iFrame "#∗".
+               Ws Cs w_main_tbl csp_content); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

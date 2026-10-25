@@ -17,7 +17,7 @@ From griotte Require Export case_study_spec_helpers.
       [b]),
     - [cmdc_spec_prep_blocks_4]: block 5, overwrite [b] and prepare the
       argument of the call to [C.g],
-    - [cmdc_spec_halt_blocks_5]: block 10, halt.
+    - [cmdc_spec_halt_blocks_5]: block 10, return: the thread exits.
 
     The two calls have the same shape, so that [cmdc_spec_call_blocks_2] and
     [cmdc_spec_check_blocks_3] are parametrised by the call ([cmdc_call]).
@@ -74,7 +74,7 @@ Definition cmdc_return_label (c : cmdc_call) : string :=
 
 (** The code after the assertion that follows the call. *)
 Definition cmdc_next_label (c : cmdc_call) : string :=
-  match c with cmdc_call_B => ".Lcmdc_prep_C"%string | cmdc_call_C => ".Lcmdc_halt"%string end.
+  match c with cmdc_call_B => ".Lcmdc_prep_C"%string | cmdc_call_C => ".Lcmdc_return"%string end.
 
 (** The index of the import of the callee. *)
 Definition cmdc_call_import (c : cmdc_call) : Z :=

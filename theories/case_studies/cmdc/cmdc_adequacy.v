@@ -139,7 +139,7 @@ Section cmdc_obligations.
     iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ _ (fun _ => True)%I
+              [] [] _ _
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
@@ -148,7 +148,7 @@ Section cmdc_obligations.
               (stack_disjoint_from_heap swc)
              with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
                     $Hworld_B $Hworld_C
-                    $HPC $Hcgp $Hcsp $Hregs
+                    $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $Hmain_imports $Hmain_code $Hmain_data $Hstack
                     $Hinterp_B $Hinterp_C $Hcstk $Hrevoked_stack_B $Hrevoked_stack_C
                     $Hentry_Bf $Hentry_Cg
@@ -172,7 +172,6 @@ Section cmdc_obligations.
       intros a Ha.
       by apply std_sta_update_multiple_lookup_in_i.
     }
-    iModIntro. iIntros "H". proofmode.wp_end; by iIntros.
   Qed.
 End cmdc_obligations.
 
