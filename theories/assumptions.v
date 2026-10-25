@@ -7,6 +7,7 @@ From griotte Require
   lse_adequacy
   stack_object_adequacy
   vae_adequacy
+  vae_untrusted_entry_adequacy
   heap_temporal_safety_adequacy
   error_handling_adequacy
 .
@@ -17,9 +18,10 @@ From griotte Require Import
 From griotte Require Import
   image firmware firmware_ok print
   kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware vae_firmware
-  hts_firmware error_handling_firmware
+  vae_untrusted_entry_firmware hts_firmware error_handling_firmware
   kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
-  stack_object_concrete vae_concrete heap_temporal_safety_concrete error_handling_concrete.
+  stack_object_concrete vae_concrete vae_untrusted_entry_concrete heap_temporal_safety_concrete
+  error_handling_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -224,6 +226,32 @@ Section vae_memory_map.
   Open Scope Z_scope.
   Ltac2 Eval print_memory_map constr:(vae_demo_image).
 End vae_memory_map.
+*)
+
+(** ** Very Awkward Example, thread starting in the adversary (VAE-UE) *)
+
+(*
+Goal True. idtac "
+Assumptions of the VAE end-to-end theorem, thread starting in the adversary:". Abort.
+Print Assumptions vae_untrusted_entry_adequacy.vae_untrusted_entry_adequacy.
+
+Print vae_untrusted_entry_initial_state_ok.
+
+Section vae_untrusted_entry_initial_state.
+  Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@vae_untrusted_entry_initial_state_ok_annot).
+End vae_untrusted_entry_initial_state.
+
+Section vae_untrusted_entry_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(vae_untrusted_entry_demo_image).
+End vae_untrusted_entry_memory_map.
 *)
 
 (** ** Heap temporal safety (HTS) *)
