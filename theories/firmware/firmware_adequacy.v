@@ -259,10 +259,6 @@ Section layout_bridges.
     tsl_frameoffset :
       ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
     tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
-    tsl_export_table :
-      ∃ (b_tbl : Addr) (w : Word),
-        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w ∧
-        exp_tbl_cap b_tbl w;
     tsl_error_count :
       ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
       = Some (WInt 0);
@@ -555,15 +551,13 @@ Section layout_of_img_wf.
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
-    (∃ b_tbl, exp_tbl_cap b_tbl w_export_table) →
     trusted_stack_layout b e b_hz e_hz
       (initial_trusted_stack_content w_csp w_export_table w_hazard n).
   Proof.
-    intros w_hazard Hsize Hcsp Hexport_table Hhazard [b_tbl Htbl]. split.
+    intros w_hazard Hsize Hcsp Hexport_table Hhazard. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
-    - by exists b_tbl, w_export_table.
     - reflexivity.
     - by apply initial_trusted_stack_content_words.
     - apply initial_trusted_stack_content_hazard.
@@ -740,10 +734,10 @@ Section layout_of_img_wf.
     apply big_and_fw_map in Hcmpts.
     rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
     destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread)
-      as (Hcsp & Hexport_table & Hexp_tbl_cap).
+      as (Hcsp & Hexport_table & _).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
     apply initial_trusted_stack_layout;
-      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread) | by eexists].
+      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread)].
   Qed.
 
   Lemma img_wf_switcher_layout fw img ft fts :
