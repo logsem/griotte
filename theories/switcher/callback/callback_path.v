@@ -150,15 +150,15 @@ Section Callback_Path.
       [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
                     & _)".
-    (* [.Lswitcher_restore_spill]: restore the callee-save registers *)
+    (* [.Lswitch_callee_save_restore]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
     iApply (switcher_restore_spill_spec with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hctp $Hct1 $Hct2 $Hcsp $Hcells $Hswitcher]");
+      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hswitcher]");
       [done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
-      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp & Hcells & _)".
-    iEval (rewrite Hspill_top) in "Hcsp Hct1".
-    (* [.Lswitcher_zero_callee_frame]: clear the frame and the registers,
+      "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & _)".
+    iEval (rewrite Hspill_top) in "Hcsp".
+    (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
     iApply (switcher_zero_callee_frame_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
@@ -272,17 +272,16 @@ Section Callback_Path.
     (* The logical step: the spill area, the callee's stack, the open world *)
     iMod ("Hmid" with "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hlc]")
       as (opened wcs0' wcs1' wcgp' wcra' stk_mem) "(Hcells & Hstk & Hworld & Hmem & Hpost)".
-    (* [.Lswitcher_restore_spill]: restore the callee-save registers *)
+    (* [.Lswitch_callee_save_restore]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
     iApply (switcher_restore_spill_world_spec Wworld Wval C opened ccrel with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hctp $Hct1 $Hct2 $Hcsp $Hcells $Hworld $Hmem
+      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld $Hmem
         $Hswitcher]");
       [done|done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
-      "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hctp & Hct1 & Hct2 & Hcsp
-        & Hcells & Hlc)".
-    iEval (rewrite Hspill_top) in "Hcsp Hct1".
-    (* [.Lswitcher_zero_callee_frame]: clear the frame and the registers,
+      "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlc)".
+    iEval (rewrite Hspill_top) in "Hcsp".
+    (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
     iApply (switcher_zero_callee_frame_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp

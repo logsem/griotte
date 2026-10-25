@@ -9,7 +9,7 @@ From griotte Require Import switcher_call_states.
     to the cell furthest from the cursor, then the cursor moves down. When
     the first store fits, the stack is long enough for the others; a cursor
     above the top of the stack can still make a later store fault. The
-    block falls through to [.Lswitch_trusted_stack_push]. *)
+    block falls through to [.Lswitch_trusted_stack_load]. *)
 
 Section Switch_Entry_First_Spill.
   Context
@@ -56,7 +56,7 @@ Section Switch_Entry_First_Spill.
     csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
     [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
     switcher_code ∗
-    ( ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_push" ∗
+    ( ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_load" ∗
           cs0 ↦ᵣ wcs0 ∗
           cs1 ↦ᵣ wcs1 ∗
           cra ↦ᵣ wcra ∗
@@ -136,7 +136,7 @@ Section Switch_Entry_First_Spill.
     { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     repeat rewrite lstore_word_isWL; try reflexivity.
-    switcher_change_pc_label ".Lswitch_trusted_stack_push".
+    switcher_change_pc_label ".Lswitch_trusted_stack_load".
     subst hpost.
     iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost".

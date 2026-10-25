@@ -72,17 +72,19 @@ Section Switcher_Clear_Unused_Args.
   Qed.
 
   (** From [.Lswitch_load_zero_arguments_start], up to the jump into the
-      zeroing of the arguments: [ct2] holds the offset of the jump. *)
+      zeroing of the arguments, at [.Lswitch_zero_arguments_start]. *)
   #[local] Lemma switch_load_zero_arguments_codefrag (a : Addr) :
     codefrag_pers a
       (encodeInstrsW
-         ([machine_instructions.LAnd ct2 (inr ctp) (inl 7%Z);
-           machine_instructions.Add ct2 (inr ct2) (inl 1%Z)] ++
+         ([machine_instructions.Auipcc cs0 4%Z;
+           machine_instructions.LAnd ct2 (inr ctp) (inl 7%Z);
+           machine_instructions.Lea cs0 cs0 (inr ct2);
+           machine_instructions.Jalr cnull cs0] ++
           clear_registers_pre_call_skip ++
           [machine_instructions.LAnd ct1 (inr ctp) (inl entry_point_irq_disabled_mask);
            machine_instructions.Jne (inl 2%Z) (inr ct1) (inl 0%Z);
            machine_instructions.SetMIE InterruptEnabled])) -∗
-    codefrag_pers (a ^+ 2)%a clear_registers_pre_call_skip_instrs.
+    codefrag_pers (a ^+ 4)%a clear_registers_pre_call_skip_instrs.
   Proof.
     iIntros "Hcode".
     rewrite /encodeInstrsW !map_app.
@@ -129,22 +131,24 @@ Section Switcher_Clear_Unused_Args.
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
+    (* Auipcc cs0 .Lswitch_zero_arguments_start *)
+    iInstr "Hcode".
     (* LAnd ct2 ctp 7 *)
     iInstr "Hcode".
     rewrite entry_point_flags_nargs; last lia.
-    (* Add ct2 ct2 1 *)
+    (* Lea cs0 cs0 ct2 *)
+    iInstr "Hcode".
+    { instantiate (1 := ((a_zero ^+ 4) ^+ nargs)%a). solve_addr. }
+    (* Jalr cnull cs0 *)
     iInstr "Hcode".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
-    iApply (clear_registers_pre_call_skip_spec _ _ _ _ _ arg_rmap (nargs + 1)
-             with "[- $HPC $Hcode_args]"); try solve_pure.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iApply (clear_registers_pre_call_skip_spec _ _ _ _ (a_zero ^+ 4)%a arg_rmap nargs
+             with "[- $HPC $Hcode_args $Hargs]"); try solve_pure.
     { rewrite length_clear_registers_pre_call_skip_instrs; solve_addr. }
-    { lia. }
-    replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
-    replace (nargs + 1 - 1) with nargs by lia.
-    iFrame "Hct2 Hargs".
-    iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & _)".
+    iIntros "(%arg_rmap' & %Harg_rmap' & HPC & Hargs & _)".
     rewrite length_clear_registers_pre_call_skip_instrs.
-    rewrite (_ : ((a_zero ^+ 2) ^+ 8%nat)%a = (a_zero ^+ 10)%a); last solve_addr.
+    rewrite (_ : ((a_zero ^+ 4) ^+ 7%nat)%a = (a_zero ^+ 11)%a); last solve_addr.
     (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
     iInstr "Hcode".
     rewrite entry_point_flags_posture.
@@ -197,22 +201,24 @@ Section Switcher_Clear_Unused_Args.
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
+    (* Auipcc cs0 .Lswitch_zero_arguments_start *)
+    iInstr "Hcode".
     (* LAnd ct2 ctp 7 *)
     iInstr "Hcode".
     rewrite entry_point_flags_nargs; last lia.
-    (* Add ct2 ct2 1 *)
+    (* Lea cs0 cs0 ct2 *)
+    iInstr "Hcode".
+    { instantiate (1 := ((a_zero ^+ 4) ^+ nargs)%a). solve_addr. }
+    (* Jalr cnull cs0 *)
     iInstr "Hcode".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
-    iApply (clear_registers_pre_call_skip_spec_known _ _ _ _ _ arg_rmap (nargs + 1)
-             with "[- $HPC $Hcode_args]"); try solve_pure.
+    iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iApply (clear_registers_pre_call_skip_spec_known _ _ _ _ (a_zero ^+ 4)%a arg_rmap nargs
+             with "[- $HPC $Hcode_args $Hargs]"); try solve_pure.
     { rewrite length_clear_registers_pre_call_skip_instrs; solve_addr. }
-    { lia. }
-    replace (Z.of_nat (nargs + 1))%Z with (Z.of_nat nargs + 1)%Z by lia.
-    replace (nargs + 1 - 1) with nargs by lia.
-    iFrame "Hct2 Hargs".
-    iIntros "!> (%arg_rmap' & %Harg_rmap' & HPC & Hct2 & Hargs & _)".
+    iIntros "(%arg_rmap' & %Harg_rmap' & HPC & Hargs & _)".
     rewrite length_clear_registers_pre_call_skip_instrs.
-    rewrite (_ : ((a_zero ^+ 2) ^+ 8%nat)%a = (a_zero ^+ 10)%a); last solve_addr.
+    rewrite (_ : ((a_zero ^+ 4) ^+ 7%nat)%a = (a_zero ^+ 11)%a); last solve_addr.
     (* LAnd ct1 ctp entry_point_irq_disabled_mask *)
     iInstr "Hcode".
     rewrite entry_point_flags_posture.

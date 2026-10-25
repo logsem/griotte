@@ -44,7 +44,7 @@ Section ClearStackMacro.
   Definition registers_pre_call_skip : list RegName :=
     [ca0;ca1;ca2;ca3;ca4;ca5;ct0].
   Definition clear_registers_pre_call_skip_asm : list asm_code :=
-    [ jmp ct2 ] ++ rclear_asm registers_pre_call_skip.
+    rclear_asm registers_pre_call_skip.
   Definition clear_registers_pre_call_skip : list instr :=
     Eval compute in assemble clear_registers_pre_call_skip_asm.
   Lemma clear_registers_pre_call_skip_assembles :

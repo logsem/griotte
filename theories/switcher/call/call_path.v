@@ -189,16 +189,21 @@ Section Call_Path.
       iFrame "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hstk Hmtdc Hframeoffset Hhazard Htstk".
       done. }
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & %Hbounds)".
+    (* [.Lswitch_trusted_stack_load]: read the trusted stack, clear the hazard slots *)
+    iApply (switcher_trusted_stack_load_spec with "[- $HPC $Hctp $Hct2 $Hmtdc $Hhazard $Hswitcher]").
+    iNext; iIntros "(HPC & Hctp & Hct2 & Hmtdc & Hhazard_cell & Hslots)".
+    iAssert switcher_hazard with "[Hhazard_cell Hslots]" as "Hhazard".
+    { iFrame "Hhazard_cell Hslots". }
     (* [.Lswitch_trusted_stack_push]: push the frame *)
     iApply (switcher_trusted_stack_push_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hctp $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Htstk $Hswitcher]");
+      "[- $HPC $Hcs0 $Hcs1 $Hctp $Hct2 $Hcsp $Hframeoffset $Htstk $Hswitcher]");
       [done|done|].
     iNext.
     iIntros "[
-      (%tstk_next' & %Ha_next & %Ha_next_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc
-        & Hframeoffset & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & Htstk & Hlc)
+      (%tstk_next' & %Ha_next & %Ha_next_e & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp
+        & Hframeoffset & Hframe_csp & Hframe_tbl & Hframe_cnt & Htstk & Hlc)
       |
-      (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Htstk)
+      (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hframeoffset & Htstk)
     ]"; cycle 1.
     { iDestruct "Hpost" as "(_ & _ & Hpost & _)".
       iApply "Hpost".

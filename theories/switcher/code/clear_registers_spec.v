@@ -248,16 +248,16 @@ Section ClearRegistersMacro.
     by rewrite map_filter_union_complement.
   Qed.
 
-  (** The argument-clearing macro: [jmp ct2] skips the clearing of the first
-      [nargs - 1] argument registers, and the rest of the macro clears the
-      others, the suffix [drop (nargs - 1) registers_pre_call_skip]. *)
+  (** The argument-clearing sled: a jump to its instruction [nargs] skips
+      the clearing of the first [nargs] argument registers, and the rest of
+      the sled clears the others, the suffix
+      [drop nargs registers_pre_call_skip]. *)
   Lemma clear_registers_pre_call_skip_instrs_eq :
-    clear_registers_pre_call_skip_instrs =
-      encodeInstrW (Jmp ct2) :: rclear_instrs' registers_pre_call_skip.
+    clear_registers_pre_call_skip_instrs = rclear_instrs' registers_pre_call_skip.
   Proof. reflexivity. Qed.
 
   Lemma length_clear_registers_pre_call_skip_instrs :
-    length clear_registers_pre_call_skip_instrs = 8.
+    length clear_registers_pre_call_skip_instrs = 7.
   Proof. reflexivity. Qed.
 
   Lemma length_registers_pre_call_skip : length registers_pre_call_skip = 7.
@@ -294,13 +294,13 @@ Section ClearRegistersMacro.
   Lemma clear_registers_pre_call_skip_codefrag_drop (pc_a : Addr) (k : nat) :
     k <= 7 ->
     codefrag_pers pc_a clear_registers_pre_call_skip_instrs -∗
-    codefrag_pers (pc_a ^+ S k)%a (rclear_instrs' (drop k registers_pre_call_skip)).
+    codefrag_pers (pc_a ^+ k)%a (rclear_instrs' (drop k registers_pre_call_skip)).
   Proof.
     iIntros (Hk) "Hcode".
     rewrite clear_registers_pre_call_skip_instrs_eq -{1}(take_drop k registers_pre_call_skip).
-    rewrite /rclear_instrs' fmap_app app_comm_cons.
+    rewrite /rclear_instrs' fmap_app.
     iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode]".
-    rewrite length_cons length_fmap length_take_le; last by rewrite length_registers_pre_call_skip.
+    rewrite length_fmap length_take_le; last by rewrite length_registers_pre_call_skip.
     iExact "Hcode".
   Qed.
 
@@ -346,6 +346,9 @@ Section ClearRegistersMacro.
       rewrite decide_False //. by iFrame.
   Qed.
 
+  (** From the instruction [nargs] of the argument-clearing sled: the first
+      [nargs] argument registers keep their values, the others are
+      cleared. *)
   Lemma clear_registers_pre_call_skip_spec_known
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (arg_rmap : LReg) (nargs : nat)
@@ -354,19 +357,17 @@ Section ClearRegistersMacro.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
 
     is_arg_rmap arg_rmap 8 ->
-    (1 <= nargs <= 8)%nat ->
+    (nargs <= 7)%nat ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
-      ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
-      ∗ ▷ ( (∃ arg_rmap',
+      ∗ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
-              ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
                      rarg ↦ᵣ warg
-                     ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
+                     ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                        then ⌜ arg_rmap !! rarg = Some warg ⌝
                        else ⌜ warg = WInt 0 ⌝
                 )
@@ -375,18 +376,13 @@ Section ClearRegistersMacro.
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hct2 & Hargs & #Hcode & Hcont)".
-    iDestruct (codefrag_contiguous_region_pers with "Hcode") as %Hcontig.
-    rewrite length_clear_registers_pre_call_skip_instrs in Hbounds Hcontig |- *.
-    (* Jmp ct2. *)
-    iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ nargs)%a); auto; solve_addr. }
-    iDestruct (clear_registers_pre_call_skip_codefrag_drop pc_a (nargs - 1) with "Hcode")
+    iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hargs & #Hcode & Hcont)".
+    rewrite length_clear_registers_pre_call_skip_instrs in Hbounds |- *.
+    iDestruct (clear_registers_pre_call_skip_codefrag_drop pc_a nargs with "Hcode")
       as "Hcode_drop"; first lia.
-    rewrite (_ : S (nargs - 1) = nargs); last lia.
-    iDestruct (big_sepM_regs_filter_split _ (dom_arg_rmap (nargs - 1)) with "Hargs")
+    iDestruct (big_sepM_regs_filter_split _ (dom_arg_rmap nargs) with "Hargs")
       as "[Hkept Hcleared]".
-    iApply (rclear_spec_any _ _ _ _ _ (drop (nargs - 1) registers_pre_call_skip)
+    iApply (rclear_spec_any _ _ _ _ _ (drop nargs registers_pre_call_skip)
              with "[- $HPC $Hcleared $Hcode_drop]"); auto.
     { rewrite /rclear_instrs' length_fmap length_drop length_registers_pre_call_skip.
       solve_addr. }
@@ -402,8 +398,8 @@ Section ClearRegistersMacro.
     iApply "Hcont".
     iExists arg_rmap'.
     rewrite (_ : ((pc_a ^+ nargs)
-                  ^+ length (rclear_instrs' (drop (nargs - 1) registers_pre_call_skip)))%a
-                 = (pc_a ^+ 8%nat)%a).
+                  ^+ length (rclear_instrs' (drop nargs registers_pre_call_skip)))%a
+                 = (pc_a ^+ 7%nat)%a).
     2: { rewrite /rclear_instrs' length_fmap length_drop length_registers_pre_call_skip.
          solve_addr. }
     by iFrame "∗ #".

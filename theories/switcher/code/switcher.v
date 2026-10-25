@@ -196,13 +196,13 @@ Section Switcher.
         (* csc cra, SPILL_SLOT_pcc(csp) *)
         store_imm csp cra SpillSlot_pcc
       ]
-      ; [ (* [deviation] the label before cspecialr and clear_hazard_slots *)
-        #".Lswitch_trusted_stack_push";
+      ; [ #".Lswitch_trusted_stack_load";
         (* cspecialr ct2, mtdc *)
         readsr ct2 mtdc ] ++
       (* clear_hazard_slots ct2, ctp *)
-      clear_hazard_slots_asm ct2 ctp ++
-      [ (* clhu tp, TrustedStack_offset_frameoffset(ct2) *)
+      clear_hazard_slots_asm ct2 ctp
+      ; [ #".Lswitch_trusted_stack_push";
+        (* clhu tp, TrustedStack_offset_frameoffset(ct2) *)
         load_imm ctp ct2 TrustedStack_offset_frameoffset;
         (* cgetlen s0, ct2 *)
         getlen cs0 ct2;
@@ -257,6 +257,7 @@ Section Switcher.
         lshiftr cs0 cs0 16;
         (* csc ct1, TrustedStackFrame_offset_calleeExportTable(ctp) *)
         store_imm ctp ct1 TrustedStackFrame_offset_calleeExportTable;
+        #".Lswitch_stack_check_length";
         (* clbu tp, ExportEntry_offset_minimumStackSize(ct1) *)
         load ctp ct1;
         lshiftr ctp ctp 8;
@@ -288,13 +289,16 @@ Section Switcher.
         lea cra cra cs0
       ]
       ; [ #".Lswitch_load_zero_arguments_start";
+        (* auipcc cs0, %cheriot_compartment_hi(.Lswitch_zero_arguments_start) *)
+        (* cincoffset cs0, cs0, %cheriot_compartment_lo_i(.Lswitch_load_zero_arguments_start) *)
+        auipcc cs0 (".Lswitch_zero_arguments_start")%asm;
         (* andi t2, tp, 0x7 *)
         land ct2 ctp 7;
-        (* sll t2, t2, 1 *)
-        (* [deviation] PC-relative jump in words, over the jump itself *)
-        add ct2 ct2 1;
+        (* [deviation] one word per instruction: no sll t2, t2, 1 *)
+        (* cincoffset cs0, cs0, t2 *)
+        lea cs0 cs0 ct2;
         (* cjr cs0 *)
-        jmp ct2;
+        jalr cnull cs0;
         #".Lswitch_zero_arguments_start"
       ] ++
       (* zeroRegisters a0, a1, a2, a3, a4, a5, t0 *)
@@ -307,6 +311,7 @@ Section Switcher.
         csrsi mstatus (Z.shiftl 1 MIE_BIT)
       ]
       ; (#".Lswitch_skip_interrupt_enable" ::
+       #".Lswitch_caller_dead_zeros" ::
        (* zeroRegisters tp, t1, t2, s0, s1 *)
        (* [deviation] cnull too *)
        clear_registers_pre_call_asm)
@@ -336,7 +341,7 @@ Section Switcher.
         load_imm csp ct1 TrustedStackFrame_offset_csp;
         (* csh t2, TrustedStack_offset_frameoffset(ctp) *)
         store_imm ctp ct2 TrustedStack_offset_frameoffset;
-        #".Lswitcher_restore_spill";
+        #".Lswitch_callee_save_restore";
         (* clc cs0, SPILL_SLOT_cs0(csp) *)
         load_imm cs0 csp SpillSlot_cs0;
         (* clc cs1, SPILL_SLOT_cs1(csp) *)
@@ -347,6 +352,7 @@ Section Switcher.
         load_imm cgp csp SpillSlot_cgp;
         (* cincoffset csp, csp, SPILL_SLOT_SIZE *)
         lea csp csp SpillSlot_size;
+        #".Lswitch_callee_stack_zero";
         (* [deviation] no stack high-water mark: the #else branch *)
         (* cgetbase tp, csp *)
         getb ctp csp;
@@ -421,6 +427,7 @@ Section Switcher.
         csrr ct1 mcause;
         (* csw t1, TrustedStack_offset_mcause(csp) *)
         store_imm csp ct1 TrustedStack_offset_mcause;
+        #".Lexception_might_handle";
         (* li a0, MCAUSE_CHERI *)
         mov ca0 MCAUSE_CHERI;
         (* beq a0, t1, .Lhandle_error *)
@@ -457,6 +464,7 @@ Section Switcher.
       ; [ #".Lhandle_error";
         (* cspecialw mtdc, csp *)
         writesr mtdc csp;
+        #".Lhandle_error_switcher_pcc";
         (* auipcc ct0, 0 *)
         auipcc ct0 0;
         (* clc ct1, TrustedStack_offset_mepcc(csp) *)
@@ -467,6 +475,7 @@ Section Switcher.
         getb ctp ct1;
         (* beq t0, tp, .Lhandle_error_in_switcher *)
         jeq (".Lhandle_error_in_switcher")%asm ct0 ctp;
+        #".Lhandle_error_not_switcher";
         (* clc ct0, TrustedStack_offset_csp(csp) *)
         load_imm ct0 csp TrustedStack_offset_csp;
         (* clhu tp, TrustedStack_offset_frameoffset(csp) *)
@@ -548,10 +557,12 @@ Section Switcher.
         add cs1 cs1 1;
         (* csh s1, TrustedStackFrame_offset_errorHandlerCount(ctp) *)
         store_imm ctp cs1 TrustedStackFrame_offset_errorHandlerCount;
+        #".Lhandle_error_test_double_fault";
         (* andi ra, s1, 1 *)
         land cra cs1 1;
         (* beqz ra, .Lcommon_force_unwind *)
         jeqz (".Lcommon_force_unwind")%asm cra;
+        #".Lhandle_error_test_too_many";
         (* li ra, MAX_FAULTS_PER_COMPARTMENT_CALL *)
         mov cra MAX_FAULTS_PER_COMPARTMENT_CALL;
         (* bgtu s1, ra, .Lcommon_force_unwind *)
@@ -566,6 +577,7 @@ Section Switcher.
         seta cra cra cs1;
         (* cincoffset cra, cra, s0 *)
         lea cra cra cs0;
+        #".Lhandle_error_test_stackful";
         (* beqz a0, .Lhandle_error_stack_setup *)
         jeqz (".Lhandle_error_stack_setup")%asm ca0
       ]
@@ -607,6 +619,7 @@ Section Switcher.
       ; (#".Lhandle_error_handler_invoke" ::
          (* csrsi mstatus, 0x8 *)
          csrsi mstatus (Z.shiftl 1 MIE_BIT) ::
+         #".Lhandle_error_handler_invoke_irqs" ::
          (* zeroAllRegistersExcept ra, sp, gp, a0, a1, a2 *)
          (* [deviation] cnull too *)
          rclear_asm registers_handler_invoke ++
@@ -616,6 +629,7 @@ Section Switcher.
       ; [ #".Lhandle_error_handler_return";
         (* csrci mstatus, 0x8 *)
         csrci mstatus (Z.shiftl 1 MIE_BIT);
+        #".Lhandle_error_handler_return_irqs";
         (* bnez a0, .Lcommon_force_unwind *)
         jnez (".Lcommon_force_unwind")%asm ca0
       ]
@@ -664,6 +678,7 @@ Section Switcher.
       ; [ #".Lcommon_defer_irqs_and_thread_exit";
         (* csrci mstatus, 0x8 *)
         csrci mstatus (Z.shiftl 1 MIE_BIT);
+        #".Lcommon_deferred_irqs_and_thread_exit";
         #".Lcommon_thread_exit";
         (* [deviation] no scheduler: halt *)
         halt

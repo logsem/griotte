@@ -66,22 +66,8 @@ Section switcher_macros.
     apply not_elem_of_dom. rewrite Hargmap. set_solver.
   Qed.
 
-  (* Closes one argument-count case of [clear_registers_pre_call_skip_spec]
-     after the symbolic execution. *)
-  #[local] Ltac clear_args_post :=
-    iApply "Hcont";
-    iExists (<[ca0:=_]> (<[ca1:=_]> (<[ca2:=_]> (<[ca3:=_]> (<[ca4:=_]> (<[ca5:=_]> (<[ct0:=_]> ∅)))))));
-    rewrite big_sepM_arg_rmap;
-    iSplitR; [iPureIntro; apply is_arg_rmap_8|];
-    do 7 (match goal with
-          | |- context [decide (?r ∈ ?s)] =>
-              let Hd := fresh "Hd" in
-              destruct (decide (r ∈ s)) as [Hd|Hd];
-              try (exfalso; revert Hd; compute_done)
-          end);
-    iFrame "HPC Hct2 Hcode Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0";
-    iFrame "#"; done.
-
+  (** [clear_registers_pre_call_skip_spec_known] where the kept argument
+      registers are safe. *)
   Lemma clear_registers_pre_call_skip_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (arg_rmap : LReg) (nargs : nat)
@@ -90,23 +76,21 @@ Section switcher_macros.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
 
     is_arg_rmap arg_rmap 8 ->
-    (1 <= nargs <= 8)%nat ->
+    (nargs <= 7)%nat ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
-      ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
+    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
-                                        ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
+                                        ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                                           then interp W C warg
                                           else True
         )
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
-      ∗ ▷ ( (∃ arg_rmap',
+      ∗ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
               ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
-              ∗ ct2 ↦ᵣ WInt (Z.of_nat nargs)
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
                      rarg ↦ᵣ warg
-                     ∗ if decide (rarg ∈ dom_arg_rmap (nargs-1))
+                     ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                        then interp W C warg
                        else ⌜ warg = WInt 0⌝
                 )
@@ -115,40 +99,26 @@ Section switcher_macros.
     )
     ⊢ WP Seq (Instr Executable) {{ φ }}%I.
   Proof.
-    iIntros (Hexec Hbounds Hargmap Hz) "(HPC & Hct2 & Hargs & #Hcode & Hcont)".
-    codefrag_facts "Hcode". clear H0.
-    destruct (is_arg_rmap_8_inv _ Hargmap) as (w0 & w1 & w2 & w3 & w4 & w5 & w & ->).
-    clear Hargmap.
-    rewrite big_sepM_arg_rmap.
-    iDestruct "Hargs" as "([Hca0 #Hca0v] & [Hca1 #Hca1v] & [Hca2 #Hca2v] & [Hca3 #Hca3v]
-    & [Hca4 #Hca4v] & [Hca5 #Hca5v] & [Hct0 #Hct0v])".
-
-    (* Hardcoded proof of cases *)
-    destruct (decide (1 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (2 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (3 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (4 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (5 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (6 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (7 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    destruct (decide (8 = nargs));[subst|].
-    { iGo "Hcode".
-      clear_args_post. }
-    exfalso. lia.
+    iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hargs & #Hcode & Hcont)".
+    iDestruct (big_sepM_sep with "Hargs") as "[Hargs Hargs_valid]".
+    iDestruct (big_sepM_mono _
+                 (λ r w, □ (if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True))%I
+                with "Hargs_valid") as "#Hvalid".
+    { iIntros (r w _) "Hv". destruct (decide (r ∈ dom_arg_rmap nargs)); last done.
+      iDestruct "Hv" as "#Hv". iModIntro. iExact "Hv". }
+    iApply (clear_registers_pre_call_skip_spec_known with "[- $HPC $Hargs $Hcode]"); try done.
+    iIntros "(%arg_rmap' & %Hargmap' & HPC & Hargs & _)".
+    iApply "Hcont".
+    iExists arg_rmap'.
+    iFrame "HPC Hcode".
+    iSplit; first done.
+    iApply (big_sepM_impl with "Hargs").
+    iIntros "!>" (r w Hr) "[Hr Hw]".
+    iFrame "Hr".
+    destruct (decide (r ∈ dom_arg_rmap nargs)); last done.
+    iDestruct "Hw" as %Hw.
+    iDestruct (big_sepM_lookup with "Hvalid") as "Hv"; first exact Hw.
+    rewrite decide_True //.
   Qed.
 
 End switcher_macros.

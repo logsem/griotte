@@ -4,8 +4,9 @@ From griotte Require Import call_stack switcher_preamble clear_stack_spec clear_
 
 (** * Callback: clear the callee's frame and return to the caller
 
-    The end of the block [switcher_after_compartment_call] clears the stack
-    from its base to the cursor ([clear_stack_asm]),
+    [.Lswitch_callee_stack_zero], at the end of the block
+    [switcher_after_compartment_call], clears the stack from its base to
+    the cursor ([clear_stack_asm]),
     [.Lswitch_callee_dead_zeros] clears the
     registers that do not hold return values or the caller's restored state
     ([clear_registers_post_call_asm]), and [.Lswitch_just_return]
@@ -19,44 +20,6 @@ Section Switcher_Zero_Callee_Frame.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
-
-  (** The offset of the zeroing of the callee's frame, [clear_stack_asm ct2
-      ct1] at the end of the block [switcher_after_compartment_call], just
-      before [.Lswitch_callee_dead_zeros]. *)
-  Definition switcher_zero_callee_frame_offset : Z :=
-    switcher_label_offset ".Lswitch_callee_dead_zeros" -
-      length (clear_stack_instrs ct2 ct1).
-
-  (** The code of the zeroing of the callee's frame, in the code of the
-      switcher. *)
-  Lemma switcher_zero_callee_frame_code :
-    switcher_code -∗
-    codefrag_pers (a_switcher_call ^+ switcher_zero_callee_frame_offset)%a
-      (clear_stack_instrs ct2 ct1).
-  Proof.
-    iIntros "#Hswitcher".
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
-    rewrite (_ : (a_switcher_call ^+ switcher_zero_callee_frame_offset)%a = (a_block ^+ 19%nat)%a);
-      last (rewrite /switcher_zero_callee_frame_offset; cbn [length clear_stack_instrs];
-            switcher_addr_eq).
-    iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
-    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode']".
-    rewrite length_take_le; last (cbn; lia).
-    iExact "Hcode'".
-  Qed.
-
-  Lemma switcher_zero_callee_frame_SubBounds :
-    SubBounds b_switcher e_switcher
-      (a_switcher_call ^+ switcher_zero_callee_frame_offset)%a
-      ((a_switcher_call ^+ switcher_zero_callee_frame_offset) ^+
-         length (clear_stack_instrs ct2 ct1))%a.
-  Proof.
-    pose proof switcher_SubBounds as Hsub.
-    pose proof switcher_size as Hsize.
-    pose proof switcher_call_entry_point as Hcall.
-    rewrite /switcher_zero_callee_frame_offset; cbn [length clear_stack_instrs].
-    clear -Hsub Hsize Hcall; cbn in Hsub, Hsize; offsets_compute; solve_addr.
-  Qed.
 
   (** From [.Lswitch_just_return]: the jump to [wret], which faults
       when [wret] is not a valid target. *)
@@ -130,27 +93,27 @@ Section Switcher_Zero_Callee_Frame.
       by iApply "Hfailed".
   Qed.
 
-  (** From the zeroing of the callee's frame: clear the caller's free part, the
+  (** From [.Lswitch_callee_stack_zero]: clear the caller's free part, the
       spill area and the callee's stack, from the base of the stack to the
       cursor [a], clear the registers and jump back to the caller [wcra']. *)
   Lemma switcher_zero_callee_frame_spec
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp : LWord)
-    (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 : LWord)
+    (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 wct1 wct2 : LWord)
     (rmap : LReg) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
 
-    PC ↦ₚ switcher_pc switcher_zero_callee_frame_offset ∗
+    PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
     cgp ↦ᵣ wcgp' ∗
     cra ↦ᵣ wcra' ∗
     cs1 ↦ᵣ wcs1' ∗
     cs0 ↦ᵣ wcs0' ∗
     ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ WInt a ∗
-    ct2 ↦ᵣ WCap true RWL Local b e b ∗
+    ct1 ↦ᵣ wct1 ∗
+    ct2 ↦ᵣ wct2 ∗
     ca2 ↦ᵣ wca2 ∗
     ctp ↦ᵣ wctp ∗
     csp ↦ᵣ WCap true RWL Local b e a ∗
@@ -182,10 +145,23 @@ Section Switcher_Zero_Callee_Frame.
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
       & Hcells & Hstk & Hrmap & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_dz"; first iFrame "Hswitcher".
-    iDestruct (switcher_zero_callee_frame_code with "Hswitcher") as "Hcode".
-    pose proof switcher_zero_callee_frame_SubBounds as Hsub_zero.
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
+    switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_stack_zero" "HPC".
+    (* GetB ctp csp *)
+    iInstr "Hcode".
+    (* GetA ct1 csp *)
+    iInstr "Hcode".
+    (* SetA ct2 csp ctp *)
+    iInstr "Hcode".
+    iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
+    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode_zero]".
+    rewrite length_take_le; last (cbn; lia).
+    iEval (rewrite (_ : (a_block ^+ 19)%a = (a_block ^+ 19%nat)%a); last done) in "HPC".
+    assert (SubBounds b_switcher e_switcher (a_block ^+ 19%nat)%a
+              ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1))%a) as Hsub_zero.
+    { cbn [length clear_stack_instrs]. clear -H0. solve_addr. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
-    iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode $Hstk]");
+    iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode_zero $Hstk]");
       [done|exact Hsub_zero| | | | |done|done|].
     1-3: clear -Hbounds; revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold;
       intros (Hba & Hba3 & Ha4); solve_addr.
@@ -197,7 +173,6 @@ Section Switcher_Zero_Callee_Frame.
     iDestruct (big_sepM_insert_2 with "[Hct0] Hrmap") as "Hrmap"; [iFrame "Hct0"|].
     iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap"; [iFrame "Hca2"|].
     iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap"; [iFrame "Hctp"|].
-    iEval (rewrite /switcher_zero_callee_frame_offset; cbn [length clear_stack_instrs]) in "HPC".
     switcher_change_pc_label ".Lswitch_callee_dead_zeros".
     iApply (switch_callee_dead_zeros_spec with "[- $HPC $Hcra $Hrmap $Hswitcher_dz]").
     { rewrite !dom_insert_L Hdom. clear. set_solver. }
