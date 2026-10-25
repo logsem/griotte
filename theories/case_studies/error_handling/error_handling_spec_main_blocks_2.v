@@ -2,7 +2,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Import error_handling_spec_states.
 
-(** * [main], blocks 7-14: the first two asserts, and the call to [stats_read] with the untagged capability of [x]
+(** * [main], blocks 7-14: the first two asserts, and the call to
+    [stats_read] with the untagged capability of [x]
 
     From the return of the first call to [stats_read], block 7 halts when
     the call returned [ENOTENOUGHTRUSTEDSTACK] (the trusted stack is

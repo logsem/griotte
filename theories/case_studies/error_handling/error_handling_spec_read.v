@@ -213,7 +213,8 @@ Section Error_Handling_Read.
   Proof.
     intros Hinstr Hcheck. pose proof stats_load_pc_correct as Hpc.
     rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
-    rewrite lookup_fmap Hinstr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault.
+    rewrite lookup_fmap Hinstr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv
+      /instr_fault /load_fault.
     by rewrite lookup_reg_not_cnull // /= lookup_fmap lookup_insert_eq /= Hcheck.
   Qed.
 
@@ -228,7 +229,8 @@ Section Error_Handling_Read.
     intros Hinstr [-> | (wi & r & v & Hwi & Hauth & _ & Hr & Hstrip & ->)]; first by left.
     right. pose proof stats_load_pc_correct as Hpc.
     rewrite /instr_at /stats_pcc /= in Hwi Hpc. rewrite Hpc Hinstr in Hwi.
-    injection Hwi as <-. rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv in Hauth.
+    injection Hwi as <-.
+    rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv in Hauth.
     injection Hauth as <-. rewrite lookup_insert_eq in Hr. by injection Hr as <-.
   Qed.
 
@@ -601,7 +603,8 @@ Section Error_Handling_Read.
         iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose").
         { intros r. rewrite lookup_insert_is_Some'. by right. }
         { by rewrite lookup_insert_ne. }
-        { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
+        { rewrite lookup_total_insert_ne // Hcra_take.
+          apply jalr_target_ok_switcher_return_sentry. }
         iNext. iIntros "HPC Hregs Hna".
         (* The return, at count 0 *)
         iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)

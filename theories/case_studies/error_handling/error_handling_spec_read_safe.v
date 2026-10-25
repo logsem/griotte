@@ -357,7 +357,8 @@ Section Error_Handling_Read_Safe.
     rewrite /data_cap_check /= in Hcheck. destruct t; last done.
     destruct (readAllowed p); last done.
     rewrite addr_add_0 in Hcheck.
-    rewrite (_ : withinBounds b e b = true) in Hcheck; [done | apply withinBounds_true_iff; solve_addr].
+    rewrite (_ : withinBounds b e b = true) in Hcheck;
+      [done | apply withinBounds_true_iff; solve_addr].
   Qed.
 
   (** ** The return and the unwind *)

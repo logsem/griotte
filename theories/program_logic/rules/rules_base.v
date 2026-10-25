@@ -870,10 +870,10 @@ Section griotte_lang_rules.
     trap_safe_cause P_mcause' P_mtval' w E Φ -∗
     trap_safe_cause P_mcause P_mtval w E Φ.
   Proof.
-    rewrite trap_safe_unseal /trap_safe_def. iIntros (HP_mcause HP_mtval) "H". iSplit.
-    - iDestruct "H" as "[H _]". iMod "H" as "[$ H]". iIntros "!> !> Hout".
-      iApply "H". by iApply (trap_entry_out_cause_mono with "Hout").
-    - iDestruct "H" as "[_ $]".
+    rewrite trap_safe_unseal /trap_safe_def. iIntros (HP_mcause HP_mtval) "Hsafe". iSplit.
+    - iDestruct "Hsafe" as "[Hentry _]". iMod "Hentry" as "[$ Hcont]". iIntros "!> !> Hout".
+      iApply "Hcont". by iApply (trap_entry_out_cause_mono with "Hout").
+    - iDestruct "Hsafe" as "[_ $]".
   Qed.
 
   (** [trap_safe_cause] under an update, for a postcondition that holds of a
@@ -942,7 +942,7 @@ Section griotte_lang_rules.
     iSplit.
     { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
     iNext. iIntros (e2 σ2 efs Hstep) "_".
-    inversion Hstep as [| | | σ' Hnh' | σ' Hh]; subst; last congruence.
+    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts]; subst; last congruence.
     iMod "Hclose" as "_".
     pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
       as Her'.
