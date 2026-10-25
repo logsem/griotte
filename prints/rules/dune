@@ -1,0 +1,3 @@
+; The rules written by ../gen.sh (see ../dune).
+
+(dynamic_include ../rules.inc)

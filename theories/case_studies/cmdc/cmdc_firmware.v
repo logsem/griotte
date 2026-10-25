@@ -1,5 +1,8 @@
 From stdpp Require Import gmap strings.
-From griotte Require Import machine_base griotte_opsem switcher assert allocator_resources compartment_layout cmdc.
+From griotte Require Import
+  machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
+(* Exported, so that the code of the case study prints unqualified (prints/). *)
+From griotte Require Export cmdc.
 From griotte Require Import image firmware firmware_ok initial_state.
 
 #[local] Open Scope string_scope.
