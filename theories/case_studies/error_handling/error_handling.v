@@ -1,4 +1,4 @@
-From griotte Require Import machine_parameters assembler fetch assert switcher.
+From griotte Require Import machine_parameters griotte_opsem assembler fetch assert switcher.
 
 (** * The error-handling example
 
@@ -23,28 +23,55 @@ int __cheri_compartment("stats") stats_read(int *ptr)
 extern "C" ErrorRecoveryBehaviour
 compartment_error_handler(ErrorState *frame, size_t mcause, size_t mtval)
 {
-	frame->registers[9] = reinterpret_cast<void *>(-EINVAL); // the load's result (a0)
-	frame->pcc = static_cast<char *>(frame->pcc) + 4;        // skip the load
-	return ErrorRecoveryBehaviour::InstallContext;
+	if (mcause == priv::MCAUSE_CHERI)
+	{
+		auto [code, reg] = CHERI::extract_cheri_mtval(mtval);
+		if (code == CHERI::CauseCode::BoundsViolation &&
+		    reg >= CHERI::RegisterNumber::CRA && reg <= CHERI::RegisterNumber::CA5)
+		{
+			// registers[i] is x(i+1): the word at offset reg of the ErrorState
+			CHERI::Capability<void> c{frame->registers[int(reg) - 1]};
+			// The retried load reads the base: it must not be in *frame,
+			// which holds the saved context (and the globals of stats).
+			ptraddr_t frameBase = reinterpret_cast<ptraddr_t>(frame);
+			if (c.length() > 0 &&
+			    (c.base() < frameBase || c.base() >= frameBase + sizeof(ErrorState)))
+			{
+				c.address() = c.base();             // back within bounds
+				frame->registers[int(reg) - 1] = c; // the PC is unchanged:
+				return ErrorRecoveryBehaviour::InstallContext; // retry
+			}
+		}
+	}
+	locked = false;
+	return ErrorRecoveryBehaviour::ForceUnwind;
 }
 
 // main.cc: compartment "main" (trusted, thread start)
 int __cheri_compartment("adv") adv(); // untrusted, imports stats_read
 
-static int x = 5;
+static constexpr int X_INIT = 42;
+static int x = X_INIT;
 
 void __cheri_compartment("main") run()
 {
 	adv();
-	assert(stats_read(static_cast<int *>(__builtin_cheri_tag_clear(&x))) == -EINVAL);
-	assert(stats_read(&x) == 5); // the lock was released
+	assert(stats_read(&x + 1) == X_INIT);                      // repaired, retried
+	assert(stats_read(__builtin_cheri_tag_clear(&x)) == -ECOMPARTMENTFAIL); // unwound
+	assert(stats_read(&x) == X_INIT);                          // the lock was released
 }
     ```
 
-    The handler skips the faulting load and sets its result to [-EINVAL];
-    [stats_read] then releases the lock and returns [-EINVAL]. Without the
-    handler, a bad pointer would leave the lock held, and every later call
-    would return [-EBUSY]. *)
+    The handler reads the exact cause of the fault and the register that
+    caused it. On a bounds violation on a general register whose saved
+    capability has non-empty bounds and a base outside the [ErrorState],
+    it moves that capability's address to its base and retries the
+    faulting load. A base inside the [ErrorState] would make the retried
+    load read the saved context, which holds the globals capability of
+    [stats]: such a fault is unwound, like any other. On any other fault,
+    it releases the lock and asks for the unwind: the caller gets
+    [-ECOMPARTMENTFAIL]. Without the handler, a bad pointer would leave
+    the lock held, and every later call would return [-EBUSY]. *)
 
 (** ** [stats] *)
 Section Stats.
@@ -52,15 +79,19 @@ Section Stats.
   #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
-  (** CHERIoT's errno values, stored negated, as they are returned (like
+  (** CHERIoT's errno value, stored negated, as it is returned (like
       [ECOMPARTMENTFAIL] in [switcher]). *)
-  Definition EINVAL : Z := -22.
   Definition EBUSY : Z := -16.
+
+  (** CHERIoT's [ErrorRecoveryBehaviour], the return values of an error
+      handler. *)
+  Definition InstallContext : Z := 0.
+  Definition ForceUnwind : Z := 1.
 
   (** [stats_read(ptr)]: [ptr] in [ca0]; the lock is the first global, at
       [cgp]. Returns the value in [ca0], and 0 in [ca1]; the return path of
       the switcher clears the other registers. The load at [.Lread_load] is
-      the fault site: the handler resumes at [.Lread_release]. *)
+      the fault site: the handler retries it, or asks for the unwind. *)
   Definition stats_read_asm : list (list asm_code) :=
     [ (* 0: the lock test *)
       [ #".Lstats_read";
@@ -85,24 +116,57 @@ Section Stats.
     ].
 
   (** The stackful error handler: [ca0] points to the [ErrorState] (word 0
-      is the PC, words 1 to 15 the registers x1 to x15). It sets the saved
-      [a0] to [EINVAL], moves the saved PC past the faulting instruction
-      (the saved PC is an untagged capability: [lea], not [add], which reads
-      integers), and returns 0 (InstallContext). *)
-  Definition stats_handler_asm : list asm_code :=
-    [ #".Lstats_handler";
-      store_imm ca0 EINVAL TrustedStack_offset_ca0;
-      load ct0 ca0;
-      lea ct0 ct0 1;
-      store ca0 ct0;
-      mov ca0 0;
-      ret ].
+      is the PC, words 1 to 15 the registers x1 to x15), [ca1] holds
+      mcause and [ca2] mtval. Block 5 decodes the fault: a CHERI bounds
+      violation on a register of the save area goes on to block 6, any
+      other fault to block 8. Block 6 loads the saved capability of that
+      register (the word at its index) and checks it: when its bounds are
+      empty, or its base lies in the [ErrorState] (the [ErrorState_size]
+      words from the cursor of [ca0]), it goes on to block 8. Otherwise
+      block 7 moves its address to its base, stores it back and returns
+      InstallContext: the faulting instruction runs again. Block 8
+      releases the lock and returns ForceUnwind. *)
+  Definition stats_handler_asm : list (list asm_code) :=
+    [ (* 5: decode the cause and the register *)
+      [ #".Lstats_handler";
+        jne (".Lstats_handler_unwind")%asm ca1 MCAUSE_CHERI;
+        land ct0 ca2 MTVAL_CODE_MASK;
+        jne (".Lstats_handler_unwind")%asm ct0 (cause_code_num BoundsViolation);
+        lshiftr ct0 ca2 MTVAL_REG_SHIFT;
+        land ct0 ct0 MTVAL_REG_MASK;
+        jlt (".Lstats_handler_unwind")%asm ct0 TrustedStack_offset_cra;
+        jgt (".Lstats_handler_unwind")%asm ct0 TrustedStack_offset_ca5 ];
+      (* 6: load the saved capability, check its bounds and its base *)
+      [ #".Lstats_handler_check";
+        lea ct1 ca0 ct0;
+        load ct2 ct1;
+        getlen ct0 ct2;
+        jle (".Lstats_handler_unwind")%asm ct0 0;
+        getb ct0 ct2;
+        geta ctp ca0;
+        jlt (".Lstats_handler_fix")%asm ct0 ctp;
+        add ctp ctp ErrorState_size;
+        jlt (".Lstats_handler_unwind")%asm ct0 ctp ];
+      (* 7: repair the saved capability, retry *)
+      [ #".Lstats_handler_fix";
+        seta ct2 ct2 ct0;
+        store ct1 ct2;
+        mov ca0 InstallContext;
+        ret ];
+      (* 8: release the lock, unwind *)
+      [ #".Lstats_handler_unwind";
+        store cgp 0;
+        mov ca0 ForceUnwind;
+        ret ]
+    ].
 
   Definition stats_asm : list (list asm_code) :=
-    stats_read_asm ++ [stats_handler_asm].
+    stats_read_asm ++ stats_handler_asm.
 
+  (** The fields of the mtval encoding stay folded. *)
   Definition stats_assembled :=
-    Eval compute in assemble_block stats_asm.
+    Eval cbv -[MTVAL_CODE_MASK MTVAL_REG_SHIFT MTVAL_REG_MASK cause_code_num mtval_encoding_mixin]
+      in assemble_block stats_asm.
   Lemma stats_assembles : asm_ok (assemble_block_check stats_asm).
   Proof. asm_check. Qed.
   Definition stats_instrs_n (n : nat) : list Word :=
@@ -115,7 +179,11 @@ Section Stats.
     stats_instrs_n 3 ++
     stats_instrs_n 4.
 
-  Definition stats_handler_code : list Word := stats_instrs_n 5.
+  Definition stats_handler_code : list Word :=
+    stats_instrs_n 5 ++
+    stats_instrs_n 6 ++
+    stats_instrs_n 7 ++
+    stats_instrs_n 8.
 
   Definition stats_code : list Word := stats_read_code ++ stats_handler_code.
 
@@ -204,6 +272,9 @@ Section Main.
   #[local] Open Scope Z_scope.
   Context `{MP: MachineParameters}.
 
+  (** The initial value of the global [x]. *)
+  Definition X_INIT : Z := 42.
+
   (** The main program. The data symbols [#@] name the entries of the
       import table, which precedes the code, in the order of
       [error_handling_main_imports]. The global [x] is at [cgp]. *)
@@ -221,16 +292,16 @@ Section Main.
       (* 2: adv() *)
       [ #".Lmain_call_adv";
         jalr cra ctp ];
-      (* 3: the untagged capability of x *)
+      (* 3: the capability of x, one past its end *)
       [ #".Lmain_ret_adv";
-        cleartag ca0 cgp ];
+        lea ca0 cgp 1 ];
       (* 4: ctp -> switcher entry point *)
       #".Lmain_fetch_switcher_1" ::
       fetch_asm ".Limport_switcher" ctp;
       (* 5: ct1 -> {stats.stats_read}_(ot_switcher) *)
       #".Lmain_fetch_read_1" ::
       fetch_asm ".Limport_stats_read" ct1;
-      (* 6: stats_read(untagged &x) *)
+      (* 6: stats_read(&x + 1) *)
       [ #".Lmain_call_read_1";
         jalr cra ctp ];
       (* 7: halt on trusted-stack exhaustion; prepare the assert *)
@@ -238,20 +309,20 @@ Section Main.
         jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
         halt;
         mov ct0 ca0;
-        mov ct1 EINVAL ];
-      (* 8: assert (ret == EINVAL), that is ( ct0 = ct1 ) *)
+        mov ct1 X_INIT ];
+      (* 8: assert (ret == X_INIT), that is ( ct0 = ct1 ) *)
       #".Lmain_assert_1" ::
       assert_asm ".Limport_assert" ct2 ca2;
-      (* 9: the capability of x *)
+      (* 9: the untagged capability of x *)
       [ #".Lmain_arg_2";
-        mov ca0 cgp ];
+        cleartag ca0 cgp ];
       (* 10: ctp -> switcher entry point *)
       #".Lmain_fetch_switcher_2" ::
       fetch_asm ".Limport_switcher" ctp;
       (* 11: ct1 -> {stats.stats_read}_(ot_switcher) *)
       #".Lmain_fetch_read_2" ::
       fetch_asm ".Limport_stats_read" ct1;
-      (* 12: stats_read(&x) *)
+      (* 12: stats_read(untagged &x) *)
       [ #".Lmain_call_read_2";
         jalr cra ctp ];
       (* 13: halt on trusted-stack exhaustion; prepare the assert *)
@@ -259,11 +330,32 @@ Section Main.
         jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
         halt;
         mov ct0 ca0;
-        mov ct1 5 ];
-      (* 14: assert (ret == 5), that is ( ct0 = ct1 ) *)
+        mov ct1 ECOMPARTMENTFAIL ];
+      (* 14: assert (ret == ECOMPARTMENTFAIL), that is ( ct0 = ct1 ) *)
       #".Lmain_assert_2" ::
       assert_asm ".Limport_assert" ct2 ca2;
-      (* 15 *)
+      (* 15: the capability of x *)
+      [ #".Lmain_arg_3";
+        mov ca0 cgp ];
+      (* 16: ctp -> switcher entry point *)
+      #".Lmain_fetch_switcher_3" ::
+      fetch_asm ".Limport_switcher" ctp;
+      (* 17: ct1 -> {stats.stats_read}_(ot_switcher) *)
+      #".Lmain_fetch_read_3" ::
+      fetch_asm ".Limport_stats_read" ct1;
+      (* 18: stats_read(&x) *)
+      [ #".Lmain_call_read_3";
+        jalr cra ctp ];
+      (* 19: halt on trusted-stack exhaustion; prepare the assert *)
+      [ #".Lmain_ret_read_3";
+        jne 2 ca0 ENOTENOUGHTRUSTEDSTACK;
+        halt;
+        mov ct0 ca0;
+        mov ct1 X_INIT ];
+      (* 20: assert (ret == X_INIT), that is ( ct0 = ct1 ) *)
+      #".Lmain_assert_3" ::
+      assert_asm ".Limport_assert" ct2 ca2;
+      (* 21 *)
       [ #".Lmain_halt";
         halt ]
     ].
@@ -282,8 +374,8 @@ Section Main.
     error_handling_main_instrs_n 1 ++
     error_handling_main_instrs_n 2.
 
-  (** Blocks 3-8: the call to [stats_read] with an untagged capability, and
-      its assert. *)
+  (** Blocks 3-8: the call to [stats_read] with the capability of [x] one
+      past its end, which the handler repairs, and its assert. *)
   Definition error_handling_main_read_1_phase_code : list Word :=
     error_handling_main_instrs_n 3 ++
     error_handling_main_instrs_n 4 ++
@@ -292,24 +384,35 @@ Section Main.
     error_handling_main_instrs_n 7 ++
     error_handling_main_instrs_n 8.
 
-  (** Blocks 9-15: the call to [stats_read] with the capability of [x], its
-      assert, and the halt. *)
+  (** Blocks 9-14: the call to [stats_read] with the untagged capability
+      of [x], which the handler unwinds, and its assert. *)
   Definition error_handling_main_read_2_phase_code : list Word :=
     error_handling_main_instrs_n 9 ++
     error_handling_main_instrs_n 10 ++
     error_handling_main_instrs_n 11 ++
     error_handling_main_instrs_n 12 ++
     error_handling_main_instrs_n 13 ++
-    error_handling_main_instrs_n 14 ++
-    error_handling_main_instrs_n 15.
+    error_handling_main_instrs_n 14.
+
+  (** Blocks 15-21: the call to [stats_read] with the capability of [x],
+      its assert, and the halt. *)
+  Definition error_handling_main_read_3_phase_code : list Word :=
+    error_handling_main_instrs_n 15 ++
+    error_handling_main_instrs_n 16 ++
+    error_handling_main_instrs_n 17 ++
+    error_handling_main_instrs_n 18 ++
+    error_handling_main_instrs_n 19 ++
+    error_handling_main_instrs_n 20 ++
+    error_handling_main_instrs_n 21.
 
   Definition error_handling_main_code : list Word :=
     error_handling_main_adv_phase_code ++
     error_handling_main_read_1_phase_code ++
-    error_handling_main_read_2_phase_code.
+    error_handling_main_read_2_phase_code ++
+    error_handling_main_read_3_phase_code.
 
   (** The global [x]. *)
-  Definition error_handling_main_data : list Word := [WInt 5].
+  Definition error_handling_main_data : list Word := [WInt X_INIT].
 
   #[local] Close Scope Z_scope.
   #[local] Coercion Z.of_nat : nat >-> Z.

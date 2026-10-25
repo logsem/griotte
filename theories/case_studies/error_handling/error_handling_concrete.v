@@ -23,25 +23,47 @@ Definition error_handling_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_
 
 (** ** The concrete adversary
 
-    [adv] saves its outer return capability, then calls [stats_read] twice
-    through the switcher: first with an untagged copy of its [cgp], so
-    that the load of [stats_read] faults and the error handler of [stats]
-    recovers, then with its [cgp]. It then restores its return capability
-    and returns to the caller. Its stackful error handler, which follows,
-    asks for the unwind (it returns 1, ForceUnwind); it does not run in
-    the demo, where [adv] does not fault. The code is assembled here, away
-    from the program logic's coercions. *)
+    [adv] saves its outer return capability and keeps an integer object
+    ([ADV_OBJ]) in its frame, then calls [stats_read] four times through
+    the switcher:
+    - with an untagged copy of its [cgp]: the load of [stats_read] faults,
+      and the error handler of [stats] releases the lock and unwinds the
+      call;
+    - with its [cgp];
+    - with a Local capability to its object, one past its end: the handler
+      moves it back to its base, outside its [ErrorState], and the retried
+      load returns [ADV_OBJ], which [adv] stores in its second global;
+    - with a capability whose base is the first word of the [ErrorState]
+      slot of [stats_read], one past its end: the handler does not repair
+      it (the retried load would read the saved context) and unwinds the
+      call; [adv] stores the result, [ECOMPARTMENTFAIL], in its third
+      global.
+    It then restores its return capability and returns to the caller. Its
+    stackful error handler, which follows, asks for the unwind (it returns
+    1, ForceUnwind); it does not run in the demo, where [adv] does not
+    fault. The code is assembled here, away from the program logic's
+    coercions. *)
 Section error_handling_adv_code.
   Context `{MP: MachineParameters}.
   Import Asm_Griotte.
   #[local] Open Scope Z_scope.
 
+  (** The integer object of [adv], in its frame at [csp + 1]. *)
+  Definition ADV_OBJ : Z := 7.
+
+  (** How far below [adv]'s [csp] cursor the [ErrorState] slot of its
+      callee [stats_read] starts: the switcher's spill, the reserved space
+      of the entry, and the [ErrorState] itself. *)
+  Definition adv_slot_depth : Z :=
+    SpillSlot_size + StackEntry_reserved_space + ErrorState_size.
+
   Definition error_handling_adv_asm : list asm_code :=
     [ #@".Limport_switcher";
       #@".Limport_stats_read";
       #".Ladv";
-      lea csp csp (-1);
+      lea csp csp (-2);
       store csp cra;
+      store_imm csp ADV_OBJ 1;
       cleartag ca0 cgp ] ++
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_stats_read" ct1 ++
@@ -50,8 +72,28 @@ Section error_handling_adv_code.
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_stats_read" ct1 ++
     [ jalr cra ct0;
+      (* the object [csp + 1, csp + 2), one past its end *)
+      geta ct2 csp;
+      add ct2 ct2 1;
+      add ctp ct2 1;
+      subseg ca0 csp ct2 ctp;
+      seta ca0 ca0 ctp ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_stats_read" ct1 ++
+    [ jalr cra ct0;
+      store_imm cgp ca0 1;
+      (* the first word of the callee's [ErrorState] slot, one past it *)
+      geta ct2 csp;
+      add ct2 ct2 (- adv_slot_depth);
+      add ctp ct2 1;
+      subseg ca0 csp ct2 ctp;
+      seta ca0 ca0 ctp ] ++
+    fetch_asm ".Limport_switcher" ct0 ++
+    fetch_asm ".Limport_stats_read" ct1 ++
+    [ jalr cra ct0;
+      store_imm cgp ca0 2;
       load cra csp;
-      lea csp csp 1;
+      lea csp csp 2;
       mov ca0 0;
       mov ca1 0;
       ret;
@@ -74,7 +116,9 @@ End error_handling_adv_code.
 
 Definition error_handling_adv_code : list Word := encodeInstrsW error_handling_adv_instrs.
 
-Definition error_handling_adv_data : list Word := [WInt 0].
+(** The globals of [adv]: the word that its second call reads, and the
+    results of its last two calls. *)
+Definition error_handling_adv_data : list Word := [WInt 0; WInt 0; WInt 0].
 
 Definition error_handling_demo_link_cfg : link_cfg := {|
   lk_base        := 16;
@@ -134,7 +178,8 @@ Qed.
 
     [error_handling_demo_state] runs to [Halted], at the final [halt] of
     [main], and [error_handling_adequacy] applies to it: the flag of the
-    assert library is still zero. *)
+    assert library is still zero. [error_handling_demo_adv_results] shows
+    the results of [adv]'s last two calls. *)
 Theorem error_handling_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
     rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
@@ -147,6 +192,35 @@ Proof.
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
   exact (error_handling_adequacy _ _ _ _ error_handling_demo_ok Hrun).
+Qed.
+
+(** The globals of [adv] in the demo. *)
+Definition error_handling_demo_adv_cgp : Addr :=
+  cmpt_b_cgp (cmpt_of error_handling_demo_image "adv").
+
+(** The two calls of [adv] that showcase the slot check: the repaired
+    Local pointer returned [ADV_OBJ], stored in [adv]'s second global, and
+    the pointer into the [ErrorState] slot was unwound, [ECOMPARTMENTFAIL]
+    stored in its third. *)
+Remark error_handling_demo_adv_results :
+  ∃ pc' reg' sreg' mem' sh',
+    rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
+      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 1)%a = Some (WInt ADV_OBJ)
+    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 2)%a = Some (WInt ECOMPARTMENTFAIL).
+Proof.
+  pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
+                error_handling_demo_state) as Hrun.
+  assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state)
+          with
+          | Some (Halted, (_, _, _, mem', _)) =>
+              mem' !! (error_handling_demo_adv_cgp ^+ 1)%a = Some (WInt ADV_OBJ) ∧
+              mem' !! (error_handling_demo_adv_cgp ^+ 2)%a = Some (WInt ECOMPARTMENTFAIL)
+          | _ => False
+          end) as Hres by (vm_compute; split; reflexivity).
+  destruct (machine_run_conf _ _) as [ [ [] [ [ [ [pc' reg'] sreg'] mem'] sh'] ] | ];
+    try done.
+  exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hres].
 Qed.
 
 (** ** Without the error handler

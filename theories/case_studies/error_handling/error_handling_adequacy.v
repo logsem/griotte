@@ -93,7 +93,7 @@ Section error_handling_obligations.
       pose proof (cmpt_code_size stats_cmpt) as Hcode_size.
       rewrite stats_imports in Himports_size; cbn [length] in Himports_size.
       rewrite stats_code_eq in Hcode_size.
-      assert (length stats_code = 16%nat) as Hcode_length by reflexivity.
+      assert (length stats_code = 33%nat) as Hcode_length by reflexivity.
       rewrite Hcode_length in Hcode_size.
       solve_addr+Himports_size Hcode_size. }
     (* [stats] has no import: its code starts at the base of its PCC *)

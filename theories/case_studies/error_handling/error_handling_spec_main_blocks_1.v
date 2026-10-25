@@ -2,12 +2,12 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Import error_handling_spec_states.
 
-(** * [main], blocks 0-6: the calls to [adv] and to [stats_read] with an untagged capability
+(** * [main], blocks 0-6: the calls to [adv] and to [stats_read] with the capability of [x] one past its end
 
     Blocks 0 and 1 fetch the entry point of the switcher in [ctp] and the
     entry point of [adv] in [ct1], and block 2 jumps to the switcher
     ([main_call_adv_spec]). From the return of [adv], block 3 puts the
-    capability of [x] without its tag in [ca0], blocks 4 and 5 fetch the
+    capability of [x], with its address one past its end, in [ca0], blocks 4 and 5 fetch the
     entry points of the switcher and of [stats_read], and block 6 jumps to
     the switcher ([main_call_read_1_spec]). Each group ends at the entry
     point of the switcher, with the return address of the call in [cra]. *)
@@ -94,6 +94,7 @@ Section Error_Handling_Main_Blocks_1.
     (cgp_b cgp_e : Addr)
     (wca0 wctp wct1 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
+    (cgp_b + 1)%a = Some cgp_e ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ wca0 ∗
@@ -105,7 +106,7 @@ Section Error_Handling_Main_Blocks_1.
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WCap false RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_e ∗
         ctp ↦ᵣ main_switcher_entry ∗
         ct1 ↦ᵣ WSealed ot_switcher (STATS_read Global) ∗
         cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
@@ -114,7 +115,7 @@ Section Error_Handling_Main_Blocks_1.
         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
       & #Himport_switcher & #Himport_read & #Hcode_main & Hpost)".
     assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap
@@ -124,11 +125,11 @@ Section Error_Handling_Main_Blocks_1.
     main_unfold_code.
     rewrite /main_switcher_entry.
 
-    (* Block 3: the untagged capability of [x] *)
+    (* Block 3: the capability of [x], one past its end *)
     focus_block (main_block ".Lmain_ret_adv") "Hcode_main" of error_handling_main_blocks
       at pc_a as a_arg Ha_arg "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    (* ClearTag ca0 cgp *)
+    (* Lea ca0 cgp 1 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

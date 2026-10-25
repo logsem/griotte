@@ -10,15 +10,18 @@ From griotte Require Export case_study_spec_helpers.
     ([stats_code]) is specified by blocks, along the control flow, between
     the calls through the switcher:
     - [error_handling_spec_main_blocks_1]: blocks 0-2 of [main] (the call
-      to [adv]) and blocks 3-6 (the call to [stats_read] with the untagged
-      capability of [x]), up to the entry point of the switcher,
+      to [adv]) and blocks 3-6 (the call to [stats_read] with the
+      capability of [x] one past its end), up to the entry point of the
+      switcher,
     - [error_handling_spec_main_blocks_2]: blocks 7-8 (the check of the
-      result and its assert) and blocks 9-12 (the call to [stats_read] with
-      the capability of [x]),
-    - [error_handling_spec_main_blocks_3]: blocks 13-15 (the check of the
-      result, its assert, and the halt),
+      first result and its assert), blocks 9-12 (the call to [stats_read]
+      with the untagged capability of [x]) and blocks 13-14 (the check of
+      the second result and its assert),
+    - [error_handling_spec_main_blocks_3]: blocks 15-18 (the call to
+      [stats_read] with the capability of [x]) and blocks 19-21 (the check
+      of the last result, its assert, and the halt),
     - [error_handling_spec_read_blocks]: the blocks of [stats_read],
-    - [error_handling_spec_handler_blocks]: the body of the error handler
+    - [error_handling_spec_handler_blocks]: the blocks of the error handler
       of [stats].
 
     The specifications do not mention the invariants of the example: they
@@ -32,7 +35,8 @@ Section Error_Handling_Code.
   Definition error_handling_main_blocks : list (list Word) :=
     ltac:(code_blocks_of error_handling_main_adv_phase_code)
     ++ ltac:(code_blocks_of error_handling_main_read_1_phase_code)
-    ++ ltac:(code_blocks_of error_handling_main_read_2_phase_code).
+    ++ ltac:(code_blocks_of error_handling_main_read_2_phase_code)
+    ++ ltac:(code_blocks_of error_handling_main_read_3_phase_code).
 
   Lemma error_handling_main_code_blocks :
     error_handling_main_code = concat error_handling_main_blocks.
@@ -71,7 +75,7 @@ Notation stats_block s := (asm_block stats_asm s).
 Ltac main_unfold_code :=
   rewrite /error_handling_main_code /error_handling_main_adv_phase_code
     /error_handling_main_read_1_phase_code /error_handling_main_read_2_phase_code
-    -!app_assoc.
+    /error_handling_main_read_3_phase_code -!app_assoc.
 
 (** Unfold [stats_code] into the chain of its blocks. *)
 Ltac stats_unfold_code :=
