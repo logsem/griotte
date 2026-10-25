@@ -562,8 +562,8 @@ Section Switcher_Exception.
     iSplit; last by iIntros "!> %Hv".
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    iApply ("Hsafe" $! F (cstack_set_top_count cstk n) rmap' (switcher_pc off) with
-             "[//] [//] [//] [HU] HPC Hout Hrmap Hna Hcstk").
+    iApply ("Hsafe" $! mcause_ok F (cstack_set_top_count cstk n) rmap' (switcher_pc off) with
+             "[//] [//] [//] [//] [HU] HPC Hout Hrmap Hna Hcstk").
     iRight. iApply trap_handler_ok_switcher; [done | apply switcher_fault_pc_cap |].
     by rewrite unwind_cont_set_top_count.
   Qed.
@@ -582,9 +582,11 @@ Section Switcher_Exception.
   (** A fault in an untrusted compartment: the registers are re-filtered;
       the switcher unwinds, resumes the caller, or invokes one of the
       compartment's handlers, which runs through the FTLR. The [ErrorState]
-      of a stackful handler is stored in the world. *)
-  Lemma exception_entry_untrusted_safe
+      of a stackful handler is stored in the world. The cause satisfies the
+      cause predicate [P_mcause] of fault causes. *)
+  Lemma exception_entry_untrusted_safe (P_mcause : Z → Prop)
     (cstk : CSTK) (rmap : LReg) (w : LWord) :
+    (∀ c, P_mcause c → mcause_ok c) ->
     (∀ r, is_Some (rmap !! r)) ->
 
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -592,22 +594,22 @@ Section Switcher_Exception.
     ▷ exception_entry_safe -∗
     untrusted_fault cstk rmap -∗
     PC ↦ₚ lword_of_word mtcc_vec -∗
-    trap_entry_out w -∗
+    trap_entry_out_cause P_mcause w -∗
     registers_pointsto rmap -∗
     na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (Hfull_rmap)
+    iIntros (HP_mcause Hfull_rmap)
       "#Hinv_switcher #Hstatic #Hsafe Huntrusted HPC Hout Hrmap Hna Hcstk".
     iDestruct "Huntrusted" as (W C Ws Cs Hframe) "(#Hregs & #Htop & Hworld_interp & Hcont)".
     iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
     iIntros (rmap') "%Hfull_rmap' #Hregs' Hrmap Hworld_interp".
     iDestruct (top_cmpt_untrusted_header with "Htop") as "#Hheader".
-    iApply (switcher_exception_path_spec ⊤ cstk (cstack_frag cstk)
+    iApply (switcher_exception_path_spec P_mcause ⊤ cstk (cstack_frag cstk)
               (λ _, world_interp W C) with
              "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcstk Hworld_interp Hcont]");
-      [set_solver | set_solver | done |].
+      [done | set_solver | set_solver | done |].
     iSplitL "Hcstk"; first by case_decide.
     iSplitR; first (iIntros "_"; iExact "Hheader").
     iSplitL "Hworld_interp"; first iExact "Hworld_interp".
@@ -646,9 +648,11 @@ Section Switcher_Exception.
 
   (** A fault in the switcher, in a compartment whose table declares no
       handler, or in a running trusted handler (odd count): the switcher
-      unwinds; a nested fault of the path is a fault in the switcher. *)
-  Lemma exception_entry_unwind_safe (F : coPset)
+      unwinds; a nested fault of the path is a fault in the switcher. The
+      cause satisfies the cause predicate [P_mcause] of fault causes. *)
+  Lemma exception_entry_unwind_safe (P_mcause : Z → Prop) (F : coPset)
     (cstk : CSTK) (rmap : LReg) (w : LWord) :
+    (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
@@ -666,13 +670,13 @@ Section Switcher_Exception.
         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
         top_export_tbl cstk ↦ₕ□{stackless} ehs)) -∗
     PC ↦ₚ lword_of_word mtcc_vec -∗
-    trap_entry_out w -∗
+    trap_entry_out_cause P_mcause w -∗
     registers_pointsto rmap -∗
     na_own cerise_nais (F ∖ ↑N_trap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull_rmap Hno_resume Htbl_set)
+    iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe HU #Hcase HPC Hout Hrmap Hna Hcstk".
     iAssert (⌜¬ switcher_fault_pc w⌝ → handler_header cstk)%I as "#Hheader".
     { iIntros (Hnot). iSplit; first (iPureIntro; by apply Htbl_set). rewrite /no_handler.
@@ -681,9 +685,9 @@ Section Switcher_Exception.
       - iExists _, _. iFrame "Heh Hehs". iIntros ([ [Hne | Hne] _]); by contradict Hne.
       - iExists eh, ehs. iFrame "Heh Hehs". iIntros ([_ Hev]).
         exfalso. rewrite -Z.negb_odd Hodd in Hev. done. }
-    iApply (switcher_exception_path_spec F cstk (cstack_frag cstk) (λ _, True%I) with
+    iApply (switcher_exception_path_spec P_mcause F cstk (cstack_frag cstk) (λ _, True%I) with
              "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcstk HU]");
-      [done | done | done |].
+      [done | done | done | done |].
     iSplitL "Hcstk"; first by case_decide.
     iSplitR; first iExact "Hheader".
     iSplitR; first done.
@@ -715,10 +719,13 @@ Section Switcher_Exception.
       through the table's [execute_error_handler], or unwinds. An unwind
       happens only when the stackful handler is not invoked, which the
       site's unwind continuation covers. The [ErrorState] of a stackful
-      handler is stored in the slot that the fault site lends. *)
-  Lemma exception_entry_trusted_handler_safe (F : coPset)
+      handler is stored in the slot that the fault site lends. The handler
+      receives [P_fault] at the cause, which satisfies the cause predicate
+      [P_mcause] of fault causes. *)
+  Lemma exception_entry_trusted_handler_safe (P_mcause : Z → Prop) (F : coPset)
     (cstk : CSTK) (rmap : LReg) (w : LWord)
-    (P_fault : coPset → CSTK → LWord → LReg → iProp Σ) (eh : Z) :
+    (P_fault : coPset → CSTK → LWord → LReg → Z → iProp Σ) (eh : Z) :
+    (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
     ↑N_trap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
@@ -731,15 +738,16 @@ Section Switcher_Exception.
     trusted_handler (top_export_tbl cstk) P_fault -∗
     top_export_tbl cstk ↦ₕ□{stackful} eh -∗
     error_state_slot eh rmap -∗
-    (unwind_or_runs F cstk w rmap (error_state_slot eh rmap) ∧ P_fault F cstk w rmap) -∗
+    (unwind_or_runs F cstk w rmap (error_state_slot eh rmap) ∧
+     ∀ c : Z, ⌜P_mcause c⌝ -∗ P_fault F cstk w rmap c) -∗
     PC ↦ₚ lword_of_word mtcc_vec -∗
-    trap_entry_out w -∗
+    trap_entry_out_cause P_mcause w -∗
     registers_pointsto rmap -∗
     na_own cerise_nais (F ∖ ↑N_trap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
-    iIntros (HF HFtrap Hfull_rmap Hno_resume Htbl_set)
+    iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe #Hhandler #Heh_site Hslot HUP HPC Hout Hrmap Hna Hcstk".
     iDestruct "Hhandler" as (wpcc wcgp eh' ehs)
       "(#Hpcc & #Hcgp & #Heh & #Hehs & #Hexec_sf & #Hexec_sl)".
@@ -759,7 +767,7 @@ Section Switcher_Exception.
                    handler_slot kind w rmap -∗
                    (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) -∗
                    (unwind_or_runs F cstk w rmap (handler_unwind_res kind rmap) ∧
-                    P_fault F cstk w rmap) -∗
+                    P_fault F cstk w rmap mcause) -∗
                    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
                    na_own cerise_nais F -∗
                    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ))%I
@@ -783,10 +791,10 @@ Section Switcher_Exception.
     (* The switcher's resources, for the handler *)
     iAssert (switcher_res F) as "#Hswitcher_res".
     { by iFrame "Hinv_switcher Hstatic". }
-    iApply (switcher_exception_path_spec F cstk (cstack_frag cstk)
+    iApply (switcher_exception_path_spec P_mcause F cstk (cstack_frag cstk)
               (trusted_error_state eh w rmap) with
              "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcstk Hslot HUP]");
-      [done | done | done |].
+      [done | done | done | done |].
     iSplitL "Hcstk"; first by case_decide.
     iSplitR.
     { iIntros (Hnot). iSplit; first (iPureIntro; by apply Htbl_set).
@@ -815,6 +823,7 @@ Section Switcher_Exception.
         "#Hskip_sl #Hpcc' #Hcgp' #Hoff HPC Hregs Hcstk Hes Hna".
       iDestruct (pointsto_agree with "Hpcc Hpcc'") as %<-.
       iDestruct (pointsto_agree with "Hcgp Hcgp'") as %<-.
+      pose proof (HP_mcause _ Hmcause) as Hmcause_ok.
       destruct kind.
       + (* Stackful: the written [ErrorState] goes to the handler, with the
            two facts of the site; the unwind continuation takes back the
@@ -828,7 +837,7 @@ Section Switcher_Exception.
                  "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [$Hcells] Hskip_sl
                   [HUP] Hcstk Hna").
         { iPureIntro. split; first done. by apply error_state_lent_shadow_free_full. }
-        iSplit; last by iDestruct "HUP" as "[_ HP]".
+        iSplit; last (iDestruct "HUP" as "[_ HP]"; by iApply "HP").
         iDestruct "HUP" as "[ [Hruns | HU] _]"; first by iLeft. iRight.
         iApply (unwind_cont_weaken with "[] HU").
         iIntros "Harea". rewrite /error_state_slot decide_True;
@@ -839,7 +848,7 @@ Section Switcher_Exception.
         iApply ("Hrun" with
                  "Hoff [//] Hswitcher_res [//] [//] [//] [//] [//] HPC Hregs [//] Hskip_sl
                   [HUP Hes] Hcstk Hna").
-        iSplit; last by iDestruct "HUP" as "[_ HP]".
+        iSplit; last (iDestruct "HUP" as "[_ HP]"; by iApply "HP").
         iDestruct "HUP" as "[ [Hruns | HU] _]"; first by iLeft. iRight.
         iApply (unwind_cont_give with "Hes HU").
   Qed.
@@ -854,7 +863,8 @@ Section Switcher_Exception.
   Proof.
     iIntros "[#Hinv_switcher #Hstatic]".
     iLöb as "IH".
-    iIntros "!>" (F cstk rmap w HF HFtrap Hfull) "Hfault HPC Hout Hrmap Hna Hcstk".
+    iIntros "!>" (P_mcause F cstk rmap w HP_mcause HF HFtrap Hfull)
+      "Hfault HPC Hout Hrmap Hna Hcstk".
     iDestruct "Hfault" as "[[-> Huntrusted] | Hhandled]".
     { iApply (exception_entry_untrusted_safe with
                "Hinv_switcher Hstatic IH Huntrusted HPC Hout Hrmap Hna Hcstk"); done. }
@@ -899,10 +909,10 @@ Section Switcher_Exception.
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
     (* The path only resumes: its call stack is not used, any one does *)
-    iApply (switcher_exception_path_spec F
+    iApply (switcher_exception_path_spec mcause_ok F
               (entry_cstack (MkTFrame (WInt 0) (WInt 0) 0)) True (λ _, True%I) rmap with
              "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcont]");
-      [exact HF | exact HFtrap | exact Hfull_rmap |].
+      [done | exact HF | exact HFtrap | exact Hfull_rmap |].
     rewrite decide_False; last exact Hresume.
     iSplitR; first done.
     iSplitR; first by iIntros (Hnot).
@@ -1023,11 +1033,14 @@ Section Switcher_Exception.
   Qed.
 
   (** A fault closes through the exception path of the switcher: after
-      trap entry, the switcher handles the fault ([trap_handler_ok F]). The
-      resources come under an update at the time of the fault; the
-      non-atomic token [F] provides the trap-entry token, and the exception
-      path opens the invariant of the switcher with the rest of [F]. *)
-  Lemma trap_safe_exception_entry (F : coPset) (w : LWord) :
+      trap entry, the switcher handles the fault
+      ([trap_handler_ok_cause P_mcause F]), for a cause predicate [P_mcause] of fault
+      causes. The resources come under an update at the time of the fault;
+      the non-atomic token [F] provides the trap-entry token, and the
+      exception path opens the invariant of the switcher with the rest of
+      [F]. *)
+  Lemma trap_safe_exception_entry (P_mcause : Z → Prop) (F : coPset) (w : LWord) :
+    (∀ c, P_mcause c → mcause_ok c) →
     ↑Nswitcher ⊆ F →
     ↑N_trap ⊆ F →
     na_inv cerise_nais Nswitcher switcher_inv -∗
@@ -1038,10 +1051,10 @@ Section Switcher_Exception.
          na_own cerise_nais F ∗
          registers_pointsto rmap ∗
          cstack_frag cstk ∗
-         trap_handler_ok F cstk w rmap) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+         trap_handler_ok_cause P_mcause F cstk w rmap) -∗
+    trap_safe_cause P_mcause w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
   Proof.
-    iIntros (HF HFtrap) "#Hinv_switcher #Hstatic Hres".
+    iIntros (HP_mcause HF HFtrap) "#Hinv_switcher #Hstatic Hres".
     iPoseProof (switcher_trap_safety_intro with "[$Hinv_switcher $Hstatic]") as "#Hsafety".
     by iApply (trap_safe_exception_entry_of_safety with "Hsafety Hres").
   Qed.
@@ -1196,7 +1209,8 @@ Section Switcher_Exception.
     - (* A fault of the installation: the switcher unwinds *)
       iIntros (Hskipped off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hws _] Hna".
       iDestruct "Hpost" as "[Hfault _]".
-      iApply (trap_safe_exception_entry with "Hinv_switcher Hstatic"); [done | done |].
+      iApply (trap_safe_exception_entry mcause_ok with "Hinv_switcher Hstatic");
+        [done | done | done |].
       iModIntro. iExists rmap', cstk. iFrame "Hrmap Hna Hcstk". iSplit; first done.
       iApply trap_handler_ok_switcher; [done | apply switcher_fault_pc_cap |].
       by iApply ("Hfault" with "[//] Hws").

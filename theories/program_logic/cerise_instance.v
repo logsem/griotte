@@ -264,7 +264,8 @@ Section ghost_init.
       (gset_to_gmap tt heap_addresses).
 
   (** Every initial word with authority is based on a heap root, heap roots
-      are unpainted, [cnull] holds zero, and every tagged executable word
+      are unpainted, memory avoids the memory-mapped devices and covers the
+      heap, [cnull] holds zero, and every tagged executable word
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
       unsealed executable capability; the system registers that the state
       interpretation reserves exist, MTCC holds the trap vector and mtval an
@@ -280,6 +281,7 @@ Section ghost_init.
     gi_sregs sr w b : sreg σ !! sr = Some w → get_tag w = true →
                       heap_authority_base w = Some b → b ∈ H;
     gi_mmio : mem_avoids_mmio (mem σ);
+    gi_heap_mapped : heap_mapped (mem σ);
     gi_cnull w : reg σ !! cnull = Some w → w = WInt 0;
     gi_mem_exec a w : mem σ !! a = Some w → lword_exec (lword_of_word w);
     gi_pc_exec : lword_exec (lword_of_word (pcc σ));
@@ -372,6 +374,7 @@ Section ghost_init.
     - apply Hinit.
     - apply reg_phys_lword_of_word.
     - apply Hok; last by apply (gi_pc_exec _ _ Hinit). intros b. by apply gi_pc.
+    - apply Hinit.
     - apply Hinit.
   Qed.
 
