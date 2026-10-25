@@ -1128,36 +1128,41 @@ Section wp_interp.
       destruct s1; cbn; try done
     | iIntros "!> (HPC & Hsrc & Hi)"; iApply "Hφ"; iLeft; by iFrame ].
 
-  (** A load through a safe word into the register that holds it: it
-      faults, or it loads a safe word ([wp_load_interp] for one register,
-      with any fraction of the instruction). *)
-  Lemma wp_load_interp_same (E : coPset) (W : WORLD) (C : CmptName) (r : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
+  (** The key that a load through [w] reads, when it reads, is not in [s]. *)
+  Definition load_key_closed (w : LWord) (s : list LAddr) : Prop :=
+    ∀ p g b e a, w.(lw) = WCap true p g b e a → withinBounds b e a = true →
+      addr_key w.(lprov) a ∉ s.
+
+  (** [wp_load_interp_same] over a world open on [s], when the loaded key
+      is not in [s]. *)
+  Lemma wp_load_interp_same_open (E : coPset) (W : WORLD) (C : CmptName) (s : list LAddr)
+    (r : RegName) (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc : LWord) (dq : dfrac) :
     decodeInstrW wi.(lw) = CLoad r r 0 →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
+    load_key_closed wsrc s →
     {{{ interp W C wsrc ∗
         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
         r ↦ᵣ wsrc ∗
-        world_interp W C }}}
+        world_interp_open W C s }}}
       Instr Executable @ E
     {{{ retv, RET retv;
         ( ⌜retv = FaultedV⌝ ∗
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
           pc_a ↦ₐ{dq} wi ∗
           r ↦ᵣ wsrc ∗
-          world_interp W C ) ∨
+          world_interp_open W C s ) ∨
         ( ∃ wload,
           ⌜retv = NextIV⌝ ∗
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↦ₐ{dq} wi ∗
           r ↦ᵣ wload ∗ interp W C wload ∗
-          world_interp W C ) }}}.
+          world_interp_open W C s ) }}}.
   Proof.
-    iIntros (Hdecode Hcorrect_pc Hpca' Hr φ)
+    iIntros (Hdecode Hcorrect_pc Hpca' Hr Hclosed φ)
       "(#Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
     destruct wsrc as [wsrc π].
     (* The load faults unless [wsrc] is a tagged capability that allows it *)
@@ -1168,6 +1173,7 @@ Section wp_interp.
     destruct (withinBounds b e a) eqn:Hwb;
       last (load_same_fault; by rewrite addr_add_0 /= Hwb andb_false_r).
     apply withinBounds_true_iff in Hwb as Hbounds.
+    pose proof (Hclosed p g b e a eq_refl Hwb) as Hnin_s. cbn in Hnin_s.
     (* Open the region of [a], as [wp_load_interp_imm] *)
     iDestruct (read_allowed_inv _ _ a with "Hinterp_src")
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |..].
@@ -1175,9 +1181,10 @@ Section wp_interp.
       as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ a with "Hinterp_src") as %Hlive;
       [by eapply readAllowed_nonO | done |].
-    iDestruct (open_world_interp W C (addr_key π a) p' (safeC P) ρ with "Hrel Hworld_interp")
+    iDestruct (open_world_interp_next W C s (addr_key π a) p' (safeC P) ρ
+                with "Hrel Hworld_interp")
       as "(Hworld_interp & Hstate & (%w & WorldRes))";
-      [exact Hlive | destruct ρ; auto; contradiction | exact Hρ |].
+      [exact Hlive | exact Hnin_s | destruct ρ; auto; contradiction | exact Hρ |].
     iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow;
@@ -1222,7 +1229,7 @@ Section wp_interp.
          iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
          iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
          iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-         iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes")
+         iDestruct (close_world_interp_next with "Hworld_interp Hstate Hrel WorldRes")
            as "Hworld_interp"; eauto.
          { destruct ρ; auto; contradiction. }
          iApply "Hφ". iLeft. by iFrame. }
@@ -1250,10 +1257,51 @@ Section wp_interp.
     iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
     iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
     iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hrel WorldRes")
+    iDestruct (close_world_interp_next with "Hworld_interp Hstate Hrel WorldRes")
       as "Hworld_interp"; eauto.
     { destruct ρ; auto; contradiction. }
     iApply "Hφ"; iRight. iExists loadv'. iFrame "∗#%". done.
+  Qed.
+
+  (** A load through a safe word into the register that holds it: it
+      faults, or it loads a safe word ([wp_load_interp] for one register,
+      with any fraction of the instruction). *)
+  Lemma wp_load_interp_same (E : coPset) (W : WORLD) (C : CmptName) (r : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
+    (wi wsrc : LWord) (dq : dfrac) :
+    decodeInstrW wi.(lw) = CLoad r r 0 →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    {{{ interp W C wsrc ∗
+        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        pc_a ↦ₐ{dq} wi ∗
+        r ↦ᵣ wsrc ∗
+        world_interp W C }}}
+      Instr Executable @ E
+    {{{ retv, RET retv;
+        ( ⌜retv = FaultedV⌝ ∗
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          pc_a ↦ₐ{dq} wi ∗
+          r ↦ᵣ wsrc ∗
+          world_interp W C ) ∨
+        ( ∃ wload,
+          ⌜retv = NextIV⌝ ∗
+          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+          pc_a ↦ₐ{dq} wi ∗
+          r ↦ᵣ wload ∗ interp W C wload ∗
+          world_interp W C ) }}}.
+  Proof.
+    iIntros (Hdecode Hcorrect_pc Hpca' Hr φ)
+      "(#Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
+    iApply (wp_load_interp_same_open _ _ _ []
+             with "[$HPC $Hi $Hsrc $Hinterp_src Hworld_interp]"); try done.
+    { intros ? ? ? ? ? _ _. apply not_elem_of_nil. }
+    { by iApply open_world_interp_empty. }
+    iNext.
+    iIntros (retv) "[(Heq & HPC & Hi & Hsrc & Hworld_interp)
+                   | (%wload & Heq & HPC & Hi & Hsrc & Hload & Hworld_interp)]";
+      iApply "Hφ"; [iLeft | iRight]; iFrame; by iApply open_world_interp_empty.
   Qed.
 
   Lemma wp_load_interp_cap_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)

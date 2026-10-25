@@ -376,6 +376,280 @@ Section WorldInterpStack.
     - by apply Forall_replicate.
   Qed.
 
+  (** [region_addr_status_some] for a key outside the open set. *)
+  #[local] Lemma open_region_many_addr_status_some W C s a :
+    a ∈ dom (std W) ->
+    a ∉ s ->
+    open_region_many W C s -∗
+    open_region_many W C s ∗ ⌜is_Some (heap_key_status (heap_std W) a)⌝.
+  Proof.
+    rewrite open_region_many_eq /open_region_many_def.
+    iIntros (Hin Hnin) "@".
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hmap]]".
+    assert (is_Some (M !! a)) as [ [γ p] Hlookup].
+    { apply elem_of_dom. rewrite -Hdom. exact Hin. }
+    iDestruct (big_sepM_lookup_acc _ _ a with "Hmap") as "[Hentry Hput]";
+      first by rewrite lookup_delete_list_notin.
+    iDestruct "Hentry" as (ρ Hρ) "[Hstate Hresource]".
+    iDestruct "Hresource" as (γpred p' φ Heq Hpers) "[Hsaved Haddr]".
+    iDestruct (heap_key_resource_status with "Haddr") as %Hstatus.
+    iSplitL; last done.
+    iExists M, Mρ. iFrame "HM %".
+    iFrame "Hheapfrag".
+    iApply "Hput". iExists ρ. iFrame "Hstate %". iFrame.
+  Qed.
+
+  #[local] Lemma open_region_many_addrs_status_some W C s l :
+    Forall (λ a, a ∈ dom (std W) ∧ a ∉ s) l ->
+    open_region_many W C s -∗
+    open_region_many W C s ∗
+    ⌜Forall (λ a, is_Some (heap_key_status (heap_std W) a)) l⌝.
+  Proof.
+    induction l as [|a l IH]; intros Hl.
+    - iIntros "Hr". iFrame. iPureIntro. constructor.
+    - apply Forall_cons in Hl as [ [Ha Hnin] Hl].
+      iIntros "Hr".
+      iDestruct (open_region_many_addr_status_some _ _ _ _ Ha Hnin with "Hr") as "[Hr %Hstatus]".
+      iDestruct (IH Hl with "Hr") as "[Hr %Hstatuses]".
+      iFrame. iPureIntro. constructor; assumption.
+  Qed.
+
+  (** [region_rels_get] for keys outside the open set. *)
+  #[local] Lemma open_region_many_rels_get W C s l :
+    Forall (λ a, std W !! a = Some Temporary ∧ a ∉ s) l ->
+    open_region_many W C s ∗ sts_full_world W C
+    ==∗
+    open_region_many W C s ∗ sts_full_world W C ∗
+    ([∗ list] a ∈ l,
+      ∃ p Φ, ⌜∀ WCv, Persistent (Φ WCv)⌝ ∗ rel C a p Φ)%I.
+  Proof.
+    induction l as [|a l IH]; intros Hl.
+    - iIntros "[$ $]". iModIntro. done.
+    - apply Forall_cons in Hl as [ [Ha Hnin] Hl].
+      iIntros "[Hr Hsts]".
+      iMod (open_region_many_rel_get with "[$Hr $Hsts]") as "(Hr & Hsts & Hrel)"; [done|done|].
+      iMod (IH Hl with "[$Hr $Hsts]") as "(Hr & Hsts & Hrels)".
+      iModIntro. iFrame.
+  Qed.
+
+  #[local] Lemma pointsto_list_exists (l : list Addr) (ws : list LWord) :
+    ([∗ list] a;w ∈ l;ws, a ↦ₐ w) -∗ [∗ list] a ∈ l, ∃ w, a ↦ₐ w.
+  Proof.
+    iIntros "Hl". iInduction l as [|a l] "IH" forall (ws); first done.
+    destruct ws as [|w ws]; first done.
+    iDestruct "Hl" as "[Ha Hl]". iSplitL "Ha"; first by iExists w.
+    iApply ("IH" with "Hl").
+  Qed.
+
+  #[local] Lemma exists_pointsto_list (l : list Addr) :
+    ([∗ list] a ∈ l, ∃ w, a ↦ₐ w) -∗ ∃ ws, [∗ list] a;w ∈ l;ws, a ↦ₐ w.
+  Proof.
+    iIntros "Hl". iInduction l as [|a l] "IH"; first by iExists [].
+    iDestruct "Hl" as "[ [%w Ha] Hl]".
+    iDestruct ("IH" with "Hl") as (ws) "Hl".
+    iExists (w :: ws). iFrame.
+  Qed.
+
+  (* Revoke a stack region, part of which ([bs, es)) has been opened *)
+  Lemma monotone_revoke_stack_open W C b e a bs es lv ws :
+    let la := finz.seq_between b e in
+    let ls := finz.seq_between bs es in
+    (b <= bs)%a → (es <= e)%a →
+
+    interp W C (WCap true RWL Local b e a)
+    ∗ sts_full_world W C
+    ∗ open_region_many W C (LNonHeap <$> ls)
+    ∗ ▷ StackWorldResources interp W C ls lv
+    ∗ ([∗ list] a' ∈ ls, sts_state_std C (LNonHeap a') Temporary)
+    ∗ [[ bs , es ]] ↦ₐ [[ ws ]]
+    ==∗
+    ∃ l_unk_temp,
+      ⌜ NoDup (l_unk_temp ++ (LNonHeap <$> la)) ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ (LNonHeap <$> la)))⌝
+      ∗ sts_full_world (revoke W) C
+      ∗ region (revoke W) C
+      ∗ ▷ StackRevokedResources W C la
+      ∗ ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝
+      ∗ ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]])
+      ∗ ▷ RevokedResources W C l_unk_temp
+      ∗ ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+  Proof.
+    intros la ls Hbs Hes.
+    iIntros "(#Hinterp & Hsts & Hr & Hslot_res & Hslot_states & Hslot)".
+    iAssert (
+       ([∗ list] a' ∈ la,
+         ⌜(std W) !! LNonHeap a' = Some Temporary⌝ ∗
+          (
+            ∃ (p' : Perm) (P:V),
+              ⌜ PermFlowsTo RWL p'⌝
+              ∗ ⌜persistent_cond P⌝
+              ∗ rel C (LNonHeap a') p' (safeC P)
+              ∗ ▷ zcond P C
+              ∗ ▷ rcond P C p' interp
+              ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
+              ∗ monoReq W C a' p' P
+          ))%I
+      ) with "[Hinterp]" as "Hl".
+    {
+      iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
+      iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp") as "Htmp"; first done.
+      iDestruct (read_allowed_inv_full_cap with "Hinterp") as "H"; first done.
+      iApply big_sepL_sep. iSplitL "Htmp".
+      - iApply (big_sepL_impl with "Htmp"). iIntros "!> %k %x %Hx".
+        rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
+      - iApply (big_sepL_impl with "H"). iIntros "!> %k %x %Hx".
+        rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
+    }
+    iAssert (⌜Forall (λ a, std W !! LNonHeap a = Some Temporary) la⌝)%I as %Hla_tmp.
+    { iDestruct (big_sepL_sep with "Hl") as "[Htemps Hrel]".
+      iDestruct (big_sepL_forall with "Htemps") as %Htemps.
+      iPureIntro. apply Forall_lookup. done. }
+
+    assert (NoDup la) as Hla_nodup by apply finz_seq_between_NoDup.
+    assert (NoDup ls) as Hls_nodup by apply finz_seq_between_NoDup.
+    assert (∀ x, x ∈ ls → x ∈ la) as Hls_la.
+    { intros x Hx. apply elem_of_finz_seq_between in Hx.
+      apply elem_of_finz_seq_between. solve_addr. }
+    (* The stack outside the open part *)
+    set (lr := filter (λ x, x ∉ ls) la).
+    assert (la ≡ₚ lr ++ ls) as Hperm_la.
+    { rewrite -{1}(filter_app_complement (λ x, x ∉ ls) la).
+      f_equiv; first done.
+      apply NoDup_Permutation.
+      - apply NoDup_filter, Hla_nodup.
+      - exact Hls_nodup.
+      - intros x. rewrite list_elem_of_filter. split.
+        + intros [Hx _]. by apply dec_stable in Hx.
+        + intros Hx. split; [by intros Hn|by apply Hls_la]. }
+
+    pose proof (extract_temps_split_world _ (LNonHeap <$> la)
+                  (proj2 (NoDup_LNonHeap_fmap la) Hla_nodup)
+                  (proj2 (Forall_fmap _ _ _) Hla_tmp))
+      as (l_tmp_unk & Hnodup' & Hall_l).
+    assert (Forall (λ x, x ∉ LNonHeap <$> ls) l_tmp_unk) as Hunk_ls.
+    { apply Forall_forall. intros x Hx Hxls.
+      apply NoDup_app in Hnodup' as (_ & Hdisj & _).
+      apply (Hdisj x Hx).
+      apply list_elem_of_fmap in Hxls as (y & -> & Hy).
+      apply list_elem_of_fmap. exists y. split; first done. by apply Hls_la. }
+    assert (Forall (λ x, x ∈ dom (std W) ∧ x ∉ LNonHeap <$> ls) l_tmp_unk) as Hunk_dom.
+    { apply Forall_forall. intros x Hx. split.
+      - rewrite elem_of_dom. exists Temporary.
+        apply Hall_l. apply elem_of_app. left. exact Hx.
+      - rewrite Forall_forall in Hunk_ls. by apply Hunk_ls. }
+    iDestruct (open_region_many_addrs_status_some W C _ l_tmp_unk Hunk_dom with "Hr")
+      as "[Hr %Hstatuses]".
+    destruct (heap_status_partition (heap_std W) l_tmp_unk Hstatuses)
+      as (l_live & l_q & Hperm & Hlive & Hqstatus).
+    assert (Forall (λ x, std W !! x = Some Temporary ∧ x ∉ LNonHeap <$> ls) l_q) as Hqtemp.
+    { apply Forall_forall. intros x Hx.
+      assert (x ∈ l_tmp_unk) as Hx_unk.
+      { rewrite Hperm. apply elem_of_app. right. exact Hx. }
+      split.
+      - apply Hall_l. apply elem_of_app. left. exact Hx_unk.
+      - rewrite Forall_forall in Hunk_ls. by apply Hunk_ls. }
+    assert (NoDup (l_live ++ (LNonHeap <$> la))) as Hnodup_rev.
+    { apply NoDup_app. split.
+      - apply NoDup_app in Hnodup' as [Hunk _].
+        rewrite Hperm in Hunk.
+        apply NoDup_app in Hunk as [Hlive_nodup _]. exact Hlive_nodup.
+      - split.
+        + intros x Hx Hxla.
+          pose proof (proj1 (NoDup_app l_tmp_unk (LNonHeap <$> la)) Hnodup') as Hsplit.
+          destruct Hsplit as [Hunk Hrest]. destruct Hrest as [Hdisj Hla0].
+          apply (Hdisj x);
+            [rewrite Hperm; apply elem_of_app; left; exact Hx|exact Hxla].
+        + by apply NoDup_LNonHeap_fmap. }
+    assert ((l_live ++ (LNonHeap <$> lr)) ++ (LNonHeap <$> ls)
+              ≡ₚ l_live ++ (LNonHeap <$> la)) as Hperm_keys.
+    { by rewrite -app_assoc -fmap_app -Hperm_la. }
+    assert (Forall (λ x, heap_key_live (heap_std W) x) (l_live ++ (LNonHeap <$> la))) as Hlive_rev.
+    { apply Forall_app. split; first assumption.
+      apply Forall_fmap, Forall_forall. intros. apply heap_key_live_nonheap. }
+    assert (Forall (λ x, std W !! x = Some Temporary) (l_live ++ (LNonHeap <$> la))) as Htemp_rev.
+    { apply Forall_app. split; last by apply Forall_fmap.
+      apply Forall_forall. intros x Hx. apply Hall_l.
+      apply elem_of_app. left. rewrite Hperm.
+      apply elem_of_app. left. exact Hx. }
+    assert (Forall (λ x, std (revoke W) !! x = Some Revoked) (l_tmp_unk ++ (LNonHeap <$> la)))
+      as Hrev_all.
+    { apply extract_temporaries_condition_revoke. split; assumption. }
+    apply Forall_app in Hrev_all as [Hrev_unk Hrev_la].
+    apply Forall_fmap in Hrev_la.
+    iMod (open_region_many_rels_get W C _ l_q Hqtemp with "[$Hr $Hsts]") as "(Hr & Hsts & Hq)".
+    (* Split the stack facts into the rest and the open part *)
+    iEval (rewrite Hperm_la) in "Hl".
+    iDestruct (big_sepL_app with "Hl") as "[Hl_rest Hl_slot]".
+    iAssert ([∗ list] k ∈ LNonHeap <$> ls,
+               ∃ p φ, ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
+                      rel C k p φ ∗ sts_state_std C k Temporary)%I
+      with "[Hl_slot Hslot_states]" as "Hslot_keys".
+    { rewrite big_sepL_fmap.
+      iDestruct (big_sepL_sep_2 with "Hl_slot Hslot_states") as "Hslot_pairs".
+      iApply (big_sepL_mono with "Hslot_pairs").
+      iIntros (i x Hx) "[ (_ & %p' & %P & _ & %Hpers & #Hrel & _) Hstate]".
+      iExists p', (safeC P). iFrame "Hrel Hstate".
+      iPureIntro. intros WCv. apply Hpers. }
+    iMod (monotone_revoke_keep_open W C (l_live ++ (LNonHeap <$> lr)) (LNonHeap <$> ls)
+      with "[$Hsts $Hr $Hslot_keys]") as "(Hsts & Hr & Hres & _)".
+    { by rewrite Hperm_keys. }
+    { by rewrite Hperm_keys. }
+    { iPureIntro.
+      rewrite -Hperm_keys in Htemp_rev.
+      apply Forall_app in Htemp_rev as [Htemp_rev _].
+      by apply Forall_lookup. }
+    rewrite /close_list_resources.
+    iDestruct (big_sepL_app with "Hres") as "[Hres_unk Hres_stk]".
+    rewrite big_sepL_fmap.
+    iAssert (▷ close_list_resources C W l_live false)%I
+      with "[Hres_unk]" as "Hres_unk".
+    { rewrite /close_list_resources big_sepL_later.
+      iApply (big_sepL_impl with "Hres_unk").
+      iIntros "!> %k %a0 %Ha H".
+      assert (heap_key_live (heap_std W) a0) as Hlive_a
+        by (rewrite Forall_lookup in Hlive; eauto).
+      unfold heap_key_live in Hlive_a.
+      rewrite /close_addr_resources Hlive_a.
+      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iExists p, φ. iFrame "Hrel". iSplit; first done.
+      iExact "Htemp". }
+    iAssert (▷ RevokedResources W C l_tmp_unk)%I with "[Hres_unk Hq]" as "Hunk".
+    { iNext.
+      rewrite (RevokedResources_partition W C l_tmp_unk l_live l_q Hperm Hlive Hqstatus).
+      iFrame "Hq". iExact "Hres_unk". }
+    iModIntro. iExists l_tmp_unk.
+    iFrame "Hsts Hr Hunk". iFrame "%".
+    iSplit.
+    { iPureIntro; split; auto. }
+    (* Every cell of the stack, with its contents zeroed *)
+    iDestruct (revoked_stack_revoked _ _ lr with "[$Hl_rest] [$Hres_stk]") as "Hrest".
+    iAssert ([∗ list] a' ∈ lr ++ ls,
+               ▷ StackWorldResource interp W C a' (WInt 0) ∗ ▷ (∃ w, a' ↦ₐ w))%I
+      with "[Hrest Hslot_res Hslot]" as "Hstk".
+    { iApply big_sepL_app. iSplitL "Hrest".
+      - iApply (big_sepL_mono with "Hrest").
+        iIntros (i x Hx) "H".
+        iDestruct "H" as (w) "[Hres Hx]".
+        iSplitL "Hres"; iNext; [by iApply StackWorldResource_zero|by iExists w].
+      - iDestruct (pointsto_list_exists with "Hslot") as "Hslot".
+        iAssert (▷ StackWorldResources interp W C ls
+                   (replicate (length ls) (lword_of_word (WInt 0))))%I
+          with "[Hslot_res]" as "Hslot_res".
+        { iNext. iApply (StackWorldResources_zeros with "Hslot_res").
+          - by rewrite length_replicate.
+          - by apply Forall_replicate. }
+        rewrite /StackWorldResources big_sepL2_replicate_r; last done.
+        rewrite big_sepL_later.
+        iApply (big_sepL_sep_2 with "Hslot_res").
+        iApply (big_sepL_mono with "Hslot"). iIntros (i x Hx) "H". by iNext. }
+    iEval (rewrite -Hperm_la) in "Hstk".
+    iDestruct (big_sepL_sep with "Hstk") as "[Hstk_res Hstk_mem]".
+    rewrite -!big_sepL_later.
+    iSplitL "Hstk_res".
+    { iNext. rewrite /StackRevokedResources /StackWorldResources.
+      rewrite big_sepL2_replicate_r; last done. iFrame. }
+    iNext. iApply (exists_pointsto_list with "Hstk_mem").
+  Qed.
+
   (* Reinstate a stack region *)
   Lemma update_region_revoked_temp_pwl_multiple E W C la lv :
      NoDup la →
