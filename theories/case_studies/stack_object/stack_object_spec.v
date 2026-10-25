@@ -64,7 +64,7 @@ Section SO.
 
     (b_so_exp_tbl <= a_so_entry_f < e_so_exp_tbl)%a ->
 
-    dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
+    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
 
@@ -89,6 +89,7 @@ Section SO.
       ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
       ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ thread_return_sentry
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
 
       (* initial memory layout *)
@@ -112,7 +113,7 @@ Section SO.
          the switcher;
        - [switcher_call_args_0] and [switcher_cc_specification]: call to
          [C.adv];
-       - [so_run_blocks_2_spec]: block 2, halt. *)
+       - [so_run_return_spec]: block 2, return: the thread exits. *)
     intros imports a_so_exp_tbl_cgp a_so_entry_f.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
@@ -124,7 +125,7 @@ Section SO.
       & #Hso_exp_tbl_CGP
       & #Hso_exp_tbl_f
       & Hna
-      & HPC & Hcgp & Hcsp & Hrmap
+      & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Hworld_interp_C
       & HK
       & Hcstk_frag
@@ -138,8 +139,8 @@ Section SO.
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
       as %[Hstk_mmio Hstk_heap]; first done.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
-    iExtractList "Hrmap" [cra;ct0;ct1;cs0;cs1]
-      as ["Hcra"; "Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
+    iExtractList "Hrmap" [ct0;ct1;cs0;cs1]
+      as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
     (* Revoke the world, to get the stack frame *)
     iMod (so_world_run_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
@@ -147,9 +148,9 @@ Section SO.
 
     (* Blocks 0-2: fetch the imports and jump to the switcher *)
     iApply (so_run_blocks_1_spec with
-             "[- $HPC $Hct0 $Hct1 $Hcra $Himport_switcher $Himport_C_f
+             "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Himport_switcher $Himport_C_f
               $Hcode_main]"); [done|done|].
-    iNext; iIntros (mie) "(HPC & Hct0 & Hct1 & Hcra & _ & _
+    iNext; iIntros (mie) "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & _ & _
                     & _)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
@@ -188,19 +189,21 @@ Section SO.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
-      "(_ & _ & _ & _ & _ & _ & _ & _ & Hna & _ & _ & _ & HPC
-      & _ & _ & _ & _ & _ & _ & _ & _ & _ & _ & %Hrestored)".
-    destruct Hrestored as (_ & Hrcra & _ & _).
+      "(_ & _ & _ & _ & _ & %Hrmap_ret_dom & _ & _ & Hna & _ & _ & Hcstk_frag & HPC
+      & _ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored)".
+    destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    subst rcra.
+    apply load_heap_nonheap in Hrcs0; last exact thread_return_sentry_not_heap.
+    subst rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp"; "Hct0"; "Hct2"].
 
-    (* Block 2: halt *)
-    iApply (so_run_blocks_2_spec with "[$HPC $Hcode_main Hna]");
-      first done.
-    iNext; iIntros "(HPC & _)".
-    wp_end; iIntros "_"; iFrame.
+    (* Block 2: return, the thread exits *)
+    iApply (so_run_return_spec with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
+               $Hcstk_frag $Hcode_main]"); [done | done].
   Qed.
 
 End SO.
