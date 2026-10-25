@@ -54,7 +54,7 @@ Section Switcher.
     ∗ world_interp Wcur C
     ∗ na_own cerise_nais ⊤
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
-    ∗ RevokedResources Wfixed C l
+    ∗ ▷ RevokedResources Wfixed C l
     ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
     ∗ ca0 ↦ᵣ wca0
     ∗ ca1 ↦ᵣ wca1
