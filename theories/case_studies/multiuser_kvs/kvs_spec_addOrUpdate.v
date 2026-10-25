@@ -16,7 +16,7 @@ Section KVS_spec_addOrUpdate.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf}
   .
 
   (*** KVS INSERT: Key in the KVS *)
@@ -167,14 +167,14 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     is_uint16 nkey ->
@@ -185,7 +185,7 @@ Section KVS_spec_addOrUpdate.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
 
@@ -207,7 +207,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_key ↦(LKVS) m ∗
 
       ▷ (
-          na_own cerise_nais E ∗
+          na_own cerise_nais F ∗
 
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
@@ -297,14 +297,14 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -316,7 +316,7 @@ Section KVS_spec_addOrUpdate.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -333,7 +333,7 @@ Section KVS_spec_addOrUpdate.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais F ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -380,14 +380,14 @@ Section KVS_spec_addOrUpdate.
   Lemma KVS_update_spec
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -397,7 +397,7 @@ Section KVS_spec_addOrUpdate.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -415,7 +415,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
-      ▷ ( na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais F ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -677,14 +677,14 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     is_uint16 nkey ->
@@ -695,7 +695,7 @@ Section KVS_spec_addOrUpdate.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -715,7 +715,7 @@ Section KVS_spec_addOrUpdate.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais E ∗
+      ▷ ( na_own cerise_nais F ∗
           PC ↦ₚ lupdatePcPerm wret ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
@@ -820,14 +820,14 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -839,7 +839,7 @@ Section KVS_spec_addOrUpdate.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -856,7 +856,7 @@ Section KVS_spec_addOrUpdate.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -915,14 +915,14 @@ Section KVS_spec_addOrUpdate.
   Lemma KVS_add_spec
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
-    (E : coPset)
+    (F : coPset)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
@@ -932,7 +932,7 @@ Section KVS_spec_addOrUpdate.
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -950,7 +950,7 @@ Section KVS_spec_addOrUpdate.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
-      ▷ (na_own cerise_nais E ∗
+      ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cgp ↦ᵣ - ∗
          cra ↦ᵣ - ∗
@@ -1077,10 +1077,10 @@ Section KVS_spec_addOrUpdate.
   Lemma KVS_addOrUpdate_spec_not_uint16_map_key
     (wret : LWord)
     (wca1 : LWord)
-    (E : coPset)
+    (F : coPset)
     :
 
-    ↑(Nkvs.@"physical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
 
     ¬ word_is_uint16 wca1.(lw) ->
 
@@ -1088,7 +1088,7 @@ Section KVS_spec_addOrUpdate.
 
     ( kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -1097,7 +1097,7 @@ Section KVS_spec_addOrUpdate.
       ca1 ↦ᵣ wca1 ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ - ∗ (* scratch *)
 
-      ( ▷ (na_own cerise_nais E ∗
+      ( ▷ (na_own cerise_nais F ∗
          PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ - ∗
          ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
@@ -1213,7 +1213,7 @@ Section KVS_spec_addOrUpdate.
     (wret : LWord)
     (wca0 : LWord)
     (nkey : Z) (πnkey : option AId)
-    (E : coPset)
+    (F : coPset)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
@@ -1222,7 +1222,7 @@ Section KVS_spec_addOrUpdate.
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( kvs_static ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -1236,7 +1236,7 @@ Section KVS_spec_addOrUpdate.
 
       (* The load after the failed unsealing of the user key faults *)
       ▷ ( ∀ a,
-          na_own cerise_nais E ∗
+          na_own cerise_nais F ∗
           cgp ↦ᵣ - ∗
           cra ↦ᵣ - ∗
           ca0 ↦ᵣ - ∗
@@ -1280,13 +1280,13 @@ Section KVS_spec_addOrUpdate.
   Lemma KVS_add_spec_known_to_known
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr)
-    (arg_rmap : LReg) (cstk : CSTK) (E : coPset)
+    (arg_rmap : LReg) (cstk : CSTK) (F : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
     (l_user_key : Locality) (user_key_addr : Addr) (wnew : LWord) :
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
     is_shadow_address user_key_addr = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
     is_uint16 nkey ->
     withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
     arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
@@ -1310,7 +1310,7 @@ Section KVS_spec_addOrUpdate.
           (⌜ wca0 = WInt ASM_FALSE ⌝ ∗
            (user_key, nkey) ↦(KVS) ⊥)))
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
-      b_stk e_stk a_stk arg_rmap cstk kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack E
+      b_stk e_stk a_stk arg_rmap cstk kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack F
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off
       (WCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.

@@ -144,12 +144,18 @@ Section Switcher.
       with interrupts disabled; bit 3 (inherited posture) is never set, since
       export entries cannot inherit. The minimum stack size is counted in
       words, one word being one CHERIoT stack slot of 8 bytes. *)
-  Definition entry_point_irq_disabled_mask : Z := 16.
+  Definition ExportEntryInterruptStatusSwitcherMask : Z := 16.
+
+  (** [deviation] The fields are packed in one word, not stored at byte
+      offsets: the switcher extracts them with these shifts and mask. *)
+  Definition ExportEntry_functionStart_shift : Z := 16.
+  Definition ExportEntry_minimumStackSize_shift : Z := 8.
+  Definition ExportEntry_byte_mask : Z := 255.
 
   Definition entry_point_posture (mie : InterruptStatus) : Z :=
     match mie with
     | InterruptEnabled => 0
-    | InterruptDisabled => entry_point_irq_disabled_mask
+    | InterruptDisabled => ExportEntryInterruptStatusSwitcherMask
     end.
 
   (** The flags of an entry point, its low byte. *)
@@ -162,6 +168,17 @@ Section Switcher.
     let stk := Z.shiftl (Z.land minstk 255) 8 in
     let off := Z.shiftl entry_point_offset 16 in
     (Z.lor off (Z.lor stk (Z.lor (entry_point_posture mie) args))).
+
+  (** The fields of an export entry word, as [encode_entry_point] packs them
+      and as the switcher reads them. *)
+  Definition export_entry_flags (z : Z) : Z := Z.land z ExportEntry_byte_mask.
+  Definition export_entry_nargs (z : Z) : Z := Z.land z 7.
+  Definition export_entry_posture (z : Z) : InterruptStatus :=
+    if (Z.land z ExportEntryInterruptStatusSwitcherMask =? 0)%Z
+    then InterruptEnabled else InterruptDisabled.
+  Definition export_entry_min_stack (z : Z) : Z :=
+    Z.land (Z.shiftr z ExportEntry_minimumStackSize_shift) ExportEntry_byte_mask.
+  Definition export_entry_offset (z : Z) : Z := Z.shiftr z ExportEntry_functionStart_shift.
 
   Definition switcher_call_asm : list (list asm_code) :=
     [
@@ -254,14 +271,14 @@ Section Switcher.
         (* [deviation] one packed entry word: each field is loaded and extracted *)
         (* clhu s0, ExportEntry_offset_functionStart(ct1) *)
         load cs0 ct1;
-        lshiftr cs0 cs0 16;
+        lshiftr cs0 cs0 ExportEntry_functionStart_shift;
         (* csc ct1, TrustedStackFrame_offset_calleeExportTable(ctp) *)
         store_imm ctp ct1 TrustedStackFrame_offset_calleeExportTable;
         #".Lswitch_stack_check_length";
         (* clbu tp, ExportEntry_offset_minimumStackSize(ct1) *)
         load ctp ct1;
-        lshiftr ctp ctp 8;
-        land ctp ctp 255;
+        lshiftr ctp ctp ExportEntry_minimumStackSize_shift;
+        land ctp ctp ExportEntry_byte_mask;
         (* [deviation] minimum stack size in words: no slli tp, tp, 3 *)
         (* cgetlen t2, csp *)
         getlen ct2 csp;
@@ -274,7 +291,7 @@ Section Switcher.
         (* [deviation] no stack high-water mark: no csrw CSR_MSHWM *)
         (* clbu tp, ExportEntry_offset_flags(ct1) *)
         load ctp ct1;
-        land ctp ctp 255;
+        land ctp ctp ExportEntry_byte_mask;
         (* cgetbase s1, ct1 *)
         getb cs1 ct1;
         (* csetaddr ct1, ct1, s1 *)
@@ -304,7 +321,7 @@ Section Switcher.
       (* zeroRegisters a0, a1, a2, a3, a4, a5, t0 *)
       rclear_asm registers_pre_call_skip ++
       [ (* andi t1, tp, ExportEntryInterruptStatusSwitcherMask *)
-        land ct1 ctp entry_point_irq_disabled_mask;
+        land ct1 ctp ExportEntryInterruptStatusSwitcherMask;
         (* bnez t1, .Lswitch_skip_interrupt_enable *)
         jnez (".Lswitch_skip_interrupt_enable")%asm ct1;
         (* csrsi mstatus, 0x8 *)

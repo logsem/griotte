@@ -31,7 +31,7 @@ Section Switcher_KtK_Call.
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
   Lemma switcher_cc_spec_tstack_exhausted_known_to_known
-    (E : coPset)
+    (F : coPset)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller wct2 wctp : LWord)
     (b_stk e_stk a_stk : Addr)
     (stk_mem : list LWord)
@@ -53,8 +53,8 @@ Section Switcher_KtK_Call.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) ∗
-    na_own cerise_nais (E ∖ ↑Nswitcher) ∗
+    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) ∗
+    na_own cerise_nais (F ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
@@ -81,7 +81,7 @@ Section Switcher_KtK_Call.
     cstack_frag cstk ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
             ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-            na_own cerise_nais E ∗
+            na_own cerise_nais F ∗
             PC ↦ₚ lupdatePcPerm rcra ∗
             cgp ↦ᵣ rcgp ∗
             cra ↦ᵣ rcra ∗
@@ -144,7 +144,7 @@ Section Switcher_KtK_Call.
     (arg_rmap rmap : LReg)
     (cstk : CSTK)
     (nargs minstk_tgt : nat)
-    (E : coPset)
+    (F : coPset)
 
     (btbl_tgt atbl_tgt etbl_tgt : Addr)
     (bpcc_tgt epcc_tgt : Addr)
@@ -181,7 +181,7 @@ Section Switcher_KtK_Call.
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
-    ↑Nswitcher ⊆ E ->
+    ↑Nswitcher ⊆ F ->
 
     (* Well formed entry point *)
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
@@ -211,7 +211,7 @@ Section Switcher_KtK_Call.
 
 
     (* PRE-CONDITION *)
-    ∗ na_own cerise_nais E
+    ∗ na_own cerise_nais F
     (* Registers *)
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ wcgp_caller
@@ -236,7 +236,7 @@ Section Switcher_KtK_Call.
     ∗ ▷ ( (∃ mie arg_rmap' rmap',
             ⌜ is_arg_rmap arg_rmap' 8 ⌝
             ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
-            ∗ na_own cerise_nais E
+            ∗ na_own cerise_nais F
             (* Registers *)
             ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
             ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
@@ -263,7 +263,7 @@ Section Switcher_KtK_Call.
           (
             ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
               ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-              ∗ na_own cerise_nais E
+              ∗ na_own cerise_nais F
               (* Registers *)
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp

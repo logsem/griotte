@@ -261,12 +261,6 @@ Ltac switcher_jump_in_block sb s Hsome :=
 Tactic Notation "switcher_jump_in_block" constr(sb) constr(s) "as" ident(Hsome) :=
   switcher_jump_in_block sb s Hsome.
 
-(** Solve [(a + z)%a = Some ?a'], the target of a jump of the switcher to
-    its label [s]: [?a'] is the address of [s]. *)
-Ltac switcher_jump_label s :=
-  transitivity (Some (a_switcher_call ^+ switcher_label_offset s)%a);
-  [switcher_addr_eq | reflexivity].
-
 (** The offset [off] of an address [a = a_switcher_call ^+ off] of the code
     of the switcher, written [a_switcher_call ^+ off], [a' ^+ k], or an
     abstracted start address of an opened block. *)

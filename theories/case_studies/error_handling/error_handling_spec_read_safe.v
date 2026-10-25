@@ -285,8 +285,7 @@ Section Error_Handling_Read_Safe.
         { rewrite /lm big_sepM_insert; last by simplify_map_eq.
           rewrite big_sepM_singleton. iFrame "Hinstr Ha". }
         iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 _ with "Hca0") as "Hregs".
-        iApply (wp_trap_fault_frac _ _ _ {[ca0 := WCap true p g b e a @@? π]} lm
-                 with "HPC Hregs Hlm").
+        iTrap cause with "Hregs" "Hlm".
         { split; last by rewrite Hlfault.
           intros p0 g0 b0 e0 a0 wi Hpc Hwi. rewrite /stats_pcc /= in Hpc.
           injection Hpc as <- <- <- <- <-.
@@ -294,7 +293,6 @@ Section Error_Handling_Read_Safe.
           rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /=
             dom_singleton_L.
           set_solver. }
-        iIntros "Hregs Hlm".
         iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 _ with "Hregs") as "Hca0".
         rewrite /lm big_sepM_insert; last by simplify_map_eq.
         iDestruct "Hlm" as "[_ Hlm]". rewrite big_sepM_singleton.
@@ -359,7 +357,8 @@ Section Error_Handling_Read_Safe.
     rewrite /data_cap_check /= in Hcheck. destruct t; last done.
     destruct (readAllowed p); last done.
     rewrite addr_add_0 in Hcheck.
-    rewrite (_ : withinBounds b e b = true) in Hcheck; [done | apply withinBounds_true_iff; solve_addr].
+    rewrite (_ : withinBounds b e b = true) in Hcheck;
+      [done | apply withinBounds_true_iff; solve_addr].
   Qed.
 
   (** ** The return and the unwind *)

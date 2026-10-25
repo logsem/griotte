@@ -25,14 +25,14 @@ Section VAE_Awkward_Blocks_2.
 
   Lemma vae_awkward_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive) (N : namespace)
+    (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive)
     (wret wg wcra wca0 wca1 wct0 wct1 : LWord) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     revoke_condition W ->
     related_sts_priv_world W (<l[i:=true]l>W) ->
-    inv N (awk_inv C i cgp_b) ∗
+    inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗

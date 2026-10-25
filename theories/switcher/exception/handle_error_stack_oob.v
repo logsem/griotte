@@ -84,7 +84,8 @@ Section Handle_Error_Stack_Oob.
     { (* Jeq .Lhandle_error_try_stackless ct1 0 *)
       iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hct1]" as "(HPC & Hct1)".
       { reflexivity. }
-      { switcher_jump_label ".Lhandle_error_try_stackless". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_try_stackless")%a
+          by switcher_addr_eq. }
       subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[]"); last iFrame "HPC Hct0 Hct1 Hct2 Hcs1".
@@ -112,7 +113,8 @@ Section Handle_Error_Stack_Oob.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hct2]"
         as "(HPC & Hct0 & Hct2)".
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; lia. }
-      { switcher_jump_label ".Lhandle_error_try_stackless". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_try_stackless")%a
+          by switcher_addr_eq. }
       subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[]"); last iFrame "HPC Hct0 Hct1 Hct2 Hcs1".
@@ -299,7 +301,8 @@ Section Handle_Error_Stack_Oob.
         iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs0 $Hcs1]"
           as "(HPC & Hcs0 & Hcs1)".
         { cbn [jcond_test get_a lw]; apply negb_true_iff, Z.eqb_neq; lia. }
-        { switcher_jump_label ".Lhandle_error_found". }
+        { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_found")%a
+            by switcher_addr_eq. }
         subst hpost.
         iDestruct "Hpost" as "(_ & Hpost & _)".
         iApply ("Hpost" with "[//] [//]").
@@ -423,7 +426,8 @@ Section Handle_Error_Stack_Oob.
         iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs0 $Hcs1]"
           as "(HPC & Hcs0 & Hcs1)".
         { cbn [jcond_test get_a lw]; apply Z.eqb_eq; reflexivity. }
-        { switcher_jump_label ".Lcommon_force_unwind". }
+        { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+            by switcher_addr_eq. }
         subst hpost.
         iDestruct "Hpost" as "(_ & Hpost & _)".
         iApply ("Hpost" with "[//] [//]").
@@ -452,7 +456,8 @@ Section Handle_Error_Stack_Oob.
         iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs1 $Hctp]"
           as "(HPC & Hcs1 & Hctp)".
         { cbn [jcond_test get_a lw get_a_sealable]; apply Z.eqb_eq; rewrite Hentry; reflexivity. }
-        { switcher_jump_label ".Lhandle_stack_recovered". }
+        { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_stack_recovered")%a
+            by switcher_addr_eq. }
         subst hpost.
         iDestruct "Hpost" as "(_ & _ & Hpost & _)".
         iApply ("Hpost" with "[//] [//] [//]").

@@ -37,7 +37,7 @@ Section Switcher_KtK_Return.
     (rmap : LReg)
     (cstk : CSTK)
     (w_callee_exp_tbl : LWord)
-    (E : coPset)
+    (F : coPset)
     (n_cnt : Z)
     :
     let frame :=
@@ -61,7 +61,7 @@ Section Switcher_KtK_Return.
     stk_spill_ok a_stk ->
 
     (* NA mask *)
-    ↑Nswitcher ⊆ E ->
+    ↑Nswitcher ⊆ F ->
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
@@ -72,7 +72,7 @@ Section Switcher_KtK_Return.
 
     (* PRE-CONDITION *)
     (* NA token*)
-    ∗ na_own cerise_nais E
+    ∗ na_own cerise_nais F
     (* Registers *)
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
@@ -100,7 +100,7 @@ Section Switcher_KtK_Return.
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
-              ∗ na_own cerise_nais E
+              ∗ na_own cerise_nais F
               (* Registers *)
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
@@ -189,7 +189,7 @@ Section Switcher_KtK_Return.
 
     (* Pop the frame and close the switcher invariant *)
     subst hclose_switcher_inv.
-    iMod (switcher_return_pop_close E _ cstk with
+    iMod (switcher_return_pop_close F _ cstk with
            "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
             Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher")
       as "[Hna Hcstk]"; [done|done|done|done|].
@@ -206,7 +206,7 @@ Section Switcher_KtK_Return.
     (rmap : LReg)
     (cstk : CSTK)
     (w_callee_exp_tbl : LWord)
-    (E : coPset)
+    (F : coPset)
     :
     let frame :=
            {| cf_tframe :=
@@ -229,7 +229,7 @@ Section Switcher_KtK_Return.
     stk_spill_ok a_stk ->
 
     (* NA mask *)
-    ↑Nswitcher ⊆ E ->
+    ↑Nswitcher ⊆ F ->
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
@@ -240,7 +240,7 @@ Section Switcher_KtK_Return.
 
     (* PRE-CONDITION *)
     (* NA token*)
-    ∗ na_own cerise_nais E
+    ∗ na_own cerise_nais F
     (* Registers *)
     ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
@@ -268,7 +268,7 @@ Section Switcher_KtK_Return.
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
-              ∗ na_own cerise_nais E
+              ∗ na_own cerise_nais F
               (* Registers *)
               ∗ PC ↦ₚ lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1

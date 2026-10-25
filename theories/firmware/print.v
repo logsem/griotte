@@ -1022,8 +1022,12 @@ Definition word_text (w : Word) : option string :=
     arguments, minimum stack size, offset. *)
 Definition entry_text (z : Z) : string :=
   strs ["entry ";
-        if (Z.land z 16 =? 16)%Z then "InterruptDisabled" else "InterruptEnabled"; " ";
-        dec (Z.land z 7); " "; dec (Z.land (Z.shiftr z 8) 255); " "; dec (Z.shiftr z 16)].
+        match export_entry_posture z with
+        | InterruptDisabled => "InterruptDisabled"
+        | InterruptEnabled => "InterruptEnabled"
+        end; " ";
+        dec (export_entry_nargs z); " "; dec (export_entry_min_stack z); " ";
+        dec (export_entry_offset z)].
 
 Definition entry_cell (w : Word) : cell :=
   match w with WInt z => CText (entry_text z) | _ => CWord w end.

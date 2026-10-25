@@ -17,20 +17,20 @@ Section KVS_spec_addOrUpdate_safe.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf}
   .
 
   (*** Specification from unknown *)
   Lemma KVS_addOrupdate_spec_safe
     (Wca W : WORLD) (C : CmptName)
     (wret wca0 wca1 wca2 : LWord)
-    (E : coPset)
+    (F : coPset)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
-    ↑(Nkvs.@"physical") ⊆ E ->
-    ↑(Nkvs.@"logical") ⊆ E ->
-    ↑Nkvs_otype ⊆ E ->
+    ↑(Nkvs.@"physical") ⊆ F ->
+    ↑(Nkvs.@"logical") ⊆ F ->
+    ↑Nkvs_otype ⊆ F ->
 
     related_sts_priv_world Wca W ->
     jalr_target_ok cnull cra wret.(lw) = true ->
@@ -39,7 +39,7 @@ Section KVS_spec_addOrUpdate_safe.
       kvs_static ∗
       na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
       na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais E ∗
+      na_own cerise_nais F ∗
 
       (* initial register file *)
       PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
@@ -54,7 +54,7 @@ Section KVS_spec_addOrUpdate_safe.
 
       world_interp W C ∗
 
-      ( ▷ (na_own cerise_nais E ∗
+      ( ▷ (na_own cerise_nais F ∗
            PC ↦ₚ lupdatePcPerm wret ∗
            cgp ↦ᵣ - ∗
            cra ↦ᵣ - ∗
@@ -71,7 +71,7 @@ Section KVS_spec_addOrUpdate_safe.
         ) ∧
         (* The load after the failed unsealing of the user key faults *)
         ▷ ( ∀ a,
-            na_own cerise_nais E ∗
+            na_own cerise_nais F ∗
             cgp ↦ᵣ - ∗
             cra ↦ᵣ - ∗
             ca0 ↦ᵣ - ∗

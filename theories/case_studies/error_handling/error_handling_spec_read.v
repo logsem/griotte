@@ -150,7 +150,7 @@ Section Error_Handling_Read.
     pose proof Nswitcher_Nstats as Hdisj_stats.
     iApply (trap_safe_exception_entry P_mcause P_mtval (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
-      [done | solve_ndisj | rewrite /N_trap /Nstats; solve_ndisj |].
+      [done | solve_ndisj | rewrite /Ntrap /Nstats; solve_ndisj |].
     iModIntro. iExists rfault, cstk. iFrame "Hna Hregs Hcstk". iSplit; first done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
@@ -213,7 +213,8 @@ Section Error_Handling_Read.
   Proof.
     intros Hinstr Hcheck. pose proof stats_load_pc_correct as Hpc.
     rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
-    rewrite lookup_fmap Hinstr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault.
+    rewrite lookup_fmap Hinstr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv
+      /instr_fault /load_fault.
     by rewrite lookup_reg_not_cnull // /= lookup_fmap lookup_insert_eq /= Hcheck.
   Qed.
 
@@ -228,7 +229,8 @@ Section Error_Handling_Read.
     intros Hinstr [-> | (wi & r & v & Hwi & Hauth & _ & Hr & Hstrip & ->)]; first by left.
     right. pose proof stats_load_pc_correct as Hpc.
     rewrite /instr_at /stats_pcc /= in Hwi Hpc. rewrite Hpc Hinstr in Hwi.
-    injection Hwi as <-. rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv in Hauth.
+    injection Hwi as <-.
+    rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv in Hauth.
     injection Hauth as <-. rewrite lookup_insert_eq in Hr. by injection Hr as <-.
   Qed.
 
@@ -257,12 +259,14 @@ Section Error_Handling_Read.
   Proof.
     iIntros (Hinstr Hf Hnaccess) "HPC Hca0 Hlm Hcont".
     iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 wptr with "Hca0") as "Hregs".
-    iApply (wp_trap_fault _ _ _ {[ca0 := wptr]} lm with "HPC Hregs Hlm").
+    iTrap cause with "Hregs" "Hlm".
     { split; last by rewrite Hf.
-      intros p g b e a wi Hpc Hwi. rewrite /stats_pcc /= in Hpc. injection Hpc as <- <- <- <- <-.
+      intros p g b e a wi Hpc Hwi. rewrite /stats_pcc /= in Hpc.
+      injection Hpc as <- <- <- <- <-.
       rewrite Hinstr in Hwi. injection Hwi as <-.
-      rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /= dom_singleton_L. set_solver. }
-    iIntros "Hregs Hlm".
+      rewrite /stats_load_instr /= ?decode_encode_instrW_inv ?decode_encode_instr_inv /=
+        dom_singleton_L.
+      set_solver. }
     iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 wptr with "Hregs") as "Hca0".
     iApply (trap_safe_cause_mono with "(Hcont Hca0 Hlm)").
     - intros c [Hok ->]. split; first done. by rewrite lcause_lfault Hf.
@@ -599,7 +603,8 @@ Section Error_Handling_Read.
         iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose").
         { intros r. rewrite lookup_insert_is_Some'. by right. }
         { by rewrite lookup_insert_ne. }
-        { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
+        { rewrite lookup_total_insert_ne // Hcra_take.
+          apply jalr_target_ok_switcher_return_sentry. }
         iNext. iIntros "HPC Hregs Hna".
         (* The return, at count 0 *)
         iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)

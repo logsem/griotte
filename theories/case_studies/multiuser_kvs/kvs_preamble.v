@@ -1402,16 +1402,10 @@ Proof.
   iFrame "H".
 Qed.
 
-Class kvs_namespaces :=
-  {
-    Nkvs : namespace;
-    Nkvs_otype : namespace;
-    Nkvs_exp_tbl : namespace;
-    Nkvs_namespaces_disjoint :
-    Nkvs ## Nkvs_otype ∧
-    Nkvs ## Nkvs_exp_tbl ∧
-    Nkvs_otype ## Nkvs_exp_tbl
-  }.
+(** The namespaces of the KVS: its physical and logical invariants
+    ([Nkvs .@ "physical"], [Nkvs .@ "logical"]) and its otype. *)
+Definition Nkvs : namespace := nroot .@ "kvs".
+Definition Nkvs_otype : namespace := nroot .@ "kvs_otype".
 
 Section KVS_preamble.
   Context
@@ -1514,7 +1508,7 @@ Section UserKvsInit.
         {ceriseg:ceriseG Σ}
         {sealsg: sealStoreG Σ}
         `{MP: MachineParameters}
-        {KVS : kvsLayout} {kvslayoutwf : kvsLayoutWf} { kvsnames : kvs_namespaces }
+        {KVS : kvsLayout} {kvslayoutwf : kvsLayoutWf}
         {swlayout : switcherLayout}
 
     .

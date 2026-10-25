@@ -123,7 +123,8 @@ Section Handle_Error.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hctp]"
         as "(HPC & Hct0 & Hctp)".
       { cbn [jcond_test get_a lw]; apply Z.eqb_eq; lia. }
-      { switcher_jump_label ".Lhandle_error_in_switcher". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_in_switcher")%a
+          by switcher_addr_eq. }
       subst hpost.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[]"); first (iPureIntro; lia).
@@ -232,7 +233,8 @@ Section Handle_Error.
     switcher_open_label ".Lhandle_error_in_switcher" "Hswitcher" as "Hcode".
     (* Auipcc ctp .Lswitch_entry_first_spill *)
     iInstr "Hcode".
-    { switcher_jump_label ".Lswitch_entry_first_spill". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a
+        by switcher_addr_eq. }
     destruct (decide (get_a wmepcc.(lw) = (a_first_spill : Z))) as [Hfirst | Hnot_first].
     - (* A fault of the first spill: resume the caller *)
       iDestruct "Hpost" as "[_ Hpost]".
@@ -248,7 +250,8 @@ Section Handle_Error.
       iInstr "Hcode".
       (* Auipcc ct2 .Lswitch_just_return *)
       iInstr "Hcode".
-      { switcher_jump_label ".Lswitch_just_return". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a
+          by switcher_addr_eq. }
       assert ((b_trusted_stack + TrustedStack_offset_ca0)%a =
                 Some (b_trusted_stack ^+ TrustedStack_offset_ca0)%a) as Hts_10
         by (rewrite /TrustedStack_offset_ca0; tstack_unfold; solve_addr).
@@ -265,7 +268,8 @@ Section Handle_Error.
       { rewrite /withinBounds /TrustedStack_offset_ca1; tstack_unfold; solve_addr. }
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
-      { switcher_jump_label ".Lcommon_context_install". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_context_install")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply ("Hpost" with "[//]").
       iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
@@ -276,7 +280,8 @@ Section Handle_Error.
         as "(HPC & Hct1 & Hctp)".
       { cbn [jcond_test get_a lw]. apply negb_true_iff, Z.eqb_neq.
         intros Heq; apply Hnot_first; rewrite Heq; reflexivity. }
-      { switcher_jump_label ".Lcommon_force_unwind". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
+          by switcher_addr_eq. }
       iApply ("Hpost" with "[//]").
       iFrame "HPC Hcsp Hct1 Hctp Hca0 Hca1 Hct2 Hs10 Hs11".
   Qed.

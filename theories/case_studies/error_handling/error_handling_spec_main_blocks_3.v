@@ -2,7 +2,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Import error_handling_spec_states.
 
-(** * [main], blocks 15-21: the call to [stats_read] with the capability of [x], the last assert, and the halt
+(** * [main], blocks 15-21: the call to [stats_read] with the capability of
+    [x], the last assert, and the halt
 
     Block 15 puts the capability of [x] in [ca0], blocks 16 and 17 fetch
     the entry points of the switcher and of [stats_read], and block 18

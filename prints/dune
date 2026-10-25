@@ -1,0 +1,17 @@
+; The annotated initial-state predicate of each case study, printed by
+; [print_initial_state] (theories/firmware/print.v) into
+; theories/case_studies/<dir>/<cs>_initial_state_predicate.txt, a file
+; promoted into the source tree. A case study is a file
+; theories/case_studies/<dir>/<cs>_firmware.v that defines
+; <cs>_initial_state_ok_annot: gen.sh writes its rules, included by
+; rules/dune. A print reruns only when the printer or the firmware of its
+; case study changes.
+
+(rule
+ (deps
+  (:firmware
+   (glob_files_rec %{project_root}/theories/case_studies/*_firmware.v)))
+ (action
+  (with-stdout-to
+   rules.inc
+   (run sh %{dep:gen.sh} %{firmware}))))

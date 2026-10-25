@@ -35,14 +35,14 @@ Section Switcher_trap_safety.
         (w : LWord),
       ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
       ⌜↑Nswitcher ⊆ F⌝ -∗
-      ⌜↑N_trap ⊆ F⌝ -∗
+      ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
        trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
       PC ↦ₚ lword_of_word mtcc_vec -∗
       trap_entry_out_cause P_mcause P_mtval w -∗
       registers_pointsto rmap -∗
-      na_own cerise_nais (F ∖ ↑N_trap) -∗
+      na_own cerise_nais (F ∖ ↑Ntrap) -∗
       cstack_frag cstk -∗
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
@@ -57,7 +57,7 @@ Section Switcher_trap_safety.
   Definition switcher_resume_safe : iProp Σ :=
     □ ∀ (F : coPset) (w : LWord),
       ⌜↑Nswitcher ⊆ F⌝ -∗
-      ⌜↑N_trap ⊆ F⌝ -∗
+      ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜¬ trap_no_resume w⌝ -∗
       (|={⊤}=>
          ∃ rmap : LReg,
@@ -148,7 +148,7 @@ Section Switcher_trap_safety.
     (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     switcher_trap_safety -∗
     (|={⊤}=>
        ∃ (rmap : LReg) (cstk : CSTK),
@@ -176,7 +176,7 @@ Section Switcher_trap_safety.
       which returns at [.Lswitch_just_return]. *)
   Lemma trap_safe_resume_of_safety (F : coPset) (w : LWord) :
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     ¬ trap_no_resume w →
     switcher_trap_safety -∗
     (|={⊤}=>

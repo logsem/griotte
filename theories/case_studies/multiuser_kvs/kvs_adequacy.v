@@ -25,8 +25,6 @@ Section kvs_obligations.
   Context {cname : CmptNameG} {B : CmptName}.
   Context `{MP : MachineParameters}.
 
-  Definition kvsN : namespace := nroot .@ "kvs" .@ "code".
-
   (** The obligations of the trusted code of the KVS firmware: the thread
       runs safely from the export of [main], the untrusted compartment
       ["B"] being owned by the logical compartment [B]. *)
@@ -67,14 +65,6 @@ Section kvs_obligations.
             (cmpt_b_pcc kvs_cmpt) (cmpt_a_code kvs_cmpt) (cmpt_e_pcc kvs_cmpt)
             (cmpt_b_cgp kvs_cmpt) (cmpt_e_cgp kvs_cmpt)
             (cmpt_exp_tbl_pcc kvs_cmpt) (cmpt_exp_tbl_entries_end kvs_cmpt)).
-    assert kvs_namespaces as kvs_namespacesg.
-    { refine (Build_kvs_namespaces
-                (kvsN .@ "Nkvs")
-                (kvsN .@ "Nkvs_otype")
-                (kvsN .@ "Nkvs_exp_tbl")
-                _).
-      split; try solve_ndisj.
-    }
     assert (ot_kvs ≠ switcher.ot_switcher) as Hot_kvs_switcher.
     { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [Hot_nodup _].
       cbn in Hot_nodup. apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
@@ -199,7 +189,7 @@ Section kvs_obligations.
 
     pose proof (
         @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
-          kvsg _ _ _ B
+          kvsg _ _ B
       ) as Spec.
 
     (* 5.2 The static sealed key of B *)

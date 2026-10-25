@@ -113,7 +113,7 @@ Section vae_obligations.
     set (W1 := <l[i := false, (awk_rel_pub, awk_rel_priv)]l> fw_world0).
     iMod (world_interp_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hworld_C")
       as "(Hworld_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
-    iMod (inv_alloc awkN _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as "#Hawk_inv".
+    iMod (inv_alloc Nawk _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as "#Hawk_inv".
     { iExists false; iFrame. }
 
     (* 5 - Seal the exported entry [awkward] of main with [ot_switcher] in

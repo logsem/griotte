@@ -2,7 +2,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode.
 From griotte Require Import error_handling_spec_states.
 
-(** * [main], blocks 0-6: the calls to [adv] and to [stats_read] with the capability of [x] one past its end
+(** * [main], blocks 0-6: the calls to [adv] and to [stats_read] with the
+    capability of [x] one past its end
 
     Blocks 0 and 1 fetch the entry point of the switcher in [ctp] and the
     entry point of [adv] in [ct1], and block 2 jumps to the switcher

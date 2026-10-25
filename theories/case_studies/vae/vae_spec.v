@@ -87,7 +87,7 @@ Section VAE.
       ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
       ∗ a_vae_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
-      ∗ inv awkN (awk_inv C i cgp_b)
+      ∗ inv Nawk (awk_inv C i cgp_b)
       ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
       ∗ na_own cerise_nais ⊤
 

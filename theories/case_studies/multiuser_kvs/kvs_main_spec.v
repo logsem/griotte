@@ -22,7 +22,6 @@ Section KVS_main_spec.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
-    {KVS_namespaces : kvs_namespaces}
   .
 
   Context {B : CmptName}.

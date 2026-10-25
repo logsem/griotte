@@ -193,7 +193,7 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LShiftR cs0 cs0 16 *)
+    (* LShiftR cs0 cs0 ExportEntry_functionStart_shift *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.
     (* Store ctp ct1 TrustedStackFrame_offset_calleeExportTable *)
@@ -205,9 +205,9 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LShiftR ctp ctp 8 *)
+    (* LShiftR ctp ctp ExportEntry_minimumStackSize_shift *)
     iInstr "Hcode".
-    (* LAnd ctp ctp 255 *)
+    (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     (* GetLen ct2 csp *)
     iInstr "Hcode".
@@ -222,7 +222,8 @@ Section Switch_Unseal_Entry.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hctp]"
         as "(HPC & Hct2 & Hctp)".
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; lia. }
-      { switcher_jump_label ".Lswitch_stack_too_small". }
+      { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_stack_too_small")%a
+          by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
@@ -239,7 +240,7 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { done. }
     { split; auto. rewrite /withinBounds. solve_addr. }
-    (* LAnd ctp ctp 255 *)
+    (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_flags.
     (* GetB cs1 ct1 *)

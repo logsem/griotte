@@ -127,7 +127,7 @@ Section Switcher_Spec_Install.
     (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
     (L : nat → list LWord → iProp Σ) :
     ↑Nswitcher ⊆ F ->
-    ↑N_trap ⊆ F ->
+    ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) ->

@@ -121,9 +121,6 @@ End AllocatorHeaders.
 
 Definition Nallocator_service : namespace := nroot .@ "allocator_service".
 
-(** The namespace of the invariants on the allocator's export table entries. *)
-Definition allocator_exp_tblN : namespace := nroot .@ "allocator_exports".
-
 (** The core [FreeAuth] instance: the allocator keeps the whole client
     half, and the client holds nothing. It is passed explicitly, never found by
     instance resolution, so that a layer can swap it. *)

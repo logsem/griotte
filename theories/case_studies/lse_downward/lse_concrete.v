@@ -87,7 +87,7 @@ Theorem lse_runs_and_gracefully_halts :
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt lse_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct 7500 Executable lse_demo_state Halted) as Hrun.
+  pose proof (machine_run_correct (N.to_nat 7500%N) Executable lse_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.

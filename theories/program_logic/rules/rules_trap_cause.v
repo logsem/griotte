@@ -120,7 +120,7 @@ Section trap_cause.
     heap_cap_base w = Some base → is_heap_address base = true.
   Proof.
     rewrite /heap_cap_base. destruct (memory_cap_base w) as [f|]; last done.
-    destruct (is_heap_address f) eqn:Hh; last done. by intros [= <-].
+    destruct (is_heap_address f) eqn:Hf_heap; last done. by intros [= <-].
   Qed.
 
   Lemma lookup_reg_rel S φl φp r :
@@ -177,15 +177,15 @@ Section trap_cause.
         first done.
       destruct (is_shadow_address ea).
       { destruct (shadow_to_heap ea) as [ha|] eqn:Hha; last done.
-        pose proof (shadow_to_heap_heap _ _ Hha) as Hh.
-        by destruct (cr_shadow_l _ _ _ Hrel ha Hh) as [? ->],
-          (cr_shadow_p _ _ _ Hrel ha Hh) as [? ->]. }
+        pose proof (shadow_to_heap_heap _ _ Hha) as Hha_heap.
+        by destruct (cr_shadow_l _ _ _ Hrel ha Hha_heap) as [? ->],
+          (cr_shadow_p _ _ _ Hrel ha Hha_heap) as [? ->]. }
       destruct (is_revoker_address ea); first done.
       destruct (cr_mem _ _ _ Hrel ea) as [x' y' [_ Hb]|]; last done.
       rewrite Hb. destruct (heap_cap_base y') as [base|] eqn:Hbase; last done.
-      pose proof (heap_cap_base_heap _ _ Hbase) as Hh.
-      by destruct (cr_shadow_l _ _ _ Hrel base Hh) as [? ->],
-        (cr_shadow_p _ _ _ Hrel base Hh) as [? ->].
+      pose proof (heap_cap_base_heap _ _ Hbase) as Hbase_heap.
+      by destruct (cr_shadow_l _ _ _ Hrel base Hbase_heap) as [? ->],
+        (cr_shadow_p _ _ _ Hrel base Hbase_heap) as [? ->].
     - (* Untagged physical copy: a tag violation; the logical fault is a
          CHERI fault, since a stale capability reads mapped heap memory whose
          loaded heap base has a shadow entry. *)
@@ -326,7 +326,7 @@ Section trap_cause.
       rewrite /re_covers. solve_addr.
     - exfalso. apply Hna. rewrite Hv. split; first done. exists b'.
       apply heap_authority_base_memory_cap_bounds.
-      rewrite Hv in Hhb. pose proof (heap_cap_base_heap _ _ Hhb) as Hh.
+      rewrite Hv in Hhb.
       rewrite /heap_cap_base /= in Hhb. destruct (is_heap_address b) eqn:Hbh; last done.
       simplify_eq. exists e. split_and!; [done | solve_addr | done].
   Qed.
@@ -608,17 +608,25 @@ Section trap_cause.
 End trap_cause.
 
 (* [iTrap cause with "Hregs" "Hmem"] closes a fault
-   [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap_fault], from the PC
-   points-to of the context, the register map ["Hregs"] and the memory map
-   ["Hmem"]. The maps come back under the same names, for the obligation
-   [trap_safe_cause] with the exact cause and value, after the side
-   condition [lfault_known], which is left to the caller. *)
+   [WP Seq (Instr Faulted) @ E {{ Φ }}] with the exact cause and value, from
+   the PC points-to of the context, the register map ["Hregs"]
+   ([[∗ map] r ↦ x ∈ lregs, r ↦ᵣ x]) and the memory map ["Hmem"]: with
+   [wp_trap_fault_frac] when each cell has its own fraction
+   ([[∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2]), with [wp_trap_fault] when all
+   have one ([[∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x]). The side condition
+   [lfault_known] is left to the caller, first; the maps come back under the
+   same names, for the obligation [trap_safe_cause] with the exact cause and
+   value. *)
 Tactic Notation "iTrap" "cause" "with" constr(Hregs) constr(Hmem) :=
   lazymatch goal with
   | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
   | _ => fail "iTrap cause: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in
-  iApply (wp_trap_fault with
-           [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil]);
+  first
+    [ iApply (wp_trap_fault_frac with
+               [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
+    | iApply (wp_trap_fault with
+               [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
+    | fail "iTrap cause: no register map" Hregs "or no memory map" Hmem ];
   last (iIntros Hregs; iIntros Hmem).

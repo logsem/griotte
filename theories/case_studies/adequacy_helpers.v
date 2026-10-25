@@ -6,6 +6,8 @@ From griotte Require Import mkregion_helpers memory_region disjoint_regions_tact
 From griotte Require Import switcher_adequacy compartment_layout.
 From griotte Require Import allocator_resources.
 
+(** The namespace of the invariant on the flag of the assert library. *)
+Definition Nassert_flag : namespace := nroot .@ "assert_flag".
 
 Section adequacy_helpers.
   Context
@@ -17,10 +19,10 @@ Section adequacy_helpers.
     `{MP: MachineParameters} .
 
     Lemma initialise_assert_compartment
-      {E : coPset} (assert_cmpt : cmptAssert) (flagN : namespace) :
+      {E : coPset} (assert_cmpt : cmptAssert) :
       ([∗ map] a↦v ∈ mk_initial_assert assert_cmpt, a ↦ₐ lword_of_word v)
       ={E}=∗
-      inv flagN (flag_assert assert_cmpt ↦ₐ WInt 0) ∗
+      inv Nassert_flag (flag_assert assert_cmpt ↦ₐ WInt 0) ∗
       assert_static (b_assert assert_cmpt) (e_assert assert_cmpt) (flag_assert assert_cmpt).
     Proof.
       iIntros "Hcmpt_assert".
@@ -35,7 +37,7 @@ Section adequacy_helpers.
       2: { pose proof (assert_flag_size assert_cmpt) as H; solve_addr+H. }
       cbn.
       iDestruct (big_sepM_insert with "Hassert_flag") as "[Hassert_flag _]"; first done.
-      iMod (inv_alloc flagN E (flag_assert assert_cmpt ↦ₐ WInt 0%Z) with "Hassert_flag")%I
+      iMod (inv_alloc Nassert_flag E (flag_assert assert_cmpt ↦ₐ WInt 0%Z) with "Hassert_flag")%I
         as "#Hinv_assert_flag".
       rewrite /cmpt_assert_cap_mregion.
       rewrite /mkregion.
@@ -72,7 +74,7 @@ Section adequacy_helpers.
         capability to the export table at [b_tbl], of the initial trusted
         stack, and no error handler invocation. *)
     Lemma initialise_switcher_compartment
-      {E : coPset} (switcher_cmpt : cmptSwitcher) (switcherN : namespace)
+      {E : coPset} (switcher_cmpt : cmptSwitcher)
       (w_csp w_tbl : Word) (b_tbl : Addr) :
       let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
       let ef := {| tf_csp := lword_of_word w_csp; tf_export_tbl := lword_of_word w_tbl;
@@ -90,7 +92,7 @@ Section adequacy_helpers.
       mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
-      na_inv cerise_nais switcherN switcher_inv ∗
+      na_inv cerise_nais Nswitcher switcher_inv ∗
       switcher_static ∗
       [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ
         [[ lword_of_word <$> stack_content switcher_cmpt ]].
@@ -224,7 +226,7 @@ Section adequacy_helpers.
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
-      iMod (na_inv_alloc cerise_nais _ switcherN _ with "Hswitcher") as "#Hswitcher".
+      iMod (na_inv_alloc cerise_nais _ Nswitcher _ with "Hswitcher") as "#Hswitcher".
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
       iAssert switcher_static as "#Hswitcher_static".

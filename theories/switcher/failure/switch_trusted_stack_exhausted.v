@@ -116,7 +116,8 @@ Section Switch_Trusted_Stack_Exhausted.
     iInstr "Hcode" with "Hlc".
     (* Jmp .Lswitch_callee_dead_zeros *)
     iInstr "Hcode".
-    { switcher_jump_label ".Lswitch_callee_dead_zeros". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_callee_dead_zeros")%a
+        by switcher_addr_eq. }
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done.
     iFrame "HPC Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Ha_stk0 Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
@@ -224,7 +225,8 @@ Section Switch_Trusted_Stack_Exhausted.
     iInstr "Hcode" with "Hlc".
     (* Jmp .Lswitch_callee_dead_zeros *)
     iInstr "Hcode".
-    { switcher_jump_label ".Lswitch_callee_dead_zeros". }
+    { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_callee_dead_zeros")%a
+        by switcher_addr_eq. }
     iEval (rewrite -open_world_interp_empty) in "Hworld".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs0 rcs1 with "[%]"); first done.

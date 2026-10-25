@@ -1,0 +1,201 @@
+vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (main C : img_cmpt),
+  -- also, in section C (untrusted, C): ∃ (eh_C ehs_C : Z) (off_C_adv min_C_adv off_C_g min_C_g : nat)
+  flag_assert asrt = flag  -- the flag of the assert library
+── main (trusted) ──────────────────────────────────────────────────────────
+  cmpt_imports main =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      [1]  (E-Inherit RX, Global, b_assert asrt, e_assert asrt, b_assert asrt)            -- assert
+      [2]  { ot_switcher sw,                                                              -- C, export adv
+             (RO, Global, cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C, cmpt_exp_tbl_pcc C ^+ ExportTable_offset_entry 0) }
+  cmpt_static_sealed main             = []
+  cmpt_code main                      = vae_main_code
+  cmpt_data main                      = vae_main_data
+  cmpt_exp_tbl_handler main           = WInt ExportTable_no_handler                       -- no error handler
+  cmpt_exp_tbl_handler_stackless main = WInt ExportTable_no_handler
+  cmpt_exp_tbl_entries main =
+      [0]  entry InterruptEnabled 1 4 10                                                  -- export awkward
+      [1]  entry InterruptEnabled 0 4 3                                                   -- export entry
+── C (untrusted, C) ────────────────────────────────────────────────────────
+  cmpt_imports C =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      [1]  { ot_switcher sw,                                                              -- main, export awkward
+             (RO, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main ^+ ExportTable_offset_entry 0) }
+      [2]  { ot_switcher sw,                                                              -- C, export g
+             (RO, Global, cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C, cmpt_exp_tbl_pcc C ^+ ExportTable_offset_entry 1) }
+  cmpt_static_sealed C = []
+  Forall is_int (cmpt_code C)                                                             -- arbitrary, any length
+  Forall (initial_data_word (cmpt_b_cgp C) (cmpt_e_cgp C)) (cmpt_data C)                  -- arbitrary, any length
+  ∃ eh_C ehs_C : Z,                                                                       -- arbitrary error handler offsets
+    cmpt_exp_tbl_handler C = WInt eh_C ∧
+    cmpt_exp_tbl_handler_stackless C = WInt ehs_C
+  ∃ off_C_adv min_C_adv : nat,                                                            -- arbitrary offsets, inside the PCC range, and minimum stack sizes
+    (off_C_adv < cmpt_e_pcc C - cmpt_b_pcc C)%Z ∧
+    ∃ off_C_g min_C_g : nat,
+    (off_C_g < cmpt_e_pcc C - cmpt_b_pcc C)%Z ∧
+    cmpt_exp_tbl_entries C = [entry InterruptEnabled 0 min_C_adv off_C_adv; entry InterruptEnabled 0 min_C_g off_C_g]
+── Memory ──────────────────────────────────────────────────────────────────
+  mem σ =
+        initial_heap_memory                                                 -- heap, zeroed
+      ∪ mem_region (b_switcher sw)                                          -- switcher
+          (switcher_data_words (ot_switcher sw) ++
+           switcher_instrs)
+      ∪ mem_region (b_assert asrt)                                          -- assert, code and flag capability
+          (assert_subroutine_instrs ++
+           [(RW, Global, flag_assert asrt, flag_assert asrt ^+ 1, flag_assert asrt)])
+      ∪ mem_region (flag_assert asrt) [WInt 0]                              -- assert, flag
+      ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)  -- main, PCC range
+      ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                       -- main, CGP range
+      ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)    -- main, static sealed
+      ∪ mem_region (cmpt_exp_tbl_pcc main)                                  -- main, export table
+          ((RX, Global, cmpt_b_pcc main, cmpt_e_pcc main, cmpt_b_pcc main) ::
+           (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main) ::
+           cmpt_exp_tbl_handler main ::
+           cmpt_exp_tbl_handler_stackless main ::
+           cmpt_exp_tbl_entries main)
+      ∪ mem_region (cmpt_b_pcc C) (cmpt_imports C ++ cmpt_code C)           -- C, PCC range
+      ∪ mem_region (cmpt_b_cgp C) (cmpt_data C)                             -- C, CGP range
+      ∪ mem_region (cmpt_b_static_sealed C) (cmpt_static_sealed C)          -- C, static sealed
+      ∪ mem_region (cmpt_exp_tbl_pcc C)                                     -- C, export table
+          ((RX, Global, cmpt_b_pcc C, cmpt_e_pcc C, cmpt_b_pcc C) ::
+           (RW, Global, cmpt_b_cgp C, cmpt_e_cgp C, cmpt_b_cgp C) ::
+           cmpt_exp_tbl_handler C ::
+           cmpt_exp_tbl_handler_stackless C ::
+           cmpt_exp_tbl_entries C)
+      ∪ mem_region (b_trusted_stack t0)                                     -- thread 0, trusted stack, entry frame in main
+          (initial_trusted_stack_content (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) 24)
+      ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                    -- thread 0, stack
+      ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                           -- thread 0, hazard slots
+  shadowtbl σ = initial_heap_shadow                                         -- every heap address live
+── Registers ───────────────────────────────────────────────────────────────
+  pcc σ        = (RX, Global, cmpt_b_pcc main, cmpt_e_pcc main, cmpt_b_pcc main ^+ 3)  -- main, export entry
+  reg σ !! cgp = Some (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main)
+  reg σ !! csp = Some (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f)
+  ∀ r : RegName, r ∉ {[cgp; csp]} → reg σ !! r = Some (WInt 0)                         -- every other register cleared
+  sreg σ !! mtdc    = Some (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0)
+  sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))    -- interrupts disabled
+  sreg σ !! mtcc    = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
+                                                                                       -- exception entry
+  sreg σ !! mepcc   = Some (WInt 0)
+  sreg σ !! mcause  = Some (WInt 0)
+  sreg σ !! mtval   = Some (WInt 0)
+── switcher, layout ────────────────────────────────────────────────────────
+  b_switcher sw + 5                                 = Some (a_switcher_call sw)
+  a_switcher_call sw + length switcher_instrs       = Some (e_switcher sw)
+  b_switcher sw + (5 + length switcher_call_instrs) = Some (a_switcher_return sw)
+  not_heap_range (b_switcher sw) (e_switcher sw)
+  disjoint_from_shadow (b_switcher sw) (e_switcher sw)
+  revoker_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
+  is_heap_address (e_switcher sw) = false  -- closed bounds outside the heap
+── assert, layout ──────────────────────────────────────────────────────────
+  b_assert asrt + length assert_subroutine_instrs = Some (cap_assert asrt)
+  cap_assert asrt + 1                             = Some (e_assert asrt)
+  is_Some (flag_assert asrt + 1)                             -- the flag is not the last address
+  not_heap_range (b_assert asrt) (e_assert asrt)
+  disjoint_from_shadow (b_assert asrt) (e_assert asrt)
+  revoker_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
+  is_heap_address (e_assert asrt) = false                    -- closed bounds outside the heap
+  not_heap_range (flag_assert asrt) (flag_assert asrt ^+ 1)  -- flag
+  disjoint_from_shadow (flag_assert asrt) (flag_assert asrt ^+ 1)
+  revoker_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
+── main, layout ────────────────────────────────────────────────────────────
+  cmpt_b_pcc main + length (cmpt_imports main)                         = Some (cmpt_a_code main)
+  cmpt_a_code main + length (cmpt_code main)                           = Some (cmpt_e_pcc main)
+  cmpt_b_cgp main + length (cmpt_data main)                            = Some (cmpt_e_cgp main)
+  cmpt_b_static_sealed main + length (cmpt_static_sealed main)         = Some (cmpt_e_static_sealed main)
+  cmpt_exp_tbl_pcc main + ExportTable_offset_cgp                       = Some (cmpt_exp_tbl_cgp main)
+  cmpt_exp_tbl_pcc main + ExportTable_offset_entries                   = Some (cmpt_exp_tbl_entries_start main)
+  cmpt_exp_tbl_entries_start main + length (cmpt_exp_tbl_entries main) = Some (cmpt_exp_tbl_entries_end main)
+  not_heap_range (cmpt_b_pcc main) (cmpt_e_pcc main)                      -- main, PCC range
+  disjoint_from_shadow (cmpt_b_pcc main) (cmpt_e_pcc main)
+  revoker_addr ∉ finz.seq_between (cmpt_b_pcc main) (cmpt_e_pcc main)
+  not_heap_range (cmpt_b_cgp main) (cmpt_e_cgp main)                      -- main, CGP range
+  disjoint_from_shadow (cmpt_b_cgp main) (cmpt_e_cgp main)
+  revoker_addr ∉ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main)
+  not_heap_range (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)  -- main, static sealed
+  disjoint_from_shadow (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
+  revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
+  not_heap_range (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)  -- main, export table
+  disjoint_from_shadow (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
+  revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
+  is_heap_address (cmpt_e_pcc main) = false                               -- closed PCC bounds outside the heap
+  (10%nat < cmpt_e_pcc main - cmpt_b_pcc main)%Z                          -- export awkward inside the PCC range
+  (3%nat < cmpt_e_pcc main - cmpt_b_pcc main)%Z                           -- export entry inside the PCC range
+  Forall (word_rooted ∅)                                                  -- no heap capability (no heap root)
+    (cmpt_imports main ++
+     cmpt_code main ++
+     cmpt_data main ++
+     cmpt_static_sealed main ++
+     cmpt_exp_tbl_entries main)
+  Forall word_exec_ok                                                     -- executable words outside the heap
+    (cmpt_imports main ++
+     cmpt_code main ++
+     cmpt_data main ++
+     cmpt_static_sealed main ++
+     cmpt_exp_tbl_entries main)
+── C, layout ───────────────────────────────────────────────────────────────
+  cmpt_b_pcc C + length (cmpt_imports C)                         = Some (cmpt_a_code C)
+  cmpt_a_code C + length (cmpt_code C)                           = Some (cmpt_e_pcc C)
+  cmpt_b_cgp C + length (cmpt_data C)                            = Some (cmpt_e_cgp C)
+  cmpt_b_static_sealed C + length (cmpt_static_sealed C)         = Some (cmpt_e_static_sealed C)
+  cmpt_exp_tbl_pcc C + ExportTable_offset_cgp                    = Some (cmpt_exp_tbl_cgp C)
+  cmpt_exp_tbl_pcc C + ExportTable_offset_entries                = Some (cmpt_exp_tbl_entries_start C)
+  cmpt_exp_tbl_entries_start C + length (cmpt_exp_tbl_entries C) = Some (cmpt_exp_tbl_entries_end C)
+  not_heap_range (cmpt_b_pcc C) (cmpt_e_pcc C)                      -- C, PCC range
+  disjoint_from_shadow (cmpt_b_pcc C) (cmpt_e_pcc C)
+  revoker_addr ∉ finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)
+  not_heap_range (cmpt_b_cgp C) (cmpt_e_cgp C)                      -- C, CGP range
+  disjoint_from_shadow (cmpt_b_cgp C) (cmpt_e_cgp C)
+  revoker_addr ∉ finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)
+  not_heap_range (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)  -- C, static sealed
+  disjoint_from_shadow (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
+  revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
+  not_heap_range (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)  -- C, export table
+  disjoint_from_shadow (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
+  revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
+  is_heap_address (cmpt_e_pcc C) = false                            -- closed PCC bounds outside the heap
+  Forall (word_rooted ∅)                                            -- no heap capability (no heap root)
+    (cmpt_imports C ++
+     cmpt_code C ++
+     cmpt_data C ++
+     cmpt_static_sealed C ++
+     cmpt_exp_tbl_entries C)
+  Forall word_exec_ok                                               -- executable words outside the heap
+    (cmpt_imports C ++
+     cmpt_code C ++
+     cmpt_data C ++
+     cmpt_static_sealed C ++
+     cmpt_exp_tbl_entries C)
+── thread 0, layout ────────────────────────────────────────────────────────
+  b_stack t0 + 100%nat                        = Some (e_stack t0)
+  b_trusted_stack t0 + tstack_frame_offset 25 = Some (e_trusted_stack t0)
+  not_heap_range (b_stack t0) (e_stack t0)                  -- stack
+  disjoint_from_shadow (b_stack t0) (e_stack t0)
+  revoker_addr ∉ finz.seq_between (b_stack t0) (e_stack t0)
+  not_heap_range (b_trusted_stack t0) (e_trusted_stack t0)  -- trusted stack
+  disjoint_from_shadow (b_trusted_stack t0) (e_trusted_stack t0)
+  revoker_addr ∉ finz.seq_between (b_trusted_stack t0) (e_trusted_stack t0)
+  b_trusted_stack t0 ≠ 0                                    -- trusted stack not at address 0
+  (4%nat + StackEntry_reserved_space ≤ 100%nat)%Z           -- minimum stack size of the entry
+  b_hazard t0 + 2 = Some (e_hazard t0)
+  not_heap_range (b_hazard t0) (e_hazard t0)                -- hazard slots
+  disjoint_from_shadow (b_hazard t0) (e_hazard t0)
+  revoker_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
+── image, layout ───────────────────────────────────────────────────────────
+  ranges_disjoint                                                   -- pairwise disjoint
+      [00]  [b_switcher sw, e_switcher sw)                          -- switcher
+      [01]  [b_assert asrt, e_assert asrt)                          -- assert
+      [02]  [flag_assert asrt, flag_assert asrt ^+ 1)               -- assert flag
+      [03]  [cmpt_b_pcc main, cmpt_e_pcc main)                      -- main, PCC range
+      [04]  [cmpt_b_cgp main, cmpt_e_cgp main)                      -- main, CGP range
+      [05]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)  -- main, static sealed
+      [06]  [cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main)  -- main, export table
+      [07]  [cmpt_b_pcc C, cmpt_e_pcc C)                            -- C, PCC range
+      [08]  [cmpt_b_cgp C, cmpt_e_cgp C)                            -- C, CGP range
+      [09]  [cmpt_b_static_sealed C, cmpt_e_static_sealed C)        -- C, static sealed
+      [10]  [cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C)        -- C, export table
+      [11]  [b_trusted_stack t0, e_trusted_stack t0)                -- thread 0, trusted stack
+      [12]  [b_stack t0, e_stack t0)                                -- thread 0, stack
+      [13]  [b_hazard t0, e_hazard t0)                              -- thread 0, hazard slots
+  NoDup [ot_switcher sw]                                            -- sealing types distinct
+  Forall otype_valid [ot_switcher sw]                               -- sealing types valid

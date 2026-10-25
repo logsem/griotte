@@ -193,8 +193,8 @@ Section Error_Handling_Handler.
   Lemma reg_index_pos (r : RegName) : r ≠ cnull → (1 <= reg_index r)%Z.
   Proof.
     intros Hr. pose proof (reg_index_range r) as Hrange.
-    destruct (decide (reg_index r = 0%Z)) as [H0 | H0]; last lia.
-    exfalso. apply Hr, (inj reg_index). by rewrite H0 reg_index_cnull.
+    destruct (decide (reg_index r = 0%Z)) as [Hidx_zero | Hidx_nonzero]; last lia.
+    exfalso. apply Hr, (inj reg_index). by rewrite Hidx_zero reg_index_cnull.
   Qed.
 
   (** Word [i] of the save area holds the register [x_i]. *)
@@ -529,7 +529,8 @@ Section Error_Handling_Handler.
       rewrite top_error_count_set_count cstack_set_top_count_twice.
       rewrite (_ : (top_error_count cstk + 1 + 1 = top_error_count cstk + 2)%Z); last lia.
       assert (ws' !!! 0%nat = ws !!! 0%nat) as ->.
-      { rewrite /ws' list_lookup_total_insert_ne //. rewrite -Hidx. pose proof (reg_index_pos r Hr_cnull). lia. }
+      { rewrite /ws' list_lookup_total_insert_ne //. rewrite -Hidx.
+        pose proof (reg_index_pos r Hr_cnull) as Hidx_pos. lia. }
       rewrite stats_resumed_pc_load.
       rewrite /ws' -Hidx (stats_install_retry_regs rfault rmap); [ | done | | done]; last first.
       { rewrite /rmap. by simplify_map_eq. }

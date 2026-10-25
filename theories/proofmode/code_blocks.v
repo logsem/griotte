@@ -147,3 +147,21 @@ Tactic Notation "focus_block" constr(n) constr(h) "of" constr(blocks) "at" const
       by (cbn in Ha; offsets_compute; solve_addr);
   clear Ha; rename Ha' into Ha;
   try change_pc_to a.
+
+(** Solve [(a + z)%a = Some ?pc], the target of a jump out of a focused
+    block, with the address [target] as the following specification writes
+    it: [?pc] becomes [target], and [(a + z)%a = Some target] is proved by
+    [tac], by default [offsets_compute; solve_addr], the solver of
+    [focus_block]. *)
+Tactic Notation "jump_to" constr(target) "by" tactic3(tac) :=
+  transitivity (Some target); [tac | reflexivity].
+Tactic Notation "jump_to" constr(target) :=
+  jump_to target by (offsets_compute; solve_addr).
+
+(** The same, to the label [s] of the assembled program by blocks [P] whose
+    first instruction is at [base]: the target is [base ^+ asm_label P s]. *)
+Tactic Notation "jump_label" constr(s) "of" constr(P) "at" constr(base)
+    "by" tactic3(tac) :=
+  jump_to (base ^+ asm_label P s)%a by tac.
+Tactic Notation "jump_label" constr(s) "of" constr(P) "at" constr(base) :=
+  jump_to (base ^+ asm_label P s)%a.

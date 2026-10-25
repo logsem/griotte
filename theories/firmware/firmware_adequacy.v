@@ -259,10 +259,6 @@ Section layout_bridges.
     tsl_frameoffset :
       ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
     tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
-    tsl_export_table :
-      ∃ (b_tbl : Addr) (w : Word),
-        ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable) = Some w ∧
-        exp_tbl_cap b_tbl w;
     tsl_error_count :
       ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
       = Some (WInt 0);
@@ -555,15 +551,13 @@ Section layout_of_img_wf.
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
-    (∃ b_tbl, exp_tbl_cap b_tbl w_export_table) →
     trusted_stack_layout b e b_hz e_hz
       (initial_trusted_stack_content w_csp w_export_table w_hazard n).
   Proof.
-    intros w_hazard Hsize Hcsp Hexport_table Hhazard [b_tbl Htbl]. split.
+    intros w_hazard Hsize Hcsp Hexport_table Hhazard. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
-    - by exists b_tbl, w_export_table.
     - reflexivity.
     - by apply initial_trusted_stack_content_words.
     - apply initial_trusted_stack_content_hazard.
@@ -740,10 +734,10 @@ Section layout_of_img_wf.
     apply big_and_fw_map in Hcmpts.
     rewrite Hthreads in Hthread. apply big_and_cons in Hthread as [Hthread _].
     destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread)
-      as (Hcsp & Hexport_table & Hexp_tbl_cap).
+      as (Hcsp & Hexport_table & _).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
     apply initial_trusted_stack_layout;
-      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread) | by eexists].
+      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread)].
   Qed.
 
   Lemma img_wf_switcher_layout fw img ft fts :
@@ -1413,8 +1407,6 @@ End entries_facts.
 
 (** ** The resources handed to the trusted code *)
 
-Definition fw_flagN : namespace := nroot .@ "firmware" .@ "assert_flag".
-
 (** The layout of the switcher of an image, with the trusted stack of the
     first thread. *)
 Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
@@ -1635,7 +1627,7 @@ Proof.
   destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
   (* The program-logic resources of the initial state. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
-            fw_flagN (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
+            Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
     [exact Hinit | exact Hnull | | exact Hstep].
   iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
@@ -1656,7 +1648,7 @@ Proof.
   subst sh.
   (* The assert library. *)
   rewrite (assert_mem_layout _ Hasrt).
-  iMod (initialise_assert_compartment _ fw_flagN with "Hasrt") as "[#Hflag #Hassert]".
+  iMod (initialise_assert_compartment _ with "Hasrt") as "[#Hflag #Hassert]".
   (* The switcher, with the trusted stack and the stack of the thread. *)
   rewrite (switcher_mem_layout _ _ _ _ Hts Hsw) (thread_mem_layout _ _ Hts Hsw).
   set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw).
@@ -1681,7 +1673,7 @@ Proof.
   apply big_and_fw_map in Hcmpts_wf.
   rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
   destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
-  iMod (initialise_switcher_compartment swc Nswitcher
+  iMod (initialise_switcher_compartment swc
           (fw_thread_csp img 0) (fw_entry_tbl fw img 0)
           (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")

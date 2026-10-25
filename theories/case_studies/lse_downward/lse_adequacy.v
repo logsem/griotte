@@ -4,7 +4,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
   lse_firmware.
 From griotte Require Import logrel interp_weakening monotone.
-From griotte Require Import lse lse_spec_closure lse_spec.
+From griotte Require Import lse lse_spec_states lse_spec_closure lse_spec.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
@@ -20,8 +20,6 @@ Section lse_obligations.
   Context {Σ : gFunctors}.
   Context {cname : CmptNameG} {C : CmptName}.
   Context `{MP : MachineParameters}.
-
-  Definition lseN : namespace := nroot .@ "lse" .@ "code".
 
   (** The obligations of the trusted code of the LSE downward firmware:
       the thread runs safely from the export [entry] of [main], the
@@ -107,7 +105,7 @@ Section lse_obligations.
     iDestruct (region_pointsto_single with "Hmain_data") as "[%v [Hcgp_b %Hv] ]".
     { solve_addr+Hmain_data_size. }
     rewrite /lse_main_data /= in Hv; simplify_eq.
-    iMod (na_inv_alloc cerise_nais _ lseN _ with "Hcgp_b") as "#Hlse_data".
+    iMod (na_inv_alloc cerise_nais _ Nlse _ with "Hcgp_b") as "#Hlse_data".
 
     (* 5 - Seal the exported entry [f] of main with [ot_switcher] in the
        world of C *)
@@ -129,7 +127,7 @@ Section lse_obligations.
         rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0' lseN);
+                _ _ _ _ _ _ _ _ _ W0');
         last iFrame "#"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { eapply disjoint_from_shadow_not_in;
@@ -137,8 +135,7 @@ Section lse_obligations.
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
-      { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      rewrite /Nswitcher /lseN; solve_ndisj. }
+      exact (cmpt_pcc_base_not_heap main_cmpt). }
     iMod (seal_main_export fw_world0 C main_f
            with "Hseal_switcher Hot_switcher_main_f Hworld_C")
       as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
@@ -180,7 +177,7 @@ Section lse_obligations.
 
     (* 7 - We can apply the specification! *)
     iPoseProof (lse_run_spec (swlayout := swl) (assertlayout := asl) (C := C)
-                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _ lseN
+                  _ _ _ _ _ _ _ _ _ _ _ _ [] [] _
                  with "[ $Hassert $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code $Hlse_data
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
@@ -198,7 +195,6 @@ Section lse_obligations.
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
-    { rewrite /Nswitcher /lseN; solve_ndisj. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }

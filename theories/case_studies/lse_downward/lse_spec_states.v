@@ -27,6 +27,9 @@ From griotte Require Export case_study_spec_helpers.
     [lse_main_code], given by the labels of [lse_main_asm]
     ([lse_label_offset]). *)
 
+(** The namespace of the invariant on the global [a] of [lse]. *)
+Definition Nlse : namespace := nroot .@ "lse".
+
 Section LSE_Code.
   Context `{MP: MachineParameters}.
 

@@ -246,7 +246,9 @@ Section WorldInterpStack.
     ∗ region W C
     ==∗
     ∃ l_unk_temp,
-      ⌜ NoDup (l_unk_temp ++ (LNonHeap <$> la)) ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ (LNonHeap <$> la)))⌝
+      ⌜ NoDup (l_unk_temp ++ (LNonHeap <$> la)) ∧
+        (forall (a : LAddr), (std W) !! a = Some Temporary <->
+           a ∈ (l_unk_temp ++ (LNonHeap <$> la)))⌝
       ∗ sts_full_world (revoke W) C
       ∗ region (revoke W) C
       ∗ ▷ StackRevokedResources W C la
@@ -273,12 +275,13 @@ Section WorldInterpStack.
       ) with "[Hinterp]" as "Hl".
     {
       iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
-      iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp") as "Htmp"; first done.
-      iDestruct (read_allowed_inv_full_cap with "Hinterp") as "H"; first done.
-      iApply big_sepL_sep. iSplitL "Htmp".
-      - iApply (big_sepL_impl with "Htmp"). iIntros "!> %k %x %Hx".
+      iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp")
+        as "Htemps"; first done.
+      iDestruct (read_allowed_inv_full_cap with "Hinterp") as "Hrels"; first done.
+      iApply big_sepL_sep. iSplitL "Htemps".
+      - iApply (big_sepL_impl with "Htemps"). iIntros "!> %k %x %Hx".
         rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
-      - iApply (big_sepL_impl with "H"). iIntros "!> %k %x %Hx".
+      - iApply (big_sepL_impl with "Hrels"). iIntros "!> %k %x %Hx".
         rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
     }
     iAssert (⌜Forall (λ a, std W !! LNonHeap a = Some Temporary) la⌝)%I as %Hla_tmp.
@@ -340,12 +343,12 @@ Section WorldInterpStack.
       with "[Hres_unk]" as "Hres_unk".
     { rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres_unk").
-      iIntros "!> %k %a0 %Ha H".
-      assert (heap_key_live (heap_std W) a0) as Hlive_a
+      iIntros "!> %k %a_live %Ha_live Hres".
+      assert (heap_key_live (heap_std W) a_live) as Hlive_a
         by (rewrite Forall_lookup in Hlive; eauto).
       unfold heap_key_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a.
-      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iDestruct "Hres" as (p φ Hpers) "(Htemp & #Hrel)".
       iExists p, φ. iFrame "Hrel". iSplit; first done.
       iExact "Htemp". }
     iAssert (▷ RevokedResources W C l_tmp_unk)%I with "[Hres_unk Hq]" as "Hunk".
@@ -464,7 +467,9 @@ Section WorldInterpStack.
     ∗ [[ bs , es ]] ↦ₐ [[ ws ]]
     ==∗
     ∃ l_unk_temp,
-      ⌜ NoDup (l_unk_temp ++ (LNonHeap <$> la)) ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ (l_unk_temp ++ (LNonHeap <$> la)))⌝
+      ⌜ NoDup (l_unk_temp ++ (LNonHeap <$> la)) ∧
+        (forall (a : LAddr), (std W) !! a = Some Temporary <->
+           a ∈ (l_unk_temp ++ (LNonHeap <$> la)))⌝
       ∗ sts_full_world (revoke W) C
       ∗ region (revoke W) C
       ∗ ▷ StackRevokedResources W C la
@@ -491,12 +496,13 @@ Section WorldInterpStack.
       ) with "[Hinterp]" as "Hl".
     {
       iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
-      iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp") as "Htmp"; first done.
-      iDestruct (read_allowed_inv_full_cap with "Hinterp") as "H"; first done.
-      iApply big_sepL_sep. iSplitL "Htmp".
-      - iApply (big_sepL_impl with "Htmp"). iIntros "!> %k %x %Hx".
+      iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp")
+        as "Htemps"; first done.
+      iDestruct (read_allowed_inv_full_cap with "Hinterp") as "Hrels"; first done.
+      iApply big_sepL_sep. iSplitL "Htemps".
+      - iApply (big_sepL_impl with "Htemps"). iIntros "!> %k %x %Hx".
         rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
-      - iApply (big_sepL_impl with "H"). iIntros "!> %k %x %Hx".
+      - iApply (big_sepL_impl with "Hrels"). iIntros "!> %k %x %Hx".
         rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx). iIntros "$".
     }
     iAssert (⌜Forall (λ a, std W !! LNonHeap a = Some Temporary) la⌝)%I as %Hla_tmp.
@@ -604,12 +610,12 @@ Section WorldInterpStack.
       with "[Hres_unk]" as "Hres_unk".
     { rewrite /close_list_resources big_sepL_later.
       iApply (big_sepL_impl with "Hres_unk").
-      iIntros "!> %k %a0 %Ha H".
-      assert (heap_key_live (heap_std W) a0) as Hlive_a
+      iIntros "!> %k %a_live %Ha_live Hres".
+      assert (heap_key_live (heap_std W) a_live) as Hlive_a
         by (rewrite Forall_lookup in Hlive; eauto).
       unfold heap_key_live in Hlive_a.
       rewrite /close_addr_resources Hlive_a.
-      iDestruct "H" as (p φ Hpers) "(Htemp & #Hrel)".
+      iDestruct "Hres" as (p φ Hpers) "(Htemp & #Hrel)".
       iExists p, φ. iFrame "Hrel". iSplit; first done.
       iExact "Htemp". }
     iAssert (▷ RevokedResources W C l_tmp_unk)%I with "[Hres_unk Hq]" as "Hunk".
@@ -627,8 +633,7 @@ Section WorldInterpStack.
       with "[Hrest Hslot_res Hslot]" as "Hstk".
     { iApply big_sepL_app. iSplitL "Hrest".
       - iApply (big_sepL_mono with "Hrest").
-        iIntros (i x Hx) "H".
-        iDestruct "H" as (w) "[Hres Hx]".
+        iIntros (i x Hx) "(%w & Hres & Hcell)".
         iSplitL "Hres"; iNext; [by iApply StackWorldResource_zero|by iExists w].
       - iDestruct (pointsto_list_exists with "Hslot") as "Hslot".
         iAssert (▷ StackWorldResources interp W C ls
@@ -640,7 +645,7 @@ Section WorldInterpStack.
         rewrite /StackWorldResources big_sepL2_replicate_r; last done.
         rewrite big_sepL_later.
         iApply (big_sepL_sep_2 with "Hslot_res").
-        iApply (big_sepL_mono with "Hslot"). iIntros (i x Hx) "H". by iNext. }
+        iApply (big_sepL_mono with "Hslot"). iIntros (i x Hx) "Hcell". by iNext. }
     iEval (rewrite -Hperm_la) in "Hstk".
     iDestruct (big_sepL_sep with "Hstk") as "[Hstk_res Hstk_mem]".
     rewrite -!big_sepL_later.

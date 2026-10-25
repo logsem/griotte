@@ -41,7 +41,7 @@ Section Switcher_Return_States.
   (** The switcher invariant, opened by the return routine, closes again
       with the trusted stack unchanged: after the thread exit. *)
   Lemma switcher_return_exit_close
-    (E : coPset) (cstk : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord) :
+    (F : coPset) (cstk : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
@@ -51,8 +51,8 @@ Section Switcher_Return_States.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) -∗
-    na_own cerise_nais (E ∖ ↑Nswitcher) -∗
+    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) -∗
+    na_own cerise_nais (F ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -63,7 +63,7 @@ Section Switcher_Return_States.
     ▷ cstack_interp cstk a_tstk -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
-    na_own cerise_nais E.
+    na_own cerise_nais F.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
@@ -81,7 +81,7 @@ Section Switcher_Return_States.
   (** The switcher invariant, opened by the return routine, closes again
       after the pop of the topmost frame [frm], at [a_tstk]. *)
   Lemma switcher_return_pop_close
-    (E : coPset) (frm : cframe) (cstk : CSTK) (a_tstk : Addr)
+    (F : coPset) (frm : cframe) (cstk : CSTK) (a_tstk : Addr)
     (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
@@ -96,8 +96,8 @@ Section Switcher_Return_States.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) -∗
-    na_own cerise_nais (E ∖ ↑Nswitcher) -∗
+    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) -∗
+    na_own cerise_nais (F ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -112,7 +112,7 @@ Section Switcher_Return_States.
     ▷ cstack_interp cstk a_prev -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
-    na_own cerise_nais E ∗ cstack_frag cstk.
+    na_own cerise_nais F ∗ cstack_frag cstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.

@@ -88,10 +88,10 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
-    iApply (allocator_malloc_valid_correct S ⊤ g_owner a_owner id Ω n None _ with
+    iApply (allocator_malloc_valid_correct S ⊤ ⊤ g_owner a_owner id Ω n None _ with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp]");
-      [ solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hn
+      [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hn
       | apply jalr_target_ok_switcher_return_sentry |].
     iNext.
     iIntros "(Hna & Ha_owner & HPC & Hcgp & Hcra & Hca2 & Hct0 & Hct1 & Hct2

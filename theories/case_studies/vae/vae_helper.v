@@ -17,7 +17,7 @@ Section VAE_helper.
   Implicit Types C : CmptName.
   Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
 
-  Definition awkN : namespace := nroot .@ "awkN".
+  Definition Nawk : namespace := nroot .@ "awk".
   Definition awk_inv C i a :=
     (∃ x:bool, sts_state_loc (A:=LAddr) C i x
             ∗ if x
