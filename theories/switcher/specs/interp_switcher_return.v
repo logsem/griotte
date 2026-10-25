@@ -141,6 +141,8 @@ Section fundamental.
     iMod (na_inv_acc with "Hinv_switcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed switcher_inv_open "Hswitcher_inv".
+    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
+      first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hinv_switcher" as hinv_switcher.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
@@ -149,14 +151,14 @@ Section fundamental.
     destruct cstk as [ef [|frm frms] ].
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
       iApply (switcher_return_exit_path_spec with
-        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hcode
+        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hhazard $Hcode
           Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]");
         first done.
-      iIntros "!> [Hmtdc Hframeoffset]".
+      iIntros "!> (Hmtdc & Hframeoffset & Hhazard)".
       subst hclose_switcher_inv.
       iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full
-              Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|].
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
+              Hcstk_full Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|done|].
       iModIntro; iIntros (_); iExact "Hna".
     }
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
@@ -194,9 +196,9 @@ Section fundamental.
     (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
-      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Htf_csp $Hcode]");
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode]");
       [done|done|done|done|done|done|done|].
-    iIntros "!> (Hmtdc & Hframeoffset & Htf_csp & Hlc)".
+    iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)
     iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
@@ -248,11 +250,11 @@ Section fundamental.
        invariant, after the jump or the exception entry *)
     iAssert (|={⊤}=> na_own cerise_nais ⊤ ∗
                      cstack_frag {| cstk_entry := ef; cstk_frames := frms |})%I
-      with "[Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
+      with "[Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".
     { subst hclose_switcher_inv.
       iApply (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset HthreadID Htf_csp Htf_tbl
+             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher"); done. }
 
     set (lv' := region_addrs_zeroes b_stk s).

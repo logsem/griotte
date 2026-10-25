@@ -84,6 +84,7 @@ Section obligation_facts.
   Lemma fw_switcher_layouts fw img σ :
     firmware_ok fw img σ →
     trusted_stack_layout (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
+      (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0))
       (fw_tstack_content img 0 (fw_thread0 fw)) ∧
     img_switcher_layout (img_sw img) (thread_of img 0)
       (replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)).

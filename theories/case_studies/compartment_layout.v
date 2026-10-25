@@ -153,28 +153,41 @@ Section CmptLayout.
   Proof. by split. Qed.
 
   (** The initial contents of a trusted stack with room for the entry frame
-      and [n] frames: a zeroed register save area, [frameoffset] pointing
-      after the entry frame, a zeroed [threadID], the entry frame, and
-      zeroed frames. The entry frame holds the stack pointer [w_csp] of the
-      thread, the export table [w_export_table] of the compartment it starts
-      in, and no error handler invocation. *)
-  Definition initial_trusted_stack_content (w_csp w_export_table : Word) (n : nat) : list Word :=
-    replicate (Z.to_nat TSTACK_REGFRAME_SZ) (WInt 0) ++
+      and [n] frames: a register save area, zeroed but for its word
+      [hazardPointers], which holds the capability [w_hazard] to the hazard
+      slots of the thread, [frameoffset] pointing after the entry frame, a
+      zeroed [threadID], the entry frame, and zeroed frames. The entry frame
+      holds the stack pointer [w_csp] of the thread, the export table
+      [w_export_table] of the compartment it starts in, and no error handler
+      invocation. *)
+  Definition initial_trusted_stack_content (w_csp w_export_table w_hazard : Word) (n : nat)
+    : list Word :=
+    replicate (Z.to_nat TrustedStack_offset_hazardPointers) (WInt 0) ++
+    [w_hazard] ++
+    replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)) (WInt 0) ++
     [WInt (tstack_frameoffset 0); WInt 0] ++
     [w_csp; w_export_table; WInt 0] ++
     replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_words (w_csp w_export_table : Word) (n : nat) :
+  Lemma initial_trusted_stack_content_words (w_csp w_export_table w_hazard : Word) (n : nat) :
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
-    Forall trusted_stack_word (initial_trusted_stack_content w_csp w_export_table n).
+    trusted_stack_word w_hazard →
+    Forall trusted_stack_word (initial_trusted_stack_content w_csp w_export_table w_hazard n).
   Proof.
-    intros Hcsp Hexport_table. rewrite /initial_trusted_stack_content.
+    intros Hcsp Hexport_table Hhazard. rewrite /initial_trusted_stack_content.
     pose proof (trusted_stack_word_int 0) as Hzero.
     repeat apply Forall_app_2; try by apply Forall_replicate.
+    - by apply Forall_singleton.
     - by apply Forall_cons_2; [apply trusted_stack_word_int | apply Forall_singleton].
     - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
   Qed.
+
+  (** The word [hazardPointers] of an initial trusted stack. *)
+  Lemma initial_trusted_stack_content_hazard (w_csp w_export_table w_hazard : Word) (n : nat) :
+    initial_trusted_stack_content w_csp w_export_table w_hazard n
+      !! Z.to_nat TrustedStack_offset_hazardPointers = Some w_hazard.
+  Proof. reflexivity. Qed.
 
   Record cmptSwitcher : Type :=
     mkCmptSwitcher {
@@ -253,6 +266,26 @@ Section CmptLayout.
         (* The register save area of the trusted stack is not in the heap. *)
         trusted_stack_not_heap :
         not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a;
+
+        (* The two hazard slots of the thread; the word [hazardPointers] of
+           the register save area holds the store-only capability to them. *)
+        b_hazard_slots : Addr;
+        e_hazard_slots : Addr;
+
+        hazard_slots_size : (b_hazard_slots + 2)%a = Some e_hazard_slots;
+
+        trusted_stack_content_hazard :
+        trusted_stack_content !! Z.to_nat TrustedStack_offset_hazardPointers
+        = Some (WCap true WO Global b_hazard_slots e_hazard_slots b_hazard_slots);
+
+        hazard_slots_disjointness :
+        (finz.seq_between b_hazard_slots e_hazard_slots) ## (finz.seq_between b_switcher e_switcher)
+        ∧ (finz.seq_between b_hazard_slots e_hazard_slots)
+            ## (finz.seq_between b_trusted_stack e_trusted_stack)
+        ∧ (finz.seq_between b_hazard_slots e_hazard_slots) ## (finz.seq_between b_stack e_stack);
+
+        hazard_slots_disjoint_from_mmio : disjoint_from_mmio b_hazard_slots e_hazard_slots;
+        hazard_slots_not_heap : not_heap_range b_hazard_slots e_hazard_slots;
       }.
 
   Definition trusted_stack_disjoint_from_shadow (C : cmptSwitcher) :
@@ -277,6 +310,8 @@ Section CmptLayout.
               (ot_switcher switcher_cmpt)
               (b_trusted_stack switcher_cmpt)
               (e_trusted_stack switcher_cmpt)
+              (b_hazard_slots switcher_cmpt)
+              (e_hazard_slots switcher_cmpt)
            ).
   Defined.
 
@@ -306,11 +341,16 @@ Section CmptLayout.
   Definition cmpt_switcher_stack_mregion
      (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     mkregion (b_stack Cswitcher) (e_stack Cswitcher) (stack_content Cswitcher).
+  (** The hazard slots, zeroed. *)
+  Definition cmpt_switcher_hazard_mregion
+     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+    mkregion (b_hazard_slots Cswitcher) (e_hazard_slots Cswitcher) [WInt 0; WInt 0].
 
   Definition mk_initial_switcher (Cswitcher : cmptSwitcher) : gmap Addr Word :=
     cmpt_switcher_code_mregion Cswitcher ∪
     cmpt_switcher_trusted_stack_mregion Cswitcher ∪
-    cmpt_switcher_stack_mregion Cswitcher.
+    cmpt_switcher_stack_mregion Cswitcher ∪
+    cmpt_switcher_hazard_mregion Cswitcher.
 
   Definition switcher_cmpt_disjoint
     (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
@@ -491,6 +531,37 @@ Section CmptLayout.
     - rewrite elem_of_disjoint in H; eapply H; eauto.
       rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
       solve_addr.
+  Qed.
+
+  Lemma cmpt_switcher_hazard_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
+    cmpt_switcher_code_mregion switcher_cmpt ∪ cmpt_switcher_trusted_stack_mregion switcher_cmpt
+      ∪ cmpt_switcher_stack_mregion switcher_cmpt
+      ##ₘ cmpt_switcher_hazard_mregion switcher_cmpt.
+  Proof.
+    apply map_disjoint_dom_2.
+    pose proof (hazard_slots_disjointness switcher_cmpt) as (Hcode & Htstk & Hstk).
+    pose proof (switcher_call_entry_point switcher_cmpt).
+    pose proof (switcher_size switcher_cmpt).
+    pose proof (trusted_stack_size switcher_cmpt).
+    pose proof (stack_size switcher_cmpt).
+    pose proof (hazard_slots_size switcher_cmpt).
+    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion
+      /cmpt_switcher_stack_mregion /cmpt_switcher_hazard_mregion.
+    rewrite !dom_union_L.
+    repeat rewrite dom_mkregion_eq; try (cbn; solve_addr).
+    apply elem_of_disjoint.
+    intros a Ha Ha'.
+    rewrite !elem_of_union in Ha.
+    rewrite !elem_of_list_to_set in Ha,Ha'.
+    destruct Ha as [ [ [Ha | Ha] | Ha] | Ha].
+    - rewrite elem_of_disjoint in Hcode; eapply Hcode; eauto.
+      rewrite !elem_of_finz_seq_between in Ha |- *.
+      solve_addr.
+    - rewrite elem_of_disjoint in Hcode; eapply Hcode; eauto.
+      rewrite !elem_of_finz_seq_between in Ha |- *.
+      solve_addr.
+    - rewrite elem_of_disjoint in Htstk; eapply Htstk; eauto.
+    - rewrite elem_of_disjoint in Hstk; eapply Hstk; eauto.
   Qed.
 
   Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :

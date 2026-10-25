@@ -1,10 +1,11 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
-From griotte Require Import call_stack switcher_preamble.
+From griotte Require Import call_stack switcher_preamble clear_hazard_slots_spec.
 
 (** * Call routine: push on the trusted stack
 
-    [.Lswitcher_trusted_stack_push] checks that the trusted stack has room
+    [.Lswitcher_trusted_stack_push] clears the hazard slots of the thread
+    ([clear_hazard_slots_asm]), and checks that the trusted stack has room
     for a frame at [frameoffset]. If not, [.Lswitcher_trusted_stack_full]
     jumps to [.Lswitch_trusted_stack_exhausted]. Otherwise, it pushes a
     frame holding the caller's stack pointer, with a cleared error handler
@@ -42,6 +43,7 @@ Section Switcher_Trusted_Stack_Push.
     csp ↦ᵣ wstk ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+    switcher_hazard ∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_code ∗
     ▷ ( ( ∃ tstk_next',
@@ -55,6 +57,7 @@ Section Switcher_Trusted_Stack_Push.
           csp ↦ᵣ wstk ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+          switcher_hazard ∗
           a_csp ↦ₐ wstk ∗
           a_export_table ↦ₐ WInt 0 ∗
           a_error_count ↦ₐ WInt 0 ∗
@@ -69,6 +72,7 @@ Section Switcher_Trusted_Stack_Push.
           csp ↦ᵣ wstk ∗
           mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+          switcher_hazard ∗
           [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] )
         -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -77,17 +81,38 @@ Section Switcher_Trusted_Stack_Push.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Ha_tstk Ha_tstk_e)
-      "(HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc & Hframeoffset & Htstk & #Hswitcher
-      & Hpost)".
+      "(HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Htstk
+      & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
             = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
       by (tstack_unfold; solve_addr).
-    switcher_open_label ".Lswitcher_trusted_stack_push" "Hswitcher" as "Hcode".
+    switcher_open_label ".Lswitcher_trusted_stack_push" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ct2 mtdc *)
     iInstr "Hcode".
+    (* clear_hazard_slots_asm ct2 ctp *)
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ct2 ctp with "Hcode") as "Hcode_hz";
+      [done | cbn; lia |].
+    iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
+    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    pose proof hazard_slots_size as Hhz_size.
+    pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
+    pose proof hazard_slots_not_heap as Hhz_heap.
+    iApply (clear_hazard_slots_spec with "[- $HPC $Hct2 $Hctp $Hhazard_cell $Hslots $Hcode_hz]");
+      try done.
+    { rewrite clear_hazard_slots_instrs_length; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /withinBounds /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers. tstk_not_shadow Hts_shadow. }
+    iNext; iIntros "(HPC & Hct2 & Hctp & Hhazard_cell & Hslots)".
+    iAssert switcher_hazard with "[Hhazard_cell Hslots]" as "Hhazard".
+    { rewrite /switcher_hazard /tstack_hazard_cell /hazard_slots_cap.
+      iFrame "Hhazard_cell Hslots". }
+    rewrite clear_hazard_slots_instrs_length.
+    rewrite (_ : ((a_block ^+ 1) ^+ 3%nat)%a = (a_block ^+ 4)%a); last solve_addr.
     (* CLoad ctp ct2 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
@@ -111,7 +136,7 @@ Section Switcher_Trusted_Stack_Push.
       { switcher_jump_label ".Lswitch_trusted_stack_exhausted". }
       subst hpost.
       iApply "Hpost"; iRight.
-      iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hmtdc Hframeoffset Htstk". }
+      iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hmtdc Hframeoffset Hhazard Htstk". }
     apply Z.ltb_lt in Hroom.
     (* Jne 2 cs0 0 *)
     iInstr "Hcode" with "Hlc".
@@ -176,7 +201,7 @@ Section Switcher_Trusted_Stack_Push.
     subst hpost.
     iApply "Hpost"; iLeft; iExists tstk_next.
     rewrite /TrustedStackFrame_offset_csp finz_add_0_default.
-    iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hmtdc Hframeoffset Hframe_csp Hframe_export_table
+    iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_export_table
       Hframe_error_count Htstk Hlc".
     iPureIntro; tstack_unfold; split; solve_addr.
   Qed.

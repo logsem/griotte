@@ -120,6 +120,8 @@ Section Handle_Error_Install_Context.
           ∀ (off : Z) (i : nat) (ls save' : list LWord),
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
           ⌜length save' = 21%nat⌝ -∗
+          ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
+           = save !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
           csp ↦ᵣ wcsp ∗
           cra ↦ᵣ - ∗
           ctp ↦ᵣ - ∗
@@ -240,7 +242,7 @@ Section Handle_Error_Install_Context.
       iSpecialize ("Hfailed" with "[%]"); first by left.
       destruct (Hfault 7%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 7)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 7)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
     destruct Htbl as (p_tbl & g_tbl & e_tbl & a_tbl & Hw & Hread_tbl & Hbnd & Hshadow_tbl
                       & Hdl & Hdro).
     destruct wcell as [w_cell π_cell]; cbn in Hw, Hprov; subst w_cell π_cell.
@@ -269,7 +271,7 @@ Section Handle_Error_Install_Context.
         cbn in Hw'; by subst wsp. }
       destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
     destruct wsp as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
@@ -287,7 +289,7 @@ Section Handle_Error_Install_Context.
         by cbn in Hw'. }
       destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
     assert ((a + TrustedStack_offset_mepcc)%a = Some a) as Hea
       by (rewrite /TrustedStack_offset_mepcc; solve_addr).
     destruct (readAllowed p) eqn:Hra; cycle 1.
@@ -301,7 +303,7 @@ Section Handle_Error_Install_Context.
         cbn in Hw'; simplify_eq. congruence. }
       destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
     destruct (decide (b <= a < e)%a) as [Hin | Hout]; cycle 1.
     { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_withinbounds_imm _ cra csp)
@@ -315,7 +317,7 @@ Section Handle_Error_Install_Context.
         rewrite /ErrorState_size in He'. solve_addr. }
       destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
     (* The accessor of the [ErrorState], at [csp] *)
     iPoseProof ("Hacc" $! p g b e a π with "[%] [%]") as "#Hacc_es".
     { done. }
@@ -398,8 +400,9 @@ Section Handle_Error_Install_Context.
       destruct (Hfault 14%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
       iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
-               with "[//] [%] [-]").
+               with "[//] [%] [%] [-]").
       { rewrite /= length_app length_drop Hwd' Hlen. lia. }
+      { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r Hwd' // lookup_drop //. }
       rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)%a); [|solve_addr|solve_addr].
       rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16)%a);
         [|solve_addr|rewrite Hwd' /finz.dist; solve_addr].

@@ -247,11 +247,13 @@ Section translation.
           cmpt_exp_tbl_handler_stackless c ::
           cmpt_exp_tbl_entries c)).
 
-  (** The trusted stack holds a zeroed register save area, the header, the
-      entry frame and zeroed frames. As the loader does, the entry frame
-      holds the stack pointer of the thread (its initial [csp]) and the
-      export table of the compartment the thread starts in, read-write and
-      global, as the loader writes it. The stack is zeroed. *)
+  (** The trusted stack holds a register save area, the header, the entry
+      frame and zeroed frames. The register save area is zeroed but for its
+      word [hazardPointers], the store-only capability to the hazard slots
+      of the thread. As the loader does, the entry frame holds the stack
+      pointer of the thread (its initial [csp]) and the export table of the
+      compartment the thread starts in, read-write and global, as the loader
+      writes it. The stack and the hazard slots are zeroed. *)
   Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
@@ -262,9 +264,12 @@ Section translation.
                (e_stack t ^+ (- StackEntry_reserved_space))%a)
             (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
                (cmpt_exp_tbl_pcc c))
+            (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
             (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
-      (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))).
+      (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
+    note ("thread " ++ nat_str i ++ ", hazard slots")
+      (mem_region (b_hazard t) [WInt 0; WInt 0]).
 
   Definition mem_ok (σ : ExecConf) : Prop :=
     mem σ =
@@ -335,7 +340,8 @@ Section translation.
   Definition thread_ranges (i : nat) (ft : fw_thread) : list (string * Addr * Addr) :=
     let t := thread_of img i in
     [("thread " ++ nat_str i ++ ", trusted stack", b_trusted_stack t, e_trusted_stack t);
-     ("thread " ++ nat_str i ++ ", stack", b_stack t, e_stack t)].
+     ("thread " ++ nat_str i ++ ", stack", b_stack t, e_stack t);
+     ("thread " ++ nat_str i ++ ", hazard slots", b_hazard t, e_hazard t)].
 
   Definition ranges_ok (rs : list (string * Addr * Addr)) : Prop :=
     big_and (fw_map (λ '(s, b, e), note s (range_ok b e)) rs).
@@ -414,7 +420,8 @@ Section translation.
   (** The trusted stack has room for the entry frame and [ft_tstack_frames]
       frames, [tstack_frame_offset] giving the offset of a frame. The stack
       holds at least the minimum stack size of the entry plus the space
-      reserved at its top ([StackEntry_reserved_space]). *)
+      reserved at its top ([StackEntry_reserved_space]). The thread has two
+      hazard slots. *)
   Definition thread_wf (i : nat) (ft : fw_thread) : Prop :=
     let t := thread_of img i in
     section ("thread " ++ nat_str i ++ ", layout")
@@ -432,7 +439,9 @@ Section translation.
                note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
                note "minimum stack size of the entry"
                  (Z.of_nat (fe_min_stack e) + StackEntry_reserved_space <=
-                    Z.of_nat (ft_stack_size ft))%Z
+                    Z.of_nat (ft_stack_size ft))%Z ∧
+               (b_hazard t + 2)%a = Some (e_hazard t) ∧
+               note "hazard slots" (range_ok (b_hazard t) (e_hazard t))
            end
        end).
 

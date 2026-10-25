@@ -49,12 +49,14 @@ Section Switcher_Return_States.
     (b_trusted_stack + tstack_frame_offset (length cstk.(cstk_frames)))%a = Some a_tstk ∧
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
+    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) -∗
     na_own cerise_nais (E ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
-    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
+    switcher_hazard -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     cstack_full cstk -∗
@@ -65,12 +67,15 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    iIntros (Hlen Hot) "Hclose Hna Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full
-      Hstk_interp Hp_ot_switcher".
+    iIntros (Hlen Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
+      Htstk Hcstk_full Hstk_interp Hp_ot_switcher".
+    iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
+    iSpecialize ("Hsave_area" with "Hhazard_cell").
     iApply ("Hclose" with "[- $Hna]").
     iNext. iExists a_tstk, cstk, save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp Hp_ot_switcher".
-    iSplit; iPureIntro; done.
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+      Hp_ot_switcher".
+    iSplit; [|iSplit]; iPureIntro; done.
   Qed.
 
   (** The switcher invariant, opened by the return routine, closes again
@@ -89,12 +94,14 @@ Section Switcher_Return_States.
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (ot_switcher < ot_switcher ^+ 1)%ot ->
+    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ switcher_inv ∗ na_own cerise_nais (E ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais E) -∗
     na_own cerise_nais (E ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
-    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
+    switcher_hazard -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     a_csp ↦ₐ w0 -∗
     a_export_table ↦ₐ w1 -∗
@@ -109,14 +116,17 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Ha_tstk Ha_tstk_e Hot) "Hclose Hna Hmtdc Hsave_area Hframeoffset HthreadID
-      Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp Hp_ot_switcher".
+    iIntros (Ha_tstk Ha_tstk_e Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
+      Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp
+      Hp_ot_switcher".
+    iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
+    iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iApply ("Hclose" with "[- $Hna]").
     iNext.
     iApply (switcher_inv_pop_frame _ cstk with
-             "Hmtdc Hsave_area Hframeoffset HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk
-              Hcstk_full Hstk_interp Hp_ot_switcher"); done.
+             "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp Hframe_tbl
+              Hframe_cnt Htstk Hcstk_full Hstk_interp Hp_ot_switcher"); done.
   Qed.
 
 End Switcher_Return_States.

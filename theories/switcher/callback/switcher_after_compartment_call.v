@@ -1,10 +1,12 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import logrel call_stack switcher_preamble switcher_load_spec.
+From griotte Require Import clear_hazard_slots_spec.
 
 (** * Callback: pop the trusted stack and restore the caller's registers
 
-    [switcher_after_compartment_call], the return entry point, reads
+    [switcher_after_compartment_call], the return entry point, clears the
+    hazard slots of the thread ([clear_hazard_slots_asm]) and reads
     [frameoffset] in the trusted stack. When the frame to pop is the entry
     frame of the thread, the thread exits
     ([.Lcommon_defer_irqs_and_thread_exit]). Otherwise, it reads the
@@ -46,6 +48,7 @@ Section Switcher_After_Compartment_Call.
     csp ↦ᵣ wcsp ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+    switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ switcher_label_pc ".Lswitcher_restore_spill" ∗
@@ -56,6 +59,7 @@ Section Switcher_After_Compartment_Call.
         csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
         £ 1 -∗
         WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
@@ -63,7 +67,7 @@ Section Switcher_After_Compartment_Call.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hb_heap)
-      "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_tstk
+      "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_tstk
       & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
@@ -73,10 +77,31 @@ Section Switcher_After_Compartment_Call.
     assert (is_heap_cap (WCap true RWL Local b e (stk_saved_a a)) = false) as Hstk_nonheap.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //. }
     iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Ha_tstk Hpost".
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
+    (* clear_hazard_slots_asm ctp ct2 *)
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
+      [done | cbn; lia |].
+    iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
+    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    pose proof hazard_slots_size as Hhz_size.
+    pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
+    pose proof hazard_slots_not_heap as Hhz_heap.
+    iApply (clear_hazard_slots_spec with "[- $HPC $Hctp $Hct2 $Hhazard_cell $Hslots $Hcode_hz]");
+      try done.
+    { rewrite clear_hazard_slots_instrs_length; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /withinBounds /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers. tstk_not_shadow Hts_shadow. }
+    iNext; iIntros "(HPC & Hctp & Hct2 & Hhazard_cell & Hslots)".
+    iAssert switcher_hazard with "[Hhazard_cell Hslots]" as "Hhazard".
+    { rewrite /switcher_hazard /tstack_hazard_cell /hazard_slots_cap.
+      iFrame "Hhazard_cell Hslots". }
+    rewrite clear_hazard_slots_instrs_length.
+    rewrite (_ : ((a_block ^+ 1) ^+ 3%nat)%a = (a_block ^+ 4)%a); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
@@ -114,7 +139,7 @@ Section Switcher_After_Compartment_Call.
     switcher_change_pc_label ".Lswitcher_restore_spill".
     subst hpost.
     iApply "Hpost".
-    iFrame "HPC Hctp Hct0 Hct1 Hct2 Hcsp Hmtdc Hframeoffset Ha_tstk Hlc".
+    iFrame "HPC Hctp Hct0 Hct1 Hct2 Hcsp Hmtdc Hframeoffset Hhazard Ha_tstk Hlc".
   Qed.
 
   (** From [switcher_after_compartment_call], when the frame to pop is the
@@ -128,27 +153,50 @@ Section Switcher_After_Compartment_Call.
     ct2 ↦ᵣ wct2 ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
+    switcher_hazard ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
         ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ WInt 0 ∗
         ct2 ↦ᵣ WInt (tstack_frame_offset 0) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) -∗
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
+        switcher_hazard -∗
         WP Seq (Instr Executable) @ E {{ Φ }} )
     ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
-    iIntros "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & #Hswitcher & Hpost)".
+    iIntros "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
             = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
       by (tstack_unfold; solve_addr).
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
+    (* clear_hazard_slots_asm ctp ct2 *)
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
+      [done | cbn; lia |].
+    iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
+    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    pose proof hazard_slots_size as Hhz_size.
+    pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
+    pose proof hazard_slots_not_heap as Hhz_heap.
+    iApply (clear_hazard_slots_spec with "[- $HPC $Hctp $Hct2 $Hhazard_cell $Hslots $Hcode_hz]");
+      try done.
+    { rewrite clear_hazard_slots_instrs_length; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /withinBounds /TrustedStack_offset_hazardPointers; tstack_unfold; solve_addr. }
+    { rewrite /TrustedStack_offset_hazardPointers. tstk_not_shadow Hts_shadow. }
+    iNext; iIntros "(HPC & Hctp & Hct2 & Hhazard_cell & Hslots)".
+    iAssert switcher_hazard with "[Hhazard_cell Hslots]" as "Hhazard".
+    { rewrite /switcher_hazard /tstack_hazard_cell /hazard_slots_cap.
+      iFrame "Hhazard_cell Hslots". }
+    rewrite clear_hazard_slots_instrs_length.
+    rewrite (_ : ((a_block ^+ 1) ^+ 3%nat)%a = (a_block ^+ 4)%a); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
@@ -173,7 +221,7 @@ Section Switcher_After_Compartment_Call.
     { switcher_jump_label ".Lcommon_defer_irqs_and_thread_exit". }
     subst hpost.
     iApply "Hpost".
-    iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset".
+    iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset Hhazard".
   Qed.
 
   (** From [.Lswitcher_restore_spill]: reload the callee-save registers from
@@ -228,7 +276,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
@@ -346,7 +394,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
@@ -476,7 +524,7 @@ Section Switcher_After_Compartment_Call.
     assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
     assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
     assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
-    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode".
+    switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitcher_restore_spill" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)

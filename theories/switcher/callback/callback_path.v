@@ -45,23 +45,26 @@ Section Callback_Path.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
+    switcher_hazard ∗
     switcher_code ∗
     ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        a_frameoffset ↦ₐ WInt (tstack_frameoffset 0)
+        a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
+        switcher_hazard
         ={E}=∗
         Φ HaltedV )
     ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
-    iIntros (Hdom) "(HPC & Hrmap & Hmtdc & Hframeoffset & #Hswitcher & Hpost)".
+    iIntros (Hdom) "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
     iDestruct (ret_regs_extract with "Hrmap")
       as "([%wctp Hctp] & [%wct0 Hct0] & _ & [%wct2 Hct2] & _)"; first done.
     iApply (switcher_after_compartment_call_exit_spec with
-      "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hswitcher]").
-    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset)".
-    iApply (common_defer_irqs_and_thread_exit_spec with "[$HPC $Hswitcher Hpost Hmtdc Hframeoffset]").
+      "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hswitcher]").
+    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iApply (common_defer_irqs_and_thread_exit_spec with
+      "[$HPC $Hswitcher Hpost Hmtdc Hframeoffset Hhazard]").
     iIntros "!> _".
-    iApply ("Hpost" with "[$Hmtdc $Hframeoffset]").
+    iApply ("Hpost" with "[$Hmtdc $Hframeoffset $Hhazard]").
   Qed.
 
   (** From [switcher_after_compartment_call], with [S d] frames above the
@@ -94,6 +97,7 @@ Section Callback_Path.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+    switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     ▷ switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
@@ -104,6 +108,7 @@ Section Callback_Path.
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
         cra ↦ᵣ rcra ∗
         cgp ↦ᵣ rcgp ∗
@@ -125,7 +130,7 @@ Section Callback_Path.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
-      "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Ha_csp
+      "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
       & Hcells & Hstk & #Hswitcher & Hpost)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
@@ -141,9 +146,10 @@ Section Callback_Path.
           & %rmap0 & %Hdom0 & Hrmap)"; first done.
     (* [switcher_after_compartment_call]: pop the topmost frame *)
     iApply (switcher_after_compartment_call_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_csp $Hswitcher]");
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hswitcher]");
       [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_csp & _)".
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
+                    & _)".
     (* [.Lswitcher_restore_spill]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
     iApply (switcher_restore_spill_spec with
@@ -159,7 +165,7 @@ Section Callback_Path.
         $Hcells $Hstk $Hrmap $Hswitcher]"); [done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
-      "[$Hmtdc $Hframeoffset $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap]").
+      "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap]").
     iPureIntro; split; done.
   Qed.
 
@@ -192,10 +198,12 @@ Section Callback_Path.
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
+    switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
     ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+        switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
         £ 1
         ={⊤}=∗
@@ -241,7 +249,7 @@ Section Callback_Path.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Hheap Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
-      "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Ha_csp
+      "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
       & #Hswitcher & Hmid)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
@@ -257,12 +265,12 @@ Section Callback_Path.
           & %rmap0 & %Hdom0 & Hrmap)"; first done.
     (* [switcher_after_compartment_call]: pop the topmost frame *)
     iApply (switcher_after_compartment_call_spec with
-      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Ha_csp $Hswitcher]");
+      "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hswitcher]");
       [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Ha_csp
+    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
                     & Hlc)".
     (* The logical step: the spill area, the callee's stack, the open world *)
-    iMod ("Hmid" with "[$Hmtdc $Hframeoffset $Ha_csp $Hlc]")
+    iMod ("Hmid" with "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hlc]")
       as (opened wcs0' wcs1' wcgp' wcra' stk_mem) "(Hcells & Hstk & Hworld & Hmem & Hpost)".
     (* [.Lswitcher_restore_spill]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).

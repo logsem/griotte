@@ -72,6 +72,20 @@ Section Switcher_Exception_States.
     rewrite length_drop Hsave Hregs; reflexivity.
   Qed.
 
+  (** The spill keeps the word [hazardPointers] of the register save area. *)
+  Lemma exception_spill_hazard save wmepcc wregs wst wcause :
+    length save = 21%nat →
+    length wregs = 15%nat →
+    exception_spill save wmepcc wregs wst wcause !! Z.to_nat TrustedStack_offset_hazardPointers =
+    save !! Z.to_nat TrustedStack_offset_hazardPointers.
+  Proof.
+    intros Hsave Hregs.
+    rewrite /exception_spill /TrustedStack_offset_hazardPointers /=.
+    rewrite lookup_app_r Hregs //=.
+    destruct (lookup_lt_is_Some_2 save 16) as [w16 Hw16]; first lia.
+    rewrite (drop_S _ w16 16) //=.
+  Qed.
+
   (** The register save area holds 21 words. *)
   Lemma tstack_save_area_length save :
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗ ⌜length save = 21%nat⌝.

@@ -443,6 +443,7 @@ Section Switcher.
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
       mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
+      switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
       trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
         (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ).
@@ -451,13 +452,13 @@ Section Switcher.
     iIntros (Hdom Hrdom Hret_jalr)
       "#Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hfault
        (%Hspill & Hcsp & Hct2 & Hctp & Hcs0 & Hcs1 & Hcra & Hcgp & Hct1 & Hstk
-       & Hmtdc & Hframeoffset & Htstk)".
+       & Hmtdc & Hframeoffset & Hhazard & Htstk)".
     iDestruct (switcher_cc_args_regs with "Hargs") as "Hargs".
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iApply (switcher_cc_fault_resume with "Hsafety [-Hfault] Hfault");
       [done | exact Hspill | done |].
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Htstk") as "Hna".
+    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     iFrame "Hna Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap0 Hstk Hworld_interp Hstk_val Hcstk Hcont".
   Qed.
@@ -504,6 +505,7 @@ Section Switcher.
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
       mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
+      switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ).
   Proof.
@@ -516,7 +518,7 @@ Section Switcher.
     iIntros (Hstk_mmio Hdom Hrdom Hret_jalr Hret_heap)
       "#Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost
        (%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk
-       & Hmtdc & Hframeoffset & Htstk)".
+       & Hmtdc & Hframeoffset & Hhazard & Htstk)".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[_ #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
@@ -538,7 +540,7 @@ Section Switcher.
       subst rcra; congruence. }
     iIntros "[HPC Hlc']".
     iCombine "Hlc Hlc'" as "Hlc".
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Htstk") as "Hna".
+    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1); iRight.
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hworld_interp Hstk_val Hcstk
       Hcont Hlc".
@@ -602,6 +604,7 @@ Section Switcher.
         [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]] ∗
       mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
+      switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
       a_export_table ↦ₐ WInt 0 ∗
       a_error_count ↦ₐ WInt 0 ∗
@@ -615,7 +618,7 @@ Section Switcher.
     iIntros (Hstk_mmio Hstk_heap Hdom Hrdom Hstk_revoked Hret_jalr Hret_heap)
       "#Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost
        (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp
-       & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hframe_csp
+       & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Hframe_csp
        & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
     set (W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary).
@@ -644,7 +647,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     pose proof (tf_export_tbl_cell_cleared (cf_tframe frame) eq_refl) as Htbl_cell.
     iMod (switcher_inv_opened_push frame cstk with
-           "Hopened Hcstk Hmtdc Hframeoffset Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
+           "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|done|exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
@@ -693,6 +696,7 @@ Section Switcher.
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
+    switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_error_count ↦ₐ WInt 0 -∗
     [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -718,12 +722,12 @@ Section Switcher.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hstk_mmio Hstk_heap Hstk_bounds Hdom Hrdom Hret_jalr Hret_heap Ha_next Ha_next_e
                Htbl_cell)
-      "#Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset Hframe_csp
+      "#Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset Hhazard Hframe_csp
        Hframe_cnt Htstk
        (_ & HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2] & [%wctp' Hctp]
        & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs)".
     iMod (switcher_inv_opened_push frame cstk with
-           "Hopened Hcstk Hmtdc Hframeoffset Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
+           "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|done|right; exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
@@ -907,12 +911,13 @@ Section Switcher.
 
     (* Open the switcher invariant *)
     iMod (switcher_inv_open_call with "Hswitcher Hna")
-      as (a_tstk cstk' tstk_next) "(%Hlen_cstk & %Ha_tstk_e & Hopened & Hmtdc & Hframeoffset & Htstk)".
+      as (a_tstk cstk' tstk_next)
+         "(%Hlen_cstk & %Ha_tstk_e & Hopened & Hmtdc & Hframeoffset & Hhazard & Htstk)".
 
     (* [.Lswitch_csp_check] to [.Lswitcher_decode_entry] *)
     iEval (rewrite -switcher_call_entry_label) in "HPC".
     iApply (switcher_call_path_spec with
-      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Htstk
+      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard $Htstk
           $Hb_switcher $Hcode]"); [done..|].
     iNext.
     iPoseProof (switcher_inv_opened_seal_pred with "Hopened") as "#Hp_ot_switcher".
@@ -938,7 +943,7 @@ Section Switcher.
     iNext; iIntros (wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
+      & Hhazard & Hframe_csp & Hframe_tbl & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
     iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
     iNamed "Hentry_ot".
@@ -982,13 +987,13 @@ Section Switcher.
     { (* The callee's stack is too small *)
       iApply (switcher_cc_stack_too_small with
                "Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset
-                Hframe_csp Hframe_cnt Htstk"); done. }
+                Hhazard Hframe_csp Hframe_cnt Htstk"); done. }
     iIntros (mie arg_rmap' rmap')
       "(%Hbig & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
 
     (* Push the frame and close the switcher invariant *)
     iMod (switcher_inv_opened_push frame cstk with
-           "Hopened Hcstk Hmtdc Hframeoffset Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
+           "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|done|right; exact Htbl_cell| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }

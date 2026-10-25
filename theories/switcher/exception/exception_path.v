@@ -38,6 +38,15 @@ From griotte Require Import map_simpl register_tactics.
     token without [N_trap], which trap entry holds, and gives back the whole
     token, before the [cjalr]. *)
 
+(** The word [hazardPointers] of the register save area, after the spill
+    of the exception entry and the stores of the return values. *)
+Ltac save_area_hazard :=
+  repeat (rewrite list_lookup_insert_ne; last by vm_compute);
+  try match goal with
+      | H : ?l = exception_spill _ _ _ _ _ |- context [?l !! _] => is_var l; rewrite H
+      end;
+  rewrite exception_spill_hazard //.
+
 Section Switcher_Spec_Exception.
   Context
     {Σ:gFunctors}
@@ -667,6 +676,8 @@ Section Switcher_Spec_Exception.
        token, for any content of the register save area and any error
        handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
+               ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
+                = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
                mtdc ↦ₛᵣ tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
@@ -676,17 +687,18 @@ Section Switcher_Spec_Exception.
                trap_entry_res
                ={⊤}=∗
                na_own cerise_nais F)%I
-      with "[HthreadID Htstk Hclose Hna]" as "Hclose".
-    { iIntros (save' n') "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok".
+      with "[HthreadID Hhazard_slots Htstk Hclose Hna]" as "Hclose".
+    { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok".
       iMod ("Hclose" with
-             "[Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp $Hna]")
+             "[Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+               $Hna]")
         as "Hna".
       { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
-        iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+        iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
                 Hp_ot_switcher".
-        iPureIntro. split; [exact Hot_bounds | by split]. }
+        iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
       iModIntro.
       iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iAssert (cstack_full (cstack_set_top_count cstk' (top_error_count cstk')))
@@ -704,7 +716,8 @@ Section Switcher_Spec_Exception.
           & Hframeoffset)".
       pose proof (Hcstk_eq (or_intror (proj2 Hswitcher_fault))) as Heq_cstk; subst cstk'.
       rewrite decide_True; last exact (or_intror (proj2 Hswitcher_fault)).
-      iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok").
+      iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok").
+      { save_area_hazard. }
       { by rewrite cstack_set_top_count_id. }
       iDestruct "Hpost" as "[Hunwind _]".
       iPoseProof (handler_skipped_switcher_fault cstk w rmap (proj1 Hswitcher_fault)) as "Hskip".
@@ -729,7 +742,8 @@ Section Switcher_Spec_Exception.
       (* The PC to resume is a valid PC: MEPCC keeps it *)
       rewrite (_ : llegalise MEPCC (switcher_label_pc ".Lswitch_just_return") =
                    switcher_label_pc ".Lswitch_just_return"); last reflexivity.
-      iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok") as "Hna".
+      iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok") as "Hna".
+      { save_area_hazard. }
       { by rewrite cstack_set_top_count_id. }
       rewrite /exception_spill /TrustedStack_offset_ca0 /TrustedStack_offset_ca1 /=.
       (* The other registers get their words back: the register map is the
@@ -805,7 +819,8 @@ Section Switcher_Spec_Exception.
             & [%wcs1_f Hcs1] & Hca0 & Hca1 & Hca2 & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-        iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+        iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+        { save_area_hazard. }
         iDestruct "Hpost" as "(_ & _ & Hnested & _)".
         iSpecialize ("Hnested" with "[//]").
         iPoseProof (handler_skipped_cleared cstk w rmap Hz) as "Hskip".
@@ -821,7 +836,8 @@ Section Switcher_Spec_Exception.
             & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-        iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+        iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+        { save_area_hazard. }
         iDestruct "Hpost" as "[Hunwind _]".
         iPoseProof (handler_skipped_no_stackful cstk w rmap eh with "Heh") as "Hskip";
           first by rewrite Hrmap_csp.
@@ -874,7 +890,8 @@ Section Switcher_Spec_Exception.
           iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
             as "Htf".
           iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-          iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+          iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+          { save_area_hazard. }
           iDestruct "Hpost" as "[Hunwind _]".
           iPoseProof (handler_skipped_count cstk w rmap Hcount) as "Hskip".
           iApply (switcher_exception_unwind_finish _ _ (top_error_count cstk + 1)%Z with
@@ -902,8 +919,9 @@ Section Switcher_Spec_Exception.
           iNext; iIntros (mtval) "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave_area)".
           rewrite Hsave'_cause.
           (* The invariant is closed before the [cjalr] *)
-          iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
+          iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
             as "Hna".
+          { save_area_hazard. }
           (* The invocation *)
           iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackless p ehs
                     cause mtval
@@ -948,7 +966,8 @@ Section Switcher_Spec_Exception.
                "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
                  & [%wca4_f Hca4] & Hsave_area & Hwritten)".
              iSpecialize ("Hclose" with
-                           "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+                           "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok").
+             { save_area_hazard. }
              iDestruct "Hpost" as "[Hnested _]".
              iSpecialize ("Hnested" with "[//]").
              iPoseProof (handler_skipped_stores cstk w rmap) as "Hskip";
@@ -965,8 +984,9 @@ Section Switcher_Spec_Exception.
                "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
                  & Hwritten)".
              rewrite Hsave'_cause.
-             iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
+             iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok")
                as "Hna".
+             { save_area_hazard. }
              (* The invocation *)
              iApply (switcher_exception_invoke _ _ _ _ error_state_written Stackful p eh
                        cause mtval

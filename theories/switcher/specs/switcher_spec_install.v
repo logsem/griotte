@@ -174,6 +174,8 @@ Section Switcher_Spec_Install.
     (* The close of the switcher invariant, for any content of the register
        save area and any error handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
+               ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
+                = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
                mtdc ↦ₛᵣ tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
@@ -183,15 +185,15 @@ Section Switcher_Spec_Install.
                na_own cerise_nais (F ∖ ↑Nswitcher)
                ={⊤}=∗
                na_own cerise_nais F)%I
-      with "[HthreadID Htstk Hclose]" as "Hclose".
-    { iIntros (save' n') "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
+      with "[HthreadID Hhazard_slots Htstk Hclose]" as "Hclose".
+    { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
       iApply ("Hclose" with "[- $Hna]").
       iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
-      iFrame "Hmtdc Hsave_area Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
+      iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
               Hp_ot_switcher".
-      iPureIntro. split; [exact Hot_bounds | by split]. }
+      iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
     iAssert (cstack_full (cstack_set_top_count cstk (top_error_count cstk)))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
 
@@ -216,14 +218,14 @@ Section Switcher_Spec_Install.
     iSplitR; first (iIntros "_"; iExact "Hpcc").
     iNext; iSplit.
     - (* A load faults: the invariant is closed, the count unchanged *)
-      iIntros (Hwhy off i ls save' Hoff Hsave')
+      iIntros (Hwhy off i ls save' Hoff Hsave' Hsave'_hazard)
         "(Hcsp & [%wcra_f Hcra] & [%wctp_f Hctp] & [%wct0_f Hct0] & [%wct1_f Hct1]
           & [%wct2_f Hct2] & [%wcs0_f Hcs0] & [%wcs1_f Hcs1] & [%wca2_f Hca2]
           & [%wca3_f Hca3] & [%wca4_f Hca4] & Hmtdc & Hframeoffset & Hcell & Hcnt
           & Hsave_area & HL)".
       iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-      iSpecialize ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna").
+      iSpecialize ("Hclose" with "[//] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna").
       iDestruct "Hpost" as "[Hnested _]".
       iApply (switcher_install_nested_finish F cstk off rmap L i ls with
                "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
@@ -254,7 +256,10 @@ Section Switcher_Spec_Install.
       (* After [mret]: the token is recombined, the invariant closed *)
       iDestruct (trap_entry_res_split (F ∖ ↑Nswitcher) with "[$Htok $Hna]") as "Hna";
         first solve_ndisj.
-      iMod ("Hclose" with "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna") as "Hna".
+      iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna") as "Hna".
+      { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r;
+          rewrite length_drop Hls /ErrorState_size //.
+        by rewrite lookup_drop. }
       (* The registers receive words 1-15 of the [ErrorState] *)
       destruct ls as [|w0 [|w1 [|w2 [|w3 [|w4 [|w5 [|w6 [|w7 [|w8 [|w9 [|w10 [|w11 [|w12
                      [|w13 [|w14 [|w15 [|w16 ls] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];

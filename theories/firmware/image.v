@@ -33,12 +33,14 @@ Record img_cmpt : Type := MkImgCmpt {
   cmpt_exp_tbl_entries : list Word;
 }.
 
-(** A thread: its stack and its trusted stack. *)
+(** A thread: its stack, its trusted stack and its two hazard slots. *)
 Record img_thread : Type := MkImgThread {
   b_stack : Addr;
   e_stack : Addr;
   b_trusted_stack : Addr;
   e_trusted_stack : Addr;
+  b_hazard : Addr;
+  e_hazard : Addr;
 }.
 
 (** The switcher: its code range, starting with its sealing key, its two
@@ -74,7 +76,7 @@ Definition za0 : Addr := za.
 Definition default_img_cmpt : img_cmpt :=
   MkImgCmpt za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 [] [] [] [] (WInt 0) (WInt 0) [].
 
-Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0.
+Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0 za0 za0.
 
 Fixpoint assoc {A} (n : string) (l : list (string * A)) (d : A) : A :=
   match l with

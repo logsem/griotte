@@ -253,7 +253,8 @@ Section layout_bridges.
       The conditions on the contents of the trusted stack are kept apart:
       they change with the contents the loader writes there. *)
 
-  Record trusted_stack_layout (b e : Addr) (ts : list Word) : Prop := MkTrustedStackLayout {
+  Record trusted_stack_layout (b e b_hz e_hz : Addr) (ts : list Word) : Prop :=
+    MkTrustedStackLayout {
     tsl_size : (b + length ts)%a = Some e;
     tsl_frameoffset :
       ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
@@ -266,6 +267,8 @@ Section layout_bridges.
       ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
       = Some (WInt 0);
     tsl_words : Forall trusted_stack_word ts;
+    tsl_hazard :
+      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (WCap true WO Global b_hz e_hz b_hz);
   }.
 
   Record img_switcher_layout (sw : img_switcher) (t : img_thread) (ss : list Word) : Prop :=
@@ -294,23 +297,34 @@ Section layout_bridges.
     isl_trusted_stack_not_heap :
       not_heap_range (b_trusted_stack t) (b_trusted_stack t ^+ TSTACK_REGFRAME_SZ)%a;
     isl_trusted_stack_nonzero : (b_trusted_stack t : Z) ≠ 0;
+    isl_hazard_size : (b_hazard t + 2)%a = Some (e_hazard t);
+    isl_hazard_disjointness :
+      finz.seq_between (b_hazard t) (e_hazard t) ## finz.seq_between (b_switcher sw) (e_switcher sw) ∧
+      finz.seq_between (b_hazard t) (e_hazard t) ##
+        finz.seq_between (b_trusted_stack t) (e_trusted_stack t) ∧
+      finz.seq_between (b_hazard t) (e_hazard t) ## finz.seq_between (b_stack t) (e_stack t);
+    isl_hazard_mmio : disjoint_from_mmio (b_hazard t) (e_hazard t);
+    isl_hazard_not_heap : not_heap_range (b_hazard t) (e_hazard t);
   }.
 
   Definition layout_switcher_of (sw : img_switcher) (t : img_thread) (ts ss : list Word)
-      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) ts)
+      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) (b_hazard t) (e_hazard t) ts)
       (Hsw : img_switcher_layout sw t ss) : cmptSwitcher :=
     mkCmptSwitcher
       (b_switcher sw) (e_switcher sw) (a_switcher_call sw) (a_switcher_return sw)
       (ot_switcher sw) (b_trusted_stack t) (e_trusted_stack t)
       (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw) (isl_return_entry_point _ _ _ Hsw)
       (isl_ot_switcher_size _ _ _ Hsw)
-      ts (tsl_size _ _ _ Hts) (tsl_frameoffset _ _ _ Hts) (tsl_frames_fit _ _ _ Hts)
-      (tsl_error_count _ _ _ Hts) (tsl_words _ _ _ Hts)
+      ts (tsl_size _ _ _ _ _ Hts) (tsl_frameoffset _ _ _ _ _ Hts) (tsl_frames_fit _ _ _ _ _ Hts)
+      (tsl_error_count _ _ _ _ _ Hts) (tsl_words _ _ _ _ _ Hts)
       (b_stack t) (e_stack t) ss (isl_stack_size _ _ _ Hsw) (isl_disjointness _ _ _ Hsw)
       (isl_trusted_stack_mmio _ _ _ Hsw) (isl_switcher_base_not_shadow _ _ _ Hsw)
       (isl_switcher_not_heap _ _ _ Hsw) (isl_stack_mmio _ _ _ Hsw) (isl_stack_not_heap _ _ _ Hsw)
       (isl_switcher_mmio _ _ _ Hsw) (isl_switcher_end_not_heap _ _ _ Hsw)
-      (isl_trusted_stack_not_heap _ _ _ Hsw).
+      (isl_trusted_stack_not_heap _ _ _ Hsw)
+      (b_hazard t) (e_hazard t) (isl_hazard_size _ _ _ Hsw) (tsl_hazard _ _ _ _ _ Hts)
+      (isl_hazard_disjointness _ _ _ Hsw) (isl_hazard_mmio _ _ _ Hsw)
+      (isl_hazard_not_heap _ _ _ Hsw).
 
   (** *** The assert library *)
 
@@ -347,6 +361,7 @@ Section layout_memory.
     initial_trusted_stack_content
       (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
+      (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
       (ft_tstack_frames ft).
 
   (** The stack pointer cell of the entry frame of the thread [i]. *)
@@ -402,7 +417,7 @@ Section layout_memory.
   Qed.
 
   Lemma switcher_mem_layout (img : fw_image) (t : img_thread) (ts ss : list Word)
-      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) ts)
+      (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t) (b_hazard t) (e_hazard t) ts)
       (Hsw : img_switcher_layout (img_sw img) t ss) :
     switcher_mem img = cmpt_switcher_code_mregion (layout_switcher_of _ _ _ _ Hts Hsw).
   Proof.
@@ -412,23 +427,28 @@ Section layout_memory.
     by apply mem_region_app.
   Qed.
 
-  (** The memory of the first thread: its trusted stack and its stack. *)
+  (** The memory of the first thread: its trusted stack, its stack and its
+      hazard slots. *)
   Lemma thread_mem_layout (img : fw_image) (ft : fw_thread)
       (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
                (e_trusted_stack (thread_of img 0))
+               (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0))
                (fw_tstack_content img 0 ft))
       (Hsw : img_switcher_layout (img_sw img) (thread_of img 0)
                (replicate (ft_stack_size ft) (WInt 0))) :
     thread_mem img 0 ft =
       cmpt_switcher_trusted_stack_mregion (layout_switcher_of _ _ _ _ Hts Hsw) ∪
-      cmpt_switcher_stack_mregion (layout_switcher_of _ _ _ _ Hts Hsw).
+      cmpt_switcher_stack_mregion (layout_switcher_of _ _ _ _ Hts Hsw) ∪
+      cmpt_switcher_hazard_mregion (layout_switcher_of _ _ _ _ Hts Hsw).
   Proof.
     rewrite /thread_mem /note /cmpt_switcher_trusted_stack_mregion
-      /cmpt_switcher_stack_mregion /=.
+      /cmpt_switcher_stack_mregion /cmpt_switcher_hazard_mregion /=.
     rewrite (mem_region_mkregion _ (e_trusted_stack (thread_of img 0)));
-      last exact (tsl_size _ _ _ Hts).
-    by rewrite (mem_region_mkregion _ (e_stack (thread_of img 0)));
+      last exact (tsl_size _ _ _ _ _ Hts).
+    rewrite (mem_region_mkregion _ (e_stack (thread_of img 0)));
       last exact (isl_stack_size _ _ _ Hsw).
+    by rewrite (mem_region_mkregion _ (e_hazard (thread_of img 0)));
+      last exact (isl_hazard_size _ _ _ Hsw).
   Qed.
 
   Lemma assert_mem_layout (img : fw_image) (Ha : img_assert_layout (img_asrt img)) :
@@ -518,30 +538,34 @@ Section layout_of_img_wf.
     constructor.
   Qed.
 
-  Lemma initial_trusted_stack_content_length w_csp w_export_table n :
-    Z.of_nat (length (initial_trusted_stack_content w_csp w_export_table n)) =
+  Lemma initial_trusted_stack_content_length w_csp w_export_table w_hazard n :
+    Z.of_nat (length (initial_trusted_stack_content w_csp w_export_table w_hazard n)) =
       tstack_frame_offset (S n).
   Proof.
     rewrite /initial_trusted_stack_content !length_app !length_replicate /=.
     rewrite /tstack_frame_offset /TrustedStack_offset_frames /TSTACK_REGFRAME_SZ
-      /TSTACK_HEADER_SZ /TrustedStackFrame_size.
+      /TSTACK_HEADER_SZ /TrustedStackFrame_size /TrustedStack_offset_hazardPointers.
     lia.
   Qed.
 
-  Lemma initial_trusted_stack_layout b e w_csp w_export_table n :
+  Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table n :
+    let w_hazard := WCap true WO Global b_hz e_hz b_hz in
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
+    trusted_stack_word w_hazard →
     (∃ b_tbl, exp_tbl_cap b_tbl w_export_table) →
-    trusted_stack_layout b e (initial_trusted_stack_content w_csp w_export_table n).
+    trusted_stack_layout b e b_hz e_hz
+      (initial_trusted_stack_content w_csp w_export_table w_hazard n).
   Proof.
-    intros Hsize Hcsp Hexport_table [b_tbl Htbl]. split.
+    intros w_hazard Hsize Hcsp Hexport_table Hhazard [b_tbl Htbl]. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
     - by exists b_tbl, w_export_table.
     - reflexivity.
     - by apply initial_trusted_stack_content_words.
+    - apply initial_trusted_stack_content_hazard.
   Qed.
 
   (** A capability of the entry frame. *)
@@ -588,6 +612,29 @@ Section layout_of_img_wf.
     by split_and!.
   Qed.
 
+  (** The hazard slots of a thread. *)
+  Lemma thread_wf_hazard fw img i ft :
+    thread_wf fw img i ft →
+    (b_hazard (thread_of img i) + 2)%a = Some (e_hazard (thread_of img i)) ∧
+    range_ok (b_hazard (thread_of img i)) (e_hazard (thread_of img i)).
+  Proof.
+    rewrite /thread_wf /section /note.
+    destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|]; last done.
+    destruct (fw_find_export (ft_entry ft) (tb_exports tb)); last done.
+    intros (_ & _ & _ & _ & _ & _ & Hsize & Hrange). by split.
+  Qed.
+
+  (** The capability to the hazard slots of a thread. *)
+  Lemma thread_hazard_word fw img i ft :
+    thread_wf fw img i ft →
+    let t := thread_of img i in
+    trusted_stack_word (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t)).
+  Proof.
+    intros Hthread t.
+    destruct (thread_wf_hazard _ _ _ _ Hthread) as (_ & [ [_ Hhz_heap] _]).
+    by apply trusted_stack_word_cap.
+  Qed.
+
   (** The words of the entry frame of a thread: its stack and the export
       table of its compartment lie outside the heap. *)
   Lemma thread_entry_frame_words fw img i ft :
@@ -622,7 +669,8 @@ Section layout_of_img_wf.
   Proof.
     intros Hcmpts Hthread.
     destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as (Hcsp & Hexport_table & _).
-    by apply initial_trusted_stack_content_words.
+    apply initial_trusted_stack_content_words;
+      [done | done | exact (thread_hazard_word _ _ _ _ Hthread)].
   Qed.
 
   Lemma img_wf_otypes fw img :
@@ -684,6 +732,7 @@ Section layout_of_img_wf.
     fw_threads fw = ft :: fts →
     img_wf fw img →
     trusted_stack_layout (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
+      (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0))
       (fw_tstack_content img 0 ft).
   Proof.
     intros Hthreads (_ & _ & Hcmpts & Hthread & _).
@@ -692,7 +741,8 @@ Section layout_of_img_wf.
     destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread)
       as (Hcsp & Hexport_table & Hexp_tbl_cap).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
-    apply initial_trusted_stack_layout; [done.. | by eexists].
+    apply initial_trusted_stack_layout;
+      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread) | by eexists].
   Qed.
 
   Lemma img_wf_switcher_layout fw img ft fts :
@@ -708,16 +758,18 @@ Section layout_of_img_wf.
     destruct Hsw as (Hcall & Hsize & Hret & Hrange & Hend).
     destruct (thread_wf_inv _ _ _ _ Hthread)
       as (_ & _ & Hstack & Htstack & Hrange_stack & Hrange_tstack & Htstack_nonzero).
+    destruct (thread_wf_hazard _ _ _ _ Hthread) as (Hhazard & Hrange_hazard).
     assert (rngs_disjoint
       [("switcher", b_switcher (img_sw img), e_switcher (img_sw img));
        ("thread 0, trusted stack",
          b_trusted_stack (thread_of img 0), e_trusted_stack (thread_of img 0));
-       ("thread 0, stack", b_stack (thread_of img 0), e_stack (thread_of img 0))])
+       ("thread 0, stack", b_stack (thread_of img 0), e_stack (thread_of img 0));
+       ("thread 0, hazard slots", b_hazard (thread_of img 0), e_hazard (thread_of img 0))])
       as Hdisj3.
     { eapply rngs_disjoint_sublist; last exact Hdisj.
       rewrite /fw_ranges Hthreads /=.
       apply sublist_skip, sublist_cons, sublist_cons, sublist_inserts_l. cbn.
-      apply sublist_skip, sublist_skip, sublist_nil_l. }
+      apply sublist_skip, sublist_skip, sublist_skip, sublist_nil_l. }
     split.
     - exact Hsize.
     - exact Hcall.
@@ -743,6 +795,13 @@ Section layout_of_img_wf.
         /TSTACK_REGFRAME_SZ /TSTACK_HEADER_SZ in Htstack.
       rewrite /TSTACK_REGFRAME_SZ. solve_addr.
     - exact Htstack_nonzero.
+    - exact Hhazard.
+    - split_and!;
+        [ apply (addr_disjoint_list_lookup _ 3 0 _ _ Hdisj3)
+        | apply (addr_disjoint_list_lookup _ 3 1 _ _ Hdisj3)
+        | apply (addr_disjoint_list_lookup _ 3 2 _ _ Hdisj3)]; try done; lia.
+    - by apply range_ok_mmio.
+    - by apply range_ok_not_heap.
   Qed.
 
   Lemma img_wf_cmpt_layout fw img fc :
@@ -807,7 +866,7 @@ Section entry.
       last done.
     rewrite /fw_export_named.
     destruct (fw_find_export (ft_entry (fw_thread_of fw i)) (tb_exports tb)) as [e|]; last done.
-    intros (Hstack & _ & _ & _ & _ & Hmin).
+    intros (Hstack & _ & _ & _ & _ & Hmin & _).
     solve_addr+Hstack Hmin.
   Qed.
 
@@ -979,10 +1038,11 @@ Section initial_memory.
     thread_wf fw img i ft → mem_in (thread_mem img i ft) (thread_ranges img i ft).
   Proof.
     intros Hthread. destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & Hstack & Htstack & _).
+    destruct (thread_wf_hazard _ _ _ _ Hthread) as (Hhazard & _).
     rewrite /thread_mem /thread_ranges /note.
-    change [?t1; ?t2] with ([t1] ++ [t2]).
-    apply mem_in_union; apply mem_in_mem_region;
-      [by rewrite initial_trusted_stack_content_length | by rewrite length_replicate].
+    change [?t1; ?t2; ?t3] with (([t1] ++ [t2]) ++ [t3]).
+    apply mem_in_union; first apply mem_in_union; apply mem_in_mem_region;
+      [by rewrite initial_trusted_stack_content_length | by rewrite length_replicate | done].
   Qed.
 
   Lemma threads_mem_in fw img k (fts : list fw_thread) :
@@ -1017,8 +1077,11 @@ Section initial_memory_wf.
     cbn [fw_imap_from]. apply big_and_cons in Hwf as [Hft Hwf].
     rewrite fw_flat_map_cons. apply Forall_app; split; last by apply IH.
     destruct (thread_wf_inv _ _ _ _ Hft) as (_ & _ & _ & _ & Hstack & Htstack & _).
+    destruct (thread_wf_hazard _ _ _ _ Hft) as (_ & Hhazard).
     rewrite /thread_ranges.
-    apply Forall_cons; split; first exact Htstack. apply Forall_singleton. exact Hstack.
+    apply Forall_cons; split; first exact Htstack.
+    apply Forall_cons; split; first exact Hstack.
+    apply Forall_singleton. exact Hhazard.
   Qed.
 
   Lemma img_wf_ranges_ok fw img :
@@ -1114,10 +1177,13 @@ Section ghost_init.
     pose proof (thread_tstack_words _ _ _ _ Hcmpts Hthread) as Hts.
     assert (Forall is_z (replicate (ft_stack_size ft) (WInt 0))) as Hs.
     { by apply Forall_replicate. }
+    assert (Forall is_z [WInt 0; WInt 0]) as Hhz by repeat constructor.
     rewrite /thread_mem /note. split.
-    - apply mem_rooted_union; apply mem_rooted_mem_region; last by apply word_rooted_ints.
+    - apply mem_rooted_union; first apply mem_rooted_union;
+        apply mem_rooted_mem_region; try by apply word_rooted_ints.
       eapply Forall_impl; first exact Hts. apply word_rooted_trusted_stack_word.
-    - apply mem_exec_ok_union; apply mem_exec_ok_mem_region; last by apply word_exec_ok_ints.
+    - apply mem_exec_ok_union; first apply mem_exec_ok_union;
+        apply mem_exec_ok_mem_region; try by apply word_exec_ok_ints.
       eapply Forall_impl; first exact Hts. apply word_exec_ok_trusted_stack_word.
   Qed.
 
@@ -1352,7 +1418,8 @@ Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
     (b_switcher (img_sw img)) (e_switcher (img_sw img))
     (a_switcher_call (img_sw img)) (a_switcher_return (img_sw img))
     (ot_switcher (img_sw img))
-    (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0)).
+    (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
+    (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)).
 
 (** The registers other than [cgp] and [csp], cleared. *)
 Definition fw_cleared_regs : LReg :=
@@ -1591,10 +1658,18 @@ Proof.
   set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw).
   iAssert ([∗ map] a↦w ∈ mk_initial_switcher swc, a ↦ₐ lword_of_word w)%I
     with "[Hsw_code Hthread]" as "Hswitcher".
-  { rewrite /mk_initial_switcher -assoc_L. iApply (big_sepM_union with "[$Hsw_code $Hthread]").
+  { rewrite /mk_initial_switcher.
+    match goal with |- context [ ?C ∪ ?T ∪ ?S ∪ ?H ] =>
+      replace (C ∪ T ∪ S ∪ H) with (C ∪ (T ∪ S ∪ H)) by (by rewrite !(assoc_L (∪)))
+    end.
+    iApply (big_sepM_union with "[$Hsw_code $Hthread]").
     pose proof (cmpt_switcher_stack_mregion_disjoint swc) as Hd1.
     pose proof (cmpt_switcher_trusted_stack_mregion_disjoint swc) as Hd2.
+    pose proof (cmpt_switcher_hazard_mregion_disjoint swc) as Hd3.
     apply map_disjoint_union_l in Hd1 as [Hd1 _].
+    apply map_disjoint_union_l in Hd3 as [Hd3 _].
+    apply map_disjoint_union_l in Hd3 as [Hd3 _].
+    apply map_disjoint_union_r; split; last done.
     by apply map_disjoint_union_r. }
   (* The entry frame: the stack pointer of the thread and the export table
      of the compartment it starts in *)
@@ -1720,7 +1795,8 @@ Section obligation_layouts.
   Lemma img_wf_switcher_cmpt_disjoint fw img ft fts fc ts ss
       (Hc : img_cmpt_layout (cmpt_of img (fc_name fc)))
       (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
-               (e_trusted_stack (thread_of img 0)) ts)
+               (e_trusted_stack (thread_of img 0))
+               (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)) ts)
       (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss) :
     fw_threads fw = ft :: fts →
     img_wf fw img →
@@ -1762,7 +1838,8 @@ End obligation_layouts.
 (** ** The switcher layout of an image is well formed *)
 Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts ss : list Word)
     (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
-             (e_trusted_stack (thread_of img 0)) ts)
+             (e_trusted_stack (thread_of img 0))
+             (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)) ts)
     (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss) :
     @switcherLayoutWf MP (fw_switcher_layout img) :=
   mkSwitcherLayoutWf (fw_switcher_layout img)
@@ -1770,4 +1847,6 @@ Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts 
     (isl_return_entry_point _ _ _ Hsw) (isl_ot_switcher_size _ _ _ Hsw)
     (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_base_not_shadow _ _ _ Hsw)
     (isl_switcher_not_heap _ _ _ Hsw) (isl_trusted_stack_not_heap _ _ _ Hsw)
-    (tsl_frames_fit _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw).
+    (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
+    (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))
+    (isl_hazard_not_heap _ _ _ Hsw).
