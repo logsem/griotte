@@ -46,7 +46,8 @@ Section KVS_Main.
         #".Lkvs_main" ] ++
       fetch_asm ".Limport_user_key" cs1;
       (* 1: addOrUpdate(sealedUserKey, 1, 12) *)
-      [ mov ca0 cs1;
+      [ mov cs0 cra; (* cs0 -> return-to-switcher *)
+        mov ca0 cs1;
         mov ca1 1;
         mov ca2 12 ];
       (* 2: ctp -> switcher entry point *)
@@ -60,7 +61,7 @@ Section KVS_Main.
         (* case INSERT_PASS *)
         jmp 2;
         (* case INSERT_FAIL / ENOTENOUGHTRUSTEDSTACK *)
-        halt;
+        jmp ".Lkvs_return";
         (* case INSERT_PASS *)
         mov ca0 0;
         mov ca1 0 ];
@@ -84,14 +85,16 @@ Section KVS_Main.
         (* case PASS *)
         jmp 2;
         (* case ENOTENOUGHTRUSTEDSTACK *)
-        halt;
+        jmp ".Lkvs_return";
         (* case PASS *)
         mov ct0 ca1;
         mov ct1 12 ];
       (* 14: assert (ret == 12), that is ( *ct0 = *ct1 ) *)
       assert_asm ".Limport_assert" ct2 ca2;
-      (* 15 *)
-      [ halt ]
+      (* 15: return, the thread exits *)
+      [ #".Lkvs_return";
+        mov cra cs0;
+        ret ]
     ].
 
   Definition kvs_main_assembled :=
