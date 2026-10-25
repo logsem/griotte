@@ -98,10 +98,10 @@ Class ceriseG Σ :=
 
 (** The namespace of the non-atomic token of trap entry: a fault hands it
     to the state interpretation, in exchange for MEPCC, mcause and mtval.
-    Its part [N_tval] is exchanged for mtval, the rest for MEPCC and
+    Its part [Ntval] is exchanged for mtval, the rest for MEPCC and
     mcause. *)
-Definition N_trap : namespace := nroot .@ "trap_entry".
-Definition N_tval : namespace := N_trap .@ "tval".
+Definition Ntrap : namespace := nroot .@ "trap_entry".
+Definition Ntval : namespace := Ntrap .@ "tval".
 
 (** The state interpretation: the logical PC, registers, system registers and
     memory, the physical shadow table, the registry and the address claims,
@@ -118,17 +118,17 @@ Section state_interp.
       holds the trap vector [mtcc_vec]. No client holds the points-to of
       mstatus and MTCC. MEPCC and mcause are held here, or lent to the code
       after trap entry, which then holds their points-to while the state
-      interpretation holds the trap-entry token without [N_tval]. mtval,
+      interpretation holds the trap-entry token without [Ntval]. mtval,
       which holds an integer, is held here, or lent likewise against the
-      token of [N_tval]. *)
+      token of [Ntval]. *)
   Definition sreg_reserved : iProp Σ :=
     "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
     "Hwin" ∷ (((∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
                (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v)) ∨
-              na_own cerise_nais (↑N_trap ∖ ↑N_tval)) ∗
+              na_own cerise_nais (↑Ntrap ∖ ↑Ntval)) ∗
     "Hwin_tval" ∷ ((∃ z : Z, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1)
                                (lword_of_word (WInt z))) ∨
-                   na_own cerise_nais (↑N_tval)) ∗
+                   na_own cerise_nais (↑Ntval)) ∗
     "Hmtcc" ∷ pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) (lword_of_word mtcc_vec).
 
   (** The logical system registers, with the reserved points-to. *)

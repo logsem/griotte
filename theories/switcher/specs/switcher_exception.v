@@ -547,7 +547,7 @@ Section Switcher_Exception.
   Lemma exception_entry_safe_nested (F : coPset) (cstk : CSTK)
     (w : LWord) (rmap : LReg) (error_state_written : nat → iProp Σ) :
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     exception_entry_safe -∗
     (∀ k : nat,
        ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ -∗
@@ -597,7 +597,7 @@ Section Switcher_Exception.
     PC ↦ₚ lword_of_word mtcc_vec -∗
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
-    na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
+    na_own cerise_nais (⊤ ∖ ↑Ntrap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -655,7 +655,7 @@ Section Switcher_Exception.
     (cstk : CSTK) (rmap : LReg) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
-    ↑N_trap ⊆ F ->
+    ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
     (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
@@ -673,7 +673,7 @@ Section Switcher_Exception.
     PC ↦ₚ lword_of_word mtcc_vec -∗
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
-    na_own cerise_nais (F ∖ ↑N_trap) -∗
+    na_own cerise_nais (F ∖ ↑Ntrap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -730,7 +730,7 @@ Section Switcher_Exception.
     (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z) :
     (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
-    ↑N_trap ⊆ F ->
+    ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
     (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
@@ -746,7 +746,7 @@ Section Switcher_Exception.
     PC ↦ₚ lword_of_word mtcc_vec -∗
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
-    na_own cerise_nais (F ∖ ↑N_trap) -∗
+    na_own cerise_nais (F ∖ ↑Ntrap) -∗
     cstack_frag cstk -∗
     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
@@ -1045,7 +1045,7 @@ Section Switcher_Exception.
   Lemma trap_safe_exception_entry (P_mcause P_mtval : Z → Prop) (F : coPset) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
     (|={⊤}=>
@@ -1072,7 +1072,7 @@ Section Switcher_Exception.
       switcher with the rest of [F]. *)
   Lemma trap_safe_resume (F : coPset) (w : LWord) :
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     ¬ trap_no_resume w →
     na_inv cerise_nais Nswitcher switcher_inv -∗
     switcher_static -∗
@@ -1162,7 +1162,7 @@ Section Switcher_Exception.
     (rmap : LReg) (wpcc : LWord) (p : Perm) (g : Locality) (b e a : Addr)
     (ws : list LWord) :
     ↑Nswitcher ⊆ F →
-    ↑N_trap ⊆ F →
+    ↑Ntrap ⊆ F →
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →

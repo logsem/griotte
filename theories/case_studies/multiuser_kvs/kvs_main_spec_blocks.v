@@ -49,8 +49,7 @@ Section KVS_Main_Blocks.
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg : kvsG Σ} {KVS_layout : kvsLayout}
-    {KVS_layout_Wf : kvsLayoutWf}
-    {KVS_namespaces : kvs_namespaces}.
+    {KVS_layout_Wf : kvsLayoutWf}.
 
   Context {B : CmptName}.
 

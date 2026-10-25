@@ -81,7 +81,7 @@ Section vcsr.
   Proof. rewrite trap_entry_out_unfold vcsr_frag_unseal. by iIntros "H". Qed.
 
   (** The return of MEPCC and mcause to the state interpretation, in front
-      of any instruction: the trap-entry token without [N_tval] comes
+      of any instruction: the trap-entry token without [Ntval] comes
       back. *)
   Lemma wp_vcsr_return E e Φ :
     to_val e = None →
@@ -112,7 +112,7 @@ Section vcsr.
   Qed.
 
   (** The converse of [wp_vcsr_return]: the trap-entry token without
-      [N_tval] lends MEPCC and mcause, with their current values, in front of
+      [Ntval] lends MEPCC and mcause, with their current values, in front of
       any instruction ([cspecialw mepcc] of the context install then writes
       MEPCC through its view). *)
   Lemma wp_vcsr_lend E e Φ :
@@ -219,7 +219,7 @@ Section vcsr.
 
   (** [mret] ends the window of the context install: the PC receives MEPCC,
       MIE receives MPIE in the state interpretation, and MEPCC and mcause
-      return to it against the trap-entry token without [N_tval]. *)
+      return to it against the trap-entry token without [Ntval]. *)
   Lemma wp_mret_vcsr E pc_p pc_g pc_b pc_e pc_a pc_π w wepcc wcause dq :
     decodeInstrW w.(lw) = Mret →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →

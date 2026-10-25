@@ -1413,8 +1413,6 @@ End entries_facts.
 
 (** ** The resources handed to the trusted code *)
 
-Definition fw_flagN : namespace := nroot .@ "firmware" .@ "assert_flag".
-
 (** The layout of the switcher of an image, with the trusted stack of the
     first thread. *)
 Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
@@ -1635,7 +1633,7 @@ Proof.
   destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
   (* The program-logic resources of the initial state. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
-            fw_flagN (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
+            Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
     [exact Hinit | exact Hnull | | exact Hstep].
   iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
@@ -1656,7 +1654,7 @@ Proof.
   subst sh.
   (* The assert library. *)
   rewrite (assert_mem_layout _ Hasrt).
-  iMod (initialise_assert_compartment _ fw_flagN with "Hasrt") as "[#Hflag #Hassert]".
+  iMod (initialise_assert_compartment _ with "Hasrt") as "[#Hflag #Hassert]".
   (* The switcher, with the trusted stack and the stack of the thread. *)
   rewrite (switcher_mem_layout _ _ _ _ Hts Hsw) (thread_mem_layout _ _ Hts Hsw).
   set (swc := layout_switcher_of (img_sw img) (thread_of img 0) _ _ Hts Hsw).
@@ -1681,7 +1679,7 @@ Proof.
   apply big_and_fw_map in Hcmpts_wf.
   rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
   destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
-  iMod (initialise_switcher_compartment swc Nswitcher
+  iMod (initialise_switcher_compartment swc
           (fw_thread_csp img 0) (fw_entry_tbl fw img 0)
           (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")

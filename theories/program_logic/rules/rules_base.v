@@ -611,31 +611,31 @@ Section griotte_lang_rules.
   Qed.
 
   (** The trap-entry token is the token exchanged for MEPCC and mcause, and
-      the one of [N_tval], exchanged for mtval. *)
+      the one of [Ntval], exchanged for mtval. *)
   #[local] Lemma trap_token_split :
-    na_own cerise_nais (↑N_trap) ⊣⊢
-    na_own cerise_nais (↑N_trap ∖ ↑N_tval) ∗ na_own cerise_nais (↑N_tval).
+    na_own cerise_nais (↑Ntrap) ⊣⊢
+    na_own cerise_nais (↑Ntrap ∖ ↑Ntval) ∗ na_own cerise_nais (↑Ntval).
   Proof.
-    assert (↑N_tval ⊆@{coPset} ↑N_trap) as Hsub by (rewrite /N_tval; solve_ndisj).
+    assert (↑Ntval ⊆@{coPset} ↑Ntrap) as Hsub by (rewrite /Ntval; solve_ndisj).
     rewrite -na_own_union; last set_solver.
     rewrite difference_union_L. f_equiv. set_solver.
   Qed.
 
   #[local] Lemma trap_vcsr_token_excl :
-    na_own cerise_nais (↑N_trap ∖ ↑N_tval) -∗ na_own cerise_nais (↑N_trap ∖ ↑N_tval) -∗ False.
+    na_own cerise_nais (↑Ntrap ∖ ↑Ntval) -∗ na_own cerise_nais (↑Ntrap ∖ ↑Ntval) -∗ False.
   Proof.
     iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
-    destruct (nclose_infinite (N_trap .@ "vcsr") []) as (i & Hi & _).
-    assert (↑N_trap .@ "vcsr" ⊆@{coPset} ↑N_trap ∖ ↑N_tval) as Hsub
-      by (rewrite /N_tval; solve_ndisj).
+    destruct (nclose_infinite (Ntrap .@ "vcsr") []) as (i & Hi & _).
+    assert (↑Ntrap .@ "vcsr" ⊆@{coPset} ↑Ntrap ∖ ↑Ntval) as Hsub
+      by (rewrite /Ntval; solve_ndisj).
     set_solver.
   Qed.
 
   #[local] Lemma trap_tval_token_excl :
-    na_own cerise_nais (↑N_tval) -∗ na_own cerise_nais (↑N_tval) -∗ False.
+    na_own cerise_nais (↑Ntval) -∗ na_own cerise_nais (↑Ntval) -∗ False.
   Proof.
     iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
-    destruct (nclose_infinite N_tval []) as (i & Hi & _). set_solver.
+    destruct (nclose_infinite Ntval []) as (i & Hi & _). set_solver.
   Qed.
 
   (** Trap entry from any faulting PC [w]: MTCC holds the tagged trap vector
@@ -646,7 +646,7 @@ Section griotte_lang_rules.
       with a fault cause, and mtval to the continuation. *)
   Lemma wp_trap_entry E Φ w :
     PC ↦ₚ w -∗
-    na_own cerise_nais (↑N_trap) -∗
+    na_own cerise_nais (↑Ntrap) -∗
     ▷ (PC ↦ₚ lword_of_word mtcc_vec -∗
        MEPCC ↦ₛᵣ lmepcc_of_pc w -∗
        (∃ c : Z, ⌜mcause_ok c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)) -∗
@@ -721,19 +721,19 @@ Section griotte_lang_rules.
      non-atomic token, [trap_entry_res_vcsr_tval] splits it into the parts
      exchanged for MEPCC and mcause ([trap_vcsr_res]) and for mtval
      ([trap_tval_res]), and [trap_entry_out_unfold] gives the registers. *)
-  Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑N_trap).
+  Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑Ntrap).
   #[local] Definition trap_entry_res_aux : seal (@trap_entry_res_def). Proof. by eexists. Qed.
   Definition trap_entry_res := trap_entry_res_aux.(unseal).
   #[local] Definition trap_entry_res_unseal :
     @trap_entry_res = @trap_entry_res_def := trap_entry_res_aux.(seal_eq).
 
-  Definition trap_vcsr_res_def : iProp Σ := na_own cerise_nais (↑N_trap ∖ ↑N_tval).
+  Definition trap_vcsr_res_def : iProp Σ := na_own cerise_nais (↑Ntrap ∖ ↑Ntval).
   #[local] Definition trap_vcsr_res_aux : seal (@trap_vcsr_res_def). Proof. by eexists. Qed.
   Definition trap_vcsr_res := trap_vcsr_res_aux.(unseal).
   #[local] Definition trap_vcsr_res_unseal :
     @trap_vcsr_res = @trap_vcsr_res_def := trap_vcsr_res_aux.(seal_eq).
 
-  Definition trap_tval_res_def : iProp Σ := na_own cerise_nais (↑N_tval).
+  Definition trap_tval_res_def : iProp Σ := na_own cerise_nais (↑Ntval).
   #[local] Definition trap_tval_res_aux : seal (@trap_tval_res_def). Proof. by eexists. Qed.
   Definition trap_tval_res := trap_tval_res_aux.(unseal).
   #[local] Definition trap_tval_res_unseal :
@@ -749,10 +749,10 @@ Section griotte_lang_rules.
     @trap_entry_out_cause = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
 
   (** The trap-entry token is part of the non-atomic token of any mask that
-      contains [N_trap]. *)
+      contains [Ntrap]. *)
   Lemma trap_entry_res_split F :
-    ↑N_trap ⊆ F →
-    na_own cerise_nais F ⊣⊢ trap_entry_res ∗ na_own cerise_nais (F ∖ ↑N_trap).
+    ↑Ntrap ⊆ F →
+    na_own cerise_nais F ⊣⊢ trap_entry_res ∗ na_own cerise_nais (F ∖ ↑Ntrap).
   Proof.
     intros HF. rewrite trap_entry_res_unseal /trap_entry_res_def -na_own_union;
       last set_solver.
@@ -791,7 +791,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** Lending MEPCC and mcause from the state interpretation, against the
-      trap-entry token without [N_tval]. *)
+      trap-entry token without [Ntval]. *)
   Lemma sreg_interp_trap_lend lsreg :
     sreg_interp lsreg -∗
     trap_vcsr_res -∗
@@ -812,7 +812,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** The return of MEPCC and mcause to the state interpretation: the
-      trap-entry token without [N_tval] comes back. *)
+      trap-entry token without [Ntval] comes back. *)
   Lemma sreg_interp_trap_return lsreg wepcc wcause :
     sreg_interp lsreg -∗
     MEPCC ↦ₛᵣ wepcc -∗
@@ -833,7 +833,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** The return of mtval to the state interpretation: the token of
-      [N_tval] comes back. *)
+      [Ntval] comes back. *)
   Lemma sreg_interp_tval_return lsreg (z : Z) :
     sreg_interp lsreg -∗
     MTVAL ↦ₛᵣ lword_of_word (WInt z) -∗
@@ -849,7 +849,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** The return of MEPCC and mcause to the state interpretation, in front
-      of any instruction: the trap-entry token without [N_tval] comes
+      of any instruction: the trap-entry token without [Ntval] comes
       back. *)
   Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
     to_val e = None →
@@ -869,7 +869,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** The return of mtval to the state interpretation, in front of any
-      instruction: the token of [N_tval] comes back. *)
+      instruction: the token of [Ntval] comes back. *)
   Lemma wp_tval_return E e Φ (z : Z) :
     to_val e = None →
     MTVAL ↦ₛᵣ lword_of_word (WInt z) -∗

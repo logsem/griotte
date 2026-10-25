@@ -232,7 +232,7 @@ Section Switcher_KtK.
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
     ↑Nswitcher ⊆ F ->
-    ↑N_trap ⊆ F ->
+    ↑Ntrap ⊆ F ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
     (a_tbl_ehs < atbl_tgt)%a ->

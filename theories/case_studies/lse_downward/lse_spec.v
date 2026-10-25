@@ -49,8 +49,6 @@ Section LSE.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
-
-    (Nlse_code LSEN : namespace)
     :
 
     let imports := lse_main_imports C_f in
@@ -62,8 +60,6 @@ Section LSE.
     is_heap_address cgp_b = false ->
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
-    Nswitcher ## Nlse_code ->
-
     (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; csp]} ->
@@ -83,7 +79,7 @@ Section LSE.
       ∗ switcher_static
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a lse_main_code
-      ∗ na_inv cerise_nais LSEN (cgp_b ↦ₐ WInt 2)
+      ∗ na_inv cerise_nais Nlse (cgp_b ↦ₐ WInt 2)
       ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
       ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
@@ -120,7 +116,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexp_tbl_shadow Hpc_nonheap
-               HNswitcher_lse Hsize_lse_exp_tbl
+               Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
             )

@@ -16,7 +16,7 @@ Section KVS_spec_addOrUpdate.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
-    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf} {KVS_namespaces : kvs_namespaces}
+    {KVS_layout : kvsLayout} {KVS_layout_WF : kvsLayoutWf}
   .
 
   (*** KVS INSERT: Key in the KVS *)

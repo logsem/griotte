@@ -150,7 +150,7 @@ Section Error_Handling_Read.
     pose proof Nswitcher_Nstats as Hdisj_stats.
     iApply (trap_safe_exception_entry P_mcause P_mtval (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
-      [done | solve_ndisj | rewrite /N_trap /Nstats; solve_ndisj |].
+      [done | solve_ndisj | rewrite /Ntrap /Nstats; solve_ndisj |].
     iModIntro. iExists rfault, cstk. iFrame "Hna Hregs Hcstk". iSplit; first done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".

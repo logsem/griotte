@@ -1197,7 +1197,7 @@ Section logrel.
       the switcher with [trap_handler_ok ⊤]). Only a fault in an untrusted
       compartment carries the worlds and the continuation. Trap entry lends
       MEPCC, mcause and mtval to the trap vector ([trap_entry_out w]) and
-      holds the trap-entry part [N_trap] of the non-atomic token. *)
+      holds the trap-entry part [Ntrap] of the non-atomic token. *)
   Definition trap_vector_safe
       (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
     □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
@@ -1206,7 +1206,7 @@ Section logrel.
       PC ↦ₚ wvec -∗
       trap_entry_out w -∗
       registers_pointsto regs -∗
-      na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
+      na_own cerise_nais (⊤ ∖ ↑Ntrap) -∗
       cstack_frag cstk -∗
       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
 
@@ -1223,7 +1223,7 @@ Section logrel.
     trap_vector_safe trusted_fault wvec -∗
     (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
-    na_own cerise_nais (⊤ ∖ ↑N_trap) -∗
+    na_own cerise_nais (⊤ ∖ ↑Ntrap) -∗
     cstack_frag cstk -∗
     trap_entry_out w -∗
     (PC ↦ₚ wvec -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}).

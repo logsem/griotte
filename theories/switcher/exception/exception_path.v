@@ -35,7 +35,7 @@ From griotte Require Import map_simpl register_tactics.
     [csp]), and the [cjalr] to a word that is not a valid target.
 
     The path opens the invariant of the switcher: it needs the non-atomic
-    token without [N_trap], which trap entry holds, and gives back the whole
+    token without [Ntrap], which trap entry holds, and gives back the whole
     token, before the [cjalr]. *)
 
 (** The word [hazardPointers] of the register save area, after the spill
@@ -607,7 +607,7 @@ Section Switcher_Spec_Exception.
     (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) ->
     ↑Nswitcher ⊆ F ->
-    ↑N_trap ⊆ F ->
+    ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
 
     na_inv cerise_nais Nswitcher switcher_inv ∗
@@ -615,7 +615,7 @@ Section Switcher_Spec_Exception.
     PC ↦ₚ lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
-    na_own cerise_nais (F ∖ ↑N_trap) ∗
+    na_own cerise_nais (F ∖ ↑Ntrap) ∗
     (if decide (trap_no_resume w) then cstack_frag cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
@@ -627,7 +627,7 @@ Section Switcher_Spec_Exception.
     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant, with the token without [N_trap];
+       - open the switcher invariant, with the token without [Ntrap];
        - [exception_entry_asm_spec]: spill the registers, MEPCC, mstatus and
          mcause, and give MEPCC and mcause back; mtval stays lent until the
          setup of a handler reads it, and goes back before any other

@@ -86,7 +86,7 @@ Section VAE.
     ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
     ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
-    ∗ (∃ ι, inv ι (awk_inv C i cgp_b))
+    ∗ inv Nawk (awk_inv C i cgp_b)
     ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
       -∗
     ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl a_vae_entry_awkward).
@@ -130,7 +130,7 @@ Section VAE.
       & [#Hvae_exp_eh #Hvae_exp_ehs]
       & #Hvae_exp_awkward
       & #Hot_switcher
-      & [%awkN #HawkN] & #Hsts_rel)".
+      & #Hawk_inv & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl,
       (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a,
     pc_b, pc_e, cgp_b, cgp_e, 1, 4, _.
@@ -189,7 +189,7 @@ Section VAE.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     change_pc_to (pc_a ^+ vae_label_offset ".Lvae_awkward")%a.
     iApply (vae_awkward_blocks_1_spec with
-             "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
+             "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros (mie) "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
                     & _ & _)".
@@ -285,7 +285,7 @@ Section VAE.
     iDestruct (big_sepM_pure with "Hzero3") as %Hzero3.
     iExtractList "Hrmap" [ct0;ct1] as ["Hct0";"Hct1"].
     iApply (vae_awkward_blocks_2_spec with
-             "[- $HawkN $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
+             "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1
               $Himport_switcher $Hcode_main]"); [done..|].
     iNext; iIntros (mie') "(Hworld_interp_C & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0
                     & Hcs1 & _ & _)".
@@ -395,7 +395,7 @@ Section VAE.
     iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
       as ["Hct0";"Hct1";"Hct2";"Hca2"].
     iApply (vae_awkward_blocks_3_spec with
-             "[- $HawkN $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
+             "[- $Hawk_inv $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main]");
       [done|done|done|exact Hloc_i_W7|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1

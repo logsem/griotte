@@ -252,13 +252,6 @@ Section Switcher_preamble.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** Property of capability sealed by the switcher's otype *)
-  Definition export_tableN (Cname : namespace) : namespace := nroot .@ "export_tableN" .@ Cname.
-  Definition export_table_PCCN (Cname : namespace) : namespace := (export_tableN Cname) .@ "PCC".
-  Definition export_table_CGPN (Cname : namespace) : namespace := (export_tableN Cname) .@ "CGP".
-  Definition export_table_entryN (Cname : namespace) (a : Addr) : namespace :=
-    (export_tableN Cname) .@ "entry" .@ a.
-
   (** The export table cell of a pushed frame holding the unsealed entry,
       a capability to the export table. *)
   Lemma tf_export_tbl_cell_entry (tf : trusted_frame) g b e a :
