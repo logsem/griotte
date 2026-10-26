@@ -497,7 +497,10 @@ class Model:
                 c["comment"] = c.get("comment") or com or (res["stmt"].get("comment", "") if res.get("stmt") else "")
                 c["via"] = w.get("text", "")
                 return c
-        return self.cell(r, "word", text=word_text(w), comment=com)
+        c = self.cell(r, "word", text=word_text(w), comment=com)
+        if k == "int" and w.get("value") not in (None, "", w.get("text")):
+            c["note"] = "= " + str(w["value"])
+        return c
 
     def list_cells(self, r, items, field, of):
         cells = []
@@ -580,15 +583,55 @@ class Model:
             c["args_text"] = [word_text(w) for w in args]
         return [c]
 
-    def unfolded_cells(self, r, t, head, ws):
-        """The words of a piece the printer unfolded (head constant, beta)."""
-        if not ws:
-            return [self.cell(r, "empty", text=f"{t} = []: no words")]
+    def unfolded_cells(self, r, t, head, ps):
+        """The cells of a piece the printer unfolded (head constant, beta):
+        its pieces, split like the contents of a region (an older printer
+        gives a list of words)."""
+        if ps and all(isinstance(p, dict) and "w" in p for p in ps):
+            ps = [{"words": ps}]
         cells = []
-        for i, w in enumerate(ws):
-            c = self.word_cell(r, w, "mem", f"{head or t} [{i}]")
-            c["from"], c["from_i"] = t, i
-            cells.append(c)
+        i = 0  # the index of the next word in the unfolded list, when known
+        for p in ps:
+            if not isinstance(p, dict):
+                continue
+            if "words" in p:
+                for w in p["words"] if isinstance(p["words"], list) else []:
+                    c = self.word_cell(r, w, "mem", f"{head or t} [{i}]" if i is not None else (head or t))
+                    c["from"], c["from_i"] = t, (i if i is not None else "?")
+                    cells.append(c)
+                    i = i + 1 if i is not None else None
+                continue
+            args = p.get("args") if isinstance(p.get("args"), list) else []
+            n = p.get("count")
+            if p.get("head") == "replicate" and len(args) == 2 and isinstance(n, int):
+                w = args[1] if isinstance(args[1], dict) else {"w": "term", "text": str(args[1])}
+                sub = self.replicate_cells(r, clean(txt(p.get("term", ""))), n, w,
+                                           where=f"{head or t} [{i}]" if i is not None else None)
+                for k, c in enumerate(sub):
+                    if c["kind"] != "empty":
+                        c["from"], c["from_i"] = t, (i + k if i is not None else "?")
+                        if c.get("rep"):
+                            c["from_n"] = n
+                cells.extend(sub)
+                i = i + n if i is not None else None
+                continue
+            sub = self.piece_cells(r, p)
+            for c in sub:
+                if c["kind"] == "word":
+                    c["from"], c["from_i"] = t, (i if i is not None else "?")
+                    i = i + 1 if i is not None else None
+                elif c.get("len") is not None and i is not None:
+                    i += c["len"]
+                elif c["kind"] != "empty":
+                    i = None
+            cells.extend(sub)
+        if not cells:
+            return [self.cell(r, "empty", text=f"{t} = []: no words")]
+        for c in cells:
+            c.pop("from_head", None)
+        first = next((c for c in cells if c.get("from")), None)
+        if first:
+            first["from_head"] = True
         return cells
 
     def replicate_of(self, t, head, args):
@@ -607,19 +650,21 @@ class Model:
 
     REP_EXPAND = 8
 
-    def replicate_cells(self, r, t, n, w):
+    def replicate_cells(self, r, t, n, w, where=None):
         """`replicate n w`: n cells of w, or one compressed cell when n is large."""
         if n == 0:
             return [self.cell(r, "empty", text=f"{t}: no words")]
         if n <= self.REP_EXPAND:
-            cells = [self.word_cell(r, w, "mem", f"replicate [{i}]") for i in range(n)]
+            cells = [self.word_cell(r, w, "mem", f"{where or 'replicate'} [{i}]") for i in range(n)]
             for i, c in enumerate(cells):
                 c["from"], c["from_i"] = t, i
+            if cells:
+                cells[0]["from_head"] = True
             return cells
         cap = cap_of(w)
         cid = None
         if cap:
-            cid = self.add_cap(cap, "mem", r["id"], f"replicate {n}", w.get("comment", ""))
+            cid = self.add_cap(cap, "mem", r["id"], where or f"replicate {n}", w.get("comment", ""))
             r["caps"].append(cid)
         return [self.cell(r, "comp", what=t, len=n, rep=dict(n=n, text=word_text(w), cap=cid))]
 

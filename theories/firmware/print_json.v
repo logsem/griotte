@@ -680,8 +680,78 @@ Ltac2 app_head_args (c : constr) : (string * json) list :=
   | _ => []
   end.
 
+(** [s] is a numeral, possibly negative. *)
+Ltac2 is_numeral (s : string) : bool :=
+  let n := String.length s in
+  let rec go i :=
+    if Int.ge i n then true
+    else let c := Char.to_int (String.get s i) in
+         if Bool.and (Int.ge c 48) (Int.le c 57) then go (Int.add i 1) else false in
+  let k := if sub_is s 0 "-" then 1 else 0 in
+  Bool.and (Int.lt k n) (go k).
+
+(** The value of a closed integer [z] or a closed natural [n], computed, when
+    it is a numeral. *)
+Ltac2 value_of (pr : constr -> string) (x : constr) : string option :=
+  Control.plus (fun () =>
+    let v := pr (Std.eval_vm None x) in
+    if is_numeral v then Some v else None) (fun _ => None).
+
+(** A word of an unfolded list: an integer that is not a numeral but
+    computes to one also carries its [value]. *)
+Ltac2 unfolded_item_j (e : constr) : json :=
+  let j := item_j e in
+  let w := lazy_match! e with note _ ?w => w | _ => e end in
+  match j with
+  | JObj kvs =>
+      let is_int := List.exist (fun kv => let (k, v) := kv in
+                                  Bool.and (String.equal k "w")
+                                    (match v with JStr s => String.equal s "int" | _ => false end)) kvs in
+      if is_int then
+        Control.plus (fun () =>
+          lazy_match! w with
+          | WInt ?z =>
+              let t := pp_arg constr:(WInt) "WInt" z in
+              if is_numeral t then j
+              else match value_of ppz z with
+                   | Some v =>
+                       (* the value before the comment *)
+                       let (cs, others) := List.partition (fun kv => let (k, _) := kv in String.equal k "comment") kvs in
+                       JObj (List.append others (("value", JStr v) :: cs))
+                   | None => j
+                   end
+          end) (fun _ => j)
+      else j
+  | _ => j
+  end.
+
+Ltac2 rec conses (ws : constr) : constr list * constr :=
+  lazy_match! ws with
+  | cons ?w ?t => let (xs, r) := conses t in (w :: xs, r)
+  | _ => ([], ws)
+  end.
+
+(** The pieces of an unfolded list, split on [++] and [::] as the contents
+    of a region: [replicate n w] carries the [count] [n] computes to. *)
+Ltac2 rec unfolded_pieces (ws : constr) : json list :=
+  lazy_match! ws with
+  | app ?a ?b => List.append (unfolded_pieces a) (unfolded_pieces b)
+  | nil => []
+  | cons _ _ =>
+      let (xs, rest) := conses ws in
+      JObj [("words", JArr (List.map unfolded_item_j xs))] :: unfolded_pieces rest
+  | _ =>
+      let count :=
+        lazy_match! ws with
+        | replicate ?n _ => match value_of ppn n with Some k => [("count", JLit k)] | None => [] end
+        | _ => []
+        end in
+      [JObj (("term", JStr (pp ws)) :: List.append (app_head_args ws) count)]
+  end.
+
 (** The [unfolded] field of an application of a constant (but [replicate])
-    that is a literal list once its head is unfolded and beta-reduced. *)
+    that is a literal list or a concatenation once its head is unfolded and
+    beta-reduced: its pieces. *)
 Ltac2 unfolded_j (c : constr) : (string * json) list :=
   Control.plus (fun () =>
     match Constr.Unsafe.kind c with
@@ -695,9 +765,14 @@ Ltac2 unfolded_j (c : constr) : (string * json) list :=
                 { Std.rBeta := true; Std.rMatch := false; Std.rFix := false; Std.rCofix := false;
                   Std.rZeta := false; Std.rDelta := false; Std.rConst := [Std.ConstRef cst];
                   Std.rStrength := Std.Norm } c in
-              match list_of u with
+              let ps := lazy_match! u with
+                        | app _ _ => unfolded_pieces u
+                        | cons _ _ => unfolded_pieces u
+                        | _ => []
+                        end in
+              match ps with
               | [] => []
-              | xs => [("unfolded", JArr (List.map item_j xs))]
+              | _ => [("unfolded", JArr ps)]
               end
         | _ => []
         end
@@ -714,12 +789,6 @@ Ltac2 rec lengths_of (t : constr) : constr list :=
                   end in
       List.append here (List.append (lengths_of f) (List.flat_map lengths_of (Array.to_list args)))
   | _ => []
-  end.
-
-Ltac2 rec conses (ws : constr) : constr list * constr :=
-  lazy_match! ws with
-  | cons ?w ?t => let (xs, r) := conses t in (w :: xs, r)
-  | _ => ([], ws)
   end.
 
 (** The pieces of the contents of a region, split on [++] and [::]. *)

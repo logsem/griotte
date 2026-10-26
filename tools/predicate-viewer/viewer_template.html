@@ -435,13 +435,18 @@ function wordHtml(c) {
   let v = c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val">${esc(c.text)}</span>`;
   if (c.note) v += `<span class="cmt">${esc(c.note)}</span>`;
   if (c.comment) v += `<span class="cmt">${esc(c.comment)}</span>`;
-  if (c.from) v += `<span class="from" title="${esc(c.from)}">${c.from_i ? "" : esc(c.from.length > 48 ? c.from.slice(0, 44) + " …" : c.from) + " "}[${esc(c.from_i)}]</span>`;
+  if (c.from) v += fromHtml(c);
   return v;
+}
+function fromHtml(c) {
+  const head = c.from_head ? esc(c.from.length > 48 ? c.from.slice(0, 44) + " …" : c.from) + " " : "";
+  const idx = c.from_n != null && isNum(String(c.from_i)) ? `${c.from_i}–${Number(c.from_i) + c.from_n - 1}` : c.from_i;
+  return `<span class="from" title="${esc(c.from)}">${head}[${esc(idx)}]</span>`;
 }
 function compHtml(c) {
   if (c.rep) {
     const w = c.rep.cap ? chip(capById[c.rep.cap], { home: true }) : `<span class="rw">${esc(c.rep.text)}</span>`;
-    return `<span class="rep">${w}<span class="rn">× ${esc(c.rep.n)}</span></span><span class="len">replicate: ${esc(c.rep.n)} words</span>`;
+    return `<span class="rep">${w}<span class="rn">× ${esc(c.rep.n)}</span></span><span class="len">replicate: ${esc(c.rep.n)} words</span>` + (c.from ? fromHtml(c) : "");
   }
   let h = `<span class="what" title="${esc(c.what)}">${esc(c.what && c.what.length > 90 ? c.what.slice(0, 60) + " …" : c.what)}</span>`;
   if (c.arb) h += `<span class="arbn">${esc(c.arb)}</span>`;

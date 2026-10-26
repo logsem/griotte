@@ -463,18 +463,26 @@
                         "head": "switcher_data_words",
                         "args": [{"w": "term", "text": "ot_switcher sw"}],
                         "unfolded": [
-                          {"w": "int", "text": "0"},
                           {
-                            "w": "sealrange",
-                            "perm": "SU",
-                            "g": "Global",
-                            "b": {"text": "ot_switcher sw"},
-                            "e": {"text": "(ot_switcher sw ^+ 1)%ot", "base": "ot_switcher sw", "off": "1"},
-                            "a": {"text": "ot_switcher sw"}
-                          },
-                          {"w": "int", "text": "0"},
-                          {"w": "int", "text": "0"},
-                          {"w": "int", "text": "0"}
+                            "words": [
+                              {"w": "int", "text": "0"},
+                              {
+                                "w": "sealrange",
+                                "perm": "SU",
+                                "g": "Global",
+                                "b": {"text": "ot_switcher sw"},
+                                "e": {
+                                  "text": "(ot_switcher sw ^+ 1)%ot",
+                                  "base": "ot_switcher sw",
+                                  "off": "1"
+                                },
+                                "a": {"text": "ot_switcher sw"}
+                              },
+                              {"w": "int", "text": "0"},
+                              {"w": "int", "text": "0"},
+                              {"w": "int", "text": "0"}
+                            ]
+                          }
                         ]
                       },
                       {"term": "switcher_instrs"}
@@ -745,6 +753,81 @@
                             "a": {"text": "b_hazard t0"}
                           },
                           {"w": "term", "text": "24"}
+                        ],
+                        "unfolded": [
+                          {
+                            "term": "replicate (Z.to_nat TrustedStack_offset_hazardPointers) (WInt 0)",
+                            "head": "replicate",
+                            "args": [
+                              {"w": "term", "text": "Z.to_nat TrustedStack_offset_hazardPointers"},
+                              {"w": "int", "text": "0"}
+                            ],
+                            "count": 16
+                          },
+                          {
+                            "words": [
+                              {
+                                "w": "cap",
+                                "p": "WO",
+                                "g": "Global",
+                                "b": {"text": "b_hazard t0"},
+                                "e": {"text": "e_hazard t0"},
+                                "a": {"text": "b_hazard t0"}
+                              }
+                            ]
+                          },
+                          {
+                            "term": "replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)) (WInt 0)",
+                            "head": "replicate",
+                            "args": [
+                              {
+                                "w": "term",
+                                "text": "Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)"
+                              },
+                              {"w": "int", "text": "0"}
+                            ],
+                            "count": 4
+                          },
+                          {
+                            "words": [
+                              {"w": "int", "text": "tstack_frameoffset 0", "value": "26"},
+                              {"w": "int", "text": "0"}
+                            ]
+                          },
+                          {
+                            "words": [
+                              {
+                                "w": "cap",
+                                "p": "RWL",
+                                "g": "Local",
+                                "b": {"text": "b_stack t0"},
+                                "e": {"text": "e_stack t0"},
+                                "a": {
+                                  "text": "(e_stack t0 ^- StackEntry_reserved_space)%f",
+                                  "base": "e_stack t0",
+                                  "off": "-StackEntry_reserved_space"
+                                }
+                              },
+                              {
+                                "w": "cap",
+                                "p": "RW",
+                                "g": "Global",
+                                "b": {"text": "cmpt_exp_tbl_pcc main"},
+                                "e": {"text": "cmpt_exp_tbl_entries_end main"},
+                                "a": {"text": "cmpt_exp_tbl_pcc main"}
+                              },
+                              {"w": "int", "text": "0"}
+                            ]
+                          },
+                          {
+                            "term": "replicate (Z.to_nat (TrustedStackFrame_size * 24%nat)) (WInt 0)",
+                            "head": "replicate",
+                            "args": [
+                              {"w": "term", "text": "Z.to_nat (TrustedStackFrame_size * 24%nat)"},
+                              {"w": "int", "text": "0"}
+                            ],
+                            "count": 72
+                          }
                         ]
                       }
                     ],
