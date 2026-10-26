@@ -56,10 +56,9 @@ Module FwPrintNotations.
     (only printing, at level 10, m at level 0, n at level 0, stk at level 0, off at level 0).
 End FwPrintNotations.
 
-(** Notations for the leaves of a concrete memory map: canonical
-    registers, literal addresses and otypes, integers. *)
-Module FwMapNotations.
-  Export FwPrintNotations.
+(** Notations for the operands of instructions: canonical registers,
+    immediates. *)
+Module FwRegNotations.
   Notation "'cnull'" := (registers.R 0 eq_refl) (only printing).
   Notation "'cra'" := (registers.R 1 eq_refl) (only printing).
   Notation "'csp'" := (registers.R 2 eq_refl) (only printing).
@@ -79,6 +78,13 @@ Module FwMapNotations.
   Notation "'$' z" := (@inl Z RegName z)
     (only printing, at level 1, z at level 0, format "'$' z").
   Notation "r" := (@inr Z RegName r) (only printing, at level 0, r at level 0).
+End FwRegNotations.
+
+(** Notations for the leaves of a concrete memory map: canonical
+    registers, literal addresses and otypes, integers. *)
+Module FwMapNotations.
+  Export FwPrintNotations.
+  Export FwRegNotations.
   Notation "z" := (@finz.FinZ MemNum z eq_refl eq_refl)
     (only printing, at level 0, z at level 0).
   Notation "'OT' z" := (@finz.FinZ ONum z eq_refl eq_refl)
