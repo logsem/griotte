@@ -29,6 +29,7 @@ Section Heap_Temporal_Safety_Interp.
       separately (the sealing map may be open). *)
   Lemma free_region_open_list W C (lk : list LAddr) :
     NoDup lk ->
+    Forall (λ k, if k is LHeap _ _ then True else False) lk ->
     Forall (λ k,
       heap_key_live (heap_std W) k ∧
       ∃ ρ, ρ ≠ Revoked ∧ std W !! k = Some ρ) lk ->
@@ -44,20 +45,24 @@ Section Heap_Temporal_Safety_Interp.
           rel C k p φ ∗
           sts_state_std C k ρ).
   Proof.
-    intros Hnodup Hstates.
+    intros Hnodup Hheap Hstates.
     induction lk as [|k lk IH].
     - iIntros "[Hregion Hsts]". iModIntro. iExists [].
       rewrite -region_open_nil. iFrame. simpl. done.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
       apply Forall_cons in Hstates as [Hk_state Hstates].
+      apply Forall_cons in Hheap as [Hk_heap Hheap].
       destruct Hk_state as [Hlive (ρ & Hnr & Hstd)].
       iIntros "[Hregion Hsts]".
       iMod (region_rel_get_state W C k ρ Hstd with "[$Hregion $Hsts]")
         as "(Hregion & Hsts & Hrel)".
       iDestruct "Hrel" as (p φ) "[%Hpers #Hrel]".
-      iMod (IH Hnodup Hstates with "[$Hregion $Hsts]") as (ws)
+      iMod (IH Hnodup Hheap Hstates with "[$Hregion $Hsts]") as (ws)
         "(Hregion & Hsts & Hmem & Hhandles)".
-      iDestruct (region_open_next W C φ lk k p ρ Hnr Hlive Hnotin
+      destruct k as [a|a ι]; first done.
+      iDestruct (region_live_heap_not_frozen with "Hregion Hsts")
+        as "(Hregion & Hsts & %Hnf)"; [exact Hlive|exact Hnotin|exact Hstd|].
+      iDestruct (region_open_next W C φ lk (LHeap a ι) p ρ Hnr Hnf Hlive Hnotin
         Hstd with "[$Hregion $Hrel $Hsts]") as (v)
         "(Hsts & Hstate & Hregion & Ha & Hmono & Hφ & %HnonO)".
       iModIntro. iExists (v :: ws). simpl.
@@ -306,7 +311,8 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hnodup. }
         { intros x Hx. apply Htemps in Hx. exact Hx. } }
       (* Accept: collect every cell of [ι] from the world and free it. *)
-      iMod (free_region_open_list W C lk Hlk_nodup Hpayload_keys
+      iMod (free_region_open_list W C lk Hlk_nodup
+        ltac:(by apply Forall_fmap, Forall_true) Hpayload_keys
         with "[$Hregion $Hsts]")
         as (ws) "(Hregion & Hsts & Hcells & Hhandles)".
       iDestruct (big_sepL2_length _ _ _ with "Hcells") as %Hlen.

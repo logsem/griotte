@@ -90,6 +90,8 @@ Section Error_Handling_Read_Safe.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |..].
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ a with "Hinterp_src")
       as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ a _ ρ with "Hinterp_src")
+      as %Hρ_not_frozen; [by left | done | done |].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ a with "Hinterp_src") as %Hlive;
       [by eapply readAllowed_nonO | done |].
     iDestruct (open_world_interp_next W C s (addr_key π a) p' (safeC P) ρ

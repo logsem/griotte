@@ -76,6 +76,7 @@ Section fundamental.
     (∃ ρ,
      sts_state_std C k ρ
     ∗ ⌜ρ ≠ Revoked⌝
+    ∗ ⌜ρ ≠ Frozen⌝
     ∗ ⌜heap_key_live (heap_std W) k⌝
     ∗ world_interp_open W C (k :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
@@ -199,6 +200,8 @@ Section fundamental.
     { by rewrite /withinBounds Hle Hge. }
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hvsrc") as %HH; eauto.
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ0 with "Hvsrc")
+      as %Hnotfrozen; [by left|done|done|].
     iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
       eauto using readAllowed_nonO.
     (* Another key: open its region. *)
@@ -218,7 +221,7 @@ Section fundamental.
     iSplit; first done. iSplit; first done. iSplit; first done.
     iFrame "Hea". iSplitR "Hrcond0"; last done.
     iExists ρ0. iFrame "Hstate' Hworld Hshare Hrel0 HP0".
-    iSplit; first done. iSplit; first done.
+    iSplit; first done. iSplit; first done. iSplit; first done.
     iNext.
     rewrite mono_invariant_monotonicity_guarantees_region; eauto.
   Qed.
@@ -379,7 +382,7 @@ Section fundamental.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
       rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
+      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & %Hnotfrozen1 & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
       ; cbn.
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
       assert (isO p' = false) as HpO'.
@@ -421,7 +424,7 @@ Section fundamental.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame "Hapc".
       rewrite /persistent_cond in HpersP'.
       iDestruct "HLoadRes"
-        as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
+        as (ρ1) "(Hstate' & %Hnotrevoked & %Hnotfrozen1 & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
       ; cbn.
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
       assert (isO p' = false) as HpO'.
@@ -440,6 +443,7 @@ Section fundamental.
     ftlr_instr trusted_fault W C regs p p' g b e a w (CLoad dst src imm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    pose proof (region_state_not_frozen _ _ _ _ _ Hpwl Hregion) as Hnotfrozen.
     iIntros "@".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".

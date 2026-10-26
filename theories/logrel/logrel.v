@@ -801,6 +801,17 @@ Section logrel.
      | Global => (std W) !! k = Some Permanent
     end.
 
+  (** The region states that validity requires are never Frozen. *)
+  Lemma region_state_not_frozen p g W (k : LAddr) ρ :
+    (if isWL p then region_state_pwl W k else region_state_nwl W k g) →
+    std W !! k = Some ρ →
+    ρ ≠ Frozen.
+  Proof.
+    intros Hstate Hρ ->.
+    destruct (isWL p); [|destruct g]; rewrite /region_state_pwl /region_state_nwl in Hstate;
+      naive_solver.
+  Qed.
+
   (* For simplicity we might want to have the following statement in validity of caps.
      However, it is strictly not necessary since it can be derived form [world_interp].
 
@@ -1900,6 +1911,27 @@ Section logrel.
     destruct (isWL p); simplify_eq.
     + naive_solver.
     + destruct g; naive_solver.
+  Qed.
+
+  (** The regions in the range of a valid readable or writable capability are
+      not Frozen. *)
+  Lemma interp_cap_region_not_frozen (W : WORLD) (C : CmptName) p g b e a a' π ρ :
+    readAllowed p = true ∨ writeAllowed p = true ->
+    withinBounds b e a' = true ->
+    std W !! addr_key π a' = Some ρ ->
+    interp W C (WCap true p g b e a @@? π) -∗
+    ⌜ρ ≠ Frozen⌝.
+  Proof.
+    intros Hrw Hb Hρ. iIntros "Hinterp".
+    eapply withinBounds_le_addr in Hb.
+    rewrite interp_unfold interp1_eq; cbn.
+    replace (isO p) with false.
+    2: { destruct Hrw as [Hra|Hwa]; [eapply readAllowed_nonO in Hra|eapply writeAllowed_nonO in Hwa]; done. }
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
+    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct (extract_from_region_inv with "Hinterp")
+             as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
+    iPureIntro. by eapply region_state_not_frozen.
   Qed.
 
   (* Inversion lemmas about about when WL-capability *)

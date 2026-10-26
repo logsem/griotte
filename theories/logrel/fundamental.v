@@ -177,6 +177,7 @@ Section fundamental.
       as [ρ [Hρ Hne ] ].
     { destruct (isWL p),g; simplify_eq ; eauto.
       destruct Hstate_a as [Htemp | Hperm];eauto. }
+    pose proof (region_state_not_frozen _ _ _ _ _ Hstate_a Hρ) as Hnotfrozen.
 
     iDestruct (open_world_interp W C (LNonHeap a) p'' _ ρ with "[$Hrela] [$Hworld_interp]")
       as "(Hworld_interp & Hstate & (%w & WorldRes) )"

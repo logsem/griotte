@@ -91,6 +91,7 @@ Section fundamental.
         sts_state_std C k ρ
         ∗ ⌜std W !! k = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
+        ∗ ⌜ρ ≠ Frozen⌝
         ∗ ⌜heap_key_live (heap_std W) k⌝
         ∗ world_interp_open W C (k :: ls)
         ∗ if_later_P
@@ -201,6 +202,8 @@ Section fundamental.
     { by rewrite /withinBounds Hle Hge. }
     iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea0 with "Hvsrc") as %HH; eauto.
     destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea0 _ ρ' with "Hvsrc")
+      as %Hnotfrozen'; [by right|done|done|].
     iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
       eauto using writeAllowed_nonO.
     (* Another key: open its region. *)
@@ -226,6 +229,7 @@ Section fundamental.
     iFrame "∗#".
     iSplit; first done. iSplit; first done. iSplit; first done.
     iSplit; first done. iSplit; first done. iSplit; first done.
+    iSplit; first done.
     iNext.
     rewrite mono_invariant_monotonicity_guarantees_region; eauto.
   Qed.
@@ -310,13 +314,14 @@ Section fundamental.
     (a : LAddr) (ρ : region_type) :
     std W !! a = Some ρ
     -> ρ ≠ Revoked
+    -> ρ ≠ Frozen
     -> canStore p w.(lw) = true
     -> monoReq W C a p P
     -∗ monotonicity_guarantees_region C (safeC P) p w ρ.
   Proof.
-    iIntros (Hstda Hrevoked HcanStore) "Hmono".
+    iIntros (Hstda Hrevoked Hfrozen HcanStore) "Hmono".
     rewrite /monoReq Hstda.
-    destruct ρ; auto; cbn; [destruct (isWL p) ; [ | destruct (isDL p)]|].
+    destruct ρ; [| |done|done]; cbn; [destruct (isWL p) ; [ | destruct (isDL p)]|].
     all: try iApply "Hmono"; auto.
   Qed.
 
@@ -331,6 +336,7 @@ Section fundamental.
     → std W !! LNonHeap pc_a = Some ρ
     → mem0 !! ea0 = Some oldv
     -> ρ ≠ Revoked
+    -> ρ ≠ Frozen
     → allow_store_mem imm W C r1 r2 regs pc_a pc_p' pc_w mem0 false
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ interp W C (WCap true pc_p pc_g pc_b pc_e pc_a @@? None)
@@ -345,7 +351,7 @@ Section fundamental.
         ∗ P W C v
         ∗ monotonicity_guarantees_region C (safeC P) pc_p' v ρ.
    Proof.
-    iIntros (Hwoa Hras Hstdst Ha0 Hρnrevoked)
+    iIntros (Hwoa Hras Hstdst Ha0 Hρnrevoked Hρnfrozen)
       "HStoreMem #Hreg #HVPCr Hpc_w #Hwcond #HpcmonoV #Hpcmono Hmem".
     iDestruct "HStoreMem" as (t1 p1 g1 b1 e1 a1 π1 storev1) "(%Hread & %Hπ & %Harg & HStoreRes)".
     destruct (store_inr_eq imm Hras Hread) as (<- & <- &<- &<- &<-).
@@ -370,13 +376,13 @@ Section fundamental.
           split; first done. cbn. done.
       }
       iSplitR;[iApply "Hwcond";iFrame "#"|].
-      iApply (monotonicity_guarantees_region_canStore with "HpcmonoV"); [exact Hstdst | done |].
+      iApply (monotonicity_guarantees_region_canStore with "HpcmonoV"); [exact Hstdst | done | done |].
       rewrite lw_lstore_word. by eapply canStore_store_word_flowsto.
     + iExists pc_w.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP' Hne) "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & %Hlive & Hworld_interp & #HmonoV & _ & Hshare & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & %Hnotfrozen1 & %Hlive & Hworld_interp & #HmonoV & _ & Hshare & Hrel')".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
@@ -384,7 +390,7 @@ Section fundamental.
       rewrite Hwa.
       iDestruct ("Hwcond'" with "HVstored") as "HP'storev".
       iDestruct (monotonicity_guarantees_region_canStore W C p' (lstore_word p0 storev) with "HmonoR'")
-        as "HmonoR''"; [exact H | done | |].
+        as "HmonoR''"; [exact Hstd1 | done | done | |].
       { rewrite lw_lstore_word. by eapply canStore_store_word_flowsto. }
       iDestruct (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha1 HmonoR'']") as "$"; eauto.
       { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
@@ -416,7 +422,7 @@ Section fundamental.
     - iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP' Hne) "(_ & _ & _ & _ & -> & HStoreRes)".
       iDestruct "HStoreRes"
-        as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & %Hlive & Hworld_interp & #HmonoV & HV & Hshare & Hrel')".
+        as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & %Hnotfrozen1 & %Hlive & Hworld_interp & #HmonoV & HV & Hshare & Hrel')".
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha1 $]".
       iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
@@ -457,6 +463,7 @@ Section fundamental.
      ftlr_instr trusted_fault W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    pose proof (region_state_not_frozen _ _ _ _ _ Hpwl Hregion) as Hnotfrozen.
     iIntros "@".
 
     iDestruct (WorldRes_acc_forall with "WorldRes") as " [ (>Ha & Hinterp & HmonoV) WorldRes ]".

@@ -32,6 +32,7 @@ Section fundamental.
     ftlr_instr trusted_fault W C regs p p' g b e a w ins ρ P cstk Ws Cs.
   Proof.
     intros Hinstr Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    pose proof (region_state_not_frozen _ _ _ _ _ Hpwl Hregion) as Hnotfrozen.
     iIntros "@".
     rewrite <- Hi in Hinstr; clear Hi.
 

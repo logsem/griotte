@@ -57,6 +57,7 @@ Section SO_World_List.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Frozen) l ->
     Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
 
     ([∗ list] '(a,p,φ,ρ) ∈ l, rel C' a p φ)
@@ -74,7 +75,7 @@ Section SO_World_List.
   Proof.
     intros la Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (????) "(Hrels & @)".
+    iIntros (Hnodup Hdisj Hnotrevoked Hnotfrozen Hstd) "(Hrels & @)".
     iDestruct (region_open_list W C' l l' with "[$Hrels $Hr $Hsts]") as
       "(% & $ & $ & $ & $ & $ & $ & $)"; auto.
   Qed.
@@ -91,6 +92,7 @@ Section SO_World_List.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Frozen) l ->
     Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)) l ->
 
     world_interp_open W C' (la++l')
@@ -104,7 +106,7 @@ Section SO_World_List.
   Proof.
     intros la Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (?????) "([Hr $ ] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
+    iIntros (Hlen Hnodup Hdisj Hnotrevoked Hnotfrozen Hpers) "([Hr $ ] & Hstd & Hv & Hmono & Hφ & Hrel & Hp)".
     iDestruct (region_close_list with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "$"; auto.
   Qed.
 
@@ -198,10 +200,13 @@ Section SO_World_Object.
                 std W0 !! addr_key π a = Some Temporary) object⌝)%I
       as %Hobject_states.
     { iDestruct (readAllowed_valid_cap with "Hinterp_wca0_W0") as %Hvalid; auto.
-      iPureIntro.
-      eapply Forall_impl; eauto; cbn.
-      intros a (ρ & Ha & Hρ).
-      destruct ρ; [right|left|]; done.
+      rewrite Forall_forall in Hvalid. rewrite Forall_forall.
+      iIntros (a Ha).
+      destruct (Hvalid a Ha) as (ρ & Hρa & Hρ).
+      iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ a _ ρ with "Hinterp_wca0_W0")
+        as %Hρ_not_frozen; [by left| |done|].
+      { apply withinBounds_true_iff. by apply elem_of_finz_seq_between. }
+      iPureIntro. destruct ρ; [right|left| |]; done.
     }
     assert (object ≡ₚ perms ++ temps) as Hobject_partition.
     { apply so_object_addresses_partition. exact Hobject_states. }
@@ -329,6 +334,11 @@ Section SO_World_Object.
     { exact Hlive_wca0_invs. }
     { rewrite Hwca0_invs_perma. apply NoDup_addr_key_fmap, so_object_permanents_NoDup. }
     { rewrite Hwca0_invs_perma. set_solver+. }
+    { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+      intros [ [ [ ] ] ] Hx; cbn in *; simplify_eq.
+      apply Hwca0_invs_std_perma in Hx.
+      destruct Hx as [_ ->]; done.
+    }
     { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
       intros [ [ [ ] ] ] Hx; cbn in *; simplify_eq.
       apply Hwca0_invs_std_perma in Hx.
@@ -476,6 +486,11 @@ Section SO_World_Object.
         apply Hwca0_invs_std_perma in Hx.
         destruct Hx as [_ ->]; done.
       }
+      { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+        intros [ [ [ ] ] ] Hx; cbn in *; simplify_eq.
+        apply Hwca0_invs_std_perma in Hx.
+        destruct Hx as [_ ->]; done.
+      }
       { exact Hpers_wca0_invs. }
       rewrite -open_world_interp_empty.
       iAssert
@@ -557,6 +572,11 @@ Section SO_World_Object.
     { by rewrite Hlength_wca0_lv length_fmap. }
     { rewrite Hwca0_invs_perma. apply NoDup_addr_key_fmap, so_object_permanents_NoDup. }
     { set_solver+. }
+    { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
+      intros [ [ [ ] ] ] Hx; cbn in *; simplify_eq.
+      apply Hwca0_invs_std_perma in Hx.
+      destruct Hx as [_ ->]; done.
+    }
     { rewrite !Forall_forall in Hwca0_invs_std_perma |- *.
       intros [ [ [ ] ] ] Hx; cbn in *; simplify_eq.
       apply Hwca0_invs_std_perma in Hx.

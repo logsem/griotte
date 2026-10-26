@@ -31,6 +31,7 @@ Section fundamental.
     ftlr_instr trusted_fault W C regs p p' g b e a w (Jmp rimm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    pose proof (region_state_not_frozen _ _ _ _ _ Hpwl Hregion) as Hnotfrozen.
     iIntros "@".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".

@@ -456,6 +456,11 @@ Section SO_World_Return.
         + apply revoke_lookup_Perm in Hx4.
           rewrite -close_list_std_sta_same_alt in Hx5; [|intro];
             simplify_eq; apply rtc_refl.
+        + (* Revocation and closing leave a Frozen region unchanged. *)
+          rewrite -close_list_std_sta_same_alt in Hx5.
+          { rewrite revoke_monotone_lookup_same in Hx5; last by rewrite Hx4.
+            rewrite Hx4 in Hx5. injection Hx5 as <-. apply rtc_refl. }
+          rewrite revoke_monotone_lookup_same; by rewrite Hx4.
         + destruct ρ5; try apply rtc_refl; apply rtc_once; econstructor.
     }
     (* The same repaired world must also be a public future of the switcher
@@ -503,6 +508,30 @@ Section SO_World_Return.
               [|intro Hcontra]; cbn; simplify_eq.
             { rewrite Hx4 in Hx5; simplify_eq; apply rtc_refl. }
             rewrite Hx4 in Hcontra; done.
+          * (* A Frozen region of [W0] is still Frozen in the reinstated world,
+               so it is Frozen or Temporary in [W4]. *)
+            assert (∀ (l : list LAddr) (W : WORLD),
+                      std W !! x = Some Frozen → std (close_list l W) !! x = Some Frozen) as Hclose.
+            { intros l W HW. cbn. rewrite -close_list_std_sta_same_alt; [done|by rewrite HW]. }
+            match type of Hpub with related_sts_pub_world ?W3 _ =>
+              assert (std W3 !! x = Some Frozen) as Hx3 end.
+            { rewrite /reinstate. apply Hclose, Hclose, Hclose.
+              rewrite revoke_monotone_lookup_same'; cbn; rewrite Hx0 //. }
+            destruct Hpub as [ [Hdom34 Hrel34] _].
+            assert (is_Some (W4std !! x)) as [ρ4 Hx4].
+            { assert (x ∈ dom (std (W4std, W4cus, W4seals, W_heap4))) as Hx_dom.
+              { apply Hdom34. by rewrite elem_of_dom Hx3. }
+              by rewrite elem_of_dom in Hx_dom. }
+            pose proof (Hrel34 x Frozen ρ4 Hx3 Hx4) as Hrtc34.
+            destruct (std_rel_pub_rtc_Frozen _ _ eq_refl Hrtc34) as [->| ->].
+            { rewrite -close_list_std_sta_same_alt in Hx5.
+              { rewrite revoke_monotone_lookup_same in Hx5; last by rewrite Hx4.
+                rewrite Hx4 in Hx5. injection Hx5 as <-. apply rtc_refl. }
+              rewrite revoke_monotone_lookup_same; by rewrite Hx4. }
+            destruct Hpub4 as [ [_ Hrel45] _].
+            pose proof (Hrel45 x Temporary ρ5 Hx4 Hx5) as Hrtc45.
+            rewrite (std_rel_pub_rtc_Temporary _ _ eq_refl Hrtc45).
+            apply rtc_once. constructor.
           * destruct ρ5; try apply rtc_refl; apply rtc_once; econstructor.
     }
     (* Every stack address is outside the heap.  The mixed revoked resources

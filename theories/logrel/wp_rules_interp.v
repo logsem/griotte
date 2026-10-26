@@ -122,6 +122,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
     iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea with "Hinterp_dst")
       as %(ρ & Hρ & Hρ_not_revoked); [done|done|].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ with "Hinterp_dst")
+      as %Hρ_not_frozen; [by right|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hlive;
       [by eapply writeAllowed_nonO|done|].
     iDestruct (open_world_interp W C (addr_key π ea) p' (safeC P) ρ with "Hrel Hworld_interp")
@@ -144,7 +146,7 @@ Section wp_interp.
     iAssert (mono_invariant C p' (safeC P) (lstore_word p wsrc) ρ) as "Hmono'".
     {
       rewrite /monoReq Hρ mono_invariant_eq.
-      destruct ρ;[simpl..|exfalso;done].
+      destruct ρ;[simpl|simpl|exfalso;done|exfalso;done].
       - destruct (isWL p');auto.
         destruct (isDL p'); first done.
         iApply "Hmono". iPureIntro.
@@ -389,6 +391,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hwcond & Hrcond & Hmono)";[solve_addr|auto|..].
     iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea with "Hinterp_dst")
       as %(ρ & Hρ & Hρ_not_revoked); [done|done|].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ with "Hinterp_dst")
+      as %Hρ_not_frozen; [by right|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hlive;
       [by eapply writeAllowed_nonO|done|].
     iDestruct (open_world_interp W C (addr_key π ea) p' (safeC P) ρ with "Hrel Hworld_interp")
@@ -411,7 +415,7 @@ Section wp_interp.
     iAssert (mono_invariant C p' (safeC P) (WInt z) ρ) as "Hmono'".
     {
       rewrite /monoReq Hρ mono_invariant_eq.
-      destruct ρ;[simpl..|exfalso;done].
+      destruct ρ;[simpl|simpl|exfalso;done|exfalso;done].
       - destruct (isWL p');auto.
         destruct (isDL p'); first done.
         by (iSpecialize ("Hmono" $! (WInt z) with "[%]");[eapply canStore_flowsto;eauto|]).
@@ -575,6 +579,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & _ & Hwcond & _ & Hmono)"; [solve_addr | by rewrite Hwa |].
     iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea with "Hinterp_dst")
       as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ with "Hinterp_dst")
+      as %Hρ_not_frozen; [by right|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hlive;
       [by eapply writeAllowed_nonO | done |].
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
@@ -598,7 +604,7 @@ Section wp_interp.
       by iApply (big_sepL_lookup with "Hws"). }
     iAssert (mono_invariant C p' (safeC P) v' ρ) as "Hmono'".
     { rewrite /monoReq Hρ mono_invariant_eq.
-      destruct ρ; [| | exfalso; done]; simpl.
+      destruct ρ; [| | exfalso; done | exfalso; done]; simpl.
       - destruct (isWL p'); auto.
         destruct (isDL p'); first done.
         iApply "Hmono". iPureIntro.
@@ -632,6 +638,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |].
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hinterp_src")
       as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ with "Hinterp_src")
+      as %Hρ_not_frozen; [by left|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hlive;
       [by eapply readAllowed_nonO | done |].
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
@@ -993,6 +1001,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)";[solve_addr|auto|..].
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hinterp_src")
       as %(ρ & Hρ & Hρ_not_revoked); [done|done|].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ ea _ ρ with "Hinterp_src")
+      as %Hρ_not_frozen; [by left|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hlive;
       [by eapply readAllowed_nonO|done|].
     iDestruct (open_world_interp W C (addr_key π ea) p' (safeC P) ρ with "Hrel Hworld_interp")
@@ -1179,6 +1189,8 @@ Section wp_interp.
       as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |..].
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ a with "Hinterp_src")
       as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+    iDestruct (interp_cap_region_not_frozen _ _ _ _ _ _ _ a _ ρ with "Hinterp_src")
+      as %Hρ_not_frozen; [by left|done|done|].
     iDestruct (interp_cap_addr_live _ _ _ _ _ _ _ a with "Hinterp_src") as %Hlive;
       [by eapply readAllowed_nonO | done |].
     iDestruct (open_world_interp_next W C s (addr_key π a) p' (safeC P) ρ
