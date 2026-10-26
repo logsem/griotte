@@ -925,7 +925,8 @@ Section griotte_lang_rules.
     pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as [Hcause Htval].
     iDestruct ("Hsafe" with "Hregs Hmem") as "[>[Htok HΦ] _]".
     iDestruct (sreg_interp_mtcc with "Hsr") as %Htcc.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done)) as (wtcc & Hwtcc & Hreltcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done))
+      as (wtcc & Hwtcc & Hreltcc).
     (* The trap vector is an executable capability, so its physical copy is
        exact. *)
     assert (wtcc = mtcc_vec) as ->.

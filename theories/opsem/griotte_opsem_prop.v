@@ -284,7 +284,8 @@ Qed.
 
   (*--- The stack high-water mark ---*)
 
-  Lemma lookup_hwm_update_ne (ea : Addr) (sr : SReg) x : x ≠ MSHWM → hwm_update ea sr !! x = sr !! x.
+  Lemma lookup_hwm_update_ne (ea : Addr) (sr : SReg) x :
+    x ≠ MSHWM → hwm_update ea sr !! x = sr !! x.
   Proof.
     intros Hx. rewrite /hwm_update. repeat case_match; try done.
     by rewrite lookup_insert_ne.

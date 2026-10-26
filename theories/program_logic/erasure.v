@@ -1305,7 +1305,8 @@ Section erasure.
     intros Her Htcc.
     destruct (erasure_lmepcc_of_pc _ _ _ _ _ _ _ Her) as [Hepcc_ok Hepcc_pc].
     destruct σ as [[[[pc r] sr] m] st].
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done)) as (wtcc & Hwtcc & Hreltcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done))
+      as (wtcc & Hwtcc & Hreltcc).
     pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc.
     assert (∀ x (z : Z), is_pc_sreg x = false → hwm_sreg x = false →
       ∀ pc' r' sr' m' st' lpc' lsreg',

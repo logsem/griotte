@@ -57,14 +57,6 @@ Section hwm.
     intros a' Ha'. apply elem_of_union_r. by apply Hzone_cover.
   Qed.
 
-  Lemma si_upd_bind E P Q : (|~{E}~> P) -∗ (P -∗ |~{E}~> Q) -∗ |~{E}~> Q.
-  Proof.
-    iIntros "HP HPQ". iApply si_upd_trans.
-    assert (P ∗ (P -∗ |~{E}~> Q) ⊢ |~{E}~> Q) as HPQ'.
-    { iIntros "[HP HPQ]". iApply ("HPQ" with "HP"). }
-    iApply (si_upd_mono _ _ _ HPQ'). iApply si_upd_frame_r. iFrame.
-  Qed.
-
   Lemma zone_deposit_list E (l : list Addr) :
     ([∗ list] a ∈ l, a ↦ₐ WInt 0) ⊢ |~{E}~> [∗ list] a ∈ l, zone_cell a.
   Proof.
@@ -275,7 +267,8 @@ Section hwm.
       split; [solve_addr | done]. }
     cbn in Hstep.
     destruct (a + imm)%a as [ea|] eqn:Hadd.
-    2: { instr_fail Hstep. apply Store_spec_fail. eapply Store_fail_addr; last done. by rewrite Hr1l. }
+    2: { instr_fail Hstep. apply Store_spec_fail.
+           eapply Store_fail_addr; last done. by rewrite Hr1l. }
     cbn in Hstep.
     destruct (writeAllowed p && withinBounds b e ea) eqn:HWA.
     2 : {

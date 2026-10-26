@@ -101,10 +101,11 @@ Section initial_rootedness.
     (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
     sreg !! MTCC = Some mtcc_vec →
     (∃ z, sreg !! MTVAL = Some (WInt z)) →
+    (∃ z, sreg !! MSHWMB = Some (WInt z) ∧ sreg !! MSHWM = Some (WInt z)) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
     intros HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
-      Hreserved Hmtcc Hmtval.
+      Hreserved Hmtcc Hmtval Hhwm.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -130,6 +131,7 @@ Section initial_rootedness.
     - exact Hreserved.
     - exact Hmtcc.
     - exact Hmtval.
+    - exact Hhwm.
   Qed.
 
 End initial_rootedness.
@@ -176,7 +178,7 @@ Proof.
   iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
   pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
   iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H Hinit)
-    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg)
+    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg zoneg)
        "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
@@ -190,6 +192,7 @@ Proof.
     sreg_gen_regG := sreg_heapg;
     cerise_registryG := registryg;
     cerise_addr_allocG := addr_allocg;
+    cerise_zoneG := zoneg;
     cerise_trapVector := TV |}.
   iMod (Hwp ceriseg eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
   iModIntro.

@@ -332,7 +332,11 @@ Section translation.
                        ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
         sreg σ !! MEPCC = Some (WInt 0) ∧
         sreg σ !! MCAUSE = Some (WInt 0) ∧
-        sreg σ !! MTVAL = Some (WInt 0)
+        sreg σ !! MTVAL = Some (WInt 0) ∧
+        (* Temporary: an empty stack high-water-mark zone. The loader sets MSHWM and
+           MSHWMB to the top and base of the thread's stack. *)
+        sreg σ !! MSHWM = Some (WInt 0) ∧
+        sreg σ !! MSHWMB = Some (WInt 0)
     end.
 
   (** *** Layout conditions *)

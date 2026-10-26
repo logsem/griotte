@@ -399,7 +399,8 @@ Section griotte_lang_rules.
           ∗ src ↦ᵣ v
           ∗ sr ↦ₛᵣ llegalise sr v }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hsr_hwm Hpca' Hdst Hsrc φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsr) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hsr_hwm Hpca' Hdst Hsrc φ)
+      "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsr) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hne]".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.

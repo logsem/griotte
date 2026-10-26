@@ -255,7 +255,8 @@ Section vcsr.
     iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
     { iApply (sreg_interp_mstatus with "Hsr"). }
     rewrite Hinstr /exec in Hstep.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc' ltac:(done)) as (wepcc' & Hwepcc & Hrelepcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc' ltac:(done))
+      as (wepcc' & Hwepcc & Hrelepcc).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst' ltac:(done)) as (wst & Hwst & Hrelst).
     assert (get_a wst = get_a vst.(lw)) as Hast.
     { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s ->]. apply get_a_and_tag. }
@@ -316,7 +317,8 @@ Section vcsr.
     rewrite Hinstr /exec in Hstep.
     assert (lsreg !! sr = Some vold) as Hvold'.
     { eapply lookup_weaken; last exact Hlsregs. by simplify_map_eq. }
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold' ltac:(done)) as (wold & Hwold & Hrelold).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold' ltac:(done))
+      as (wold & Hwold & Hrelold).
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg lsreg lmem regs {[sr := vold]} sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).

@@ -66,7 +66,12 @@ Section img_state.
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                            ".Lswitch_csp_check" "exception_entry_asm")%a]>
             (<[MEPCC := WInt 0]>
-               (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
+               (<[MCAUSE := WInt 0]>
+                  (<[MTVAL := WInt 0]>
+                     (* Temporary: an empty stack high-water-mark zone. The loader
+                        sets MSHWM and MSHWMB to the top and base of the thread's
+                        stack. *)
+                     (<[MSHWM := WInt 0]> (<[MSHWMB := WInt 0]> ∅))))))).
 
   (** The memory, built in another order than in [firmware_ok]. *)
   Definition img_mem (fw : firmware) (img : fw_image) : Mem :=
