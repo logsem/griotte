@@ -508,10 +508,11 @@ class Model:
         n = len(self.code[name]["words"])
         if name not in r["code_names"]:
             r["code_names"].append(name)
-        caps = []
+        caps = {}  # word index -> capability id, for the capability words of the constant
         for i, w in enumerate(self.code[name]["words"]):
             cap = cap_of(w)
-            caps.append(self.add_cap(cap, "mem", r["id"], f"{name} [{i}]", w.get("comment", "")) if cap else None)
+            if cap:
+                caps[str(i)] = self.add_cap(cap, "mem", r["id"], f"{name} [{i}]", w.get("comment", ""))
         return self.cell(r, "comp", what=what, len=n, code=name, note=note, code_caps=caps)
 
     def piece_cells(self, r, p):
@@ -526,6 +527,13 @@ class Model:
         res = self.resolve_term(t)
         m = FIELD_LHS.match(t)
         field, of = (m.group(1), m.group(2)) if m else (None, None)
+        head = p.get("head", "") if isinstance(p, dict) else ""
+        args = p.get("args") if isinstance(p, dict) and isinstance(p.get("args"), list) else []
+        if (not res or res["k"] == "text") and isinstance(p, dict) and isinstance(p.get("unfolded"), list):
+            return self.unfolded_cells(r, t, head, p["unfolded"])
+        rep = self.replicate_of(t, head, args)
+        if rep and not res:
+            return self.replicate_cells(r, t, *rep)
         if res:
             field, of = res.get("field") or field, res.get("of") or of
             k = res["k"]
@@ -547,14 +555,8 @@ class Model:
         if field == "cmpt_data" and of and self.arbitrary_data(of):
             return [self.cell(r, "comp", what=t, arb="arbitrary data words, any length",
                               note="initial_data_word: integers or capabilities within the CGP range")]
-        m = re.fullmatch(r"replicate (\d+) (.+)", t)
-        if m:
-            return [self.cell(r, "comp", what=f"{m.group(1)} × {clean(m.group(2))}", len=int(m.group(1)),
-                              note=f"{m.group(1)} words")]
         note = "instructions not printed" if re.fullmatch(r"\w+_instrs", t) else ""
         c = self.cell(r, "comp", what=t, note=note, code_like=bool(note))
-        args = p.get("args") if isinstance(p, dict) and isinstance(p.get("args"), list) else []
-        head = p.get("head", "") if isinstance(p, dict) else ""
         caps = []
         for i, w in enumerate(args):
             cap = cap_of(w)
@@ -568,6 +570,49 @@ class Model:
             c["head"] = head
             c["args_text"] = [word_text(w) for w in args]
         return [c]
+
+    def unfolded_cells(self, r, t, head, ws):
+        """The words of a piece the printer unfolded (head constant, beta)."""
+        if not ws:
+            return [self.cell(r, "empty", text=f"{t} = []: no words")]
+        cells = []
+        for i, w in enumerate(ws):
+            c = self.word_cell(r, w, "mem", f"{head or t} [{i}]")
+            c["from"], c["from_i"] = t, i
+            cells.append(c)
+        return cells
+
+    def replicate_of(self, t, head, args):
+        """(n, w) for `replicate n w`, from head/args or from the text."""
+        if head == "replicate" and len(args) == 2:
+            n = args[0].get("text") if isinstance(args[0], dict) else args[0]
+            w = args[1] if isinstance(args[1], dict) else {"w": "term", "text": str(args[1])}
+            n = clean(str(n))
+            return (int(n), w) if is_num(n) else None
+        m = re.fullmatch(r"replicate (\d+) (.+)", t)
+        if m:
+            wt = clean(m.group(2))
+            mi = re.fullmatch(r"WInt (\S+)", wt)
+            return int(m.group(1)), ({"w": "int", "text": clean(mi.group(1))} if mi else {"w": "term", "text": wt})
+        return None
+
+    REP_EXPAND = 8
+
+    def replicate_cells(self, r, t, n, w):
+        """`replicate n w`: n cells of w, or one compressed cell when n is large."""
+        if n == 0:
+            return [self.cell(r, "empty", text=f"{t}: no words")]
+        if n <= self.REP_EXPAND:
+            cells = [self.word_cell(r, w, "mem", f"replicate [{i}]") for i in range(n)]
+            for i, c in enumerate(cells):
+                c["from"], c["from_i"] = t, i
+            return cells
+        cap = cap_of(w)
+        cid = None
+        if cap:
+            cid = self.add_cap(cap, "mem", r["id"], f"replicate {n}", w.get("comment", ""))
+            r["caps"].append(cid)
+        return [self.cell(r, "comp", what=t, len=n, rep=dict(n=n, text=word_text(w), cap=cid))]
 
     def build_cells(self, r):
         if r["pieces"] is None:
@@ -600,6 +645,8 @@ class Model:
                 if c["kind"] == "empty":
                     continue
                 c["offB"] = offB
+                if cur is not None and n and f"{cur} + {n}" in eq:
+                    cur, n = eq[f"{cur} + {n}"], 0
                 if cur is not None and n is not None:
                     c["addr"] = cur if n == 0 else f"{cur} ^+ {n}"
                     c["label"] = short(cur) if n == 0 else f"{short(cur)}+{n}"
@@ -712,10 +759,11 @@ class Model:
                         break
                 break
 
-    def point(self, cell, key, text, note=None, end=False, row=None):
+    def point(self, cell, key, text, note=None, end=False, row=None, unknown=False):
         p = next((x for x in cell["points"] if x["key"] == key), None)
         if p is None:
-            p = dict(id=f"p{self.uid}", key=key, text=text, name=text, notes=[], end=end, cell=cell["id"])
+            p = dict(id=f"p{self.uid}", key=key, text=text, name=text, notes=[], end=end, cell=cell["id"],
+                     unknown=unknown)
             self.uid += 1
             if row is not None and cell.get("code"):
                 p["code_row"] = row
@@ -728,6 +776,28 @@ class Model:
     def bands(self, hint):
         rs = [r for r in self.regions if r["id"] == hint] + [r for r in self.regions if r["id"] != hint]
         return rs
+
+    def code_labels(self, name):
+        """Label (without its leading dot) -> word index, from `labels` and
+        from `asm` (a label is at the next line that takes a word)."""
+        e = self.code.get(name) or {}
+        out = {}
+        labels = e.get("labels") if isinstance(e.get("labels"), dict) else {}
+        for k, v in labels.items():
+            if is_num(str(k)):
+                for x in str(v).split(","):
+                    out.setdefault(x.strip().lstrip("."), int(k))
+        pending = []
+        for ln in e.get("asm") if isinstance(e.get("asm"), list) else []:
+            if not isinstance(ln, dict):
+                continue
+            if "label" in ln:
+                pending.append(str(ln["label"]).lstrip("."))
+            elif isinstance(ln.get("index"), int):
+                for x in pending:
+                    out.setdefault(x, ln["index"])
+                pending = []
+        return out
 
     def walk_from(self, cells, i, k, key, text):
         for c in cells[i:]:
@@ -790,13 +860,10 @@ class Model:
             if label is not None:
                 code = next((c for c in cells[i:] if c.get("code")), None)
                 if code:
-                    labels = self.code[code["code"]].get("labels") or {}
-                    want = str(label).lstrip(".")
-                    idx = next((int(k) for k, v in labels.items() if is_num(str(k)) and
-                                any(x.strip().lstrip(".") == want for x in str(v).split(","))), None)
-                    return self.point(code, e, f"{sb} ^+ label {label}", row=idx)
+                    idx = self.code_labels(code["code"]).get(str(label).lstrip("."))
+                    return self.point(code, e, f"{sb} ^+ label {label}", row=idx, unknown=idx is None)
                 c = next((c for c in cells[i:] if c["kind"] == "comp"), cells[i] if i < len(cells) else None)
-                return self.point(c, e, f"{sb} ^+ label {label}") if c else None
+                return self.point(c, e, f"{sb} ^+ label {label}", unknown=True) if c else None
             if off is None:
                 return cells[i]["id"] if i < len(cells) else None
             if is_num(off):
@@ -810,7 +877,7 @@ class Model:
             c = next((c for c in cells[i:] if c.get("code") or c.get("code_like")), None) or \
                 next((c for c in cells[i:] if c["kind"] == "comp"), None)
             if c:
-                return self.point(c, e, f"{sb} ^+ {off}")
+                return self.point(c, e, f"{sb} ^+ {off}", unknown=True)
         if off and off.startswith("-"):
             for r in bands:
                 if r["e"] == base:
@@ -825,6 +892,7 @@ class Model:
     def build_regs(self):
         regsec = [s for s in self.sections if str(s.get("title", "")).startswith("Registers")]
         seen = set()
+        order = []
         for s in self.all:
             if s.get("k") != "eq":
                 continue
@@ -855,6 +923,35 @@ class Model:
                 v = rhs_text(rhs)
                 entry["value"] = v[5:].strip() if v.startswith("Some ") else v
             self.regs.append(entry)
+        # ∀ r, r ∉ {[…]} → reg σ !! r = Some w: every other register of the bank
+        explicit = {(g["bank"], g["name"]) for g in self.regs}
+        for s in self.all:
+            if s.get("k") != "regs_except":
+                continue
+            seen.add(id(s))
+            bank = str(s.get("bank") or "gpr")
+            exc = {str(x) for x in s.get("except") or []}
+            w = s.get("value")
+            listed = []
+            for name in s.get("all") or []:
+                name = str(name)
+                if bank == "gpr":
+                    order.append(name)
+                if name in exc or (bank, name) in explicit:
+                    continue
+                explicit.add((bank, name))
+                entry = dict(name=name, bank=bank, value=word_text(w), comment=s.get("comment", ""), cap=None,
+                             via="others")
+                cap = cap_of(w)
+                if cap:
+                    entry["cap"] = self.add_cap(cap, "reg", name, bank, entry["comment"])
+                self.regs.append(entry)
+                listed.append(name)
+            text = s.get("text") or stmt_text(dict(s, comment=""))
+            self.reg_notes.append(dict(text=str(text), comment=s.get("comment", ""), listed=listed, bank=bank))
+        if order:
+            rank = {n: i for i, n in enumerate(order)}
+            self.regs.sort(key=lambda g: (g["bank"] != "gpr", rank.get(g["name"], len(rank)) if g["bank"] == "gpr" else 0))
         for sec in regsec:
             for s in walk(sec.get("body")):
                 if id(s) in seen or s.get("k") == "exists":
@@ -945,6 +1042,42 @@ class Model:
 
     # --- the whole model
 
+    def code_out(self, n):
+        """A code constant for the page: its words, the instruction of each
+        encoded word (no integer then), labels, and the asm listing."""
+        e = self.code[n]
+        words = e["words"]
+        instrs = e.get("instrs") if isinstance(e.get("instrs"), list) and len(e["instrs"]) == len(words) else None
+        asm = []
+        covered = set()
+        for ln in e.get("asm") if isinstance(e.get("asm"), list) else []:
+            if not isinstance(ln, dict):
+                continue
+            d = ln.get("depth", 0) if isinstance(ln.get("depth"), int) else 0
+            ix = ln.get("index") if isinstance(ln.get("index"), int) and 0 <= ln.get("index") < len(words) else None
+            if "label" in ln:
+                asm.append(["l", str(ln["label"]), None, d])
+            elif "instr" in ln and ix is not None:
+                asm.append(["i", str(ln["instr"]), ix, d])
+                covered.add(ix)
+            elif "symbol" in ln:
+                asm.append(["s", str(ln["symbol"]), ix, d])
+            elif "block" in ln:
+                asm.append(["b", str(ln["block"]), None, 0])
+        is_instr = lambda i: (instrs is not None and instrs[i] is not None) or i in covered
+        out = dict(n=len(words),
+                   w=[None if is_instr(i) and isinstance(w, dict) and w.get("w") == "int" else word_text(w)
+                      for i, w in enumerate(words)])
+        if instrs is not None:
+            out["i"] = [None if x is None else str(x) for x in instrs]
+        labels = e.get("labels") if isinstance(e.get("labels"), dict) else {}
+        if labels:
+            out["lab"] = {str(k): str(v) for k, v in labels.items()}
+        if asm:
+            out["asm"] = asm
+            out["src"] = str(e.get("asm_source", ""))
+        return out
+
     def region_title(self, r, with_owner=False):
         t = r["sub"] or r["label"] or ""
         if not r["sub"] and r["label"] and r["owner"] and r["label"].startswith(r["owner"] + ","):
@@ -1030,20 +1163,27 @@ class Model:
         code = {}
         for r in self.regions:
             for n in r["code_names"]:
-                e = self.code[n]
-                labels = e.get("labels") if isinstance(e.get("labels"), dict) else {}
-                instrs = e.get("instrs") if isinstance(e.get("instrs"), list) else None
-                code[n] = dict(words=[word_text(w) for w in e["words"]],
-                               instrs=[str(i) for i in instrs] if instrs is not None else None,
-                               labels={str(k): str(v) for k, v in labels.items()})
+                code[n] = self.code_out(n)
         params = binders_text(self.doc.get("params"))
         pred = str(self.doc.get("predicate", self.name + "_initial_state_ok"))
         raw = "\n".join([f"{pred} {params} :="] + binders + [stmt_text(s, "  ") for s in top] +
                         [stmt_text(s) for s in self.sections])
+        for r in self.regions:
+            r["cells"] = [compact(c) for c in r["cells"]]
         return dict(name=self.name, predicate=pred, binders=([params] if params else []) + binders,
-                    regions=self.regions, caps=self.caps, regs=self.regs, reg_notes=self.reg_notes,
+                    regions=self.regions, caps=[compact(c) for c in self.caps], regs=self.regs, reg_notes=self.reg_notes,
                     owners=self.owners, other=self.other, code=code, raw=raw,
                     schema=self.doc.get("schema"))
+
+
+def compact(d):
+    """Drop the empty fields of a cell, point or capability (the page reads a
+    missing field as empty)."""
+    if isinstance(d, dict):
+        return {k: compact(v) for k, v in d.items() if v is not None and v != "" and v != [] and v != {} and v is not False}
+    if isinstance(d, list):
+        return [compact(x) for x in d]
+    return d
 
 
 def build(doc, name=None):
@@ -1056,9 +1196,36 @@ if __name__ == "__main__":
         with open(path, encoding="utf-8") as f:
             d = build(json.load(f))
         print(path, len(d["regions"]), "regions", len(d["caps"]), "caps", len(d["regs"]), "registers")
+        els = {}
         for r in d["regions"]:
+            for c in r["cells"]:
+                els[c["id"]] = c
+                for p in c.get("points", []):
+                    els[p["id"]] = p
+        where = lambda i: (lambda x: (x.get("name") or x.get("label") or i) +
+                           (f" row {x['code_row']}" if "code_row" in x else "") +
+                           (" (unknown)" if x.get("unknown") else ""))(els[i]) if i in els else "-"
+        for r in d["regions"]:
+            kinds = []
+            for c in r["cells"]:
+                if c.get("code"):
+                    kinds.append(f"code {c['code']}[{c.get('len')}]")
+                elif c.get("rep"):
+                    kinds.append(f"replicate {c['rep']['n']} × {c['rep']['text']}")
+                elif c.get("from"):
+                    kinds.append(f"{c['from']}[{c['from_i']}]")
+                elif c.get("entry"):
+                    kinds.append(f"entry {c['entry']['index']} -> {where(c['ptr']) if c.get('ptr') else '-'}")
             print(f"   {r['id']:6} {r['label']:40} [{r['b']}, {r['e']})  {len(r['cells'])} cells"
-                  + (" implicit" if r["implicit"] else "") + (" no content" if r["pieces"] is None else ""))
+                  + (" implicit" if r["implicit"] else "") + (" no content" if r["pieces"] is None else "")
+                  + ("  · " + "; ".join(kinds) if kinds else ""))
         for c in d["caps"]:
-            tgt = next((r for r in d["regions"] if r["id"] == c["target"]), None)
-            print(f"   {c['id']:4} {c['text'][:70]:70} -> {tgt['label'] if tgt else '-'} @ {c['anchor']}")
+            tgt = next((r for r in d["regions"] if r["id"] == c.get("target")), None)
+            print(f"   {c['id']:4} {c['text'][:64]:64} -> {tgt['label'] if tgt else '-'} @ {where(c['anchor']) if c.get('anchor') else '-'}")
+        print("   registers:", " ".join(g["name"] + ("*" if g.get("via") else "") for g in d["regs"]))
+        for n in d["reg_notes"]:
+            print("   reg note:", n["text"][:80], "· lists", n.get("listed"))
+        for n, k in d["code"].items():
+            print(f"   code {n}: {k['n']} words, {sum(w is None for w in k['w'])} instructions"
+                  + (f", asm {len(k['asm'])} lines from {k.get('src')}" if "asm" in k else "")
+                  + (f", {len(k['lab'])} labels" if "lab" in k else ""))

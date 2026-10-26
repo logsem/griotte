@@ -4,7 +4,7 @@
 
 Each file is a JSON print (schema 1, docs/predicate-viewer/schema.md), turned
 into the viewer's model by model.build; all case studies are embedded as JSON
-and the page switches between them. Vanilla JS, no external scripts."""
+(code constants once) and the page draws the selected one. Vanilla JS, no external scripts."""
 
 import json
 import os
@@ -41,7 +41,18 @@ def build_page(out, paths):
             d["name"] = d["name"] + " (" + os.path.basename(d["file"]) + ")"
     # vae first: the page opens on it.
     cases.sort(key=lambda d: (d["name"] != "vae", d["name"]))
-    data = json.dumps(cases, ensure_ascii=False, separators=(",", ":"))
+    # Code constants are shared by the case studies (the switcher's 290 words
+    # in each): store each distinct one once, cases name it by key.
+    code, keys = {}, {}
+    for d in cases:
+        for n, k in list(d["code"].items()):
+            body = json.dumps(k, sort_keys=True)
+            if body not in keys:
+                key = n if n not in code else f"{n}#{sum(x.split('#')[0] == n for x in code)}"
+                keys[body] = key
+                code[key] = k
+            d["code"][n] = keys[body]
+    data = json.dumps({"cases": cases, "code": code}, ensure_ascii=False, separators=(",", ":"))
     data = data.replace("</", "<\\/").replace("<!--", "<\\u0021--")
     with open(TEMPLATE_PATH, encoding="utf-8") as f:
         page = f.read()

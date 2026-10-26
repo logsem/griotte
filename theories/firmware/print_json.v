@@ -212,6 +212,23 @@ Definition code_instrs `{MachineParameters} (ws : list Word) : option (list inst
   | _ => if bool_decide (encodeInstrsW l = ws) then Some (map canon_instr l) else None
   end.
 
+(** The blocks [lo] to [hi] (excluded) of the program by blocks [P] whose
+    assembly gives the words [ws]: all the blocks, or, when [any], the
+    first range of consecutive blocks that does. [None] when [P] does not
+    assemble. *)
+Definition asm_range `{MachineParameters} (P : list (list assembler.Asm_Griotte.asm_code))
+  (ws : list Word) (any : bool) : option (nat * nat) :=
+  let bs := map encodeInstrsW (assembler.Asm_Griotte.assemble_block P) in
+  let n := length bs in
+  let ws_of lo hi := concat (take (hi - lo) (drop lo bs)) in
+  if bool_decide (n = length P ∧ ws ≠ []) then
+    if bool_decide (ws_of 0 n = ws) then Some (0, n)
+    else if any then
+      List.find (λ c, bool_decide (ws_of (fst c) (snd c) = ws))
+        (flat_map (λ lo, map (λ k, (lo, lo + S k)) (seq 0 (n - lo))) (seq 0 n))
+    else None
+  else None.
+
 (** The labels of an assembler program at its outer level, with their
     offset in its instructions: symbols are data, outside the code. *)
 Fixpoint asm_labels_aux (l : list assembler.Asm_Griotte.asm_code) (n : nat) : list (nat * string) :=
@@ -317,6 +334,255 @@ Ltac2 code_labels (cst : constant) (n : int) : json option :=
       end
     else None) (fun _ => None).
 
+(** ** Assembler sources *)
+
+(** An operand: parenthesised when it has spaces or a sign. *)
+Ltac2 operand (s : string) : string :=
+  if Bool.or (contains s " ") (sub_is s 0 "-") then String.concat "" ["("; s; ")"] else s.
+
+(** An assembler expression, its labels as written. *)
+Ltac2 rec asm_expr_s (e : constr) : string :=
+  lazy_match! Std.eval_hnf e with
+  | assembler.Asm_Griotte.Asm_lbl ?s => str s
+  | assembler.Asm_Griotte.Asm_z (Z.of_nat ?n) => ppn n
+  | assembler.Asm_Griotte.Asm_z ?z => ppz z
+  | assembler.Asm_Griotte.Asm_plus ?a ?b => String.concat "" [asm_operand a; " + "; asm_operand b]
+  | assembler.Asm_Griotte.Asm_minus ?a ?b => String.concat "" [asm_operand a; " - "; asm_operand b]
+  end
+with asm_operand (e : constr) : string := operand (asm_expr_s e).
+
+Ltac2 asm_arg_s (a : constr) : string :=
+  lazy_match! Std.eval_hnf a with
+  | inl ?e => asm_operand e
+  | inr ?r => pp r
+  end.
+
+Ltac2 is_zero_expr (e : constr) : bool :=
+  Control.plus (fun () =>
+    lazy_match! Std.eval_hnf e with
+    | assembler.Asm_Griotte.Asm_z ?z => String.equal (ppz z) "0"
+    end) (fun _ => false).
+
+Ltac2 is_zero_arg (a : constr) : bool :=
+  Control.plus (fun () =>
+    lazy_match! Std.eval_hnf a with
+    | inl ?e => is_zero_expr e
+    end) (fun _ => false).
+
+(** The register of an operand, when it is one. *)
+Ltac2 arg_reg (a : constr) : string option :=
+  Control.plus (fun () =>
+    lazy_match! Std.eval_hnf a with
+    | inr ?r => Some (pp r)
+    end) (fun _ => None).
+
+(** An assembler instruction in the syntax of the asm sources: the smart
+    constructors of [Asm_Griotte] ([mov], [load], [jnez], [ret], …). *)
+Ltac2 asm_instr_s (i : constr) : string :=
+  let f m xs := String.concat " " (m :: xs) in
+  let r := pp in
+  let a := asm_arg_s in
+  let e := asm_operand in
+  let cond m mz o x y :=
+    match arg_reg x with
+    | Some rx => if is_zero_arg y then f mz [a o; rx] else f m [a o; a x; a y]
+    | None => f m [a o; a x; a y]
+    end in
+  lazy_match! Std.eval_hnf i with
+  | assembler.Asm_Griotte.Jmp ?x => f "jmp" [a x]
+  | assembler.Asm_Griotte.Jeq ?o ?x ?y => cond "jeq" "jeqz" o x y
+  | assembler.Asm_Griotte.Jne ?o ?x ?y => cond "jne" "jnez" o x y
+  | assembler.Asm_Griotte.Jlt ?o ?x ?y => f "jlt" [a o; a x; a y]
+  | assembler.Asm_Griotte.Jle ?o ?x ?y => f "jle" [a o; a x; a y]
+  | assembler.Asm_Griotte.Jalr ?d ?s =>
+      if Bool.and (String.equal (r d) "cnull") (String.equal (r s) "cra") then "ret"
+      else f "jalr" [r d; r s]
+  | assembler.Asm_Griotte.Mov ?d ?s => f "mov" [r d; a s]
+  | assembler.Asm_Griotte.CLoad ?d ?s ?x =>
+      if is_zero_expr x then f "load" [r d; r s] else f "load_imm" [r d; r s; e x]
+  | assembler.Asm_Griotte.Store ?d ?s ?x =>
+      if is_zero_expr x then f "store" [r d; a s] else f "store_imm" [r d; a s; e x]
+  | assembler.Asm_Griotte.Lt ?d ?x ?y => f "lt" [r d; a x; a y]
+  | assembler.Asm_Griotte.Le ?d ?x ?y => f "le" [r d; a x; a y]
+  | assembler.Asm_Griotte.Add ?d ?x ?y => f "add" [r d; a x; a y]
+  | assembler.Asm_Griotte.Sub ?d ?x ?y => f "sub" [r d; a x; a y]
+  | assembler.Asm_Griotte.Mul ?d ?x ?y => f "mul" [r d; a x; a y]
+  | assembler.Asm_Griotte.LAnd ?d ?x ?y => f "land" [r d; a x; a y]
+  | assembler.Asm_Griotte.LOr ?d ?x ?y => f "lor" [r d; a x; a y]
+  | assembler.Asm_Griotte.LShiftL ?d ?x ?y => f "lshiftl" [r d; a x; a y]
+  | assembler.Asm_Griotte.LShiftR ?d ?x ?y => f "lshiftr" [r d; a x; a y]
+  | assembler.Asm_Griotte.Lea ?d ?s ?x => f "lea" [r d; r s; a x]
+  | assembler.Asm_Griotte.SetA ?d ?s ?x => f "seta" [r d; r s; a x]
+  | assembler.Asm_Griotte.Restrict ?d ?s ?x => f "restrict" [r d; r s; a x]
+  | assembler.Asm_Griotte.Subseg ?d ?s ?x ?y => f "subseg" [r d; r s; a x; a y]
+  | assembler.Asm_Griotte.GetB ?d ?s => f "getb" [r d; r s]
+  | assembler.Asm_Griotte.GetE ?d ?s => f "gete" [r d; r s]
+  | assembler.Asm_Griotte.GetLen ?d ?s => f "getlen" [r d; r s]
+  | assembler.Asm_Griotte.GetA ?d ?s => f "geta" [r d; r s]
+  | assembler.Asm_Griotte.GetP ?d ?s => f "getp" [r d; r s]
+  | assembler.Asm_Griotte.GetL ?d ?s => f "getl" [r d; r s]
+  | assembler.Asm_Griotte.GetWType ?d ?s => f "getwtype" [r d; r s]
+  | assembler.Asm_Griotte.GetOType ?d ?s => f "getotype" [r d; r s]
+  | assembler.Asm_Griotte.Seal ?d ?x ?y => f "seal" [r d; r x; r y]
+  | assembler.Asm_Griotte.UnSeal ?d ?x ?y => f "unseal" [r d; r x; r y]
+  | assembler.Asm_Griotte.SpecialRW ?d ?sr ?x =>
+      let src_null := match arg_reg x with Some s => String.equal s "cnull" | None => false end in
+      if src_null then f "csrr" [r d; r sr]
+      else if String.equal (r d) "cnull" then f "csrw" [r sr; a x]
+      else f "specialrw" [r d; r sr; a x]
+  | assembler.Asm_Griotte.SetMIE ?b => f "setmie" [r b]
+  | assembler.Asm_Griotte.CsrMIE InterruptEnabled ?sr ?m => f "csrsi" [r sr; e m]
+  | assembler.Asm_Griotte.CsrMIE InterruptDisabled ?sr ?m => f "csrci" [r sr; e m]
+  | assembler.Asm_Griotte.Mret => "mret"
+  | assembler.Asm_Griotte.Fail => "fail"
+  | assembler.Asm_Griotte.Halt => "halt"
+  | assembler.Asm_Griotte.GetTag ?d ?s => f "gettag" [r d; r s]
+  | assembler.Asm_Griotte.ClearTag ?d ?s => f "cleartag" [r d; r s]
+  | assembler.Asm_Griotte.Auipcc ?d ?x => f "auipcc" [r d; e x]
+  end.
+
+(** A line of an assembler source: a label, or a symbol or an instruction
+    with its word offset in the program. *)
+Ltac2 Type asm_line := [ ALabel (string) | ASym (string, int) | AInstr (string, int) ].
+
+(** The lines of the code [l] of the block [bi] at the nesting [d], in
+    reverse order in [acc], from the word offset [off]. *)
+Ltac2 rec asm_walk (acc : (int * int * asm_line) list ref) (off : int ref) (bi : int) (d : int)
+  (l : constr) : unit :=
+  lazy_match! Std.eval_hnf l with
+  | nil => ()
+  | cons ?c ?rest =>
+      let push x := acc.(contents) := (bi, d, x) :: acc.(contents) in
+      let o := off.(contents) in
+      (lazy_match! Std.eval_hnf c with
+       | assembler.Asm_Griotte.ASM_Label ?s => push (ALabel (str s))
+       | assembler.Asm_Griotte.ASM_Symbol ?s => push (ASym (str s) o); off.(contents) := Int.add o 1
+       | assembler.Asm_Griotte.ASM_Instr ?i => push (AInstr (asm_instr_s i) o); off.(contents) := Int.add o 1
+       | assembler.Asm_Griotte.ASM_Local ?l' => asm_walk acc off bi (Int.add d 1) l'
+       end);
+      asm_walk acc off bi d rest
+  end.
+
+(** The [asm] lines of the blocks [lo] to [hi] (excluded) of the program
+    [p], by blocks when [blocks]. The index of a word is its offset from
+    the first instruction of the block [lo]: the symbols of the data prefix
+    have negative indices. *)
+Ltac2 asm_lines (p : constr) (blocks : bool) (lo : int) (hi : int) : json list :=
+  let acc := { contents := [] } in
+  let off := { contents := 0 } in
+  (if blocks then
+     let rec go bi l :=
+       lazy_match! Std.eval_hnf l with
+       | nil => ()
+       | cons ?b ?rest => asm_walk acc off bi 0 b; go (Int.add bi 1) rest
+       end in
+     go 0 p
+   else asm_walk acc off 0 0 p);
+  let lines := List.rev (acc.(contents)) in
+  let first_instr :=
+    List.fold_right (fun l r => match l with (_, _, AInstr _ o) => o | _ => r end) lines (off.(contents)) in
+  let prefix := List.length (List.filter (fun l => match l with
+                                                   | (_, _, ASym _ o) => Int.lt o first_instr
+                                                   | _ => false
+                                                   end) lines) in
+  let base := List.length (List.filter (fun l => match l with
+                                                 | (bi, _, AInstr _ _) => Int.lt bi lo
+                                                 | _ => false
+                                                 end) lines) in
+  let idx o := JLit (int_str (Int.sub (Int.sub o prefix) base)) in
+  let line_j l :=
+    match l with
+    | (_, d, ALabel s) => JObj [("label", JStr s); ("depth", JLit (int_str d))]
+    | (_, d, ASym s o) => JObj [("symbol", JStr s); ("index", idx o); ("depth", JLit (int_str d))]
+    | (_, d, AInstr s o) => JObj [("instr", JStr s); ("index", idx o); ("depth", JLit (int_str d))]
+    end in
+  let rec from bi :=
+    if Int.ge bi hi then [] else
+    let here := List.map line_j (List.filter (fun l => match l with (b, _, _) => Int.equal b bi end) lines) in
+    List.append (if blocks then JObj [("block", JLit (int_str bi))] :: here else here) (from (Int.add bi 1)) in
+  from lo.
+
+(** The assembler programs that do not follow the naming convention
+    [<p>_code] or [<p>_instrs] beside [<p>_asm]: the code constant, its
+    program (a constant of the same module) and the program's arguments
+    other than the machine parameters. The words of the constant may be a
+    range of the blocks of the program. *)
+Section asm_table_args.
+  #[local] Existing Instance machine_parameters_instance.
+  (** The encodings of the capabilities of [droe] and [dle], abstract in
+      their programs. *)
+  Definition asm_arg_droe : Z := encodePermPair (RO_DRO, Global).
+  Definition asm_arg_dle : Z := encodePermPair (RW_DL, Local).
+End asm_table_args.
+
+Ltac2 asm_table (_ : unit) : (string * string * constr list) list :=
+  let body c := Std.eval_unfold [(c, Std.AllOccurrences)] (Env.instantiate c) in
+  [("droe_main_code", "droe_main_asm", [body reference:(asm_arg_droe)]);
+   ("dle_main_code", "dle_main_asm", [body reference:(asm_arg_dle)]);
+   ("switcher_call_instrs", "switcher_asm", [])].
+
+(** [p] applied to the machine parameters and to [args], in the order of
+    its binders. *)
+Ltac2 rec apply_asm (p : constr) (args : constr list) : constr :=
+  let app x := Constr.Unsafe.make (Constr.Unsafe.App p (Array.of_list [x])) in
+  match Constr.Unsafe.kind (Constr.type p) with
+  | Constr.Unsafe.Prod b _ =>
+      if Constr.equal (Constr.Binder.type b) constr:(MachineParameters)
+      then apply_asm (app constr:(machine_parameters_instance)) args
+      else match args with
+           | x :: rest => apply_asm (app x) rest
+           | [] => p
+           end
+  | _ => p
+  end.
+
+(** The [asm_source] and [asm] fields of the code constant [cst] whose
+    words are [ws]: its program by the table, or by name, when assembling
+    it gives [ws]. *)
+Ltac2 code_asm (cst : constant) (ws : constr) : (string * json) list :=
+  let path := Env.path (Std.ConstRef cst) in
+  let name := Ident.to_string (List.last path) in
+  let k := String.length name in
+  let ends sfx := let m := String.length sfx in
+                  Bool.and (Int.gt k m) (String.equal (drop (Int.sub k m) name) sfx) in
+  let by_name :=
+    let p := if ends "_code" then Some (String.sub name 0 (Int.sub k 5))
+             else if ends "_instrs" then Some (String.sub name 0 (Int.sub k 7)) else None in
+    match p with Some p => [(String.app p "_asm", [], false)] | None => [] end in
+  let by_table :=
+    List.flat_map (fun e => let (c, a, args) := e in if String.equal c name then [(a, args, true)] else [])
+      (asm_table ()) in
+  let try_one cand :=
+    let (a, args, any) := cand in
+    Control.plus (fun () =>
+      match Ident.of_string a with
+      | Some x =>
+          match Env.get (List.append (List.removelast path) [x]) with
+          | Some r =>
+              let p := apply_asm (Env.instantiate r) args in
+              let (blocks, pb) :=
+                if has_type p constr:(list (list assembler.Asm_Griotte.asm_code)) then (true, p)
+                else if has_type p constr:(list assembler.Asm_Griotte.asm_code) then (false, constr:([$p]))
+                else Control.zero Not_found in
+              let any := if any then constr:(true) else constr:(false) in
+              lazy_match! Std.eval_vm None constr:(@asm_range machine_parameters_instance $pb $ws $any) with
+              | Some (?lo, ?hi) =>
+                  let lo := leading_int (ppn lo) in
+                  let hi := leading_int (ppn hi) in
+                  Some [("asm_source", JStr (pp p)); ("asm", JArr (asm_lines p blocks lo hi))]
+              | None => None
+              end
+          | None => None
+          end
+      | None => None
+      end) (fun _ => None) in
+  let rec first cs :=
+    match cs with
+    | [] => []
+    | c :: rest => match try_one c with Some r => r | None => first rest end
+    end in
+  first (List.append by_table by_name).
+
 (** The entry of the code constant [c] in the [code] table, when it
     computes to a closed list of words, or of instructions (their
     encodings). The words are computed with the concrete machine parameters
@@ -338,7 +604,8 @@ Ltac2 code_entry (c : constr) : (string * json) option :=
             | None => []
             end in
           let labels := match code_labels cst n with Some l => [("labels", l)] | None => [] end in
-          Some (pp c, JObj (List.append (words :: instrs) labels))
+          let asm := code_asm cst ci in
+          Some (pp c, JObj (List.append (words :: instrs) (List.append labels asm)))
         else None) (fun _ => None)
   | None => None
   end.
@@ -413,6 +680,30 @@ Ltac2 app_head_args (c : constr) : (string * json) list :=
   | _ => []
   end.
 
+(** The [unfolded] field of an application of a constant (but [replicate])
+    that is a literal list once its head is unfolded and beta-reduced. *)
+Ltac2 unfolded_j (c : constr) : (string * json) list :=
+  Control.plus (fun () =>
+    match Constr.Unsafe.kind c with
+    | Constr.Unsafe.App f _ =>
+        match Constr.Unsafe.kind f with
+        | Constr.Unsafe.Constant cst _ =>
+            if String.equal (Ident.to_string (List.last (Env.path (Std.ConstRef cst)))) "replicate"
+            then []
+            else
+              let u := Std.eval_cbv
+                { Std.rBeta := true; Std.rMatch := false; Std.rFix := false; Std.rCofix := false;
+                  Std.rZeta := false; Std.rDelta := false; Std.rConst := [Std.ConstRef cst];
+                  Std.rStrength := Std.Norm } c in
+              match list_of u with
+              | [] => []
+              | xs => [("unfolded", JArr (List.map item_j xs))]
+              end
+        | _ => []
+        end
+    | _ => []
+    end) (fun _ => []).
+
 (** The lists [c] of the subterms [length c] of [t]. *)
 Ltac2 rec lengths_of (t : constr) : constr list :=
   match Constr.Unsafe.kind t with
@@ -441,7 +732,7 @@ Ltac2 rec pieces (cands : constr list ref) (ws : constr) : json list :=
       JObj [("words", JArr (List.map item_j xs))] :: pieces cands rest
   | _ =>
       cands.(contents) := ws :: cands.(contents);
-      [JObj (("term", JStr (pp ws)) :: app_head_args ws)]
+      [JObj (("term", JStr (pp ws)) :: List.append (app_head_args ws) (unfolded_j ws))]
   end.
 
 Ltac2 part_j (cands : constr list ref) (e : constr) : json :=
@@ -500,6 +791,51 @@ Ltac2 eq_j (cands : constr list ref) (p : constr) (l : constr) (r : constr) : js
   with_comment c (stmt "eq" (List.append (("lhs", JStr (pp l)) :: kind) [("rhs", rhs_j cands r)]))
   end.
 
+(** The elements of a set [{[x; …; z]}]. *)
+Ltac2 rec set_elems (s : constr) : constr list :=
+  lazy_match! s with
+  | @union _ _ ?a ?b => List.append (set_elems a) (set_elems b)
+  | @singleton _ _ _ ?x => [x]
+  | @empty _ _ => []
+  end.
+
+(** The statement [∀ r : RegName, r ∉ {[…]} → reg σ !! r = Some w] (or on
+    [sreg σ]). *)
+Ltac2 regs_except_j (p : constr) : json option :=
+  Control.plus (fun () =>
+    match Constr.Unsafe.kind p with
+    | Constr.Unsafe.Prod b body =>
+        if Constr.equal (Constr.Binder.type b) constr:(RegName) then
+          let x := Fresh.in_goal @r in
+          let vx := Constr.Unsafe.make (Constr.Unsafe.Var x) in
+          let bd := Constr.Unsafe.substnl [vx] 0 body in
+          let (a, s, bank, v, rhs) :=
+            lazy_match! bd with
+            | ?a ∉ ?s -> reg _ !! ?v = ?rhs => (a, s, "gpr", v, rhs)
+            | ?a ∉ ?s -> sreg _ !! ?v = ?rhs => (a, s, "sreg", v, rhs)
+            end in
+          if Bool.and (Constr.equal a vx) (Constr.equal v vx) then
+            let (some, w) := lazy_match! rhs with
+                             | Some ?w => (true, w)
+                             | _ => (false, rhs)
+                             end in
+            let all :=
+              if String.equal bank "gpr" then
+                List.map (fun r => JStr (pp r))
+                  (list_of (Std.eval_cbv
+                     { Std.rBeta := true; Std.rMatch := false; Std.rFix := false; Std.rCofix := false;
+                       Std.rZeta := false; Std.rDelta := false; Std.rConst := [reference:(all_registers)];
+                       Std.rStrength := Std.Norm } constr:(all_registers)))
+              else [] in
+            Some (stmt "regs_except"
+                    [("bank", JStr bank); ("except", JArr (List.map (fun e => JStr (pp e)) (set_elems s)));
+                     ("all", JArr all); ("value", word_j w); ("some", JLit (if some then "true" else "false"));
+                     ("text", JStr (pp p))])
+          else None
+        else None
+    | _ => None
+    end) (fun _ => None).
+
 (** The walk of [walk] (print.v): the statements of [p]. *)
 Ltac2 rec walk_j (cands : constr list ref) (p : constr) : json list :=
   match ex_head [] p with
@@ -511,7 +847,7 @@ Ltac2 rec walk_j (cands : constr list ref) (p : constr) : json list :=
   | note ?c ?q => set_comment_j (str c) (walk_j cands q)
   | ranges_disjoint ?l => [stmt "disjoint" [("ranges", JArr (List.map range_j (list_of l)))]]
   | ?l = ?r => [eq_j cands p l r]
-  | _ => [prop_j p]
+  | _ => match regs_except_j p with Some j => [j] | None => [prop_j p] end
   end
   end
 (** The existential [p] under the binders [acc], in reverse order. *)
