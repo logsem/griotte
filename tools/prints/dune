@@ -1,11 +1,17 @@
 ; The annotated initial-state predicate of each case study, printed by
 ; [print_initial_state] (theories/firmware/print.v) into
 ; theories/case_studies/<dir>/<cs>_initial_state_predicate.txt, a file
-; promoted into the source tree. A case study is a file
-; theories/case_studies/<dir>/<cs>_firmware.v that defines
+; promoted into the source tree, and by [print_initial_state_json]
+; (print_json.v here) into a JSON file for the predicate viewer
+; (tools/predicate-viewer/), left in the build directory. A case study is a
+; file theories/case_studies/<dir>/<cs>_firmware.v that defines
 ; <cs>_initial_state_ok_annot: gen.sh writes its rules, included by
 ; rules/dune. A print reruns only when the printer or the firmware of its
 ; case study changes.
+;
+; A plain `dune build` builds only the .txt prints (the default alias of
+; rules/); the JSON prints, their drivers and print_json.vo are built for
+; the alias predicate-viewer (tools/predicate-viewer/dune).
 
 (rule
  (deps
@@ -15,3 +21,22 @@
   (with-stdout-to
    rules.inc
    (run sh %{dep:gen.sh} %{firmware}))))
+
+; The JSON printer, outside the griotte theory, as griotte_tools.print_json.
+(rule
+ (targets print_json.vo)
+ (deps
+  print_json.v
+  %{project_root}/theories/firmware/print.vo
+  %{project_root}/theories/opsem/machine_parameters_instance.vo)
+ (action
+  (run rocq compile -q -noglob
+   -Q %{project_root}/theories griotte
+   -Q %{project_root}/machine_utils/theories machine_utils
+   -Q . griotte_tools
+   print_json.v)))
+
+; Not print_json.vo.
+(alias
+ (name default)
+ (deps rules.inc))

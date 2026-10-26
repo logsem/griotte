@@ -1,0 +1,12 @@
+; What a plain `dune build` builds: everything but the predicate viewer
+; (tools/predicate-viewer/, alias predicate-viewer) and the JSON prints it
+; reads (tools/prints/). Without this alias, the default of the root would
+; build every target of the project, including those. A new top-level
+; directory with rules goes in the list.
+
+(alias
+ (name default)
+ (deps
+  (alias_rec theories/default)
+  (alias_rec machine_utils/default)
+  (alias_rec tools/default)))

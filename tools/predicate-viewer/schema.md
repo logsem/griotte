@@ -1,8 +1,9 @@
 # Predicate viewer: JSON schema (version 1)
 
-`theories/firmware/print_json.v` writes one file per case study,
+`tools/prints/print_json.v` writes one file per case study,
 `_build/default/tools/prints/rules/<cs>_initial_state_predicate.json` (Dune rules
-in `tools/prints/`, not promoted), from the same annotated predicate
+in `tools/prints/`, built for the alias `predicate-viewer` only, not
+promoted), from the same annotated predicate
 `<cs>_initial_state_ok_annot` as the `.txt` print. The viewer in this
 directory reads these files.
 

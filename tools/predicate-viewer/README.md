@@ -10,13 +10,18 @@ offset, and each region's constraints. Filters highlight capabilities by
 kind, locality, sealing otype or permission; incoming arrows on hovering a
 region are a setting, off by default.
 
-    dune build tools/prints/rules
-    python3 -I tools/predicate-viewer/viewer.py OUT.html \
-      _build/default/tools/prints/rules/*_initial_state_predicate.json
+    make viewer    # or: dune build @predicate-viewer
 
-Inputs are the JSON prints written by `theories/firmware/print_json.v`
-(format: `schema.md` here), left in the build directory. Standard library
-only.
+writes `_build/default/tools/predicate-viewer/griotte-initial-states.html`
+(rule in `dune` here), after building the JSON print of each case study. A
+plain `dune build` builds neither the page nor the JSON prints. By hand:
+
+    python3 -I tools/predicate-viewer/viewer.py OUT.html FILE.json...
+
+Inputs are the JSON prints written by `tools/prints/print_json.v` into
+`_build/default/tools/prints/rules/<cs>_initial_state_predicate.json`
+(format: `schema.md` here). Needs `python3` on the PATH (not provided by the
+Nix shell); standard library only.
 
 - `model.py`: builds the viewer's model (regions, cells, capabilities,
   registers, constraints, code) from one JSON print;

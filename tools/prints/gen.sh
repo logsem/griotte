@@ -6,8 +6,11 @@
 # theories/case_studies/<dir>/<cs>_initial_state_predicate.txt; likewise
 # a driver <cs>_print_json.v from driver_json.v.in and a rule writing
 # <cs>_initial_state_predicate.json, left in the build directory (read by
-# tools/predicate-viewer, not promoted). The
-# directories excluded from the build are skipped.
+# tools/predicate-viewer, not promoted), with the printer ../print_json.vo
+# loaded as griotte_tools. The JSON rules are in no default alias: they are
+# built for the alias predicate-viewer only (see rules/dune and
+# tools/predicate-viewer/dune). The directories excluded from the build are
+# skipped.
 for f in "$@"; do
   dir=$(basename "$(dirname "$f")")
   cs=$(basename "$f" _firmware.v)
@@ -48,7 +51,7 @@ for f in "$@"; do
  (deps
   ${cs}_print_json.v
   %{project_root}/theories/firmware/print.vo
-  %{project_root}/theories/firmware/print_json.vo
+  ../print_json.vo
   %{project_root}/theories/case_studies/${dir}/${cs}_firmware.vo)
  (action
   (with-stdout-to
@@ -57,6 +60,7 @@ for f in "$@"; do
     (run rocq compile -q -noglob
      -Q %{project_root}/theories griotte
      -Q %{project_root}/machine_utils/theories machine_utils
+     -Q .. griotte_tools
      ${cs}_print_json.v)
     (run grep -vxF -e "- : unit = ()")))))
 

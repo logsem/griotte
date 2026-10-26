@@ -2,7 +2,7 @@ EXTRA_DIR = rocqdoc_extra
 BUILD_DOC_DIR = _build/default/theories/griotte.html
 PUBLISH_DIR = html
 
-.PHONY: all theories rocqdoc html
+.PHONY: all theories rocqdoc html viewer
 
 all: theories rocqdoc
 
@@ -21,6 +21,11 @@ html: rocqdoc
 	cp $(BUILD_DOC_DIR)/* $(PUBLISH_DIR)
 	chmod -R +w $(PUBLISH_DIR)
 	cp $(EXTRA_DIR)/resources/* $(PUBLISH_DIR)
+
+# The predicate viewer page of the case studies' initial states:
+# _build/default/tools/predicate-viewer/griotte-initial-states.html
+viewer:
+	dune build @predicate-viewer
 
 clean:
 	dune clean

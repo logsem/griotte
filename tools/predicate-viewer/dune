@@ -1,0 +1,20 @@
+; The predicate viewer page of all the case studies, built from their JSON
+; prints (tools/prints/) by `dune build @predicate-viewer` (or `make viewer`)
+; into _build/default/tools/predicate-viewer/griotte-initial-states.html.
+; Not built by a plain `dune build`.
+
+(rule
+ (alias predicate-viewer)
+ (targets griotte-initial-states.html)
+ (deps
+  model.py
+  viewer_template.html
+  (:json
+   (glob_files
+    %{project_root}/tools/prints/rules/*_initial_state_predicate.json)))
+ (action
+  (run python3 -I -B %{dep:viewer.py} %{targets} %{json})))
+
+; Not the page.
+(alias
+ (name default))
