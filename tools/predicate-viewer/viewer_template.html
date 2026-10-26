@@ -350,7 +350,8 @@ let tape = null;        // { bands: [{region, cells}], els: {id -> cell/point} }
 let hovered = null;     // element under hover/focus (chip or export entry)
 let decorated = [];     // elements given hover classes, to undo
 let homeChip = {};      // capability id -> its chip in the registers or the tape
-const collapsed = new Set();  // code constants the reader folded
+// code constants folded: the switcher's by default, then the reader's choice
+const collapsed = new Set(["switcher_instrs", "switcher_call_instrs"]);
 
 let COLORS = {};
 function readColors() {

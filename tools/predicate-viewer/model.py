@@ -257,6 +257,9 @@ FIELD_REGION = {"cmpt_imports": "PCC range", "cmpt_code": "PCC range",
                 "cmpt_exp_tbl_entries": "export table",
                 "cmpt_exp_tbl_handler": "export table",
                 "cmpt_exp_tbl_handler_stackless": "export table"}
+CMPT_SUBS = set(FIELD_REGION.values())
+# Shown after the compartments, in this order of appearance.
+LIBRARY_OWNERS = {"switcher", "assert", "allocator"}
 FIELD_NOTE = {"cmpt_exp_tbl_handler": "error handler",
               "cmpt_exp_tbl_handler_stackless": "stackless handler"}
 REG_LHS = re.compile(r"^(?:(pcc) σ|reg σ !! (\S+)|sreg σ !! (\S+))$")
@@ -445,6 +448,12 @@ class Model:
                      pieces=[{"term": t}], items=[], caps=[], constraints=[], implicit=False,
                      mem_comment=p.get("comment", ""), cells=[], badges=[], code_names=[], heap=True)
             self.regions.insert(0, r)
+        # the switcher and the libraries go right after the compartments,
+        # before the threads
+        lib = [r for r in self.regions if r["owner"] in LIBRARY_OWNERS]
+        rest = [r for r in self.regions if r["owner"] not in LIBRARY_OWNERS]
+        at = max((i + 1 for i, r in enumerate(rest) if r["sub"] in CMPT_SUBS), default=len(rest))
+        self.regions[:] = rest[:at] + lib + rest[at:]
 
     # --- cells
 
