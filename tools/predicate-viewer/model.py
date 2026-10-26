@@ -262,6 +262,7 @@ CMPT_SUBS = set(FIELD_REGION.values())
 LIBRARY_OWNERS = {"switcher", "assert", "allocator"}
 FIELD_NOTE = {"cmpt_exp_tbl_handler": "error handler",
               "cmpt_exp_tbl_handler_stackless": "stackless handler"}
+EXPORT_TABLE_NO_HANDLER = 0xffff  # ExportTable_no_handler
 REG_LHS = re.compile(r"^(?:(pcc) σ|reg σ !! (\S+)|sreg σ !! (\S+))$")
 FIELD_LHS = re.compile(r"^([A-Za-z_]\w*) ([A-Za-z_][\w']*)$")
 
@@ -479,6 +480,7 @@ class Model:
         if k == "entry":
             c = self.cell(r, "word", entry=dict(mie=w.get("mie", "?"), args=w.get("args", "?"),
                                                  stack=w.get("stack", "?"), off=w.get("off", "?"),
+                                                 **{k: w[k] for k in ("args_value", "stack_value", "off_value") if k in w},
                                                  index=index if index is not None else 0,
                                                  owner=of or r["owner"], comment=com))
             if index is not None:
@@ -494,6 +496,11 @@ class Model:
             if res and res["k"] == "word":
                 c = self.word_cell(r, res["word"], "item", res.get("field") or w.get("text", ""), res.get("field"), res.get("of"))
                 c["note"] = FIELD_NOTE.get(res.get("field"), "= " + str(w.get("text", "")))
+                hw = res["word"] if isinstance(res["word"], dict) else {}
+                if res.get("field") in FIELD_NOTE and hw.get("w") == "int":
+                    # a handler: a PCC offset, like an export entry's
+                    c["handler"] = dict(kind=FIELD_NOTE[res["field"]], owner=res.get("of") or r["owner"],
+                                        off=str(hw.get("text", "")), value=hw.get("value"))
                 c["comment"] = c.get("comment") or com or (res["stmt"].get("comment", "") if res.get("stmt") else "")
                 c["via"] = w.get("text", "")
                 return c
@@ -1194,10 +1201,30 @@ class Model:
                 pcc = next((x for x in self.regions if x["owner"] == en["owner"] and x["sub"] == "PCC range"), None)
                 if pcc:
                     off = clean(str(en["off"]))
+                    if not is_num(off) and is_num(str(en.get("off_value", ""))):
+                        off = str(en["off_value"])
                     c["ptr"] = self.resolve({"text": f"{pcc['b']} ^+ {off}", "base": pcc["b"], "off": off}, pcc["id"])
                     p = self.els.get(c["ptr"])
                     if p is not None and "notes" in p:
                         p["notes"].append(f"export entry {en['index']}" + (" (" + re.sub(r"^export ", "", en["comment"]) + ")" if en["comment"] else ""))
+        # error handlers: their PCC offsets too, but for ExportTable_no_handler
+        for r in self.regions:
+            for c in r["cells"]:
+                h = c.get("handler")
+                if not h:
+                    continue
+                off = clean(h["off"]) if not is_num(str(h.get("value") or "")) else str(h["value"])
+                if off in ("ExportTable_no_handler", str(EXPORT_TABLE_NO_HANDLER)):
+                    h["none"] = True
+                    c["note"] = h["kind"] + ": no handler"
+                    continue
+                c["note"] = h["kind"] + (": pcc+" + off if is_num(off) else ": offset unknown")
+                pcc = next((x for x in self.regions if x["owner"] == h["owner"] and x["sub"] == "PCC range"), None)
+                if pcc:
+                    c["ptr"] = self.resolve({"text": f"{pcc['b']} ^+ {off}", "base": pcc["b"], "off": off}, pcc["id"])
+                    p = self.els.get(c["ptr"])
+                    if p is not None and "notes" in p:
+                        p["notes"].append(f"{h['kind']} of {h['owner']}")
         for c in self.caps:
             if not c["target"]:
                 continue
@@ -1270,6 +1297,8 @@ if __name__ == "__main__":
                     kinds.append(f"{c['from']}[{c['from_i']}]")
                 elif c.get("entry"):
                     kinds.append(f"entry {c['entry']['index']} -> {where(c['ptr']) if c.get('ptr') else '-'}")
+                elif c.get("handler"):
+                    kinds.append(f"{c['handler']['kind']} {c['handler']['off']} -> {where(c['ptr']) if c.get('ptr') else '-'}")
             print(f"   {r['id']:6} {r['label']:40} [{r['b']}, {r['e']})  {len(r['cells'])} cells"
                   + (" implicit" if r["implicit"] else "") + (" no content" if r["pieces"] is None else "")
                   + ("  · " + "; ".join(kinds) if kinds else ""))

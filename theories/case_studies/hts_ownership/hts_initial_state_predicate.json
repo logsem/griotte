@@ -127,7 +127,7 @@
               "k": "eq",
               "lhs": "cmpt_static_sealed main",
               "lhs_kind": {"kind": "field", "field": "cmpt_static_sealed", "of": "main"},
-              "rhs": {"r": "list", "items": [{"w": "int", "text": "hts_main_owner_id"}]}
+              "rhs": {"r": "list", "items": [{"w": "int", "text": "hts_main_owner_id", "value": "1"}]}
             },
             {
               "k": "eq",
@@ -145,14 +145,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -246,14 +246,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler allocator",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "allocator"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless allocator",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "allocator"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -266,16 +266,22 @@
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "allocator_malloc_nargs",
+                    "args_value": "2",
                     "stack": "allocator_malloc_min_stack",
+                    "stack_value": "0",
                     "off": "allocator_malloc_pcc_off",
+                    "off_value": "3",
                     "comment": "export malloc"
                   },
                   {
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "allocator_free_nargs",
+                    "args_value": "2",
                     "stack": "allocator_free_min_stack",
+                    "stack_value": "0",
                     "off": "allocator_free_pcc_off",
+                    "off_value": "62",
                     "comment": "export free"
                   }
                 ]
@@ -362,7 +368,7 @@
               "k": "eq",
               "lhs": "cmpt_static_sealed B",
               "lhs_kind": {"kind": "field", "field": "cmpt_static_sealed", "of": "B"},
-              "rhs": {"r": "list", "items": [{"w": "int", "text": "hts_adv_owner_id"}]}
+              "rhs": {"r": "list", "items": [{"w": "int", "text": "hts_adv_owner_id", "value": "2"}]}
             },
             {"k": "prop", "text": "Forall is_int (cmpt_code B)", "comment": "arbitrary, any length"},
             {
@@ -974,7 +980,7 @@
               "rhs": {
                 "r": "word",
                 "some": true,
-                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled"}
+                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled", "value": "0"}
               },
               "comment": "interrupts disabled (the posture of the export is not used yet)"
             },

@@ -178,15 +178,53 @@ Ltac2 rec sealable_j (sb : constr) : json :=
                 (bounds b e a))
     end) (fun _ => term_word constr:(WSealable $sb)).
 
+(** [s] is a numeral, possibly negative. *)
+Ltac2 is_numeral (s : string) : bool :=
+  let n := String.length s in
+  let rec go i :=
+    if Int.ge i n then true
+    else let c := Char.to_int (String.get s i) in
+         if Bool.and (Int.ge c 48) (Int.le c 57) then go (Int.add i 1) else false in
+  let k := if sub_is s 0 "-" then 1 else 0 in
+  Bool.and (Int.lt k n) (go k).
+
+(** The value of a closed integer [z] or a closed natural [n], computed, when
+    it is a numeral. The machine parameters of the context are
+    [machine_parameters_instance], as for the code. *)
+Ltac2 value_of (pr : constr -> string) (x : constr) : string option :=
+  Control.plus (fun () =>
+    let hs := Control.hyps () in
+    let mps := List.flat_map (fun h => let (id, _, t) := h in
+                                if Constr.equal t constr:(MachineParameters) then [id] else []) hs in
+    let x := Constr.Unsafe.substnl (List.map (fun _ => constr:(machine_parameters_instance)) mps) 0
+               (Constr.Unsafe.closenl mps 1 x) in
+    let ids := List.map (fun h => let (id, _, _) := h in id) hs in
+    if Constr.equal (Constr.Unsafe.closenl ids 1 x) x then
+      let v := pr (Std.eval_vm None x) in
+      if is_numeral v then Some v else None
+    else None) (fun _ => None).
+
 (** A word: tagged capabilities, sentries and sealing ranges, sealed words,
-    export entries and integers structured, anything else as a term. *)
+    export entries and integers structured, anything else as a term. An
+    integer, or a field of an export entry, that is a closed term but not a
+    numeral also carries its value. *)
 Ltac2 word_j (w : constr) : json :=
   Control.plus (fun () =>
     lazy_match! w with
     | WInt (encode_entry_point ?m (Z.of_nat ?n) (Z.of_nat ?s) (Z.of_nat ?o)) =>
-        JObj [("w", JStr "entry"); ("mie", JStr (pp m)); ("args", JStr (ppn n));
-              ("stack", JStr (ppn s)); ("off", JStr (ppn o))]
-    | WInt ?z => JObj [("w", JStr "int"); ("text", JStr (pp_arg constr:(WInt) "WInt" z))]
+        (* each field that is not a numeral but computes to one also
+           carries its value *)
+        let field k x :=
+          let t := ppn x in
+          let v := if is_numeral t then None else value_of ppn x in
+          (k, JStr t) :: (match v with Some v => [(String.app k "_value", JStr v)] | None => [] end) in
+        JObj (("w", JStr "entry") :: ("mie", JStr (pp m))
+                :: List.append (field "args" n) (List.append (field "stack" s) (field "off" o)))
+    | WInt ?z =>
+        let t := pp_arg constr:(WInt) "WInt" z in
+        let v := if is_numeral t then None else value_of ppz z in
+        JObj (List.append [("w", JStr "int"); ("text", JStr t)]
+                (match v with Some v => [("value", JStr v)] | None => [] end))
     | WSealable ?sb => sealable_j sb
     | WSentry ?k true ?p ?g ?b ?e ?a =>
         JObj (List.append [("w", JStr "sentry"); ("kind", JStr (pp k)); ("p", JStr (pp p)); ("g", JStr (pp g))]
@@ -680,51 +718,6 @@ Ltac2 app_head_args (c : constr) : (string * json) list :=
   | _ => []
   end.
 
-(** [s] is a numeral, possibly negative. *)
-Ltac2 is_numeral (s : string) : bool :=
-  let n := String.length s in
-  let rec go i :=
-    if Int.ge i n then true
-    else let c := Char.to_int (String.get s i) in
-         if Bool.and (Int.ge c 48) (Int.le c 57) then go (Int.add i 1) else false in
-  let k := if sub_is s 0 "-" then 1 else 0 in
-  Bool.and (Int.lt k n) (go k).
-
-(** The value of a closed integer [z] or a closed natural [n], computed, when
-    it is a numeral. *)
-Ltac2 value_of (pr : constr -> string) (x : constr) : string option :=
-  Control.plus (fun () =>
-    let v := pr (Std.eval_vm None x) in
-    if is_numeral v then Some v else None) (fun _ => None).
-
-(** A word of an unfolded list: an integer that is not a numeral but
-    computes to one also carries its [value]. *)
-Ltac2 unfolded_item_j (e : constr) : json :=
-  let j := item_j e in
-  let w := lazy_match! e with note _ ?w => w | _ => e end in
-  match j with
-  | JObj kvs =>
-      let is_int := List.exist (fun kv => let (k, v) := kv in
-                                  Bool.and (String.equal k "w")
-                                    (match v with JStr s => String.equal s "int" | _ => false end)) kvs in
-      if is_int then
-        Control.plus (fun () =>
-          lazy_match! w with
-          | WInt ?z =>
-              let t := pp_arg constr:(WInt) "WInt" z in
-              if is_numeral t then j
-              else match value_of ppz z with
-                   | Some v =>
-                       (* the value before the comment *)
-                       let (cs, others) := List.partition (fun kv => let (k, _) := kv in String.equal k "comment") kvs in
-                       JObj (List.append others (("value", JStr v) :: cs))
-                   | None => j
-                   end
-          end) (fun _ => j)
-      else j
-  | _ => j
-  end.
-
 Ltac2 rec conses (ws : constr) : constr list * constr :=
   lazy_match! ws with
   | cons ?w ?t => let (xs, r) := conses t in (w :: xs, r)
@@ -739,7 +732,7 @@ Ltac2 rec unfolded_pieces (ws : constr) : json list :=
   | nil => []
   | cons _ _ =>
       let (xs, rest) := conses ws in
-      JObj [("words", JArr (List.map unfolded_item_j xs))] :: unfolded_pieces rest
+      JObj [("words", JArr (List.map item_j xs))] :: unfolded_pieces rest
   | _ =>
       let count :=
         lazy_match! ws with

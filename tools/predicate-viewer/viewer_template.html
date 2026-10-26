@@ -308,7 +308,7 @@ pre { margin: 0; }
   <span class="chip sentry"><span class="p">E·Inherit RX</span><span class="loc">G</span></span> sentry
   <span class="chip sealed"><span class="p">⟨ot⟩ RO</span><span class="loc">G</span></span> sealed
   <span class="chip local"><span class="p">RWL</span><span class="loc">L</span></span> dashed: Local
-  <span>Hover a capability or an export entry: the arrow lands on the word at its cursor, the bracket spans its bounds. Click a band for its contents and constraints; a selected band shows the arrows of what it holds.</span>
+  <span>Hover a capability: the arrow lands on the word at its cursor, the bracket spans its bounds. Hover an export entry or an error handler: the arrow lands on the code at its PCC offset, dashed when the offset is symbolic. Click a band for its contents and constraints; a selected band shows the arrows of what it holds.</span>
 </div>
 
 <section class="panel regs" id="regs" aria-label="Registers"></section>
@@ -347,7 +347,7 @@ const isNum = (s) => /^\d+$/.test(String(s));
 let cs = null;          // current case study
 let capById = {}, regById = {};
 let tape = null;        // { bands: [{region, cells}], els: {id -> cell/point} }
-let hovered = null;     // element under hover/focus (chip or export entry)
+let hovered = null;     // element under hover/focus (chip, export entry or handler)
 let decorated = [];     // elements given hover classes, to undo
 let homeChip = {};      // capability id -> its chip in the registers or the tape
 // code constants folded: the switcher's by default, then the reader's choice
@@ -428,11 +428,12 @@ function ptrTarget(id) {
 }
 function entryHtml(c) {
   const en = c.entry;
-  const off = c.ptr ? `<span class="ptrv">${esc(en.off)}</span>` : esc(en.off);
-  return `<span class="entry"><span><i>entry</i>${esc(en.index)}</span><span><i>irq</i>${esc(en.mie)}</span><span><i>args</i>${esc(en.args)}</span><span><i>stack</i>${esc(en.stack)}</span><span><i>pcc+</i>${off}</span></span>` + (en.comment ? `<span class="cmt">${esc(en.comment)}</span>` : "");
+  const val = (k) => en[k + "_value"] != null ? `<i>=</i>${esc(en[k + "_value"])}` : "";
+  const off = (c.ptr ? `<span class="ptrv">${esc(en.off)}</span>` : esc(en.off)) + val("off");
+  return `<span class="entry"><span><i>entry</i>${esc(en.index)}</span><span><i>irq</i>${esc(en.mie)}</span><span><i>args</i>${esc(en.args)}${val("args")}</span><span><i>stack</i>${esc(en.stack)}${val("stack")}</span><span><i>pcc+</i>${off}</span></span>` + (en.comment ? `<span class="cmt">${esc(en.comment)}</span>` : "");
 }
 function wordHtml(c) {
-  let v = c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val">${esc(c.text)}</span>`;
+  let v = c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val${c.ptr ? " ptrv" : ""}">${esc(c.text)}</span>`;
   if (c.note) v += `<span class="cmt">${esc(c.note)}</span>`;
   if (c.comment) v += `<span class="cmt">${esc(c.comment)}</span>`;
   if (c.from) v += fromHtml(c);
@@ -750,8 +751,11 @@ function hover(el) {
     const p = tape.els[el.dataset.ptr];
     deco(landing(el.dataset.ptr), "anchor");
     const c = tape.els[el.id];
-    const owner = c && c.entry ? c.entry.owner : "";
-    showTip(el, [["PCC offset", c && c.entry ? c.entry.off : ""], ["lands on", ptrTarget(el.dataset.ptr)], ["in", "the " + owner + " PCC range"]].concat(p && p.unknown ? [["note", "symbolic offset: the arrow lands on the range"]] : []));
+    const src = c && (c.entry || c.handler);
+    const owner = src ? src.owner : "";
+    const v = !src ? null : c.handler ? c.handler.value : c.entry.off_value;
+    const off = !src ? "" : v != null && v !== src.off ? src.off + " = " + v : src.off;
+    showTip(el, (c && c.handler ? [["handler", c.handler.kind + " of " + owner]] : []).concat([["PCC offset", off], ["lands on", ptrTarget(el.dataset.ptr)], ["in", "the " + owner + " PCC range"]]).concat(p && p.unknown ? [["note", "symbolic offset: the arrow lands on the range"]] : []));
   }
   drawWire();
 }
@@ -791,7 +795,7 @@ function placeTip() {
   tip.style.left = x + "px"; tip.style.top = y + "px";
 }
 
-/* One arrow from a source element (a chip or an export entry): where it
+/* One arrow from a source element (a chip, an export entry or a handler): where it
    lands, its colour, and whether the landing is approximate. */
 function arrowSpec(src) {
   if (src.dataset.cap) {

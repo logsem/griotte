@@ -164,14 +164,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -247,14 +247,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler kvs",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "kvs"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless kvs",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "kvs"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -267,24 +267,33 @@
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "kvs_addOrUpdate_nargs",
+                    "args_value": "3",
                     "stack": "kvs_addOrUpdate_min_stack",
+                    "stack_value": "0",
                     "off": "kvs_addOrUpdate_pcc_off",
+                    "off_value": "2",
                     "comment": "export addOrUpdate"
                   },
                   {
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "kvs_read_nargs",
+                    "args_value": "2",
                     "stack": "kvs_read_min_stack",
+                    "stack_value": "0",
                     "off": "kvs_read_pcc_off",
+                    "off_value": "70",
                     "comment": "export read"
                   },
                   {
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "kvs_erase_nargs",
+                    "args_value": "2",
                     "stack": "kvs_erase_min_stack",
+                    "stack_value": "0",
                     "off": "kvs_erase_pcc_off",
+                    "off_value": "125",
                     "comment": "export erase"
                   }
                 ]
@@ -992,7 +1001,7 @@
               "rhs": {
                 "r": "word",
                 "some": true,
-                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled"}
+                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled", "value": "0"}
               },
               "comment": "interrupts disabled (the posture of the export is not used yet)"
             },

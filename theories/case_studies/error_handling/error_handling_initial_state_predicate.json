@@ -110,14 +110,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -130,7 +130,9 @@
                     "w": "entry",
                     "mie": "InterruptEnabled",
                     "args": "error_handling_main_entry_nargs",
+                    "args_value": "0",
                     "stack": "error_handling_main_entry_min_stack",
+                    "stack_value": "22",
                     "off": "4",
                     "comment": "export entry"
                   }
@@ -171,14 +173,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler stats",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "stats"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "stats_handler_pcc_off"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "stats_handler_pcc_off", "value": "10"}},
               "comment": "declared error handlers"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless stats",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "stats"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -191,8 +193,11 @@
                     "w": "entry",
                     "mie": "InterruptDisabled",
                     "args": "stats_read_nargs",
+                    "args_value": "1",
                     "stack": "stats_read_min_stack",
+                    "stack_value": "16",
                     "off": "stats_read_pcc_off",
+                    "off_value": "0",
                     "comment": "export stats_read"
                   }
                 ]
@@ -857,7 +862,7 @@
               "rhs": {
                 "r": "word",
                 "some": true,
-                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled"}
+                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled", "value": "0"}
               },
               "comment": "interrupts disabled (the posture of the export is not used yet)"
             },

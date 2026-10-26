@@ -110,14 +110,14 @@
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}},
               "comment": "no error handler"
             },
             {
               "k": "eq",
               "lhs": "cmpt_exp_tbl_handler_stackless main",
               "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "main"},
-              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler", "value": "65535"}}
             },
             {
               "k": "eq",
@@ -210,6 +210,7 @@
                         "w": "entry",
                         "mie": "InterruptEnabled",
                         "args": "cmdc_B_f_args",
+                        "args_value": "1",
                         "stack": "min_B_f",
                         "off": "off_B_f"
                       }
@@ -292,6 +293,7 @@
                         "w": "entry",
                         "mie": "InterruptEnabled",
                         "args": "cmdc_C_g_args",
+                        "args_value": "1",
                         "stack": "min_C_g",
                         "off": "off_C_g"
                       }
@@ -853,7 +855,7 @@
               "rhs": {
                 "r": "word",
                 "some": true,
-                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled"}
+                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled", "value": "0"}
               },
               "comment": "interrupts disabled (the posture of the export is not used yet)"
             },
