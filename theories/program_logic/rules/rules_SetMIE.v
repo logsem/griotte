@@ -66,7 +66,7 @@ Section griotte_lang_rules.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
       apply SetMIE_spec_failure; first done. by eapply SetMIE_fail_nonxsr. }
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst' ltac:(done)) as (wst & Hwst & Hrelst).
     assert (get_a wst = get_a vst.(lw)) as Hast.
     { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s ->]. apply get_a_and_tag. }
     cbn in Hstep. rewrite Hxsr Hwst /= Hast in Hstep.
@@ -80,7 +80,7 @@ Section griotte_lang_rules.
       apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC. }
     (* The new mstatus, in the state interpretation *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (setmie_mstatus mie vst)
-      (WInt (mstatus_enc mie (mpie_of (get_a vst.(lw))))) Her) as Her1.
+      (WInt (mstatus_enc mie (mpie_of (get_a vst.(lw))))) eq_refl Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     iMod (sreg_interp_update_mstatus _ (setmie_mstatus mie vst) with "Hsr") as "Hsr".

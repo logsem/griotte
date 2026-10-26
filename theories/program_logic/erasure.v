@@ -410,6 +410,12 @@ Section erasure.
   Definition lsregs_phys R (sregs : LSReg) (sr : SReg) : Prop :=
     ∀ x v, sregs !! x = Some v → ∃ w, sr !! x = Some w ∧ reg_phys R v w.
 
+  (** MSHWM: the physical value is an integer between MSHWMB and the logical
+      value, which a store may have lowered. *)
+  Definition hwm_phys (sregs : LSReg) (sr : SReg) : Prop :=
+    ∀ vb vh, sregs !! MSHWMB = Some vb → sregs !! MSHWM = Some vh →
+      ∃ z, sr !! MSHWM = Some (WInt z) ∧ (get_a vb.(lw) ≤ z ≤ get_a vh.(lw))%Z.
+
   (** The memory clause, for a logical word [v] and its physical copy [pw]. *)
   Definition mem_authority R C v pw : Prop :=
     ∀ b, get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b →
@@ -441,18 +447,19 @@ Section erasure.
     reg_ok_shadow a : is_heap_address a = true → is_Some (shadow !! a);
   }.
 
-  (** The physical registers, system registers and PC are copies of the
-      logical ones by the register clause. The system registers other than
-      MTDC, which legalise the words written to them, hold no word with
-      authority and identifier, and a tagged MTCC or MEPCC is an unsealed
-      executable capability. Memory covers the heap. *)
+  (** The physical registers, system registers but MSHWM, and PC are copies
+      of the logical ones by the register clause; MSHWM is bounded by the
+      logical one ([hwm_phys]). The system registers other than MTDC, which
+      legalise the words written to them, hold no word with authority and
+      identifier, and a tagged MTCC or MEPCC is an unsealed executable
+      capability. Memory covers the heap. *)
   Record erasure R C (σ : ExecConf) (lpc : LWord) (lreg : LReg) (lsreg : LSReg)
       (lmem : LMem) : Prop := {
     er_registry : registry_ok R C (shadowtbl σ);
     er_regs : dom (reg σ) = dom lreg ∧ lregs_phys R lreg (reg σ);
     er_cnull v : lreg !! cnull = Some v → v = lnull;
     er_reg_words r v : lreg !! r = Some v → reg_word_ok R C v;
-    er_sregs : lsregs_phys R lsreg (sreg σ);
+    er_sregs : lsregs_phys R (delete MSHWM lsreg) (sreg σ);
     er_sreg_words sr v : lsreg !! sr = Some v → reg_word_ok R C v;
     er_sreg_legal_id sr v : sr ≠ MTDC → lsreg !! sr = Some v →
                             has_authority v.(lw) → v.(lprov) = None;
@@ -464,6 +471,7 @@ Section erasure.
     er_pc_word : reg_word_ok R C lpc;
     er_pc_ok : pc_ok lpc.(lw);
     er_heap_mapped : heap_mapped (mem σ);
+    er_hwm : hwm_phys lsreg (sreg σ);
   }.
 
   (** *** Words *)
@@ -929,7 +937,7 @@ Section erasure.
     { by rewrite linsert_reg_cnull insert_reg_cnull. }
     rewrite linsert_reg_not_cnull // insert_reg_not_cnull //.
     destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     constructor; cbn in *; try done.
     - split.
       + rewrite !dom_insert_L. by rewrite Hrdom.
@@ -955,6 +963,7 @@ Section erasure.
 
   (** Writes a system register. *)
   Lemma erasure_insert_sreg R C pc r sr m st lpc lreg lsreg lmem x v w :
+    hwm_sreg x = false →
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     reg_word_ok R C v →
     (x ≠ MTDC → has_authority v.(lw) → v.(lprov) = None) →
@@ -962,11 +971,12 @@ Section erasure.
     reg_phys R v w →
     erasure R C (pc, r, <[x := w]> sr, m, st) lpc lreg (<[x := v]> lsreg) lmem.
   Proof.
-    intros Her Hok Hπ Hxpc Hw.
+    intros [Hx_hwm Hx_hwmb]%hwm_sreg_ne Her Hok Hπ Hxpc Hw.
     destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     constructor; cbn in *; try done.
-    - intros y v'. destruct (decide (x = y)) as [<-|Hne].
+    - rewrite delete_insert_ne; last done.
+      intros y v'. destruct (decide (x = y)) as [<-|Hne].
       + rewrite !lookup_insert_eq. intros [= <-]. by eexists.
       + rewrite !lookup_insert_ne //. apply Hsregs.
     - intros y v'. destruct (decide (x = y)) as [<-|Hne].
@@ -978,12 +988,15 @@ Section erasure.
     - intros y v' Hy. destruct (decide (x = y)) as [<-|Hne].
       + rewrite lookup_insert_eq. intros [= <-]. by apply Hxpc.
       + rewrite lookup_insert_ne //. by apply Hsrpc.
+    - intros vb vh. rewrite !lookup_insert_ne //. apply Hhwm.
   Qed.
 
   Lemma erasure_lookup_sreg R C σ lpc lreg lsreg lmem x v :
-    erasure R C σ lpc lreg lsreg lmem → lsreg !! x = Some v →
+    erasure R C σ lpc lreg lsreg lmem → lsreg !! x = Some v → x ≠ MSHWM →
     ∃ w, sreg σ !! x = Some w ∧ reg_phys R v w.
-  Proof. intros Her Hv. by apply (er_sregs _ _ _ _ _ _ _ Her). Qed.
+  Proof.
+    intros Her Hv Hx. apply (er_sregs _ _ _ _ _ _ _ Her). by rewrite lookup_delete_ne.
+  Qed.
 
   (** *** Legalisation of system-register writes *)
 
@@ -1037,13 +1050,14 @@ Section erasure.
 
   (** Writes the legalised value of [v] to a system register. *)
   Lemma erasure_write_sreg R C pc r sr m st lpc lreg lsreg lmem x v w :
+    hwm_sreg x = false →
     erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
     reg_word_ok R C v →
     reg_phys R v w →
     erasure R C (pc, r, <[x := legalise x w]> sr, m, st) lpc lreg
       (<[x := llegalise x v]> lsreg) lmem.
   Proof.
-    intros Her Hok Hw. apply erasure_insert_sreg; first done.
+    intros Hx_hwm Her Hok Hw. apply erasure_insert_sreg; [done | done | | | |].
     - by apply reg_word_ok_llegalise.
     - intros Hx Ha. by apply (llegalise_no_id R C x v).
     - apply llegalise_pc_ok.
@@ -1060,7 +1074,7 @@ Section erasure.
   Proof.
     intros Her Hok Hw Hpcok'.
     destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     by constructor.
   Qed.
 
@@ -1159,6 +1173,129 @@ Section erasure.
                                   (mie_of (get_a (sreg_word σ MSTATUS)))))]>
             (<[MEPCC := lmepcc_of_pc lpc]> lsreg))).
 
+  (** *** The stack high-water mark *)
+
+  (** The physical MSHWMB has the address of the logical one, and the
+      physical MSHWM is an integer between it and the logical MSHWM. *)
+  Lemma erasure_hwm R C σ lpc lreg lsreg lmem vb vh :
+    erasure R C σ lpc lreg lsreg lmem →
+    lsreg !! MSHWMB = Some vb → lsreg !! MSHWM = Some vh →
+    ∃ wb z, sreg σ !! MSHWMB = Some wb ∧ get_a wb = get_a vb.(lw) ∧
+      sreg σ !! MSHWM = Some (WInt z) ∧ (get_a vb.(lw) ≤ z ≤ get_a vh.(lw))%Z.
+  Proof.
+    intros Her Hvb Hvh.
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvb ltac:(done)) as (wb & Hwb & Hrelb).
+    destruct (er_hwm _ _ _ _ _ _ _ Her _ _ Hvb Hvh) as (z & Hz & Hle).
+    exists wb, z. split; first done. split; last done.
+    destruct (reg_phys_and_tag _ _ _ Hrelb) as [s ->]. apply get_a_and_tag.
+  Qed.
+
+  (** Writes the physical MSHWM. *)
+  Lemma erasure_insert_mshwm R C pc r sr m st lpc lreg lsreg lmem z :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    hwm_phys lsreg (<[MSHWM := WInt z]> sr) →
+    erasure R C (pc, r, <[MSHWM := WInt z]> sr, m, st) lpc lreg lsreg lmem.
+  Proof.
+    intros Her Hhwm'.
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
+    constructor; cbn in *; try done.
+    intros y v Hy. destruct (decide (y = MSHWM)) as [->|Hne].
+    - by rewrite lookup_delete_eq in Hy.
+    - rewrite lookup_insert_ne //. by apply Hsregs.
+  Qed.
+
+  (** Writes the logical MSHWM. *)
+  Lemma erasure_insert_lmshwm R C σ lpc lreg lsreg lmem vh :
+    erasure R C σ lpc lreg lsreg lmem →
+    reg_word_ok R C vh →
+    (has_authority vh.(lw) → vh.(lprov) = None) →
+    hwm_phys (<[MSHWM := vh]> lsreg) (sreg σ) →
+    erasure R C σ lpc lreg (<[MSHWM := vh]> lsreg) lmem.
+  Proof.
+    intros Her Hok Hπ Hhwm'.
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
+    constructor; try done.
+    - intros y v. rewrite delete_insert_eq. apply Hsregs.
+    - intros y v. destruct (decide (y = MSHWM)) as [->|Hne].
+      + rewrite lookup_insert_eq. by intros [= <-].
+      + rewrite lookup_insert_ne //. apply Hsrw.
+    - intros y v Hy. destruct (decide (y = MSHWM)) as [->|Hne].
+      + rewrite lookup_insert_eq. intros [= <-]. done.
+      + rewrite lookup_insert_ne //. by apply Hsrlid.
+    - intros y v Hy. destruct (decide (y = MSHWM)) as [->|Hne]; first done.
+      rewrite lookup_insert_ne //. by apply Hsrpc.
+  Qed.
+
+  (** Writes the integer [z] to MSHWMB, physical and logical. *)
+  Lemma erasure_insert_mshwmb R C pc r sr m st lpc lreg lsreg lmem z :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    hwm_phys (<[MSHWMB := lword_of_word (WInt z)]> lsreg) sr →
+    erasure R C (pc, r, <[MSHWMB := WInt z]> sr, m, st) lpc lreg
+      (<[MSHWMB := lword_of_word (WInt z)]> lsreg) lmem.
+  Proof.
+    intros Her Hhwm'.
+    destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
+    constructor; cbn in *; try done.
+    - rewrite delete_insert_ne; last done.
+      intros y v. destruct (decide (y = MSHWMB)) as [->|Hne].
+      + rewrite !lookup_insert_eq. intros [= <-]. eexists. split; first done.
+        apply reg_phys_lword_of_word.
+      + rewrite !lookup_insert_ne //. apply Hsregs.
+    - intros y v. destruct (decide (y = MSHWMB)) as [->|Hne].
+      + rewrite lookup_insert_eq. intros [= <-]. apply reg_word_ok_int.
+      + rewrite lookup_insert_ne //. apply Hsrw.
+    - intros y v Hy. destruct (decide (y = MSHWMB)) as [->|Hne].
+      + rewrite lookup_insert_eq. by intros [= <-].
+      + rewrite lookup_insert_ne //. by apply Hsrlid.
+    - intros y v Hy. destruct (decide (y = MSHWMB)) as [->|Hne]; first done.
+      rewrite lookup_insert_ne //. by apply Hsrpc.
+    - intros vb vh Hvb Hvh. rewrite lookup_insert_ne //. by apply Hhwm'.
+  Qed.
+
+  (** A store at [ea] keeps the clause of MSHWM: it only lowers MSHWM to an
+      address at least MSHWMB. *)
+  Lemma erasure_hwm_update R C pc r sr m st lpc lreg lsreg lmem (ea : Addr) :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, hwm_update ea sr, m, st) lpc lreg lsreg lmem.
+  Proof.
+    intros Her.
+    destruct (hwm_update_cases ea sr) as [[-> _] | (wb & wh & Hb & Hh & Hin & ->)];
+      first done.
+    apply erasure_insert_mshwm; first done.
+    intros vb vh Hvb Hvh.
+    destruct (erasure_hwm _ _ _ _ _ _ _ _ _ Her Hvb Hvh)
+      as (wb' & z & Hwb' & Hab & Hz & Hle); cbn in *.
+    simplify_eq. rewrite lookup_insert_eq. eexists. split; first done.
+    cbn in Hin. lia.
+  Qed.
+
+  (** A store at [ea] in the logical range [[hb, h)] lowers the logical MSHWM
+      to [ea]. *)
+  Lemma erasure_hwm_update_lower R C pc r sr m st lpc lreg lsreg lmem (ea : Addr) vb vh :
+    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    lsreg !! MSHWMB = Some vb → lsreg !! MSHWM = Some vh →
+    (get_a vb.(lw) ≤ ea < get_a vh.(lw))%Z →
+    erasure R C (pc, r, hwm_update ea sr, m, st) lpc lreg
+      (<[MSHWM := lword_of_word (WInt ea)]> lsreg) lmem.
+  Proof.
+    intros Her Hvb Hvh Hin.
+    destruct (erasure_hwm _ _ _ _ _ _ _ _ _ Her Hvb Hvh)
+      as (wb & z & Hwb & Hab & Hz & Hle); cbn in *.
+    apply erasure_insert_lmshwm.
+    - by apply erasure_hwm_update.
+    - apply reg_word_ok_int.
+    - done.
+    - intros vb' vh' Hvb' Hvh'.
+      rewrite lookup_insert_ne // Hvb in Hvb'. rewrite lookup_insert_eq in Hvh'.
+      simplify_eq. cbn.
+      destruct (hwm_update_cases ea sr) as [[-> Hout] | (wb' & wh' & Hb' & Hh' & Hin' & ->)].
+      + exists z. split; first done. specialize (Hout _ _ Hwb Hz). cbn in Hout. lia.
+      + rewrite lookup_insert_eq. eexists. split; first done. lia.
+  Qed.
+
   (** Trap entry: the PC receives MTCC. *)
   Lemma erasure_enter_exc R C σ lpc lreg lsreg lmem cv vtcc :
     erasure R C σ lpc lreg lsreg lmem →
@@ -1168,14 +1305,15 @@ Section erasure.
     intros Her Htcc.
     destruct (erasure_lmepcc_of_pc _ _ _ _ _ _ _ Her) as [Hepcc_ok Hepcc_pc].
     destruct σ as [[[[pc r] sr] m] st].
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done)) as (wtcc & Hwtcc & Hreltcc).
     pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc.
-    assert (∀ x (z : Z), is_pc_sreg x = false →
+    assert (∀ x (z : Z), is_pc_sreg x = false → hwm_sreg x = false →
       ∀ pc' r' sr' m' st' lpc' lsreg',
         erasure R C (pc', r', sr', m', st') lpc' lreg lsreg' lmem →
         erasure R C (pc', r', <[x := WInt z]> sr', m', st') lpc' lreg
           (<[x := lword_of_word (WInt z)]> lsreg') lmem) as Hint.
-    { intros x z Hx ????????. apply erasure_insert_sreg; first done.
+    { intros x z Hx Hx_hwm pc' r' sr' m' st' lpc' lsreg' Her'.
+      apply erasure_insert_sreg; [done | done | | | |].
       - apply reg_word_ok_int.
       - by intros.
       - by rewrite Hx.
@@ -1183,9 +1321,10 @@ Section erasure.
     rewrite /enter_exc /lsregs_enter_exc /update_sreg /update_pcc /sreg_word /=.
     rewrite Hwtcc /=.
     apply (erasure_set_pc R C pc _ _ _ _ lpc _ _ _ vtcc wtcc).
-    - apply Hint; first done. apply Hint; first done. apply Hint; first done.
+    - apply Hint; [done | done |]. apply Hint; [done | done |].
+      apply Hint; [done | done |].
       change (pcc (pc, r, sr, m, st)) with pc.
-      apply erasure_insert_sreg; [done | done | by intros | by intros _ |].
+      apply erasure_insert_sreg; [done | done | done | by intros | by intros _ |].
       rewrite Hpc. apply reg_phys_lword_of_word.
     - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
     - done.
@@ -1226,7 +1365,7 @@ Section erasure.
   Proof.
     intros Her Ha Hok.
     destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     constructor; cbn in *; try done.
     - rewrite !dom_insert_L. by rewrite Hdom.
     - intros a' v'' pw'. destruct (decide (a = a')) as [<-|Hne].
@@ -1256,7 +1395,7 @@ Section erasure.
   Proof.
     intros Her Hst Hok.
     destruct Her as [Hreg Hregs Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     constructor; cbn in *; try done.
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     (* The cells whose shadow bit matters are those of live or quarantined
@@ -1314,7 +1453,7 @@ Section erasure.
   Proof.
     intros Her HR Hs Hs' Hs'live Hquar' Hclean.
     destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     set (R' := <[ι := (b, e, γ, s')]> R).
     (* Lookups in the new registry *)
@@ -1375,6 +1514,7 @@ Section erasure.
     - intros r v Hv. destruct (Hrw r v Hv) as (Hp & Hauth & Hexec).
       split_and!; [by apply Hprov | by apply Hauth' | done].
     - intros srn vs Hvs. destruct (Hsregs srn vs Hvs) as (ws & Hws & Hrel).
+      apply lookup_delete_Some in Hvs as [_ Hvs].
       exists ws. split; first done. apply Hphys; eauto.
     - intros srn vs Hvs. destruct (Hsrw srn vs Hvs) as (Hp & Hauth & Hexec).
       split_and!; [by apply Hprov | by apply Hauth' | done].
@@ -1411,7 +1551,7 @@ Section erasure.
   Proof.
     intros Her HR Hcells HC'.
     destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap].
+                     Hpc Hpcw Hpcok Hhmap Hhwm].
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     set (R' := <[ι := (b, e, γ, ALive)]> R).
     assert (∀ ι', ι' ≠ ι → R' !! ι' = R !! ι') as HR'ne.
@@ -1514,7 +1654,7 @@ Section erasure.
   Proof.
     intros Her HK HR' HC'.
     destruct Her as [Hreg [Hrdom Hregs] Hcnull Hrw Hsregs Hsrw Hsrlid Hsrpc Hdom Hmw Hmmio
-                     Hpc Hpcw Hpcok Hhmap]; cbn in *.
+                     Hpc Hpcw Hpcok Hhmap Hhwm]; cbn in *.
     destruct Hreg as [Hheap Hlive Hquar Hcdom Hclaimed Hroot Hshadow].
     (* Lookups in [R'] *)
     assert (∀ ι x', R' !! ι = Some x' → ∃ x, R !! ι = Some x ∧ re_b x' = re_b x ∧

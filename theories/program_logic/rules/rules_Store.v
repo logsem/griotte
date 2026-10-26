@@ -402,8 +402,9 @@ Section griotte_lang_rules.
        assert (lmem !! ea = Some oldv) as Hlmea by by eapply lookup_weaken.
        destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hlmea) as (pwea & Hmea & _).
        rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) Hmea in Hstep.
-       rewrite /update_mem /= in Hstep.
-       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
+       rewrite /update_mem /hwm_store /= in Hstep.
+       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _
+         (erasure_hwm_update _ _ _ _ _ _ _ _ _ _ _ ea Her) Hlmea
          (reg_phys_mem_word_ok _ _ _ _ (reg_word_ok_lstore_word _ _ p _ Hstore_ok)
             (reg_phys_lstore_word _ p _ _ Hrelv))) as Her1.
        destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.

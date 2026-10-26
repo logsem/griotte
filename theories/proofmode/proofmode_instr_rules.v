@@ -188,6 +188,11 @@ Ltac dispatch_instr_rule instr cont :=
   | UnSeal ?r _ ?r => cont (@wp_unseal_r2)
   | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
   | UnSeal _ _ _ => cont (@wp_unseal_success)
+  (* SpecialRW on the stack high-water mark: csrr mshwm, csrw mshwm and
+     csrw mshwmb *)
+  | SpecialRW _ MSHWM (inr cnull) => cont (@wp_csrr_mshwm)
+  | SpecialRW cnull MSHWM (inr _) => cont (@wp_csrw_mshwm)
+  | SpecialRW cnull MSHWMB (inr _) => cont (@wp_csrw_mshwmb)
   (* SpecialRW: readsr, writesr, csrw with an immediate, swaps *)
   | SpecialRW _ _ (inr cnull) => cont (@wp_readsr_success)
   | SpecialRW cnull _ (inr _) => cont (@wp_writesr_success)

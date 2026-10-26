@@ -85,6 +85,9 @@ Proof. auto. Qed.
 #[export] Hint Resolve executeAllowed_is_readAllowed : solve_pure.
 #[export] Hint Extern 1 (has_sreg_access _ = true) => reflexivity : solve_pure.
 #[export] Hint Extern 1 (has_sreg_access _ = false) => reflexivity : solve_pure.
+(* The generic rules for system registers exclude the stack high-water mark. *)
+#[export] Hint Extern 1 (hwm_sreg _ = false) => reflexivity : solve_pure.
+#[export] Hint Extern 1 (_ ≠ MSHWM) => discriminate : solve_pure.
 (* Follows the same behavior as the Hint Mode for PermFlowsTo *)
 #[export] Hint Extern 1 (PermFlowsTo ?p ?p' = true) =>
   (without_evars p'; apply PermFlowsToReflexive): solve_pure.

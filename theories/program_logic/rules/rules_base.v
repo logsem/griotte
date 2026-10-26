@@ -729,13 +729,13 @@ Section griotte_lang_rules.
       MCAUSE ↦ₛᵣ wcause.
   Proof.
     rewrite trap_vcsr_res_unseal.
-    iIntros "[Hsr Hres] Htok". iNamed "Hres".
+    iIntros "(Hsr & Hres & Hzone) Htok". iNamed "Hres".
     iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause]] | Htok']"; last first.
     { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
     iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
     iExists wepcc, wcause. iSplit; first done.
-    iFrame "Hmepcc Hmcause Hsr Hmstatus Hwin_tval Hmtcc". by iRight.
+    iFrame "Hmepcc Hmcause Hsr Hmstatus Hwin_tval Hmtcc Hzone". by iRight.
   Qed.
 
   (** The return of MEPCC and mcause to the state interpretation: the
@@ -749,14 +749,14 @@ Section griotte_lang_rules.
     trap_vcsr_res.
   Proof.
     rewrite trap_vcsr_res_unseal.
-    iIntros "[Hsr Hres] Hmepcc Hmcause". iNamed "Hres".
+    iIntros "(Hsr & Hres & Hzone) Hmepcc Hmcause". iNamed "Hres".
     iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
     iDestruct "Hwin" as "[[[%wepcc' Hmepcc'] _] | Htok]".
     { iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
     iSplit; first done.
     iSplitR "Htok"; last done.
-    iFrame "Hsr Hmstatus Hwin_tval Hmtcc". iLeft. iSplitL "Hmepcc"; by iExists _.
+    iFrame "Hsr Hmstatus Hwin_tval Hmtcc Hzone". iLeft. iSplitL "Hmepcc"; by iExists _.
   Qed.
 
   (** The return of mtval to the state interpretation: the token of
@@ -768,11 +768,11 @@ Section griotte_lang_rules.
     trap_tval_res.
   Proof.
     rewrite trap_tval_res_unseal.
-    iIntros "[Hsr Hres] Hmtval". iNamed "Hres".
+    iIntros "(Hsr & Hres & Hzone) Hmtval". iNamed "Hres".
     iDestruct "Hwin_tval" as "[[%z' Hmtval'] | Htok]".
     { iDestruct (pointsto_ne with "Hmtval Hmtval'") as %Hne. by exfalso; apply Hne. }
     iSplitR "Htok"; last done.
-    iFrame "Hsr Hmstatus Hwin Hmtcc". iLeft. by iExists z.
+    iFrame "Hsr Hmstatus Hwin Hmtcc Hzone". iLeft. by iExists z.
   Qed.
 
   (** The return of MEPCC and mcause to the state interpretation, in front
@@ -925,7 +925,7 @@ Section griotte_lang_rules.
     pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as [Hcause Htval].
     iDestruct ("Hsafe" with "Hregs Hmem") as "[>[Htok HΦ] _]".
     iDestruct (sreg_interp_mtcc with "Hsr") as %Htcc.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc ltac:(done)) as (wtcc & Hwtcc & Hreltcc).
     (* The trap vector is an executable capability, so its physical copy is
        exact. *)
     assert (wtcc = mtcc_vec) as ->.
@@ -946,7 +946,7 @@ Section griotte_lang_rules.
     iMod "Hclose" as "_".
     pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
       as Her'.
-    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    iDestruct "Hsr" as "(Hsr & Hres & Hzone)". iNamed "Hres".
     (* With the token in hand, MEPCC, mcause and mtval are held. *)
     iDestruct (trap_token_split with "Htok") as "[Htok Htok_tval]".
     iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
@@ -967,6 +967,10 @@ Section griotte_lang_rules.
     iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
            with "Hsr Hmtval") as "[Hsr Hmtval]".
     iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
+    iAssert (hwm_zone (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg))
+      with "[Hzone]" as "Hzone".
+    { by rewrite /lsregs_enter_exc !hwm_zone_insert_ne. }
+    iEval (rewrite /lsregs_enter_exc /=) in "Hzone".
     iModIntro. iSplitR "HΦ HPC Hmepcc Hmcause Hmtval".
     - iExists (lword_of_word mtcc_vec), lreg,
         (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg), lmem, R, C.

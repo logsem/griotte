@@ -18,14 +18,17 @@ Inductive RegName: Type :=
 | R (n: nat) (fin: n <=? RegNum = true).
 
 (* The system registers: the special capability registers MTCC, MTDC and
-   MEPCC, and the integer CSRs mstatus, mcause and mtval. *)
+   MEPCC, the integer CSRs mstatus, mcause and mtval, and the stack
+   high-water mark MSHWM with its base MSHWMB. *)
 Inductive SRegName : Type :=
 | MTCC
 | MTDC
 | MEPCC
 | MSTATUS
 | MCAUSE
-| MTVAL.
+| MTVAL
+| MSHWM
+| MSHWMB.
 
 #[global] Instance reg_eq_dec : EqDecision RegName.
 Proof. intros r1 r2.  destruct r1 as [n fin],r2 as [n0 fin0].
@@ -71,11 +74,13 @@ Proof. solve_decision. Defined.
 Definition sreg_to_nat (sr : SRegName) : nat :=
   match sr with
   | MTCC => 0 | MTDC => 1 | MEPCC => 2 | MSTATUS => 3 | MCAUSE => 4 | MTVAL => 5
+  | MSHWM => 6 | MSHWMB => 7
   end.
 
 Definition nat_to_sreg (n : nat) : SRegName :=
   match n with
-  | 0 => MTCC | 1 => MTDC | 2 => MEPCC | 3 => MSTATUS | 4 => MCAUSE | _ => MTVAL
+  | 0 => MTCC | 1 => MTDC | 2 => MEPCC | 3 => MSTATUS | 4 => MCAUSE | 5 => MTVAL
+  | 6 => MSHWM | _ => MSHWMB
   end.
 
 Lemma nat_to_sreg_to_nat sr : nat_to_sreg (sreg_to_nat sr) = sr.
@@ -107,10 +112,10 @@ Defined.
 
 #[global] Instance sreg_finite : finite.Finite SRegName.
 Proof.
-  apply (finite.enc_finite sreg_to_nat nat_to_sreg 6%nat).
+  apply (finite.enc_finite sreg_to_nat nat_to_sreg 8%nat).
   - apply nat_to_sreg_to_nat.
   - intro sr; destruct sr; cbn; lia.
-  - intros n Hn. do 6 (destruct n as [|n]; [done|]). lia.
+  - intros n Hn. do 8 (destruct n as [|n]; [done|]). lia.
 Defined.
 
 (* Instances for [zify]: make [lia] work on registers *)
@@ -169,6 +174,8 @@ Notation mepcc   := MEPCC.
 Notation mstatus := MSTATUS.
 Notation mcause  := MCAUSE.
 Notation mtval   := MTVAL.
+Notation mshwm   := MSHWM.
+Notation mshwmb  := MSHWMB.
 
 (** The values of the interrupt-enable bits MIE and MPIE of mstatus. *)
 Inductive InterruptStatus : Type :=

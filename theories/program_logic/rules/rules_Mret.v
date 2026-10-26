@@ -73,15 +73,15 @@ Section griotte_lang_rules.
       apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr. }
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MEPCC) as (vepcc & Hvepcc & Hvepcc');
       first (rewrite /sregs_of; set_solver).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc & Hwepcc & Hrelepcc).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc' ltac:(done)) as (wepcc & Hwepcc & Hrelepcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst' ltac:(done)) as (wst & Hwst & Hrelst).
     assert (get_a wst = get_a vst.(lw)) as Hast.
     { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s ->]. apply get_a_and_tag. }
     cbn in Hstep. rewrite Hxsr Hwepcc Hwst /= Hast in Hstep.
     injection Hstep as <- <-.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (mret_mstatus vst)
-      (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) Her) as Her1.
+      (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) eq_refl Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.

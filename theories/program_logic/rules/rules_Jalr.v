@@ -68,7 +68,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rsrc) as (s & Hrsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
     pose proof (er_pc_word _ _ _ _ _ _ _ Her) as HokPC.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst' ltac:(done)) as (wst & Hwst & Hrelst).
     assert (get_a wst = get_a vst.(lw)) as Hast.
     { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s' ->]. apply get_a_and_tag. }
     rewrite /exec /= Hrsrc /= jalr_target_checks in Hstep.
@@ -97,7 +97,7 @@ Section griotte_lang_rules.
     (* mstatus, held by the state interpretation: a sentry that sets the
        interrupt status writes MIE. *)
     destruct (jalr_mstatus wsrc.(lw) (get_a vst.(lw))) as [z|] eqn:Hmie.
-    - pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (WInt z) (WInt z) Her)
+    - pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (WInt z) (WInt z) eq_refl Her)
         as Her1.
       specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                     ltac:(apply reg_phys_lword_of_word)).

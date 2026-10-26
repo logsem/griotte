@@ -39,7 +39,8 @@ Section vcsr.
 
   (** The view of a lent volatile register [sr] (MEPCC, mcause or mtval),
       holding [vsr]. *)
-  Definition vcsr_frag_def (sr : SRegName) (vsr : LWord) : iProp Σ := sr ↦ₛᵣ vsr.
+  Definition vcsr_frag_def (sr : SRegName) (vsr : LWord) : iProp Σ :=
+    sr ↦ₛᵣ vsr ∗ ⌜hwm_sreg sr = false⌝.
   #[local] Definition vcsr_frag_aux : seal (@vcsr_frag_def). Proof. by eexists. Qed.
   Definition vcsr_frag := vcsr_frag_aux.(unseal).
   #[local] Definition vcsr_frag_unseal : @vcsr_frag = @vcsr_frag_def := vcsr_frag_aux.(seal_eq).
@@ -78,7 +79,14 @@ Section vcsr.
     vcsr_frag MEPCC (lmepcc_of_pc w) ∗
     (∃ cause : Z, ⌜P_mcause cause⌝ ∗ vcsr_frag MCAUSE (lword_of_word (WInt cause))) ∗
     (∃ tval : Z, ⌜P_mtval tval⌝ ∗ vcsr_frag MTVAL (lword_of_word (WInt tval))).
-  Proof. rewrite trap_entry_out_unfold vcsr_frag_unseal. by iIntros "H". Qed.
+  Proof.
+    rewrite trap_entry_out_unfold vcsr_frag_unseal /vcsr_frag_def.
+    iIntros "(Hmepcc & (%cause & %Hcause & Hmcause) & (%tval & %Htval & Hmtval))".
+    iSplitL "Hmepcc"; first (iSplitL; [iExact "Hmepcc" | done]).
+    iSplitL "Hmcause".
+    - iExists cause. iSplit; first done. iSplitL; [iExact "Hmcause" | done].
+    - iExists tval. iSplit; first done. iSplitL; [iExact "Hmtval" | done].
+  Qed.
 
   (** The return of MEPCC and mcause to the state interpretation, in front
       of any instruction: the trap-entry token without [Ntval] comes
@@ -90,7 +98,7 @@ Section vcsr.
     WP e @ E {{ Φ }}.
   Proof.
     rewrite vcsr_res_unseal /vcsr_res_def vcsr_frag_unseal.
-    iIntros (He) "(%wepcc & %wcause & Hmepcc & Hmcause) HΦ".
+    iIntros (He) "(%wepcc & %wcause & [Hmepcc _] & [Hmcause _]) HΦ".
     by iApply (wp_trap_entry_return with "Hmepcc Hmcause").
   Qed.
 
@@ -105,7 +113,7 @@ Section vcsr.
     WP e @ E {{ Φ }}.
   Proof.
     rewrite vcsr_frag_unseal.
-    iIntros (He) "Hmtval Hvcsr HΦ".
+    iIntros (He) "[Hmtval _] Hvcsr HΦ".
     iApply (wp_tval_return with "Hmtval"); first done.
     iIntros "Htval". iApply "HΦ".
     iApply trap_entry_res_vcsr_tval. iFrame.
@@ -131,7 +139,7 @@ Section vcsr.
     iNamed "Hσ".
     iDestruct (sreg_interp_trap_lend with "Hsr Htok")
       as (wepcc wcause) "(_ & Hsr & Hmepcc & Hmcause)".
-    iSpecialize ("HΦ" with "Hmepcc Hmcause").
+    iSpecialize ("HΦ" with "[$Hmepcc //] [$Hmcause //]").
     iEval (rewrite wp_unfold /wp_pre He) in "HΦ".
     iApply ("HΦ" $! σ1 ns κ κs nt).
     iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
@@ -160,13 +168,15 @@ Section vcsr.
           vcsr_frag sr vsr }}}.
   Proof.
     rewrite vcsr_frag_unseal.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ)
+      "(>HPC & >Hpc_a & >Hdst & >[Hsrc %Hsr_hwm]) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
       [exact Hinstr | exact Hvpc
       | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
-      | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
+      | rewrite Hxsr /sregs_of dom_singleton_L;
+        split; [set_solver | by apply specialrw_generic_not_hwm] |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold & Hvold & Hsr' & ->).
@@ -174,7 +184,7 @@ Section vcsr.
     rewrite specialrw_regs_ne // insert_singleton_eq.
     iApply "Hφ". iFrame.
     iDestruct (regs_of_map_1 with "Hmap") as "$".
-    iApply (sregs_of_map_1 with "Hsmap").
+    iSplitL; [iApply (sregs_of_map_1 with "Hsmap") | done].
   Qed.
 
   (** [cspecialw mepcc, src]: the lent volatile register MEPCC receives the
@@ -198,13 +208,13 @@ Section vcsr.
           vcsr_frag MEPCC (llegalise MEPCC vsrc) }}}.
   Proof.
     rewrite vcsr_frag_unseal.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >[Hdst _]) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]");
       [exact Hinstr | exact Hvpc
       | rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver
-      | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
+      | rewrite Hxsr /sregs_of dom_singleton_L; split; [set_solver | done] |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold' & Hvold & Hsr' & ->).
@@ -214,7 +224,7 @@ Section vcsr.
     rewrite specialrw_regs_cnull.
     iApply "Hφ". iFrame.
     iDestruct (regs_of_map_1 with "Hmap") as "$".
-    iApply (sregs_of_map_1 with "Hsmap").
+    iSplitL; [iApply (sregs_of_map_1 with "Hsmap") | done].
   Qed.
 
   (** [mret] ends the window of the context install: the PC receives MEPCC,
@@ -236,7 +246,7 @@ Section vcsr.
           trap_vcsr_res }}}.
   Proof.
     rewrite vcsr_frag_unseal.
-    iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hmepcc & >Hmcause) Hφ".
+    iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >[Hmepcc _] & >[Hmcause _]) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
     iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
@@ -245,15 +255,15 @@ Section vcsr.
     iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
     { iApply (sreg_interp_mstatus with "Hsr"). }
     rewrite Hinstr /exec in Hstep.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc' & Hwepcc & Hrelepcc).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc' ltac:(done)) as (wepcc' & Hwepcc & Hrelepcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst' ltac:(done)) as (wst & Hwst & Hrelst).
     assert (get_a wst = get_a vst.(lw)) as Hast.
     { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s ->]. apply get_a_and_tag. }
     cbn in Hstep. rewrite Hxsr Hwepcc Hwst /= Hast in Hstep.
     injection Hstep as <- <-.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (mret_mstatus vst)
-      (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) Her) as Her1.
+      (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) eq_refl Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ wepcc wepcc' Her1) as Her2.
@@ -294,7 +304,7 @@ Section vcsr.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
     (* Borrow mstatus from the state interpretation. *)
-    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
+    iDestruct "Hsr" as "(Hsr & Hres & Hzone)". iNamed "Hres".
     set sr := MSTATUS.
     iDestruct "Hmstatus" as (vold) "Hpt".
     iAssert (∀ vnew, sr ↦ₛᵣ vnew -∗ sreg_reserved)%I
@@ -306,24 +316,26 @@ Section vcsr.
     rewrite Hinstr /exec in Hstep.
     assert (lsreg !! sr = Some vold) as Hvold'.
     { eapply lookup_weaken; last exact Hlsregs. by simplify_map_eq. }
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold' ltac:(done)) as (wold & Hwold & Hrelold).
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg lsreg lmem regs {[sr := vold]} sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
     { rewrite /regs_of /operands_of in Dregs. set_solver. } { by simplify_map_eq. }
+    { done. }
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
     assert (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
               Some (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
     { by apply incrementPC_add. }
     (* The ghost system registers: [sr] returns to the state interpretation. *)
-    iAssert (|==> sreg_interp lsreg')%I with "[Hsr Hsmap Hback]" as ">Hsr".
-    { destruct Hup as [[-> ->] | (nv & -> & ->)].
-      - iModIntro. iFrame "Hsr". iDestruct (sregs_of_map_1 with "Hsmap") as "Hpt".
+    iAssert (|==> sreg_interp lsreg')%I with "[Hsr Hsmap Hback Hzone]" as ">Hsr".
+    { destruct Hup as [[-> ->] | (nv & Hsr_hwm & -> & ->)].
+      - iModIntro. iFrame "Hsr Hzone". iDestruct (sregs_of_map_1 with "Hsmap") as "Hpt".
         iApply ("Hback" with "Hpt").
       - iMod (gen_heap_update_inSepM _ _ sr nv with "Hsr Hsmap") as "[Hsr Hsmap]";
           first by rewrite lookup_singleton_eq.
         rewrite insert_singleton_eq. iDestruct (sregs_of_map_1 with "Hsmap") as "Hpt".
-        iModIntro. iFrame "Hsr". iApply ("Hback" with "Hpt"). }
+        iModIntro. rewrite /sreg_interp hwm_zone_insert_ne //.
+        iFrame "Hsr Hzone". iApply ("Hback" with "Hpt"). }
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
     case_decide as Hdst.
     - (* The old value is dropped. *)

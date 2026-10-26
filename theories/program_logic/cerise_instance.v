@@ -70,6 +70,21 @@ Proof.
   iModIntro. iExists (PcG _ _ γ). iFrame.
 Qed.
 
+(** The zone of the stack high-water mark: the ghost set of addresses whose
+    zeroed cells the state interpretation holds, as an authoritative map with
+    an exclusive token per address. *)
+Class zoneG Σ := ZoneG {
+  zone_ghost_mapG :: ghost_mapG Σ Addr unit;
+  zone_name : gname;
+}.
+#[export] Hint Mode zoneG - : typeclass_instances.
+
+Class zoneGpreS Σ := { zone_preG_ghost_mapG :: ghost_mapG Σ Addr unit }.
+#[export] Hint Mode zoneGpreS - : typeclass_instances.
+Definition zoneΣ : gFunctors := #[ghost_mapΣ Addr unit].
+#[global] Instance subG_zoneGpreS {Σ} : subG zoneΣ Σ → zoneGpreS Σ.
+Proof. solve_inG. Qed.
+
 (** The trap vector: the word that MTCC holds in every state, the
     capability of the exception entry of the switcher. It is tagged, so a
     fault never stops the machine. *)
@@ -92,6 +107,7 @@ Class ceriseG Σ :=
       sreg_gen_regG :: gen_heapGS SRegName LWord Σ; (* system register *)
       cerise_registryG :: allocRegistryG Σ; (* allocation registry *)
       cerise_addr_allocG :: addrAllocG Σ; (* address claims *)
+      cerise_zoneG :: zoneG Σ; (* zone of the stack high-water mark *)
       cerise_trapVector :: trapVector (* trap vector *)
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
@@ -111,7 +127,7 @@ Section state_interp.
   Context `{!pcG Σ,
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
-            !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ}.
+            !allocRegistryG Σ, !addrAllocG Σ, !zoneG Σ, !trapVector, !cerise_na_invs Σ}.
 
   (** The system registers that the state interpretation reserves: mstatus,
       the registers trap entry writes (MEPCC, mcause, mtval) and MTCC, which
@@ -131,22 +147,58 @@ Section state_interp.
                    na_own cerise_nais (↑Ntval)) ∗
     "Hmtcc" ∷ pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) (lword_of_word mtcc_vec).
 
-  (** The logical system registers, with the reserved points-to. *)
+  (** The exclusive token of the address [a] of the zone. *)
+  Definition zone_token (a : Addr) : iProp Σ := a ↪[zone_name] ().
+
+  (** A cell of the zone: its token, and half of its points-to, which holds
+      zero. The state interpretation holds the other half. *)
+  Definition zone_cell_def (a : Addr) : iProp Σ :=
+    zone_token a ∗
+    pointsto (L:=Addr) (V:=LWord) a (DfracOwn (1/2)) (lword_of_word (WInt 0)).
+  #[local] Definition zone_cell_aux : seal (@zone_cell_def). Proof. by eexists. Qed.
+  Definition zone_cell := zone_cell_aux.(unseal).
+  #[local] Definition zone_cell_unseal : @zone_cell = @zone_cell_def :=
+    zone_cell_aux.(seal_eq).
+
+  (** The authoritative part of the zone [Z]. *)
+  Definition zone_auth (Z : gset Addr) : iProp Σ :=
+    ghost_map_auth zone_name 1 (gset_to_gmap () Z).
+
+  (** The zone covers [[MSHWMB, MSHWM)] of the logical values, and the state
+      interpretation holds half of each of its cells, zeroed. *)
+  Definition hwm_zone (lsreg : LSReg) : iProp Σ :=
+    ∃ (zone : gset Addr) (vmshwmb vmshwm : LWord),
+      "%Hmshwmb" ∷ ⌜lsreg !! MSHWMB = Some vmshwmb⌝ ∗
+      "%Hmshwm" ∷ ⌜lsreg !! MSHWM = Some vmshwm⌝ ∗
+      "%Hzone_cover" ∷
+        ⌜∀ a : Addr, (get_a vmshwmb.(lw) ≤ a < get_a vmshwm.(lw))%Z → a ∈ zone⌝ ∗
+      "Hzone_auth" ∷ zone_auth zone ∗
+      "Hzone_cells" ∷ ([∗ set] a ∈ zone,
+        pointsto (L:=Addr) (V:=LWord) a (DfracOwn (1/2)) (lword_of_word (WInt 0))).
+
+  Lemma hwm_zone_insert_ne lsreg x v :
+    hwm_sreg x = false → hwm_zone (<[x := v]> lsreg) ⊣⊢ hwm_zone lsreg.
+  Proof.
+    intros [Hx1 Hx2]%hwm_sreg_ne. rewrite /hwm_zone.
+    by rewrite !lookup_insert_ne.
+  Qed.
+
+  (** The logical system registers, with the reserved points-to and the zone. *)
   Definition sreg_interp (lsreg : LSReg) : iProp Σ :=
-    gen_heap_interp lsreg ∗ sreg_reserved.
+    gen_heap_interp lsreg ∗ sreg_reserved ∗ "Hzone" ∷ hwm_zone lsreg.
 
   Lemma sreg_interp_update_mstatus lsreg v :
     sreg_interp lsreg ==∗ sreg_interp (<[MSTATUS := v]> lsreg).
   Proof.
-    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmstatus" as (v0) "Hmstatus".
-    iMod (gen_heap_update _ _ _ v with "Hsr Hmstatus") as "[$ Hmstatus]".
-    iModIntro. iFrame.
+    iIntros "(Hsr & Hres & Hzone)". iNamed "Hres". iDestruct "Hmstatus" as (v0) "Hmstatus".
+    iMod (gen_heap_update _ _ _ v with "Hsr Hmstatus") as "[Hsr Hmstatus]".
+    iModIntro. rewrite /sreg_interp hwm_zone_insert_ne //. iFrame.
   Qed.
 
   Lemma sreg_interp_mstatus lsreg :
     sreg_interp lsreg -∗ ⌜∃ v, lsreg !! MSTATUS = Some v⌝.
   Proof.
-    iIntros "[Hsr Hres]". iNamed "Hres". iDestruct "Hmstatus" as (v) "Hmstatus".
+    iIntros "(Hsr & Hres & Hzone)". iNamed "Hres". iDestruct "Hmstatus" as (v) "Hmstatus".
     iDestruct (gen_heap_valid with "Hsr Hmstatus") as %Hlookup. eauto.
   Qed.
 
@@ -154,7 +206,7 @@ Section state_interp.
   Lemma sreg_interp_mtcc lsreg :
     sreg_interp lsreg -∗ ⌜lsreg !! MTCC = Some (lword_of_word mtcc_vec)⌝.
   Proof.
-    iIntros "[Hsr Hres]". iNamed "Hres".
+    iIntros "(Hsr & Hres & Hzone)". iNamed "Hres".
     iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hlookup. eauto.
   Qed.
 
@@ -212,6 +264,53 @@ Notation "a ↦ₛ{ q } b" := (pointsto (L:=Addr) (V:=AllocStatus) a q b)
 Notation "a ↦ₛ b" := (pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b) (at level 20) : bi_scope.
 Notation "a ↦ₛ -" := (∃ b, pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b)%I (at level 20) : bi_scope.
 
+(** * The zone *)
+Section zone.
+  Context `{!gen_heapGS Addr LWord Σ, !zoneG Σ}.
+
+  Lemma zone_cell_unfold a :
+    zone_cell a ⊣⊢ zone_token a ∗ a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0).
+  Proof. by rewrite zone_cell_unseal. Qed.
+
+  #[global] Instance zone_token_timeless a : Timeless (zone_token a).
+  Proof. apply _. Qed.
+
+  #[global] Instance zone_cell_timeless a : Timeless (zone_cell a).
+  Proof. rewrite zone_cell_unseal. apply _. Qed.
+
+  Lemma zone_token_excl a : zone_token a -∗ zone_token a -∗ False.
+  Proof.
+    iIntros "H1 H2". by iDestruct (ghost_map_elem_ne with "H1 H2") as %?.
+  Qed.
+
+  Lemma zone_cell_excl a : zone_cell a -∗ zone_cell a -∗ False.
+  Proof.
+    rewrite !zone_cell_unfold. iIntros "[H1 _] [H2 _]".
+    iApply (zone_token_excl with "H1 H2").
+  Qed.
+
+  Lemma zone_auth_elem Z a : zone_auth Z -∗ zone_token a -∗ ⌜a ∈ Z⌝.
+  Proof.
+    iIntros "Hauth Htok".
+    iDestruct (ghost_map_lookup with "Hauth Htok") as %Hlookup.
+    iPureIntro. by apply lookup_gset_to_gmap_Some in Hlookup as [? _].
+  Qed.
+
+  Lemma zone_auth_insert Z a :
+    a ∉ Z → zone_auth Z ==∗ zone_auth ({[a]} ∪ Z) ∗ zone_token a.
+  Proof.
+    iIntros (HaZ) "Hauth". rewrite /zone_auth /zone_token gset_to_gmap_union_singleton.
+    iApply (ghost_map_insert with "Hauth").
+    by rewrite lookup_gset_to_gmap_None.
+  Qed.
+
+  Lemma zone_auth_delete Z a : zone_auth Z -∗ zone_token a ==∗ zone_auth (Z ∖ {[a]}).
+  Proof.
+    iIntros "Hauth Htok". rewrite /zone_auth /zone_token gset_to_gmap_difference_singleton.
+    iApply (ghost_map_delete with "Hauth Htok").
+  Qed.
+End zone.
+
 (** * Initialisation of the ghost state
 
     The logical heaps start without identifiers: the logical registers and
@@ -227,12 +326,13 @@ Class ceriseGpreS Σ := {
   cerise_preG_sreg :: gen_heapGpreS SRegName LWord Σ;
   cerise_preG_registry :: allocRegistryPreG Σ;
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
+  cerise_preG_zone :: zoneGpreS Σ;
 }.
 #[export] Hint Mode ceriseGpreS - : typeclass_instances.
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
-    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ].
+    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ; zoneΣ].
 
 #[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.
@@ -274,7 +374,7 @@ Section ghost_init.
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
       unsealed executable capability; the system registers that the state
       interpretation reserves exist, MTCC holds the trap vector and mtval an
-      integer. *)
+      integer; MSHWMB and MSHWM hold the same integer: the zone is empty. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -297,6 +397,7 @@ Section ghost_init.
     gi_reserved_sregs sr : sr ∈ reserved_sregs → is_Some (sreg σ !! sr);
     gi_mtcc : sreg σ !! MTCC = Some mtcc_vec;
     gi_mtval : ∃ z, sreg σ !! MTVAL = Some (WInt z);
+    gi_hwm : ∃ z, sreg σ !! MSHWMB = Some (WInt z) ∧ sreg σ !! MSHWM = Some (WInt z);
   }.
 
   Lemma lookup_init_claims H a :
@@ -360,7 +461,7 @@ Section ghost_init.
       + intros Hv. apply fmap_Some in Hv as (? & _ & ->). apply reg_word_ok_lnull.
       + intros Hv. apply fmap_Some in Hv as (w & Hw & ->).
         apply Hok; last by eapply gi_regs_exec. intros b. eapply gi_regs; eauto.
-    - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
+    - intros sr v. rewrite lookup_delete_Some /init_lsregs lookup_fmap. intros [_ Hv].
       apply fmap_Some in Hv as (w & Hw & ->).
       exists w. split; first done. apply reg_phys_lword_of_word.
     - intros sr v. rewrite /init_lsregs lookup_fmap. intros Hv.
@@ -381,19 +482,23 @@ Section ghost_init.
     - apply Hok; last by apply (gi_pc_exec _ _ Hinit). intros b. by apply gi_pc.
     - apply Hinit.
     - apply Hinit.
+    - intros vb vh. rewrite /init_lsregs !lookup_fmap.
+      destruct (gi_hwm _ _ Hinit) as (z & Hb & Hh). rewrite Hb Hh /=.
+      intros [= <-] [= <-]. exists z. split; first done. cbn. lia.
   Qed.
 
   Context `{!ceriseGpreS Σ, !cerise_na_invs Σ}.
 
   (** The generic ghost initialisation of every adequacy theorem. It returns
       the state interpretation, the logical PC, register, system register,
-      memory and shadow points-to, and the address claims. *)
+      memory and shadow points-to, and the address claims. The zone starts
+      empty. *)
   Lemma cerise_ghost_init σ H :
     ghost_init_cond σ H →
     ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
              (pg : pcG Σ)
              (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName LWord Σ)
-             (regg : allocRegistryG Σ) (ag : addrAllocG Σ),
+             (regg : allocRegistryG Σ) (ag : addrAllocG Σ) (zg : zoneG Σ),
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
@@ -410,7 +515,9 @@ Section ghost_init.
     iMod (gen_heap_init (shadowtbl σ)) as (sg) "(Hst & Hsts & _)".
     iMod registry_init as (regg) "HR".
     iMod (addr_alloc_init (init_claims H)) as (ag) "[HC HCs]".
-    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag.
+    iMod (ghost_map_alloc_empty (K:=Addr) (V:=unit)) as (γz) "Hzauth".
+    set (zg := ZoneG Σ _ γz).
+    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag, zg.
     rewrite /init_lsregs big_sepM_fmap.
     destruct (gi_reserved_sregs _ _ Hinit MSTATUS) as [wst Hwst]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit MEPCC) as [wepcc Hwepcc]; first set_solver.
@@ -426,9 +533,15 @@ Section ghost_init.
       first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete _ _ MTCC with "Hsrs") as "[Hmtcc Hsrs]";
       first by rewrite !lookup_delete_ne.
+    iAssert (hwm_zone (lword_of_word <$> sreg σ)) with "[Hzauth]" as "Hzone".
+    { destruct (gi_hwm _ _ Hinit) as (z & Hb & Hh).
+      iExists ∅, (lword_of_word (WInt z)), (lword_of_word (WInt z)).
+      rewrite !lookup_fmap Hb Hh /=. iSplit; first done. iSplit; first done.
+      iSplit; first (iPureIntro; intros a Ha; lia).
+      rewrite /zone_auth gset_to_gmap_empty big_sepS_empty. by iFrame. }
     iAssert (sreg_interp (lword_of_word <$> sreg σ))
-      with "[Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc]" as "Hsr".
-    { iFrame "Hsr Hmstatus Hmtcc". iSplitL "Hmepcc Hmcause"; iLeft; iFrame. }
+      with "[Hsr Hmstatus Hmepcc Hmcause Hmtval Hmtcc Hzone]" as "Hsr".
+    { iFrame "Hsr Hmstatus Hmtcc Hzone". iSplitL "Hmepcc Hmcause"; iLeft; iFrame. }
     iFrame. iPureIntro. by apply init_erasure.
   Qed.
 

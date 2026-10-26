@@ -29,6 +29,33 @@ Section griotte_lang_rules.
     | inl z => Some (<[sr := llegalise sr (WInt z)]> sregs)
     end.
 
+  (** The accesses that the generic rule covers: MSHWM has its own rules,
+      and so has a write to MSHWMB. *)
+  Definition specialrw_generic (sr : SRegName) (src : Z + RegName) : bool :=
+    match sr with
+    | MSHWM => false
+    | MSHWMB => bool_decide (src = inr cnull)
+    | _ => true
+    end.
+
+  Lemma specialrw_generic_ne_mshwm sr src : specialrw_generic sr src = true → sr ≠ MSHWM.
+  Proof. by intros Hg ->. Qed.
+
+  Lemma specialrw_generic_write sr src :
+    specialrw_generic sr src = true → src ≠ inr cnull → hwm_sreg sr = false.
+  Proof.
+    intros Hg Hsrc. destruct sr; try done; apply bool_decide_eq_true in Hg; by destruct Hsrc.
+  Qed.
+
+  Lemma specialrw_generic_read sr : sr ≠ MSHWM → specialrw_generic sr (inr cnull) = true.
+  Proof.
+    intros Hsr. destruct sr; try done; by destruct Hsr.
+  Qed.
+
+  Lemma specialrw_generic_not_hwm sr src :
+    hwm_sreg sr = false → specialrw_generic sr src = true.
+  Proof. by destruct sr. Qed.
+
   (** The registers after [SpecialRW dst _ _] with old value [vold]: the
       destination [cnull] drops it. *)
   Definition specialrw_regs (regs : LReg) (dst : RegName) (vold : LWord) : LReg :=
@@ -78,6 +105,7 @@ Section griotte_lang_rules.
     sregs ⊆ lsreg →
     regs_of_argument src ∖ {[ cnull ]} ⊆ dom regs →
     sregs !! sr = Some vold →
+    specialrw_generic sr src = true →
     ∃ sregs' psr' lsreg',
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       (match src with
@@ -88,27 +116,32 @@ Section griotte_lang_rules.
        end) = Some (pc, r, psr', m, st) ∧
       erasure R C (pc, r, psr', m, st) lpc lreg lsreg' lmem ∧
       ((sregs' = sregs ∧ lsreg' = lsreg) ∨
-       ∃ nv, sregs' = <[sr := nv]> sregs ∧ lsreg' = <[sr := nv]> lsreg).
+       ∃ nv, hwm_sreg sr = false ∧ sregs' = <[sr := nv]> sregs ∧
+             lsreg' = <[sr := nv]> lsreg).
   Proof.
-    intros Her Hlregs Hregs Hlsregs Dsrc Hvold.
-    assert (∀ (v : LWord) pw, reg_word_ok R C v → reg_phys R v pw →
+    intros Her Hlregs Hregs Hlsregs Dsrc Hvold Hgen.
+    assert (∀ (v : LWord) pw, hwm_sreg sr = false → reg_word_ok R C v → reg_phys R v pw →
       ∃ psr' lsreg',
         update_sreg (pc, r, psr, m, st) sr (legalise sr pw) = (pc, r, psr', m, st) ∧
         erasure R C (pc, r, psr', m, st) lpc lreg lsreg' lmem ∧
         lsreg' = <[sr := llegalise sr v]> lsreg) as Hwrite.
-    { intros v pw Hok Hw. eexists _, _. split; first done.
+    { intros v pw Hsr Hok Hw. eexists _, _. split; first done.
       split; last done. by apply erasure_write_sreg. }
     destruct src as [z|rs]; cbn.
-    - destruct (Hwrite (lword_of_word (WInt z)) (WInt z)) as (psr' & lsreg' & Hu & Her' & ->).
-      { apply reg_word_ok_int. } { apply reg_phys_lword_of_word. }
+    - assert (hwm_sreg sr = false) as Hsr by by eapply specialrw_generic_write.
+      destruct (Hwrite (lword_of_word (WInt z)) (WInt z)) as (psr' & lsreg' & Hu & Her' & ->).
+      { done. } { apply reg_word_ok_int. } { apply reg_phys_lword_of_word. }
       eexists _, psr', _. split; first done. rewrite Hu. split; first done.
       split; first done. right. by eexists.
     - case_decide as Hrs.
       { eexists sregs, psr, lsreg. split_and!; try done. by left. }
       assert (is_Some (regs !!ₗ rs)) as [v Hv].
       { apply elem_of_dom_lreg. apply Dsrc. set_solver. }
+      assert (hwm_sreg sr = false) as Hsr.
+      { eapply specialrw_generic_write; first done. by intros [= ->]. }
       destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv) as (s & Hrs' & Hrel).
       destruct (Hwrite v (and_tag s v.(lw))) as (psr' & lsreg' & Hu & Her' & ->).
+      { done. }
       { by eapply (erasure_llookup_reg_word _ _ _ _ _ _ _ regs). }
       { done. }
       eexists _, psr', _. rewrite Hv Hrs' /= Hu. split; first done. split; first done.
@@ -120,7 +153,7 @@ Section griotte_lang_rules.
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     regs_of (SpecialRW dst sr src) ⊆ dom regs →
     (if has_sreg_access pc_p
-     then sregs_of (SpecialRW dst sr src) ⊆ dom sregs
+     then sregs_of (SpecialRW dst sr src) ⊆ dom sregs ∧ specialrw_generic sr src = true
      else True) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -146,12 +179,14 @@ Section griotte_lang_rules.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
       apply SpecialRW_spec_failure; [done|done| |done]. by eapply SpecialRW_fail_nonxsr. }
+    destruct Dsregs as [Dsregs Hgen].
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs sr) as (vold & Hvold & Hvold');
       first (rewrite /sregs_of; set_solver).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold'
+                (specialrw_generic_ne_mshwm _ _ Hgen)) as (wold & Hwold & Hrelold).
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg lsreg lmem regs sregs sr src vold
                 Her Hlregs Hregs Hlsregs) as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
-    { rewrite /regs_of /operands_of in Dregs. set_solver. } { done. }
+    { rewrite /regs_of /operands_of in Dregs. set_solver. } { done. } { done. }
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
     destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
@@ -168,9 +203,9 @@ Section griotte_lang_rules.
     iAssert (|==> sreg_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)%I
       with "[Hsr Hsmap]" as ">[Hsr Hsmap]".
     { rewrite /sreg_interp. iDestruct "Hsr" as "[Hsr Hmst]".
-      destruct Hup as [[-> ->] | (nv & -> & ->)]; first by iFrame.
+      destruct Hup as [[-> ->] | (nv & Hsr_hwm & -> & ->)]; first by iFrame.
       iMod (gen_heap_update_inSepM with "Hsr Hsmap") as "[Hsr Hsmap]"; first by eexists.
-      by iFrame. }
+      rewrite hwm_zone_insert_ne //. by iFrame. }
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
     case_decide as Hdst.
     - (* The old value is dropped. *)
@@ -231,6 +266,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SpecialRW dst src (inr cnull) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
+    src ≠ MSHWM →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
@@ -245,12 +281,13 @@ Section griotte_lang_rules.
           ∗ dst ↦ᵣ lword_of_word wsrc
           ∗ src ↦ₛᵣ wsrc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hsrc_hwm Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsrc") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
     { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. split; first set_solver.
+      by apply specialrw_generic_read. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold & Hvold & Hsr' & ->).
@@ -265,6 +302,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SpecialRW cnull dst (inr src) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
+    hwm_sreg dst = false →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
 
@@ -279,12 +317,13 @@ Section griotte_lang_rules.
           ∗ dst ↦ₛᵣ legalise dst wsrc
           ∗ src ↦ᵣ lword_of_word wsrc }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hdst_hwm Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hdst") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
     { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. split; first set_solver.
+      by apply specialrw_generic_not_hwm. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold & Hvold & Hsr' & ->).
@@ -302,6 +341,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SpecialRW r sr (inr r) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
+    hwm_sreg sr = false →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
 
@@ -316,12 +356,13 @@ Section griotte_lang_rules.
           ∗ r ↦ᵣ vold
           ∗ sr ↦ₛᵣ llegalise sr v }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr & >Hsr) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hsr_hwm Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr & >Hsr) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
     { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. split; first set_solver.
+      by apply specialrw_generic_not_hwm. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold' & Hvold & Hsr' & ->).
@@ -340,6 +381,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SpecialRW dst sr (inr src) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
+    hwm_sreg sr = false →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     src ≠ cnull →
@@ -357,12 +399,13 @@ Section griotte_lang_rules.
           ∗ src ↦ᵣ v
           ∗ sr ↦ₛᵣ llegalise sr v }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hdst Hsrc φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsr) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hsr_hwm Hpca' Hdst Hsrc φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsr) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hne]".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW with "[$HPC $Hmap $Hsmap $Hpc_a]"); eauto.
     { rewrite /regs_of /operands_of /regs_of_argument !dom_insert_L. set_solver. }
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. split; first set_solver.
+      by apply specialrw_generic_not_hwm. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold' & Hvold & Hsr' & ->).
@@ -380,6 +423,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SpecialRW cnull sr (inl z) →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
+    hwm_sreg sr = false →
     (pc_a + 1)%a = Some pc_a' →
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
@@ -391,10 +435,11 @@ Section griotte_lang_rules.
           ∗ pc_a ↦ₐ{dq} w
           ∗ sr ↦ₛᵣ legalise sr (WInt z) }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' φ) "(>HPC & >Hpc_a & >Hsr) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hsr_hwm Hpca' φ) "(>HPC & >Hpc_a & >Hsr) Hφ".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".
     iApply (wp_SpecialRW _ _ _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hsmap $Hpc_a]"); eauto.
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. split; first set_solver.
+      by apply specialrw_generic_not_hwm. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
       as (-> & -> & vold' & Hvold & Hsr' & ->).
