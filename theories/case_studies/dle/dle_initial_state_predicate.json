@@ -1,0 +1,1974 @@
+{
+  "schema": 1,
+  "case_study": "dle",
+  "predicate": "dle_initial_state_ok",
+  "params": [{"names": ["flag"], "type": "Addr"}, {"names": ["σ"], "type": "ExecConf"}],
+  "body": [
+    {
+      "k": "exists",
+      "binders": [
+        {"names": ["sw"], "type": "img_switcher"},
+        {"names": ["asrt"], "type": "img_assert"},
+        {"names": ["t0"], "type": "img_thread"},
+        {"names": ["main", "C"], "type": "img_cmpt"}
+      ],
+      "body": [
+        {
+          "k": "eq",
+          "lhs": "flag_assert asrt",
+          "lhs_kind": {"kind": "field", "field": "flag_assert", "of": "asrt"},
+          "rhs": {"r": "term", "text": "flag"},
+          "comment": "the flag of the assert library"
+        },
+        {
+          "k": "section",
+          "title": "main (trusted)",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "cmpt_imports main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_imports", "of": "main"},
+              "rhs": {
+                "r": "list",
+                "items": [
+                  {
+                    "w": "sentry",
+                    "kind": "FwdDisable",
+                    "p": "XSRW_",
+                    "g": "Local",
+                    "b": {"text": "b_switcher sw"},
+                    "e": {"text": "e_switcher sw"},
+                    "a": {"text": "a_switcher_call sw"},
+                    "comment": "switcher call"
+                  },
+                  {
+                    "w": "sentry",
+                    "kind": "Inherit",
+                    "p": "RX",
+                    "g": "Global",
+                    "b": {"text": "b_assert asrt"},
+                    "e": {"text": "e_assert asrt"},
+                    "a": {"text": "b_assert asrt"},
+                    "comment": "assert"
+                  },
+                  {
+                    "w": "sealed",
+                    "ot": {"text": "ot_switcher sw"},
+                    "inner": {
+                      "w": "cap",
+                      "p": "RO",
+                      "g": "Global",
+                      "b": {"text": "cmpt_exp_tbl_pcc C"},
+                      "e": {"text": "cmpt_exp_tbl_entries_end C"},
+                      "a": {
+                        "text": "cmpt_exp_tbl_pcc C ^+ ExportTable_offset_entry 0",
+                        "base": "cmpt_exp_tbl_pcc C",
+                        "off": "ExportTable_offset_entry 0"
+                      }
+                    },
+                    "comment": "C, export f"
+                  }
+                ]
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_static_sealed main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_static_sealed", "of": "main"},
+              "rhs": {"r": "term", "text": "[]"}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_code main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_code", "of": "main"},
+              "rhs": {"r": "term", "text": "dle_main_code"}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_data main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_data", "of": "main"},
+              "rhs": {"r": "term", "text": "dle_main_data"}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_handler main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "main"},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}},
+              "comment": "no error handler"
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_handler_stackless main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "main"},
+              "rhs": {"r": "word", "word": {"w": "int", "text": "ExportTable_no_handler"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_entries main",
+              "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_entries", "of": "main"},
+              "rhs": {
+                "r": "list",
+                "items": [
+                  {
+                    "w": "entry",
+                    "mie": "InterruptEnabled",
+                    "args": "0",
+                    "stack": "4",
+                    "off": "3",
+                    "comment": "export entry"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "C (untrusted, C)",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "cmpt_imports C",
+              "lhs_kind": {"kind": "field", "field": "cmpt_imports", "of": "C"},
+              "rhs": {
+                "r": "list",
+                "items": [
+                  {
+                    "w": "sentry",
+                    "kind": "FwdDisable",
+                    "p": "XSRW_",
+                    "g": "Local",
+                    "b": {"text": "b_switcher sw"},
+                    "e": {"text": "e_switcher sw"},
+                    "a": {"text": "a_switcher_call sw"},
+                    "comment": "switcher call"
+                  }
+                ]
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_static_sealed C",
+              "lhs_kind": {"kind": "field", "field": "cmpt_static_sealed", "of": "C"},
+              "rhs": {"r": "term", "text": "[]"}
+            },
+            {"k": "prop", "text": "Forall is_int (cmpt_code C)", "comment": "arbitrary, any length"},
+            {
+              "k": "prop",
+              "text": "Forall (initial_data_word (cmpt_b_cgp C) (cmpt_e_cgp C)) (cmpt_data C)",
+              "comment": "arbitrary, any length"
+            },
+            {
+              "k": "exists",
+              "binders": [{"names": ["eh_C", "ehs_C"], "type": "Z"}],
+              "body": [
+                {
+                  "k": "eq",
+                  "lhs": "cmpt_exp_tbl_handler C",
+                  "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler", "of": "C"},
+                  "rhs": {"r": "word", "word": {"w": "int", "text": "eh_C"}}
+                },
+                {
+                  "k": "eq",
+                  "lhs": "cmpt_exp_tbl_handler_stackless C",
+                  "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_handler_stackless", "of": "C"},
+                  "rhs": {"r": "word", "word": {"w": "int", "text": "ehs_C"}}
+                }
+              ],
+              "comment": "arbitrary error handler offsets"
+            },
+            {
+              "k": "exists",
+              "binders": [{"names": ["off_C_f", "min_C_f"], "type": "nat"}],
+              "body": [
+                {"k": "prop", "text": "(off_C_f < cmpt_e_pcc C - cmpt_b_pcc C)%Z"},
+                {
+                  "k": "eq",
+                  "lhs": "cmpt_exp_tbl_entries C",
+                  "lhs_kind": {"kind": "field", "field": "cmpt_exp_tbl_entries", "of": "C"},
+                  "rhs": {
+                    "r": "list",
+                    "items": [
+                      {
+                        "w": "entry",
+                        "mie": "InterruptEnabled",
+                        "args": "1",
+                        "stack": "min_C_f",
+                        "off": "off_C_f"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "comment": "arbitrary offsets, inside the PCC range, and minimum stack sizes"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "Memory",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "mem σ",
+              "lhs_kind": {"kind": "mem"},
+              "rhs": {
+                "r": "union",
+                "parts": [
+                  {"region": false, "text": "initial_heap_memory", "comment": "heap, zeroed"},
+                  {
+                    "region": true,
+                    "base": {"text": "b_switcher sw"},
+                    "content": [
+                      {
+                        "term": "switcher_data_words (ot_switcher sw)",
+                        "head": "switcher_data_words",
+                        "args": [{"w": "term", "text": "ot_switcher sw"}]
+                      },
+                      {"term": "switcher_instrs"}
+                    ],
+                    "comment": "switcher"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "b_assert asrt"},
+                    "content": [
+                      {"term": "assert_subroutine_instrs"},
+                      {
+                        "words": [
+                          {
+                            "w": "cap",
+                            "p": "RW",
+                            "g": "Global",
+                            "b": {"text": "flag_assert asrt"},
+                            "e": {"text": "flag_assert asrt ^+ 1", "base": "flag_assert asrt", "off": "1"},
+                            "a": {"text": "flag_assert asrt"}
+                          }
+                        ]
+                      }
+                    ],
+                    "comment": "assert, code and flag capability"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "flag_assert asrt"},
+                    "content": [{"words": [{"w": "int", "text": "0"}]}],
+                    "comment": "assert, flag"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_pcc main"},
+                    "content": [
+                      {
+                        "term": "cmpt_imports main",
+                        "head": "cmpt_imports",
+                        "args": [{"w": "term", "text": "main"}]
+                      },
+                      {"term": "cmpt_code main", "head": "cmpt_code", "args": [{"w": "term", "text": "main"}]}
+                    ],
+                    "comment": "main, PCC range"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_cgp main"},
+                    "content": [
+                      {"term": "cmpt_data main", "head": "cmpt_data", "args": [{"w": "term", "text": "main"}]}
+                    ],
+                    "comment": "main, CGP range"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_static_sealed main"},
+                    "content": [
+                      {
+                        "term": "cmpt_static_sealed main",
+                        "head": "cmpt_static_sealed",
+                        "args": [{"w": "term", "text": "main"}]
+                      }
+                    ],
+                    "comment": "main, static sealed"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_exp_tbl_pcc main"},
+                    "content": [
+                      {
+                        "words": [
+                          {
+                            "w": "cap",
+                            "p": "RX",
+                            "g": "Global",
+                            "b": {"text": "cmpt_b_pcc main"},
+                            "e": {"text": "cmpt_e_pcc main"},
+                            "a": {"text": "cmpt_b_pcc main"}
+                          },
+                          {
+                            "w": "cap",
+                            "p": "RW",
+                            "g": "Global",
+                            "b": {"text": "cmpt_b_cgp main"},
+                            "e": {"text": "cmpt_e_cgp main"},
+                            "a": {"text": "cmpt_b_cgp main"}
+                          },
+                          {"w": "term", "text": "cmpt_exp_tbl_handler main"},
+                          {"w": "term", "text": "cmpt_exp_tbl_handler_stackless main"}
+                        ]
+                      },
+                      {
+                        "term": "cmpt_exp_tbl_entries main",
+                        "head": "cmpt_exp_tbl_entries",
+                        "args": [{"w": "term", "text": "main"}]
+                      }
+                    ],
+                    "comment": "main, export table"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_pcc C"},
+                    "content": [
+                      {
+                        "term": "cmpt_imports C",
+                        "head": "cmpt_imports",
+                        "args": [{"w": "term", "text": "C"}]
+                      },
+                      {"term": "cmpt_code C", "head": "cmpt_code", "args": [{"w": "term", "text": "C"}]}
+                    ],
+                    "comment": "C, PCC range"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_cgp C"},
+                    "content": [
+                      {"term": "cmpt_data C", "head": "cmpt_data", "args": [{"w": "term", "text": "C"}]}
+                    ],
+                    "comment": "C, CGP range"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_b_static_sealed C"},
+                    "content": [
+                      {
+                        "term": "cmpt_static_sealed C",
+                        "head": "cmpt_static_sealed",
+                        "args": [{"w": "term", "text": "C"}]
+                      }
+                    ],
+                    "comment": "C, static sealed"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "cmpt_exp_tbl_pcc C"},
+                    "content": [
+                      {
+                        "words": [
+                          {
+                            "w": "cap",
+                            "p": "RX",
+                            "g": "Global",
+                            "b": {"text": "cmpt_b_pcc C"},
+                            "e": {"text": "cmpt_e_pcc C"},
+                            "a": {"text": "cmpt_b_pcc C"}
+                          },
+                          {
+                            "w": "cap",
+                            "p": "RW",
+                            "g": "Global",
+                            "b": {"text": "cmpt_b_cgp C"},
+                            "e": {"text": "cmpt_e_cgp C"},
+                            "a": {"text": "cmpt_b_cgp C"}
+                          },
+                          {"w": "term", "text": "cmpt_exp_tbl_handler C"},
+                          {"w": "term", "text": "cmpt_exp_tbl_handler_stackless C"}
+                        ]
+                      },
+                      {
+                        "term": "cmpt_exp_tbl_entries C",
+                        "head": "cmpt_exp_tbl_entries",
+                        "args": [{"w": "term", "text": "C"}]
+                      }
+                    ],
+                    "comment": "C, export table"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "b_trusted_stack t0"},
+                    "content": [
+                      {
+                        "term": "initial_trusted_stack_content (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) 24",
+                        "head": "initial_trusted_stack_content",
+                        "args": [
+                          {
+                            "w": "cap",
+                            "p": "RWL",
+                            "g": "Local",
+                            "b": {"text": "b_stack t0"},
+                            "e": {"text": "e_stack t0"},
+                            "a": {
+                              "text": "(e_stack t0 ^- StackEntry_reserved_space)%f",
+                              "base": "e_stack t0",
+                              "off": "-StackEntry_reserved_space"
+                            }
+                          },
+                          {
+                            "w": "cap",
+                            "p": "RW",
+                            "g": "Global",
+                            "b": {"text": "cmpt_exp_tbl_pcc main"},
+                            "e": {"text": "cmpt_exp_tbl_entries_end main"},
+                            "a": {"text": "cmpt_exp_tbl_pcc main"}
+                          },
+                          {
+                            "w": "cap",
+                            "p": "WO",
+                            "g": "Global",
+                            "b": {"text": "b_hazard t0"},
+                            "e": {"text": "e_hazard t0"},
+                            "a": {"text": "b_hazard t0"}
+                          },
+                          {"w": "term", "text": "24"}
+                        ]
+                      }
+                    ],
+                    "comment": "thread 0, trusted stack, entry frame in main"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "b_stack t0"},
+                    "content": [
+                      {
+                        "term": "replicate 100 (WInt 0)",
+                        "head": "replicate",
+                        "args": [{"w": "term", "text": "100"}, {"w": "int", "text": "0"}]
+                      }
+                    ],
+                    "comment": "thread 0, stack"
+                  },
+                  {
+                    "region": true,
+                    "base": {"text": "b_hazard t0"},
+                    "content": [{"words": [{"w": "int", "text": "0"}, {"w": "int", "text": "0"}]}],
+                    "comment": "thread 0, hazard slots"
+                  }
+                ]
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "shadowtbl σ",
+              "lhs_kind": {"kind": "shadow"},
+              "rhs": {"r": "term", "text": "initial_heap_shadow"},
+              "comment": "every heap address live"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "Registers",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "pcc σ",
+              "lhs_kind": {"kind": "reg", "bank": "pc"},
+              "rhs": {
+                "r": "word",
+                "word": {
+                  "w": "cap",
+                  "p": "RX",
+                  "g": "Global",
+                  "b": {"text": "cmpt_b_pcc main"},
+                  "e": {"text": "cmpt_e_pcc main"},
+                  "a": {"text": "cmpt_b_pcc main ^+ 3", "base": "cmpt_b_pcc main", "off": "3"}
+                }
+              },
+              "comment": "main, export entry"
+            },
+            {
+              "k": "eq",
+              "lhs": "reg σ !! cgp",
+              "lhs_kind": {"kind": "reg", "bank": "gpr", "name": "cgp"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {
+                  "w": "cap",
+                  "p": "RW",
+                  "g": "Global",
+                  "b": {"text": "cmpt_b_cgp main"},
+                  "e": {"text": "cmpt_e_cgp main"},
+                  "a": {"text": "cmpt_b_cgp main"}
+                }
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "reg σ !! csp",
+              "lhs_kind": {"kind": "reg", "bank": "gpr", "name": "csp"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {
+                  "w": "cap",
+                  "p": "RWL",
+                  "g": "Local",
+                  "b": {"text": "b_stack t0"},
+                  "e": {"text": "e_stack t0"},
+                  "a": {
+                    "text": "(e_stack t0 ^- StackEntry_reserved_space)%f",
+                    "base": "e_stack t0",
+                    "off": "-StackEntry_reserved_space"
+                  }
+                }
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "reg σ !! cra",
+              "lhs_kind": {"kind": "reg", "bank": "gpr", "name": "cra"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {
+                  "w": "sentry",
+                  "kind": "RetDisable",
+                  "p": "XSRW_",
+                  "g": "Local",
+                  "b": {"text": "b_switcher sw"},
+                  "e": {"text": "e_switcher sw"},
+                  "a": {"text": "a_switcher_return sw"}
+                }
+              },
+              "comment": "the switcher's return sentry: a return from the entry exits the thread"
+            },
+            {
+              "k": "prop",
+              "text": "∀ r : RegName, r ∉ {[cgp; cra; csp]} → reg σ !! r = Some (WInt 0)",
+              "comment": "every other register cleared"
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mtdc",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mtdc"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {
+                  "w": "cap",
+                  "p": "RWL",
+                  "g": "Global",
+                  "b": {"text": "b_trusted_stack t0"},
+                  "e": {"text": "e_trusted_stack t0"},
+                  "a": {"text": "b_trusted_stack t0"}
+                }
+              }
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mstatus",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mstatus"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {"w": "int", "text": "mstatus_enc InterruptDisabled InterruptDisabled"}
+              },
+              "comment": "interrupts disabled (the posture of the export is not used yet)"
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mtcc",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mtcc"},
+              "rhs": {
+                "r": "word",
+                "some": true,
+                "word": {
+                  "w": "cap",
+                  "p": "XSRW_",
+                  "g": "Local",
+                  "b": {"text": "b_switcher sw"},
+                  "e": {"text": "e_switcher sw"},
+                  "a": {
+                    "text": "a_switcher_call sw ^+ label \"exception_entry_asm\"",
+                    "base": "a_switcher_call sw",
+                    "label": "exception_entry_asm"
+                  }
+                }
+              },
+              "comment": "exception entry"
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mepcc",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mepcc"},
+              "rhs": {"r": "word", "some": true, "word": {"w": "int", "text": "0"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mcause",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mcause"},
+              "rhs": {"r": "word", "some": true, "word": {"w": "int", "text": "0"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "sreg σ !! mtval",
+              "lhs_kind": {"kind": "reg", "bank": "sreg", "name": "mtval"},
+              "rhs": {"r": "word", "some": true, "word": {"w": "int", "text": "0"}}
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "switcher, layout",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "b_switcher sw + 5",
+              "lhs_kind": {"kind": "incr", "base": {"text": "b_switcher sw"}, "off": "5"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "a_switcher_call sw"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "a_switcher_call sw + length switcher_instrs",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "a_switcher_call sw"},
+                "off": "length switcher_instrs"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "e_switcher sw"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "b_switcher sw + (5 + length switcher_call_instrs)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "b_switcher sw"},
+                "off": "5 + length switcher_call_instrs"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "a_switcher_return sw"}}
+            },
+            {"k": "prop", "text": "not_heap_range (b_switcher sw) (e_switcher sw)"},
+            {"k": "prop", "text": "disjoint_from_shadow (b_switcher sw) (e_switcher sw)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)"},
+            {
+              "k": "eq",
+              "lhs": "is_heap_address (e_switcher sw)",
+              "rhs": {"r": "term", "text": "false"},
+              "comment": "closed bounds outside the heap"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "assert, layout",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "b_assert asrt + length assert_subroutine_instrs",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "b_assert asrt"},
+                "off": "length assert_subroutine_instrs"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cap_assert asrt"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cap_assert asrt + 1",
+              "lhs_kind": {"kind": "incr", "base": {"text": "cap_assert asrt"}, "off": "1"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "e_assert asrt"}}
+            },
+            {
+              "k": "prop",
+              "text": "is_Some (flag_assert asrt + 1)",
+              "comment": "the flag is not the last address"
+            },
+            {"k": "prop", "text": "not_heap_range (b_assert asrt) (e_assert asrt)"},
+            {"k": "prop", "text": "disjoint_from_shadow (b_assert asrt) (e_assert asrt)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)"},
+            {
+              "k": "eq",
+              "lhs": "is_heap_address (e_assert asrt)",
+              "rhs": {"r": "term", "text": "false"},
+              "comment": "closed bounds outside the heap"
+            },
+            {
+              "k": "prop",
+              "text": "not_heap_range (flag_assert asrt) (flag_assert asrt ^+ 1)",
+              "comment": "flag"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (flag_assert asrt) (flag_assert asrt ^+ 1)"},
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "main, layout",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_pcc main + length (cmpt_imports main)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_b_pcc main"},
+                "off": "length (cmpt_imports main)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_a_code main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_a_code main + length (cmpt_code main)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_a_code main"},
+                "off": "length (cmpt_code main)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_pcc main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_cgp main + length (cmpt_data main)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_b_cgp main"},
+                "off": "length (cmpt_data main)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_cgp main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_static_sealed main + length (cmpt_static_sealed main)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_b_static_sealed main"},
+                "off": "length (cmpt_static_sealed main)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_static_sealed main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_pcc main + ExportTable_offset_cgp",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_pcc main"},
+                "off": "ExportTable_offset_cgp"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_cgp main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_pcc main + ExportTable_offset_entries",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_pcc main"},
+                "off": "ExportTable_offset_entries"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_entries_start main"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_entries_start main + length (cmpt_exp_tbl_entries main)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_entries_start main"},
+                "off": "length (cmpt_exp_tbl_entries main)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_entries_end main"}}
+            },
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_b_pcc main) (cmpt_e_pcc main)",
+              "comment": "main, PCC range"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_b_pcc main) (cmpt_e_pcc main)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (cmpt_b_pcc main) (cmpt_e_pcc main)"},
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_b_cgp main) (cmpt_e_cgp main)",
+              "comment": "main, CGP range"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_b_cgp main) (cmpt_e_cgp main)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main)"},
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)",
+              "comment": "main, static sealed"
+            },
+            {
+              "k": "prop",
+              "text": "disjoint_from_shadow (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)"
+            },
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)"
+            },
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)",
+              "comment": "main, export table"
+            },
+            {
+              "k": "prop",
+              "text": "disjoint_from_shadow (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)"
+            },
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)"
+            },
+            {
+              "k": "eq",
+              "lhs": "is_heap_address (cmpt_e_pcc main)",
+              "rhs": {"r": "term", "text": "false"},
+              "comment": "closed PCC bounds outside the heap"
+            },
+            {
+              "k": "prop",
+              "text": "(3%nat < cmpt_e_pcc main - cmpt_b_pcc main)%Z",
+              "comment": "export entry inside the PCC range"
+            },
+            {
+              "k": "prop",
+              "text": "Forall (word_rooted ∅) (cmpt_imports main ++ cmpt_code main ++ cmpt_data main ++ cmpt_static_sealed main ++ cmpt_exp_tbl_entries main)",
+              "comment": "no heap capability (no heap root)"
+            },
+            {
+              "k": "prop",
+              "text": "Forall word_exec_ok (cmpt_imports main ++ cmpt_code main ++ cmpt_data main ++ cmpt_static_sealed main ++ cmpt_exp_tbl_entries main)",
+              "comment": "executable words outside the heap"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "C, layout",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_pcc C + length (cmpt_imports C)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_b_pcc C"},
+                "off": "length (cmpt_imports C)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_a_code C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_a_code C + length (cmpt_code C)",
+              "lhs_kind": {"kind": "incr", "base": {"text": "cmpt_a_code C"}, "off": "length (cmpt_code C)"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_pcc C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_cgp C + length (cmpt_data C)",
+              "lhs_kind": {"kind": "incr", "base": {"text": "cmpt_b_cgp C"}, "off": "length (cmpt_data C)"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_cgp C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_b_static_sealed C + length (cmpt_static_sealed C)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_b_static_sealed C"},
+                "off": "length (cmpt_static_sealed C)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_e_static_sealed C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_pcc C + ExportTable_offset_cgp",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_pcc C"},
+                "off": "ExportTable_offset_cgp"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_cgp C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_pcc C + ExportTable_offset_entries",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_pcc C"},
+                "off": "ExportTable_offset_entries"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_entries_start C"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "cmpt_exp_tbl_entries_start C + length (cmpt_exp_tbl_entries C)",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "cmpt_exp_tbl_entries_start C"},
+                "off": "length (cmpt_exp_tbl_entries C)"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "cmpt_exp_tbl_entries_end C"}}
+            },
+            {"k": "prop", "text": "not_heap_range (cmpt_b_pcc C) (cmpt_e_pcc C)", "comment": "C, PCC range"},
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_b_pcc C) (cmpt_e_pcc C)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)"},
+            {"k": "prop", "text": "not_heap_range (cmpt_b_cgp C) (cmpt_e_cgp C)", "comment": "C, CGP range"},
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_b_cgp C) (cmpt_e_cgp C)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)"},
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)",
+              "comment": "C, static sealed"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)"},
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)"
+            },
+            {
+              "k": "prop",
+              "text": "not_heap_range (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)",
+              "comment": "C, export table"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)"},
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)"
+            },
+            {
+              "k": "eq",
+              "lhs": "is_heap_address (cmpt_e_pcc C)",
+              "rhs": {"r": "term", "text": "false"},
+              "comment": "closed PCC bounds outside the heap"
+            },
+            {
+              "k": "prop",
+              "text": "Forall (word_rooted ∅) (cmpt_imports C ++ cmpt_code C ++ cmpt_data C ++ cmpt_static_sealed C ++ cmpt_exp_tbl_entries C)",
+              "comment": "no heap capability (no heap root)"
+            },
+            {
+              "k": "prop",
+              "text": "Forall word_exec_ok (cmpt_imports C ++ cmpt_code C ++ cmpt_data C ++ cmpt_static_sealed C ++ cmpt_exp_tbl_entries C)",
+              "comment": "executable words outside the heap"
+            }
+          ]
+        },
+        {
+          "k": "section",
+          "title": "thread 0, layout",
+          "body": [
+            {
+              "k": "eq",
+              "lhs": "b_stack t0 + 100%nat",
+              "lhs_kind": {"kind": "incr", "base": {"text": "b_stack t0"}, "off": "100%nat"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "e_stack t0"}}
+            },
+            {
+              "k": "eq",
+              "lhs": "b_trusted_stack t0 + tstack_frame_offset 25",
+              "lhs_kind": {
+                "kind": "incr",
+                "base": {"text": "b_trusted_stack t0"},
+                "off": "tstack_frame_offset 25"
+              },
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "e_trusted_stack t0"}}
+            },
+            {"k": "prop", "text": "not_heap_range (b_stack t0) (e_stack t0)", "comment": "stack"},
+            {"k": "prop", "text": "disjoint_from_shadow (b_stack t0) (e_stack t0)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (b_stack t0) (e_stack t0)"},
+            {
+              "k": "prop",
+              "text": "not_heap_range (b_trusted_stack t0) (e_trusted_stack t0)",
+              "comment": "trusted stack"
+            },
+            {"k": "prop", "text": "disjoint_from_shadow (b_trusted_stack t0) (e_trusted_stack t0)"},
+            {
+              "k": "prop",
+              "text": "revoker_addr ∉ finz.seq_between (b_trusted_stack t0) (e_trusted_stack t0)"
+            },
+            {"k": "prop", "text": "b_trusted_stack t0 ≠ 0", "comment": "trusted stack not at address 0"},
+            {
+              "k": "prop",
+              "text": "(4%nat + StackEntry_reserved_space ≤ 100%nat)%Z",
+              "comment": "minimum stack size of the entry"
+            },
+            {
+              "k": "eq",
+              "lhs": "b_hazard t0 + 2",
+              "lhs_kind": {"kind": "incr", "base": {"text": "b_hazard t0"}, "off": "2"},
+              "rhs": {"r": "addr", "some": true, "addr": {"text": "e_hazard t0"}}
+            },
+            {"k": "prop", "text": "not_heap_range (b_hazard t0) (e_hazard t0)", "comment": "hazard slots"},
+            {"k": "prop", "text": "disjoint_from_shadow (b_hazard t0) (e_hazard t0)"},
+            {"k": "prop", "text": "revoker_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)"}
+          ]
+        },
+        {
+          "k": "section",
+          "title": "image, layout",
+          "body": [
+            {
+              "k": "disjoint",
+              "ranges": [
+                {"b": {"text": "b_switcher sw"}, "e": {"text": "e_switcher sw"}, "comment": "switcher"},
+                {"b": {"text": "b_assert asrt"}, "e": {"text": "e_assert asrt"}, "comment": "assert"},
+                {
+                  "b": {"text": "flag_assert asrt"},
+                  "e": {"text": "flag_assert asrt ^+ 1", "base": "flag_assert asrt", "off": "1"},
+                  "comment": "assert flag"
+                },
+                {
+                  "b": {"text": "cmpt_b_pcc main"},
+                  "e": {"text": "cmpt_e_pcc main"},
+                  "comment": "main, PCC range"
+                },
+                {
+                  "b": {"text": "cmpt_b_cgp main"},
+                  "e": {"text": "cmpt_e_cgp main"},
+                  "comment": "main, CGP range"
+                },
+                {
+                  "b": {"text": "cmpt_b_static_sealed main"},
+                  "e": {"text": "cmpt_e_static_sealed main"},
+                  "comment": "main, static sealed"
+                },
+                {
+                  "b": {"text": "cmpt_exp_tbl_pcc main"},
+                  "e": {"text": "cmpt_exp_tbl_entries_end main"},
+                  "comment": "main, export table"
+                },
+                {"b": {"text": "cmpt_b_pcc C"}, "e": {"text": "cmpt_e_pcc C"}, "comment": "C, PCC range"},
+                {"b": {"text": "cmpt_b_cgp C"}, "e": {"text": "cmpt_e_cgp C"}, "comment": "C, CGP range"},
+                {
+                  "b": {"text": "cmpt_b_static_sealed C"},
+                  "e": {"text": "cmpt_e_static_sealed C"},
+                  "comment": "C, static sealed"
+                },
+                {
+                  "b": {"text": "cmpt_exp_tbl_pcc C"},
+                  "e": {"text": "cmpt_exp_tbl_entries_end C"},
+                  "comment": "C, export table"
+                },
+                {
+                  "b": {"text": "b_trusted_stack t0"},
+                  "e": {"text": "e_trusted_stack t0"},
+                  "comment": "thread 0, trusted stack"
+                },
+                {"b": {"text": "b_stack t0"}, "e": {"text": "e_stack t0"}, "comment": "thread 0, stack"},
+                {
+                  "b": {"text": "b_hazard t0"},
+                  "e": {"text": "e_hazard t0"},
+                  "comment": "thread 0, hazard slots"
+                }
+              ],
+              "comment": "pairwise disjoint"
+            },
+            {"k": "prop", "text": "NoDup [ot_switcher sw]", "comment": "sealing types distinct"},
+            {"k": "prop", "text": "Forall otype_valid [ot_switcher sw]", "comment": "sealing types valid"}
+          ]
+        }
+      ]
+    }
+  ],
+  "code": {
+    "dle_main_code": {
+      "words": [
+        {"w": "int", "text": "7422495105219"},
+        {"w": "int", "text": "29006742079"},
+        {"w": "int", "text": "7438547956492"},
+        {"w": "int", "text": "1900007627956431"},
+        {"w": "int", "text": "498327868337780047088"},
+        {"w": "int", "text": "7600580482698288"},
+        {"w": "int", "text": "118760089264323"},
+        {"w": "int", "text": "116218905151"},
+        {"w": "int", "text": "7600580483484720"},
+        {"w": "int", "text": "1904284358418639"},
+        {"w": "int", "text": "7986486489452621217008"},
+        {"w": "int", "text": "34301698281270019826070826647792"},
+        {"w": "int", "text": "30415738590134272"},
+        {"w": "int", "text": "118810622238723"},
+        {"w": "int", "text": "30468515148267520"},
+        {"w": "int", "text": "119016831000579"},
+        {"w": "int", "text": "29042143807"},
+        {"w": "int", "text": "116017593919"},
+        {"w": "int", "text": "29698640002252"},
+        {"w": "int", "text": "30402528158884035"},
+        {"w": "int", "text": "7263679039"},
+        {"w": "int", "text": "121662937537380352"},
+        {"w": "int", "text": "118810622238723"},
+        {"w": "int", "text": "116228305471"},
+        {"w": "int", "text": "29698640002252"},
+        {"w": "int", "text": "118810609655811"},
+        {"w": "int", "text": "7438598353471"},
+        {"w": "int", "text": "486401744486465536"},
+        {"w": "int", "text": "1900003340525571"},
+        {"w": "int", "text": "29045289535"},
+        {"w": "int", "text": "118794502749388"},
+        {"w": "int", "text": "29003599423"},
+        {"w": "int", "text": "7261319743"},
+        {"w": "int", "text": "7247950399"},
+        {"w": "int", "text": "29003596351"},
+        {"w": "int", "text": "1858380971212"}
+      ],
+      "instrs": [
+        "Store cgp $0 0",
+        "Mov ct0 cgp",
+        "GetB ct1 cgp",
+        "Add ct2 ct1 $1",
+        "Subseg ct0 ct0 ct1 ct2",
+        "Lea cgp cgp $1",
+        "Store cgp ct0 0",
+        "Mov ca0 cgp",
+        "Lea cgp cgp $(-1)",
+        "Add ct1 ct2 $1",
+        "Subseg ca0 ca0 ct2 ct1",
+        "Restrict ca0 ca0 $16842834",
+        "Auipcc ct0 (-15)",
+        "CLoad ct0 ct0 0",
+        "Auipcc ct1 (-15)",
+        "CLoad ct1 ct1 0",
+        "Mov cs0 cra",
+        "Mov cs1 ct1",
+        "Jalr cra ct0",
+        "Store cgp $42 0",
+        "Mov ca0 $0",
+        "Auipcc ct0 (-24)",
+        "CLoad ct0 ct0 0",
+        "Mov ct1 cs1",
+        "Jalr cra ct0",
+        "CLoad ct0 cgp 0",
+        "Mov ct1 $42",
+        "Auipcc ct2 (-29)",
+        "CLoad ct2 ct2 0",
+        "Mov ca2 cra",
+        "Jalr cra ct2",
+        "Mov cra ca2",
+        "Mov ca2 $0",
+        "Mov ct2 $0",
+        "Mov cra cs0",
+        "Jalr cnull cra"
+      ]
+    },
+    "dle_main_data": {"words": [{"w": "int", "text": "0"}, {"w": "int", "text": "0"}]},
+    "switcher_instrs": {
+      "words": [
+        {"w": "int", "text": "7421888970700"},
+        {"w": "int", "text": "121821215688163903"},
+        {"w": "int", "text": "131104526313685178711040"},
+        {"w": "int", "text": "118750223478784"},
+        {"w": "int", "text": "7261110847"},
+        {"w": "int", "text": "131059562375005511678976"},
+        {"w": "int", "text": "7616312948564163"},
+        {"w": "int", "text": "7616058219433008"},
+        {"w": "int", "text": "476018955264195"},
+        {"w": "int", "text": "476018790899907"},
+        {"w": "int", "text": "119004734742723"},
+        {"w": "int", "text": "30400067087156160"},
+        {"w": "int", "text": "487281566351892483"},
+        {"w": "int", "text": "7435380007107"},
+        {"w": "int", "text": "29741520003267"},
+        {"w": "int", "text": "487281566355234819"},
+        {"w": "int", "text": "30452829994074304"},
+        {"w": "int", "text": "32776390813577140777152"},
+        {"w": "int", "text": "121820391603833904"},
+        {"w": "int", "text": "29741573677251"},
+        {"w": "int", "text": "118966079987907"},
+        {"w": "int", "text": "29741520003267"},
+        {"w": "int", "text": "1946447845623275523"},
+        {"w": "int", "text": "30413312817684687"},
+        {"w": "int", "text": "1945607595401355459"},
+        {"w": "int", "text": "7434773869516"},
+        {"w": "int", "text": "7425110192908"},
+        {"w": "int", "text": "1949710914643833024"},
+        {"w": "int", "text": "1992298163219202194672"},
+        {"w": "int", "text": "118956367167244"},
+        {"w": "int", "text": "31195309542482915520"},
+        {"w": "int", "text": "511910642072508444864"},
+        {"w": "int", "text": "29687605567683"},
+        {"w": "int", "text": "121600213793246256"},
+        {"w": "int", "text": "128203901047206116352"},
+        {"w": "int", "text": "1948984689632935936"},
+        {"w": "int", "text": "1903302076735491"},
+        {"w": "int", "text": "1949971514231096256"},
+        {"w": "int", "text": "475825534083075"},
+        {"w": "int", "text": "498940275132765094860"},
+        {"w": "int", "text": "475865192079555"},
+        {"w": "int", "text": "118965291393027"},
+        {"w": "int", "text": "7796574482262442956"},
+        {"w": "int", "text": "1995923067527353077516"},
+        {"w": "int", "text": "1900003575709888"},
+        {"w": "int", "text": "1903460566966479"},
+        {"w": "int", "text": "8194100220330844683264"},
+        {"w": "int", "text": "1904014554958896"},
+        {"w": "int", "text": "118965291393027"},
+        {"w": "int", "text": "1995923067527353077516"},
+        {"w": "int", "text": "29700441125644"},
+        {"w": "int", "text": "31199548157392072896"},
+        {"w": "int", "text": "475036531826691"},
+        {"w": "int", "text": "29698691112963"},
+        {"w": "int", "text": "7602851245329456"},
+        {"w": "int", "text": "30452881534418944"},
+        {"w": "int", "text": "7782431037981724428"},
+        {"w": "int", "text": "1948981326619216944"},
+        {"w": "int", "text": "29734262226124"},
+        {"w": "int", "text": "7263679039"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "7261319743"},
+        {"w": "int", "text": "7251882559"},
+        {"w": "int", "text": "7264465471"},
+        {"w": "int", "text": "28991222335"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "31199808727925395212"},
+        {"w": "int", "text": "499952330666474496"},
+        {"w": "int", "text": "6491328"},
+        {"w": "int", "text": "1815278143"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "7247950399"},
+        {"w": "int", "text": "7260533311"},
+        {"w": "int", "text": "7251096127"},
+        {"w": "int", "text": "7424658586828"},
+        {"w": "int", "text": "7613788113126336"},
+        {"w": "int", "text": "486400909077651459"},
+        {"w": "int", "text": "29687605567683"},
+        {"w": "int", "text": "118750422245571"},
+        {"w": "int", "text": "486400909080993795"},
+        {"w": "int", "text": "1856428569151"},
+        {"w": "int", "text": "30400117873041615"},
+        {"w": "int", "text": "131104485767479340052672"},
+        {"w": "int", "text": "121873222101765168"},
+        {"w": "int", "text": "29750230720515"},
+        {"w": "int", "text": "487285689523839171"},
+        {"w": "int", "text": "118956382691331"},
+        {"w": "int", "text": "475207055450115"},
+        {"w": "int", "text": "118794751107075"},
+        {"w": "int", "text": "475036518457347"},
+        {"w": "int", "text": "7616058206850096"},
+        {"w": "int", "text": "1858832577292"},
+        {"w": "int", "text": "1859637883852"},
+        {"w": "int", "text": "7782414700700774592"},
+        {"w": "int", "text": "127977664431941234880"},
+        {"w": "int", "text": "29687605567683"},
+        {"w": "int", "text": "121600213793246256"},
+        {"w": "int", "text": "32050975262028659712"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "1815278143"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "7247950399"},
+        {"w": "int", "text": "7261319743"},
+        {"w": "int", "text": "7251882559"},
+        {"w": "int", "text": "7264465471"},
+        {"w": "int", "text": "28991222335"},
+        {"w": "int", "text": "1858380971212"},
+        {"w": "int", "text": "476032483131967"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "466403459"},
+        {"w": "int", "text": "118956382691331"},
+        {"w": "int", "text": "475207055450115"},
+        {"w": "int", "text": "118794751107075"},
+        {"w": "int", "text": "475036518457347"},
+        {"w": "int", "text": "7616058206850096"},
+        {"w": "int", "text": "476032495714879"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "116650115"},
+        {"w": "int", "text": "7616096926483392"},
+        {"w": "int", "text": "511954793236532050944"},
+        {"w": "int", "text": "29751183679683"},
+        {"w": "int", "text": "476018790949059"},
+        {"w": "int", "text": "1904078384799939"},
+        {"w": "int", "text": "1904075969077443"},
+        {"w": "int", "text": "1904079190155459"},
+        {"w": "int", "text": "7616300063121603"},
+        {"w": "int", "text": "30465251791085763"},
+        {"w": "int", "text": "30465213137166531"},
+        {"w": "int", "text": "30465264676184259"},
+        {"w": "int", "text": "30465203473686723"},
+        {"w": "int", "text": "30465255012360387"},
+        {"w": "int", "text": "30465216358441155"},
+        {"w": "int", "text": "30465267897458883"},
+        {"w": "int", "text": "121860798641332419"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "121873386398860224"},
+        {"w": "int", "text": "476019797532867"},
+        {"w": "int", "text": "7603895729701824"},
+        {"w": "int", "text": "29751187022019"},
+        {"w": "int", "text": "30468344182260672"},
+        {"w": "int", "text": "30465267044720835"},
+        {"w": "int", "text": "30468357067162560"},
+        {"w": "int", "text": "30465267042361539"},
+        {"w": "int", "text": "7438006763071"},
+        {"w": "int", "text": "2047821652569090702336"},
+        {"w": "int", "text": "1859501687359"},
+        {"w": "int", "text": "2047605480405250931712"},
+        {"w": "int", "text": "6488076"},
+        {"w": "int", "text": "7602864070336515"},
+        {"w": "int", "text": "7612128364118976"},
+        {"w": "int", "text": "30448758061843392"},
+        {"w": "int", "text": "29698687770627"},
+        {"w": "int", "text": "475036518506499"},
+        {"w": "int", "text": "1903444608688131"},
+        {"w": "int", "text": "1900970707722243"},
+        {"w": "int", "text": "1904269242458115"},
+        {"w": "int", "text": "7600014352441347"},
+        {"w": "int", "text": "30452833966891011"},
+        {"w": "int", "text": "30413251549077507"},
+        {"w": "int", "text": "30466028106620931"},
+        {"w": "int", "text": "30403355944624131"},
+        {"w": "int", "text": "30456132501823491"},
+        {"w": "int", "text": "30416550084009987"},
+        {"w": "int", "text": "30469326641553411"},
+        {"w": "int", "text": "121597949864042499"},
+        {"w": "int", "text": "119000909488131"},
+        {"w": "int", "text": "104644608"},
+        {"w": "int", "text": "29054717503"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "1865677955"},
+        {"w": "int", "text": "1903034508559296"},
+        {"w": "int", "text": "118811449556992"},
+        {"w": "int", "text": "29754206920707"},
+        {"w": "int", "text": "7425663841036"},
+        {"w": "int", "text": "7435330663180"},
+        {"w": "int", "text": "8191277321808186719232"},
+        {"w": "int", "text": "475242676887555"},
+        {"w": "int", "text": "30455113742229507"},
+        {"w": "int", "text": "1859649794623"},
+        {"w": "int", "text": "8194033527254239951872"},
+        {"w": "int", "text": "1903460567212239"},
+        {"w": "int", "text": "7613778450582576"},
+        {"w": "int", "text": "7263679039"},
+        {"w": "int", "text": "1946593234826431536"},
+        {"w": "int", "text": "119016779939020"},
+        {"w": "int", "text": "31143219355522694719"},
+        {"w": "int", "text": "7998445710239087616"},
+        {"w": "int", "text": "29687553078028"},
+        {"w": "int", "text": "127991162036684651520"},
+        {"w": "int", "text": "476067273646083"},
+        {"w": "int", "text": "29739095831308"},
+        {"w": "int", "text": "31199548159807992000"},
+        {"w": "int", "text": "7613208545206275"},
+        {"w": "int", "text": "2047872302187276205056"},
+        {"w": "int", "text": "476067273646083"},
+        {"w": "int", "text": "29739095831308"},
+        {"w": "int", "text": "31199548159807992000"},
+        {"w": "int", "text": "7613208545255427"},
+        {"w": "int", "text": "8208796592430115470336"},
+        {"w": "int", "text": "118810659987459"},
+        {"w": "int", "text": "1946448099156298800"},
+        {"w": "int", "text": "128031693818882178048"},
+        {"w": "int", "text": "29690774303692"},
+        {"w": "int", "text": "29742313911052"},
+        {"w": "int", "text": "31145491770341339328"},
+        {"w": "int", "text": "1993311473302852484336"},
+        {"w": "int", "text": "29054714431"},
+        {"w": "int", "text": "7603312739229699"},
+        {"w": "int", "text": "7603328204415183"},
+        {"w": "int", "text": "7613839704072387"},
+        {"w": "int", "text": "121649746315054860"},
+        {"w": "int", "text": "32048683617601993728"},
+        {"w": "int", "text": "1900763546649151"},
+        {"w": "int", "text": "2051331924320167197696"},
+        {"w": "int", "text": "29698691112963"},
+        {"w": "int", "text": "475036531826691"},
+        {"w": "int", "text": "7425109406476"},
+        {"w": "int", "text": "1946329916388421824"},
+        {"w": "int", "text": "7602851245329456"},
+        {"w": "int", "text": "7999448413304011776"},
+        {"w": "int", "text": "121864112426459139"},
+        {"w": "int", "text": "121613463299605440"},
+        {"w": "int", "text": "7261319743"},
+        {"w": "int", "text": "7263473215"},
+        {"w": "int", "text": "116441219"},
+        {"w": "int", "text": "118801763868675"},
+        {"w": "int", "text": "30413248380731392"},
+        {"w": "int", "text": "475246506221763"},
+        {"w": "int", "text": "7614033125575728"},
+        {"w": "int", "text": "30416547075984432"},
+        {"w": "int", "text": "1859703078463"},
+        {"w": "int", "text": "1900828188155907"},
+        {"w": "int", "text": "1901038209540291"},
+        {"w": "int", "text": "7617347833356495"},
+        {"w": "int", "text": "121666188517444656"},
+        {"w": "int", "text": "121824527855520816"},
+        {"w": "int", "text": "8015492538515389440"},
+        {"w": "int", "text": "116218908223"},
+        {"w": "int", "text": "121613423775326211"},
+        {"w": "int", "text": "121824569532138432"},
+        {"w": "int", "text": "29053940287"},
+        {"w": "int", "text": "6491328"},
+        {"w": "int", "text": "1815278143"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "7247950399"},
+        {"w": "int", "text": "7260533311"},
+        {"w": "int", "text": "7251096127"},
+        {"w": "int", "text": "7251882559"},
+        {"w": "int", "text": "7264465471"},
+        {"w": "int", "text": "28991222335"},
+        {"w": "int", "text": "7424658586828"},
+        {"w": "int", "text": "103858176"},
+        {"w": "int", "text": "2051321161423106669568"},
+        {"w": "int", "text": "7617086648009664"},
+        {"w": "int", "text": "121820458381418499"},
+        {"w": "int", "text": "1903460567212239"},
+        {"w": "int", "text": "30455114610379824"},
+        {"w": "int", "text": "475242639925251"},
+        {"w": "int", "text": "29739092685580"},
+        {"w": "int", "text": "31145491770140012736"},
+        {"w": "int", "text": "118810622238723"},
+        {"w": "int", "text": "7424671948803"},
+        {"w": "int", "text": "464041161676"},
+        {"w": "int", "text": "7782413927606661312"},
+        {"w": "int", "text": "7614033125575728"},
+        {"w": "int", "text": "30416550297209904"},
+        {"w": "int", "text": "1859703078463"},
+        {"w": "int", "text": "1900828188155907"},
+        {"w": "int", "text": "1901038209540291"},
+        {"w": "int", "text": "7617347833356495"},
+        {"w": "int", "text": "121666188517444656"},
+        {"w": "int", "text": "121824527855520816"},
+        {"w": "int", "text": "8015492538515389440"},
+        {"w": "int", "text": "7603312739229699"},
+        {"w": "int", "text": "7603328204415183"},
+        {"w": "int", "text": "7613839704072387"},
+        {"w": "int", "text": "7263485503"},
+        {"w": "int", "text": "7462453379"},
+        {"w": "int", "text": "103858176"},
+        {"w": "int", "text": "6488076"},
+        {"w": "int", "text": "31186248481120387072"},
+        {"w": "int", "text": "8208530615279177235456"},
+        {"w": "int", "text": "476032483131967"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "31129711790520205312"},
+        {"w": "int", "text": "30465264676184259"},
+        {"w": "int", "text": "30465203473686723"},
+        {"w": "int", "text": "7461912707"},
+        {"w": "int", "text": "6488076"}
+      ],
+      "instrs": [
+        "GetP ct2 csp",
+        "Mov ctp $4440",
+        "Jne $165 ctp ct2",
+        "GetL ct2 csp",
+        "Mov ctp $1",
+        "Jne $162 ctp ct2",
+        "Store csp cs0 (-4)",
+        "Lea csp csp $(-4)",
+        "Store csp cs1 1",
+        "Store csp cgp 2",
+        "Store csp cra 3",
+        "SpecialRW ct2 mtdc cnull",
+        "CLoad ctp ct2 16",
+        "Store ctp $0 0",
+        "Store ctp $0 1",
+        "CLoad ctp ct2 21",
+        "GetLen cs0 ct2",
+        "Jle $93 cs0 ctp",
+        "Lea ctp ct2 ctp",
+        "Store ctp csp 0",
+        "Store ctp $0 2",
+        "Store ctp $0 1",
+        "CLoad cs1 ct2 21",
+        "Add cs1 cs1 $3",
+        "Store ct2 cs1 21",
+        "GetA cs0 csp",
+        "GetB cs1 csp",
+        "SetA csp csp cs1",
+        "Subseg ct2 csp cs1 cs0",
+        "GetE cs0 ct2",
+        "SetA csp ct2 cs0",
+        "Jle $4 cs0 ct2",
+        "Store ct2 $0 0",
+        "Lea ct2 ct2 $1",
+        "Jlt $(-2) ct2 cs0",
+        "Auipcc cs0 (-39)",
+        "CLoad cs0 cs0 0",
+        "UnSeal ct1 cs0 ct1",
+        "CLoad cs0 ct1 0",
+        "LShiftR cs0 cs0 $16",
+        "Store ctp ct1 1",
+        "CLoad ctp ct1 0",
+        "LShiftR ctp ctp $8",
+        "LAnd ctp ctp $255",
+        "GetLen ct2 csp",
+        "Add ctp ctp $2",
+        "Jlt $61 ct2 ctp",
+        "Lea csp csp $(-2)",
+        "CLoad ctp ct1 0",
+        "LAnd ctp ctp $255",
+        "GetB cs1 ct1",
+        "SetA ct1 ct1 cs1",
+        "CLoad cgp ct1 1",
+        "CLoad cra ct1 0",
+        "Lea cra cra cs0",
+        "Auipcc cs0 4",
+        "LAnd ct2 ctp $7",
+        "Lea cs0 cs0 ct2",
+        "Jalr cnull cs0",
+        "Mov ca0 $0",
+        "Mov ca1 $0",
+        "Mov ca2 $0",
+        "Mov ca3 $0",
+        "Mov ca4 $0",
+        "Mov ca5 $0",
+        "Mov ct0 $0",
+        "LAnd ct1 ctp $16",
+        "Jne $2 ct1 $0",
+        "SetMIE InterruptEnabled",
+        "Mov ctp $0",
+        "Mov ct1 $0",
+        "Mov ct2 $0",
+        "Mov cs0 $0",
+        "Mov cs1 $0",
+        "Jalr cra cra",
+        "SpecialRW ctp mtdc cnull",
+        "CLoad ct2 ctp 16",
+        "Store ct2 $0 0",
+        "Store ct2 $0 1",
+        "CLoad ct2 ctp 21",
+        "Mov ct0 $23",
+        "Add ct2 ct2 $(-3)",
+        "Jle $197 ct2 ct0",
+        "Lea ct1 ctp ct2",
+        "CLoad csp ct1 0",
+        "Store ctp ct2 21",
+        "CLoad cs0 csp 0",
+        "CLoad cs1 csp 1",
+        "CLoad cra csp 3",
+        "CLoad cgp csp 2",
+        "Lea csp csp $4",
+        "GetB ctp csp",
+        "GetA ct1 csp",
+        "SetA ct2 csp ctp",
+        "Jle $4 ct1 ct2",
+        "Store ct2 $0 0",
+        "Lea ct2 ct2 $1",
+        "Jlt $(-2) ct2 ct1",
+        "Mov ct0 $0",
+        "Mov ctp $0",
+        "Mov ct1 $0",
+        "Mov ct2 $0",
+        "Mov ca2 $0",
+        "Mov ca3 $0",
+        "Mov ca4 $0",
+        "Mov ca5 $0",
+        "Jalr cnull cra",
+        "Mov ca0 $(-140)",
+        "Mov ca1 $0",
+        "Jmp $(-34)",
+        "CLoad cs0 csp 0",
+        "CLoad cs1 csp 1",
+        "CLoad cra csp 3",
+        "CLoad cgp csp 2",
+        "Lea csp csp $4",
+        "Mov ca0 $(-141)",
+        "Mov ca1 $0",
+        "Jmp $(-19)",
+        "SpecialRW csp mtdc csp",
+        "Jeq $170 csp $0",
+        "Store csp cra 1",
+        "Store csp cgp 3",
+        "Store csp ctp 4",
+        "Store csp ct0 5",
+        "Store csp ct1 6",
+        "Store csp ct2 7",
+        "Store csp cs0 8",
+        "Store csp cs1 9",
+        "Store csp ca0 10",
+        "Store csp ca1 11",
+        "Store csp ca2 12",
+        "Store csp ca3 13",
+        "Store csp ca4 14",
+        "Store csp ca5 15",
+        "Mov ct1 $0",
+        "SpecialRW ct1 mtdc ct1",
+        "Store csp ct1 2",
+        "SpecialRW ct0 mepcc cnull",
+        "Store csp ct0 0",
+        "SpecialRW ct1 mstatus cnull",
+        "Store csp ct1 17",
+        "SpecialRW ct1 mcause cnull",
+        "Store csp ct1 18",
+        "Mov ca0 $28",
+        "Jeq $26 ca0 ct1",
+        "Mov ca0 $8",
+        "Jlt $24 ct1 ca0",
+        "Halt",
+        "CLoad cra csp 17",
+        "SpecialRW cnull mstatus cra",
+        "SpecialRW cnull mepcc ct2",
+        "CLoad cra csp 1",
+        "CLoad cgp csp 3",
+        "CLoad ctp csp 4",
+        "CLoad ct0 csp 5",
+        "CLoad ct1 csp 6",
+        "CLoad ct2 csp 7",
+        "CLoad cs0 csp 8",
+        "CLoad cs1 csp 9",
+        "CLoad ca0 csp 10",
+        "CLoad ca1 csp 11",
+        "CLoad ca2 csp 12",
+        "CLoad ca3 csp 13",
+        "CLoad ca4 csp 14",
+        "CLoad ca5 csp 15",
+        "CLoad csp csp 2",
+        "Mret",
+        "Mov ca0 $(-1)",
+        "Mov ca1 $0",
+        "Jmp $(-94)",
+        "SpecialRW cnull mtdc csp",
+        "Auipcc ct0 0",
+        "CLoad ct1 csp 0",
+        "GetB ct0 ct0",
+        "GetB ctp ct1",
+        "Jeq $106 ct0 ctp",
+        "CLoad ct0 csp 2",
+        "CLoad ctp csp 21",
+        "Mov ct1 $23",
+        "Jeq $101 ctp ct1",
+        "Add ctp ctp $(-3)",
+        "Lea ctp csp ctp",
+        "Mov ca0 $0",
+        "Lea ct0 ct0 $(-16)",
+        "GetTag ct1 ct0",
+        "Mov cs1 $65535",
+        "Jeq $8 ct1 $0",
+        "GetB ct2 ct0",
+        "Jlt $6 ct0 ct2",
+        "CLoad ct1 ctp 1",
+        "GetB cs0 ct1",
+        "SetA ct1 ct1 cs0",
+        "CLoad cs0 ct1 2",
+        "Jne $14 cs0 cs1",
+        "CLoad ct1 ctp 1",
+        "GetB cs0 ct1",
+        "SetA ct1 ct1 cs0",
+        "CLoad cs0 ct1 3",
+        "Jeq $(-31) cs0 cs1",
+        "CLoad ct0 ctp 0",
+        "Lea cs1 csp $23",
+        "Jeq $5 cs1 ctp",
+        "GetA ca1 ct0",
+        "GetB ca2 ct0",
+        "SetA ct0 ct0 ca2",
+        "Subseg ct0 ct0 ca2 ca1",
+        "Mov ca0 $1",
+        "CLoad cs1 ctp 2",
+        "Add cs1 cs1 $1",
+        "Store ctp cs1 2",
+        "LAnd cra cs1 $1",
+        "Jeq $(-44) cra $0",
+        "Mov cra $1024",
+        "Jlt $(-46) cra cs1",
+        "CLoad cra ct1 0",
+        "CLoad cgp ct1 1",
+        "GetB cs1 cra",
+        "SetA cra cra cs1",
+        "Lea cra cra cs0",
+        "Jeq $6 ca0 $0",
+        "CLoad ca0 csp 18",
+        "SpecialRW ca1 mtval cnull",
+        "Mov ca2 $0",
+        "Mov csp ct0",
+        "Jmp $17",
+        "CLoad cs1 csp 0",
+        "ClearTag cs1 cs1",
+        "Store ct0 cs1 0",
+        "Lea ca2 csp $1",
+        "Lea ca3 ct0 $1",
+        "Mov ca4 $15",
+        "CLoad cs1 ca2 0",
+        "Store ca3 cs1 0",
+        "Add ca4 ca4 $(-1)",
+        "Lea ca3 ca3 $1",
+        "Lea ca2 ca2 $1",
+        "Jne $(-5) ca4 $0",
+        "Mov ca0 ct0",
+        "CLoad ca1 csp 18",
+        "SpecialRW ca2 mtval cnull",
+        "Mov csp ca0",
+        "SetMIE InterruptEnabled",
+        "Mov ctp $0",
+        "Mov ct0 $0",
+        "Mov ct1 $0",
+        "Mov ct2 $0",
+        "Mov cs0 $0",
+        "Mov cs1 $0",
+        "Mov ca3 $0",
+        "Mov ca4 $0",
+        "Mov ca5 $0",
+        "Jalr cra cra",
+        "SetMIE InterruptDisabled",
+        "Jne $(-86) ca0 $0",
+        "SpecialRW ct1 mtdc cnull",
+        "CLoad ctp ct1 21",
+        "Add ctp ctp $(-3)",
+        "Lea ctp ct1 ctp",
+        "CLoad ct0 ctp 1",
+        "GetB cs0 ct0",
+        "SetA ct0 ct0 cs0",
+        "CLoad ct0 ct0 0",
+        "CLoad cra csp 0",
+        "GetA cra cra",
+        "SetA ct2 ct0 cra",
+        "Lea ca2 csp $1",
+        "Lea ca3 ct1 $1",
+        "Mov ca4 $15",
+        "CLoad cs1 ca2 0",
+        "Store ca3 cs1 0",
+        "Add ca4 ca4 $(-1)",
+        "Lea ca3 ca3 $1",
+        "Lea ca2 ca2 $1",
+        "Jne $(-5) ca4 $0",
+        "CLoad cs1 ctp 2",
+        "Add cs1 cs1 $1",
+        "Store ctp cs1 2",
+        "Mov csp ct1",
+        "Jmp $(-130)",
+        "SetMIE InterruptDisabled",
+        "Halt",
+        "Auipcc ctp (-275)",
+        "Jne $(-115) ct1 ctp",
+        "Mov ca0 $(-140)",
+        "Mov ca1 $0",
+        "Auipcc ct2 (-179)",
+        "Store csp ca0 10",
+        "Store csp ca1 11",
+        "Jmp $(-140)",
+        "Halt"
+      ],
+      "labels": {
+        "0": ".Lswitch_csp_check",
+        "6": ".Lswitch_entry_first_spill",
+        "11": ".Lswitch_trusted_stack_load",
+        "15": ".Lswitch_trusted_stack_push",
+        "25": ".Lswitch_stack_chop",
+        "35": ".Lswitch_after_zero",
+        "37": ".Lswitch_unseal_entry",
+        "38": ".Lswitcher_decode_entry",
+        "41": ".Lswitch_stack_check_length",
+        "52": ".Lswitch_callee_load",
+        "55": ".Lswitch_load_zero_arguments_start",
+        "59": ".Lswitch_zero_arguments_start",
+        "69": ".Lswitch_skip_interrupt_enable, .Lswitch_caller_dead_zeros",
+        "74": ".Lswitch_callee_call",
+        "75": "switcher_after_compartment_call",
+        "86": ".Lswitch_callee_save_restore",
+        "91": ".Lswitch_callee_stack_zero",
+        "98": ".Lswitch_callee_dead_zeros",
+        "106": ".Lswitch_just_return",
+        "107": ".Lswitch_stack_too_small",
+        "110": ".Lswitch_trusted_stack_exhausted",
+        "118": "exception_entry_asm",
+        "134": ".Lexception_exiting_threads_rejoin",
+        "143": ".Lexception_might_handle",
+        "147": ".Lexception_scheduler_call",
+        "148": ".Lcommon_context_install",
+        "167": ".Lcommon_force_unwind",
+        "170": ".Lhandle_error",
+        "171": ".Lhandle_error_switcher_pcc",
+        "176": ".Lhandle_error_not_switcher",
+        "184": ".Lhandle_error_stack_oob",
+        "189": ".Lhandle_error_try_stackful",
+        "194": ".Lhandle_error_try_stackless",
+        "202": ".Lhandle_stack_rebound",
+        "206": ".Lhandle_stack_recovered",
+        "207": ".Lhandle_error_found",
+        "210": ".Lhandle_error_test_double_fault",
+        "212": ".Lhandle_error_test_too_many",
+        "219": ".Lhandle_error_test_stackful",
+        "220": ".Lhandle_error_stackless_setup",
+        "225": ".Lhandle_error_stack_setup",
+        "241": ".Lhandle_error_handler_invoke",
+        "242": ".Lhandle_error_handler_invoke_irqs",
+        "251": ".Lhandle_error_handler_cjalr",
+        "252": ".Lhandle_error_handler_return",
+        "253": ".Lhandle_error_handler_return_irqs",
+        "254": ".Lhandle_error_install_context",
+        "279": ".Lcommon_defer_irqs_and_thread_exit",
+        "280": ".Lcommon_deferred_irqs_and_thread_exit, .Lcommon_thread_exit",
+        "281": ".Lhandle_error_in_switcher",
+        "285": ".Lhandle_return_context_install",
+        "289": ".Lexception_reentered"
+      }
+    },
+    "assert_subroutine_instrs": {
+      "words": [
+        {"w": "int", "text": "30415777005699120"},
+        {"w": "int", "text": "1999650800422419456"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "1858380971212"},
+        {"w": "int", "text": "7617124738465792"},
+        {"w": "int", "text": "119016831000579"},
+        {"w": "int", "text": "29754395664579"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "1858380971212"}
+      ],
+      "instrs": [
+        "Sub ct0 ct0 ct1",
+        "Jne $4 ct0 $0",
+        "Mov ct0 $0",
+        "Mov ct1 $0",
+        "Jalr cnull cra",
+        "Auipcc ct1 6",
+        "CLoad ct1 ct1 0",
+        "Store ct1 $1 0",
+        "Mov ct0 $0",
+        "Mov ct1 $0",
+        "Jalr cnull cra"
+      ],
+      "labels": {"2": "assert_success", "5": "assert_fail"}
+    },
+    "switcher_call_instrs": {
+      "words": [
+        {"w": "int", "text": "7421888970700"},
+        {"w": "int", "text": "121821215688163903"},
+        {"w": "int", "text": "131104526313685178711040"},
+        {"w": "int", "text": "118750223478784"},
+        {"w": "int", "text": "7261110847"},
+        {"w": "int", "text": "131059562375005511678976"},
+        {"w": "int", "text": "7616312948564163"},
+        {"w": "int", "text": "7616058219433008"},
+        {"w": "int", "text": "476018955264195"},
+        {"w": "int", "text": "476018790899907"},
+        {"w": "int", "text": "119004734742723"},
+        {"w": "int", "text": "30400067087156160"},
+        {"w": "int", "text": "487281566351892483"},
+        {"w": "int", "text": "7435380007107"},
+        {"w": "int", "text": "29741520003267"},
+        {"w": "int", "text": "487281566355234819"},
+        {"w": "int", "text": "30452829994074304"},
+        {"w": "int", "text": "32776390813577140777152"},
+        {"w": "int", "text": "121820391603833904"},
+        {"w": "int", "text": "29741573677251"},
+        {"w": "int", "text": "118966079987907"},
+        {"w": "int", "text": "29741520003267"},
+        {"w": "int", "text": "1946447845623275523"},
+        {"w": "int", "text": "30413312817684687"},
+        {"w": "int", "text": "1945607595401355459"},
+        {"w": "int", "text": "7434773869516"},
+        {"w": "int", "text": "7425110192908"},
+        {"w": "int", "text": "1949710914643833024"},
+        {"w": "int", "text": "1992298163219202194672"},
+        {"w": "int", "text": "118956367167244"},
+        {"w": "int", "text": "31195309542482915520"},
+        {"w": "int", "text": "511910642072508444864"},
+        {"w": "int", "text": "29687605567683"},
+        {"w": "int", "text": "121600213793246256"},
+        {"w": "int", "text": "128203901047206116352"},
+        {"w": "int", "text": "1948984689632935936"},
+        {"w": "int", "text": "1903302076735491"},
+        {"w": "int", "text": "1949971514231096256"},
+        {"w": "int", "text": "475825534083075"},
+        {"w": "int", "text": "498940275132765094860"},
+        {"w": "int", "text": "475865192079555"},
+        {"w": "int", "text": "118965291393027"},
+        {"w": "int", "text": "7796574482262442956"},
+        {"w": "int", "text": "1995923067527353077516"},
+        {"w": "int", "text": "1900003575709888"},
+        {"w": "int", "text": "1903460566966479"},
+        {"w": "int", "text": "8194100220330844683264"},
+        {"w": "int", "text": "1904014554958896"},
+        {"w": "int", "text": "118965291393027"},
+        {"w": "int", "text": "1995923067527353077516"},
+        {"w": "int", "text": "29700441125644"},
+        {"w": "int", "text": "31199548157392072896"},
+        {"w": "int", "text": "475036531826691"},
+        {"w": "int", "text": "29698691112963"},
+        {"w": "int", "text": "7602851245329456"},
+        {"w": "int", "text": "30452881534418944"},
+        {"w": "int", "text": "7782431037981724428"},
+        {"w": "int", "text": "1948981326619216944"},
+        {"w": "int", "text": "29734262226124"},
+        {"w": "int", "text": "7263679039"},
+        {"w": "int", "text": "7248736831"},
+        {"w": "int", "text": "7261319743"},
+        {"w": "int", "text": "7251882559"},
+        {"w": "int", "text": "7264465471"},
+        {"w": "int", "text": "28991222335"},
+        {"w": "int", "text": "1812918847"},
+        {"w": "int", "text": "31199808727925395212"},
+        {"w": "int", "text": "499952330666474496"},
+        {"w": "int", "text": "6491328"},
+        {"w": "int", "text": "1815278143"},
+        {"w": "int", "text": "1816064575"},
+        {"w": "int", "text": "7247950399"},
+        {"w": "int", "text": "7260533311"},
+        {"w": "int", "text": "7251096127"},
+        {"w": "int", "text": "7424658586828"}
+      ],
+      "instrs": [
+        "GetP ct2 csp",
+        "Mov ctp $4440",
+        "Jne $165 ctp ct2",
+        "GetL ct2 csp",
+        "Mov ctp $1",
+        "Jne $162 ctp ct2",
+        "Store csp cs0 (-4)",
+        "Lea csp csp $(-4)",
+        "Store csp cs1 1",
+        "Store csp cgp 2",
+        "Store csp cra 3",
+        "SpecialRW ct2 mtdc cnull",
+        "CLoad ctp ct2 16",
+        "Store ctp $0 0",
+        "Store ctp $0 1",
+        "CLoad ctp ct2 21",
+        "GetLen cs0 ct2",
+        "Jle $93 cs0 ctp",
+        "Lea ctp ct2 ctp",
+        "Store ctp csp 0",
+        "Store ctp $0 2",
+        "Store ctp $0 1",
+        "CLoad cs1 ct2 21",
+        "Add cs1 cs1 $3",
+        "Store ct2 cs1 21",
+        "GetA cs0 csp",
+        "GetB cs1 csp",
+        "SetA csp csp cs1",
+        "Subseg ct2 csp cs1 cs0",
+        "GetE cs0 ct2",
+        "SetA csp ct2 cs0",
+        "Jle $4 cs0 ct2",
+        "Store ct2 $0 0",
+        "Lea ct2 ct2 $1",
+        "Jlt $(-2) ct2 cs0",
+        "Auipcc cs0 (-39)",
+        "CLoad cs0 cs0 0",
+        "UnSeal ct1 cs0 ct1",
+        "CLoad cs0 ct1 0",
+        "LShiftR cs0 cs0 $16",
+        "Store ctp ct1 1",
+        "CLoad ctp ct1 0",
+        "LShiftR ctp ctp $8",
+        "LAnd ctp ctp $255",
+        "GetLen ct2 csp",
+        "Add ctp ctp $2",
+        "Jlt $61 ct2 ctp",
+        "Lea csp csp $(-2)",
+        "CLoad ctp ct1 0",
+        "LAnd ctp ctp $255",
+        "GetB cs1 ct1",
+        "SetA ct1 ct1 cs1",
+        "CLoad cgp ct1 1",
+        "CLoad cra ct1 0",
+        "Lea cra cra cs0",
+        "Auipcc cs0 4",
+        "LAnd ct2 ctp $7",
+        "Lea cs0 cs0 ct2",
+        "Jalr cnull cs0",
+        "Mov ca0 $0",
+        "Mov ca1 $0",
+        "Mov ca2 $0",
+        "Mov ca3 $0",
+        "Mov ca4 $0",
+        "Mov ca5 $0",
+        "Mov ct0 $0",
+        "LAnd ct1 ctp $16",
+        "Jne $2 ct1 $0",
+        "SetMIE InterruptEnabled",
+        "Mov ctp $0",
+        "Mov ct1 $0",
+        "Mov ct2 $0",
+        "Mov cs0 $0",
+        "Mov cs1 $0",
+        "Jalr cra cra"
+      ]
+    }
+  }
+}

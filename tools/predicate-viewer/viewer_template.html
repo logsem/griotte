@@ -1,0 +1,749 @@
+<title>Griotte Initial States</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a datasheet bench. Registers on the left, one linear address tape in
+   the middle (bands of words, low addresses on top), a detail sheet on the
+   right; stacked at phone width. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #e4e9ef;
+  --line: #c9d1db;
+  --line-strong: #9aa6b5;
+  --fg: #17202b;
+  --muted: #586577;
+  --exec: #3552c8;      /* executable capabilities (X) */
+  --data: #0b7d72;      /* data capabilities (R/W) */
+  --sentry: #a8650c;    /* sentries */
+  --sealed: #9b3486;    /* sealed capabilities, sealing ranges */
+  --untrusted: #b8462a; /* untrusted compartments */
+  --focus: #1f5fe0;
+  --hl: #f2b51f;        /* hover target highlight */
+  --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-cond: "IBM Plex Sans Condensed", "Arial Narrow", "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --addrw: 168px;
+  --railw: 104px;
+  --gutter: 48px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e131a; --surface: #151c25; --surface-2: #1c2531; --line: #2b3646; --line-strong: #46546a;
+    --fg: #e2e7ee; --muted: #93a0b2;
+    --exec: #8fa3ff; --data: #4cc9b8; --sentry: #e9ae4f; --sealed: #e083cf; --untrusted: #ee8a6b;
+    --focus: #7fa6ff; --hl: #f2c14e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #151c25; --surface-2: #1c2531; --line: #2b3646; --line-strong: #46546a;
+  --fg: #e2e7ee; --muted: #93a0b2;
+  --exec: #8fa3ff; --data: #4cc9b8; --sentry: #e9ae4f; --sealed: #e083cf; --untrusted: #ee8a6b;
+  --focus: #7fa6ff; --hl: #f2c14e;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+  overflow-x: hidden;
+}
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+code, .mono { font-family: var(--font-mono); font-size: 12.5px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+pre { margin: 0; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; margin-bottom: 14px; }
+.top h1 { font-family: var(--font-cond); font-weight: 600; font-size: 22px; letter-spacing: 0.01em; }
+.top .pred { color: var(--muted); font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cases { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 4px;
+  padding: 3px 9px; font-family: var(--font-mono); font-size: 12.5px; cursor: pointer;
+}
+.seg[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.seg:hover { border-color: var(--line-strong); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+.legend .chip { pointer-events: none; }
+.binders { color: var(--muted); font-family: var(--font-mono); font-size: 12px; margin-bottom: 10px; overflow-x: auto; white-space: pre; }
+
+/* Main grid */
+.bench { display: grid; grid-template-columns: minmax(220px, 270px) minmax(0, 1fr) minmax(300px, 370px); gap: 16px; align-items: start; }
+.bench > * { min-width: 0; }
+@media (max-width: 1180px) { .bench { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); } .detail { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.panel-h { font-family: var(--font-cond); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 10px 12px 6px; }
+
+/* Registers */
+.regs .bank { padding: 0 12px 10px; display: grid; gap: 6px; }
+.reg { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 2px 8px; align-items: start; padding: 4px 6px; border-radius: 4px; }
+.reg .rn { font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; padding-top: 2px; }
+.reg .rv { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.reg .rv .mono { overflow-wrap: anywhere; }
+.reg .rc { grid-column: 2; color: var(--muted); font-size: 12px; }
+.note { margin: 0 12px 10px; padding: 6px 8px; border: 1px dashed var(--line-strong); border-radius: 4px; color: var(--muted); font-size: 12px; }
+.note code { color: var(--fg); overflow-wrap: anywhere; }
+
+/* The address tape */
+.tape { padding-right: var(--gutter); }
+.tape-note { color: var(--muted); font-size: 12px; margin: 0 0 10px; max-width: 70ch; }
+.band {
+  display: grid; grid-template-columns: var(--railw) minmax(0, 1fr); cursor: pointer;
+  border-radius: 3px;
+}
+.rail {
+  border-right: 3px solid var(--line-strong); padding: 6px 8px 6px 0; display: flex; flex-direction: column; gap: 2px;
+  align-items: flex-end; text-align: right; min-width: 0;
+}
+.rail .own { font-family: var(--font-mono); font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.rail .sub { font-family: var(--font-cond); font-size: 12.5px; color: var(--muted); line-height: 1.25; }
+.band.untrusted .rail { border-right-color: var(--untrusted); }
+.band.untrusted .rail .own { color: var(--untrusted); }
+.band.implicit .rail { border-right-style: dashed; }
+.tag { font-family: var(--font-cond); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; padding: 0 5px; border-radius: 3px; border: 1px solid var(--line-strong); color: var(--muted); }
+.tag.untrusted { color: var(--untrusted); border-color: var(--untrusted); }
+.words { min-width: 0; display: grid; }
+.row { display: grid; grid-template-columns: var(--addrw) minmax(0, 1fr); min-width: 0; }
+.addr {
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; padding: 0 8px 0 6px;
+  overflow-wrap: anywhere; line-height: 1.3; min-width: 0; font-variant-numeric: tabular-nums;
+}
+.edge .addr { color: var(--fg); font-weight: 500; padding-block: 2px; }
+.edge .line { border-top: 2px solid var(--fg); }
+.edge.top .line { align-self: end; }
+.edge.bot .line { align-self: start; }
+.band.implicit .edge .line { border-top-style: dashed; }
+.cell {
+  min-width: 0; border-left: 1px solid var(--line-strong); border-right: 1px solid var(--line-strong); border-top: 1px solid var(--line);
+  background: var(--surface); padding: 3px 8px; display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; min-height: 28px;
+}
+.row:first-of-type .cell, .edge + .row .cell { border-top: none; }
+.cell.comp {
+  min-height: 48px; padding-block: 8px;
+  background:
+    repeating-linear-gradient(-45deg, var(--surface-2) 0 2px, transparent 2px 9px),
+    var(--surface);
+  border-left-style: dashed; border-right-style: dashed;
+}
+.cell.empty { min-height: 22px; color: var(--muted); font-size: 12px; font-style: italic; }
+.band.untrusted .cell {
+  background:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--untrusted) 10%, transparent) 0 5px, transparent 5px 12px),
+    var(--surface);
+}
+.band.implicit .cell { background: transparent; border-style: dashed; }
+.cell .what { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.cell .len { font-family: var(--font-cond); font-size: 12px; color: var(--muted); }
+.cell .arbn { font-family: var(--font-cond); font-size: 11.5px; padding: 0 6px; border-radius: 3px; color: var(--untrusted); border: 1px solid var(--untrusted); background: color-mix(in srgb, var(--untrusted) 12%, var(--surface)); }
+.cell .cmt { color: var(--muted); font-size: 12px; }
+.cell .val { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.pts { flex-basis: 100%; display: grid; gap: 2px; margin-top: 2px; }
+.pt { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 12px; border-left: 2px solid var(--fg); padding: 1px 6px; background: var(--surface); border-radius: 0 3px 3px 0; width: fit-content; max-width: 100%; }
+.pt .pa { font-family: var(--font-mono); font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
+.pt .pl { color: var(--muted); }
+.gap { height: 14px; display: grid; grid-template-columns: var(--railw) var(--addrw) minmax(0, 1fr); }
+.gap::after { content: ""; grid-column: 3; justify-self: center; width: 0; border-left: 2px dotted var(--line-strong); }
+.band:hover .rail .own { text-decoration: underline; }
+.band.selected .rail { border-right-color: var(--focus); }
+.band.selected .cell { border-left-color: var(--focus); border-right-color: var(--focus); }
+.band.target .cell { box-shadow: inset 3px 0 0 var(--hl); }
+.anchor { outline: 2px solid var(--hl); outline-offset: -2px; }
+.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 4px var(--hl); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.entry { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; font-family: var(--font-mono); font-size: 12px; }
+.entry span i { font-style: normal; color: var(--muted); font-size: 10.5px; margin-right: 2px; }
+.ptr { border: none; background: none; padding: 0 2px; font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; border-radius: 2px; }
+.ptr:hover, .ptr.active { background: color-mix(in srgb, var(--exec) 18%, transparent); }
+@media (max-width: 760px) {
+  :root { --addrw: 96px; --gutter: 36px; }
+  .band { grid-template-columns: minmax(0, 1fr); }
+  .rail { border-right: none; border-bottom: 3px solid var(--line-strong); flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; text-align: left; padding: 10px 0 8px; gap: 2px 8px; }
+  .band.untrusted .rail { border-bottom-color: var(--untrusted); }
+  .gap { grid-template-columns: var(--addrw) minmax(0, 1fr); }
+  .gap::after { grid-column: 2; }
+}
+
+/* Capability chips */
+.chip {
+  --k: var(--data);
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  border: 1px solid var(--k); border-radius: 3px; padding: 1px 6px;
+  background: color-mix(in srgb, var(--k) 11%, var(--surface));
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.5; cursor: pointer; text-align: left;
+}
+.chip.exec { --k: var(--exec); }
+.chip.sentry { --k: var(--sentry); }
+.chip.sealed, .chip.sealrange { --k: var(--sealed); }
+.chip.local { border-style: dashed; }
+.chip .p { font-weight: 600; color: var(--k); }
+.chip .loc { font-size: 10px; padding: 0 3px; border-radius: 2px; background: var(--surface-2); color: var(--muted); }
+.chip.local .loc { background: var(--k); color: var(--surface); }
+.chip .tgt { color: var(--fg); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chip:hover, .chip.active { background: color-mix(in srgb, var(--k) 24%, var(--surface)); }
+.chip.incoming { box-shadow: 0 0 0 2px var(--hl); }
+
+/* Detail */
+.detail { padding: 12px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.detail > *, .dtable .drow > *, .inc li > * { min-width: 0; }
+@media (min-width: 1181px) { .detail { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; } }
+.detail h2 { font-family: var(--font-cond); font-size: 19px; font-weight: 600; }
+.eyebrow { font-family: var(--font-cond); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.detail h4 { font-family: var(--font-cond); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+.bounds { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge { font-family: var(--font-cond); font-size: 11.5px; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 3px; background: var(--surface-2); color: var(--fg); }
+.badge.arb { background: color-mix(in srgb, var(--untrusted) 16%, var(--surface)); color: var(--untrusted); border: 1px solid var(--untrusted); }
+.badge.code { font-family: var(--font-mono); font-size: 11px; }
+.code { background: var(--surface-2); border-radius: 4px; padding: 8px 10px; overflow-x: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre; }
+.code + .code { margin-top: 6px; }
+.dim { color: var(--muted); font-size: 12.5px; }
+.cmt { color: var(--muted); font-size: 12px; }
+.field { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.idx { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); padding-top: 2px; text-align: right; font-variant-numeric: tabular-nums; }
+.item-v { min-width: 0; display: flex; flex-wrap: wrap; gap: 3px 6px; align-items: center; }
+.item-v .mono { overflow-wrap: anywhere; font-size: 12px; }
+.inc { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.inc li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.srcbtn { border: none; background: none; padding: 0; color: var(--focus); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-size: 12.5px; }
+.dtable { display: grid; gap: 4px; }
+.dtable .drow { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 6px; }
+.sect + .sect { margin-top: 10px; }
+.sect-t { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-family: var(--font-mono); }
+.facts summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.facts pre { margin-top: 6px; }
+
+/* Code panel: the region's words, with their offsets as on the tape */
+.codep { border: 1px solid var(--line); border-radius: 4px; max-height: 32em; overflow: auto; background: var(--surface); }
+.crow { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 0 8px; padding: 1px 8px; border-top: 1px solid var(--line); align-items: baseline; }
+.crow:first-child { border-top: none; }
+.crow .co { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.crow .cv { min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.crow .ci { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
+.crow .cw { font-family: var(--font-mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.crow.lbl { background: var(--surface-2); }
+.crow.lbl .ci { font-weight: 600; }
+.crow.piece { background: color-mix(in srgb, var(--surface-2) 60%, var(--surface)); }
+.crow.piece .ci { font-family: var(--font-cond); font-size: 12.5px; color: var(--muted); }
+.crow.hit { box-shadow: inset 3px 0 0 var(--exec); }
+.crow.anchor { outline-offset: -2px; }
+.crow .cn { color: var(--exec); font-size: 11.5px; }
+.pt[data-row] { cursor: pointer; }
+
+/* Bottom: other statements and raw text */
+.others { margin-top: 16px; padding: 4px 14px 14px; }
+.others .sect-t { margin-top: 8px; }
+
+/* Arrow overlay and tooltip */
+#wires { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; overflow: visible; }
+#wires path.w { fill: none; stroke-width: 2; }
+#wires path.br { fill: none; stroke-width: 2.5; }
+#wires text { font-family: var(--font-mono); font-size: 10.5px; }
+#tip {
+  position: fixed; z-index: 50; pointer-events: none; max-width: min(440px, calc(100vw - 24px));
+  background: var(--fg); color: var(--bg); border-radius: 5px; padding: 8px 10px; font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+}
+#tip dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 10px; margin: 0; }
+#tip dt { opacity: .7; font-family: var(--font-cond); text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; padding-top: 2px; }
+#tip dd { margin: 0; font-family: var(--font-mono); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+
+<header class="top">
+  <div>
+    <h1>Griotte initial states</h1>
+    <div class="pred" id="pred"></div>
+  </div>
+  <div class="controls">
+    <div class="cases" id="cases" role="group" aria-label="Case study"></div>
+    <button class="seg" id="rawbtn" aria-pressed="false" type="button">Statements as text</button>
+  </div>
+</header>
+<div class="binders" id="binders"></div>
+<div class="legend" aria-label="Legend">
+  <span class="chip exec"><span class="p">RX</span><span class="loc">G</span></span> executable
+  <span class="chip"><span class="p">RW</span><span class="loc">G</span></span> data
+  <span class="chip sentry"><span class="p">E·Inherit RX</span><span class="loc">G</span></span> sentry
+  <span class="chip sealed"><span class="p">⟨ot⟩ RO</span><span class="loc">G</span></span> sealed
+  <span class="chip local"><span class="p">RWL</span><span class="loc">L</span></span> dashed: Local
+  <span>Hover a capability: the arrow lands on the word at its cursor, the bracket spans its bounds. Click a band for its contents, code and constraints.</span>
+</div>
+
+<main class="bench" id="bench">
+  <aside class="panel regs" id="regs" aria-label="Registers"></aside>
+  <section class="tape" id="tape" aria-label="Memory, as one address tape"></section>
+  <aside class="panel detail" id="detail" aria-live="polite"></aside>
+</main>
+<section class="panel others" id="others"></section>
+<section id="raw" hidden><pre class="code" id="rawtext"></pre></section>
+
+<svg id="wires" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="context-stroke"></path>
+    </marker>
+  </defs>
+  <g id="wireg"></g>
+</svg>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="data">/*__DATA__*/</script>
+<script>
+"use strict";
+/* The model is built by model.py from the JSON print: regions with their
+   cells (words, compressed pieces) and the points inside them, capabilities
+   with their target region and the cell or point at their cursor, registers,
+   constraints and the code constants. This script only draws it. */
+const CASES = JSON.parse(document.getElementById("data").textContent);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const isNum = (s) => /^\d+$/.test(String(s));
+
+let cs = null;          // current case study
+let capById = {}, regById = {};
+let tape = null;        // { bands: [{region, cells}], els: {id -> cell/point} }
+let hovered = null;     // element under hover/focus (chip or pointer)
+
+const OWNER_INFO = {
+  switcher: ["switcher", "trusted"],
+  assert: ["assert", "library"],
+  "thread 0": ["thread 0", "thread"],
+  heap: ["heap", "heap"],
+  machine: ["machine", "implicit"],
+};
+
+/* ---------- Chips ---------- */
+function capClass(c) {
+  if (c.kind === "sealrange") return "sealrange";
+  if (c.sealed) return "sealed";
+  if (c.sentry) return "sentry";
+  if (/X/.test(c.perm)) return "exec";
+  return "data";
+}
+function regionTitle(r, withOwner) {
+  if (!r) return "";
+  let t = r.sub || r.label || "";
+  if (!r.sub && r.label && r.owner && r.label.startsWith(r.owner + ",")) t = r.label.slice(r.owner.length + 1).trim();
+  if (withOwner && r.owner && r.owner !== "machine" && !t.startsWith(r.owner)) t = r.owner + " · " + t;
+  return t;
+}
+function anchorName(c) {
+  const a = c.anchor && tape.els[c.anchor];
+  return a ? a.name : "";
+}
+function chip(c, opts = {}) {
+  if (!c) return "";
+  const cls = ["chip", capClass(c)];
+  if (c.loc === "Local") cls.push("local");
+  let p = c.perm;
+  if (c.sentry) p = "E·" + c.sentry + " " + p;
+  if (c.sealed) p = "⟨" + c.sealed + "⟩ " + p;
+  if (c.kind === "sealrange") p = "seal " + p;
+  const r = c.target && regById[c.target];
+  const tgt = opts.noTarget ? "" : `<span class="tgt">→ ${esc(r ? regionTitle(r, true) : c.kind === "sealrange" ? "otypes" : "")}</span>`;
+  const home = opts.home ? ' data-home="1"' : "";
+  return `<button type="button" class="${cls.join(" ")}" data-cap="${c.id}"${home} aria-label="capability ${esc(c.text)}"><span class="p">${esc(p)}</span><span class="loc" title="${esc(c.loc)}">${c.loc === "Local" ? "L" : "G"}</span>${tgt}</button>`;
+}
+
+/* ---------- The tape ---------- */
+function bandOrder() {
+  // the print's ranges_disjoint order; heap, then implicit regions, last.
+  const rank = (r) => (r.implicit ? 2 : r.owner === "heap" ? 1 : 0);
+  return cs.regions.map((r, i) => [r, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]);
+}
+function buildTape() {
+  tape = { bands: [], els: {} };
+  for (const r of bandOrder()) {
+    const cells = r.cells || [];
+    tape.bands.push({ region: r, cells });
+    for (const c of cells) {
+      tape.els[c.id] = c;
+      for (const p of c.points || []) tape.els[p.id] = p;
+    }
+  }
+}
+
+function entryHtml(c) {
+  const en = c.entry;
+  const p = c.ptr ? `<button type="button" class="ptr" data-ptr="${c.ptr}" data-from="${esc(en.owner)}" aria-label="PCC offset ${esc(en.off)}">${esc(en.off)}</button>` : esc(en.off);
+  return `<span class="entry"><span><i>entry</i>${esc(en.index)}</span><span><i>irq</i>${esc(en.mie)}</span><span><i>args</i>${esc(en.args)}</span><span><i>stack</i>${esc(en.stack)}</span><span><i>pcc+</i>${p}</span></span>` + (en.comment ? `<span class="cmt">${esc(en.comment)}</span>` : "");
+}
+function wordHtml(c) {
+  let v = c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val">${esc(c.text)}</span>`;
+  if (c.note) v += `<span class="cmt">${esc(c.note)}</span>`;
+  if (c.comment) v += `<span class="cmt">${esc(c.comment)}</span>`;
+  return v;
+}
+function compHtml(c) {
+  let h = `<span class="what" title="${esc(c.what)}">${esc(c.what && c.what.length > 90 ? c.what.slice(0, 60) + " …" : c.what)}</span>`;
+  if (c.arb) h += `<span class="arbn">${esc(c.arb)}</span>`;
+  if (c.note) h += `<span class="len">${esc(c.note)}</span>`;
+  if (c.len_text) h += `<span class="len">${esc(c.len_text)}</span>`;
+  else if (c.len != null && !/words/.test(c.note || "")) h += `<span class="len">${esc(c.len)} word${c.len === 1 ? "" : "s"}</span>`;
+  if (c.arg_caps) h += `<span class="len">arguments:</span>` + c.arg_caps.map((id) => chip(capById[id], { home: true })).join("");
+  if (c.code) h += `<span class="len">${cs.code[c.code] && cs.code[c.code].instrs ? "instructions" : "words"} in the code panel</span>`;
+  return h;
+}
+function cellBody(c) {
+  if (c.entry) return entryHtml(c);
+  if (c.kind === "word") return wordHtml(c);
+  if (c.kind === "empty") return esc(c.text || "empty");
+  return compHtml(c);
+}
+const lastTok = (k) => String(k).split(" ").pop();
+function cellHtml(c) {
+  const pts = (c.points || []).slice().sort((a, b) => (a.end - b.end) || ((a.code_row != null && b.code_row != null) ? a.code_row - b.code_row : (isNum(lastTok(a.key)) && isNum(lastTok(b.key))) ? lastTok(a.key) - lastTok(b.key) : 0));
+  const ptsHtml = pts.length ? `<div class="pts">${pts.map((p) => `<div class="pt" id="${p.id}"${p.code_row != null ? ` data-row="${p.code_row}" data-cell="${c.id}"` : ""}><span class="pa" title="${esc(p.key)}">${esc(p.text)}${p.code_row != null ? " · row " + esc(p.code_row) : ""}</span><span class="pl">${esc(p.notes.join(", "))}</span></div>`).join("")}</div>` : "";
+  return `<div class="row"><span class="addr" title="${esc(c.addr || "")}">${c.kind === "empty" ? "" : esc(c.label)}</span><div class="cell ${c.kind}" id="${c.id}">${cellBody(c)}${ptsHtml}</div></div>`;
+}
+
+function renderTape() {
+  const html = tape.bands.map((bd, i) => {
+    const r = bd.region;
+    const own = cs.owners[r.owner];
+    const kind = own && (own.kind === "trusted" || own.kind === "untrusted") ? own.kind : null;
+    const info = OWNER_INFO[r.owner];
+    const cls = ["band", kind === "untrusted" ? "untrusted" : "", r.implicit ? "implicit" : ""].join(" ");
+    const tag = kind ? `<span class="tag ${kind}">${kind}</span>` : info ? `<span class="tag">${esc(info[1])}</span>` : "";
+    const sub = regionTitle(r);
+    return (i ? `<div class="gap" aria-hidden="true"></div>` : "") +
+      `<section class="${cls}" id="reg-${r.id}" data-region="${r.id}" tabindex="0" role="button" aria-label="region ${esc(r.label)}">
+        <div class="rail"><span class="own">${esc(info && !kind ? info[0] : r.owner)}</span>${sub && sub !== r.owner ? `<span class="sub">${esc(sub)}</span>` : ""}${tag}</div>
+        <div class="words">
+          <div class="row edge top"><span class="addr" title="b">${esc(r.b)}</span><span class="line"></span></div>
+          ${bd.cells.map(cellHtml).join("")}
+          <div class="row edge bot"><span class="addr" title="e">${esc(r.e || "?")}</span><span class="line"></span></div>
+        </div>
+      </section>`;
+  }).join("");
+  $("tape").innerHTML = `<p class="tape-note">Bands follow the order of <code>ranges_disjoint</code> in the print, not real addresses; the gaps between them have unknown size. Heap and implicit machine regions come last. Compressed cells (hatched, dashed sides) stand for many words.</p>` + html;
+}
+
+function renderRegs() {
+  const row = (g) => `
+    <div class="reg" id="regrow-${esc(g.name)}"><span class="rn">${esc(g.name)}</span>
+      <span class="rv">${g.cap ? chip(capById[g.cap], { home: true }) : `<span class="mono">${esc(g.value)}</span>`}</span>
+      ${g.comment ? `<span class="rc">${esc(g.comment)}</span>` : ""}</div>`;
+  const bank = (name, regs) => regs.length ? `<div class="panel-h">${name}</div><div class="bank">${regs.map(row).join("")}</div>` : "";
+  const notes = cs.reg_notes.map((n) => `<div class="note">${n.comment ? esc(n.comment[0].toUpperCase() + n.comment.slice(1)) + ": " : ""}<code>${esc(n.text)}</code></div>`).join("");
+  const known = ["pc", "gpr", "sreg"];
+  $("regs").innerHTML =
+    bank("Program counter", cs.regs.filter((g) => g.bank === "pc")) +
+    bank("General-purpose registers", cs.regs.filter((g) => g.bank === "gpr")) + notes +
+    bank("System registers", cs.regs.filter((g) => g.bank === "sreg")) +
+    bank("Other registers", cs.regs.filter((g) => !known.includes(g.bank)));
+}
+
+function dedent(t) {
+  const lines = String(t).split("\n");
+  const ind = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length));
+  return lines.map((l) => l.slice(ind === Infinity ? 0 : ind)).join("\n");
+}
+const FIELD_SHORT = { cmpt_imports: "imports", cmpt_data: "data", cmpt_static_sealed: "static sealed", cmpt_exp_tbl_entries: "entries" };
+function sourceLabel(c) {
+  if (c.src_kind === "reg") return "register " + c.src;
+  const r = regById[c.src];
+  return (r ? regionTitle(r, true) : c.src) + (c.where === "contents" ? ", contents" : ", " + String(c.where).replace(/^cmpt_/, ""));
+}
+
+/* ---------- The code panel ---------- */
+/* One row per word of the region, in tape order: literal words and fields'
+   lists word by word, code constants expanded (instruction, word, label),
+   other pieces as their term. Offsets are those of the tape: b+N from the
+   band base while known, else from the last named address. */
+function codeOffset(c, i) {
+  if (c.offB != null) return "b+" + (c.offB + i);
+  if (!c.label || c.label === "?") return "?+" + i;
+  return i ? c.label + "+" + i : c.label;
+}
+function codeHtml(r) {
+  if (!r.code_names || !r.code_names.length) return "";
+  const rows = [];
+  for (const c of r.cells) {
+    if (c.kind === "empty") continue;
+    if (c.kind === "word") {
+      rows.push(`<div class="crow"><span class="co" title="${esc(c.addr || "")}">${esc(codeOffset(c, 0))}</span><span class="cv">${c.entry ? entryHtml(c) : wordHtml(c)}</span></div>`);
+      continue;
+    }
+    const k = c.code && cs.code[c.code];
+    if (!k) {
+      rows.push(`<div class="crow piece"><span class="co" title="${esc(c.addr || "")}">${esc(codeOffset(c, 0))}</span><span class="cv"><span class="ci">${esc(c.what)}</span>${c.note ? `<span class="cw">${esc(c.note)}</span>` : ""}${c.len != null ? `<span class="cw">${esc(c.len)} words</span>` : ""}${(c.arg_caps || []).map((id) => chip(capById[id])).join("")}</span></div>`);
+      continue;
+    }
+    const hits = {};
+    for (const p of c.points || []) if (p.code_row != null) (hits[p.code_row] = hits[p.code_row] || []).push(p);
+    rows.push(`<div class="crow piece"><span class="co"></span><span class="cv"><span class="ci">${esc(c.code)}</span>${c.what !== c.code ? `<span class="cw">${esc(c.what)}</span>` : ""}<span class="cw">${k.words.length} words</span></span></div>`);
+    k.words.forEach((w, i) => {
+      const lab = k.labels && k.labels[String(i)];
+      if (lab) rows.push(`<div class="crow lbl"><span class="co"></span><span class="cv"><span class="ci">${esc(lab)}:</span></span></div>`);
+      const capId = c.code_caps && c.code_caps[i];
+      const ins = k.instrs && k.instrs[i] != null ? `<span class="ci">${esc(k.instrs[i])}</span>` : "";
+      const word = capId ? chip(capById[capId], { home: true }) : `<span class="${ins ? "cw" : "ci"}">${esc(w)}</span>`;
+      const hs = hits[i] || [];
+      const notes = hs.length ? `<span class="cn">← ${esc(hs.flatMap((p) => p.notes).join(", ") || hs.map((p) => p.text).join(", "))}</span>` : "";
+      rows.push(`<div class="crow${hs.length ? " hit" : ""}" id="cr-${c.id}-${i}"><span class="co" title="${esc(c.addr ? c.addr + " ^+ " + i : "")}">${esc(codeOffset(c, i))}</span><span class="cv">${ins}${word}${notes}</span></div>`);
+    });
+  }
+  return `<div><h4>Code</h4><div class="codep">${rows.join("")}</div></div>`;
+}
+
+function renderDetail(id) {
+  const r = regById[id];
+  if (!r) return;
+  const own = cs.owners[r.owner];
+  const kind = own && (own.kind === "trusted" || own.kind === "untrusted") ? own.kind + " compartment" : (OWNER_INFO[r.owner] || [r.owner])[0];
+  const b = r.badges || [];
+  let content;
+  if (r.content) content = `<pre class="code">${esc(r.content)}</pre>`;
+  else content = `<p class="dim">Not part of the printed memory. This region is known only through the capabilities that point to it.</p>`;
+  const items = r.items.length ? `<div><h4>Indexed entries</h4><div class="dtable">${r.items.map((it) => `<div class="drow"><span class="idx">${esc(it.index)}</span><span class="item-v"><span class="field">${esc(FIELD_SHORT[it.field] || it.field)}</span>${(it.caps && it.caps.length ? it.caps.map((cid) => chip(capById[cid])).join("") : `<span class="mono">${esc(it.value)}</span>`)}${it.comment ? `<span class="cmt">${esc(it.comment)}</span>` : ""}</span></div>`).join("")}</div></div>` : "";
+  const incoming = cs.caps.filter((c) => c.target === id);
+  const inc = `<div><h4>Pointed to by (${incoming.length})</h4>${incoming.length ? `<ul class="inc">${incoming.map((c) => `<li>${chip(c, { noTarget: true })}<button type="button" class="srcbtn" data-src="${c.id}">${esc(sourceLabel(c))}</button>${c.comment ? `<span class="cmt">${esc(c.comment)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="dim">No printed capability has exactly these bounds.</p>`}</div>`;
+  const bySec = {};
+  for (const k of r.constraints) (bySec[k.section] = bySec[k.section] || []).push(k.text);
+  const cons = Object.keys(bySec).length ? Object.entries(bySec).map(([s, ts]) => `<div class="sect"><div class="sect-t">── ${esc(s)}</div>${ts.map((t) => `<pre class="code">${esc(dedent(t))}</pre>`).join("")}</div>`).join("") : `<p class="dim">No statement mentions this region.</p>`;
+  const facts = own && own.facts.length ? `<details class="facts"><summary>${own.facts.length} statement${own.facts.length > 1 ? "s" : ""} of ${esc(r.owner)} not tied to one region</summary>${own.facts.map((f) => `<pre class="code">${esc(dedent(f))}</pre>`).join("")}</details>` : "";
+  $("detail").innerHTML = `
+    <div><div class="eyebrow">${esc(r.owner)} · ${esc(kind)}</div><h2>${esc(r.label)}</h2>
+      <div class="bounds" style="margin-top:4px">[${esc(r.b)}, ${esc(r.e || "?")})</div></div>
+    ${b.length ? `<div class="badges">${b.map(([k, t]) => `<span class="badge ${esc(k)}">${esc(t)}</span>`).join("")}</div>` : ""}
+    ${codeHtml(r)}
+    <div><h4>Memory contents</h4>${content}</div>
+    ${items}
+    ${inc}
+    <div><h4>Constraints (${r.constraints.length})</h4>${cons}${facts}</div>`;
+}
+
+function renderOthers() {
+  const blocks = cs.other.map((o) => `<div class="sect-t">── ${esc(o.title)}</div>${o.stmts.map((s) => `<pre class="code">${esc(dedent(s))}</pre>`).join("")}`);
+  for (const [o, v] of Object.entries(cs.owners))
+    if (!cs.regions.some((r) => r.owner === o) && v.facts.length)
+      blocks.push(`<div class="sect-t">── ${esc(o)}</div>${v.facts.map((s) => `<pre class="code">${esc(dedent(s))}</pre>`).join("")}`);
+  $("others").innerHTML = `<div class="panel-h" style="padding-left:0">Other statements</div>` + (blocks.join("") || `<p class="dim">None.</p>`);
+}
+
+const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+let selectedId = null;
+function select(id, scroll) {
+  document.querySelectorAll(".band.selected").forEach((e) => e.classList.remove("selected"));
+  const el = $("reg-" + id);
+  if (el) el.classList.add("selected");
+  if (id !== selectedId) { selectedId = id; renderDetail(id); }
+  if (scroll && window.matchMedia("(max-width: 1180px)").matches) $("detail").scrollIntoView({ block: "start", behavior: smooth() });
+}
+function flash(el) {
+  if (!el) return;
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  el.scrollIntoView({ block: "nearest", behavior: smooth() });
+}
+/* The code-panel row a point lands on, if the panel shows it. */
+function codeRow(p) { return p && p.code_row != null ? $("cr-" + p.cell + "-" + p.code_row) : null; }
+function showCodeRow(p) {
+  if (!p || p.code_row == null) return false;
+  const c = tape.els[p.cell];
+  if (!c) return false;
+  select(c.region, false);
+  flash(codeRow(p));
+  return true;
+}
+
+function load(name) {
+  cs = CASES.find((c) => c.name === name) || CASES[0];
+  capById = Object.fromEntries(cs.caps.map((c) => [c.id, c]));
+  regById = Object.fromEntries(cs.regions.map((r) => [r.id, r]));
+  document.querySelectorAll("#cases .seg").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.case === cs.name)));
+  $("pred").textContent = cs.predicate + (cs.file ? "  ·  " + cs.file : "");
+  $("binders").textContent = cs.binders.join("\n");
+  $("rawtext").textContent = cs.raw;
+  buildTape();
+  renderRegs(); renderTape(); renderOthers();
+  const first = cs.regions.find((r) => r.owner === "main" && r.sub === "PCC range") || cs.regions[0];
+  selectedId = null;
+  if (first) select(first.id, false);
+  unhover();
+}
+
+/* ---------- Hover: wire to the cursor, bracket over the bounds ---------- */
+function hover(el) {
+  if (hovered === el) return;
+  unhover();
+  hovered = el;
+  el.classList.add("active");
+  if (el.dataset.cap) {
+    const c = capById[el.dataset.cap];
+    if (!c) return;
+    if (c.target) { const t = $("reg-" + c.target); if (t) t.classList.add("target"); }
+    const a = c.anchor && $(c.anchor); if (a) a.classList.add("anchor");
+    const cr = codeRow(c.anchor && tape.els[c.anchor]); if (cr) cr.classList.add("anchor");
+    showTip(el, capRows(c));
+  } else {
+    const p = tape.els[el.dataset.ptr];
+    const a = $(el.dataset.ptr); if (a) a.classList.add("anchor");
+    const cr = codeRow(p); if (cr) cr.classList.add("anchor");
+    showTip(el, [["PCC offset", el.textContent], ["lands on", (p && p.name) || ""], ["in", "the " + el.dataset.from + " PCC range (code)"]]);
+  }
+  drawWire();
+}
+function unhover() {
+  if (hovered) hovered.classList.remove("active");
+  hovered = null;
+  document.querySelectorAll(".band.target").forEach((e) => e.classList.remove("target"));
+  document.querySelectorAll(".anchor").forEach((e) => e.classList.remove("anchor"));
+  $("wireg").innerHTML = "";
+  $("tip").hidden = true;
+}
+function capRows(c) {
+  const rows = [["permissions", (c.sentry ? "sentry " + c.sentry + ", " : "") + c.perm], ["locality", c.loc], ["base b", c.b], ["end e", c.e], ["cursor a", c.a]];
+  if (c.sealed) rows.push(["sealed by", c.sealed]);
+  const r = c.target && regById[c.target];
+  rows.push(["points to", c.kind === "sealrange" ? "sealing range over otypes (no memory)" : regionTitle(r, true) + (r && r.implicit ? " (implicit)" : "")]);
+  if (c.target) {
+    const a = c.anchor && tape.els[c.anchor];
+    rows.push(["cursor at", c.anchor ? anchorName(c) + (a && a.code_row != null ? " (code row " + a.code_row + ")" : "") : "not resolved: arrow lands on the band"]);
+  }
+  rows.push(["stored in", sourceLabel(c)]);
+  if (c.comment) rows.push(["comment", c.comment]);
+  return rows;
+}
+function showTip(el, rows) {
+  const tip = $("tip");
+  tip.innerHTML = `<dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`;
+  tip.hidden = false;
+  placeTip();
+}
+function placeTip() {
+  if (!hovered) return;
+  const tip = $("tip"), r = hovered.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  const x = Math.min(Math.max(8, r.left), window.innerWidth - w - 8);
+  let y = r.bottom + 8;
+  if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 8);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+function drawWire() {
+  const g = $("wireg");
+  g.innerHTML = "";
+  if (!hovered) return;
+  placeTip();
+  let color, tEl, c = null;
+  if (hovered.dataset.cap) {
+    c = capById[hovered.dataset.cap];
+    if (!c) return;
+    color = css({ exec: "--exec", data: "--data", sentry: "--sentry", sealed: "--sealed", sealrange: "--sealed" }[capClass(c)]);
+    tEl = (c.anchor && $(c.anchor)) || (c.target && $("reg-" + c.target)?.querySelector(".words"));
+  } else {
+    color = css("--exec");
+    tEl = $(hovered.dataset.ptr);
+  }
+  if (!tEl) return;
+  const a = hovered.getBoundingClientRect(), b = tEl.getBoundingClientRect();
+  const tapeR = $("tape").getBoundingClientRect();
+  const cellsRight = tapeR.right - parseFloat(css("--gutter"));
+  let out = "";
+  // bracket over [b, e) of the capability, alongside the tape
+  if (c && c.target) {
+    const band = $("reg-" + c.target);
+    const words = band && band.querySelector(".words");
+    if (words) {
+      const wr = words.getBoundingClientRect();
+      const bEl = c.bAnchor && $(c.bAnchor), eEl = c.eAnchor && $(c.eAnchor);
+      const y1 = bEl ? bEl.getBoundingClientRect().top : wr.top;
+      const y2 = eEl ? eEl.getBoundingClientRect().top : wr.bottom;
+      const x = cellsRight + 8;
+      out += `<path class="br" d="M${x - 6},${y1} H${x} V${y2} H${x - 6}" stroke="${color}"></path>`;
+    }
+  }
+  const ay = a.top + a.height / 2;
+  const ey = Math.min(Math.max(b.top + Math.min(12, b.height / 2), ay), b.bottom - Math.min(12, b.height / 2));
+  let d, sx;
+  if (b.left > a.right + 24) {
+    sx = a.right; const ex = b.left - 2, dx = (ex - sx) / 2;
+    d = `M${sx},${ay} C${sx + dx},${ay} ${ex - dx},${ey} ${ex},${ey}`;
+  } else if (b.right < a.left - 24) {
+    sx = a.left; const ex = b.right + 2, dx = (sx - ex) / 2;
+    d = `M${sx},${ay} C${sx - dx},${ay} ${ex + dx},${ey} ${ex},${ey}`;
+  } else {
+    // inside the tape: leave on the right, loop through the gutter, come back to the target
+    sx = a.right; const ex = Math.min(b.right, cellsRight) + 2;
+    const k = Math.min(window.innerWidth - 6, cellsRight + 30);
+    const ty = b.top + Math.min(12, b.height / 2);
+    d = `M${sx},${ay} C${k},${ay} ${k},${ty} ${ex},${ty}`;
+  }
+  out += `<circle cx="${sx}" cy="${ay}" r="3" fill="${color}"></circle><path class="w" d="${d}" stroke="${color}" marker-end="url(#ah)"></path>`;
+  g.innerHTML = out;
+}
+
+function markIncoming(id, on) {
+  for (const c of cs.caps) if (c.target === id)
+    document.querySelectorAll(`.chip[data-cap="${c.id}"][data-home]`).forEach((e) => e.classList.toggle("incoming", on));
+}
+
+function wire() {
+  $("cases").innerHTML = CASES.map((c) => `<button type="button" class="seg" data-case="${esc(c.name)}" aria-pressed="false">${esc(c.name)}</button>`).join("");
+  $("cases").addEventListener("click", (e) => { const b = e.target.closest("[data-case]"); if (b) load(b.dataset.case); });
+  $("rawbtn").addEventListener("click", () => {
+    const on = $("raw").hidden;
+    $("raw").hidden = !on; $("bench").hidden = on; $("others").hidden = on;
+    $("rawbtn").setAttribute("aria-pressed", String(on));
+    unhover();
+  });
+  const hov = (e) => e.target.closest && e.target.closest(".chip[data-cap], .ptr[data-ptr]");
+  document.addEventListener("pointerover", (e) => { const c = hov(e); if (c) hover(c); });
+  document.addEventListener("pointerout", (e) => { const c = hov(e); if (c && c === hovered && !c.contains(e.relatedTarget)) unhover(); });
+  document.addEventListener("focusin", (e) => { const c = hov(e); if (c) hover(c); else unhover(); const r = e.target.closest && e.target.closest(".band"); if (r) markIncoming(r.dataset.region, true); });
+  document.addEventListener("focusout", (e) => { const r = e.target.closest && e.target.closest(".band"); if (r) markIncoming(r.dataset.region, false); });
+  document.addEventListener("mouseover", (e) => { const r = e.target.closest && e.target.closest(".band"); if (r && !r.contains(e.relatedTarget)) markIncoming(r.dataset.region, true); });
+  document.addEventListener("mouseout", (e) => { const r = e.target.closest && e.target.closest(".band"); if (r && !r.contains(e.relatedTarget)) markIncoming(r.dataset.region, false); });
+  document.addEventListener("click", (e) => {
+    const src = e.target.closest("[data-src]");
+    if (src) {
+      const c = capById[src.dataset.src];
+      flash(c.src_kind === "reg" ? $("regrow-" + c.src) : document.querySelector(`.chip[data-cap="${c.id}"][data-home]`));
+      return;
+    }
+    const p = e.target.closest(".ptr[data-ptr]");
+    if (p) { if (!showCodeRow(tape.els[p.dataset.ptr])) flash($(p.dataset.ptr)); return; }
+    const pt = e.target.closest(".pt[data-row]");
+    if (pt) { showCodeRow(tape.els[pt.id]); return; }
+    const c = e.target.closest(".chip[data-cap]");
+    if (c) {
+      const cap = capById[c.dataset.cap];
+      if (cap && cap.target) {
+        select(cap.target, true);
+        flash((cap.anchor && $(cap.anchor)) || $("reg-" + cap.target));
+        const cr = codeRow(cap.anchor && tape.els[cap.anchor]); if (cr) cr.scrollIntoView({ block: "nearest" });
+      }
+      return;
+    }
+    const r = e.target.closest(".band");
+    if (r) select(r.dataset.region, true);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") unhover();
+    const r = e.target.closest && e.target.closest(".band");
+    if (r && e.target === r && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(r.dataset.region, true); }
+  });
+  let raf = 0;
+  const redraw = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawWire(); }); };
+  window.addEventListener("scroll", redraw, { capture: true, passive: true });
+  window.addEventListener("resize", redraw);
+}
+
+wire();
+if (CASES.length) load(CASES[0].name);
+</script>
