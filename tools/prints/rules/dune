@@ -1,3 +1,9 @@
 ; The rules written by ../gen.sh (see ../dune).
 
 (dynamic_include ../rules.inc)
+
+; A plain `dune build` builds only the .txt prints, not the JSON ones.
+(alias
+ (name default)
+ (deps
+  (glob_files *_initial_state_predicate.txt)))

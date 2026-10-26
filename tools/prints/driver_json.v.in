@@ -1,10 +1,12 @@
 (* The driver of the JSON print of the case study @CS@ (see dune), generated
-   by gen.sh from driver_json.v.in. *)
+   by gen.sh from driver_json.v.in. Built for the alias predicate-viewer
+   only; print_json (../print_json.v) is loaded as griotte_tools. *)
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
 From griotte.case_studies.@DIR@ Require Import @CS@_firmware.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok print print_json.
+From griotte Require Import image firmware firmware_ok print.
+From griotte_tools Require Import print_json.
 From Ltac2 Require Import Ltac2.
 Import FwPrintNotations FwRegNotations.
 Import (notations) Stdlib.Strings.String.

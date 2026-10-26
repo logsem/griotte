@@ -1,0 +1,5 @@
+; Not every target under tools/: the default alias of each subdirectory
+; (see ../dune).
+
+(alias
+ (name default))

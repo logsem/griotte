@@ -2,7 +2,7 @@
 
     python3 -I viewer.py OUT.html a.json [b.json ...]
 
-Each file is a JSON print (schema 1, docs/predicate-viewer/schema.md), turned
+Each file is a JSON print (schema 1, schema.md), turned
 into the viewer's model by model.build; all case studies are embedded as JSON
 (code constants once) and the page draws the selected one. Vanilla JS, no external scripts."""
 

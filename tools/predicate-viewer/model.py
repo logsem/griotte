@@ -1,5 +1,5 @@
 """Build the predicate viewer's model from a case study's JSON print
-(schema 1, see docs/predicate-viewer/schema.md): memory regions, the words in
+(schema 1, see schema.md): memory regions, the words in
 them, the capabilities in registers and memory with where they point, and
 each region's constraints.
 
