@@ -26,7 +26,7 @@ for f in "$@"; do
   %{project_root}/theories/case_studies/${dir}/${cs}_firmware.vo)
  (mode
   (promote
-   (into ../../theories/case_studies/${dir})
+   (into ../../../theories/case_studies/${dir})
    (only ${cs}_initial_state_predicate.txt)))
  (action
   (with-stdout-to

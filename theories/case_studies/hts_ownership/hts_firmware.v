@@ -1,7 +1,7 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
-(* Exported, so that the code of the case study prints unqualified (prints/). *)
+(* Exported, so that the code of the case study prints unqualified (tools/prints/). *)
 From griotte.case_studies.hts_ownership Require Export heap_temporal_safety.
 From griotte.allocators.ownership Require Export allocator.
 From griotte Require Import image firmware firmware_ok initial_state.
