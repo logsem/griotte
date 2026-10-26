@@ -4,8 +4,9 @@
 # <cs>_initial_state_ok_annot, a driver <cs>_print.v instantiated from
 # driver.v.in, and a rule that compiles it and promotes its output into
 # theories/case_studies/<dir>/<cs>_initial_state_predicate.txt; likewise
-# a driver <cs>_print_json.v from driver_json.v.in and a rule promoting
-# its output into <cs>_initial_state_predicate.json beside it. The
+# a driver <cs>_print_json.v from driver_json.v.in and a rule writing
+# <cs>_initial_state_predicate.json, left in the build directory (read by
+# tools/predicate-viewer, not promoted). The
 # directories excluded from the build are skipped.
 for f in "$@"; do
   dir=$(basename "$(dirname "$f")")
@@ -49,10 +50,6 @@ for f in "$@"; do
   %{project_root}/theories/firmware/print.vo
   %{project_root}/theories/firmware/print_json.vo
   %{project_root}/theories/case_studies/${dir}/${cs}_firmware.vo)
- (mode
-  (promote
-   (into ../../theories/case_studies/${dir})
-   (only ${cs}_initial_state_predicate.json)))
  (action
   (with-stdout-to
    ${cs}_initial_state_predicate.json
