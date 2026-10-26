@@ -199,6 +199,8 @@ pre { margin: 0; }
 .crow .wv { font-family: var(--font-mono); font-size: var(--fs-m); color: var(--muted); overflow-wrap: anywhere; }
 .crow.lbl .cell { background: color-mix(in srgb, var(--surface-2) 70%, var(--surface)); }
 .crow.lbl .lname { font-family: var(--font-mono); font-size: var(--fs-m); font-weight: 600; padding-left: calc(var(--d, 0) * 1.4em); }
+.cell .aname { font-family: var(--font-mono); font-size: var(--fs-m); font-weight: 600; }
+.cell.lhit { background: color-mix(in srgb, var(--hl) 35%, var(--surface)); }
 .crow.lbl.lhit .cell { background: color-mix(in srgb, var(--hl) 35%, var(--surface)); }
 .crow.sym .cell, .crow.blk .cell { font-family: var(--font-cond); font-size: var(--fs-xs); color: var(--muted); letter-spacing: .04em; }
 .crow.blk .cell { border-top: 1px dashed var(--line-strong); min-height: 0; line-height: 1.2; padding-block: 1px 0; }
@@ -236,6 +238,37 @@ pre { margin: 0; }
 .chip .tgt { color: var(--fg); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .chip:hover, .chip.active { background: color-mix(in srgb, var(--k) 24%, var(--surface)); }
 .chip.incoming { box-shadow: 0 0 0 2px var(--hl); }
+
+/* Settings and filters */
+.opt { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-s); color: var(--muted); cursor: pointer; }
+.opt input { margin: 0; accent-color: var(--focus); }
+.filters { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 8px 12px; margin-bottom: 12px; }
+.filters .fh { font-family: var(--font-cond); font-weight: 600; font-size: var(--fs-s); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.fg { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.fg > i { font-style: normal; color: var(--muted); font-size: var(--fs-s); margin-right: 2px; }
+.fchip {
+  --k: var(--fg);
+  border: 1px solid var(--line-strong); background: var(--surface); border-radius: 12px; padding: 0 9px;
+  font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.8; cursor: pointer; color: var(--fg);
+}
+.fchip b { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.fchip.exec { --k: var(--exec); } .fchip.sentry { --k: var(--sentry); } .fchip.sealed { --k: var(--sealed); } .fchip.data { --k: var(--data); }
+.fchip:hover { border-color: var(--k); }
+.fchip[aria-pressed="true"] { background: var(--k); border-color: var(--k); color: var(--surface); }
+.fchip[aria-pressed="true"] b { color: inherit; opacity: .8; }
+.fstat { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: var(--fs-s); color: var(--muted); }
+.fstat .n { font-family: var(--font-mono); color: var(--fg); font-weight: 600; }
+.fbtn { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 4px; padding: 0 8px; cursor: pointer; font-size: var(--fs-s); line-height: 1.6; }
+.fbtn:hover { border-color: var(--focus); }
+.fbtn:disabled { opacity: .45; cursor: default; }
+#fnav {
+  position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 16px; z-index: 45; display: flex; gap: 6px; align-items: center;
+  background: var(--surface); border: 1px solid var(--focus); border-radius: 18px; padding: 4px 6px 4px 12px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  font-size: var(--fs-s);
+}
+#fnav[hidden] { display: none; }
+#fnav span { font-family: var(--font-mono); }
+.chip.cur { outline: 3px solid var(--hl) !important; outline-offset: 1px; }
 
 /* Detail */
 .detail { padding: 12px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
@@ -299,6 +332,7 @@ pre { margin: 0; }
   <div class="controls">
     <div class="cases" id="cases" role="group" aria-label="Case study"></div>
     <button class="seg" id="rawbtn" aria-pressed="false" type="button">Statements as text</button>
+    <label class="opt"><input type="checkbox" id="incopt"> incoming arrows on hover</label>
   </div>
 </header>
 <div class="binders" id="binders"></div>
@@ -311,6 +345,7 @@ pre { margin: 0; }
   <span>Hover a capability: the arrow lands on the word at its cursor, the bracket spans its bounds. Hover an export entry or an error handler: the arrow lands on the code at its PCC offset, dashed when the offset is symbolic. Click a band for its contents and constraints; a selected band shows the arrows of what it holds.</span>
 </div>
 
+<section class="panel filters" id="filters" aria-label="Capability filters"></section>
 <section class="panel regs" id="regs" aria-label="Registers"></section>
 <main class="bench" id="bench">
   <section class="tape" id="tape" aria-label="Memory, as one address tape"></section>
@@ -328,6 +363,8 @@ pre { margin: 0; }
   <g id="wireg"></g>
 </svg>
 <div id="tip" hidden></div>
+<div id="fnav" hidden role="group" aria-label="Filter matches"><span id="fnavn"></span><button type="button" class="fbtn" data-fnav="-1" aria-label="previous match">‹</button><button type="button" class="fbtn" data-fnav="1" aria-label="next match">›</button></div>
+<style id="fstyle"></style>
 
 <script type="application/json" id="data">/*__DATA__*/</script>
 <script>
@@ -368,6 +405,18 @@ const OWNER_INFO = {
   heap: ["heap", "heap"],
   machine: ["machine", "implicit"],
 };
+
+/* The reader's settings, per viewer; the page works without storage. */
+const store = {
+  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* no storage */ } },
+};
+const INC_KEY = "griotte-viewer.incoming-arrows";
+let incomingOn = store.get(INC_KEY) === "1";
+let bandHov = null;     // band whose incoming arrows are drawn (setting on)
+let ptrIn = {};         // region id -> ids of the export entries and handlers landing in it
+let capOrder = [];      // capability ids in page order: registers, then the tape
+let capCode = {};       // capability id -> the code cell holding it (code_caps)
 
 /* ---------- Chips ---------- */
 function capClass(c) {
@@ -432,8 +481,11 @@ function entryHtml(c) {
   const off = (c.ptr ? `<span class="ptrv">${esc(en.off)}</span>` : esc(en.off)) + val("off");
   return `<span class="entry"><span><i>entry</i>${esc(en.index)}</span><span><i>irq</i>${esc(en.mie)}</span><span><i>args</i>${esc(en.args)}${val("args")}</span><span><i>stack</i>${esc(en.stack)}${val("stack")}</span><span><i>pcc+</i>${off}</span></span>` + (en.comment ? `<span class="cmt">${esc(en.comment)}</span>` : "");
 }
+function asmNamesHtml(c) {
+  return (c.asm_names || []).map((n) => `<span class="aname" title="${esc(n.kind + " of " + n.code + ", index " + n.index + ": the word " + (-n.index) + " before its first word")}">${esc(n.name)}:</span>`).join("");
+}
 function wordHtml(c) {
-  let v = c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val${c.ptr ? " ptrv" : ""}">${esc(c.text)}</span>`;
+  let v = asmNamesHtml(c) + (c.cap ? chip(capById[c.cap], { home: true }) : `<span class="val${c.ptr ? " ptrv" : ""}">${esc(c.text)}</span>`);
   if (c.note) v += `<span class="cmt">${esc(c.note)}</span>`;
   if (c.comment) v += `<span class="cmt">${esc(c.comment)}</span>`;
   if (c.from) v += fromHtml(c);
@@ -458,7 +510,7 @@ function compHtml(c) {
   return h;
 }
 function cellBody(c) {
-  if (c.entry) return entryHtml(c);
+  if (c.entry) return asmNamesHtml(c) + entryHtml(c);
   if (c.kind === "word") return wordHtml(c);
   if (c.kind === "empty") return esc(c.text || "empty");
   return compHtml(c);
@@ -549,11 +601,12 @@ function codeRowsHtml(c, k, hits) {
     let blk = 0;
     k.asm.forEach(([t, x], j) => { if (t === "b") blk = x; if (t === "l") (lbls[x] = lbls[x] || []).push([j, blk]); });
     const done = new Set();
-    const symAt = {};
+    const pre = c.pre || {};  // names of the words before the constant -> their cells
     for (const [t, , ix] of k.asm) if (t === "i") done.add(ix);
     blk = 0;
     k.asm.forEach(([t, x, ix, d], j) => {
       if (t === "b") { blk = x; rows.push([null, null, markRow("blk", `block ${esc(x)}`), 16]); return; }
+      if ((t === "l" || (t === "s" && ix == null)) && pre[x]) return;  // shown on the word it names
       if (t === "l") { rows.push([`lb-${c.id}-${j}`, null, markRow("lbl", `<span class="lname" style="--d:${d || 0}">${esc(x)}:</span>`, `lb-${c.id}-${j}`, ` data-lbl="${esc(x)}"`)]); return; }
       if (t === "s") {
         if (ix != null && !done.has(ix)) { done.add(ix); rows.push(wordRow(c, k, ix, hits, `<span class="wv">symbol</span> ${esc(x)}`, d)); }
@@ -562,6 +615,7 @@ function codeRowsHtml(c, k, hits) {
       }
       const ins = esc(x).replace(LABEL_TOK, (tok) => {
         const raw = tok.replace(/&#39;/g, "'");
+        if (pre[raw]) return `<a class="lref" data-lref="${esc(pre[raw])}" tabindex="0">${tok}</a>`;
         const cand = lbls[raw];
         if (!cand) return tok;
         const pick = cand.find(([, b]) => b === blk) || cand[0];
@@ -724,7 +778,10 @@ function load(name) {
   unhover();
   if (io) io.disconnect();
   LAZY = new Map(); lazyAt = {};
+  bandHov = null;
   buildTape();
+  indexCase();
+  resetFilters();
   renderRegs(); renderTape(); renderOthers();
   homeChip = {};
   for (const e of document.querySelectorAll(".chip[data-home]")) homeChip[e.dataset.cap] = e;
@@ -844,12 +901,18 @@ function arrowPath(spec, cellsRight, viewH) {
 }
 function drawWire() {
   const g = $("wireg");
-  const specs = [];
-  for (const s of selSources) {
-    if (s === hovered) continue;
+  const specs = [], done = new Set([hovered]);
+  const add = (s, faint) => {
+    if (!s || done.has(s)) return;
+    done.add(s);
     const sp = arrowSpec(s);
-    if (sp) { sp.faint = true; specs.push(sp); }
-  }
+    if (sp) { sp.faint = faint; specs.push(sp); }
+  };
+  // the arrows into the hovered band, then those of all filter matches,
+  // then the selected band's (faint)
+  if (incomingOn && bandHov) for (const s of incomingSources(bandHov)) add(s, false);
+  if (fArrows && matchList.length) for (const id of matchList) add(homeChip[id], false);
+  for (const s of selSources) add(s, true);
   const hs = hovered && arrowSpec(hovered);
   if (hs) specs.push(hs);
   if (!specs.length) { if (g.firstChild) g.innerHTML = ""; return; }
@@ -880,9 +943,147 @@ function redraw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawW
 
 function markIncoming(id, on) {
   for (const c of cs.caps) if (c.target === id && homeOf(c.id)) homeChip[c.id].classList.toggle("incoming", on);
+  if (on) bandHov = id; else if (bandHov === id) bandHov = null;
+  if (incomingOn) redraw();
+}
+/* The sources of the arrows into a region: capabilities whose target it is,
+   export entries and handlers whose PCC offset lands in it. */
+function incomingSources(id) {
+  const out = [];
+  for (const c of cs.caps) if (c.target === id) { const e = homeChip[c.id]; if (e) out.push(e); }
+  for (const cid of ptrIn[id] || []) { const e = $(cid); if (e) out.push(e); }
+  return out;
+}
+function indexCase() {
+  ptrIn = {}; capOrder = []; capCode = {};
+  const regionOf = (id) => { const x = tape.els[id]; return !x ? null : x.region || (x.cell && tape.els[x.cell] ? tape.els[x.cell].region : null); };
+  const seen = new Set(), push = (id) => { if (id && !seen.has(id)) { seen.add(id); capOrder.push(id); } };
+  for (const g of cs.regs) if (g.bank === "pc") push(g.cap);
+  for (const g of cs.regs) push(g.cap);
+  for (const bd of tape.bands) for (const c of bd.cells) {
+    if (c.ptr) { const r = regionOf(c.ptr); if (r) (ptrIn[r] = ptrIn[r] || []).push(c.id); }
+    push(c.cap); if (c.rep) push(c.rep.cap);
+    for (const id of c.arg_caps || []) push(id);
+    if (c.code_caps) for (const i of Object.keys(c.code_caps).sort((a, b) => a - b)) { push(c.code_caps[i]); capCode[c.code_caps[i]] = c.id; }
+  }
+  for (const c of cs.caps) push(c.id);
+}
+
+/* ---------- Filters: highlight the matching capability chips ---------- */
+/* Within a group the choices are alternatives (OR), except permissions,
+   which must all be present; the groups combine with AND. */
+const KINDS = [["cap", "capability", "data"], ["sentry", "sentry", "sentry"], ["sealed", "sealed", "sealed"], ["sealrange", "seal range", "sealed"]];
+const PERM_ORDER = "RWXLS";
+let filt = null, fArrows = false, matchList = [], matchAt = -1;
+function capKinds(c) {
+  if (c.kind === "sealrange") return ["sealrange"];
+  const k = [];
+  if (c.sentry) k.push("sentry");
+  if (c.sealed) k.push("sealed");
+  if (!k.length) k.push("cap");
+  return k;
+}
+const permLetters = (c) => (c.kind === "cap" ? String(c.perm || "").replace(/[^A-Z]|O/g, "") : "");
+function matches(c) {
+  if (filt.kind.size && !capKinds(c).some((k) => filt.kind.has(k))) return false;
+  if (filt.loc.size && !filt.loc.has(c.loc)) return false;
+  if (filt.ot.size && !filt.ot.has(c.sealed)) return false;
+  if (filt.perm.size) { const l = permLetters(c); for (const x of filt.perm) if (!l.includes(x)) return false; }
+  return true;
+}
+const filtering = () => filt && (filt.kind.size || filt.loc.size || filt.ot.size || filt.perm.size);
+function resetFilters() {
+  filt = { kind: new Set(), loc: new Set(), ot: new Set(), perm: new Set() };
+  matchList = []; matchAt = -1;
+  renderFilters();
+  applyFilters();
+}
+function renderFilters() {
+  const count = (f) => cs.caps.filter(f).length;
+  const btn = (g, v, label, n, cls, title) => `<button type="button" class="fchip ${cls || ""}" data-fg="${g}" data-fv="${esc(v)}" aria-pressed="${filt[g].has(v)}"${title ? ` title="${esc(title)}"` : ""}>${esc(label)}<b>${n}</b></button>`;
+  const kinds = KINDS.map(([k, label, cls]) => [k, label, cls, count((c) => capKinds(c).includes(k))]).filter((x) => x[3]);
+  const locs = ["Local", "Global"].map((l) => [l, count((c) => c.loc === l)]).filter((x) => x[1]);
+  const ots = [...new Set(cs.caps.map((c) => c.sealed).filter(Boolean))].sort();
+  const letters = [...new Set(cs.caps.map(permLetters).join(""))].sort((a, b) => (PERM_ORDER.indexOf(a) + 1 || 99) - (PERM_ORDER.indexOf(b) + 1 || 99) || (a < b ? -1 : 1));
+  $("filters").innerHTML =
+    `<span class="fh">Highlight capabilities</span>` +
+    `<span class="fg"><i>kind</i>${kinds.map(([k, label, cls, n]) => btn("kind", k, label, n, cls)).join("")}</span>` +
+    `<span class="fg"><i>locality</i>${locs.map(([l, n]) => btn("loc", l, l, n)).join("")}</span>` +
+    (ots.length ? `<span class="fg"><i>sealed by</i>${ots.map((o) => btn("ot", o, o, count((c) => c.sealed === o), "sealed")).join("")}</span>` : "") +
+    `<span class="fg"><i>permission contains</i>${letters.map((x) => btn("perm", x, x, count((c) => permLetters(c).includes(x)), "", "capabilities (not seal ranges) whose permission has the letter " + x)).join("")}</span>` +
+    `<span class="fstat" id="fstat"></span>`;
+}
+function applyFilters() {
+  const on = filtering();
+  const m = on ? new Set(cs.caps.filter(matches).map((c) => c.id)) : new Set();
+  matchList = on ? capOrder.filter((id) => m.has(id)) : [];
+  if (matchAt >= matchList.length) matchAt = -1;
+  const cur = document.querySelector(".chip.cur"); if (cur) cur.classList.remove("cur");
+  $("fstyle").textContent = !on ? "" :
+    `.chip[data-cap] { opacity: .32; } ` +
+    (matchList.length ? matchList.map((id) => `.chip[data-cap="${id}"]`).join(",") + ` { opacity: 1; outline: 2px solid var(--focus); outline-offset: 1px; }` : "");
+  const n = matchList.length;
+  $("fstat").innerHTML = !on ? `<span>none selected: choose one or several</span>` :
+    `<span><span class="n">${n}</span> match${n === 1 ? "" : "es"}</span>` +
+    `<button type="button" class="fbtn" data-fnav="-1"${n ? "" : " disabled"}>‹ prev</button><button type="button" class="fbtn" data-fnav="1"${n ? "" : " disabled"}>next ›</button>` +
+    `<label class="opt"><input type="checkbox" id="farrows"${fArrows ? " checked" : ""}> arrows for all matches</label>` +
+    `<button type="button" class="fbtn" id="fclear">clear</button>`;
+  $("fnav").hidden = !on || !n;
+  $("fnavn").textContent = matchAt < 0 ? `${n} match${n === 1 ? "" : "es"}` : `${matchAt + 1} / ${n}`;
+  redraw();
+}
+/* The chip of a capability, rendering the code rows that hold it when needed. */
+function revealCap(id) {
+  if (!homeOf(id) && capCode[id]) {
+    const d = document.querySelector(`details.cblk[data-cell="${capCode[id]}"]`);
+    if (d && !d.open) { d.open = true; renderCodeRows(d); }
+    homeOf(id);
+  }
+  return homeChip[id];
+}
+function stepMatch(dir) {
+  const n = matchList.length;
+  if (!n) return;
+  matchAt = matchAt < 0 ? (dir > 0 ? 0 : n - 1) : (matchAt + dir + n) % n;
+  const old = document.querySelector(".chip.cur"); if (old) old.classList.remove("cur");
+  const el = revealCap(matchList[matchAt]);
+  $("fnavn").textContent = `${matchAt + 1} / ${n}`;
+  if (!el) return;
+  el.classList.add("cur");
+  el.scrollIntoView({ block: "center", behavior: smooth() });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+}
+
+/* The rows of an opened code constant, rendered on first opening. */
+function renderCodeRows(d) {
+  collapsed.delete(d.dataset.code);
+  const box = d.querySelector(".crows");
+  if (box.firstChild) return;
+  const c = tape.els[d.dataset.cell];
+  const hits = {};
+  for (const p of c.points || []) if (p.code_row != null) (hits[p.code_row] = hits[p.code_row] || []).push(p);
+  box.innerHTML = codeRowsHtml(c, codeOf(c.code), hits);
+  for (const e2 of box.querySelectorAll(".chip[data-home]")) homeChip[e2.dataset.cap] = e2;
+  observeLazy(box);
 }
 
 function wire() {
+  $("incopt").checked = incomingOn;
+  $("incopt").addEventListener("change", (e) => { incomingOn = e.target.checked; store.set(INC_KEY, incomingOn ? "1" : "0"); redraw(); });
+  $("filters").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-fg]");
+    if (b) {
+      const set = filt[b.dataset.fg], v = b.dataset.fv;
+      if (set.has(v)) set.delete(v); else set.add(v);
+      b.setAttribute("aria-pressed", String(set.has(v)));
+      matchAt = -1;
+      applyFilters();
+      return;
+    }
+    if (e.target.closest("#fclear")) resetFilters();
+  });
+  $("filters").addEventListener("change", (e) => { if (e.target.id === "farrows") { fArrows = e.target.checked; redraw(); } });
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-fnav]"); if (b) stepMatch(Number(b.dataset.fnav)); });
   $("cases").innerHTML = CASES.map((c) => `<button type="button" class="seg" data-case="${esc(c.name)}" aria-pressed="false">${esc(c.name)}</button>`).join("");
   $("cases").addEventListener("click", (e) => { const b = e.target.closest("[data-case]"); if (b) load(b.dataset.case); });
   $("rawbtn").addEventListener("click", () => {
@@ -913,18 +1114,8 @@ function wire() {
   $("tape").addEventListener("toggle", (e) => {
     const d = e.target;
     if (!d.classList || !d.classList.contains("cblk")) return;
-    if (d.open) {
-      collapsed.delete(d.dataset.code);
-      const box = d.querySelector(".crows");
-      if (!box.firstChild) {
-        const c = tape.els[d.dataset.cell];
-        const hits = {};
-        for (const p of c.points || []) if (p.code_row != null) (hits[p.code_row] = hits[p.code_row] || []).push(p);
-        box.innerHTML = codeRowsHtml(c, codeOf(c.code), hits);
-        for (const e2 of box.querySelectorAll(".chip[data-home]")) homeChip[e2.dataset.cap] = e2;
-        observeLazy(box);
-      }
-    } else collapsed.add(d.dataset.code);
+    if (d.open) renderCodeRows(d);
+    else collapsed.add(d.dataset.code);
     if (selectedId) select(selectedId, false);
   }, true);
   document.addEventListener("click", (e) => {

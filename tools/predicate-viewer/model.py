@@ -281,6 +281,7 @@ class Model:
         self.regions, self.caps, self.regs, self.reg_notes = [], [], [], []
         self.owners, self.other = {}, []
         self.els = {}
+        self.unplaced = []     # asm names before a code constant that name no word
         self.name = name or self.doc.get("case_study") or str(self.doc.get("predicate", "predicate")).replace("_initial_state_ok", "")
 
     # --- facts read off the statements
@@ -749,6 +750,61 @@ class Model:
         for c in cells:
             c["name"] = r["b"] if c["label"] == "b" else c["addr"] or c["label"]
 
+    def pre_names(self, name):
+        """The asm names of the words before a code constant's first word:
+        negative index -> [(name, "label" | "symbol")], from the symbols with
+        a negative index and the labels just before them."""
+        e = self.code.get(name) or {}
+        out, pending = {}, []
+        for ln in e.get("asm") if isinstance(e.get("asm"), list) else []:
+            if not isinstance(ln, dict):
+                continue
+            if "label" in ln:
+                pending.append(str(ln["label"]))
+                continue
+            ix = ln.get("index")
+            if not isinstance(ix, int):
+                continue
+            if ix >= 0:
+                pending = []  # labels of the code itself
+                continue
+            names = out.setdefault(ix, [])
+            names.extend((x, "label") for x in pending)
+            pending = []
+            if "symbol" in ln:
+                names.append((str(ln["symbol"]), "symbol"))
+        return out
+
+    def place_pre_names(self, r):
+        """Give the words a code constant's asm names before its first word
+        (index -1 is the word right before it, in the same region) their
+        names; the code cell maps each name to that word's cell."""
+        cells = [c for c in r["cells"] if c["kind"] != "empty"]
+        for j, cc in enumerate(cells):
+            if not cc.get("code"):
+                continue
+            pre = self.pre_names(cc["code"])
+            if not pre:
+                continue
+            words = []  # the cells before the code, nearest first; None for an unknown span
+            for c in reversed(cells[:j]):
+                if c["kind"] == "word":
+                    words.append(c)
+                elif isinstance(c.get("len"), int) and not c.get("code"):
+                    words.extend([None] * c["len"])
+                else:
+                    break
+            cc["pre"], cc["pre_unplaced"] = {}, []
+            for ix in sorted(pre, reverse=True):
+                tgt = words[-ix - 1] if -ix - 1 < len(words) else None
+                for n, kind in pre[ix]:
+                    if tgt is None:
+                        cc["pre_unplaced"].append(n)
+                        self.unplaced.append(f"{r['label']}: {cc['code']} {n} (index {ix})")
+                        continue
+                    cc["pre"][n] = tgt["id"]
+                    tgt.setdefault("asm_names", []).append(dict(name=n, kind=kind, code=cc["code"], index=ix))
+
     # --- addresses
 
     def length_of(self, t):
@@ -1174,6 +1230,7 @@ class Model:
         self.build_regions()
         for r in list(self.regions):
             self.build_cells(r)
+            self.place_pre_names(r)
         self.place_named()
         self.build_regs()
         # capabilities: their target region, then a cell or point at the cursor
@@ -1254,7 +1311,7 @@ class Model:
         return dict(name=self.name, predicate=pred, binders=([params] if params else []) + binders,
                     regions=self.regions, caps=[compact(c) for c in self.caps], regs=self.regs, reg_notes=self.reg_notes,
                     owners=self.owners, other=self.other, code=code, raw=raw,
-                    schema=self.doc.get("schema"))
+                    schema=self.doc.get("schema"), unplaced=self.unplaced)
 
 
 def compact(d):
@@ -1308,6 +1365,12 @@ if __name__ == "__main__":
         print("   registers:", " ".join(g["name"] + ("*" if g.get("via") else "") for g in d["regs"]))
         for n in d["reg_notes"]:
             print("   reg note:", n["text"][:80], "· lists", n.get("listed"))
+        for r in d["regions"]:
+            for c in r["cells"]:
+                for x in c.get("asm_names", []):
+                    print(f"   name {x['name']} ({x['kind']}, {x['code']} [{x['index']}]) -> {r['label']} {c.get('label')}")
+        for u in d.get("unplaced", []):
+            print("   UNPLACED", u)
         for n, k in d["code"].items():
             print(f"   code {n}: {k['n']} words, {sum(w is None for w in k['w'])} instructions"
                   + (f", asm {len(k['asm'])} lines from {k.get('src')}" if "asm" in k else "")
