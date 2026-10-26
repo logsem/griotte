@@ -200,7 +200,7 @@ Section region_invariant_revocation.
     iDestruct "Ha" as (γpred p φ) "(%Hγp & %Hpers & #Hpred & Ha)".
     iFrame "Hstate". iExists γpred,p,φ. iFrame "%#".
     iApply (heap_key_resource_mono with "[] Ha"). iIntros "Ha".
-    destruct ρ; cbn [region_std_interp]; first contradiction; last done.
+    destruct ρ; cbn [region_std_interp]; [contradiction| |iExact "Ha"|done].
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
     iNext. iApply ("HmonoV" with "[] Hφ").
@@ -812,7 +812,7 @@ Section region_invariant_revocation.
     iFrame "Hstate". iExists γpred,p,φ. iFrame "%#".
     rewrite -Hheap.
     iApply (heap_key_resource_mono with "[] Ha"). iIntros "Ha".
-    destruct ρ; cbn [region_std_interp]; first contradiction; last done.
+    destruct ρ; cbn [region_std_interp]; [contradiction| |iExact "Ha"|done].
     iDestruct "Ha" as (v Hne) "(Ha & #HmonoV & #Hφ)".
     iFrame "∗%#".
     iNext. iApply ("HmonoV" with "[] Hφ").
@@ -887,6 +887,8 @@ Section region_invariant_revocation.
        - iDestruct "Hstate" as (v) "(% & Ha' & _)"; simplify_eq.
          iDestruct (key_pointsto_eq with "Ha'") as "[Ha' _]".
          iApply (addr_dupl_false with "[$] [$]"); eauto.
+       - destruct a as [a|a ι]; last done.
+         iApply (zone_cell_pointsto_false with "Hstate Ha").
      }
      iDestruct (big_sepM_delete _ _ a with "[Hρ Hφ Hstate $Hr]") as "Hr";[eauto| |].
      { iFrame "∗%"; done. }
@@ -980,6 +982,260 @@ Section region_invariant_revocation.
       iModIntro.
       iFrame "∗%".
       by iPureIntro; apply Forall_cons.
+  Qed.
+
+  (* ---------------------------------------------------------------------------------------- *)
+  (* ------------------------------ FREEZING AND UNFREEZING --------------------------------- *)
+  (* ---------------------------------------------------------------------------------------- *)
+
+  (** Revoked → Frozen, a public update, given the zone cell of the address. *)
+  Lemma update_region_revoked_frozen E W C (a : Addr) :
+    std W !! LNonHeap a = Some Revoked →
+    sts_full_world W C -∗
+    region W C -∗
+    zone_cell a
+    ={E}=∗
+    region (<s[LNonHeap a := Frozen]s> W) C ∗
+    sts_full_world (<s[LNonHeap a := Frozen]s> W) C.
+  Proof.
+    iIntros (Hrev) "Hsts Hreg Hcell".
+    rewrite region_eq /region_def.
+    iNamed "Hreg".
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hpreds]]".
+    assert (LNonHeap a ∈ dom (std W)) as Hin by (rewrite elem_of_dom Hrev; eauto).
+    assert (is_Some (M !! LNonHeap a)) as [γp Hγp].
+    { apply elem_of_dom. by rewrite -Hdom. }
+    iDestruct (big_sepM_delete _ _ (LNonHeap a) with "Hpreds") as "[Hl Hr]"; first exact Hγp.
+    iDestruct "Hl" as (ρ Hl) "[Hstate Hresources]".
+    iDestruct "Hresources" as (γpred p φ Heq Hpers) "[#Hsaved _]".
+    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
+    rewrite Hrev in Hρ. injection Hρ as <-.
+    iMod (sts_update_std _ _ _ _ Frozen with "Hsts Hstate") as "[Hsts Hstate]".
+    assert (related_sts_pub_world W (<s[LNonHeap a := Frozen]s> W)) as Hrelated
+      by by apply related_sts_pub_world_revoked_frozen.
+    iDestruct (region_map_monotone _ _ _ _ _ Hrelated eq_refl with "[Hr Hheapfrag]") as "Hr".
+    { rewrite /std_update /= dom_insert_L. by apply heap_keys_known_insert. }
+    { iFrame "%∗". }
+    iDestruct (region_map_delete with "Hr") as "Hr".
+    iDestruct (region_map_insert _ _ _ _ _ Frozen with "Hr") as "Hr".
+    iDestruct "Hr" as "[%Hknown' [Hheapfrag Hr]]".
+    iDestruct (big_sepM_delete _ _ (LNonHeap a) _ Hγp with "[Hcell Hstate $Hr]") as "Hr".
+    { iExists Frozen. iFrame "Hstate". iSplitR; first (iPureIntro; apply lookup_insert_eq).
+      iExists γpred, p, φ. iFrame "%#".
+      iApply (heap_key_resource_live_intro _ _ _ (heap_key_live_nonheap _ a)). iExact "Hcell". }
+    iModIntro. iFrame "Hsts".
+    iExists M, (<[LNonHeap a := Frozen]> Mρ). iFrame "∗%".
+    iPureIntro. split.
+    - rewrite /std_update /= dom_insert_L. set_solver.
+    - rewrite dom_insert_L Hdomρ -Hdom. set_solver.
+  Qed.
+
+  Lemma update_region_revoked_frozen_multiple E W C (la : list Addr) :
+    NoDup la →
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la →
+    sts_full_world W C -∗
+    region W C -∗
+    ([∗ list] a ∈ la, zone_cell a)
+    ={E}=∗
+    region (std_update_multiple W la Frozen) C ∗
+    sts_full_world (std_update_multiple W la Frozen) C.
+  Proof.
+    induction la as [|a la IH]; iIntros (Hdup Hrev) "Hsts Hreg Hcells".
+    - by iFrame.
+    - apply NoDup_cons in Hdup as [Hnin Hdup].
+      apply Forall_cons in Hrev as [Hrev_a Hrev].
+      iDestruct "Hcells" as "[Hcell Hcells]".
+      iMod (IH Hdup Hrev with "Hsts Hreg Hcells") as "[Hreg Hsts]".
+      iMod (update_region_revoked_frozen with "Hsts Hreg Hcell") as "[Hreg Hsts]".
+      { rewrite std_sta_update_multiple_lookup_same_i //. }
+      by iFrame.
+  Qed.
+
+  (** The region map is monotone in a private future world, when none of its
+      entries is Temporary. *)
+  Lemma region_map_monotone_priv_no_temp (C : CmptName) (W W' : WORLD) M Mρ :
+    related_sts_priv_world W W' ->
+    heap_std W = heap_std W' ->
+    heap_keys_known (heap_std W') (dom (std W')) ->
+    (∀ k γ ρ, M !! k = Some γ → Mρ !! k = Some ρ → ρ ≠ Temporary) ->
+    region_map_def W C M Mρ
+    -∗ region_map_def W' C M Mρ.
+  Proof.
+    iIntros (Hrelated Hheap Hknown' Hnotemp) "Hr".
+    iDestruct "Hr" as "[%Hknown [Hheap Hr]]".
+    iSplit; first done.
+    iSplitL "Hheap".
+    { rewrite -Hheap. iFrame. }
+    iApply (big_sepM_mono with "Hr").
+    iIntros (k γ Hsome) "Hm".
+    iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
+    iExists ρ. iFrame. iSplitR; first done.
+    iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
+    iExists γpred, p, φ. iFrame "%#". rewrite -Hheap.
+    iApply (heap_key_resource_mono with "[] Hl"). iIntros "Hl".
+    destruct ρ; cbn [region_std_interp].
+    - by exfalso; apply (Hnotemp k γ Temporary).
+    - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
+      iFrame "%#∗".
+      iApply "HmonoV"; iFrame "∗#"; auto.
+    - iExact "Hl".
+    - done.
+  Qed.
+
+  (** Frozen → Revoked is a private transition. *)
+  Lemma related_sts_priv_world_frozen_revoked W k :
+    std W !! k = Some Frozen → related_sts_priv_world W (<s[k := Revoked]s> W).
+  Proof.
+    intros Hk.
+    split;[|split];[|apply related_sts_priv_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
+    split.
+    - rewrite /std_update /= dom_insert_L. set_solver.
+    - intros k' x y Hx Hy. destruct (decide (k = k')) as [<-|Hne].
+      + rewrite Hk in Hx. injection Hx as <-.
+        rewrite /std_update /= lookup_insert_eq in Hy. injection Hy as <-.
+        apply rtc_once. right. constructor.
+      + rewrite /std_update /= lookup_insert_ne // in Hy.
+        rewrite Hx in Hy. injection Hy as ->. apply rtc_refl.
+  Qed.
+
+  (** The zone cell of a Frozen key, if any. *)
+  Definition frozen_key_cell (k : LAddr) : iProp Σ :=
+    match k with
+    | LNonHeap a => zone_cell a
+    | LHeap _ _ => True
+    end.
+
+  (** Frozen → Revoked, a private update, in a world without Temporary
+      regions. *)
+  Lemma update_region_frozen_revoked W C k :
+    revoke_condition W →
+    std W !! k = Some Frozen →
+    sts_full_world W C ∗ region W C
+    ==∗
+    sts_full_world (<s[k := Revoked]s> W) C ∗
+    region (<s[k := Revoked]s> W) C ∗
+    frozen_key_cell k.
+  Proof.
+    iIntros (Hrevoked Hfrozen) "[Hsts Hreg]".
+    rewrite region_eq /region_def.
+    iNamed "Hreg".
+    iDestruct "Hmap" as "[%Hknown [Hheapfrag Hpreds]]".
+    assert (k ∈ dom (std W)) as Hin by (rewrite elem_of_dom Hfrozen; eauto).
+    assert (is_Some (M !! k)) as [γp Hγp].
+    { apply elem_of_dom. by rewrite -Hdom. }
+    iDestruct (big_sepM_delete _ _ k with "Hpreds") as "[Hl Hr]"; first exact Hγp.
+    iAssert (⌜∀ k' γ' ρ', delete k M !! k' = Some γ' → Mρ !! k' = Some ρ' → ρ' ≠ Temporary⌝)%I
+      as %Hnotemp.
+    { iIntros (k' γ' ρ' Hk' Hρ').
+      iDestruct (big_sepM_lookup with "Hr") as (ρ'' Hρ'') "[Hst _]"; first exact Hk'.
+      rewrite Hρ' in Hρ''. injection Hρ'' as <-.
+      iDestruct (sts_full_state_std with "Hsts Hst") as %Hst.
+      iPureIntro. intros ->. by apply (Hrevoked k'). }
+    iDestruct "Hl" as (ρ Hl) "[Hstate Hresources]".
+    iDestruct "Hresources" as (γpred p φ Heq Hpers) "[#Hsaved Hres]".
+    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hρ.
+    rewrite Hfrozen in Hρ. injection Hρ as <-.
+    iMod (sts_update_std _ _ _ _ Revoked with "Hsts Hstate") as "[Hsts Hstate]".
+    assert (related_sts_priv_world W (<s[k := Revoked]s> W)) as Hrelated
+      by by apply related_sts_priv_world_frozen_revoked.
+    iDestruct (region_map_monotone_priv_no_temp _ _ _ _ _ Hrelated eq_refl with "[Hr Hheapfrag]") as "Hr".
+    { rewrite /std_update /= dom_insert_L. by apply heap_keys_known_insert. }
+    { exact Hnotemp. }
+    { iFrame "%∗". }
+    iDestruct (region_map_delete with "Hr") as "Hr".
+    iDestruct (region_map_insert _ _ _ _ _ Revoked with "Hr") as "Hr".
+    iDestruct "Hr" as "[%Hknown' [Hheapfrag Hr]]".
+    iAssert (heap_key_resource W.2 k emp ∗ frozen_key_cell k)%I with "[Hres]" as "[Hres Hcell]".
+    { destruct k as [a|a ι].
+      - cbn [frozen_key_cell heap_key_resource region_std_interp]. iFrame "Hres".
+      - iSplitL; last done. iApply (heap_key_resource_mono with "[] Hres"). by iIntros "_". }
+    iDestruct (big_sepM_delete _ _ k _ Hγp with "[Hres Hstate $Hr]") as "Hr".
+    { iExists Revoked. iFrame "Hstate". iSplitR; first (iPureIntro; apply lookup_insert_eq).
+      iExists γpred, p, φ. iFrame "%#". iExact "Hres". }
+    iModIntro. iFrame "Hsts Hcell".
+    iExists M, (<[k := Revoked]> Mρ). iFrame "∗%".
+    iPureIntro. split.
+    - rewrite /std_update /= dom_insert_L. set_solver.
+    - rewrite dom_insert_L Hdomρ -Hdom. set_solver.
+  Qed.
+
+  Lemma std_update_keys_revoke_frozen W (L : list LAddr) :
+    (∀ k, std W !! k = Some Frozen ↔ k ∈ L) →
+    std_update_keys W L Revoked = revoke_frozen W.
+  Proof.
+    intros HL.
+    assert (∀ W', std_update_keys W' L Revoked
+                  = (std (std_update_keys W' L Revoked), cus W', seal_std W', heap_std W'))
+      as Hshape.
+    { clear HL. intros W'. induction L as [|k L IH].
+      - by destruct W' as [ [ [] ] ].
+      - cbn [std_update_keys]. rewrite /std_update IH //. }
+    rewrite Hshape /revoke_frozen /=.
+    do 3 f_equal.
+    apply (map_eq (M:=gmap LAddr)). intros k.
+    destruct (decide (k ∈ L)) as [Hk|Hk].
+    - rewrite std_update_keys_lookup_in //.
+      rewrite /revoke_frozen_std_sta lookup_fmap.
+      apply HL in Hk. by rewrite Hk.
+    - rewrite std_update_keys_lookup_same //.
+      rewrite /revoke_frozen_std_sta lookup_fmap.
+      destruct (_ !! k) as [ρ|] eqn:Hstd; last done.
+      destruct ρ; [done|done| |done].
+      exfalso. apply Hk, HL. done.
+  Qed.
+
+  Lemma update_region_frozen_revoked_keys W C (L : list LAddr) :
+    revoke_condition W →
+    NoDup L →
+    Forall (λ k, std W !! k = Some Frozen) L →
+    sts_full_world W C ∗ region W C
+    ==∗
+    sts_full_world (std_update_keys W L Revoked) C ∗
+    region (std_update_keys W L Revoked) C ∗
+    ([∗ list] k ∈ L, frozen_key_cell k).
+  Proof.
+    induction L as [|k L IH]; iIntros (Hrevoked Hdup Hfrozen) "[Hsts Hreg]".
+    - iModIntro. by iFrame.
+    - apply NoDup_cons in Hdup as [Hnin Hdup].
+      apply Forall_cons in Hfrozen as [Hfrozen_k Hfrozen].
+      iMod (IH Hrevoked Hdup Hfrozen with "[$Hsts $Hreg]") as "(Hsts & Hreg & Hcells)".
+      iMod (update_region_frozen_revoked with "[$Hsts $Hreg]") as "(Hsts & Hreg & Hcell)".
+      { intros k'. destruct (decide (k' ∈ L)) as [Hk'|Hk'].
+        - by rewrite std_update_keys_lookup_in.
+        - by rewrite std_update_keys_lookup_same. }
+      { by rewrite std_update_keys_lookup_same. }
+      iModIntro. by iFrame.
+  Qed.
+
+  (** Revoke the Frozen regions of a world without Temporary regions, keeping
+      the zone cells of the addresses [la]. *)
+  Lemma monotone_revoke_frozen_keep W C (la : list Addr) :
+    revoke_condition W →
+    NoDup la →
+    Forall (λ a, std W !! LNonHeap a = Some Frozen) la →
+    sts_full_world W C ∗ region W C
+    ==∗
+    sts_full_world (revoke_frozen W) C ∗
+    region (revoke_frozen W) C ∗
+    ([∗ list] a ∈ la, zone_cell a).
+  Proof.
+    iIntros (Hrevoked Hdup Hfrozen) "[Hsts Hreg]".
+    set (L := filter (λ k, std W !! k = Some Frozen) (elements (dom (std W)))).
+    assert (∀ k, std W !! k = Some Frozen ↔ k ∈ L) as HL.
+    { intros k. rewrite /L list_elem_of_filter elem_of_elements elem_of_dom.
+      split; [intros Hk; split; [done|by eexists]|by intros [Hk _] ]. }
+    assert (NoDup L) as HL_dup by apply NoDup_filter, NoDup_elements.
+    iMod (update_region_frozen_revoked_keys W C L with "[$Hsts $Hreg]")
+      as "(Hsts & Hreg & Hcells)"; [done|done| |].
+    { apply Forall_forall. intros k Hk. by apply HL. }
+    rewrite std_update_keys_revoke_frozen //.
+    iModIntro. iFrame "Hsts Hreg".
+    assert ((LNonHeap <$> la) ⊆+ L) as Hsub.
+    { apply NoDup_submseteq; first by apply NoDup_LNonHeap_fmap.
+      intros k (a & -> & Ha)%list_elem_of_fmap.
+      apply HL. rewrite Forall_forall in Hfrozen. by apply Hfrozen. }
+    iDestruct (big_sepL_submseteq _ _ _ Hsub with "Hcells") as "Hcells".
+    by rewrite big_sepL_fmap.
   Qed.
 
 End region_invariant_revocation.

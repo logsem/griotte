@@ -2,6 +2,7 @@ From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From griotte Require Export stdpp_extra rules_base.
 From griotte Require Export sts world_std_sts world_ghost_resources heap_region.
+From griotte Require Import sts_multiple_updates.
 
   (*** Interpretation of the standard world *)
 
@@ -53,6 +54,13 @@ Section standard_world_interp.
                        ∗ k ↦ₖ v
                        ∗ future_priv_mono C φ v
                        ∗ ▷ φ (W,C,v)
+     | Frozen =>
+         (* A Frozen region holds the zone cell of its address; heap keys are
+            never Frozen. *)
+         match k with
+         | LNonHeap a => zone_cell a
+         | LHeap _ _ => False
+         end
      | Revoked => emp
      end)%I.
 
@@ -177,6 +185,8 @@ Section standard_world_interp.
       iFrame "%#∗".
       iApply "HmonoV"; iFrame "∗#"; auto.
       iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+    - (* The zone cell of a Frozen region does not depend on the world. *)
+      iExact "Hl".
   Qed.
 
   Lemma region_monotone C W W':
@@ -591,7 +601,8 @@ Section standard_world_interp.
     (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
     (p : Perm) (w : LWord) (ρ : region_type) :=
     (match ρ with
-     | Temporary => (if isWL p then future_pub_mono else (if isDL p then future_pub_mono else future_priv_mono))
+     | Temporary | Frozen =>
+         (if isWL p then future_pub_mono else (if isDL p then future_pub_mono else future_priv_mono))
      | Permanent => future_priv_mono
      | Revoked => λ _ _ _, True
      end C φ w)%I.
@@ -599,7 +610,7 @@ Section standard_world_interp.
   Definition monotonicity_guarantees_decide
     (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
     (p : Perm) (w : LWord) (ρ : region_type) :=
-    (if decide (ρ = Temporary)
+    (if decide (ρ = Temporary ∨ ρ = Frozen)
      then (if isWL p then future_pub_mono C φ w else (if isDL p then future_pub_mono C φ w else future_priv_mono C φ w))
      else future_priv_mono C φ w )%I.
 
@@ -612,11 +623,8 @@ Section standard_world_interp.
   Proof.
     intros Hrev.
     unfold monotonicity_guarantees_region, monotonicity_guarantees_decide.
-    iSplit; iIntros "HH".
-    - destruct ρ;simpl;auto;try done.
-      destruct (isWL p), (isDL p);done.
-    - destruct ρ;simpl;auto;try done.
-      destruct (isWL p), (isDL p); done.
+    destruct ρ; case_decide as Hdec; try naive_solver.
+    all: by destruct (isWL p), (isDL p).
   Qed.
 
   #[global] Instance monotonicity_guarantees_region_Persistent C P p w ρ :
@@ -630,7 +638,7 @@ Section standard_world_interp.
     (W : WORLD) (C : CmptName)
     (φ : WORLD * CmptName * LWord → iProp Σ)
     (als : list LAddr) (k : LAddr) (p : Perm) (ρ : region_type)
-    (Hρnotrevoked : ρ <> Revoked) :
+    (Hρnotrevoked : ρ <> Revoked) (Hρnotfrozen : ρ <> Frozen) :
     heap_key_live (heap_std W) k ->
     k ∉ als →
     std W !! k = Some ρ →
@@ -670,6 +678,7 @@ Section standard_world_interp.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Frozen) l ->
     Forall (fun '(a,p,φ,ρ) => (std W) !! a = Some ρ) l ->
 
     ([∗ list] '(a,p,φ,ρ) ∈ l, rel C a p φ)
@@ -687,7 +696,7 @@ Section standard_world_interp.
       ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
   .
   Proof.
-    induction l; intros la Hlive Hnodup Hdis Hregion_state Ha_state ;
+    induction l; intros la Hlive Hnodup Hdis Hregion_state Hfrozen_state Ha_state ;
       iIntros "(Hrel & Hr & Hsts)"; cbn in * |- *.
     - iExists []; cbn in *.
       by iFrame.
@@ -696,6 +705,7 @@ Section standard_world_interp.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
+      apply Forall_cons_1 in Hfrozen_state; destruct Hfrozen_state as [Hρf_a Hfrozen_state].
       apply Forall_cons_1 in Ha_state; destruct Ha_state as [HWa Ha_state].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
@@ -724,7 +734,7 @@ Section standard_world_interp.
     (φ : WORLD * CmptName * LWord → iProp Σ)
     `{forall Wv, Persistent (φ Wv)}
     (als : list LAddr) (k : LAddr) (p : Perm) (v : LWord) (ρ : region_type)
-    (Hρnotrevoked : ρ <> Revoked) :
+    (Hρnotrevoked : ρ <> Revoked) (Hρnotfrozen : ρ <> Frozen) :
     heap_key_live (heap_std W) k ->
     k ∉ als
     → sts_state_std C k ρ
@@ -759,6 +769,7 @@ Section standard_world_interp.
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
+    Forall (fun '(a,p,φ,ρ) => ρ ≠ Frozen) l ->
     Forall (fun '(a,p,φ,ρ) => ∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)) l ->
 
     open_region_many W C (la++l')
@@ -771,7 +782,7 @@ Section standard_world_interp.
       -∗ open_region_many W C l'.
   Proof.
     generalize dependent lv.
-    induction l; intros lv la Hlen Hlive Hnodup Hdis Hregion_state Hpers ;
+    induction l; intros lv la Hlen Hlive Hnodup Hdis Hregion_state Hfrozen_state Hpers ;
       iIntros "(Hr & Hstd & Hv & Hmono & Hφ & Hrel & Hp)"; cbn in * |- *.
     - by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
@@ -779,6 +790,7 @@ Section standard_world_interp.
       iDestruct "Hrel" as "[Hrel_a Hrel]".
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
+      apply Forall_cons_1 in Hfrozen_state; destruct Hfrozen_state as [Hρf_a Hfrozen_state].
       apply Forall_cons_1 in Hpers; destruct Hpers as [Hpers_a Hpers].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
@@ -901,6 +913,151 @@ Section standard_world_interp.
       iFrame "%#∗".
       iApply "HmonoV"; iFrame "∗#"; auto.
       iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
+    - (* The zone cell of a Frozen region does not depend on the world. *)
+      iExact "Hl".
+  Qed.
+
+  (* ----------------------------------------------------------------------------------------------- *)
+  (* ------------------------------------------- FROZEN REGIONS ------------------------------------ *)
+  (* ----------------------------------------------------------------------------------------------- *)
+
+  (** A zone cell excludes a full points-to of its address. *)
+  Lemma zone_cell_pointsto_false (a : Addr) (w : LWord) :
+    zone_cell a -∗ a ↦ₐ w -∗ False.
+  Proof.
+    rewrite zone_cell_unfold. iIntros "[_ Hhalf] Ha".
+    iDestruct (pointsto_valid_2 with "Ha Hhalf") as %[Hv _].
+    rewrite dfrac_op_own dfrac_valid_own in Hv.
+    by apply Qp.not_add_le_l in Hv.
+  Qed.
+
+  (** A live heap key is never Frozen: its region would hold [False]. *)
+  Lemma region_live_heap_not_frozen W C l (a : Addr) ι ρ :
+    heap_key_live (heap_std W) (LHeap a ι) →
+    LHeap a ι ∉ l →
+    std W !! LHeap a ι = Some ρ →
+    open_region_many W C l -∗
+    sts_full_world W C -∗
+    open_region_many W C l ∗ sts_full_world W C ∗ ⌜ρ ≠ Frozen⌝.
+  Proof.
+    iIntros (Hlive Hnin Hρ) "Hopen Hfull".
+    destruct (decide (ρ = Frozen)) as [->|Hne]; last by iFrame.
+    rewrite open_region_many_eq /open_region_many_def.
+    iNamed "Hopen".
+    iDestruct "Hmap" as "[%Hknown [Hheap Hpreds]]".
+    assert (is_Some (M !! LHeap a ι)) as [γp Hγp].
+    { apply elem_of_dom. rewrite -Hdom. by rewrite elem_of_dom Hρ. }
+    iDestruct (big_sepM_lookup with "Hpreds") as "Hentry".
+    { by rewrite lookup_delete_list_notin. }
+    iDestruct "Hentry" as (ρ' Hρ') "[Hstate Hentry]".
+    iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
+    rewrite Hρ in Hst. injection Hst as <-.
+    iDestruct "Hentry" as (γpred p φ Heq Hpers) "(_ & Hres)".
+    iDestruct (heap_key_resource_live_elim _ _ _ Hlive with "Hres") as "[]".
+  Qed.
+
+  Lemma region_open_next_frozen W C φ als (a : Addr) p :
+    LNonHeap a ∉ als →
+    std W !! LNonHeap a = Some Frozen →
+    open_region_many W C als ∗ rel C (LNonHeap a) p φ ∗ sts_full_world W C -∗
+    open_region_many W C (LNonHeap a :: als)
+    ∗ sts_full_world W C
+    ∗ sts_state_std C (LNonHeap a) Frozen
+    ∗ zone_cell a.
+  Proof.
+    rewrite open_region_many_eq.
+    iIntros (Hnin Hfrozen) "(Hopen & #Hrel & Hfull)".
+    rewrite /open_region_many_def rel_eq /rel_def.
+    iDestruct "Hrel" as (γpred) "#[Hγpred _]".
+    iNamed "Hopen".
+    iDestruct "Hmap" as "[%Hknown Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iDestruct ((reg_in C M) with "[$HM $Hγpred]") as %HMeq.
+    rewrite HMeq delete_list_insert; auto.
+    rewrite delete_list_delete; auto.
+    rewrite HMeq big_sepM_insert; [|by rewrite lookup_delete_eq].
+    iDestruct "Hpreds" as "[Hl Hpreds]".
+    iDestruct "Hl" as (ρ Hρ) "[Hstate Hl]".
+    iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
+    rewrite Hfrozen in Hst. injection Hst as <-.
+    iDestruct "Hl" as (γpred' p' φ' Heq Hpers) "(_ & Hl)".
+    iDestruct (heap_key_resource_live_elim _ _ _ (heap_key_live_nonheap _ a) with "Hl") as "Hcell".
+    iFrame "HM Hfull Hstate Hcell".
+    iExists Mρ. repeat (rewrite -HMeq).
+    iSplitR; first eauto.
+    iSplitR; first eauto.
+    iApply region_map_delete; iFrame "%∗".
+  Qed.
+
+  Lemma region_close_next_frozen W C φ `{∀ Wv, Persistent (φ Wv)} als (a : Addr) p :
+    LNonHeap a ∉ als →
+    sts_state_std C (LNonHeap a) Frozen
+    ∗ open_region_many W C (LNonHeap a :: als)
+    ∗ zone_cell a
+    ∗ rel C (LNonHeap a) p φ
+    -∗ open_region_many W C als.
+  Proof.
+    rewrite open_region_many_eq /open_region_many_def.
+    iIntros (Hnin) "(Hstate & Hreg_open & Hcell & #Hrel)".
+    rewrite rel_eq /rel_def.
+    iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
+    iNamed "Hreg_open".
+    iDestruct (region_map_insert _ _ _ _ _ Frozen with "Hmap") as "Hpreds".
+    iDestruct "Hpreds" as "[%Hknown Hpreds]".
+    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    rewrite -!/delete_list.
+    iDestruct (big_sepM_insert _ (delete (LNonHeap a) (delete_list als M)) (LNonHeap a)
+                with "[-HM Hheap]") as "Hpreds";
+      first by rewrite lookup_delete_eq.
+    { iFrame. iSplitR; [by simplify_map_eq|].
+      iExists _,p,_. iSplitR; first done. iFrame "%#".
+      iApply (heap_key_resource_live_intro _ _ _ (heap_key_live_nonheap _ a)). iExact "Hcell". }
+    rewrite -(delete_list_delete _ M) //.
+    rewrite -(delete_list_insert _ (delete (LNonHeap a) M)) //.
+    rewrite -(delete_list_insert _ Mρ) //.
+    iExists M, (<[LNonHeap a := Frozen]> Mρ).
+    iDestruct ((reg_in C M) with "[$HM $Hγpred]") as %HMeq.
+    rewrite -HMeq.
+    iFrame "∗ # %".
+    repeat (iSplitR; eauto).
+    all: try (by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ).
+    all: iFrame "∗#%".
+  Qed.
+
+  (** Frozen → Temporary, a public update, given the resources of a Temporary
+      region. *)
+  Lemma region_close_next_unfreeze W C φ `{∀ Wv, Persistent (φ Wv)} als (a : Addr) p v :
+    LNonHeap a ∉ als →
+    sts_full_world W C
+    ∗ sts_state_std C (LNonHeap a) Frozen
+    ∗ open_region_many W C (LNonHeap a :: als)
+    ∗ LNonHeap a ↦ₖ v
+    ∗ ⌜isO p = false⌝
+    ∗ monotonicity_guarantees_region C φ p v Temporary
+    ∗ ▷ φ (W, C, v)
+    ∗ rel C (LNonHeap a) p φ
+    ==∗
+    sts_full_world (<s[LNonHeap a := Temporary]s> W) C
+    ∗ open_region_many (<s[LNonHeap a := Temporary]s> W) C als.
+  Proof.
+    iIntros (Hnin) "(Hfull & Hstate & Hopen & Ha & %HpO & #Hmono & Hφ & #Hrel)".
+    iDestruct (sts_full_state_std with "Hfull Hstate") as %Hfrozen.
+    iMod (sts_update_std _ _ _ _ Temporary with "Hfull Hstate") as "[Hfull Hstate]".
+    assert (related_sts_pub_world W (<s[LNonHeap a := Temporary]s> W)) as Hrelated
+      by by apply related_sts_pub_world_frozen_temporary.
+    iDestruct (open_region_many_monotone _ W (<s[LNonHeap a := Temporary]s> W) with "Hopen")
+      as "Hopen"; [| exact Hrelated | done |].
+    { rewrite /std_update /= dom_insert_L.
+      assert (LNonHeap a ∈ dom (std W)) as Hin by (rewrite elem_of_dom Hfrozen; eauto).
+      set_solver. }
+    iModIntro. iFrame "Hfull".
+    iApply (region_close_next _ _ _ _ _ _ v Temporary with "[$Hstate $Hopen $Ha $Hmono $Hrel Hφ]");
+      [done | done | apply heap_key_live_nonheap | done |].
+    iSplit; first done.
+    iNext.
+    assert (related_sts_priv_world W (<s[LNonHeap a := Temporary]s> W)) as Hrelated_priv
+      by by apply related_sts_pub_priv_world.
+    cbn. destruct (isWL p); [|destruct (isDL p)]; by iApply ("Hmono" with "[] Hφ").
   Qed.
 
 End standard_world_interp.

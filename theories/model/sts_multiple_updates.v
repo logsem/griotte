@@ -280,6 +280,55 @@ Section std_updates.
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
    Qed.
 
+   (** A public transition of one key is a public future world. *)
+   Lemma related_sts_pub_world_std_update W a ρ ρ' :
+     (std W) !! a = Some ρ →
+     std_rel_pub ρ ρ' →
+     related_sts_pub_world W (<s[a:=ρ']s>W).
+   Proof.
+     intros Ha Hρ.
+     rewrite /related_sts_pub_world /=.
+     split;[|split];[|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
+     rewrite /related_sts_pub. split.
+     - rewrite dom_insert_L. set_solver.
+     - intros i x y Hx Hy.
+       destruct (decide (a = i)) as [<-|Hai].
+       + rewrite Hx in Ha. injection Ha as ->.
+         rewrite lookup_insert_eq in Hy. injection Hy as <-.
+         by apply rtc_once.
+       + rewrite lookup_insert_ne in Hy; last done.
+         rewrite Hx in Hy. injection Hy as ->. apply rtc_refl.
+   Qed.
+
+   Lemma related_sts_pub_world_revoked_frozen W a :
+     (std W) !! a = Some Revoked →
+     related_sts_pub_world W (<s[a:=Frozen]s>W).
+   Proof. intros Ha. eapply related_sts_pub_world_std_update; [exact Ha|constructor]. Qed.
+
+   Lemma related_sts_pub_world_frozen_temporary W a :
+     (std W) !! a = Some Frozen →
+     related_sts_pub_world W (<s[a:=Temporary]s>W).
+   Proof. intros Ha. eapply related_sts_pub_world_std_update; [exact Ha|constructor]. Qed.
+
+   Lemma related_sts_pub_update_multiple_frozen W l :
+     Forall (λ k, std W !! LNonHeap k = Some Revoked) l →
+     related_sts_pub_world W (std_update_multiple W l Frozen).
+   Proof.
+     intros Hforall. induction l as [|a l IHl].
+     - apply related_sts_pub_refl_world.
+     - simpl.
+       apply Forall_cons in Hforall as [Ha_std Hforall].
+       eapply related_sts_pub_trans_world;[apply IHl; auto|].
+       destruct (decide (a ∈ l)) as [Hal|Hal].
+       { rewrite (_: <s[a:=Frozen]s>(std_update_multiple W l Frozen) = std_update_multiple W l Frozen) /=
+         ; first by apply related_sts_pub_refl_world.
+         rewrite /std_update insert_id /=; first by destruct (std_update_multiple W l Frozen) as [ [ [] ] ].
+         by apply std_sta_update_multiple_lookup_in_i.
+       }
+       apply related_sts_pub_world_revoked_frozen.
+       rewrite std_sta_update_multiple_lookup_same_i //.
+   Qed.
+
    Lemma elem_of_dom_std_multiple_update (W : WORLD) (a : Addr) (l : list Addr)
      (ρ: region_type) :
      LNonHeap a ∈ (dom (std (std_update_multiple W l ρ))) ->

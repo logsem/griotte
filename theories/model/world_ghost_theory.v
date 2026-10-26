@@ -94,7 +94,7 @@ Section world_ghost_theory.
     future_priv_mono C Φ w.
 
   Definition mono_invariant (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) (ρ : region_type) : iProp Σ :=
-    (if (decide (ρ = Temporary))
+    (if (decide (ρ = Temporary ∨ ρ = Frozen))
      then mono_temporary C p Φ w
      else mono_permanent C Φ w).
 
@@ -140,7 +140,7 @@ Section world_ghost_theory.
 
   #[global] Instance mono_invariant_Persistent C p Φ w ρ:
     Persistent (mono_invariant C p Φ w ρ).
-  Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary) ); apply _. Qed.
+  Proof. rewrite /mono_invariant; destruct ( decide (ρ = Temporary ∨ ρ = Frozen) ); apply _. Qed.
 
   Lemma mono_temporary_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) :
     mono_temporary C p Φ w
@@ -162,7 +162,7 @@ Section world_ghost_theory.
   Lemma mono_invariant_eq (C : CmptName) (p : Perm) (Φ : Vc) (w : LWord) (ρ : region_type) :
     mono_invariant C p Φ w ρ
     ⊣⊢
-      (if decide (ρ = Temporary)
+      (if decide (ρ = Temporary ∨ ρ = Frozen)
        then
          if isWL p
          then future_pub_mono C Φ w
@@ -181,10 +181,8 @@ Section world_ghost_theory.
   Proof.
     intros Hne.
     rewrite /monotonicity_guarantees_region mono_invariant_eq.
-    iSplit; iIntros "H".
-    all: destruct ρ; simplify_eq; cbn; case_decide; try done.
-    all: destruct (isWL p); auto.
-    all: destruct (isDL p); auto.
+    destruct ρ; case_decide as Hdec; try naive_solver.
+    all: by destruct (isWL p), (isDL p).
   Qed.
 
   (** ** Lemmas about the safety resources *)
@@ -643,12 +641,11 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (Hs Hne Htemp) "Hrel @".
+    assert (ρ ≠ Revoked ∧ ρ ≠ Frozen) as [Hnr Hnf] by (destruct Hne; subst; done).
     iDestruct (region_open_next with "[$Hrel $Hr $Hsts]") as (v) "(Hr & Hfull & Hstate & Hl & Hp & Hmono & φ)"; eauto.
-    { destruct Hne; simplify_eq; done. }
     iFrame.
     iNext.
     rewrite mono_invariant_monotonicity_guarantees_region; eauto.
-    destruct Hne; simplify_eq; done.
   Qed.
 
   Lemma close_world_interp_next
@@ -667,10 +664,9 @@ Section world_ghost_theory.
     intros Hlive.
     rewrite world_interp_open_eq /world_interp_open_def.
     iIntros (Hs Hρ) "[Hr [$ $] ] Hstate Hrel (Hp&Ha&Hφ&Hmono)".
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto; cycle 1.
-    { destruct Hρ; simplify_eq; done. }
+    assert (ρ ≠ Revoked ∧ ρ ≠ Frozen) as [Hnr Hnf] by (destruct Hρ; subst; done).
+    rewrite mono_invariant_monotonicity_guarantees_region; last done.
     iApply (region_close_next with "[$Hstate $Hr $Ha $Hp $Hmono $Hφ $Hrel]"); eauto.
-    { destruct Hρ; simplify_eq; done. }
   Qed.
 
   Lemma open_world_interp
@@ -709,6 +705,109 @@ Section world_ghost_theory.
     iIntros (Htemp) "Hworld Hstd #Hrel".
     iApply (close_world_interp_next with "Hworld Hstd Hrel"); eauto.
     set_solver+.
+  Qed.
+
+  (** ** Frozen regions
+
+      A Frozen region holds the zone cell of its address. *)
+
+  Lemma open_world_interp_frozen (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ :
+    LNonHeap a ∉ s →
+    std W !! LNonHeap a = Some Frozen →
+    world_interp_open W C s -∗
+    rel C (LNonHeap a) p Φ -∗
+    world_interp_open W C ({[ LNonHeap a ]} ∪ s) ∗
+    sts_state_std C (LNonHeap a) Frozen ∗
+    zone_cell a.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (Ha HWa) "@ Hrel".
+    iDestruct (region_open_next_frozen with "[$Hr $Hrel $Hsts]")
+      as "(Hr & Hsts & Hstate & Hcell)"; [done|done|].
+    iFrame.
+  Qed.
+
+  Lemma close_world_interp_frozen (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ
+    `{∀ WCv, Persistent (Φ WCv)} :
+    LNonHeap a ∉ s →
+    world_interp_open W C ({[ LNonHeap a ]} ∪ s) -∗
+    rel C (LNonHeap a) p Φ -∗
+    sts_state_std C (LNonHeap a) Frozen -∗
+    zone_cell a -∗
+    world_interp_open W C s.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (Ha) "@ Hrel Hstate Hcell".
+    iFrame "Hsts Hseals".
+    iApply (region_close_next_frozen with "[$Hstate $Hr $Hcell $Hrel]"); done.
+  Qed.
+
+  (** Frozen → Temporary, a public update, given the resources of a Temporary
+      region. *)
+  Lemma close_world_interp_unfreeze (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ
+    (w : LWord) `{∀ WCv, Persistent (Φ WCv)} :
+    LNonHeap a ∉ s →
+    world_interp_open W C ({[ LNonHeap a ]} ∪ s) -∗
+    rel C (LNonHeap a) p Φ -∗
+    sts_state_std C (LNonHeap a) Frozen -∗
+    TmpRes W C (LNonHeap a) p Φ w
+    ==∗
+    world_interp_open (<s[LNonHeap a := Temporary]s> W) C s.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def.
+    iIntros (Ha) "@ #Hrel Hstate (%HpO & Ha & HΦ & #Hmono)".
+    iDestruct (sts_full_state_std with "Hsts Hstate") as %Hfrozen.
+    iMod (region_close_next_unfreeze with "[$Hsts $Hstate $Hr $Ha $Hrel HΦ]")
+      as "[Hsts Hr]"; first done.
+    { iSplit; first done. iSplitR; last by iNext.
+      rewrite mono_temporary_eq. cbn.
+      by destruct (isWL p), (isDL p). }
+    iModIntro. iFrame "Hsts Hr".
+    iApply (sealing_map_monotone_pub with "Hseals"); first done.
+    by apply related_sts_pub_world_frozen_temporary.
+  Qed.
+
+  (** Revoked → Frozen, a public update, given the zone cells. *)
+  Lemma world_interp_freeze {E : coPset} W C (la : list Addr) :
+    NoDup la →
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la →
+    world_interp W C -∗
+    ([∗ list] a ∈ la, zone_cell a)
+    ={E}=∗
+    world_interp (std_update_multiple W la Frozen) C.
+  Proof.
+    intros Hdup Hrev.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "@ Hcells".
+    iMod (update_region_revoked_frozen_multiple with "Hsts Hr Hcells") as "[Hr Hsts]";
+      [done|done|].
+    iModIntro. iFrame "Hr Hsts".
+    iApply (sealing_map_monotone_pub with "Hseals").
+    - by rewrite std_update_multiple_seals.
+    - by apply related_sts_pub_update_multiple_frozen.
+  Qed.
+
+  (** Frozen → Revoked, a private update, in a world without Temporary regions. *)
+  Lemma world_interp_revoke_frozen W C (la : list Addr) :
+    revoke_condition W →
+    NoDup la →
+    Forall (λ a, std W !! LNonHeap a = Some Frozen) la →
+    world_interp W C
+    ==∗
+    world_interp (revoke_frozen W) C ∗
+    ([∗ list] a ∈ la, zone_cell a) ∗
+    ⌜Forall (λ a, std (revoke_frozen W) !! LNonHeap a = Some Revoked) la⌝.
+  Proof.
+    intros Hrevoked Hdup Hfrozen.
+    rewrite world_interp_eq /world_interp_def.
+    iIntros "@".
+    iMod (monotone_revoke_frozen_keep with "[$Hsts $Hr]") as "(Hsts & Hr & Hcells)";
+      [done|done|done|].
+    iDestruct (sealing_map_monotone C W (revoke_frozen W) with "Hseals") as "Hseals";
+      [done|apply revoke_frozen_related_sts_priv_world|].
+    iModIntro. iFrame "Hsts Hr Hseals Hcells".
+    iPureIntro. eapply Forall_impl; first exact Hfrozen.
+    intros a Ha. by apply revoke_frozen_lookup_Frozen.
   Qed.
 
   (** Quarantined objects' cells hold no resources, for every standard state. *)

@@ -746,6 +746,86 @@ Section world_std_revocation.
   Qed.
 
 
+  (* ---------------------------------------------------------------------------------------- *)
+  (* ------------------------------ REVOKING THE FROZEN REGIONS ----------------------------- *)
+  (* ---------------------------------------------------------------------------------------- *)
+
+  (** Revocation of the Frozen regions. It leaves every other state unchanged. *)
+  Definition revoke_frozen_std_sta : STS_STD → STS_STD :=
+    fmap (λ ρ, match ρ with
+               | Frozen => Revoked
+               | _ => ρ
+               end).
+  Definition revoke_frozen (W : WORLD) : WORLD :=
+    (revoke_frozen_std_sta (std W), cus W, seal_std W, heap_std W).
+
+  Lemma revoke_frozen_lookup_Frozen W k :
+    std W !! k = Some Frozen → std (revoke_frozen W) !! k = Some Revoked.
+  Proof. intros Hk. by rewrite /revoke_frozen /revoke_frozen_std_sta /= lookup_fmap Hk. Qed.
+
+  Lemma revoke_frozen_lookup_same W k :
+    std W !! k ≠ Some Frozen → std (revoke_frozen W) !! k = std W !! k.
+  Proof.
+    intros Hk. rewrite /revoke_frozen /revoke_frozen_std_sta /= lookup_fmap.
+    destruct (_ !! k) as [ρ|]; last done.
+    destruct ρ; [done|done| |done]. by exfalso; apply Hk.
+  Qed.
+
+  Lemma revoke_frozen_dom W : dom (std (revoke_frozen W)) = dom (std W).
+  Proof. by rewrite /revoke_frozen /revoke_frozen_std_sta /= dom_fmap_L. Qed.
+
+  Lemma revoke_frozen_heap W : heap_std (revoke_frozen W) = heap_std W.
+  Proof. reflexivity. Qed.
+
+  Lemma revoke_frozen_condition W : revoke_condition W → revoke_condition (revoke_frozen W).
+  Proof.
+    intros Hrev k. destruct (decide (std W !! k = Some Frozen)) as [Hk|Hk].
+    - by rewrite revoke_frozen_lookup_Frozen.
+    - by rewrite revoke_frozen_lookup_same.
+  Qed.
+
+  Lemma revoke_frozen_related_sts_priv_world W :
+    related_sts_priv_world W (revoke_frozen W).
+  Proof.
+    split;[|split];[|apply related_sts_priv_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
+    split.
+    - rewrite revoke_frozen_dom. set_solver.
+    - intros k x y Hx Hy.
+      destruct (decide (x = Frozen)) as [->|Hxf].
+      + rewrite revoke_frozen_lookup_Frozen // in Hy. injection Hy as <-.
+        apply rtc_once. right. constructor.
+      + rewrite revoke_frozen_lookup_same in Hy; last by rewrite Hx; intros [=].
+        rewrite Hx in Hy. injection Hy as ->. apply rtc_refl.
+  Qed.
+
+  (** All the Frozen non-heap keys of [W]. *)
+  Lemma extract_frozen W :
+    ∃ la : list Addr, NoDup la ∧ (∀ a : Addr, std W !! LNonHeap a = Some Frozen ↔ a ∈ la).
+  Proof.
+    destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ]. cbn.
+    induction Wstd_sta as [|k ρ m Hk IH] using (map_ind (M:=gmap LAddr) (A:=region_type)).
+    - exists []. split; first by apply NoDup_nil. intros a. split; intros Hcontr; inversion Hcontr.
+    - destruct IH as [la [Hdup Hiff] ].
+      assert (∀ a', k ≠ LNonHeap a' →
+                (<[k:=ρ]> m !! LNonHeap a' = Some Frozen ↔ a' ∈ la)) as Hother.
+      { intros a' Hne. rewrite lookup_insert_ne //. }
+      destruct (decide (ρ = Frozen)) as [->|Hρ]; last first.
+      { exists la. split; first done. intros a'.
+        destruct (decide (k = LNonHeap a')) as [->|Hne]; last by apply Hother.
+        rewrite lookup_insert_eq. split; first by intros [=].
+        intros Ha. apply Hiff in Ha. by rewrite Hk in Ha. }
+      destruct k as [a|a ι]; last first.
+      { exists la. split; first done. intros a'. by apply Hother. }
+      assert (a ∉ la) as Hnin.
+      { intros Ha. apply Hiff in Ha. by rewrite Hk in Ha. }
+      exists (a :: la). split; first by apply NoDup_cons.
+      intros a'. rewrite elem_of_cons.
+      destruct (decide (a = a')) as [<-|Hne].
+      { rewrite lookup_insert_eq. split; [by left|done]. }
+      rewrite Hother; last by intros [=].
+      split; [by right|]. intros [Heq|Hin]; [congruence|done].
+  Qed.
+
   Lemma revoke_heap W : heap_std (revoke W) = heap_std W.
   Proof. reflexivity. Qed.
 

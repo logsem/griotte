@@ -8,6 +8,7 @@ Section world_standard_sts.
   Inductive region_type :=
   | Temporary
   | Permanent
+  | Frozen
   | Revoked.
 
   #[global] Instance LeibnizEquiv_region_type : @LeibnizEquiv region_type (@eq region_type).
@@ -16,6 +17,7 @@ Section world_standard_sts.
     (fun x y => match x, y with
              | Permanent, Permanent
              | Revoked, Revoked
+             | Frozen, Frozen
              | Temporary, Temporary => left eq_refl
              | _, _ => ltac:(right; auto)
              end).
@@ -26,12 +28,14 @@ Section world_standard_sts.
                          | Temporary => 1
                          | Permanent => 2
                          | Revoked => 3
+                         | Frozen => 4
                          end%positive.
     set decode := (fun n =>
                      if decide (n = 1) then Some Temporary
                      else if decide (n = 2) then Some Permanent
                           else if decide (n = 3) then Some Revoked
-                               else None)%positive.
+                               else if decide (n = 4) then Some Frozen
+                                    else None)%positive.
     eapply (Build_Countable _ _ encode decode).
     intro ty. destruct ty; try reflexivity;
     unfold encode, decode;
@@ -40,11 +44,14 @@ Section world_standard_sts.
 
   Inductive std_rel_pub : region_type -> region_type -> Prop :=
   | Std_pub_Revoked_Temporary : std_rel_pub Revoked Temporary
-  | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent.
+  | Std_pub_Revoked_Permanent : std_rel_pub Revoked Permanent
+  | Std_pub_Revoked_Frozen : std_rel_pub Revoked Frozen
+  | Std_pub_Frozen_Temporary : std_rel_pub Frozen Temporary.
 
   Inductive std_rel_priv : region_type -> region_type -> Prop :=
   | Std_priv_Temporary_Revoked : std_rel_priv Temporary Revoked
-  | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent.
+  | Std_priv_Temporary_Permanent : std_rel_priv Temporary Permanent
+  | Std_priv_Frozen_Revoked : std_rel_priv Frozen Revoked.
 
   (* --------------------------------------------------------------------------------- *)
   (* ------------------------- LEMMAS ABOUT STD TRANSITIONS -------------------------- *)
@@ -101,6 +108,21 @@ Section world_standard_sts.
     subst. apply IHHrtc. apply std_rel_pub_Temporary; auto.
   Qed.
 
+  Lemma std_rel_pub_Frozen (ρ : region_type) :
+    std_rel_pub Frozen ρ → ρ = Temporary.
+  Proof. intros Hrel. by inversion Hrel. Qed.
+
+  (** A Frozen region only becomes Temporary in a public future. *)
+  Lemma std_rel_pub_rtc_Frozen (ρ1 ρ2 : region_type) :
+    ρ1 = Frozen →
+    rtc std_rel_pub ρ1 ρ2 → ρ2 = Frozen ∨ ρ2 = Temporary.
+  Proof.
+    intros Hρ1 Hrtc.
+    destruct Hrtc as [ρ|ρ0 ρ1' ρ2' Hrel Hrtc]; first by left.
+    subst ρ0. apply std_rel_pub_Frozen in Hrel as ->.
+    right. by eapply std_rel_pub_rtc_Temporary.
+  Qed.
+
   (* ------------------------- DEFINITION STD STS CLASS -------------------------- *)
 
   #[global] Program Instance sts_std : STS_STD region_type :=
@@ -154,6 +176,8 @@ Section world_standard_sts_mono.
     intros ρ'; destruct ρ'.
     + eright;[right;constructor|left].
     + left.
+    + eright;[right;constructor|].
+      eright;[left;constructor|left].
     + eright;[left;constructor|].
       eright;[right;constructor|left].
   Qed.
