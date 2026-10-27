@@ -237,7 +237,7 @@ Section checks.
 
   Lemma word_exec_okb_sound w : word_exec_okb w = true → word_exec_ok w.
   Proof.
-    rewrite /word_exec_okb /word_exec_ok /lword_exec /lword_of_word /=.
+    rewrite /word_exec_okb /word_exec_ok /erasure.lword_exec /lword_of_word /=.
     intros Hw _ Hx. rewrite Hx in Hw. split; first done.
     intros b e Hbe. rewrite Hbe in Hw. split.
     - apply (closed_outside_heap_spec b e b Hw). by left.
