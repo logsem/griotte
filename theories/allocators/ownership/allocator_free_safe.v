@@ -11,7 +11,7 @@ From griotte.allocators.ownership Require Export allocator_malloc_spec allocator
 Section Heap_Temporal_Safety_Interp.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -71,7 +71,7 @@ Section Heap_Temporal_Safety_Interp.
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
     execute_entry_point allocator_exp_tbl_b
@@ -335,7 +335,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rmap
-        (λ v, (⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) with "[-]");
+        (HO th) with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
         | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
         | intros _; reflexivity | apply jalr_target_ok_switcher_return_sentry |].
@@ -520,7 +520,7 @@ Section Heap_Temporal_Safety_Interp.
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗

@@ -12,7 +12,7 @@ From griotte.allocators.ownership Require Import allocator allocator_preamble.
 Section AllocatorOtype.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}

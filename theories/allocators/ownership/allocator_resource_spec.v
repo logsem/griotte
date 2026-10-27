@@ -3,7 +3,7 @@ From griotte.allocators.ownership Require Import allocator_preamble allocator_he
 From griotte Require Import memory_region.
 
 Section AllocatorServiceInitializationProofs.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}
     {FA : FreeAuth Σ} {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
@@ -48,7 +48,7 @@ Section AllocatorServiceInitializationProofs.
     { iExists _. iFrame "Howners". iPureIntro. apply allocator_owners_wf_empty. }
     iMod (region_pointsto_persist with "Himports") as "#Himports".
     iMod (codefrag_persist with "Hcode") as "#Hcode".
-    iMod (na_inv_alloc cerise_nais E Nallocator_service allocator_service_inv
+    iMod (na_inv_alloc (tpool th) E Nallocator_service allocator_service_inv
       with "[Hdata Hcells Howners]") as "#Hservice".
     { iNext. iExists (heap_b ^+ 1)%a, [], ∅, ∅, allocator_initial_cells.
       iFrame "Hdata Hcells Howners".

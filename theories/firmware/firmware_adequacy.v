@@ -1499,7 +1499,7 @@ Definition fw_cleared_regs : LReg :=
 Section resources.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -1511,15 +1511,20 @@ Section resources.
   (** The resources shared by the threads: the invariants of the switcher
       and of the assert library, the memory of every compartment (trusted or
       not), the sealing types handed to the trusted code, the world of each
-      logical compartment, and the heap. *)
+      logical compartment, and the heap. They are stated at the instance of
+      the user thread [0], whose layout the switcher invariant describes, in
+      its pool. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
+    let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
     let sw := img_sw img in
     let asrt := img_asrt img in
     "Hswitcher" ∷
-      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
-    "Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
+      na_inv (tpool (UserThread 0)) Nswitcher
+        (switcher_inv (th := UserThread 0) (swlayout := fw_switcher_layout img)) ∗
+    "Hswitcher_static" ∷ switcher_static (th := UserThread 0) (swlayout := fw_switcher_layout img) ∗
     "Hseal_switcher" ∷
-      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
+      seal_pred (ot_switcher sw)
+        (ot_switcher_propC (th := UserThread 0) (swlayout := fw_switcher_layout img)) ∗
     "Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷
       ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
@@ -1529,20 +1534,21 @@ Section resources.
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
 
-  (** The resources of the thread [i]: its registers, its stack, its call
-      stack and the non-atomic token. *)
+  (** The resources of the thread [i], the user thread [i]: its registers,
+      its stack, its call stack and the non-atomic token of its pool. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
+    let ceriseg : ceriseG Σ := ceriseG_of (UserThread i) in
     let t := thread_of img i in
-    "HPC" ∷ PC ↦ₚ fw_entry_pc fw img i ∗
-    "Hcgp" ∷ cgp ↦ᵣ fw_entry_cgp fw img i ∗
-    "Hcsp" ∷ csp ↦ᵣ fw_thread_csp img i ∗
-    "Hcra" ∷ cra ↦ᵣ fw_thread_cra img ∗
-    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
+    "HPC" ∷ PC ↦ₚ[u i] fw_entry_pc fw img i ∗
+    "Hcgp" ∷ cgp ↦ᵣ[u i] fw_entry_cgp fw img i ∗
+    "Hcsp" ∷ csp ↦ᵣ[u i] fw_thread_csp img i ∗
+    "Hcra" ∷ cra ↦ᵣ[u i] fw_thread_cra img ∗
+    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ[u i] w) ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0) ]] ∗
     "Hcstk" ∷ cstack_frag (entry_cstack (fw_entry_frame fw img i)) ∗
-    "Hna" ∷ na_own cerise_nais ⊤.
+    "Hna" ∷ na_own (tpool (UserThread i)) ⊤.
 End resources.
 
 (** ** Splitting the initial memory *)
@@ -1662,20 +1668,22 @@ End memory_split.
 
 (** The obligations of the trusted code of a firmware, for the ghost state
     [Σ]: for every image and initial state satisfying [firmware_ok], the
-    first thread runs safely from the resources of the image. A case study
-    with its own ghost state proves them for every [Σ] with its [subG]
-    assumptions, and allocates its ghost state inside the proof. *)
+    first thread, the user thread [0], runs safely from the resources of
+    the image. A case study with its own ghost state proves them for every
+    [Σ] with its [subG] assumptions, and allocates its ghost state inside
+    the proof. *)
 Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
     (fw : firmware) : Prop :=
   ∀ (img : fw_image) (σ : ExecConf)
-    (ceriseg : ceriseG Σ) (sealsg : sealStoreG Σ)
+    (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
     (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
     (cstackg : CSTACKG Σ),
     firmware_ok fw img σ →
+    let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
     ⊢ fw_shared_res fw img -∗
       fw_thread_res fw img 0
       ={⊤}=∗
-      WP Seq (Instr Executable) {{ _, True }}.
+      WP Seq (Instr Executable) @[u 0] {{ _, True }}.
 
 Theorem firmware_adequacy (Σ : gFunctors)
     {inv_preg : invGpreS Σ}
@@ -1711,7 +1719,7 @@ Proof.
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
     [exact Hinit | exact Hnull | | exact Hstep].
-  iIntros (ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
+  iIntros (ceriseb ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
   iMod (initialise_world (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0))
@@ -1767,7 +1775,7 @@ Proof.
     apply fw_tstack_content_export_table. }
   { rewrite /fw_entry_cmpt fw_thread_of_0. exact Htbl_cap. }
   (* The obligations of the trusted code. *)
-  iPoseProof (Hobl img _ ceriseg sealsg stsg relg cstackg Hok) as "Hobl".
+  iPoseProof (Hobl img _ ceriseb sealsg stsg relg cstackg Hok) as "Hobl".
   iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]
                      [$HPC $Hcgp $Hcsp $Hcra $Hregs $Hstack $Hcstk_frag $Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.

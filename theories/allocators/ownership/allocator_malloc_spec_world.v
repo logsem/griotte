@@ -10,7 +10,7 @@ From griotte.allocators.common Require Export allocator_common_spec_world.
     of [allocator_malloc_valid_correct]. *)
 
 Section AllocatorMallocWorld.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {FA : FreeAuth Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
