@@ -522,7 +522,7 @@ Class FramableCodefrag (a: Addr) (l: list Word) := {}.
 
 #[export] Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
   FramableSRegisterPointsto sr w →
-  FramableMachineResource (sr ↦ₛᵣ w).
+  FramableMachineResource (sr ↦ₓ w).
 Qed.
 
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
@@ -629,7 +629,7 @@ Ltac2 record_framed
     lazy_match! hh with
     | (PC ↦ₚ _)%I => ('tt, PCReg)
     | (?r ↦ᵣ _)%I => (r, Reg)
-    | (?sr ↦ₛᵣ _)%I => (sr, SReg)
+    | (?sr ↦ₓ _)%I => (sr, SReg)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -717,9 +717,9 @@ Definition check_addr_eq (a b: Addr) `{FinZEq _ a b res} := res.
 Ltac2 name_cap_resource (name, lhs, kind) :=
   match kind with
   | SReg =>
-    match! goal with [ |- context [ (?sr ↦ₛᵣ ?x)%I ] ] =>
+    match! goal with [ |- context [ (?sr ↦ₓ ?x)%I ] ] =>
       assert_constr_eq sr lhs;
-      ltac1:(x sr name |- change (sr ↦ₛᵣ x)%I with (name ∷ (sr ↦ₛᵣ x))%I)
+      ltac1:(x sr name |- change (sr ↦ₓ x)%I with (name ∷ (sr ↦ₓ x))%I)
         (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
     end
   | PCReg =>

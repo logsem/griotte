@@ -417,7 +417,7 @@ Section Switcher_preamble.
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      "Hmtdc" ∷ mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
@@ -444,7 +444,7 @@ Section Switcher_preamble.
     ▷ switcher_inv -∗
     ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      "Hmtdc" ∷ mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
@@ -486,7 +486,7 @@ Section Switcher_preamble.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗

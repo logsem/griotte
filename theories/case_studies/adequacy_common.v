@@ -157,7 +157,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
      PC ↦ₚ[u 0] lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ[u 0] w) -∗
-     ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₛᵣ lword_of_word w) -∗
+     ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₓ lword_of_word w) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗

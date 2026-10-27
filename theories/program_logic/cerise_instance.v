@@ -371,10 +371,10 @@ Notation "'{{{' P } } } e '@[' th ] {{{ 'RET' pat ; Q } } }" :=
    format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  '/' {{{  '[' RET  pat ;  '/' Q ']'  } } } ']'") : stdpp_scope.
 
 (* Points to predicates for system registers *)
-Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=LWord) sr q w)
-  (at level 20, q at level 50, format "sr  ↦ₛᵣ{ q }  w") : bi_scope.
-Notation "sr ↦ₛᵣ w" := (pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w) (at level 20) : bi_scope.
-Notation "sr ↦ₛᵣ -" := (∃ w, pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
+Notation "sr ↦ₓ{ q } w" := (pointsto (L:=SRegName) (V:=LWord) sr q w)
+  (at level 20, q at level 50, format "sr  ↦ₓ{ q }  w") : bi_scope.
+Notation "sr ↦ₓ w" := (pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w) (at level 20) : bi_scope.
+Notation "sr ↦ₓ -" := (∃ w, pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
 
 (* Points to predicates for memory *)
 Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=LWord) a q w)
@@ -575,7 +575,7 @@ Section ghost_init.
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
-      ([∗ map] sr ↦ w ∈ sregs_handed_out (sreg σ), sr ↦ₛᵣ lword_of_word w) ∗
+      ([∗ map] sr ↦ w ∈ sregs_handed_out (sreg σ), sr ↦ₓ lword_of_word w) ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).

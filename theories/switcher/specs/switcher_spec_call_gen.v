@@ -441,7 +441,7 @@ Section Switcher.
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] wct1_caller ∗
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -503,7 +503,7 @@ Section Switcher.
       ct1 ↦ᵣ[th] wct1_caller ∗
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -602,7 +602,7 @@ Section Switcher.
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
         [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
@@ -693,7 +693,7 @@ Section Switcher.
     cstack_frag cstk -∗
     interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs) -∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗

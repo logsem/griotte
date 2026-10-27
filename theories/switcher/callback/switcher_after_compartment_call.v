@@ -44,7 +44,7 @@ Section Switcher_After_Compartment_Call.
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     csp ↦ᵣ[th] wcsp ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -55,7 +55,7 @@ Section Switcher_After_Compartment_Call.
         ct1 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset (S d)) ∗
         csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -148,7 +148,7 @@ Section Switcher_After_Compartment_Call.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
@@ -156,7 +156,7 @@ Section Switcher_After_Compartment_Call.
         ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset 0) ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard -∗
         WP Seq (Instr Executable) @[th] E {{ Φ }} )

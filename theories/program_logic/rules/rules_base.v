@@ -116,17 +116,17 @@ Section griotte_lang_rules.
   (* ------------------------- system registers points-to --------------------------------- *)
 
   Lemma map_of_sregs_1 (sr1: SRegName) (w1: LWord) :
-    sr1 ↦ₛᵣ w1 -∗
-    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₛᵣ y).
+    sr1 ↦ₓ w1 -∗
+    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₓ y).
   Proof. rewrite big_sepM_singleton; auto. Qed.
 
   Lemma sregs_of_map_1 (sr1: SRegName) (w1: LWord) :
-    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₛᵣ y) -∗
-    sr1 ↦ₛᵣ w1.
+    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₓ y) -∗
+    sr1 ↦ₓ w1.
   Proof. rewrite big_sepM_singleton; auto. Qed.
 
   Lemma sregname_neq sr1 sr2 w1 w2 :
-    sr1 ↦ₛᵣ w1 -∗ sr2 ↦ₛᵣ w2 -∗ ⌜ sr1 ≠ sr2 ⌝.
+    sr1 ↦ₓ w1 -∗ sr2 ↦ₓ w2 -∗ ⌜ sr1 ≠ sr2 ⌝.
   Proof.
     iIntros "H1 H2" (->).
     iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv _].
@@ -134,8 +134,8 @@ Section griotte_lang_rules.
   Qed.
 
   Lemma map_of_sregs_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
-    sr1 ↦ₛᵣ w1 -∗ sr2 ↦ₛᵣ w2 -∗
-    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₛᵣ y) ∗ ⌜ sr1 ≠ sr2 ⌝.
+    sr1 ↦ₓ w1 -∗ sr2 ↦ₓ w2 -∗
+    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₓ y) ∗ ⌜ sr1 ≠ sr2 ⌝.
   Proof.
     iIntros "H1 H2". iPoseProof (sregname_neq with "H1 H2") as "%Hne".
     rewrite !big_sepM_insert ?big_sepM_empty; eauto.
@@ -145,8 +145,8 @@ Section griotte_lang_rules.
 
   Lemma sregs_of_map_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
     sr1 ≠ sr2 →
-    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₛᵣ y) -∗
-    sr1 ↦ₛᵣ w1 ∗ sr2 ↦ₛᵣ w2.
+    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₓ y) -∗
+    sr1 ↦ₓ w1 ∗ sr2 ↦ₓ w2.
   Proof.
     iIntros (Hne) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; eauto.
     + by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
@@ -667,9 +667,9 @@ Section griotte_lang_rules.
     @trap_tval_res = @trap_tval_res_def := trap_tval_res_aux.(seal_eq).
 
   Definition trap_entry_out_def (P_mcause P_mtval : Z → Prop) (w : LWord) : iProp Σ :=
-    MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₛᵣ lword_of_word (WInt v)).
+    MEPCC ↦ₓ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
+    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
   #[local] Definition trap_entry_out_aux : seal (@trap_entry_out_def). Proof. by eexists. Qed.
   Definition trap_entry_out_cause := trap_entry_out_aux.(unseal).
   #[local] Definition trap_entry_out_unseal :
@@ -688,9 +688,9 @@ Section griotte_lang_rules.
       mtval ([rules_vcsr] turns them into the views of the lent registers). *)
   Lemma trap_entry_out_unfold P_mcause P_mtval w :
     trap_entry_out_cause P_mcause P_mtval w ⊣⊢
-    MEPCC ↦ₛᵣ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₛᵣ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₛᵣ lword_of_word (WInt v)).
+    MEPCC ↦ₓ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
+    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
   Proof. by rewrite trap_entry_out_unseal. Qed.
 
   (** Weaker cause and value predicates. *)
@@ -714,8 +714,8 @@ Section griotte_lang_rules.
     ∃ wepcc wcause,
       ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
       sreg_interp lsreg ∗
-      MEPCC ↦ₛᵣ wepcc ∗
-      MCAUSE ↦ₛᵣ wcause.
+      MEPCC ↦ₓ wepcc ∗
+      MCAUSE ↦ₓ wcause.
   Proof.
     rewrite trap_vcsr_res_unseal.
     iIntros "[Hsr Hres] Htok". iNamed "Hres".
@@ -731,8 +731,8 @@ Section griotte_lang_rules.
       trap-entry token without [Ntval] comes back. *)
   Lemma sreg_interp_trap_return lsreg wepcc wcause :
     sreg_interp lsreg -∗
-    MEPCC ↦ₛᵣ wepcc -∗
-    MCAUSE ↦ₛᵣ wcause -∗
+    MEPCC ↦ₓ wepcc -∗
+    MCAUSE ↦ₓ wcause -∗
     ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
     sreg_interp lsreg ∗
     trap_vcsr_res.
@@ -752,7 +752,7 @@ Section griotte_lang_rules.
       [Ntval] comes back. *)
   Lemma sreg_interp_tval_return lsreg (z : Z) :
     sreg_interp lsreg -∗
-    MTVAL ↦ₛᵣ lword_of_word (WInt z) -∗
+    MTVAL ↦ₓ lword_of_word (WInt z) -∗
     sreg_interp lsreg ∗
     trap_tval_res.
   Proof.
@@ -769,8 +769,8 @@ Section griotte_lang_rules.
       back. *)
   Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
     to_val e = None →
-    MEPCC ↦ₛᵣ wepcc -∗
-    MCAUSE ↦ₛᵣ wcause -∗
+    MEPCC ↦ₓ wepcc -∗
+    MCAUSE ↦ₓ wcause -∗
     (trap_vcsr_res -∗ WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
@@ -788,7 +788,7 @@ Section griotte_lang_rules.
       instruction: the token of [Ntval] comes back. *)
   Lemma wp_tval_return E e Φ (z : Z) :
     to_val e = None →
-    MTVAL ↦ₛᵣ lword_of_word (WInt z) -∗
+    MTVAL ↦ₓ lword_of_word (WInt z) -∗
     (trap_tval_res -∗ WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.

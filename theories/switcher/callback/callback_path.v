@@ -43,11 +43,11 @@ Section Callback_Path.
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard
         ={E}=∗
@@ -95,7 +95,7 @@ Section Callback_Path.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -106,7 +106,7 @@ Section Callback_Path.
         ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
           load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -196,12 +196,12 @@ Section Callback_Path.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗

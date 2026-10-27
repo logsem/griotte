@@ -55,7 +55,7 @@ Section Switcher_KtK_Call.
 
     (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) ∗
     na_own (tpool th) (F ∖ ↑Nswitcher) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗

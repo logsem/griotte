@@ -49,14 +49,14 @@ Section griotte_lang_rules.
      else True) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
         ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
-        ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+        ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dsregs φ) "(>HPC & >Hpc_a & >Hsmap) Hφ".
@@ -103,12 +103,12 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ mepcc ↦ₛᵣ vepcc }}}
+        ∗ ▷ mepcc ↦ₓ vepcc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ vepcc
           ∗ pc_a ↦ₐ{dq} w
-          ∗ mepcc ↦ₛᵣ vepcc }}}.
+          ∗ mepcc ↦ₓ vepcc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hepcc) Hφ".
     iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".

@@ -108,7 +108,7 @@ Section AllocatorFreeTailBlocks.
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
     ca2 ↦ᵣ wa2 ∗
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
-    mtdc ↦ₛᵣ wmtdc ∗
+    mtdc ↦ₓ wmtdc ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -121,7 +121,7 @@ Section AllocatorFreeTailBlocks.
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
        ca2 ↦ᵣ WInt (e - b) ∗
        ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
-       mtdc ↦ₛᵣ wmtdc ∗
+       mtdc ↦ₓ wmtdc ∗
        revoke_post ι ∗
        ι ⊒ AQuar ∗
        codefrag_pers pc_a allocator_free_tail_code
@@ -236,7 +236,7 @@ Section AllocatorFreeTailBlocks.
     ca4 ↦ᵣ w4 ∗
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-    mtdc ↦ₛᵣ wmtdc ∗
+    mtdc ↦ₓ wmtdc ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -254,7 +254,7 @@ Section AllocatorFreeTailBlocks.
        ca4 ↦ᵣ WInt (b - e) ∗
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-       mtdc ↦ₛᵣ wmtdc ∗
+       mtdc ↦ₓ wmtdc ∗
        ι ↦st{1} ADead ∗
        ι ⊒ AQuar ∗
        ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗

@@ -508,7 +508,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
-       mtdc ↦ₛᵣ wmtdc ∗
+       mtdc ↦ₓ wmtdc ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
        ▷ (na_own (tpool th) F ∗
@@ -528,7 +528,7 @@ Section AllocatorFree.
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
           ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
-          mtdc ↦ₛᵣ wmtdc ∗
+          mtdc ↦ₓ wmtdc ∗
           ι ⊒ AQuar ∗
           £ 1
 

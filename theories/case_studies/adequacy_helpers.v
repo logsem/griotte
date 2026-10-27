@@ -89,7 +89,7 @@ Section adequacy_helpers.
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
       cstack_full (entry_cstack ef) -∗
-      mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
+      mtdc ↦ₓ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
       na_inv (tpool th) Nswitcher switcher_inv ∗

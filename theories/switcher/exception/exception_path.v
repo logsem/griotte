@@ -682,7 +682,7 @@ Section Switcher_Spec_Exception.
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₛᵣ tstack_cap -∗
+               mtdc ↦ₓ tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
                  ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗

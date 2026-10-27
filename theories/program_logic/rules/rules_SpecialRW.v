@@ -125,7 +125,7 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
-        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}
       Instr Executable @ Ep
     {{{ lpc' regs' sregs' retv, RET retv;
@@ -134,7 +134,7 @@ Section griotte_lang_rules.
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
-        ([∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)
+        ([∗ map] k↦y ∈ sregs', k ↦ₓ y)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Dsregs φ) "(>HPC & >Hpc_a & >Hmap & >Hsmap) Hφ".
@@ -165,7 +165,7 @@ Section griotte_lang_rules.
       instr_fail Hstep.
       apply SpecialRW_spec_failure; [done|done| |done]. by apply SpecialRW_fail_incrPC. }
     (* The ghost system registers *)
-    iAssert (|==> sreg_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₛᵣ y)%I
+    iAssert (|==> sreg_interp lsreg' ∗ [∗ map] k↦y ∈ sregs', k ↦ₓ y)%I
       with "[Hsr Hsmap]" as ">[Hsr Hsmap]".
     { rewrite /sreg_interp. iDestruct "Hsr" as "[Hsr Hmst]".
       destruct Hup as [[-> ->] | (nv & -> & ->)]; first by iFrame.
@@ -237,13 +237,13 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst
-        ∗ ▷ src ↦ₛᵣ wsrc }}}
+        ∗ ▷ src ↦ₓ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ lword_of_word wsrc
-          ∗ src ↦ₛᵣ wsrc }}}.
+          ∗ src ↦ₓ wsrc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
@@ -270,13 +270,13 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ dst ↦ₛᵣ wdst
+        ∗ ▷ dst ↦ₓ wdst
         ∗ ▷ src ↦ᵣ lword_of_word wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
-          ∗ dst ↦ₛᵣ legalise dst wsrc
+          ∗ dst ↦ₓ legalise dst wsrc
           ∗ src ↦ᵣ lword_of_word wsrc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc) Hφ".
@@ -308,13 +308,13 @@ Section griotte_lang_rules.
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r ↦ᵣ v
-        ∗ ▷ sr ↦ₛᵣ vold }}}
+        ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ vold
-          ∗ sr ↦ₛᵣ llegalise sr v }}}.
+          ∗ sr ↦ₓ llegalise sr v }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hr & >Hsr) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
@@ -348,14 +348,14 @@ Section griotte_lang_rules.
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ᵣ v
-        ∗ ▷ sr ↦ₛᵣ vold }}}
+        ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ vold
           ∗ src ↦ᵣ v
-          ∗ sr ↦ₛᵣ llegalise sr v }}}.
+          ∗ sr ↦ₓ llegalise sr v }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hdst Hsrc φ) "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsr) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hne]".
@@ -384,12 +384,12 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ sr ↦ₛᵣ vold }}}
+        ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
-          ∗ sr ↦ₛᵣ legalise sr (WInt z) }}}.
+          ∗ sr ↦ₓ legalise sr (WInt z) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' φ) "(>HPC & >Hpc_a & >Hsr) Hφ".
     iDestruct (map_of_sregs_1 with "Hsr") as "Hsmap".

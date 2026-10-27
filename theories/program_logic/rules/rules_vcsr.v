@@ -39,7 +39,7 @@ Section vcsr.
 
   (** The view of a lent volatile register [sr] (MEPCC, mcause or mtval),
       holding [vsr]. *)
-  Definition vcsr_frag_def (sr : SRegName) (vsr : LWord) : iProp Σ := sr ↦ₛᵣ vsr.
+  Definition vcsr_frag_def (sr : SRegName) (vsr : LWord) : iProp Σ := sr ↦ₓ vsr.
   #[local] Definition vcsr_frag_aux : seal (@vcsr_frag_def). Proof. by eexists. Qed.
   Definition vcsr_frag := vcsr_frag_aux.(unseal).
   #[local] Definition vcsr_frag_unseal : @vcsr_frag = @vcsr_frag_def := vcsr_frag_aux.(seal_eq).
@@ -297,7 +297,7 @@ Section vcsr.
     iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
     set sr := MSTATUS.
     iDestruct "Hmstatus" as (vold) "Hpt".
-    iAssert (∀ vnew, sr ↦ₛᵣ vnew -∗ sreg_reserved)%I
+    iAssert (∀ vnew, sr ↦ₓ vnew -∗ sreg_reserved)%I
       with "[Hwin Hwin_tval Hmtcc]" as "Hback".
     { iIntros (vnew) "Hmstatus". iFrame. }
     iDestruct (map_of_sregs_1 with "Hpt") as "Hsmap".

@@ -31,13 +31,13 @@ Section Exception_Entry.
   #[local] Lemma exception_entry_block_spec (wcsp : LWord) (wregs wold : list LWord) :
     PC ↦ₚ[th] switcher_label_pc "exception_entry_asm" ∗
     csp ↦ᵣ[th] wcsp ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₓ tstack_cap ∗
     ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
     ([∗ list] r;w ∈ exception_spill_regs;wold, (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
         csp ↦ᵣ[th] tstack_cap ∗
-        mtdc ↦ₛᵣ wcsp ∗
+        mtdc ↦ₓ wcsp ∗
         ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
         ([∗ list] r;w ∈ exception_spill_regs;wregs,
            (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) -∗
@@ -84,7 +84,7 @@ Section Exception_Entry.
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ca0 ↦ᵣ[th] wca0 ∗
-    mtdc ↦ₛᵣ wcsp ∗
+    mtdc ↦ₓ wcsp ∗
     b_trusted_stack ↦ₐ ws0 ∗
     (b_trusted_stack ^+ 2)%a ↦ₐ ws2 ∗
     (b_trusted_stack ^+ 17)%a ↦ₐ ws17 ∗
@@ -99,7 +99,7 @@ Section Exception_Entry.
           ct0 ↦ᵣ[th] lmepcc_of_pc w ∗
           ct1 ↦ᵣ[th] WInt cause ∗
           ca0 ↦ᵣ[th] WInt zca0 ∗
-          mtdc ↦ₛᵣ WInt 0 ∗
+          mtdc ↦ₓ WInt 0 ∗
           b_trusted_stack ↦ₐ lmepcc_of_pc w ∗
           (b_trusted_stack ^+ 2)%a ↦ₐ wcsp ∗
           (b_trusted_stack ^+ 17)%a ↦ₐ wst ∗
@@ -225,7 +225,7 @@ Section Exception_Entry.
     ca3 ↦ᵣ[th] wca3 ∗
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₓ tstack_cap ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     switcher_code ∗
@@ -248,7 +248,7 @@ Section Exception_Entry.
           ca3 ↦ᵣ[th] wca3 ∗
           ca4 ↦ᵣ[th] wca4 ∗
           ca5 ↦ᵣ[th] wca5 ∗
-          mtdc ↦ₛᵣ WInt 0 ∗
+          mtdc ↦ₓ WInt 0 ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ exception_spill save_area (lmepcc_of_pc w)
                  [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1;

@@ -27,13 +27,13 @@ Section Switcher_Trusted_Stack_Push.
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
     ctp ↦ᵣ[th] wctp ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     switcher_hazard ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
         ctp ↦ᵣ[th] hazard_slots_cap ∗
         ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
         [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ
           [[ region_addrs_zeroes b_hazard_slots e_hazard_slots ]] -∗

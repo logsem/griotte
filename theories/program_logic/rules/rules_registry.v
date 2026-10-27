@@ -80,19 +80,19 @@ Section rules_registry.
     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    MTDC ↦ₛᵣ vmtdc -∗
+    MTDC ↦ₓ vmtdc -∗
     |~{E}~>
       ι ↦st{1} AQuar ∗ ι ⊒ AQuar ∗
       ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
       PC ↦ₚ lpc ∗
       ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
-      MTDC ↦ₛᵣ vmtdc.
+      MTDC ↦ₓ vmtdc.
   Proof.
     iIntros (Hfull Hclean) "#Hobj Htok Hcells HPC Hmap Hmtdc".
     iApply (si_upd_ghost _
       (alloc_obj ι b e' ∗ ι ↦st{1} APainting ∗
        ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
-       PC ↦ₚ lpc ∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ MTDC ↦ₛᵣ vmtdc)%I
+       PC ↦ₚ lpc ∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ MTDC ↦ₓ vmtdc)%I
       with "[$Hobj $Htok $Hcells $HPC $Hmap $Hmtdc]").
     intros σ. iApply si_ghost_update_pc.
     iIntros (lpc' lreg lsreg lmem R C Her)

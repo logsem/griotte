@@ -180,7 +180,7 @@ Section fundamental.
 
     switcher_trap_safety -∗
     switcher_inv_opened cstk' a_tstk -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -261,7 +261,7 @@ Section fundamental.
       ct1 ↦ᵣ[th] wct1 ∗
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee lv ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -358,7 +358,7 @@ Section fundamental.
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ lv ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -434,7 +434,7 @@ Section fundamental.
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
         [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -523,7 +523,7 @@ Section fundamental.
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     cstack_frag cstk -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) -∗

@@ -48,7 +48,7 @@ Section Handle_Error.
     ct1 ↦ᵣ[th] wct1 ∗
     ctp ↦ᵣ[th] wctp ∗
     ca0 ↦ᵣ[th] wca0 ∗
-    mtdc ↦ₛᵣ wmtdc ∗
+    mtdc ↦ₓ wmtdc ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_code ∗
@@ -60,7 +60,7 @@ Section Handle_Error.
           ct1 ↦ᵣ[th] wmepcc ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] wca0 ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
@@ -73,7 +73,7 @@ Section Handle_Error.
           ct1 ↦ᵣ[th] wct1' ∗
           ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
           ca0 ↦ᵣ[th] WInt 0 ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) @[th] {{ HO th }} ) )
@@ -309,7 +309,7 @@ Section Handle_Error.
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₛᵣ wmtdc ∗
+    mtdc ↦ₓ wmtdc ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_code ∗
@@ -323,7 +323,7 @@ Section Handle_Error.
           ca0 ↦ᵣ[th] wca0 ∗
           ca1 ↦ᵣ[th] wca1 ∗
           ct2 ↦ᵣ[th] wct2 ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
@@ -337,7 +337,7 @@ Section Handle_Error.
           ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ct2 ↦ᵣ[th] switcher_label_pc ".Lswitch_just_return" ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ <[ Z.to_nat TrustedStack_offset_ca0 := (WInt ENOTENOUGHSTACK : LWord) ]>
                  (<[ Z.to_nat TrustedStack_offset_ca1 := (WInt 0 : LWord) ]> save_area) ]] ∗
@@ -354,7 +354,7 @@ Section Handle_Error.
           ca0 ↦ᵣ[th] WInt 0 ∗
           ca1 ↦ᵣ[th] wca1 ∗
           ct2 ↦ᵣ[th] wct2 ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
           WP Seq (Instr Executable) @[th] {{ HO th }} ) )

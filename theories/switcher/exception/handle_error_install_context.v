@@ -104,7 +104,7 @@ Section Handle_Error_Install_Context.
     ca2 ↦ᵣ[th] wca2 ∗
     ca3 ↦ᵣ[th] wca3 ∗
     ca4 ↦ᵣ[th] wca4 ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₓ tstack_cap ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     a_cnt_cell ↦ₐ WInt n ∗
@@ -133,7 +133,7 @@ Section Handle_Error_Install_Context.
           ca2 ↦ᵣ[th] - ∗
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt n ∗
@@ -155,7 +155,7 @@ Section Handle_Error_Install_Context.
           ca2 ↦ᵣ[th] - ∗
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₓ tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt (n + 1) ∗
