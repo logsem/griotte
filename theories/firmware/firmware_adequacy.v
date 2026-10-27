@@ -1511,11 +1511,11 @@ Section resources.
   (** The resources shared by the threads: the invariants of the switcher
       and of the assert library, the memory of every compartment (trusted or
       not), the sealing types handed to the trusted code, the world of each
-      logical compartment, and the heap. They are stated at the instance of
-      the user thread [0], whose layout the switcher invariant describes, in
-      its pool. *)
+      logical compartment, and the heap. The switcher invariant is in the
+      pool of the user thread [0], whose layout it describes; the predicates
+      generic in [ceriseG] are taken at the instance of that thread, the
+      shared heaps at the base. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
     let sw := img_sw img in
     let asrt := img_asrt img in
     "Hswitcher" ∷
@@ -1525,11 +1525,14 @@ Section resources.
     "Hseal_switcher" ∷
       seal_pred (ot_switcher sw)
         (ot_switcher_propC (th := UserThread 0) (swlayout := fw_switcher_layout img)) ∗
-    "Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "Hassert" ∷
+      assert_static (ceriseg := ceriseG_of (UserThread 0))
+        (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷
       ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
-    "Hworlds" ∷ ([∗ set] C ∈ CNames, world_interp fw_world0 C) ∗
+    "Hworlds" ∷
+      ([∗ set] C ∈ CNames, world_interp (ceriseg := ceriseG_of (UserThread 0)) fw_world0 C) ∗
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
@@ -1537,7 +1540,6 @@ Section resources.
   (** The resources of the thread [i], the user thread [i]: its registers,
       its stack, its call stack and the non-atomic token of its pool. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
-    let ceriseg : ceriseG Σ := ceriseG_of (UserThread i) in
     let t := thread_of img i in
     "HPC" ∷ PC ↦ₚ[u i] fw_entry_pc fw img i ∗
     "Hcgp" ∷ cgp ↦ᵣ[u i] fw_entry_cgp fw img i ∗
@@ -1545,8 +1547,8 @@ Section resources.
     "Hcra" ∷ cra ↦ᵣ[u i] fw_thread_cra img ∗
     "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ[u i] w) ∗
     "Hstack" ∷
-      [[ b_stack t, e_stack t ]] ↦ₐ
-        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0) ]] ∗
+      region_pointsto (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
+        (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
     "Hcstk" ∷ cstack_frag (entry_cstack (fw_entry_frame fw img i)) ∗
     "Hna" ∷ na_own (tpool (UserThread i)) ⊤.
 End resources.
@@ -1679,7 +1681,6 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
     (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
     (cstackg : CSTACKG Σ),
     firmware_ok fw img σ →
-    let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
     ⊢ fw_shared_res fw img -∗
       fw_thread_res fw img 0
       ={⊤}=∗
@@ -1719,9 +1720,9 @@ Proof.
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
     [exact Hinit | exact Hnull | | exact Hstep].
-  iIntros (ceriseb ceriseg Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
+  iIntros (ceriseb Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
-  iMod (initialise_world (finite.enum CmptName)
+  iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0)) (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0))
     as (sealsg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & Hworlds)";
     [done | apply finite.NoDup_enum |].
@@ -1731,9 +1732,11 @@ Proof.
   iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc";
     first by apply lookup_sregs_handed_out_mtdc, Hsreg.
   (* The memory and the registers, by part. *)
-  iDestruct (firmware_ok_mem_split fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")
+  iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0))
+              fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")
     as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthread)".
-  iDestruct (firmware_ok_regs_split fw img (w_pc, regs, sregs, m, sh) Hok with "[$HPC $Hreg]")
+  iDestruct (firmware_ok_regs_split (ceriseg := ceriseG_of (UserThread 0))
+              fw img (w_pc, regs, sregs, m, sh) Hok with "[$HPC $Hreg]")
     as "(HPC & Hcgp & Hcsp & Hcra & Hregs)".
   subst sh.
   (* The assert library. *)
@@ -1763,7 +1766,7 @@ Proof.
   apply big_and_fw_map in Hcmpts_wf.
   rewrite Hthreads in Hthreads_wf. apply big_and_cons in Hthreads_wf as [Hthread0 _].
   destruct (thread_entry_frame_words _ _ _ _ Hcmpts_wf Hthread0) as (_ & _ & Htbl_cap).
-  iMod (initialise_switcher_compartment swc
+  iMod (initialise_switcher_compartment (th := UserThread 0) swc
           (fw_thread_csp img 0) (fw_entry_tbl fw img 0)
           (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img 0)) Hmtcc
          with "Hswitcher Hseal_switcher Hcstk_full Hmtdc")

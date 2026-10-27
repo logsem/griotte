@@ -551,15 +551,14 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParam
      (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
      ⊢ fw_init_res (th := UserThread 0) fw img
        ={⊤}=∗
        WP Seq (Instr Executable) @[u 0] {{ _, True }}) →
   fw_obligations Σ fw.
 Proof.
-  intros Hentry Hprep img σ ceriseb sealsg stsg relg cstackg Hok ceriseg.
+  intros Hentry Hprep img σ ceriseb sealsg stsg relg cstackg Hok.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
-  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
+  iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_cra_eq) in "Hcra".
   iEval (rewrite fw_thread_of_0) in "Hstack".
@@ -877,17 +876,16 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} `{MP : Ma
      (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
      ⊢ fw_setup_res (th := UserThread 0) fw img
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
-         world_interp W C ∗
+         world_interp (ceriseg := ceriseG_of (UserThread 0)) W C ∗
          interp (th := UserThread 0) W C (fw_entry_pcc fw img 0) ∗
          interp (th := UserThread 0) W C (fw_entry_cgp fw img 0) ∗
          interp (th := UserThread 0) W C (fw_thread_csp img 0)) →
   fw_obligations Σ fw.
 Proof.
-  intros Huntrusted Hsetup img σ ceriseb sealsg stsg relg cstackg Hok ceriseg.
+  intros Huntrusted Hsetup img σ ceriseb sealsg stsg relg cstackg Hok.
   pose proof Hok as (_ & _ & Hregs & Hwf).
   destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
   rewrite /fw_entry_untrusted in Huntrusted.
@@ -906,7 +904,7 @@ Proof.
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
   iDestruct "Hseal_switcher" as "#Hseal_switcher".
   iDestruct "Hassert" as "#Hassert".
-  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
+  iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   (* The export table of the entry compartment *)
   iDestruct (fw_cmpts_res_pers with "Hcmpts") as "[Hcmpts #Hpers_all]".
   iDestruct (big_sepL_elem_of with "Hpers_all") as "Hpers"; first exact Hin.
@@ -933,9 +931,9 @@ Proof.
   iAssert (registers_pointsto (th := UserThread 0) regs)
     with "[Hcgp Hcsp Hcra Hregs]" as "Hrmap".
   { rewrite /registers_pointsto /regs.
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcra").
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcgp").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcra").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcsp").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcgp").
     iExact "Hregs". }
   assert (∀ r, is_Some (regs !! r)) as Hfull.
   { intros r. rewrite /regs.

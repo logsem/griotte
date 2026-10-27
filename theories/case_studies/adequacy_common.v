@@ -141,7 +141,7 @@ End initial_rootedness.
     non-atomic invariant token) and must produce a WP for the machine together with
     the invariant of the assert flag. The machine runs as the user thread [0]:
     its PC, registers and pool are those of [UserThread 0] in the base; the
-    shared heaps are stated at its instance. *)
+    shared heaps are stated at the base. *)
 Lemma cerise_flag_adequacy (Σ : gFunctors)
   {inv_preg : invGpreS Σ}
   {cerise_preg : ceriseGpreS Σ}
@@ -153,7 +153,6 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
   (∀ (ceriseb : ceriseBaseG Σ),
-     let ceriseg : ceriseG Σ := ceriseG_of (UserThread 0) in
      (* the trap vector of [ceriseb] is the one of the initial state *)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
      PC ↦ₚ[u 0] lword_of_word pc -∗

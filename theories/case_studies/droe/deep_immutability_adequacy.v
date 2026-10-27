@@ -28,7 +28,7 @@ Section droe_obligations.
     fw_obligations Σ droe_firmware.
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok ceriseg.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.

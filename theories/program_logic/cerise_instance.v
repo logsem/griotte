@@ -124,20 +124,22 @@ Notation "x" := x (in custom thread at level 0, x constr at level 0).
 
 (** The resources shared by the threads, and the per-thread ones as maps
     from threads: the PC, the general registers and the non-atomic pool
-    [tpool th]. The system registers are shared. Only [na_invG] and the
-    trap vector, both shared, are [::] fields, so typeclass search finds a
-    per-thread heap only through [ceriseG_of]. The trap vector has a low
-    priority: with a thread in scope, [mtcc_vec] elaborates through
-    [ceriseG_of] as in the rule library; without one, through the base. Both
-    are the same trap vector. *)
+    [tpool th]. The system registers are shared. The shared fields are [::]
+    fields, the per-thread maps are not, so typeclass search finds a
+    per-thread heap only through [ceriseG_of]. The shared fields other than
+    [na_invG] have a low priority: with a thread in scope, the invariants,
+    the memory, the shadow table, the system registers, the registry, the
+    address claims and [mtcc_vec] elaborate through [ceriseG_of] as in the
+    rule library; without one, through the base. Both are the same
+    resources. *)
 Class ceriseBaseG Σ := CeriseBaseG {
-  cb_invG : invGS Σ;
+  cb_invG :: invGS Σ | 100;
   cb_na_invG :: na_invariants.na_invG Σ;
-  cb_mem : gen_heapGS Addr LWord Σ;
-  cb_shadow : gen_heapGS Addr AllocStatus Σ;
-  cb_sreg : gen_heapGS SRegName LWord Σ;
-  cb_registry : allocRegistryG Σ;
-  cb_addr_alloc : addrAllocG Σ;
+  cb_mem :: gen_heapGS Addr LWord Σ | 100;
+  cb_shadow :: gen_heapGS Addr AllocStatus Σ | 100;
+  cb_sreg :: gen_heapGS SRegName LWord Σ | 100;
+  cb_registry :: allocRegistryG Σ | 100;
+  cb_addr_alloc :: addrAllocG Σ | 100;
   cb_trapVector :: trapVector | 100;
   cb_pc_of : Thread → pcG Σ;
   cb_regs_of : Thread → gen_heapGS RegName LWord Σ;
@@ -319,6 +321,20 @@ Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
   (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
+
+(** A fancy update stated with only a base in scope is at the base's
+    [cb_invG]. Iris's [elim_modal_fupd_wp] states the update at the WP's
+    [iris_invGS], which typeclass search does not unify with [cb_invG]:
+    this instance eliminates such an update in the WP of any thread. *)
+#[global] Instance elim_modal_base_fupd_wp `{MP : MachineParameters} {Σ}
+    {ceriseb : ceriseBaseG Σ} (th : Thread) p E e (P : iProp Σ) Φ :
+  ElimModal True p false
+    (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cb_invG Σ ceriseb))) E E P) P
+    (WP e @[th] E {{ Φ }}) (WP e @[th] E {{ Φ }}).
+Proof.
+  exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG (ceriseg := ceriseG_of th))
+           p NotStuck E e P Φ).
+Qed.
 
 (** Texan triples of thread [th], as Iris's. *)
 Notation "'{{{' P } } } e '@[' th ] E {{{ x .. y , 'RET' pat ; Q } } }" :=
