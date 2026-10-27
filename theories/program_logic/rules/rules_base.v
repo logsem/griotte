@@ -3,7 +3,8 @@ From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
 From griotte Require Export iris_extra stdpp_extra griotte_lang.
-From griotte Require Export machine_base cerise_instance register_file machine_instructions.
+From griotte Require Export machine_base state_interp register_file machine_instructions.
+From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
@@ -23,7 +24,7 @@ Ltac inv_base_step :=
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -33,186 +34,6 @@ Section griotte_lang_rules.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
-
-
-  (* Conditionally unify on the read register value *)
-  Definition read_reg_inr  (regs : LReg) (r : RegName) (t : bool) p g b e a :=
-    match regs !! r with
-      | Some (WCap t' p' g' b' e' a' @@? _) => WCap t' p' g' b' e' a' = WCap t p g b e a
-      | Some _ => True
-      | None => False end.
-
-  (* ------------------------- registers points-to --------------------------------- *)
-
-  Lemma regname_dupl_false r w1 w2 :
-    r ↦ᵣ w1 -∗ r ↦ᵣ w2 -∗ False.
-  Proof.
-    iIntros "Hr1 Hr2".
-    iDestruct (pointsto_valid_2 with "Hr1 Hr2") as %?.
-    destruct H. eapply dfrac_full_exclusive in H. auto.
-  Qed.
-
-  Lemma regname_neq r1 r2 w1 w2 :
-    r1 ↦ᵣ w1 -∗ r2 ↦ᵣ w2 -∗ ⌜ r1 ≠ r2 ⌝.
-  Proof.
-    iIntros "H1 H2" (?). subst r1. iApply (regname_dupl_false with "H1 H2").
-  Qed.
-
-  Lemma map_of_regs_0 : ⊢ [∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y.
-  Proof. by rewrite big_sepM_empty. Qed.
-
-  Lemma map_of_regs_1 (r1: RegName) (w1: LWord) :
-    r1 ↦ᵣ w1 -∗
-    ([∗ map] k↦y ∈ {[r1 := w1]}, k ↦ᵣ y).
-  Proof. rewrite big_sepM_singleton; auto. Qed.
-
-  Lemma regs_of_map_1 (r1: RegName) (w1: LWord) :
-    ([∗ map] k↦y ∈ {[r1 := w1]}, k ↦ᵣ y) -∗
-    r1 ↦ᵣ w1.
-  Proof. rewrite big_sepM_singleton; auto. Qed.
-
-  Lemma map_of_regs_2 (r1 r2: RegName) (w1 w2: LWord) :
-    r1 ↦ᵣ w1 -∗ r2 ↦ᵣ w2 -∗
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> ∅)), k ↦ᵣ y) ∗ ⌜ r1 ≠ r2 ⌝.
-  Proof.
-    iIntros "H1 H2". iPoseProof (regname_neq with "H1 H2") as "%".
-    rewrite !big_sepM_insert ?big_sepM_empty; eauto.
-    2: by apply lookup_insert_None; split; eauto.
-    iFrame. eauto.
-  Qed.
-
-  Lemma regs_of_map_2 (r1 r2: RegName) (w1 w2: LWord) :
-    r1 ≠ r2 →
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> ∅)), k ↦ᵣ y) -∗
-    r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2.
-  Proof.
-    iIntros (?) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; eauto.
-    + by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
-    + apply lookup_insert_None; split; eauto.
-  Qed.
-
-  Lemma map_of_regs_3 (r1 r2 r3: RegName) (w1 w2 w3: LWord) :
-    r1 ↦ᵣ w1 -∗ r2 ↦ᵣ w2 -∗ r3 ↦ᵣ w3 -∗
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> (<[r3:=w3]> ∅))), k ↦ᵣ y) ∗
-     ⌜ r1 ≠ r2 ∧ r1 ≠ r3 ∧ r2 ≠ r3 ⌝.
-  Proof.
-    iIntros "H1 H2 H3".
-    iPoseProof (regname_neq with "H1 H2") as "%".
-    iPoseProof (regname_neq with "H1 H3") as "%".
-    iPoseProof (regname_neq with "H2 H3") as "%".
-    rewrite !big_sepM_insert ?big_sepM_empty; simplify_map_eq; eauto.
-    iFrame. eauto.
-  Qed.
-
-  Lemma regs_of_map_3 (r1 r2 r3: RegName) (w1 w2 w3: LWord) :
-    r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
-    ([∗ map] k↦y ∈ (<[r1:=w1]> (<[r2:=w2]> (<[r3:=w3]> ∅))), k ↦ᵣ y) -∗
-    r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ r3 ↦ᵣ w3.
-  Proof.
-    iIntros (? ? ?) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; simplify_map_eq; eauto.
-    iDestruct "Hmap" as "(? & ? & ? & _)"; iFrame.
-  Qed.
-
-  (* ------------------------- system registers points-to --------------------------------- *)
-
-  Lemma map_of_sregs_1 (sr1: SRegName) (w1: LWord) :
-    sr1 ↦ₓ w1 -∗
-    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₓ y).
-  Proof. rewrite big_sepM_singleton; auto. Qed.
-
-  Lemma sregs_of_map_1 (sr1: SRegName) (w1: LWord) :
-    ([∗ map] k↦y ∈ {[sr1 := w1]}, k ↦ₓ y) -∗
-    sr1 ↦ₓ w1.
-  Proof. rewrite big_sepM_singleton; auto. Qed.
-
-  Lemma sregname_neq sr1 sr2 w1 w2 :
-    sr1 ↦ₓ w1 -∗ sr2 ↦ₓ w2 -∗ ⌜ sr1 ≠ sr2 ⌝.
-  Proof.
-    iIntros "H1 H2" (->).
-    iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv _].
-    by apply dfrac_full_exclusive in Hv.
-  Qed.
-
-  Lemma map_of_sregs_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
-    sr1 ↦ₓ w1 -∗ sr2 ↦ₓ w2 -∗
-    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₓ y) ∗ ⌜ sr1 ≠ sr2 ⌝.
-  Proof.
-    iIntros "H1 H2". iPoseProof (sregname_neq with "H1 H2") as "%Hne".
-    rewrite !big_sepM_insert ?big_sepM_empty; eauto.
-    2: by apply lookup_insert_None; split; eauto.
-    iFrame. eauto.
-  Qed.
-
-  Lemma sregs_of_map_2 (sr1 sr2: SRegName) (w1 w2: LWord) :
-    sr1 ≠ sr2 →
-    ([∗ map] k↦y ∈ (<[sr1:=w1]> (<[sr2:=w2]> ∅)), k ↦ₓ y) -∗
-    sr1 ↦ₓ w1 ∗ sr2 ↦ₓ w2.
-  Proof.
-    iIntros (Hne) "Hmap". rewrite !big_sepM_insert ?big_sepM_empty; eauto.
-    + by iDestruct "Hmap" as "(? & ? & _)"; iFrame.
-    + apply lookup_insert_None; split; eauto.
-  Qed.
-
-  (* ------------------------- memory points-to --------------------------------- *)
-
-  Lemma addr_dupl_false a w1 w2 :
-    a ↦ₐ w1 -∗ a ↦ₐ w2 -∗ False.
-  Proof.
-    iIntros "Ha1 Ha2".
-    iDestruct (pointsto_valid_2 with "Ha1 Ha2") as %?.
-    destruct H. eapply dfrac_full_exclusive in H.
-    auto.
-  Qed.
-
-  (* -------------- semantic heap + a map of pointsto -------------------------- *)
-
-  Lemma gen_heap_valid_inSepM':
-    ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
-      (σ σ' : gmap L V) (q : Qp),
-      gen_heap_interp σ -∗
-      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
-      ⌜forall (l: L) (v: V), σ' !! l = Some v → σ !! l = Some v⌝.
-  Proof.
-    intros *. iIntros "? Hmap" (l v Hσ').
-    rewrite (big_sepM_delete _ σ' l) //. iDestruct "Hmap" as "[? ?]".
-    iApply (gen_heap_valid with "[$]"). eauto.
-  Qed.
-
-  Lemma gen_heap_valid_inclSepM:
-    ∀ (L V : Type) (EqDecision0 : EqDecision L) (H : Countable L)
-      (Σ : gFunctors) (gen_heapG0 : gen_heapGS L V Σ)
-      (σ σ' : gmap L V) (q : Qp),
-      gen_heap_interp σ -∗
-      ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn q) y) -∗
-      ⌜σ' ⊆ σ⌝.
-  Proof.
-    intros *. iIntros "Hσ Hmap".
-    iDestruct (gen_heap_valid_inSepM' with "Hσ Hmap") as "#H".
-    iDestruct "H" as %Hincl. iPureIntro. intro l.
-    unfold option_relation.
-    destruct (σ' !! l) eqn:HH'; destruct (σ !! l) eqn:HH; naive_solver.
-  Qed.
-
-  Lemma gen_heap_update_inSepM :
-    ∀ {L V : Type} {EqDecision0 : EqDecision L}
-      {H : Countable L} {Σ : gFunctors}
-      {gen_heapG0 : gen_heapGS L V Σ}
-      (σ σ' : gmap L V) (l : L) (v : V),
-      is_Some (σ' !! l) →
-      gen_heap_interp σ
-      -∗ ([∗ map] k↦y ∈ σ', pointsto k (DfracOwn 1) y)
-      ==∗ gen_heap_interp (<[l:=v]> σ)
-          ∗ [∗ map] k↦y ∈ (<[l:=v]> σ'), pointsto k (DfracOwn 1) y.
-  Proof.
-    intros * Hσ'. destruct Hσ'.
-    rewrite (big_sepM_delete _ σ' l) //. iIntros "Hh [Hl Hmap]".
-    iMod (gen_heap_update with "Hh Hl") as "[Hh Hl]". iModIntro.
-    iSplitL "Hh"; eauto.
-    rewrite (big_sepM_delete _ (<[l:=v]> σ') l).
-    { rewrite delete_insert_eq. iFrame. }
-    rewrite lookup_insert_eq //.
-  Qed.
 
   Program Definition wp_lift_atomic_base_step_no_fork_determ {s E Φ} e1 :
     to_val e1 = None →
@@ -236,232 +57,24 @@ Section griotte_lang_rules.
       iModIntro. iFrame. inv Hs1; auto.
   Qed.
 
-  (* -------------- predicates on memory maps -------------------------- *)
-
-  Lemma memMap_resource_0  :
-        True ⊣⊢ ([∗ map] a↦w ∈ ∅, a ↦ₐ w).
-  Proof.
-    by rewrite big_sepM_empty.
-  Qed.
-
-  Lemma memMap_resource_1 (a : Addr) (w : LWord)  :
-        a ↦ₐ w  ⊣⊢ ([∗ map] a↦w ∈ <[a:=w]> ∅, a ↦ₐ w)%I.
-  Proof.
-    rewrite big_sepM_delete; last by apply lookup_insert_eq.
-    rewrite delete_insert_id; last by auto. rewrite -memMap_resource_0.
-    iSplit; iIntros "HH".
-    - iFrame.
-    - by iDestruct "HH" as "[HH _]".
-  Qed.
-
-  Lemma memMap_resource_1_dq (a : Addr) (w : LWord) dq :
-        a ↦ₐ{dq} w  ⊣⊢ ([∗ map] a↦w ∈ <[a:=w]> ∅, a ↦ₐ{dq} w)%I.
-  Proof.
-    rewrite big_sepM_delete; last by apply lookup_insert_eq.
-    rewrite delete_insert_id; last by auto. rewrite big_sepM_empty.
-    iSplit; iIntros "HH".
-    - iFrame.
-    - by iDestruct "HH" as "[HH _]".
-  Qed.
-
-  Lemma memMap_resource_2ne (a1 a2 : Addr) (w1 w2 : LWord)  :
-    a1 ≠ a2 → ([∗ map] a↦w ∈  <[a1:=w1]> (<[a2:=w2]> ∅), a ↦ₐ w)%I ⊣⊢ a1 ↦ₐ w1 ∗ a2 ↦ₐ w2.
-  Proof.
-    intros.
-    rewrite big_sepM_delete; last by apply lookup_insert_eq.
-    rewrite (big_sepM_delete _ _ a2 w2); rewrite delete_insert_id; try by rewrite lookup_insert_ne. 2: by rewrite lookup_insert_eq.
-    rewrite delete_insert_id; auto.
-    rewrite -memMap_resource_0.
-    iSplit; iIntros "HH".
-    - iDestruct "HH" as "[H1 [H2 _ ] ]".  iFrame.
-    - iDestruct "HH" as "[H1 H2]". iFrame.
-  Qed.
-
-  Lemma address_neq a1 a2 w1 w2 :
-    a1 ↦ₐ w1 -∗ a2 ↦ₐ w2 -∗ ⌜a1 ≠ a2⌝.
-  Proof.
-    iIntros "Ha1 Ha2".
-    destruct (finz_eq_dec a1 a2); auto. subst.
-    iExFalso. iApply (addr_dupl_false with "[$Ha1] [$Ha2]").
-  Qed.
-
-  Lemma big_sepL2_disjoint_pointsto (la1 : list Addr) (lw1 : list LWord)
-    (a : Addr) (w : LWord) :
-    ⊢ ([∗ list] a1;w1 ∈ la1;lw1, a1 ↦ₐ w1) ∗ a ↦ₐ w -∗ ⌜ a ∉ la1 ⌝.
-  Proof.
-    generalize dependent lw1.
-    induction la1 as [|a1 la1]; iIntros (lw1) "[Hla1 Ha]".
-    - iPureIntro ; set_solver.
-    - destruct lw1; first done.
-      rewrite big_sepL2_cons.
-      iDestruct "Hla1" as "[Ha1 Hla1]".
-      iDestruct (address_neq with "[$] [$]") as "%".
-      rewrite not_elem_of_cons.
-      iSplit ; first done.
-      iApply IHla1; last iFrame.
-  Qed.
-
-
-  Lemma big_sepL2_disjoint (la1 la2 : list Addr) (lw1 lw2 : list LWord) :
-    ⊢ ([∗ list] a1;w1 ∈ la1;lw1, a1 ↦ₐ w1) ∗ ([∗ list] a2;w2 ∈ la2;lw2, a2 ↦ₐ w2) -∗ ⌜ la1 ## la2 ⌝.
-  Proof.
-    generalize dependent lw2.
-    induction la2 as [|a2 la2]; iIntros (lw2) "[Hla1 Hla2]".
-    - iPureIntro ; set_solver.
-    - destruct lw2; first done.
-      rewrite big_sepL2_cons.
-      iDestruct "Hla2" as "[Ha2 Hla2]".
-      iDestruct (big_sepL2_disjoint_pointsto with "[$Hla1 $Ha2]") as "%Ha_l1".
-      rewrite /disjoint /set_disjoint_instance.
-      iIntros (a Ha Ha').
-      iDestruct (IHla2 with "[$Hla1 $Hla2]") as "%Hla_disjoint"; auto.
-      exfalso.
-      apply elem_of_cons in Ha'.
-      destruct Ha' as [->|Ha']; first congruence.
-      by apply Hla_disjoint in Ha.
-  Qed.
-
-
-
-  Lemma memMap_resource_2ne_apply (a1 a2 : Addr) (w1 w2 : LWord)  :
-    a1 ↦ₐ w1 -∗ a2 ↦ₐ w2 -∗ ([∗ map] a↦w ∈  <[a1:=w1]> (<[a2:=w2]> ∅), a ↦ₐ w) ∗ ⌜a1 ≠ a2⌝.
-  Proof.
-    iIntros "Hi Hr2a".
-    iDestruct (address_neq  with "Hi Hr2a") as %Hne; auto.
-    iSplitL; last by auto.
-    iApply memMap_resource_2ne; auto. iSplitL "Hi"; auto.
-  Qed.
-
-  Lemma memMap_resource_2gen_d_dq (Φ : Addr → dfrac → LWord → iProp Σ) (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord)  :
-    ( ∃ mem dfracs, ([∗ map] a↦wq ∈ prod_merge dfracs mem, Φ a wq.1 wq.2) ∧
-       ⌜ (if  (a2 =? a1)%a
-       then mem =  (<[a1:=w1]> ∅)
-          else mem = <[a1:=w1]> (<[a2:=w2]> ∅)) ∧
-       (if  (a2 =? a1)%a
-       then dfracs = (<[a1:=dq1]> ∅)
-       else dfracs = <[a1:=dq1]> (<[a2:=dq2]> ∅))⌝
-    ) -∗ (Φ a1 dq1 w1 ∗ if (a2 =? a1)%a then emp else Φ a2 dq2 w2) .
-  Proof.
-    iIntros "Hmem". iDestruct "Hmem" as (mem dfracs) "[Hmem [Hif Hif'] ]".
-    destruct ((a2 =? a1)%a) eqn:Heq.
-    - iDestruct "Hif" as %->. iDestruct "Hif'" as %->.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1));auto. rewrite merge_empty.
-      iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]". auto.
-    - iDestruct "Hif" as %->. iDestruct "Hif'" as %->.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1));auto.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq2,w2));auto.
-      rewrite merge_empty.
-      iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]".
-      { rewrite lookup_insert_ne;auto. apply Z.eqb_neq in Heq. solve_addr. }
-      iDestruct (big_sepM_insert with "Hmem") as "[$ Hmem]". auto.
-  Qed.
-
-
-  Lemma memMap_resource_2gen_clater_dq (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord) (Φ : Addr -> dfrac → LWord -> iProp Σ)  :
-    (▷ Φ a1 dq1 w1) -∗
-    (if (a2 =? a1)%a then emp else ▷ Φ a2 dq2 w2) -∗
-    (∃ mem dfracs, ▷ ([∗ map] a↦wq ∈ prod_merge dfracs mem, Φ a wq.1 wq.2) ∗
-       ⌜(if  (a2 =? a1)%a
-       then mem = (<[a1:=w1]> ∅)
-       else mem = <[a1:=w1]> (<[a2:=w2]> ∅)) ∧
-       (if  (a2 =? a1)%a
-       then dfracs = (<[a1:=dq1]> ∅)
-       else dfracs = <[a1:=dq1]> (<[a2:=dq2]> ∅))⌝
-    )%I.
-  Proof.
-    iIntros "Hc1 Hc2".
-    destruct (a2 =? a1)%a eqn:Heq.
-    - iExists (<[a1:= w1]> ∅),(<[a1:= dq1]> ∅); iSplitL; auto. iNext.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1));auto. rewrite merge_empty.
-      iApply big_sepM_insert;[|by iFrame].
-      auto.
-    - iExists (<[a1:=w1]> (<[a2:=w2]> ∅)),(<[a1:=dq1]> (<[a2:=dq2]> ∅)); iSplitL; auto.
-      iNext.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1));auto.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq2,w2));auto.
-      rewrite merge_empty.
-      iApply big_sepM_insert;[|iFrame].
-      { apply Z.eqb_neq in Heq. rewrite lookup_insert_ne//. congruence. }
-      iApply big_sepM_insert;[|by iFrame]. auto.
-  Qed.
-
-  Lemma memMap_resource_2ne_dq (a1 a2 : Addr) (dq1 dq2 : dfrac) (w1 w2 : LWord) :
-    a1 ≠ a2 →
-    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq1]> (<[a2:=dq2]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
-       a ↦ₐ{dw.1} dw.2)%I ⊣⊢ a1 ↦ₐ{dq1} w1 ∗ a2 ↦ₐ{dq2} w2.
-  Proof.
-    intros Hne.
-    rewrite /prod_merge -(insert_merge _ _ _ _ (dq1,w1)); auto.
-    rewrite -(insert_merge _ _ _ _ (dq2,w2)); auto.
-    rewrite merge_empty big_sepM_insert; last by rewrite lookup_insert_ne.
-    by rewrite big_sepM_insert // big_sepM_empty right_id.
-  Qed.
-
-  (* The fetched instruction word may be shared, the other cell is exclusive. *)
-  Lemma memMap_resource_2ne_apply_dq (a1 a2 : Addr) (dq : dfrac) (w1 w2 : LWord) :
-    a1 ↦ₐ{dq} w1 -∗ a2 ↦ₐ w2 -∗
-    ([∗ map] a↦dw ∈ prod_merge (<[a1:=dq]> (<[a2:=DfracOwn 1]> ∅)) (<[a1:=w1]> (<[a2:=w2]> ∅)),
-       a ↦ₐ{dw.1} dw.2) ∗ ⌜a1 ≠ a2⌝.
-  Proof.
-    iIntros "H1 H2".
-    iDestruct (pointsto_ne with "H2 H1") as %Hne.
-    rewrite memMap_resource_2ne_dq; last done.
-    iFrame. iPureIntro. done.
-  Qed.
-
-  Lemma mem_remove_dq mem dq :
-    ([∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ⊣⊢
-    ([∗ map] a↦dw ∈ (prod_merge (create_gmap_default (elements (dom mem)) dq) mem), a ↦ₐ{dw.1} dw.2).
-  Proof.
-    iInduction (mem) as [|a k mem] "IH" using map_ind.
-    - rewrite big_sepM_empty dom_empty_L elements_empty
-              /= /prod_merge merge_empty big_sepM_empty. done.
-    - rewrite dom_insert_L.
-      assert (elements ({[a]} ∪ dom mem) ≡ₚ a :: elements (dom mem)) as Hperm.
-      { apply elements_union_singleton. apply not_elem_of_dom. auto. }
-      apply (create_gmap_default_permutation _ _ dq) in Hperm. rewrite Hperm /=.
-      rewrite /prod_merge -(insert_merge _ _ _ _ (dq,k)) //.
-      iSplit.
-      + iIntros "Hmem". iDestruct (big_sepM_insert with "Hmem") as "[Ha Hmem]";auto.
-        iApply big_sepM_insert.
-        { rewrite lookup_merge /prod_op /=.
-          destruct (create_gmap_default (elements (dom mem)) dq !! a);auto; rewrite H;auto. }
-        iFrame. iApply "IH". iFrame.
-      + iIntros "Hmem". iDestruct (big_sepM_insert with "Hmem") as "[Ha Hmem]";auto.
-        { rewrite lookup_merge /prod_op /=.
-          destruct (create_gmap_default (elements (dom mem)) dq !! a);auto; rewrite H;auto. }
-        iApply big_sepM_insert; auto.
-        iFrame. iApply "IH". iFrame.
-  Qed.
-
-  (* a more general version of load to work also with any fraction and persistent points tos *)
-  Lemma gen_mem_valid_inSepM_general:
-    ∀ mem0 (m : LMem) (a : Addr) (w : LWord) dq,
-      mem0 !! a = Some (dq,w) →
-      gen_heap_interp m
-                   -∗ ([∗ map] a↦dqw ∈ mem0, pointsto a dqw.1 dqw.2)
-                   -∗ ⌜m !! a = Some w⌝.
-  Proof.
-    iIntros (mem0 m a w dq Hmem_pc) "Hm Hmem".
-    iDestruct (big_sepM_delete _ _ a with "Hmem") as "[Hpc_a Hmem]"; eauto.
-    iDestruct (gen_heap_valid with "Hm Hpc_a") as %?; auto.
-  Qed.
-
   (* ------------------------- the state interpretation --------------------------- *)
 
   (** The common start of every instruction rule: the logical PC and the
       instruction word give the physical ones, and the instruction is decoded
       from the physical copy. The continuation closes the state
-      interpretation after the physical step. *)
+      interpretation after the physical step. The system registers are one
+      argument [lsreg] and one hypothesis ["Hsr"]; the continuation shows
+      that the step keeps MIE and mtdc ([sys_kept]), so that it keeps the
+      link. *)
   Lemma wp_instr_step E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) dq (regs : LReg) Φ :
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     ▷ PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
     ▷ pc_a ↦ₐ{dq} w -∗
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSReg) (lmem : LMem)
+    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
        ("%Her" ∷ ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
-                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lsreg lmem⌝ ∗
+                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
@@ -469,7 +82,7 @@ Section griotte_lang_rules.
                      (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
-        "Hsr" ∷ sreg_interp lsreg ∗
+        "Hsr" ∷ sys_interp lsreg ∗
         "Hm" ∷ gen_heap_interp lmem ∗
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
@@ -478,13 +91,14 @@ Section griotte_lang_rules.
         "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
        ==∗
+       ⌜sys_kept (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) σ'⌝ ∗
        cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ /=". destruct σ1 as [[[[pc r] sr] m] st]; cbn.
-    iNamed "Hσ".
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
@@ -498,8 +112,105 @@ Section griotte_lang_rules.
     iIntros "_". iSplitR; first done.
     eapply step_exec_inv in Hstep; eauto; cbn in Hstep.
     rewrite (mem_word_ok_decode _ _ _ _ Hok) in Hstep.
-    iApply ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $HPC $Hpc_a $Hmap]").
-    by iFrame "%".
+    iMod ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $HPC $Hpc_a $Hmap]")
+      as "([%Hk1 %Hk2] & $ & $)"; first by iFrame "%".
+    iModIntro. iApply (crit_link_stable with "Hlink"); done.
+  Qed.
+
+  (** The same for a step that may change MIE or mtdc: the continuation
+      receives the link and gives back the link of the new state. *)
+  Lemma wp_instr_step_link E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) dq (regs : LReg) Φ :
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    ▷ PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
+    ▷ pc_a ↦ₐ{dq} w -∗
+    ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
+       (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
+       ("%Her" ∷ ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
+                    (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
+        "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
+        "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
+        "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
+        "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
+                     (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
+        "HPCa" ∷ PC_auth (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
+        "Hr" ∷ gen_heap_interp lreg ∗
+        "Hsr" ∷ sys_interp lsreg ∗
+        "Hm" ∷ gen_heap_interp lmem ∗
+        "Hst" ∷ gen_heap_interp st ∗
+        "HR" ∷ reg_auth R ∗
+        "HC" ∷ addr_alloc_auth C ∗
+        "Hlink" ∷ crit_link (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) ∗
+        "HPC" ∷ PC ↦ₚ (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
+        "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
+        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
+       ==∗
+       (cerise_state_interp σ' ∗ crit_link σ') ∗ from_option Φ False (to_val (Instr c)))
+    -∗ WP Instr Executable @ E {{ Φ }}.
+  Proof.
+    iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
+    iApply wp_lift_atomic_base_step_no_fork; auto.
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    iMod "HPC". iMod "Hpc_a". iMod "Hmap".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hregs.
+    iDestruct (gen_heap_valid with "Hm Hpc_a") as %Hpc_a.
+    pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hregs) as Hregs'.
+    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
+    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
+    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
+    iNext. iIntros (e2 σ2 efs Hpstep).
+    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
+    iIntros "_". iSplitR; first done.
+    eapply step_exec_inv in Hstep; eauto; cbn in Hstep.
+    rewrite (mem_word_ok_decode _ _ _ _ Hok) in Hstep.
+    iMod ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $Hlink $HPC $Hpc_a $Hmap]")
+      as "[ [$ $] $]"; first by iFrame "%".
+    done.
+  Qed.
+
+  (** Closes a step that keeps MIE and mtdc, under [wp_instr_step_link]. *)
+  Lemma instr_close_link_kept σ σ' (X : iProp Σ) :
+    crit_link σ -∗
+    (|==> ⌜sys_kept σ σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
+    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗ X.
+  Proof.
+    iIntros "Hlink >([%Hk1 %Hk2] & $ & $)". iModIntro.
+    iApply (crit_link_stable with "Hlink"); done.
+  Qed.
+
+  (** At the core link, any closing closes a step that may change MIE or
+      mtdc. *)
+  Lemma instr_close_core σ1 σ' (X : iProp Σ) :
+    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
+    |==> (cerise_state_interp σ' ∗ @crit_link Σ link_core σ') ∗ X.
+  Proof. iIntros ">(_ & $ & $)". done. Qed.
+
+  (** Closes a step that may change MIE or mtdc from [σ0], through a
+      closing from [σ1] (the state after the write): the link is
+      transferred with [T1] for [T2], which the postcondition receives. *)
+  Lemma instr_close_link_transfer (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
+      σ0 σ1 σ' (Ψ : griotte_lang.val → iProp Σ) (c : ConfFlag) :
+    link_transfer P T1 T2 →
+    (sys_kept σ1 σ' → P σ0 σ') →
+    crit_link σ0 -∗ T1 -∗
+    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
+          from_option (λ v, T2 -∗ Ψ v) False (to_val (Instr c))) -∗
+    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗ from_option Ψ False (to_val (Instr c)).
+  Proof.
+    iIntros (Htr HP) "Hlink HT >(%Hk & $ & HΨ)".
+    iMod (Htr _ σ' (HP Hk) with "[$Hlink $HT]") as "[$ HT]". iModIntro.
+    destruct (to_val (Instr c)); cbn; [by iApply "HΨ" | done].
+  Qed.
+
+  (** A closing that keeps MIE and mtdc from a state that keeps them. *)
+  Lemma instr_close_kept_trans σ0 σ1 σ' (X : iProp Σ) :
+    sys_kept σ0 σ1 →
+    (|==> ⌜sys_kept σ1 σ'⌝ ∗ X) -∗
+    |==> ⌜sys_kept σ0 σ'⌝ ∗ X.
+  Proof.
+    iIntros (Hk) ">[%Hk' $]". iPureIntro. by eapply sys_kept_trans.
   Qed.
 
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
@@ -515,8 +226,8 @@ Section griotte_lang_rules.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 ns) "Hσ1 /="; destruct σ1 as [[[[pc r] sr] m] st]; simpl.
-    iNamed "Hσ1".
+    iIntros (σ1 nt l1 l2 ns) "[Hσ1 Hlink] /="; destruct σ1 as [ [ [ [pc r] sr] m] st]; simpl.
+    iDestruct (SI_open with "Hσ1") as "Hσ1". iNamed "Hσ1".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_not_correct _ _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
     iApply fupd_frame_l.
@@ -526,7 +237,7 @@ Section griotte_lang_rules.
     eapply step_fail_inv in Hstep as [-> ->]; eauto.
     iNext. iIntros "_".
     iModIntro. iSplitR; auto. iSplitR "Hϕ HPC"; last by iApply "Hϕ".
-    iExists w, lreg, lsreg, lmem, R, C. by iFrame.
+    iFrame "Hlink". iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   Lemma wp_notCorrectPC_tag E (w : LWord) :
@@ -556,8 +267,9 @@ Section griotte_lang_rules.
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
-    iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
+    iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
+    iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
+    iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   Lemma wp_fail E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
@@ -573,8 +285,9 @@ Section griotte_lang_rules.
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
-    iModIntro. iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
+    iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
+    iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
+    iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   (* ----------------------------------- PURE RULES ---------------------------------- *)
@@ -594,214 +307,6 @@ Section griotte_lang_rules.
     PureExec True 1 (Seq (Instr NextI)) (Seq (Instr Executable)).
   Proof. by solve_exec_pure. Qed.
 
-  (* ----------------------------------- TRAPS --------------------------------------- *)
-
-  (* Clients close faults with [wp_trap] (through [iTrap]) or with the
-     cause-aware rules of [rules_trap_cause.v]; the lemmas below are their
-     proof. *)
-
-  (** The fault causes: the named causes below 8, and the CHERI cause. *)
-  Definition mcause_ok (z : Z) : Prop := (0 ≤ z < 8)%Z ∨ z = 28%Z.
-
-  Lemma trap_cause_ok φ : mcause_ok (trap_cause φ).
-  Proof.
-    pose proof (trap_cause_range φ) as Hr.
-    rewrite /MCAUSE_INST_ACCESS_FAULT /MCAUSE_ILLEGAL_INSTRUCTION /MCAUSE_LOAD_ACCESS_FAULT
-      /MCAUSE_STORE_ACCESS_FAULT /MCAUSE_CHERI in Hr.
-    rewrite /mcause_ok. set_unfold. naive_solver lia.
-  Qed.
-
-  (** The trap-entry token is the token exchanged for MEPCC and mcause, and
-      the one of [Ntval], exchanged for mtval. *)
-  #[local] Lemma trap_token_split :
-    na_own cerise_pool (↑Ntrap) ⊣⊢
-    na_own cerise_pool (↑Ntrap ∖ ↑Ntval) ∗ na_own cerise_pool (↑Ntval).
-  Proof.
-    assert (↑Ntval ⊆@{coPset} ↑Ntrap) as Hsub by (rewrite /Ntval; solve_ndisj).
-    rewrite -na_own_union; last set_solver.
-    rewrite difference_union_L. f_equiv. set_solver.
-  Qed.
-
-  #[local] Lemma trap_vcsr_token_excl :
-    na_own cerise_pool (↑Ntrap ∖ ↑Ntval) -∗ na_own cerise_pool (↑Ntrap ∖ ↑Ntval) -∗ False.
-  Proof.
-    iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
-    destruct (nclose_infinite (Ntrap .@ "vcsr") []) as (i & Hi & _).
-    assert (↑Ntrap .@ "vcsr" ⊆@{coPset} ↑Ntrap ∖ ↑Ntval) as Hsub
-      by (rewrite /Ntval; solve_ndisj).
-    set_solver.
-  Qed.
-
-  #[local] Lemma trap_tval_token_excl :
-    na_own cerise_pool (↑Ntval) -∗ na_own cerise_pool (↑Ntval) -∗ False.
-  Proof.
-    iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
-    destruct (nclose_infinite Ntval []) as (i & Hi & _). set_solver.
-  Qed.
-
-  (* The resources trap entry consumes, and those it gives back to the
-     continuation from the trap vector, for a fault from the PC [w]: the
-     trap-entry token, and MEPCC, mcause with a cause that satisfies the
-     cause predicate [P_mcause], and mtval with a value that satisfies the
-     value predicate [P_mtval] ([trap_entry_out] for the fault causes and any
-     value). Sealed: [trap_entry_res_split] relates the token to the
-     non-atomic token, [trap_entry_res_vcsr_tval] splits it into the parts
-     exchanged for MEPCC and mcause ([trap_vcsr_res]) and for mtval
-     ([trap_tval_res]), and [trap_entry_out_unfold] gives the registers. *)
-  Definition trap_entry_res_def : iProp Σ := na_own cerise_pool (↑Ntrap).
-  #[local] Definition trap_entry_res_aux : seal (@trap_entry_res_def). Proof. by eexists. Qed.
-  Definition trap_entry_res := trap_entry_res_aux.(unseal).
-  #[local] Definition trap_entry_res_unseal :
-    @trap_entry_res = @trap_entry_res_def := trap_entry_res_aux.(seal_eq).
-
-  Definition trap_vcsr_res_def : iProp Σ := na_own cerise_pool (↑Ntrap ∖ ↑Ntval).
-  #[local] Definition trap_vcsr_res_aux : seal (@trap_vcsr_res_def). Proof. by eexists. Qed.
-  Definition trap_vcsr_res := trap_vcsr_res_aux.(unseal).
-  #[local] Definition trap_vcsr_res_unseal :
-    @trap_vcsr_res = @trap_vcsr_res_def := trap_vcsr_res_aux.(seal_eq).
-
-  Definition trap_tval_res_def : iProp Σ := na_own cerise_pool (↑Ntval).
-  #[local] Definition trap_tval_res_aux : seal (@trap_tval_res_def). Proof. by eexists. Qed.
-  Definition trap_tval_res := trap_tval_res_aux.(unseal).
-  #[local] Definition trap_tval_res_unseal :
-    @trap_tval_res = @trap_tval_res_def := trap_tval_res_aux.(seal_eq).
-
-  Definition trap_entry_out_def (P_mcause P_mtval : Z → Prop) (w : LWord) : iProp Σ :=
-    MEPCC ↦ₓ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
-  #[local] Definition trap_entry_out_aux : seal (@trap_entry_out_def). Proof. by eexists. Qed.
-  Definition trap_entry_out_cause := trap_entry_out_aux.(unseal).
-  #[local] Definition trap_entry_out_unseal :
-    @trap_entry_out_cause = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
-
-  (** The trap-entry token is the part exchanged for MEPCC and mcause, and
-      the part exchanged for mtval. *)
-  Lemma trap_entry_res_vcsr_tval :
-    trap_entry_res ⊣⊢ trap_vcsr_res ∗ trap_tval_res.
-  Proof.
-    rewrite trap_entry_res_unseal trap_vcsr_res_unseal trap_tval_res_unseal.
-    apply trap_token_split.
-  Qed.
-
-  (** The resources trap entry gives back, unfolded into MEPCC, mcause and
-      mtval ([rules_vcsr] turns them into the views of the lent registers). *)
-  Lemma trap_entry_out_unfold P_mcause P_mtval w :
-    trap_entry_out_cause P_mcause P_mtval w ⊣⊢
-    MEPCC ↦ₓ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
-  Proof. by rewrite trap_entry_out_unseal. Qed.
-
-  (** Weaker cause and value predicates. *)
-  Lemma trap_entry_out_cause_mono (P_mcause P_mcause' P_mtval P_mtval' : Z → Prop) w :
-    (∀ c : Z, P_mcause c → P_mcause' c) →
-    (∀ v : Z, P_mtval v → P_mtval' v) →
-    trap_entry_out_cause P_mcause P_mtval w -∗
-    trap_entry_out_cause P_mcause' P_mtval' w.
-  Proof.
-    rewrite trap_entry_out_unseal.
-    iIntros (HP_mcause HP_mtval) "[$ [(%c & %Hc & Hmcause) (%v & %Hv & Hmtval)]]".
-    iSplitL "Hmcause"; [iExists c | iExists v]; iFrame; iPureIntro;
-      [by apply HP_mcause | by apply HP_mtval].
-  Qed.
-
-  (** Lending MEPCC and mcause from the state interpretation, against the
-      trap-entry token without [Ntval]. *)
-  Lemma sreg_interp_trap_lend lsreg :
-    sreg_interp lsreg -∗
-    trap_vcsr_res -∗
-    ∃ wepcc wcause,
-      ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
-      sreg_interp lsreg ∗
-      MEPCC ↦ₓ wepcc ∗
-      MCAUSE ↦ₓ wcause.
-  Proof.
-    rewrite trap_vcsr_res_unseal.
-    iIntros "[Hsr Hres] Htok". iNamed "Hres".
-    iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause]] | Htok']"; last first.
-    { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
-    iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
-    iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
-    iExists wepcc, wcause. iSplit; first done.
-    iFrame "Hmepcc Hmcause Hsr Hmstatus Hwin_tval Hmtcc". by iRight.
-  Qed.
-
-  (** The return of MEPCC and mcause to the state interpretation: the
-      trap-entry token without [Ntval] comes back. *)
-  Lemma sreg_interp_trap_return lsreg wepcc wcause :
-    sreg_interp lsreg -∗
-    MEPCC ↦ₓ wepcc -∗
-    MCAUSE ↦ₓ wcause -∗
-    ⌜lsreg !! MEPCC = Some wepcc ∧ lsreg !! MCAUSE = Some wcause⌝ ∗
-    sreg_interp lsreg ∗
-    trap_vcsr_res.
-  Proof.
-    rewrite trap_vcsr_res_unseal.
-    iIntros "[Hsr Hres] Hmepcc Hmcause". iNamed "Hres".
-    iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
-    iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
-    iDestruct "Hwin" as "[[[%wepcc' Hmepcc'] _] | Htok]".
-    { iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
-    iSplit; first done.
-    iSplitR "Htok"; last done.
-    iFrame "Hsr Hmstatus Hwin_tval Hmtcc". iLeft. iSplitL "Hmepcc"; by iExists _.
-  Qed.
-
-  (** The return of mtval to the state interpretation: the token of
-      [Ntval] comes back. *)
-  Lemma sreg_interp_tval_return lsreg (z : Z) :
-    sreg_interp lsreg -∗
-    MTVAL ↦ₓ lword_of_word (WInt z) -∗
-    sreg_interp lsreg ∗
-    trap_tval_res.
-  Proof.
-    rewrite trap_tval_res_unseal.
-    iIntros "[Hsr Hres] Hmtval". iNamed "Hres".
-    iDestruct "Hwin_tval" as "[[%z' Hmtval'] | Htok]".
-    { iDestruct (pointsto_ne with "Hmtval Hmtval'") as %Hne. by exfalso; apply Hne. }
-    iSplitR "Htok"; last done.
-    iFrame "Hsr Hmstatus Hwin Hmtcc". iLeft. by iExists z.
-  Qed.
-
-  (** The return of MEPCC and mcause to the state interpretation, in front
-      of any instruction: the trap-entry token without [Ntval] comes
-      back. *)
-  Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
-    to_val e = None →
-    MEPCC ↦ₓ wepcc -∗
-    MCAUSE ↦ₓ wcause -∗
-    (trap_vcsr_res -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Hmepcc Hmcause HΦ".
-    rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct (sreg_interp_trap_return with "Hsr Hmepcc Hmcause") as "(_ & Hsr & Htok)".
-    iSpecialize ("HΦ" with "Htok").
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
-  Qed.
-
-  (** The return of mtval to the state interpretation, in front of any
-      instruction: the token of [Ntval] comes back. *)
-  Lemma wp_tval_return E e Φ (z : Z) :
-    to_val e = None →
-    MTVAL ↦ₓ lword_of_word (WInt z) -∗
-    (trap_tval_res -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Hmtval HΦ".
-    rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct (sreg_interp_tval_return with "Hsr Hmtval") as "[Hsr Htok]".
-    iSpecialize ("HΦ" with "Htok").
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
-  Qed.
-
   (** The register [cnull] holds the null word: read from the state
       interpretation, in front of any expression that is not a value. *)
   Lemma wp_reg_cnull_lnull E e Φ r w :
@@ -812,767 +317,40 @@ Section griotte_lang_rules.
   Proof.
     iIntros (He) "Hr' HΦ".
     rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
+    iIntros (σ1 ns κ κs nt) "[Hσ Hlink] /=".
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (gen_heap_valid with "Hr Hr'") as %Hlookup.
     iSpecialize ("HΦ" with "[%] Hr'").
     { intros ->. by eapply er_cnull. }
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
-  Qed.
-
-  (* The obligation of a fault from the PC [w]: either, under an update at
-     the time of the fault, the trap-entry token and the continuation from
-     the trap vector [mtcc_vec], or the postcondition of a stopped machine.
-     Sealed: clients consume it with [wp_trap] and produce it through the
-     closing lemmas [interp_trap_safe] (logical relation) and those of the
-     exception entry of the switcher (trusted code); [trap_safe_entry_intro]
-     is used only by those lemmas. The continuation receives a cause that
-     satisfies the cause predicate [P_mcause] and a value that satisfies the
-     value predicate [P_mtval] ([trap_safe] for the fault causes and any
-     value). *)
-  Definition trap_safe_def (P_mcause P_mtval : Z → Prop) (w : LWord) (E : coPset)
-    (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
-    (|={E}=> trap_entry_res ∗
-       ▷ (trap_entry_out_cause P_mcause P_mtval w -∗
-          PC ↦ₚ lword_of_word mtcc_vec -∗
-          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
-    ▷ Φ FaultedV.
-  #[local] Definition trap_safe_aux : seal (@trap_safe_def). Proof. by eexists. Qed.
-  Definition trap_safe_cause := trap_safe_aux.(unseal).
-  #[local] Definition trap_safe_unseal :
-    @trap_safe_cause = @trap_safe_def := trap_safe_aux.(seal_eq).
-
-  Lemma trap_safe_entry_intro P_mcause P_mtval w E Φ :
-    ((|={E}=> trap_entry_res ∗
-       ▷ (trap_entry_out_cause P_mcause P_mtval w -∗
-          PC ↦ₚ lword_of_word mtcc_vec -∗
-          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
-     ▷ Φ FaultedV) -∗
-    trap_safe_cause P_mcause P_mtval w E Φ.
-  Proof. rewrite trap_safe_unseal. by iIntros "H". Qed.
-
-  (** Stronger cause and value predicates. *)
-  Lemma trap_safe_cause_mono (P_mcause P_mcause' P_mtval P_mtval' : Z → Prop) w E Φ :
-    (∀ c : Z, P_mcause c → P_mcause' c) →
-    (∀ v : Z, P_mtval v → P_mtval' v) →
-    trap_safe_cause P_mcause' P_mtval' w E Φ -∗
-    trap_safe_cause P_mcause P_mtval w E Φ.
-  Proof.
-    rewrite trap_safe_unseal /trap_safe_def. iIntros (HP_mcause HP_mtval) "Hsafe". iSplit.
-    - iDestruct "Hsafe" as "[Hentry _]". iMod "Hentry" as "[$ Hcont]". iIntros "!> !> Hout".
-      iApply "Hcont". by iApply (trap_entry_out_cause_mono with "Hout").
-    - iDestruct "Hsafe" as "[_ $]".
-  Qed.
-
-  (** [trap_safe_cause] under an update, for a postcondition that holds of a
-      fault. *)
-  Lemma trap_safe_fupd (P_mcause P_mtval : Z → Prop) (w : LWord) (E : coPset)
-    (Φ : griotte_lang.val → iProp Σ) :
-    (|={E}=> trap_safe_cause P_mcause P_mtval w E Φ) ∗
-    ▷ Φ FaultedV ⊢
-    trap_safe_cause P_mcause P_mtval w E Φ.
-  Proof.
-    rewrite trap_safe_unseal /trap_safe_def.
-    iIntros "[H HΦ]". iSplit; last done.
-    iMod "H" as "[H _]". iExact "H".
-  Qed.
-
-  (* A fault, for a cause predicate [P_mcause] and a value predicate
-     [P_mtval] that the physical cause and value satisfy in every state that
-     erases to logical registers and memory containing [lregs] and the words
-     of [lm]. Each cell of [lm] is held at its own fraction. The register and
-     memory points-to are given back before the obligation
-     [trap_safe_cause P_mcause P_mtval w E Φ]. *)
-  Lemma wp_trap_gen_frac E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
-    (lm : gmap Addr (dfrac * LWord)) :
-    (∀ R C σ lreg lsreg lmem,
-       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → (snd <$> lm) ⊆ lmem →
-       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
-    PC ↦ₚ w -∗
-    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
-    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
-     trap_safe_cause P_mcause P_mtval w E Φ) -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
-    iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
-    iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "Hσ /=".
-    iNamed "Hσ".
-    iDestruct (PC_agree with "HPCa HPC") as %->.
-    iDestruct (gen_heap_valid_inclSepM with "Hr Hregs") as %Hregs.
-    iAssert ⌜(snd <$> lm) ⊆ lmem⌝%I as %Hmem.
-    { rewrite map_subseteq_spec. iIntros (a x Ha).
-      rewrite lookup_fmap in Ha.
-      destruct (lm !! a) as [[q x']|] eqn:Hlm; last done.
-      injection Ha as <-.
-      iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Hlm.
-      iApply (gen_heap_valid with "Hm Ha"). }
-    pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as [Hcause Htval].
-    iDestruct ("Hsafe" with "Hregs Hmem") as "[>[Htok HΦ] _]".
-    iDestruct (sreg_interp_mtcc with "Hsr") as %Htcc.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
-    (* The trap vector is an executable capability, so its physical copy is
-       exact. *)
-    assert (wtcc = mtcc_vec) as ->.
-    { destruct (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC _ eq_refl Htcc mtcc_vec_tagged)
-        as [_ Hx].
-      apply (reg_phys_executable R C (lword_of_word mtcc_vec)).
-      - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
-      - exact Hreltcc.
-      - apply mtcc_vec_tagged.
-      - exact Hx. }
-    assert (trap_halts σ1 = false) as Hnh.
-    { by rewrite /trap_halts /sreg_word Hwtcc /= mtcc_vec_tagged andb_false_r. }
-    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
-    iSplit.
-    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
-    iNext. iIntros (e2 σ2 efs Hstep) "_".
-    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts]; subst; last congruence.
-    iMod "Hclose" as "_".
-    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
-      as Her'.
-    iDestruct "Hsr" as "[Hsr Hres]". iNamed "Hres".
-    (* With the token in hand, MEPCC, mcause and mtval are held. *)
-    iDestruct (trap_token_split with "Htok") as "[Htok Htok_tval]".
-    iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
-    { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
-    iDestruct "Hwin_tval" as "[Hmtval | Htok']"; last first.
-    { iDestruct (trap_tval_token_excl with "Htok_tval Htok'") as %[]. }
-    iDestruct "Hmepcc" as (vepcc) "Hmepcc".
-    iDestruct "Hmstatus" as (vst) "Hmstatus".
-    iDestruct "Hmcause" as (vcause) "Hmcause".
-    iDestruct "Hmtval" as (ztval) "Hmtval".
-    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
-    iMod (gen_heap_update _ _ _
-            (lword_of_word (WInt (mstatus_enc InterruptDisabled
-                                    (mie_of (get_a (sreg_word σ1 MSTATUS))))))
-           with "Hsr Hmstatus") as "[Hsr Hmstatus]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
-           with "Hsr Hmcause") as "[Hsr Hmcause]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
-           with "Hsr Hmtval") as "[Hsr Hmtval]".
-    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "HΦ HPC Hmepcc Hmcause Hmtval".
-    - iExists (lword_of_word mtcc_vec), lreg,
-        (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w lsreg), lmem, R, C.
-      rewrite /lsregs_enter_exc /=. iFrame. by iPureIntro.
-    - iSplitL; last done.
-      iApply ("HΦ" with "[$Hmepcc Hmcause Hmtval] HPC").
-      iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
-  Qed.
-
-  (* A fault, from the configuration a faulting instruction returns: trap
-     entry, then the continuation from the trap vector. MTCC holds the tagged
-     trap vector [mtcc_vec], so the machine never stops on a fault. MEPCC
-     receives the PC, untagged if it is not a correct PC and without
-     identifier ([lmepcc_of_pc]), and the PC receives the trap vector. *)
-  Lemma wp_trap E Φ w :
-    PC ↦ₚ w -∗
-    trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    iIntros "HPC Hsafe".
-    iApply (wp_trap_gen_frac _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅
-             with "HPC [] [] [Hsafe]").
-    - intros R C σ lreg lsreg lmem _ _ _. split; [apply trap_cause_ok | done].
-    - by rewrite big_sepM_empty.
-    - by rewrite big_sepM_empty.
-    - iIntros "_ _". iExact "Hsafe".
-  Qed.
-
-  (* A fault, for a cause predicate [P_mcause] and a value predicate
-     [P_mtval] that the physical cause and value satisfy in every state that
-     erases to logical registers and memory containing [lregs] and [lm]. The
-     register and memory points-to are given back before the obligation
-     [trap_safe_cause P_mcause P_mtval w E Φ]. *)
-  Lemma wp_trap_gen E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg) (lm : LMem) dq :
-    (∀ R C σ lreg lsreg lmem,
-       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → lm ⊆ lmem →
-       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
-    PC ↦ₚ w -∗
-    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-     trap_safe_cause P_mcause P_mtval w E Φ) -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    iIntros (HP) "HPC Hregs Hmem Hsafe".
-    iApply (wp_trap_gen_frac _ _ _ _ _ _ ((λ x, (dq, x)) <$> lm)
-             with "HPC Hregs [Hmem] [Hsafe]").
-    - intros R C σ lreg lsreg lmem Her Hsub Hmsub. apply (HP _ _ _ _ _ _ Her Hsub).
-      by rewrite -map_fmap_compose map_fmap_id in Hmsub.
-    - by rewrite big_sepM_fmap.
-    - rewrite big_sepM_fmap /=. iExact "Hsafe".
-  Qed.
-
-  (* A fetch fault: the PC is not a correct PC. *)
-  Lemma wp_notCorrectPC_trap E Φ w :
-    ¬ isCorrectPC w.(lw) →
-    PC ↦ₚ w -∗
-    trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
-    WP Seq (Instr Executable) @ E {{ Φ }}.
-  Proof.
-    iIntros (Hnpc) "HPC Htrap".
-    iApply (wp_bind (fill [SeqCtx])).
-    iApply (wp_notCorrectPC with "HPC"); first done.
-    iIntros "!> HPC /=".
-    iApply (wp_trap with "HPC Htrap").
+    iApply ("HΦ" $! σ1 ns κ κs nt). iFrame "Hlink".
+    iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
 End griotte_lang_rules.
 
-(** The trap-entry token of a thread, against the thread's pool. *)
-Section thread_trap_tokens.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}.
-
-  (** The trap-entry token is part of the non-atomic token of any mask that
-      contains [Ntrap]. *)
-  Lemma trap_entry_res_split F :
-    ↑Ntrap ⊆ F →
-    na_own (tpool th) F ⊣⊢ trap_entry_res ∗ na_own (tpool th) (F ∖ ↑Ntrap).
-  Proof.
-    intros HF. rewrite trap_entry_res_unseal /trap_entry_res_def -na_own_union;
-      last set_solver.
-    by rewrite -union_difference_L.
-  Qed.
-End thread_trap_tokens.
-
-(** The resources and the obligation of trap entry for the fault causes
-    [mcause_ok] and any value. *)
-Notation trap_entry_out := (trap_entry_out_cause mcause_ok (λ _ : Z, True%type)).
-Notation trap_safe := (trap_safe_cause mcause_ok (λ _ : Z, True%type)).
-
-(* Closes a fault [WP Seq (Instr Faulted) @ E {{ Φ }}] with [wp_trap], from
-   the PC points-to [PC ↦ₚ w] of the context.
-   [iTrap] closes the obligation [trap_safe w E Φ] with a hypothesis of the
-   context, and fails if none matches.
-   [iTrap with "H"] closes the obligation by applying a fault premise ["H"]
-   of the form [∀ a, ⌜range⌝ -∗ R -∗ trap_safe (WCap … a) E Φ] (or
-   [R -∗ trap_safe w E Φ]): the range side condition is solved with
-   [solve_addr], or left to the caller as a pure goal, and the resources
-   [R] are framed from the context. *)
-Ltac instr_trap_pc :=
-  lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
-    lazymatch Γs with
-    | context [ Esnoc _ ?hpc (PC ↦ₚ _)%I ] => hpc
-    | _ => fail "iTrap: no PC points-to in the spatial context"
-    end
-  end.
-
-Ltac instr_trap_start :=
-  lazymatch goal with
-  | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
-  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
-  end;
-  let hpc := instr_trap_pc in
-  let pat := constr:(cons (SIdent hpc nil) nil) in
-  iApply (wp_trap with pat).
-
-Tactic Notation "iTrap" :=
-  instr_trap_start;
-  first [ iAssumption
-        | fail "iTrap: no hypothesis trap_safe w E Φ in the context; use iTrap with" ].
-Tactic Notation "iTrap" "with" constr(H) :=
-  instr_trap_start;
-  iApply H;
-  [ try (iPureIntro; try solve_addr) .. ];
-  try iFrame.
-
-(* Splits the points-to of a register map built by inserts into one
-   points-to per register; the inserted keys must be provably distinct. *)
-Ltac iRegsMap H :=
-  iRename H into "Hregs_map";
-  rewrite -?insert_empty;
-  repeat (
-    iDestruct (big_sepM_insert_delete with "Hregs_map") as "[? Hregs_map]";
-    repeat first [ rewrite delete_insert_eq
-                 | rewrite delete_insert_ne; [|first [done | by apply not_eq_sym]]
-                 | rewrite delete_empty ]);
-  iClear "Hregs_map".
-
-(* ----------------- useful definitions to factor out the wp specs ---------------- *)
-
-(*--- regs_of ---*)
-
-Definition regs_of_argument (arg: Z + RegName): gset RegName :=
-  match arg with
-  | inl _ => ∅
-  | inr r => {[ r ]}
-  end.
-
-(** The register operands of an instruction, read or written. *)
-Definition operands_of (i: instr): gset RegName :=
-  match i with
-  | Lea dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
-  | SetA dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
-  | GetP r1 r2 => {[ r1; r2 ]}
-  | GetB r1 r2 => {[ r1; r2 ]}
-  | GetE r1 r2 => {[ r1; r2 ]}
-  | GetLen r1 r2 => {[ r1; r2 ]}
-  | GetA r1 r2 => {[ r1; r2 ]}
-  | GetL r1 r2 => {[ r1; r2 ]}
-  | GetOType dst src => {[ dst; src ]}
-  | GetWType dst src => {[ dst; src ]}
-  | GetTag dst src => {[ dst; src ]}
-  | ClearTag dst src => {[ dst; src ]}
-  | machine_instructions.Add r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Sub r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Mul r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | LAnd r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | LOr r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | LShiftL r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | LShiftR r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Lt r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Le r arg1 arg2 => {[ r ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | Mov r arg => {[ r ]} ∪ regs_of_argument arg
-  | Restrict dst src arg => {[ dst; src ]} ∪ regs_of_argument arg
-  | Subseg dst src arg1 arg2 => {[ dst; src ]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2
-  | CLoad r1 r2 _ => {[ r1; r2 ]}
-  | Store r1 arg _ => {[ r1 ]} ∪ regs_of_argument arg
-  | Jeq off r1 r2 | Jne off r1 r2 | Jlt off r1 r2 | Jle off r1 r2 =>
-      regs_of_argument off ∪ regs_of_argument r1 ∪ regs_of_argument r2
-  | Jmp arg => regs_of_argument arg
-  | Jalr rdst rsrc => {[ rsrc; rdst ]}
-  | Seal dst r1 r2 => {[dst; r1; r2]}
-  | UnSeal dst r1 r2 => {[dst; r1; r2]}
-  | SpecialRW dst _ src => {[ dst ]} ∪ regs_of_argument src
-  | Auipcc dst _ => {[ dst ]}
-  | _ => ∅
-  end.
-
-(** The registers whose resources an instruction needs: its operands but
-    [cnull], which reads as 0 and drops writes. *)
-Definition regs_of (i: instr): gset RegName := operands_of i ∖ {[ cnull ]}.
-
-(** Every operand has a word: an owned one, or [cnull]'s. *)
-Lemma indom_lregs_incl D (regs regs': LReg) :
-  D ∖ {[ cnull ]} ⊆ dom regs →
-  regs ⊆ regs' →
-  ∀ r, r ∈ D →
-       ∃ (w:LWord), (regs !!ₗ r = Some w) ∧ (regs' !!ₗ r = Some w).
-Proof.
-  intros * HD Hincl rr Hr.
-  destruct (llookup_reg_of_dom _ _ _ HD Hr) as [w Hw].
-  exists w. split; auto. eapply llookup_reg_weaken; eauto.
-Qed.
-
-(** A register of [D] is [cnull] or owned. *)
-Lemma elem_of_lregs_dom D (regs : LReg) r :
-  D ∖ {[ cnull ]} ⊆ dom regs → r ∈ D → r = cnull ∨ r ∈ dom regs.
-Proof.
-  intros HD Hr. destruct (decide (r = cnull)) as [->|Hne]; first by left.
-  right. apply HD. set_solver.
-Qed.
-
-Definition sregs_of (i: instr): gset SRegName :=
-  match i with
-  | SpecialRW _ sr _ => {[ sr ]}
-  | Mret => {[ MEPCC ]}
-  | _ => ∅
-  end.
-
-Lemma indom_sregs_incl D (sregs sregs': LSReg) :
-  D ⊆ dom sregs →
-  sregs ⊆ sregs' →
-  ∀ sr, sr ∈ D →
-       ∃ (w:LWord), (sregs !! sr = Some w) ∧ (sregs' !! sr = Some w).
-Proof.
-  intros * HD Hincl rr Hr.
-  assert (is_Some (sregs !! rr)) as [w Hw].
-  { eapply @elem_of_dom with (D := gset SRegName); first typeclasses eauto.
-    eapply elem_of_subseteq; eauto. }
-  exists w. split; auto. eapply lookup_weaken; eauto.
-Qed.
-
-(*--- incrementPC ---*)
-
-(* The logical PC increment: the PC keeps its identifier. *)
-Definition incrementPC_gen (lpc : LWord) (n : Z) : option LWord :=
-  match lpc with
-  | WCap t p g b e a @@? π =>
-    match (a + n)%a with
-    | Some a' => Some (WCap t p g b e a' @@? π)
-    | None => None
-    end
-  | _ => None
-  end.
-
-Definition incrementPC (lpc : LWord) : option LWord := incrementPC_gen lpc 1.
-
-Lemma incrementPC_gen_Some_inv lpc lpc' n :
-  incrementPC_gen lpc n = Some lpc' ->
-  exists t p g b e a a' π,
-    lpc = WCap t p g b e a @@? π ∧
-    (a + n)%a = Some a' ∧
-    lpc' = WCap t p g b e a' @@? π.
-Proof.
-  unfold incrementPC_gen. destruct lpc as [w π].
-  destruct_word w; try congruence.
-  case_eq (a+n)%a; try congruence. intros ? ?. inversion 1.
-  do 8 eexists. split; eauto.
-Qed.
-Lemma incrementPC_Some_inv lpc lpc' :
-  incrementPC lpc = Some lpc' ->
-  exists t p g b e a a' π,
-    lpc = WCap t p g b e a @@? π ∧
-    (a + 1)%a = Some a' ∧
-    lpc' = WCap t p g b e a' @@? π.
-Proof. apply incrementPC_gen_Some_inv. Qed.
-
-Lemma incrementPC_gen_None_inv lpc (t : bool) p g b e a π n :
-  incrementPC_gen lpc n = None ->
-  lpc = WCap t p g b e a @@? π ->
-  (a + n)%a = None.
-Proof.
-  unfold incrementPC_gen. intros Hi ->.
-  destruct (a+n)%a; congruence.
-Qed.
-Lemma incrementPC_None_inv lpc (t : bool) p g b e a π :
-  incrementPC lpc = None ->
-  lpc = WCap t p g b e a @@? π ->
-  (a + 1)%a = None.
-Proof. apply incrementPC_gen_None_inv. Qed.
-
-Lemma incrementPC_add (t : bool) p g b e a a' π :
-  (a + 1)%a = Some a' →
-  incrementPC (WCap t p g b e a @@? π) = Some (WCap t p g b e a' @@? π).
-Proof. intros Ha. by rewrite /incrementPC /incrementPC_gen /= Ha. Qed.
-
-Lemma incrementPC_gen_add (t : bool) p g b e a a' π z :
-  (a + z)%a = Some a' →
-  incrementPC_gen (WCap t p g b e a @@? π) z = Some (WCap t p g b e a' @@? π).
-Proof. intros Ha. by rewrite /incrementPC_gen /= Ha. Qed.
-
-Ltac incrementPC_inv :=
-  match goal with
-  | H : incrementPC _ = Some _ |- _ =>
-    apply incrementPC_Some_inv in H as (?&?&?&?&?&?&?&?&?&?&?)
-  | H : incrementPC _ = None |- _ =>
-    eapply incrementPC_None_inv in H; [|reflexivity]
-  end; simplify_lmap_eq.
-
-Tactic Notation "incrementPC_inv" "as" simple_intropattern(pat):=
-  match goal with
-  | H : incrementPC _ = Some _ |- _ =>
-    apply incrementPC_Some_inv in H as pat
-  | H : incrementPC _ = None |- _ =>
-    eapply incrementPC_None_inv in H; [|reflexivity]
-  | H : incrementPC_gen _ _ = Some _ |- _ =>
-    apply incrementPC_gen_Some_inv in H as pat
-  | H : incrementPC_gen _ _ = None |- _ =>
-    eapply incrementPC_gen_None_inv in H; [|reflexivity]
-  end; simplify_lmap_eq.
-
-Section logical_lookups.
-  Context `{MP : MachineParameters}.
-
-  (** A register read: the physical word is a copy of the logical one. *)
-  Lemma llookup_reg_phys R (regs : LReg) (r : Reg) x (v : LWord) :
-    lregs_phys R regs r → regs !!ₗ x = Some v →
-    ∃ s, lookup_reg x r = Some (and_tag s v.(lw)) ∧ reg_phys R v (and_tag s v.(lw)).
-  Proof.
-    intros Hincl Hx. rewrite /llookup_reg in Hx. rewrite /lookup_reg.
-    case_decide; simplify_eq.
-    - exists true. split; first done. apply reg_phys_lnull.
-    - destruct (Hincl x v Hx) as (w & Hw & Hrel). rewrite Hw.
-      destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
-  Qed.
-
-  (** Integer reads are exact. *)
-  Lemma llookup_reg_phys_int R (regs : LReg) (r : Reg) x z π :
-    lregs_phys R regs r → regs !!ₗ x = Some (MkLWord (WInt z) π) → lookup_reg x r = Some (WInt z).
-  Proof. intros Hincl Hx. by destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _). Qed.
-
-  Lemma lz_of_argument_incl R (regs : LReg) (r : Reg) arg z :
-    lregs_phys R regs r → lz_of_argument regs arg = Some z → z_of_argument r arg = Some z.
-  Proof.
-    intros Hincl Hz. destruct arg as [z'|x]; cbn in *; first done.
-    destruct (regs !!ₗ x) as [v|] eqn:Hx; last done. simplify_eq.
-    destruct (llookup_reg_phys _ _ _ _ _ Hincl Hx) as (s & -> & _).
-    by rewrite /= get_a_and_tag.
-  Qed.
-
-  (** An operand register is [cnull] or owned. *)
-  Definition arg_owned (regs : LReg) (arg : Z + RegName) : Prop :=
-    ∀ x, arg = inr x → x ≠ cnull → x ∈ dom regs.
-
-  Lemma arg_owned_of_dom D (regs : LReg) arg :
-    D ∖ {[ cnull ]} ⊆ dom regs → regs_of_argument arg ⊆ D → arg_owned regs arg.
-  Proof. intros HD Harg x -> Hx. apply HD. rewrite /regs_of_argument in Harg. set_solver. Qed.
-
-  Lemma lz_of_argument_None R (regs : LReg) (r : Reg) arg :
-    lregs_phys R regs r → arg_owned regs arg →
-    lz_of_argument regs arg = None → z_of_argument r arg = None.
-  Proof.
-    intros Hincl Hdom Hz. destruct arg as [z|x]; cbn in *; first done.
-    destruct (regs !!ₗ x) as [v|] eqn:Hx.
-    - done.
-    - exfalso. rewrite /llookup_reg in Hx. case_decide as Hne; first done.
-      apply not_elem_of_dom in Hx. by apply Hx, Hdom.
-  Qed.
-
-  (** An operand whose register is in the map has an integer view. *)
-  Lemma lz_of_argument_dom (regs : LReg) arg :
-    arg_owned regs arg → is_Some (lz_of_argument regs arg).
-  Proof.
-    intros Hdom. apply lz_of_argument_is_Some. intros x ->.
-    apply is_Some_llookup_reg. destruct (decide (x = cnull)) as [->|Hne]; first by left.
-    right. by apply elem_of_dom, Hdom.
-  Qed.
-
-  (** The integer of a register holding the integer 0, [cnull] included. *)
-  Lemma lz_of_argument_singleton_zero r π :
-    lz_of_argument {[r := WInt 0 @@? π]} (inr r) = Some 0%Z.
-  Proof.
-    rewrite /lz_of_argument /llookup_reg lookup_singleton_eq /=.
-    by case_decide.
-  Qed.
-
-  Lemma lz_of_argument_phys R (regs : LReg) (r : Reg) arg :
-    lregs_phys R regs r →
-    arg_owned regs arg →
-    z_of_argument r arg = lz_of_argument regs arg.
-  Proof.
-    intros Hincl Hdom. destruct (lz_of_argument regs arg) eqn:Hz.
-    - by eapply lz_of_argument_incl.
-    - by eapply lz_of_argument_None.
-  Qed.
-
-  (** A word argument: a register read, or an exact integer. *)
-  Lemma lword_of_argument_phys R (regs : LReg) (r : Reg) arg (v : LWord) :
-    lregs_phys R regs r → lword_of_argument regs arg = Some v →
-    ∃ s, word_of_argument r arg = Some (and_tag s v.(lw)) ∧ reg_phys R v (and_tag s v.(lw)).
-  Proof.
-    intros Hincl Hv. destruct arg as [z|x]; cbn in Hv.
-    - simplify_eq. exists true. split; first done. apply reg_phys_lword_of_word.
-    - by eapply llookup_reg_phys.
-  Qed.
-
-  Lemma llookup_reg_cap (regs : LReg) r t p g b e a :
-    lw <$> regs !!ₗ r = Some (WCap t p g b e a) →
-    r ≠ cnull ∧ ∃ π, regs !! r = Some (WCap t p g b e a @@? π).
-  Proof.
-    intros H. unfold llookup_reg in H.
-    case_decide as Hne; first done.
-    destruct (regs !! r) as [[w π]|] eqn:Hr; cbn in H; simplify_eq.
-    split; first done. by exists π.
-  Qed.
-
-  (** The identifier of the word read from a register, if it is a
-      capability; like [read_reg_inr] for its other fields. *)
-  Definition read_reg_prov (regs : LReg) (r : RegName) (π : option AId) : Prop :=
-    match regs !! r with
-    | Some (WCap _ _ _ _ _ _ @@? π') => π' = π
-    | _ => True
-    end.
-
-  Lemma read_reg_prov_cap (regs : LReg) r p g b e a π :
-    lw <$> regs !!ₗ r = Some (WCap true p g b e a) →
-    read_reg_prov regs r π →
-    regs !! r = Some (WCap true p g b e a @@? π).
-  Proof.
-    intros Hinr Hπ.
-    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hinr) as (_ & π' & Hr).
-    rewrite /read_reg_prov Hr in Hπ. by subst π'.
-  Qed.
-
-End logical_lookups.
-
-Section erasure_PC.
-  Context `{MP : MachineParameters}.
-
-  (* The PC increment on a copy of the PC gives the same copy of the
-     incremented PC. *)
-  Lemma incrementPC_gen_phys R (lpc lpc' : LWord) pc (r : Reg) sr m st n :
-    reg_phys R lpc pc →
-    incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', advancePC (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
-           reg_phys R lpc' pc'.
-  Proof.
-    intros Hpc Hi.
-    apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
-    destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
-    exists (and_tag s (WCap t p g b e a')). split.
-    - rewrite /advancePC /update_pcc /= Ha'. done.
-    - by apply (reg_phys_derive _ (WCap t p g b e a @@? π)).
-  Qed.
-
-  Lemma incrementPC_gen_phys_fail R (lpc : LWord) pc (r : Reg) sr m st n :
-    reg_phys R lpc pc →
-    incrementPC_gen lpc n = None →
-    advancePC (pc, r, sr, m, st) n = None.
-  Proof.
-    intros Hpc Hi. destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
-    rewrite /incrementPC_gen in Hi. rewrite /advancePC /=.
-    destruct lpc as [w π]; cbn in *.
-    destruct w as [| [? ? ? ? ? a' | ] | |]; cbn; auto.
-    destruct (a' + n)%a; auto. congruence.
-  Qed.
-
-  (* The PC increment keeps erasure: the incremented PC keeps the bounds, the
-     tag and the identifier of the PC. *)
-  Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem n :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
-    incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', advancePC (pc, r, sr, m, st) n = Some (NextI, (pc', r, sr, m, st)) ∧
-           erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
-  Proof.
-    intros Her Hi.
-    destruct (incrementPC_gen_phys _ _ _ _ r sr m st _ (er_pc _ _ _ _ _ _ _ Her) Hi)
-      as (pc' & Hu & Hpc').
-    exists pc'. split; first done.
-    apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
-    destruct Her as [Hreg Hregs Hcnull Hrw Hsrw Hdom Hmw Hmmio Hpc Hpcw Hpcok].
-    constructor; cbn in *; try done.
-  Qed.
-
-  Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
-    incrementPC lpc = Some lpc' →
-    ∃ pc', nextPC (pc, r, sr, m, st) = Some (NextI, (pc', r, sr, m, st)) ∧
-           erasure R C (pc', r, sr, m, st) lpc' lreg lsreg lmem.
-  Proof. apply erasure_incrementPC_gen. Qed.
-
-  Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem n :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
-    incrementPC_gen lpc n = None →
-    advancePC (pc, r, sr, m, st) n = None.
-  Proof. intros Her. apply incrementPC_gen_phys_fail with R, Her. Qed.
-End erasure_PC.
-
-(** ** Dereference witnesses
-
-    A Load source, a Store destination or a GetTag source is read exactly
-    while its identifier is live: the witness is a status share of the
-    identifier, or the absence of an identifier. *)
-Inductive deref_witness := DerefNoId | DerefLive (ι : AId) (q : Qp).
-
-Definition deref_id (dw : deref_witness) : option AId :=
-  match dw with DerefNoId => None | DerefLive ι _ => Some ι end.
-
-(** The witness for an identifier [π], with share [q] if [π] is some. *)
-Definition deref_witness_of (π : option AId) (q : Qp) : deref_witness :=
-  match π with None => DerefNoId | Some ι => DerefLive ι q end.
-
-Lemma deref_id_witness_of π q : deref_id (deref_witness_of π q) = π.
-Proof. by destruct π. Qed.
-
-(** The share of a witness, [1] without an identifier. *)
-Definition deref_share (dw : deref_witness) : Qp :=
-  match dw with DerefNoId => 1%Qp | DerefLive _ q => q end.
-
-Section deref_witness.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
-
-  Definition deref_witness_res (dw : deref_witness) : iProp Σ :=
-    match dw with
-    | DerefNoId => emp
-    | DerefLive ι q => ι ↦st{q} ALive
-    end%I.
-
-  #[global] Instance deref_witness_res_timeless dw : Timeless (deref_witness_res dw).
-  Proof. destruct dw; apply _. Qed.
-
-  (** The dereference resource of a capability with identifier [π]:
-      nothing without an identifier, a share [q] of a live status
-      otherwise. The share [q] is irrelevant when [π] is [None]. *)
-  Definition deref_res (π : option AId) (q : Qp) : iProp Σ :=
-    match π with
-    | None => emp
-    | Some ι => ι ↦st{q} ALive
-    end%I.
-
-  #[global] Instance deref_res_timeless π q : Timeless (deref_res π q).
-  Proof. destruct π; apply _. Qed.
-
-  (* Kept folded by instance search, so that [deref_res None q] is not taken
-     for [emp] before its share is determined. *)
-  #[global] Typeclasses Opaque deref_res.
-
-  Lemma deref_res_witness π q :
-    deref_res π q = deref_witness_res (deref_witness_of π q).
-  Proof. by destruct π. Qed.
-
-  (** The resource of an identifier-less capability, with share [1]. *)
-  Lemma deref_res_none : ⊢ deref_res None 1.
-  Proof. done. Qed.
-
-  (** A witness is the dereference resource of its identifier. *)
-  Lemma deref_witness_res_deref_res dw :
-    deref_witness_res dw = deref_res (deref_id dw) (deref_share dw).
-  Proof. by destruct dw. Qed.
-
-  Definition deref_witness_ok (R : RegState) (dw : deref_witness) : Prop :=
-    match dw with
-    | DerefNoId => True
-    | DerefLive ι _ => ∃ x, R !! ι = Some x ∧ re_status x = ALive
-    end.
-
-  Lemma deref_witness_lookup R dw :
-    reg_auth R -∗ deref_witness_res dw -∗ ⌜deref_witness_ok R dw⌝.
-  Proof.
-    iIntros "HR Hw". destruct dw as [|ι q]; cbn; first done.
-    iDestruct (reg_lookup_own with "HR Hw") as %(b & e & γ & HRι).
-    iPureIntro. eexists. split; first done. done.
-  Qed.
-
-  Lemma deref_witness_not_stale R dw (v : LWord) :
-    deref_witness_ok R dw → v.(lprov) = deref_id dw → ¬ stale_id R v.
-  Proof.
-    intros Hok Hπ (ι & x & Hι & Hx & Hs). destruct dw as [|ι' q]; cbn in *; first congruence.
-    destruct Hok as (x' & Hx' & Hs'). simplify_eq; congruence.
-  Qed.
-
-  (** A word read under its witness is exact. *)
-  Lemma deref_exact R dw (v : LWord) w :
-    deref_witness_ok R dw → v.(lprov) = deref_id dw → load_exact_cond v →
-    reg_phys R v w → w = v.(lw).
-  Proof.
-    intros Hok Hπ Hcond Hw. eapply reg_phys_exact_cond; eauto.
-    by eapply deref_witness_not_stale.
-  Qed.
-
-  (** A tagged word with non-empty bounds has authority or no heap base. *)
-  Lemma nonempty_exact_cond (v : LWord) b e :
-    memory_cap_bounds v.(lw) = Some (b, e) → (b < e)%a → load_exact_cond v.
-  Proof.
-    intros Hb Hlt Ht. destruct (is_heap_address b) eqn:Hh.
-    - left. split; first done. exists b. apply heap_authority_base_memory_cap_bounds. eauto.
-    - right. by rewrite /heap_cap_base memory_cap_base_bounds Hb /= Hh.
-  Qed.
-End deref_witness.
-
-Lemma reg_phys_derive_eq `{MachineParameters} R (v : LWord) s w' w'' :
-  reg_phys R v (and_tag s v.(lw)) →
-  memory_cap_bounds w' = memory_cap_bounds v.(lw) →
-  (get_tag w' = true → get_tag v.(lw) = true) →
-  and_tag s w' = w'' →
-  reg_phys R (MkLWord w' v.(lprov)) w''.
-Proof. intros ? ? ? <-. by apply reg_phys_derive. Qed.
-
 Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  (** The closing lemmas below conclude that the step keeps MIE and mtdc
+      ([sys_kept]): they do not change the system registers. *)
 
   (** Closes a failed instruction: the state is unchanged. *)
   Lemma instr_close_fail pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
+    ⌜sys_kept (pc, r, sr, m, st) (pc, r, sr, m, st)⌝ ∗
     cerise_state_interp (pc, r, sr, m, st) ∗ from_option Φ False (to_val (Instr Faulted)).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
+    iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hmap"; last by iApply ("Hφ" with "HPC").
-    iExists lpc, lreg, lsreg, lmem, R, C. by iFrame.
+    iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   (** Closes an instruction that only moves the PC by [n], as the physical
@@ -1581,18 +359,19 @@ Section instruction_closing.
   Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
     (match advancePC (pc, r, sr, m, st) n with
      | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FaultedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' retv, ⌜P lpc' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ retv) ==∗
+    ⌜sys_kept (pc, r, sr, m, st) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -1600,8 +379,9 @@ Section instruction_closing.
     - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-      iModIntro. iSplitR "Hφ HPC Hmap".
-      + iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+      iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+      iSplitR "Hφ HPC Hmap".
+      + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
       + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
     - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
@@ -1629,7 +409,7 @@ Section instruction_closing.
   Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → LReg → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
     regs ⊆ lreg →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
@@ -1639,12 +419,13 @@ Section instruction_closing.
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FaultedV) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' regs' retv, ⌜P lpc' regs' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
+    ⌜sys_kept (pc, r, sr, m, st) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -1655,8 +436,9 @@ Section instruction_closing.
       rewrite Hu in Hstep. simplify_eq.
       iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-      iModIntro. iSplitR "Hφ HPC Hmap".
-      + iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+      iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+      iSplitR "Hφ HPC Hmap".
+      + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
       + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
     - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
       rewrite /nextPC Hfail in Hstep.
@@ -1669,7 +451,7 @@ Section instruction_closing.
   Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
     reg_phys R v w →
@@ -1677,11 +459,12 @@ Section instruction_closing.
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    ⌜sys_kept (pc, r, sr, m, st) (update_reg (update_pcc (pc, r, sr, m, st) pc') dst w)⌝ ∗
     cerise_state_interp (update_reg (update_pcc (pc, r, sr, m, st) pc') dst w) ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
@@ -1691,8 +474,9 @@ Section instruction_closing.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
     iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "Hφ HPC Hmap".
-    - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
+    iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+    iSplitR "Hφ HPC Hmap".
+    - iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
     - iApply ("Hφ" with "HPC Hmap").
   Qed.
 
@@ -1700,24 +484,26 @@ Section instruction_closing.
   Lemma instr_close_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg lsreg lmem →
+    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
     reg_word_ok R C lpc' →
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
     PC_auth lpc -∗
-    gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    ⌜sys_kept (pc, r, sr, m, st) (update_pcc (pc, r, sr, m, st) pc')⌝ ∗
     cerise_state_interp (update_pcc (pc, r, sr, m, st) pc') ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
     iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "Hφ HPC Hmap".
-    - iExists lpc', _, _, lmem, R, C. iFrame. iPureIntro. exact Her'.
+    iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+    iSplitR "Hφ HPC Hmap".
+    - iApply (SI_close _ _ _ _ _ _ _ Her' with "HPCa Hr Hsr Hm Hst HR HC").
     - iApply ("Hφ" with "HPC Hmap").
   Qed.
 
@@ -1730,6 +516,7 @@ End instruction_closing.
     under fixed names. *)
 Ltac instr_fail_close :=
   try iApply bupd_fupd;
+  try iApply (instr_close_link_kept with "Hlink");
   iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|];
   iIntros "HPC Hmap"; iApply "Hφ"; iFrame; iPureIntro.
 
@@ -1750,22 +537,9 @@ Ltac solve_next_side :=
         | by apply llookup_reg_cnull
         | by rewrite /lz_of_argument /=; simplify_map_eq ].
 
-(** Splits the register map of a post after the write of one register, as
-    [iRegsMap]. *)
-Ltac iRegsMapWrite H :=
-  rewrite ?linsert_reg_cnull ?linsert_reg_not_cnull // ?insert_insert_eq ?insert_singleton;
-  iRegsMap H.
-
-Lemma lregs_phys_lookup `{MachineParameters} R (regs : LReg) (r : Reg) x (v : LWord) :
-  lregs_phys R regs r → regs !! x = Some v → ∃ s, r !! x = Some (and_tag s v.(lw)).
-Proof.
-  intros Hincl Hv. destruct (Hincl x v Hv) as (w & Hw & Hrel).
-  destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. by exists s.
-Qed.
-
 Section instruction_outcomes.
 
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {CL : CritLink Σ}.
 
   (* A failed instruction rolls back every tentative write. The premise is
      about all physical register files that include the erased owned
@@ -1790,8 +564,9 @@ Section instruction_outcomes.
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr (Hfailed R r sr m st Hregs) in Hstep. simplify_eq.
-    iModIntro. iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
-    iExists _, lreg, lsreg, lmem, R, C. by iFrame.
+    iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
+    iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
+    iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)

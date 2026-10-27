@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -285,7 +285,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section instruction_outcomes.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {CL : CritLink Σ}.
 
   #[local] Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src arg regs (t : bool) p g b e a π n p' g' dq :

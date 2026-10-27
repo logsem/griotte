@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode environments spec_patterns.
-From griotte Require Export rules_base.
+From griotte Require Export rules_trap_entry.
 
 (** * The exact cause and value of a fault
 

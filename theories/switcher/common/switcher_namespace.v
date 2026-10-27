@@ -1,5 +1,5 @@
 From stdpp Require Import namespaces strings.
-From griotte Require Import cerise_instance.
+From griotte Require Import resources.
 
 (** The namespace of the invariant [switcher_inv]. *)
 Definition Nswitcher : namespace := nroot .@ "switcher".

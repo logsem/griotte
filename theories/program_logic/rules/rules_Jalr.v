@@ -57,10 +57,10 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
-    iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
-    { iApply (sreg_interp_mstatus with "Hsr"). }
+    assert (∃ vst, ls_join lsreg !! MSTATUS = Some vst) as [vst Hvst'].
+    { eexists. apply ls_join_mstatus. }
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of, operands_of in Hri, Dregs.
@@ -97,13 +97,18 @@ Section griotte_lang_rules.
     (* mstatus, held by the state interpretation: a sentry that sets the
        interrupt status writes MIE. *)
     destruct (jalr_mstatus wsrc.(lw) (get_a vst.(lw))) as [z|] eqn:Hmie.
-    - pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (WInt z) (WInt z) Her)
-        as Her1.
+    - pose proof Hmie as Hz. rewrite /jalr_mstatus in Hz.
+      apply fmap_Some in Hz as (mie' & _ & Hzeq).
+      pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS
+                    (lword_of_word (WInt (mstatus_enc mie' (mpie_of (get_a vst.(lw))))))
+                    (WInt z) Her) as Her1.
       specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
-                    ltac:(apply reg_phys_lword_of_word)).
-      iMod (sreg_interp_update_mstatus _ (WInt z : LWord) with "Hsr") as "Hsr".
+                    ltac:(rewrite Hzeq; apply reg_phys_lword_of_word)).
+      rewrite -ls_join_set_mstatus in Her1.
+      iMod (sys_interp_set_mstatus _ mie' (mpie_of (get_a vst.(lw))) with "Hsr") as "Hsr".
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].
-      + iApply (instr_close_set_pc (WCap true pc_p pc_g pc_b pc_e pc_a) r
+      + iApply instr_close_core.
+        iApply (instr_close_set_pc (WCap true pc_p pc_g pc_b pc_e pc_a) r
                   (<[MSTATUS := WInt z]> sr) m st _ lreg _ lmem R C _ (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her1.
@@ -114,7 +119,8 @@ Section griotte_lang_rules.
           eapply (Jalr_spec_success _ _ _ _ _ _ _ _ _ _ _ _ mie);
             [exact H'rsrc | exact Hok | exact Hpca' |].
           by rewrite decide_True.
-      + iApply (instr_close_reg_set_pc (WCap true pc_p pc_g pc_b pc_e pc_a) r
+      + iApply instr_close_core.
+        iApply (instr_close_reg_set_pc (WCap true pc_p pc_g pc_b pc_e pc_a) r
                   (<[MSTATUS := WInt z]> sr) m st _ lreg _ lmem R C _ rdst
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
@@ -130,7 +136,8 @@ Section griotte_lang_rules.
             [exact H'rsrc | exact Hok | exact Hpca' |].
           by rewrite decide_False.
     - destruct (decide (rdst = cnull)) as [Hnull | Hnull].
-      + iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
+      + iApply instr_close_core.
+        iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her.
         * by apply reg_word_ok_lupdatePcPerm.
@@ -140,7 +147,8 @@ Section griotte_lang_rules.
           eapply (Jalr_spec_success _ _ _ _ _ _ _ _ _ _ _ _ mie);
             [exact H'rsrc | exact Hok | exact Hpca' |].
           by rewrite decide_True.
-      + iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
+      + iApply instr_close_core.
+        iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her.

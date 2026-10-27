@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export heap_std region_keys cerise_instance machine_parameters machine_base alloc_registry.
+From griotte Require Export heap_std region_keys resources machine_parameters machine_base alloc_registry.
 
 (** * Status APIs
 

@@ -7,7 +7,7 @@ From griotte Require Import machine_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.

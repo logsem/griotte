@@ -525,6 +525,11 @@ Class FramableCodefrag (a: Addr) (l: list Word) := {}.
   FramableMachineResource (sr ↦ₓ w).
 Qed.
 
+(* The mtdc fragment of the thread. *)
+#[export] Instance FramableMachineResource_mtdc `{ceriseG Σ} m :
+  FramableMachineResource (mtdc ↦ₜ m).
+Qed.
+
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
   FramableMachineResource (PC ↦ₚ w).
 Qed.
@@ -605,7 +610,7 @@ Qed.
 (* remembering names after auto-framing done by iFrameAuto *)
 
 Ltac2 Type hyp_table_kind :=
-  [ PCReg | Reg | SReg | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
+  [ PCReg | Reg | SReg | Mtdc | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -630,6 +635,7 @@ Ltac2 record_framed
     | (PC ↦ₚ _)%I => ('tt, PCReg)
     | (?r ↦ᵣ _)%I => (r, Reg)
     | (?sr ↦ₓ _)%I => (sr, SReg)
+    | (mtdc_frag _) => ('tt, Mtdc)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -721,6 +727,11 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
       assert_constr_eq sr lhs;
       ltac1:(x sr name |- change (sr ↦ₓ x)%I with (name ∷ (sr ↦ₓ x))%I)
         (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
+    end
+  | Mtdc =>
+    match! goal with [ |- context [ mtdc_frag ?x ] ] =>
+      ltac1:(x name |- change (mtdc ↦ₜ x)%I with (name ∷ (mtdc ↦ₜ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr name)
     end
   | PCReg =>
     match! goal with [ |- context [ (PC ↦ₚ ?x)%I ] ] =>

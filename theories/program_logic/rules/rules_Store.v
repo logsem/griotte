@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -277,9 +277,9 @@ Section griotte_lang_rules.
    Proof.
      iIntros (HPm Hinstr Hvpc Dregs Hmem_pc HaStore φ) "(>HPC & >Hmem & >Hfetch & >Hshadow & Hperms & Hdw & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
-     iIntros (σ1 ns l1 l2 nt) "Hσ /=".
+     iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
      destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
-     iNamed "Hσ".
+     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
      pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
      iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
@@ -395,7 +395,9 @@ Section griotte_lang_rules.
        iEval (rewrite insert_delete_eq) in "Hshadow".
        iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
        iModIntro. iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
-       { iExists _, _, _, lmem, R, C. iFrame. done. }
+       { iSplitR "Hlink".
+         - iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
+         - iApply (crit_link_stable with "Hlink"); done. }
        iApply "Hφ". iFrame.
        iPureIntro. eapply Store_spec_success_shadow; eauto.
      - destruct HaStore as [oldv Hmema].
@@ -421,7 +423,9 @@ Section griotte_lang_rules.
        iMod ((gen_heap_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
        iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
        iModIntro. iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
-       { iExists _, _, _, _, R, C. iFrame. done. }
+       { iSplitR "Hlink".
+         - iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
+         - iApply (crit_link_stable with "Hlink"); done. }
        iApply "Hφ". iFrame.
        iPureIntro. eapply Store_spec_success; eauto.
    Qed.
@@ -1720,7 +1724,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
         as (x & Hx & Hcov & _). eauto. }
     assert (erasure (revoke_reg K R) (revoke_claims K C)
               (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, sweep_mem st m, st)
-              (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg lsreg lmem)
+              (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem)
       as Her1.
     { eapply erasure_revoke; eauto.
       - apply lookup_revoke_reg.
@@ -1734,15 +1738,16 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     rewrite Hpca' in Hstep. simplify_eq.
     iMod (PC_update _ _ (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π) with "HPCa HPC")
       as "[HPCa HPC]".
-    iModIntro. iSplitR "Hφ HPC Hpc_a Hmap Hpost".
-    { iExists _, _, _, lmem, _, _. iFrame. iPureIntro. exact Her2. }
+    iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+    iSplitR "Hφ HPC Hpc_a Hmap Hpost".
+    { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
     iApply "Hφ". iFrame.
   Qed.
 
 End griotte_lang_rules.
 
 Section shadow_store_res.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
 
   Lemma wp_store_shadow_imm_res_fetch Ep
      pc_p pc_g pc_b pc_e pc_a pc_π

@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -279,9 +279,9 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Dregs Hmem_pc HaLoad Hdomeq φ)
       "(>HPC & >Hmem & >Hshadow & Hwit & Hdw & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "Hσ /=".
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
-    iNamed "Hσ".
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
     iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
@@ -411,6 +411,7 @@ Section griotte_lang_rules.
           * intros. apply Load_spec_failure; [|done..]. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
     }
     iApply bupd_fupd.
+    iApply (instr_close_link_kept with "Hlink").
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r1 v pv _ _ _
       (λ lpc' regs' retv, Load_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hmem Hshadow Hwit Hdw]").
@@ -1812,7 +1813,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section load_exact.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
 
   (** Loading an identifier-less word that satisfies [load_exact_cond]
       (e.g. a heap root, which has authority) keeps it exactly: the fourth

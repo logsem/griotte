@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
-From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
+From griotte Require Export resources machine_parameters machine_word machine_base addresses.
 From griotte Require Export logical_words export_table_layout.
 
 

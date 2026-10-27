@@ -11,44 +11,44 @@ From griotte Require Export rules_base si_modality.
 
 Section rules_registry.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
 
   (** Opens the state interpretation for a ghost update that keeps the
       physical state. *)
   Lemma si_ghost_update σ P Q :
-    (∀ lpc lreg lsreg lmem R C,
-       ⌜erasure R C σ lpc lreg lsreg lmem⌝ -∗
-       gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+    (∀ lpc lreg (lsreg : LSys) lmem R C,
+       ⌜erasure R C σ lpc lreg (ls_join lsreg) lmem⌝ -∗
+       gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
        gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
-       ∃ R' C', ⌜erasure R' C' σ lpc lreg lsreg lmem⌝ ∗
-         gen_heap_interp lreg ∗ sreg_interp lsreg ∗ gen_heap_interp lmem ∗
+       ∃ R' C', ⌜erasure R' C' σ lpc lreg (ls_join lsreg) lmem⌝ ∗
+         gen_heap_interp lreg ∗ sys_interp lsreg ∗ gen_heap_interp lmem ∗
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
-    iIntros (Hupd) "@ HP".
+    iIntros (Hupd) "Hσ HP". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod (Hupd with "[//] Hr Hsr Hm Hst HR HC HP")
       as (R' C' Her') "(Hr & Hsr & Hm & Hst & HR & HC & HQ)".
-    iModIntro. iFrame "HQ". iExists lpc, lreg, lsreg, lmem, R', C'. by iFrame.
+    iModIntro. iFrame "HQ". iApply (SI_close _ _ _ _ _ _ _ Her' with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
 
   (** The same, with the PC authority. *)
   Lemma si_ghost_update_pc σ P Q :
-    (∀ lpc lreg lsreg lmem R C,
-       ⌜erasure R C σ lpc lreg lsreg lmem⌝ -∗
+    (∀ lpc lreg (lsreg : LSys) lmem R C,
+       ⌜erasure R C σ lpc lreg (ls_join lsreg) lmem⌝ -∗
        PC_auth lpc -∗
-       gen_heap_interp lreg -∗ sreg_interp lsreg -∗ gen_heap_interp lmem -∗
+       gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
        gen_heap_interp (shadowtbl σ) -∗ reg_auth R -∗ addr_alloc_auth C -∗ P ==∗
-       ∃ R' C', ⌜erasure R' C' σ lpc lreg lsreg lmem⌝ ∗ PC_auth lpc ∗
-         gen_heap_interp lreg ∗ sreg_interp lsreg ∗ gen_heap_interp lmem ∗
+       ∃ R' C', ⌜erasure R' C' σ lpc lreg (ls_join lsreg) lmem⌝ ∗ PC_auth lpc ∗
+         gen_heap_interp lreg ∗ sys_interp lsreg ∗ gen_heap_interp lmem ∗
          gen_heap_interp (shadowtbl σ) ∗ reg_auth R' ∗ addr_alloc_auth C' ∗ Q) →
     cerise_state_interp σ -∗ P ==∗ cerise_state_interp σ ∗ Q.
   Proof.
-    iIntros (Hupd) "@ HP".
+    iIntros (Hupd) "Hσ HP". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod (Hupd with "[//] HPCa Hr Hsr Hm Hst HR HC HP")
       as (R' C' Her') "(HPCa & Hr & Hsr & Hm & Hst & HR & HC & HQ)".
-    iModIntro. iFrame "HQ". iExists lpc, lreg, lsreg, lmem, R', C'. by iFrame.
+    iModIntro. iFrame "HQ". iApply (SI_close _ _ _ _ _ _ _ Her' with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
   (** ** Registry transitions *)
@@ -67,40 +67,41 @@ Section rules_registry.
   Qed.
 
   (** [APainting → AQuar], given the whole token and the painted range. It
-      issues the quarantine witness. The whole register file, MTDC and the
-      PC are owned, and none of their words with authority carries [ι]
-      ([cnull] always holds the null word, and the other system registers
-      hold no word with authority and identifier). *)
-  Lemma reg_quarantine E ι b e' lpc (regs : LReg) (vmtdc : LWord) :
+      issues the quarantine witness. The whole register file, mtdc and the
+      PC are owned, and none of their words with authority carries [ι] (for
+      mtdc, any word that its ghost value [m] stands for; [cnull] always
+      holds the null word, and the other system registers hold no word with
+      authority and identifier). *)
+  Lemma reg_quarantine E ι b e' lpc (regs : LReg) (m : mtdc_val) :
     (∀ x, x ≠ cnull → is_Some (regs !! x)) →
-    (∀ v, (v = lpc ∨ v = vmtdc ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
+    (∀ v, (v = lpc ∨ mtdc_match m v ∨ ∃ x, x ≠ cnull ∧ regs !! x = Some v) →
        has_authority v.(lw) → v.(lprov) ≠ Some ι) →
     alloc_obj ι b e' -∗
     ι ↦st{1} APainting -∗
     ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    MTDC ↦ₓ vmtdc -∗
+    mtdc ↦ₜ m -∗
     |~{E}~>
       ι ↦st{1} AQuar ∗ ι ⊒ AQuar ∗
       ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
       PC ↦ₚ lpc ∗
       ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
-      MTDC ↦ₓ vmtdc.
+      mtdc ↦ₜ m.
   Proof.
     iIntros (Hfull Hclean) "#Hobj Htok Hcells HPC Hmap Hmtdc".
     iApply (si_upd_ghost _
       (alloc_obj ι b e' ∗ ι ↦st{1} APainting ∗
        ([∗ list] a ∈ finz.seq_between b e', a ↦ₛ ShadowQuarantined) ∗
-       PC ↦ₚ lpc ∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ MTDC ↦ₓ vmtdc)%I
+       PC ↦ₚ lpc ∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ mtdc ↦ₜ m)%I
       with "[$Hobj $Htok $Hcells $HPC $Hmap $Hmtdc]").
     intros σ. iApply si_ghost_update_pc.
     iIntros (lpc' lreg lsreg lmem R C Her)
       "HPCa Hr Hsr Hm Hst HR HC (#Hobj & Htok & Hcells & HPC & Hmap & Hmtdc)".
     iDestruct (PC_agree with "HPCa HPC") as %<-.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hincl.
-    iAssert (⌜lsreg !! MTDC = Some vmtdc⌝)%I as %Hmtdc.
-    { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid with "Hsr Hmtdc"). }
+    iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc") as %[Hm Hmatch].
+    pose proof (ls_join_mtdc lsreg) as Hmtdc.
     iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s & HRι').
     rewrite HRι in HRι'. simplify_eq.
@@ -217,12 +218,13 @@ Section rules_registry.
     iIntros (Hauth Hι) "#Hq Hr".
     iApply (si_upd_ghost _ (r ↦ᵣ v ∗ ι ⊒ AQuar)%I with "[$Hr $Hq]").
     iIntros (σ) "Hσ [Hr #Hq]".
-    iDestruct "Hσ" as (lpc lreg lsreg lmem R C) "(HPCa & Hlr & Hsr & Hm & Hst & HR & HC & %Her)".
+    iDestruct (SI_open with "Hσ") as (lpc lreg lsreg lmem R C) "(%Her & HPCa & Hlr & Hsr & Hm & Hst & HR & HC)".
     iDestruct (gen_heap_valid with "Hlr Hr") as %Hv.
     iDestruct (reg_lookup_lb with "HR Hq") as %(b & e & γ & s & HRι & Hs).
     iMod (gen_heap_update with "Hlr Hr") as "[Hlr Hr]".
-    iModIntro. iFrame "Hr". iExists lpc, (<[r := lclear_tag v]> lreg), lsreg, lmem, R, C. iFrame.
-    iPureIntro.
+    iModIntro. iFrame "Hr".
+    iApply (SI_close σ lpc (<[r := lclear_tag v]> lreg) lsreg lmem R C
+              with "HPCa Hlr Hsr Hm Hst HR HC").
     destruct σ as [[[[pc rg] sr] m] st].
     assert (quar_or_dead s) as Hqd.
     { rewrite /quar_or_dead. destruct s; cbn in Hs; try lia; auto. }
