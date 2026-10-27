@@ -10,7 +10,7 @@ From griotte Require Import cmdc_spec_states cmdc_spec_world
 Section CMDC.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -86,16 +86,16 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Nswitcher switcher_inv
       ∗ switcher_static
-      ∗ na_own cerise_nais ⊤
+      ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-      ∗ cra ↦ᵣ thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ[th] thread_return_sentry
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -119,7 +119,7 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     (* Outline of the proof:
        - [cmdc_init_blocks_1_spec]: block 0, initialise [b] and [c], and
@@ -394,16 +394,16 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Nswitcher switcher_inv
       ∗ switcher_static
-      ∗ na_own cerise_nais ⊤
+      ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-      ∗ cra ↦ᵣ thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ[th] thread_return_sentry
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -427,7 +427,7 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-      ⊢ WP Seq (Instr Executable) {{ λ v, True }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap

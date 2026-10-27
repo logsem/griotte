@@ -14,7 +14,7 @@ From griotte Require Import lse_spec_states.
 Section LSE_Run_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -30,29 +30,29 @@ Section LSE_Run_Blocks_1.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ WInt 2 ∗
     pc_b ↦ₐ□ lse_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ct0 ↦ᵣ lse_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ wcra ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ct0 ↦ᵣ[th] lse_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
           (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ□ lse_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hsealed_nonheap)
       "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra

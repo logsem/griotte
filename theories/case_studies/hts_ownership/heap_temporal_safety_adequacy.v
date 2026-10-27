@@ -34,7 +34,7 @@ Section hts_obligations.
     fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok ceriseg.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -127,7 +127,8 @@ Section hts_obligations.
     iDestruct (big_sepS_insert with "Hids") as "[Hid_main Hid_adv]".
     { rewrite /hts_main_owner_id /hts_adv_owner_id. set_solver. }
     iEval (rewrite big_sepS_singleton) in "Hid_adv".
-    iMod (seal_store_update_alloc AllocOtype allocator_otype_propC with "Hseal_store_alloc")
+    iMod (seal_store_update_alloc AllocOtype (allocator_otype_propC (th := UserThread 0))
+           with "Hseal_store_alloc")
       as "#Hsealed_pred_alloc".
 
     (* 6 - The allocator: its service invariant owns the heap *)
@@ -188,7 +189,8 @@ Section hts_obligations.
       ({[lword_of_word (WSealable adv_alloc_sb);
          lword_of_word (borrow (WSealable adv_alloc_sb))]} : gset LWord)).
     set (W1' := <o[AllocOtype := adv_alloc_words]o> W1).
-    iAssert (allocator_otype_propC (W1', B, lword_of_word (WSealable adv_alloc_sb)))
+    iAssert (allocator_otype_propC (th := UserThread 0)
+               (W1', B, lword_of_word (WSealable adv_alloc_sb)))
       with "[Hadv_owner Hid_adv]" as "Hadv_alloc_prop".
     { iExists hts_adv_owner_id, adv_owner_a, ∅. iFrame "Hadv_owner Hid_adv".
       rewrite /allocator_owned_rights big_sepS_empty.
@@ -213,7 +215,8 @@ Section hts_obligations.
     (* 10 - Close the world of B: its compartment becomes permanent, and the
        stack temporary, because main shares it with B; the imports of B are
        safe; its export is safe to share. *)
-    iMod (fw_close_adv_world _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
+    iMod (fw_close_adv_world (th := UserThread 0)
+            _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
             HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".

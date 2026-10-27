@@ -33,7 +33,7 @@ From griotte Require Import
 Section Error_Handling_Read.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -132,17 +132,17 @@ Section Error_Handling_Read.
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     (∀ c v, P_mcause c → P_mtval v → stats_repairable c v →
        ∃ r p g b e a π, stats_saved_cap rfault v r p g b e a π) →
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
     stats_static -∗
     registers_pointsto rfault -∗
     cstack_frag cstk -∗
-    na_own cerise_nais (⊤ ∖ ↑Nstats) -∗
+    na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
     STATS_cgp_b ↦ₐ WInt 1 -∗
     error_state_area rfault -∗
     (∀ c v, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ ▷ stats_fault_conts cstk rfault c v) -∗
     trap_safe_cause P_mcause P_mtval (stats_pcc stats_load_addr) ⊤
-      (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+      (HO th).
   Proof.
     iIntros (HP_mcause Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
                Htbl Heven Hmax Htbl_set Hsaved)
@@ -248,14 +248,14 @@ Section Error_Handling_Read.
     lm !! stats_load_addr = Some stats_load_instr →
     lfault (stats_pcc stats_load_addr) {[ca0 := wptr]} lm = f →
     fault_is_access f = false →
-    PC ↦ₚ stats_pcc stats_load_addr -∗
-    ca0 ↦ᵣ wptr -∗
+    PC ↦ₚ[th] stats_pcc stats_load_addr -∗
+    ca0 ↦ᵣ[th] wptr -∗
     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-    (ca0 ↦ᵣ wptr -∗
+    (ca0 ↦ᵣ[th] wptr -∗
      ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
      trap_safe_cause (stats_load_mcause f) (stats_load_mtval wptr f)
        (stats_pcc stats_load_addr) E Φ) -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
+    WP Seq (Instr Faulted) @[th] E {{ Φ }}.
   Proof.
     iIntros (Hinstr Hf Hnaccess) "HPC Hca0 Hlm Hcont".
     iDestruct (big_sepM_singleton (λ r w, r ↦ᵣ w)%I ca0 wptr with "Hca0") as "Hregs".
@@ -279,13 +279,13 @@ Section Error_Handling_Read.
       exact cause and value. *)
   Lemma stats_read_load_fault_spec (wptr : LWord) (f : fault) :
     data_cap_check readAllowed PermitLoadViolation ca0 wptr.(lw) 0 = inl f →
-    PC ↦ₚ stats_pcc stats_load_addr ∗
-    ca0 ↦ᵣ wptr ∗
+    PC ↦ₚ[th] stats_pcc stats_load_addr ∗
+    ca0 ↦ᵣ[th] wptr ∗
     codefrag_pers STATS_pcc_b stats_code ∗
-    (ca0 ↦ᵣ wptr -∗
+    (ca0 ↦ᵣ[th] wptr -∗
      trap_safe_cause (stats_load_mcause f) (stats_load_mtval wptr f)
-       (stats_pcc stats_load_addr) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I)
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+       (stats_pcc stats_load_addr) ⊤ (HO th))
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hcheck) "(HPC & Hca0 & #Hcode_stats & Hfailed)".
     iDestruct (stats_load_instr_pers with "Hcode_stats") as "#Hinstr".
@@ -331,18 +331,18 @@ Section Error_Handling_Read.
   Lemma stats_read_take_open (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) →
     rmap !! cgp = Some stats_wcgp →
-    na_inv cerise_nais Nstats stats_inv -∗
+    na_inv (tpool th) Nstats stats_inv -∗
     stats_static -∗
-    PC ↦ₚ stats_pcc (STATS_pcc_b ^+ stats_read_pcc_off)%a -∗
+    PC ↦ₚ[th] stats_pcc (STATS_pcc_b ^+ stats_read_pcc_off)%a -∗
     registers_pointsto rmap -∗
-    na_own cerise_nais ⊤ -∗
-    ▷ (PC ↦ₚ stats_pcc stats_load_addr -∗
+    na_own (tpool th) ⊤ -∗
+    ▷ (PC ↦ₚ[th] stats_pcc stats_load_addr -∗
        registers_pointsto (<[ct0 := lword_of_word (WInt 0)]> rmap) -∗
        STATS_cgp_b ↦ₐ WInt 1 -∗
-       na_own cerise_nais (⊤ ∖ ↑Nstats) -∗
-       (▷ stats_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own cerise_nais ⊤) -∗
-       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) -∗
-    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+       na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
+       (▷ stats_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own (tpool th) ⊤) -∗
+       WP Seq (Instr Executable) @[th] {{ HO th }}) -∗
+    WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hcgp) "#Hinv_stats #Hstatic HPC Hregs Hna Hcont".
     iNamed "Hstatic".
@@ -371,16 +371,16 @@ Section Error_Handling_Read.
     rmap !! cgp = Some stats_wcgp →
     jalr_target_ok cnull cra (rmap !!! cra).(lw) = true →
     stats_static -∗
-    PC ↦ₚ stats_pcc stats_release_addr -∗
+    PC ↦ₚ[th] stats_pcc stats_release_addr -∗
     registers_pointsto rmap -∗
     STATS_cgp_b ↦ₐ wlock -∗
-    na_own cerise_nais (⊤ ∖ ↑Nstats) -∗
-    (▷ stats_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own cerise_nais ⊤) -∗
-    ▷ (PC ↦ₚ lupdatePcPerm (rmap !!! cra) -∗
+    na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
+    (▷ stats_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own (tpool th) ⊤) -∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm (rmap !!! cra) -∗
        registers_pointsto (<[ca1 := lword_of_word (WInt 0)]> rmap) -∗
-       na_own cerise_nais ⊤ -∗
-       WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) -∗
-    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+       na_own (tpool th) ⊤ -∗
+       WP Seq (Instr Executable) @[th] {{ HO th }}) -∗
+    WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hcgp Hcra) "#Hstatic HPC Hregs Hlock Hna Hclose Hcont".
     iNamed "Hstatic".
@@ -484,10 +484,10 @@ Section Error_Handling_Read.
     STATS_pcc_b ≠ b_switcher →
     disjoint_from_shadow (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) →
     arg_rmap !! ca0 = Some wptr →
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     stats_static ∗
-    na_inv cerise_nais Nstats stats_inv
+    na_inv (tpool th) Nstats stats_inv
     ⊢
     switcher_cc_specification_known_to_known_function (stats_may_fault wptr)
       (stats_arg_pre wptr v)

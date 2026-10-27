@@ -29,7 +29,7 @@ Section so_obligations.
     fw_obligations Σ so_firmware.
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok ceriseg.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -111,7 +111,8 @@ Section so_obligations.
     set (W0' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_f);
                        lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop W0' C (WSealable main_f)) as "#Hot_switcher_main_f".
+    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable main_f))
+      as "#Hot_switcher_main_f".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          length (@so_main_imports swl asl C_f ++ SO_main_code_run))%a)
         as Hentry_some.
@@ -142,7 +143,8 @@ Section so_obligations.
        stack temporary, because main shares it with C; the exported entry
        [f] of main and the own export [g] of C are safe to import; the
        exports of C are safe to share. *)
-    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts so_firmware) default_fw_cmpt) _
+    iMod (fw_close_adv_world (th := UserThread 0)
+            _ _ _ 1 (fw_nth 1 (fw_cmpts so_firmware) default_fw_cmpt) _
             HC_l W0' C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")

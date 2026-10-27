@@ -11,7 +11,7 @@ From griotte Require Import lse_spec_states.
 Section LSE_F_Blocks_2.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -25,28 +25,28 @@ Section LSE_F_Blocks_2.
     lse_code_bounds pc_b pc_e pc_a C_f ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
-    cgp ↦ᵣ wcgp ∗
-    cs0 ↦ᵣ wcs0 ∗
-    ct0 ↦ᵣ WInt 2 ∗
-    ct1 ↦ᵣ WInt 2 ∗
-    cra ↦ᵣ wcra ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    ct0 ↦ᵣ[th] WInt 2 ∗
+    ct1 ↦ᵣ[th] WInt 2 ∗
+    cra ↦ᵣ[th] wcra ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
     (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
-        cgp ↦ᵣ WInt 0 ∗
-        cs0 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wcra ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 ∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
+        cgp ↦ᵣ[th] WInt 0 ∗
+        cs0 ↦ᵣ[th] WInt 0 ∗
+        ct0 ↦ᵣ[th] WInt 0 ∗
+        ct1 ↦ᵣ[th] WInt 0 ∗
+        cra ↦ᵣ[th] wcra ∗
+        ca0 ↦ᵣ[th] WInt 0 ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Htgt)
       "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra

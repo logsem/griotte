@@ -11,7 +11,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_Return_Blocks_4.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -30,34 +30,34 @@ Section SO_Return_Blocks_4.
     (csp_b <= a_stk2)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ca2 ↦ᵣ wca2 ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wret ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk2 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wret ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
     a_stk1 ↦ₐ WInt so_secret ∗
     (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wret ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        ct2 ↦ᵣ WInt 0 ∗
-        ca2 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wret ∗
-        cs0 ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 ∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
+        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+        ct0 ↦ᵣ[th] WInt 0 ∗
+        ct1 ↦ᵣ[th] WInt 0 ∗
+        ct2 ↦ᵣ[th] WInt 0 ∗
+        ca2 ↦ᵣ[th] WInt 0 ∗
+        cra ↦ᵣ[th] wret ∗
+        cs0 ↦ᵣ[th] wret ∗
+        ca0 ↦ᵣ[th] WInt 0 ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
         a_stk1 ↦ₐ WInt so_secret ∗
         (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
                Hastk2 Hastk1 Hcsp_b Htgt)

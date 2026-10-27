@@ -9,7 +9,7 @@ From griotte Require Import droe_spec_states droe_spec_world
 Section DROE.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -75,16 +75,16 @@ Section DROE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Nswitcher switcher_inv
       ∗ switcher_static
-      ∗ na_own cerise_nais ⊤
+      ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-      ∗ cra ↦ᵣ thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ[th] thread_return_sentry
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a droe_main_code
@@ -100,7 +100,7 @@ Section DROE.
       ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     (* Outline of the proof:
        - [droe_init_blocks_1_spec]: block 0, initialise the data,

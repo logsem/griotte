@@ -12,7 +12,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_Check_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -25,39 +25,39 @@ Section SO_Check_Blocks_1.
     (csp_b csp_e : Addr)
     (wca0 wca1 wct1 wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f")%a ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f")%a ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     codefrag_pers pc_a so_main_code ∗
     ( ▷ (∀ t p g b e a π,
         ⌜readAllowed p = true⌝ ∗
         ⌜wca0 = WCap t p g b e a @@? π⌝ ∗
         ⌜finz.seq_between b e ## finz.seq_between csp_b csp_e⌝ ∗
-        PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
-        ca0 ↦ᵣ WCap t p g b e a @@? π ∗
-        ca1 ↦ᵣ wca1 ∗
-        ct1 ↦ᵣ wca1 ∗
-        cs0 ↦ᵣ WInt 0 ∗
-        cs1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+        PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
+        ca0 ↦ᵣ[th] WCap t p g b e a @@? π ∗
+        ca1 ↦ᵣ[th] wca1 ∗
+        ct1 ↦ᵣ[th] wca1 ∗
+        cs0 ↦ᵣ[th] WInt 0 ∗
+        cs1 ↦ᵣ[th] WInt 0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         codefrag_pers pc_a so_main_code ∗
         £ 1
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
     (∀ a_f,
         ⌜(pc_a ^+ so_label_offset ".Lso_f" <= a_f < pc_a ^+ so_label_offset ".Lso_f_checkints")%a⌝ -∗
-        ca0 ↦ᵣ wca0 ∗
-        ca1 ↦ᵣ wca1 ∗
-        ct1 ↦ᵣ wca1 ∗
-        cs0 ↦ᵣ - ∗
-        cs1 ↦ᵣ - ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) -∗
+        ca0 ↦ᵣ[th] wca0 ∗
+        ca1 ↦ᵣ[th] wca1 ∗
+        ct1 ↦ᵣ[th] wca1 ∗
+        cs0 ↦ᵣ[th] - ∗
+        cs1 ↦ᵣ[th] - ∗
+        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) -∗
         trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          (HO th)) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
       "(HPC & Hca0 & Hca1 & Hct1 & Hcs0 & Hcs1 & Hcsp & Hcode_main & Hpost)".

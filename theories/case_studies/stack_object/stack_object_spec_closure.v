@@ -14,7 +14,7 @@ Section SO.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -101,7 +101,7 @@ Section SO.
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
 
     assert_static b_assert e_assert a_flag
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a so_main_code

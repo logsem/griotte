@@ -13,7 +13,7 @@ From griotte Require Import dle_spec_states.
 Section DLE_Share_Blocks_2.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -25,22 +25,22 @@ Section DLE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wcs0 wcs1 wcra : LWord) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_fetch_switcher")%a ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_fetch_switcher")%a ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    cra ↦ᵣ[th] wcra ∗
     dle_static_mem pc_b pc_a C_f ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
-        ct0 ↦ᵣ dle_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ wcra ∗
-        cs1 ↦ᵣ WSealed ot_switcher C_f ∗
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+        ct0 ↦ᵣ[th] dle_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         dle_static_mem pc_b pc_a C_f
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hmem & Hpost)".

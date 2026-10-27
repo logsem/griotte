@@ -30,7 +30,7 @@ Section cmdc_obligations.
     fw_obligations Σ cmdc_firmware.
   Proof.
     intros HBC. apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok ceriseg.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -98,14 +98,16 @@ Section cmdc_obligations.
     (* 4 - Close the worlds of B and C: their compartments become permanent,
        and the stack is revoked, because main keeps it; their exports are
        safe to share. *)
-    iMod (fw_close_adv_world_revoked _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
+    iMod (fw_close_adv_world_revoked (th := UserThread 0)
+            _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HB_l fw_world0 B Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_B_f_args; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers [] Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
       by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
-    iMod (fw_close_adv_world_revoked _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
+    iMod (fw_close_adv_world_revoked (th := UserThread 0)
+            _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_C_g_args; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers [] Hworld_C")

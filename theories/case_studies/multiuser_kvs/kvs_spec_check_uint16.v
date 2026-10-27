@@ -7,7 +7,7 @@ From griotte Require Export kvs_preamble.
 Section KVS_check_uint16.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -34,24 +34,24 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      rv ↦ᵣ wrv ∗
-      rdst ↦ᵣ - ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      rv ↦ᵣ[th] wrv ∗
+      rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          rv ↦ᵣ wrv ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          rv ↦ᵣ[th] wrv ∗
           codefrag_pers pc_a instrs ∗
           (
-            ( rdst ↦ᵣ WInt ASM_TRUE ∗ ⌜ word_is_uint16 wrv.(lw) ⌝ )
+            ( rdst ↦ᵣ[th] WInt ASM_TRUE ∗ ⌜ word_is_uint16 wrv.(lw) ⌝ )
             ∨
-              ( rdst ↦ᵣ WInt ASM_FALSE ∗ ⌜ ¬ word_is_uint16 wrv.(lw) ⌝ )
+              ( rdst ↦ᵣ[th] WInt ASM_FALSE ∗ ⌜ ¬ word_is_uint16 wrv.(lw) ⌝ )
           )
           -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+            WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hrv Hrdst)
@@ -143,20 +143,20 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      rv ↦ᵣ WInt nkey @@? πnkey ∗
-      rdst ↦ᵣ - ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      rv ↦ᵣ[th] WInt nkey @@? πnkey ∗
+      rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          rv ↦ᵣ WInt nkey @@? πnkey ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          rv ↦ᵣ[th] WInt nkey @@? πnkey ∗
           codefrag_pers pc_a instrs ∗
-          rdst ↦ᵣ WInt ASM_TRUE
+          rdst ↦ᵣ[th] WInt ASM_TRUE
           -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".
@@ -178,20 +178,20 @@ Section KVS_check_uint16.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      rv ↦ᵣ wrv ∗
-      rdst ↦ᵣ - ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      rv ↦ᵣ[th] wrv ∗
+      rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          rv ↦ᵣ wrv ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          rv ↦ᵣ[th] wrv ∗
           codefrag_pers pc_a instrs ∗
-          rdst ↦ᵣ WInt ASM_FALSE
+          rdst ↦ᵣ[th] WInt ASM_FALSE
           -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".

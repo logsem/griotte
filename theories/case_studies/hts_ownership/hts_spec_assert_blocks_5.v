@@ -15,7 +15,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 Section HTS_Return.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -29,18 +29,18 @@ Section HTS_Return.
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     cstk.(cstk_frames) = [] ->
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_return")%a ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
-    cra ↦ᵣ wcra ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct2 ↦ᵣ wct2 ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_return")%a ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
+    cra ↦ᵣ[th] wcra ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     cstack_frag cstk ∗
     codefrag_pers pc_a hts_main_code
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HsubBounds Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
@@ -62,7 +62,7 @@ End HTS_Return.
 Section HTS_Spec_Assert.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -88,7 +88,7 @@ Section HTS_Spec_Assert.
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     adv2_ret
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframes Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds Himports_contiguous)
       "(#Hctx & Hret)".

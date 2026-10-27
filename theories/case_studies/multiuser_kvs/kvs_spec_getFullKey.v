@@ -8,7 +8,7 @@ From griotte Require Export kvs_preamble.
 Section KVS_getFullKey.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
@@ -38,28 +38,28 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      rdst ↦ᵣ - ∗
-      rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
-      rkey ↦ᵣ WInt nkey @@? πnkey ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      rdst ↦ᵣ[th] - ∗
+      rsealkey ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗
+      rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
       codefrag_pers pc_a instrs ∗
       ▷ (
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          rdst ↦ᵣ WInt (kvs_full_key user_key nkey) ∗
-          rsealkey ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗
-          rkey ↦ᵣ WInt nkey @@? πnkey ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          rdst ↦ᵣ[th] WInt (kvs_full_key user_key nkey) ∗
+          rsealkey ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗
+          rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
           (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
           codefrag_pers pc_a instrs -∗
 
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hoff Hbounds_user_key_addr Hrsealkey Hkey Hdst)
@@ -107,19 +107,19 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      rdst ↦ᵣ - ∗
-      rsealkey ↦ᵣ wsealkey ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      rdst ↦ᵣ[th] - ∗
+      rsealkey ↦ᵣ[th] wsealkey ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
 
       codefrag_pers pc_a instrs ∗
 
-      ( rdst ↦ᵣ - ∗
-        rsealkey ↦ᵣ wsealkey -∗
+      ( rdst ↦ᵣ[th] - ∗
+        rsealkey ↦ᵣ[th] wsealkey -∗
         trap_safe (WCap true RX Global pc_b pc_e (pc_a ^+ 3)%a) ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+          (HO th) )
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow HsubBounds Hoff Hnot_sealed_with_kvs_otype Hrsealkey Hdst)

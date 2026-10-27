@@ -18,7 +18,7 @@ From griotte Require Import case_study_spec_helpers.
 Section HTS_Spec_Malloc.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -57,12 +57,12 @@ Section HTS_Spec_Malloc.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
-    cra ↦ᵣ thread_return_sentry ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    cra ↦ᵣ[th] thread_return_sentry ∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     hts_static ∗
     allocator_owner_id hts_main_owner_id ∅ ∗
     world_interp W_init_C C ∗
@@ -70,8 +70,8 @@ Section HTS_Spec_Malloc.
     interp_continuation cstk Ws Cs ∗
     cstack_frag cstk ∗
     (malloc_ret -∗
-     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+     WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds

@@ -12,7 +12,7 @@ From griotte Require Import droe_spec_states.
 Section DROE_Share_Blocks_2.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -24,21 +24,21 @@ Section DROE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cra ↦ᵣ[th] wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
           (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
-        ct0 ↦ᵣ droe_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ wcra ∗
+        ct0 ↦ᵣ[th] droe_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
+        cs0 ↦ᵣ[th] wcra ∗
         droe_static_mem pc_b pc_a C_f
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & Hmem & Hpost)".

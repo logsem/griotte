@@ -29,7 +29,7 @@ Section lse_obligations.
     fw_obligations Σ lse_firmware.
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok ceriseg.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -105,7 +105,7 @@ Section lse_obligations.
     iDestruct (region_pointsto_single with "Hmain_data") as "[%v [Hcgp_b %Hv] ]".
     { solve_addr+Hmain_data_size. }
     rewrite /lse_main_data /= in Hv; simplify_eq.
-    iMod (na_inv_alloc cerise_nais _ Nlse _ with "Hcgp_b") as "#Hlse_data".
+    iMod (na_inv_alloc (tpool (UserThread 0)) _ Nlse _ with "Hcgp_b") as "#Hlse_data".
 
     (* 5 - Seal the exported entry [f] of main with [ot_switcher] in the
        world of C *)
@@ -117,7 +117,8 @@ Section lse_obligations.
     set (W0' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_f);
                        lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop W0' C (WSealable main_f)) as "#Hot_switcher_main_f".
+    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable main_f))
+      as "#Hot_switcher_main_f".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          (length_lse_main_imports + length LSE_main_code_run))%a)
         as Hentry_some.
@@ -145,7 +146,8 @@ Section lse_obligations.
     (* 6 - Close the world of C: its compartment becomes permanent, and the
        stack temporary, because main shares it with C; the exported entry
        [f] of main is safe to import; the export of C is safe to share. *)
-    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts lse_firmware) default_fw_cmpt) _
+    iMod (fw_close_adv_world (th := UserThread 0)
+            _ _ _ 1 (fw_nth 1 (fw_cmpts lse_firmware) default_fw_cmpt) _
             HC_l W0' C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".

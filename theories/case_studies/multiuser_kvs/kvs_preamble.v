@@ -1410,7 +1410,7 @@ Definition Nkvs_otype : namespace := nroot .@ "kvs_otype".
 Section KVS_preamble.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
@@ -1505,7 +1505,7 @@ End KVS_preamble.
 Section UserKvsInit.
     Context
       {Σ:gFunctors}
-        {ceriseg:ceriseG Σ}
+        {ceriseb : ceriseBaseG Σ} {th : Thread}
         {sealsg: sealStoreG Σ}
         `{MP: MachineParameters}
         {KVS : kvsLayout} {kvslayoutwf : kvsLayoutWf}
@@ -1541,8 +1541,8 @@ Section UserKvsInit.
         let kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf in
         let kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg in
         kvs_static ∗
-        na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-        na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
+        na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+        na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
         ([∗ set] uk ∈ UK,
            (user_kvs_inv uk
             ∗ [∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥))
@@ -1565,7 +1565,7 @@ Section UserKvsInit.
     (* Allocate the KVS invariants *)
     iMod (region_pointsto_persist with "Hkvs_imports") as "#Hkvs_imports".
     iMod (codefrag_persist with "Hkvs_code") as "#Hkvs_code".
-    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"physical") kvs_inv
+    iMod (na_inv_alloc (tpool th) _ (Nkvs.@"physical") kvs_inv
            with "[Hkvs_data Hpkvs']") as "#Hkvs".
     { iNext.
       iFrame "∗".
@@ -1577,7 +1577,7 @@ Section UserKvsInit.
       iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP;solve_addr+Hdata_size.
     }
 
-    iMod (na_inv_alloc cerise_nais _ (Nkvs.@"logical") logical_kvs_inv
+    iMod (na_inv_alloc (tpool th) _ (Nkvs.@"logical") logical_kvs_inv
            with "[Hlkvs_auth Hpkvs]") as "#Hkvs_logical".
     { iNext.
       iFrame.

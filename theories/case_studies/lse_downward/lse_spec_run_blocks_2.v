@@ -12,7 +12,7 @@ From griotte Require Import lse_spec_states.
 Section LSE_Run_Blocks_2.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -24,18 +24,18 @@ Section LSE_Run_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     cstk.(cstk_frames) = [] ->
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
-    cra ↦ᵣ wcra ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct2 ↦ᵣ wct2 ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
+    cra ↦ᵣ[th] wcra ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     cstack_frag cstk ∗
     codefrag_pers pc_a lse_main_code
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2

@@ -17,7 +17,7 @@ From griotte Require Import error_handling_spec_states.
 Section Error_Handling_Main_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -31,23 +31,23 @@ Section Error_Handling_Main_Blocks_1.
     (wctp wct1 wcra wcs0 : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wcs0 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        ctp ↦ᵣ main_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher adv_f ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        ctp ↦ᵣ[th] main_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher adv_f ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
-        cs0 ↦ᵣ wcra ∗
+        cs0 ↦ᵣ[th] wcra ∗
         codefrag_pers pc_a error_handling_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
       "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main & Hpost)".
@@ -101,25 +101,25 @@ Section Error_Handling_Main_Blocks_1.
     (wca0 wctp wct1 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ca0 ↦ᵣ wca0 ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cra ↦ᵣ[th] wcra ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_e ∗
-        ctp ↦ᵣ main_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher (STATS_read Global) ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_e ∗
+        ctp ↦ᵣ[th] main_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher (STATS_read Global) ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
         codefrag_pers pc_a error_handling_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra

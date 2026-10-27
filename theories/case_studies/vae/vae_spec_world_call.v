@@ -30,7 +30,7 @@ From griotte Require Import vae_spec_states vae_spec_closure_repair.
 Section VAE_World_Call.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -256,16 +256,16 @@ Section VAE_World_Call.
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
-    ca0 ↦ᵣ WInt 0 -∗
-    ca1 ↦ᵣ WInt 0 -∗
-    ct0 ↦ᵣ vae_switcher_entry -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ca0 ↦ᵣ[th] WInt 0 -∗
+    ca1 ↦ᵣ[th] WInt 0 -∗
+    ct0 ↦ᵣ[th] vae_switcher_entry -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
-      ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg) ∗
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".

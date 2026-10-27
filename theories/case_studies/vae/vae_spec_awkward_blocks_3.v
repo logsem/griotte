@@ -14,7 +14,7 @@ From griotte Require Import vae_spec_states.
 Section VAE_Awkward_Blocks_3.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -34,33 +34,33 @@ Section VAE_Awkward_Blocks_3.
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wret ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ca2 ↦ᵣ wca2 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wret ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
     (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
-        PC ↦ₚ lupdatePcPerm wret ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ wret ∗
-        cs0 ↦ᵣ wret ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        ct2 ↦ᵣ WInt 0 ∗
-        ca2 ↦ᵣ WInt 0 ∗
+        PC ↦ₚ[th] lupdatePcPerm wret ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cra ↦ᵣ[th] wret ∗
+        cs0 ↦ᵣ[th] wret ∗
+        ca0 ↦ᵣ[th] WInt 0 ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
+        ct0 ↦ᵣ[th] WInt 0 ∗
+        ct1 ↦ᵣ[th] WInt 0 ∗
+        ct2 ↦ᵣ[th] WInt 0 ∗
+        ca2 ↦ᵣ[th] WInt 0 ∗
         (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hloc Htgt)

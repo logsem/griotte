@@ -18,7 +18,7 @@ From griotte Require Import error_handling_spec_states.
 Section Error_Handling_Read_Blocks.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -32,18 +32,18 @@ Section Error_Handling_Read_Blocks.
     stats_code_bounds pc_b pc_e ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ct0 ↦ᵣ wct0 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ct0 ↦ᵣ[th] wct0 ∗
     cgp_b ↦ₐ WInt 0 ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ct0 ↦ᵣ WInt 0 ∗
+    ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ct0 ↦ᵣ[th] WInt 0 ∗
         cgp_b ↦ₐ WInt 1 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow)
       "(HPC & Hcgp & Hct0 & Hlock & Hcode_stats & Hpost)".
@@ -86,16 +86,16 @@ Section Error_Handling_Read_Blocks.
     withinBounds b e a = true ->
     is_shadow_address a = false ->
     is_heap_cap w.(lw) = false ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
-    ca0 ↦ᵣ WCap true p g b e a ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
+    ca0 ↦ᵣ[th] WCap true p g b e a ∗
     a ↦ₐ w ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
-        ca0 ↦ᵣ lload_word p w ∗
+    ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
+        ca0 ↦ᵣ[th] lload_word p w ∗
         a ↦ₐ w ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hread Ha_bounds Ha_shadow Hw_nonheap)
       "(HPC & Hca0 & Ha & Hcode_stats & Hpost)".
@@ -122,20 +122,20 @@ Section Error_Handling_Read_Blocks.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ca1 ↦ᵣ wca1 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ wlock ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wcra ∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
+        cra ↦ᵣ[th] wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt)
       "(HPC & Hcgp & Hca1 & Hcra & Hlock & Hcode_stats & Hpost)".

@@ -13,7 +13,7 @@ From griotte Require Import dle_spec_states.
 Section DLE_Overwrite_Blocks_3.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -27,30 +27,30 @@ Section DLE_Overwrite_Blocks_3.
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ca0 ↦ᵣ wca0 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ WSealed ot_switcher C_f ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
     pc_b ↦ₐ□ dle_switcher_entry ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ dle_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
-        cs0 ↦ᵣ wcs0 ∗
-        cs1 ↦ᵣ WSealed ot_switcher C_f ∗
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] WInt 0 ∗
+        ct0 ↦ᵣ[th] dle_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+        cs0 ↦ᵣ[th] wcs0 ∗
+        cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
         pc_b ↦ₐ□ dle_switcher_entry ∗
         codefrag_pers pc_a dle_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio)
