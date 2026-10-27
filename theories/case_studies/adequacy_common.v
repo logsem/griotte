@@ -101,10 +101,11 @@ Section initial_rootedness.
     (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
     sreg !! MTCC = Some mtcc_vec →
     (∃ z, sreg !! MTVAL = Some (WInt z)) →
+    (∃ mie mpie, sreg !! MSTATUS = Some (WInt (mstatus_enc mie mpie))) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
     intros HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
-      Hreserved Hmtcc Hmtval.
+      Hreserved Hmtcc Hmtval Hmstatus.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -130,6 +131,7 @@ Section initial_rootedness.
     - exact Hreserved.
     - exact Hmtcc.
     - exact Hmtval.
+    - exact Hmstatus.
   Qed.
 
 End initial_rootedness.
@@ -137,7 +139,7 @@ End initial_rootedness.
 (** ** Iris adequacy for the assert flag
 
     The premise receives the program-logic resources of the initial state
-    (registers, system registers, memory, shadow table, address claims, the
+    (registers, mtdc, memory, shadow table, address claims, the
     non-atomic invariant token) and must produce a WP for the machine together with
     the invariant of the assert flag. The machine runs as the user thread [0]:
     its PC, registers and pool are those of [UserThread 0] in the base; the
@@ -149,15 +151,16 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   `{MP: MachineParameters} {TV : trapVector}
   (flagN : namespace) (flag : Addr) (H : gset Addr)
   (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
-  (es : list griotte_lang.expr) :
+  (wmtdc : Word) (es : list griotte_lang.expr) :
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
+  sreg !! MTDC = Some wmtdc →
   (∀ (ceriseb : ceriseBaseG Σ),
      (* the trap vector of [ceriseb] is the one of the initial state *)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
      PC ↦ₚ[u 0] lword_of_word pc -∗
      ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ[u 0] w) -∗
-     ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₓ lword_of_word w) -∗
+     mtdc ↦ₜ[u 0] TStack (lword_of_word wmtdc) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
@@ -169,7 +172,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
 Proof.
-  intros Hinit Hnull Hwp Hstep.
+  intros Hinit Hnull Hmtdc Hwp Hstep.
   pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
   pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
   specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
@@ -177,12 +180,14 @@ Proof.
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
   iMod (@na_alloc Σ na_invg) as (pool) "Hna".
   pose cerise_na_invs := Build_cerise_na_invs _ na_invg pool.
-  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H Hinit)
-    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg)
-       "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
+  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H (TStack (lword_of_word wmtdc)) wmtdc
+          Hinit Hmtdc (mtdc_match_TStack _))
+    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg)
+       "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
-  (* Every thread has the PC, the registers and the pool of the machine. *)
+  (* Every thread has the PC, the registers, mtdc, MIE and the pool of the
+     machine. *)
   pose ceriseb := {|
     cb_invG := Hinv;
     cb_na_invG := na_invg;
@@ -192,17 +197,21 @@ Proof.
     cb_registry := registryg;
     cb_addr_alloc := addr_allocg;
     cb_trapVector := TV;
+    cb_mpie := mpieg;
     cb_pc_of := λ _, pc_g;
     cb_regs_of := λ _, reg_heapg;
+    cb_mtdc_of := λ _, mtdcg;
+    cb_mie_of := λ _, mieg;
     tpool := λ _, pool |}.
   pose ceriseg := ceriseG_of (base := ceriseb) (UserThread 0).
-  iMod (Hwp ceriseb eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseb eq_refl with "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
   iModIntro.
-  iExists (fun σ _ _ => cerise_state_interp σ)%I.
+  iExists (fun σ _ _ => cerise_state_interp σ ∗ crit_link σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
   iSplitL "Hwp".
   { iApply (wp_mono with "Hwp"); iIntros (?) "?"; done. }
-  iIntros "@".
+  iIntros "[Hσ _]".
+  iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
   iExists (⊤ ∖ ↑flagN).
   iInv flagN as ">Hflag'" "Hclose".
   iDestruct (gen_heap_valid with "Hm Hflag'") as %Hm'_flag.

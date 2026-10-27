@@ -214,12 +214,12 @@ Section AllocatorSwitcherSpec.
       [solve_ndisj|solve_ndisj|].
     iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
     iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
-      _ (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rframe with
+      _ (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
-      | exact Hbounds | exact Hlen | | | intros _; reflexivity | intros _; reflexivity
-      | apply jalr_target_ok_switcher_return_sentry |].
+      | exact Hbounds | exact Hlen | | | intros _; reflexivity
+      | intros vm [Hprov _] _; exact Hprov | apply jalr_target_ok_switcher_return_sentry |].
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
     { intros r w Hr _. subst rframe.

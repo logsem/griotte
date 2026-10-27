@@ -334,11 +334,11 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
       iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) rmap
+        (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rmap
         (HO th) with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
         | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
-        | intros _; reflexivity | apply jalr_target_ok_switcher_return_sentry |].
+        | intros vm [Hprov _] _; exact Hprov | apply jalr_target_ok_switcher_return_sentry |].
       { subst rmap. apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }

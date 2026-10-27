@@ -1410,6 +1410,7 @@ Section ghost_init.
     - intros sr _. eexists. apply Hsreg.
     - exact (Hsreg MTCC).
     - exists 0%Z. exact (Hsreg MTVAL).
+    - exists InterruptDisabled, InterruptDisabled. exact (Hsreg MSTATUS).
   Qed.
 End ghost_init.
 
@@ -1719,8 +1720,8 @@ Proof.
   (* The program-logic resources of the initial state. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw)));
-    [exact Hinit | exact Hnull | | exact Hstep].
-  iIntros (ceriseb Hmtcc) "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna".
+    [exact Hinit | exact Hnull | exact (Hsreg MTDC) | | exact Hstep].
+  iIntros (ceriseb Hmtcc) "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna".
   (* The seal store, the call stack and the worlds. *)
   iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0)) (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0))
@@ -1729,8 +1730,6 @@ Proof.
   rewrite big_sepS_union; last (apply disjoint_singleton_l; by rewrite elem_of_list_to_set).
   rewrite big_sepS_singleton big_sepS_list_to_set //.
   iDestruct "Hseal_store" as "[Hseal_switcher Hotypes]".
-  iDestruct (big_sepM_lookup with "Hsreg") as "Hmtdc";
-    first by apply lookup_sregs_handed_out_mtdc, Hsreg.
   (* The memory and the registers, by part. *)
   iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0))
               fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")

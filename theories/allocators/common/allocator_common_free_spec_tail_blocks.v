@@ -92,14 +92,14 @@ Section AllocatorFreeTailBlocks.
       in hand, none of whose words with authority carries [ι], the painted
       payload moves the status token of [ι] to [AQuar]. *)
   Lemma allocator_free_revoke_store_spec
-    (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 wmtdc : LWord)
+    (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 : LWord) (m : mtdc_val)
     (regs : LReg) (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (se + (b - e))%a = Some sb ->
     dom regs = all_registers_s ∖ {[ct1; ct2; ca3; ca4; ctp; ca2; cnull]} ->
     (∀ x lv, x ≠ cnull -> regs !! x = Some lv ->
        has_authority lv.(lw) -> lv.(lprov) ≠ Some ι) ->
-    (has_authority wmtdc.(lw) -> wmtdc.(lprov) ≠ Some ι) ->
+    (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) ≠ Some ι) ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
@@ -108,7 +108,7 @@ Section AllocatorFreeTailBlocks.
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
     ca2 ↦ᵣ wa2 ∗
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
-    mtdc ↦ₓ wmtdc ∗
+    mtdc ↦ₜ m ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -121,7 +121,7 @@ Section AllocatorFreeTailBlocks.
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
        ca2 ↦ᵣ WInt (e - b) ∗
        ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
-       mtdc ↦ₓ wmtdc ∗
+       mtdc ↦ₜ m ∗
        revoke_post ι ∗
        ι ⊒ AQuar ∗
        codefrag_pers pc_a allocator_free_tail_code
@@ -171,7 +171,7 @@ Section AllocatorFreeTailBlocks.
       rewrite !lookup_insert_ne; [|set_solver..].
       apply elem_of_dom. rewrite Hdom. apply elem_of_difference.
       split; [apply all_registers_s_correct|set_solver]. }
-    { intros v [-> | [-> | (x & Hxn & Hlookup) ] ] Hauth; [done | by apply Hclean_mtdc |].
+    { intros v [-> | [Hvm | (x & Hxn & Hlookup) ] ] Hauth; [done | by apply (Hclean_mtdc v Hvm) |].
       destruct (decide (x ∈ ({[ct1; ct2; ca3; ca4; ctp; ca2]} : gset RegName))) as [Hin|Hin].
       { rewrite !elem_of_union !elem_of_singleton in Hin.
         destruct_or! Hin; subst x; simplify_map_eq; done. }
@@ -214,7 +214,7 @@ Section AllocatorFreeTailBlocks.
 
   Lemma allocator_free_revoke_spec
     (E : coPset) (pc_b pc_e pc_a next b e : Addr) (ι : AId)
-    (w4 wa2 wret wmtdc : LWord) (rmap : LReg)
+    (w4 wa2 wret : LWord) (m : mtdc_val) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
@@ -222,7 +222,7 @@ Section AllocatorFreeTailBlocks.
       {[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4; ctp; cnull]} ->
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
-    (has_authority wmtdc.(lw) -> wmtdc.(lprov) = None) ->
+    (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) = None) ->
     PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
     cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
@@ -236,7 +236,7 @@ Section AllocatorFreeTailBlocks.
     ca4 ↦ᵣ w4 ∗
     ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-    mtdc ↦ₓ wmtdc ∗
+    mtdc ↦ₜ m ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
@@ -254,7 +254,7 @@ Section AllocatorFreeTailBlocks.
        ca4 ↦ᵣ WInt (b - e) ∗
        ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
-       mtdc ↦ₓ wmtdc ∗
+       mtdc ↦ₜ m ∗
        ι ↦st{1} ADead ∗
        ι ⊒ AQuar ∗
        ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
@@ -305,7 +305,7 @@ Section AllocatorFreeTailBlocks.
       destruct (decide (x = ct0)); [subst; simplify_map_eq; done|].
       rewrite !lookup_insert_ne // in Hlookup.
       by rewrite (Hclean _ _ Hlookup Hauth). }
-    { intros Hauth. by rewrite Hclean_mtdc. }
+    { intros vm Hvm Hauth. by rewrite (Hclean_mtdc vm Hvm Hauth). }
     iNext. iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hmtdc & Hdead &
       #Hq & _)".
     iDestruct "Hdead" as (b1 e1) "(#Hobj1 & Hdead & _ & Hcells_dead)".

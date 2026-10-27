@@ -152,14 +152,6 @@ End state_interp.
 (** The system registers that the state interpretation reserves. *)
 Definition reserved_sregs : list SRegName := [MSTATUS; MEPCC; MCAUSE; MTVAL; MTCC].
 
-(** The system registers that adequacy hands out: those not reserved. *)
-Definition sregs_handed_out (sr : SReg) : SReg :=
-  delete MTCC (delete MTVAL (delete MCAUSE (delete MEPCC (delete MSTATUS sr)))).
-
-Lemma lookup_sregs_handed_out_mtdc (sr : SReg) w :
-  sr !! MTDC = Some w → sregs_handed_out sr !! MTDC = Some w.
-Proof. intros Hw. by rewrite /sregs_handed_out !lookup_delete_ne. Qed.
-
 Section ghost_init.
   Context `{MP : MachineParameters, TV : !trapVector}.
 
