@@ -26,7 +26,7 @@ From griotte.switcher.failure Require Export common_thread_exit.
 Section Callback_Path.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -41,8 +41,8 @@ Section Callback_Path.
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
@@ -52,7 +52,7 @@ Section Callback_Path.
         switcher_hazard
         ={E}=∗
         Φ HaltedV )
-    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
+    ⊢ WP Seq (Instr Executable) @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
     iIntros (Hdom) "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
@@ -88,13 +88,13 @@ Section Callback_Path.
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
@@ -110,23 +110,23 @@ Section Callback_Path.
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
-        cra ↦ᵣ rcra ∗
-        cgp ↦ᵣ rcgp ∗
-        cs0 ↦ᵣ rcs0 ∗
-        cs1 ↦ᵣ rcs1 ∗
-        csp ↦ᵣ WCap true RWL Local b e a ∗
+        cra ↦ᵣ[th] rcra ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b e a ∗
         [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        ( PC ↦ₚ lupdatePcPerm rcra ∗
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
           £ 1 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+            (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
@@ -189,13 +189,13 @@ Section Callback_Path.
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
@@ -228,24 +228,24 @@ Section Callback_Path.
              interp Wval C rcs0
            else True) ∗
           ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-          cra ↦ᵣ rcra ∗
-          cgp ↦ᵣ rcgp ∗
-          cs0 ↦ᵣ rcs0 ∗
-          cs1 ↦ᵣ rcs1 ∗
-          csp ↦ᵣ WCap true RWL Local b e a ∗
+          cra ↦ᵣ[th] rcra ∗
+          cgp ↦ᵣ[th] rcgp ∗
+          cs0 ↦ᵣ[th] rcs0 ∗
+          cs1 ↦ᵣ[th] rcs1 ∗
+          csp ↦ᵣ[th] WCap true RWL Local b e a ∗
           [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
             [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
           [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
             [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-          ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
+          ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) ∗
           £ 2 -∗
-          ( PC ↦ₚ lupdatePcPerm rcra ∗
+          ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
             £ 1 -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+            WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
           ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
             trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-              (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+              (HO th) ) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Hheap Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)

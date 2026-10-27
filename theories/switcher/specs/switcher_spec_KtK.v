@@ -10,7 +10,7 @@ From griotte Require Import map_simpl register_tactics.
 Section Switcher_KtK.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -77,19 +77,18 @@ Section Switcher_KtK.
              ⌜ dom rmap_ret =
                    all_registers_s ∖
                      {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-             ∗ na_own cerise_nais F
-             ∗ PC ↦ₚ WCap true XSRW_ Local
+             ∗ na_own (tpool th) F
+             ∗ PC ↦ₚ[th] WCap true XSRW_ Local
                          b_switcher e_switcher a_switcher_return
-             ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
-             ∗ csp ↦ᵣ callee_csp b_stk e_stk a_stk
-             ∗ ca0 ↦ᵣ wca0
-             ∗ ca1 ↦ᵣ wca1
-             ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w)
+             ∗ cgp ↦ᵣ[th] - ∗ cra ↦ᵣ[th] - ∗ cs0 ↦ᵣ[th] - ∗ cs1 ↦ᵣ[th] -
+             ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
+             ∗ ca0 ↦ᵣ[th] wca0
+             ∗ ca1 ↦ᵣ[th] wca1
+             ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w)
              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_ret ]]
              ∗ cstack_frag (cstack_set_top_count (cstack_push frame cstk) n)
              ∗ Q wca0 wca1
-               -∗ WP Seq (Instr Executable)
-                     {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
+               -∗ WP Seq (Instr Executable) @[th] {{ HO th }}))%I
     in
     (* FAULT --- the callee faults; the switcher force-unwinds its frame and
        returns ECOMPARTMENTFAIL to the caller *)
@@ -102,24 +101,23 @@ Section Switcher_KtK.
        ∗ ⌜ dom rmap' =
              all_registers_s ∖
                ({[ cgp ; cra ; csp ]} ∪ dom_arg_rmap 8) ⌝
-       ∗ na_own cerise_nais F
-       ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-       ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return
-       ∗ csp ↦ᵣ callee_csp b_stk e_stk a_stk
+       ∗ na_own (tpool th) F
+       ∗ PC ↦ₚ[th] WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+       ∗ cgp ↦ᵣ[th] WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+       ∗ cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return
+       ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
-            rarg ↦ᵣ warg
+            rarg ↦ᵣ[th] warg
             ∗ if decide (rarg ∈ dom_arg_rmap nargs)
               then ⌜ arg_rmap !! rarg = Some warg ⌝
               else ⌜ warg = WInt 0 ⌝)
-       ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+       ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
        ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
            [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]]
        ∗ cstack_frag (cstack_push frame cstk)
        ∗ P
        ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res F else return_cont)
-       -∗ WP Seq (Instr Executable)
-             {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+       -∗ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
 
 
   #[local] Lemma if_and_sep_intro (b : bool) (R Q S : iProp Σ) :
@@ -159,16 +157,16 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais F
-         ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
-         ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
-         ∗ "Hcra" ∷ cra ↦ᵣ rcra
-         ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
-         ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
-         ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-         ∗ "Hca0" ∷ ca0 ↦ᵣ wca0_ret
-         ∗ "Hca1" ∷ ca1 ↦ᵣ wca1_ret
-         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+         ∗ "Hna" ∷ na_own (tpool th) F
+         ∗ "HPC" ∷ PC ↦ₚ[th] lupdatePcPerm (rcra)
+         ∗ "Hcgp" ∷ cgp ↦ᵣ[th] rcgp
+         ∗ "Hcra" ∷ cra ↦ᵣ[th] rcra
+         ∗ "Hcs0" ∷ cs0 ↦ᵣ[th] rcs0
+         ∗ "Hcs1" ∷ cs1 ↦ᵣ[th] rcs1
+         ∗ "Hcsp" ∷ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+         ∗ "Hca0" ∷ ca0 ↦ᵣ[th] wca0_ret
+         ∗ "Hca1" ∷ ca1 ↦ᵣ[th] wca1_ret
+         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
              [[ region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ]]
          ∗ "Hcstk" ∷ cstack_frag cstk
@@ -182,16 +180,16 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais F
-         ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
-         ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
-         ∗ "Hcra" ∷ cra ↦ᵣ rcra
-         ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-         ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
-         ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
-         ∗ "Hca0" ∷ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
-         ∗ "Hca1" ∷ ca1 ↦ᵣ WInt 0
-         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+         ∗ "Hna" ∷ na_own (tpool th) F
+         ∗ "HPC" ∷ PC ↦ₚ[th] lupdatePcPerm (rcra)
+         ∗ "Hcgp" ∷ cgp ↦ᵣ[th] rcgp
+         ∗ "Hcra" ∷ cra ↦ᵣ[th] rcra
+         ∗ "Hcsp" ∷ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+         ∗ "Hcs0" ∷ cs0 ↦ᵣ[th] rcs0
+         ∗ "Hcs1" ∷ cs1 ↦ᵣ[th] rcs1
+         ∗ "Hca0" ∷ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
+         ∗ "Hca1" ∷ ca1 ↦ᵣ[th] WInt 0
+         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]]
          ∗ "Hcstk" ∷ cstack_frag cstk
          ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
@@ -205,16 +203,16 @@ Section Switcher_KtK.
          "%Hdom_rmap_ret" ∷ ⌜ dom rmap_ret =
                all_registers_s ∖
                  {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-         ∗ "Hna" ∷ na_own cerise_nais F
-         ∗ "HPC" ∷ PC ↦ₚ lupdatePcPerm (rcra)
-         ∗ "Hcgp" ∷ cgp ↦ᵣ rcgp
-         ∗ "Hcra" ∷ cra ↦ᵣ rcra
-         ∗ "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-         ∗ "Hcs0" ∷ cs0 ↦ᵣ rcs0
-         ∗ "Hcs1" ∷ cs1 ↦ᵣ rcs1
-         ∗ "Hca0" ∷ ca0 ↦ᵣ WInt ECOMPARTMENTFAIL
-         ∗ "Hca1" ∷ ca1 ↦ᵣ WInt 0
-         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
+         ∗ "Hna" ∷ na_own (tpool th) F
+         ∗ "HPC" ∷ PC ↦ₚ[th] lupdatePcPerm (rcra)
+         ∗ "Hcgp" ∷ cgp ↦ᵣ[th] rcgp
+         ∗ "Hcra" ∷ cra ↦ᵣ[th] rcra
+         ∗ "Hcsp" ∷ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+         ∗ "Hcs0" ∷ cs0 ↦ᵣ[th] rcs0
+         ∗ "Hcs1" ∷ cs1 ↦ᵣ[th] rcs1
+         ∗ "Hca0" ∷ ca0 ↦ᵣ[th] WInt ECOMPARTMENTFAIL
+         ∗ "Hca1" ∷ ca1 ↦ᵣ[th] WInt 0
+         ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
              [[ region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ]]
          ∗ "Hcstk" ∷ cstack_frag cstk
@@ -249,21 +247,21 @@ Section Switcher_KtK.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
-    ∗ na_own cerise_nais F
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ cgp ↦ᵣ wcgp_caller
-    ∗ cra ↦ᵣ wcra_caller
-    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-    ∗ ct1 ↦ᵣ wct1_caller
-    ∗ cs0 ↦ᵣ wcs0_caller
-    ∗ cs1 ↦ᵣ wcs1_caller
-    ∗ ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg)
-    ∗ ([∗ map] r↦w ∈ rmap, r ↦ᵣ w)
+    ∗ na_own (tpool th) F
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ[th] wcgp_caller
+    ∗ cra ↦ᵣ[th] wcra_caller
+    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ ct1 ↦ᵣ[th] wct1_caller
+    ∗ cs0 ↦ᵣ[th] wcs0_caller
+    ∗ cs1 ↦ᵣ[th] wcs1_caller
+    ∗ ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg)
+    ∗ ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
     ∗ cstack_frag cstk
     ∗ P
@@ -274,10 +272,8 @@ Section Switcher_KtK.
     ∗ ▷ ((if may_fault
           then returned ∨ stack_exhausted ∨ callee_faulted
           else returned ∨ stack_exhausted)
-        -∗ WP Seq (Instr Executable)
-              {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable)
-          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_tbl_cgp a_tbl_ehs wct1_caller returned stack_exhausted callee_faulted.
     subst a_tbl_cgp a_tbl_ehs.
@@ -330,7 +326,7 @@ Section Switcher_KtK.
                ∗ ⌜ dom rmap_final =
                      all_registers_s ∖
                        {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-               ∗ na_own cerise_nais F
+               ∗ na_own (tpool th) F
                ∗ PC ↦ₚ lupdatePcPerm (rcra)
                ∗ cgp ↦ᵣ rcgp
                ∗ cra ↦ᵣ rcra
@@ -345,7 +341,7 @@ Section Switcher_KtK.
                    [[ region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ]]
                ∗ cstack_frag cstk
                  -∗ WP Seq (Instr Executable)
-                       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}))%I
+                       {{ HO th }}))%I
           with "[HQ Hpost]" as "Hretpost".
         { iNext.
           iIntros (rmap_final rcgp rcra rcs0 rcs1)

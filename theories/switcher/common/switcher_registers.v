@@ -9,7 +9,7 @@ From griotte Require Import map_simpl register_tactics.
     so that the switcher's proofs do not compute on register maps. *)
 
 Section Switcher_Registers.
-  Context {Σ:gFunctors} {ceriseg:ceriseG Σ}.
+  Context {Σ:gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}.
 
   (** ** Any list of registers *)
 
@@ -18,8 +18,8 @@ Section Switcher_Registers.
   Lemma big_sepM_extract_list (m : LReg) (rs : list RegName) :
     NoDup rs →
     (∀ r, r ∈ rs → is_Some (m !! r)) →
-    ([∗ map] k↦y ∈ m, k ↦ᵣ y) ⊢
-      ([∗ list] r ∈ rs, r ↦ᵣ (m !!! r)) ∗ ([∗ map] k↦y ∈ foldr delete m rs, k ↦ᵣ y).
+    ([∗ map] k↦y ∈ m, k ↦ᵣ[th] y) ⊢
+      ([∗ list] r ∈ rs, r ↦ᵣ[th] (m !!! r)) ∗ ([∗ map] k↦y ∈ foldr delete m rs, k ↦ᵣ[th] y).
   Proof.
     induction rs as [|r rs IH]; intros Hnd Hsome; first by iIntros "$".
     apply NoDup_cons in Hnd as [Hr Hnd].
@@ -58,22 +58,22 @@ Section Switcher_Registers.
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) -∗
-    cra ↦ᵣ wcra -∗
-    csp ↦ᵣ wcsp -∗
-    cgp ↦ᵣ wcgp -∗
-    ctp ↦ᵣ wctp -∗
-    ct0 ↦ᵣ wct0 -∗
-    ct1 ↦ᵣ wct1 -∗
-    ct2 ↦ᵣ wct2 -∗
-    cs0 ↦ᵣ wcs0 -∗
-    cs1 ↦ᵣ wcs1 -∗
-    ca0 ↦ᵣ wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
-    ca2 ↦ᵣ wca2 -∗
-    ca3 ↦ᵣ wca3 -∗
-    ca4 ↦ᵣ wca4 -∗
-    ca5 ↦ᵣ wca5 -∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) -∗
+    cra ↦ᵣ[th] wcra -∗
+    csp ↦ᵣ[th] wcsp -∗
+    cgp ↦ᵣ[th] wcgp -∗
+    ctp ↦ᵣ[th] wctp -∗
+    ct0 ↦ᵣ[th] wct0 -∗
+    ct1 ↦ᵣ[th] wct1 -∗
+    ct2 ↦ᵣ[th] wct2 -∗
+    cs0 ↦ᵣ[th] wcs0 -∗
+    cs1 ↦ᵣ[th] wcs1 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
+    ca3 ↦ᵣ[th] wca3 -∗
+    ca4 ↦ᵣ[th] wca4 -∗
+    ca5 ↦ᵣ[th] wca5 -∗
     registers_pointsto (regs_rebuild rmap wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1
                           wca0 wca1 wca2 wca3 wca4 wca5).
   Proof.
@@ -92,24 +92,24 @@ Section Switcher_Registers.
     rmap !! ca0 = Some wca0 → rmap !! ca1 = Some wca1 → rmap !! ca2 = Some wca2 →
     rmap !! ca3 = Some wca3 → rmap !! ca4 = Some wca4 → rmap !! ca5 = Some wca5 →
     registers_pointsto rmap ⊢
-      cra ↦ᵣ wcra ∗
-      csp ↦ᵣ wcsp ∗
-      cgp ↦ᵣ wcgp ∗
-      ctp ↦ᵣ wctp ∗
-      ct0 ↦ᵣ wct0 ∗
-      ct1 ↦ᵣ wct1 ∗
-      ct2 ↦ᵣ wct2 ∗
-      cs0 ↦ᵣ wcs0 ∗
-      cs1 ↦ᵣ wcs1 ∗
-      ca0 ↦ᵣ wca0 ∗
-      ca1 ↦ᵣ wca1 ∗
-      ca2 ↦ᵣ wca2 ∗
-      ca3 ↦ᵣ wca3 ∗
-      ca4 ↦ᵣ wca4 ∗
-      ca5 ↦ᵣ wca5 ∗
+      cra ↦ᵣ[th] wcra ∗
+      csp ↦ᵣ[th] wcsp ∗
+      cgp ↦ᵣ[th] wcgp ∗
+      ctp ↦ᵣ[th] wctp ∗
+      ct0 ↦ᵣ[th] wct0 ∗
+      ct1 ↦ᵣ[th] wct1 ∗
+      ct2 ↦ᵣ[th] wct2 ∗
+      cs0 ↦ᵣ[th] wcs0 ∗
+      cs1 ↦ᵣ[th] wcs1 ∗
+      ca0 ↦ᵣ[th] wca0 ∗
+      ca1 ↦ᵣ[th] wca1 ∗
+      ca2 ↦ᵣ[th] wca2 ∗
+      ca3 ↦ᵣ[th] wca3 ∗
+      ca4 ↦ᵣ[th] wca4 ∗
+      ca5 ↦ᵣ[th] wca5 ∗
       ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
          (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-         (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y).
+         (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y).
   Proof.
     intros Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5.
     iIntros "Hrmap".
@@ -144,22 +144,22 @@ Section Switcher_Registers.
     rmap !! ca5 = Some wca5 →
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) -∗
-    cra ↦ᵣ wcra -∗
-    csp ↦ᵣ wcsp -∗
-    cgp ↦ᵣ wcgp -∗
-    ctp ↦ᵣ wctp -∗
-    ct0 ↦ᵣ wct0 -∗
-    ct1 ↦ᵣ wct1 -∗
-    ct2 ↦ᵣ wct2 -∗
-    cs0 ↦ᵣ wcs0 -∗
-    cs1 ↦ᵣ wcs1 -∗
-    ca0 ↦ᵣ w0 -∗
-    ca1 ↦ᵣ w1 -∗
-    ca2 ↦ᵣ wca2 -∗
-    ca3 ↦ᵣ wca3 -∗
-    ca4 ↦ᵣ wca4 -∗
-    ca5 ↦ᵣ wca5 -∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) -∗
+    cra ↦ᵣ[th] wcra -∗
+    csp ↦ᵣ[th] wcsp -∗
+    cgp ↦ᵣ[th] wcgp -∗
+    ctp ↦ᵣ[th] wctp -∗
+    ct0 ↦ᵣ[th] wct0 -∗
+    ct1 ↦ᵣ[th] wct1 -∗
+    ct2 ↦ᵣ[th] wct2 -∗
+    cs0 ↦ᵣ[th] wcs0 -∗
+    cs1 ↦ᵣ[th] wcs1 -∗
+    ca0 ↦ᵣ[th] w0 -∗
+    ca1 ↦ᵣ[th] w1 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
+    ca3 ↦ᵣ[th] wca3 -∗
+    ca4 ↦ᵣ[th] wca4 -∗
+    ca5 ↦ᵣ[th] wca5 -∗
     registers_pointsto (<[ca1 := w1]> (<[ca0 := w0]> rmap)).
   Proof.
     intros Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca2 Hca3 Hca4 Hca5.
@@ -227,15 +227,15 @@ Section Switcher_Registers.
     regs !! cs0 = Some wcs0 → regs !! cs1 = Some wcs1 → regs !! cra = Some wcra →
     regs !! cgp = Some wcgp → regs !! ct1 = Some wct1 →
     registers_pointsto regs ⊢
-      csp ↦ᵣ wcsp ∗
-      ct2 ↦ᵣ wct2 ∗
-      ctp ↦ᵣ wctp ∗
-      cs0 ↦ᵣ wcs0 ∗
-      cs1 ↦ᵣ wcs1 ∗
-      cra ↦ᵣ wcra ∗
-      cgp ↦ᵣ wcgp ∗
-      ct1 ↦ᵣ wct1 ∗
-      ([∗ map] k↦y ∈ call_regs_without regs, k ↦ᵣ y).
+      csp ↦ᵣ[th] wcsp ∗
+      ct2 ↦ᵣ[th] wct2 ∗
+      ctp ↦ᵣ[th] wctp ∗
+      cs0 ↦ᵣ[th] wcs0 ∗
+      cs1 ↦ᵣ[th] wcs1 ∗
+      cra ↦ᵣ[th] wcra ∗
+      cgp ↦ᵣ[th] wcgp ∗
+      ct1 ↦ᵣ[th] wct1 ∗
+      ([∗ map] k↦y ∈ call_regs_without regs, k ↦ᵣ[th] y).
   Proof.
     intros Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1.
     iIntros "Hregs".
@@ -274,15 +274,15 @@ Section Switcher_Registers.
   (** Put the registers of the call path back, with any words. *)
   Lemma call_regs_insert (regs : LReg)
     (wcsp wct2 wctp wcs0 wcs1 wcra wcgp wct1 : LWord) :
-    ([∗ map] k↦y ∈ call_regs_without regs, k ↦ᵣ y) -∗
-    csp ↦ᵣ wcsp -∗
-    ct2 ↦ᵣ wct2 -∗
-    ctp ↦ᵣ wctp -∗
-    cs0 ↦ᵣ wcs0 -∗
-    cs1 ↦ᵣ wcs1 -∗
-    cra ↦ᵣ wcra -∗
-    cgp ↦ᵣ wcgp -∗
-    ct1 ↦ᵣ wct1 -∗
+    ([∗ map] k↦y ∈ call_regs_without regs, k ↦ᵣ[th] y) -∗
+    csp ↦ᵣ[th] wcsp -∗
+    ct2 ↦ᵣ[th] wct2 -∗
+    ctp ↦ᵣ[th] wctp -∗
+    cs0 ↦ᵣ[th] wcs0 -∗
+    cs1 ↦ᵣ[th] wcs1 -∗
+    cra ↦ᵣ[th] wcra -∗
+    cgp ↦ᵣ[th] wcgp -∗
+    ct1 ↦ᵣ[th] wct1 -∗
     registers_pointsto (call_regs_with regs wcsp wct2 wctp wcs0 wcs1 wcra wcgp wct1).
   Proof.
     iIntros "Hregs Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1".
@@ -313,9 +313,9 @@ Section Switcher_Registers.
     NoDup rs →
     dom m = X →
     (∀ r, r ∈ rs → r ∈ X) →
-    ([∗ map] k↦y ∈ m, k ↦ᵣ y) ⊢
-      ([∗ list] r ∈ rs, ∃ w, r ↦ᵣ w) ∗
-      ∃ m', ⌜ dom m' = X ∖ list_to_set rs ⌝ ∗ [∗ map] k↦y ∈ m', k ↦ᵣ y.
+    ([∗ map] k↦y ∈ m, k ↦ᵣ[th] y) ⊢
+      ([∗ list] r ∈ rs, ∃ w, r ↦ᵣ[th] w) ∗
+      ∃ m', ⌜ dom m' = X ∖ list_to_set rs ⌝ ∗ [∗ map] k↦y ∈ m', k ↦ᵣ[th] y.
   Proof.
     intros Hnd Hdom Hin.
     iIntros "Hm".
@@ -333,13 +333,13 @@ Section Switcher_Registers.
       pointer and the return values. *)
   Lemma ret_callee_saved_extract (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ csp ; ca0 ; ca1 ]} →
-    ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ⊢
-      (∃ w, cgp ↦ᵣ w) ∗
-      (∃ w, cra ↦ᵣ w) ∗
-      (∃ w, cs0 ↦ᵣ w) ∗
-      (∃ w, cs1 ↦ᵣ w) ∗
+    ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y) ⊢
+      (∃ w, cgp ↦ᵣ[th] w) ∗
+      (∃ w, cra ↦ᵣ[th] w) ∗
+      (∃ w, cs0 ↦ᵣ[th] w) ∗
+      (∃ w, cs1 ↦ᵣ[th] w) ∗
       ∃ rmap', ⌜ dom rmap' = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ[th] y.
   Proof.
     intros Hdom.
     iIntros "Hrmap".
@@ -359,15 +359,15 @@ Section Switcher_Registers.
     rmap !! ca0 = Some wca0 →
     rmap !! ca1 = Some wca1 →
     registers_pointsto rmap ⊢
-      ca0 ↦ᵣ wca0 ∗
-      ca1 ↦ᵣ wca1 ∗
-      (∃ w, csp ↦ᵣ w) ∗
-      (∃ w, cgp ↦ᵣ w) ∗
-      (∃ w, cra ↦ᵣ w) ∗
-      (∃ w, cs0 ↦ᵣ w) ∗
-      (∃ w, cs1 ↦ᵣ w) ∗
+      ca0 ↦ᵣ[th] wca0 ∗
+      ca1 ↦ᵣ[th] wca1 ∗
+      (∃ w, csp ↦ᵣ[th] w) ∗
+      (∃ w, cgp ↦ᵣ[th] w) ∗
+      (∃ w, cra ↦ᵣ[th] w) ∗
+      (∃ w, cs0 ↦ᵣ[th] w) ∗
+      (∃ w, cs1 ↦ᵣ[th] w) ∗
       ∃ rmap', ⌜ dom rmap' = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ[th] y.
   Proof.
     intros Hfull Hca0 Hca1.
     iIntros "Hrmap".
@@ -392,15 +392,15 @@ Section Switcher_Registers.
       values. *)
   Lemma ret_regs_extract (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} →
-    ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ⊢
-      (∃ w, ctp ↦ᵣ w) ∗
-      (∃ w, ct0 ↦ᵣ w) ∗
-      (∃ w, ct1 ↦ᵣ w) ∗
-      (∃ w, ct2 ↦ᵣ w) ∗
-      (∃ w, ca2 ↦ᵣ w) ∗
+    ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y) ⊢
+      (∃ w, ctp ↦ᵣ[th] w) ∗
+      (∃ w, ct0 ↦ᵣ[th] w) ∗
+      (∃ w, ct1 ↦ᵣ[th] w) ∗
+      (∃ w, ct2 ↦ᵣ[th] w) ∗
+      (∃ w, ca2 ↦ᵣ[th] w) ∗
       ∃ rmap', ⌜ dom rmap' = all_registers_s ∖
                    {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ⌝ ∗
-        [∗ map] k↦y ∈ rmap', k ↦ᵣ y.
+        [∗ map] k↦y ∈ rmap', k ↦ᵣ[th] y.
   Proof.
     intros Hdom.
     iIntros "Hrmap".

@@ -10,7 +10,7 @@ From griotte Require Import map_simpl register_tactics proofmode.
 Section wp_interp.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -44,27 +44,27 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -175,27 +175,27 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C wdst
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -224,25 +224,25 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ WCap true p g b e a @@? π ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] WCap true p g b e a @@? π ∗
              world_interp W C ) ∨
           (∃ ea, ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -271,25 +271,25 @@ Section wp_interp.
 
      {{{ interp W C wsrc
            ∗ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ WCap true p g b e a @@? π ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] WCap true p g b e a @@? π ∗
              world_interp W C ) ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -314,24 +314,24 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wdst
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ wdst
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rdst ↦ᵣ wdst ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -438,24 +438,24 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wdst
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ wdst
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rdst ↦ᵣ wdst ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π,
            ⌜ wdst = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -482,22 +482,22 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{  interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rdst ↦ᵣ WCap true p g b e a @@? π ∗
+             rdst ↦ᵣ[th] WCap true p g b e a @@? π ∗
              world_interp W C ) ∨
           (∃ ea, ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -524,22 +524,22 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{  interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] (WCap true p g b e a @@? π)
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ{dq} wi ∗
-             rdst ↦ᵣ WCap true p g b e a @@? π ∗
+             rdst ↦ᵣ[th] WCap true p g b e a @@? π ∗
              world_interp W C ) ∨
           (⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] WCap true p g b e a @@? π
            ∗ world_interp W C
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -673,25 +673,25 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
-          ∗ r1 ↦ᵣ wsealr
-          ∗ r2 ↦ᵣ wsealed
+          ∗ r1 ↦ᵣ[th] wsealr
+          ∗ r2 ↦ᵣ[th] wsealed
     }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
       {{{ retv, RET retv;
           (⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ lclear_tag wsealed
+              ∗ r1 ↦ᵣ[th] wsealr
+              ∗ r2 ↦ᵣ[th] lclear_tag wsealed
               ∗ ⌜ is_sealr wsealr.(lw) && is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
+              ∗ r1 ↦ᵣ[th] wsealr
+              ∗ r2 ↦ᵣ[th] WSealable (unseal_sb gsr wsb) @@? π
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
@@ -699,10 +699,10 @@ Section wp_interp.
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ wsealr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
+              ∗ r1 ↦ᵣ[th] wsealr
+              ∗ r2 ↦ᵣ[th] WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
               ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
@@ -752,25 +752,25 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
-          ∗ r1 ↦ᵣ wsealr
-          ∗ r2 ↦ᵣ wsealed
+          ∗ r1 ↦ᵣ[th] wsealr
+          ∗ r2 ↦ᵣ[th] wsealed
     }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
       {{{ retv, RET retv;
           (⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ lclear_tag wsealed
-              ∗ r2 ↦ᵣ wsealed
+              ∗ r1 ↦ᵣ[th] lclear_tag wsealed
+              ∗ r2 ↦ᵣ[th] wsealed
               ∗ ⌜ is_sealr wsealr.(lw) && is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
-              ∗ r2 ↦ᵣ wsealed
+              ∗ r1 ↦ᵣ[th] WSealable (unseal_sb gsr wsb) @@? π
+              ∗ r2 ↦ᵣ[th] wsealed
               ∗ ⌜ wsealr = WSealRange true psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ permit_unseal psr = true ⌝
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
@@ -778,10 +778,10 @@ Section wp_interp.
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
-              ∗ r2 ↦ᵣ wsealed
+              ∗ r1 ↦ᵣ[th] WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
+              ∗ r2 ↦ᵣ[th] wsealed
               ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
               ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
@@ -830,34 +830,34 @@ Section wp_interp.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{  PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    {{{  PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
           ∗ pc_a ↦ₐ{dq} wi
-          ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-          ∗ r2 ↦ᵣ wsealed
+          ∗ r1 ↦ᵣ[th] WSealRange true psr gsr bsr esr asr
+          ∗ r2 ↦ᵣ[th] wsealed
     }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
       {{{ retv, RET retv;
           (⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ lclear_tag wsealed
+              ∗ r1 ↦ᵣ[th] WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ[th] lclear_tag wsealed
               ∗ ⌜ is_sealed wsealed.(lw) = false ⌝)
           ∨ (∃ ot wsb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable (unseal_sb gsr wsb) @@? π
+              ∗ r1 ↦ᵣ[th] WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ[th] WSealable (unseal_sb gsr wsb) @@? π
               ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
               ∗ ⌜ get_tag_sealable wsb = true ⌝
               ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
           ∨ ∃ ot sb π,
               ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
               ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ WSealRange true psr gsr bsr esr asr
-              ∗ r2 ↦ᵣ WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
+              ∗ r1 ↦ᵣ[th] WSealRange true psr gsr bsr esr asr
+              ∗ r2 ↦ᵣ[th] WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
               ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
               ∗ ⌜ get_tag_sealable sb && withinBounds bsr esr ot = false ⌝
       }}}.
@@ -914,27 +914,27 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π ea wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ WCap true p g b e a @@? π
-           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ rsrc ↦ᵣ[th] WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -1083,27 +1083,27 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C wsrc
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ wsrc
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] wsrc
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ wi ∗
-             rsrc ↦ᵣ wsrc ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] wsrc ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           ( ∃ p g b e a π wload,
            ⌜ wsrc = WCap true p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ WCap true p g b e a @@? π
-           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ rsrc ↦ᵣ[th] WCap true p g b e a @@? π
+           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -1144,22 +1144,22 @@ Section wp_interp.
     r ≠ cnull →
     load_key_closed wsrc s →
     {{{ interp W C wsrc ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
-        r ↦ᵣ wsrc ∗
+        r ↦ᵣ[th] wsrc ∗
         world_interp_open W C s }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ retv, RET retv;
         ( ⌜retv = FaultedV⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ wsrc ∗
+          r ↦ᵣ[th] wsrc ∗
           world_interp_open W C s ) ∨
         ( ∃ wload,
           ⌜retv = NextIV⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ wload ∗ interp W C wload ∗
+          r ↦ᵣ[th] wload ∗ interp W C wload ∗
           world_interp_open W C s ) }}}.
   Proof.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr Hclosed φ)
@@ -1274,22 +1274,22 @@ Section wp_interp.
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
     {{{ interp W C wsrc ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
-        r ↦ᵣ wsrc ∗
+        r ↦ᵣ[th] wsrc ∗
         world_interp W C }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ retv, RET retv;
         ( ⌜retv = FaultedV⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ wsrc ∗
+          r ↦ᵣ[th] wsrc ∗
           world_interp W C ) ∨
         ( ∃ wload,
           ⌜retv = NextIV⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ wload ∗ interp W C wload ∗
+          r ↦ᵣ[th] wload ∗ interp W C wload ∗
           world_interp W C ) }}}.
   Proof.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr φ)
@@ -1316,26 +1316,26 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ wi ∗
-             rsrc ↦ᵣ WCap true p g b e a @@? π ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] WCap true p g b e a @@? π ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           (∃ ea wload,
               ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
-           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ rsrc ↦ᵣ[th] (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
@@ -1363,26 +1363,26 @@ Section wp_interp.
     rdst ≠ cnull ->
 
      {{{ interp W C (WCap true p g b e a @@? π)
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
-           ∗ rdst ↦ᵣ wdst
+           ∗ rsrc ↦ᵣ[th] (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
      }}}
-       Instr Executable @ E
+       Instr Executable @[th] E
        {{{ retv, RET retv;
            ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+             PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
              pc_a ↦ₐ wi ∗
-             rsrc ↦ᵣ WCap true p g b e a @@? π ∗
-             rdst ↦ᵣ wdst ∗
+             rsrc ↦ᵣ[th] WCap true p g b e a @@? π ∗
+             rdst ↦ᵣ[th] wdst ∗
              world_interp W C ) ∨
           (∃ wload,
               ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a'
+           ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ (WCap true p g b e a @@? π)
-           ∗ rdst ↦ᵣ wload ∗ interp W C wload
+           ∗ rsrc ↦ᵣ[th] (WCap true p g b e a @@? π)
+           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
            ∗ world_interp W C
            ∗ ⌜ readAllowed p = true ⌝
            ∗ ⌜(b <= a < e)%a ⌝
@@ -1417,14 +1417,14 @@ Section wp_interp.
     withinBounds b e a = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RW Global b e a ∗ a ↦ₐ raw ∗
+    {{{ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] WCap true RW Global b e a ∗ a ↦ₐ raw ∗
         region W C }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ actual, RET NextIV;
         ⌜load_heap raw actual ∧ filter_heap W actual = actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RW Global b e a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] WCap true RW Global b e a ∗
         a ↦ₐ raw ∗ region W C }}}.
   Proof.
     iIntros (Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)

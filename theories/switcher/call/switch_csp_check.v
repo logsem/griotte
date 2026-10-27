@@ -11,7 +11,7 @@ From griotte Require Import switcher_call_states.
 Section Switch_Csp_Check.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -25,26 +25,26 @@ Section Switch_Csp_Check.
       the PC is at [.Lswitch_entry_first_spill]; otherwise, at
       [.Lcommon_force_unwind]. *)
   Lemma switch_csp_check_spec (wcsp wct2 wctp : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitch_csp_check" ∗
-    csp ↦ᵣ wcsp ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_csp_check" ∗
+    csp ↦ᵣ[th] wcsp ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] wctp ∗
     switcher_code ∗
     ▷ ( ( ⌜ switcher_csp_checked wcsp ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitch_entry_first_spill" ∗
-          csp ↦ᵣ wcsp ∗
-          ct2 ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY ∗
-          ctp ↦ᵣ WInt COMPARTMENT_STACK_LOCALITY )
+          PC ↦ₚ[th] switcher_label_pc ".Lswitch_entry_first_spill" ∗
+          csp ↦ᵣ[th] wcsp ∗
+          ct2 ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
+          ctp ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY )
         ∨
         ( ⌜ ¬ switcher_csp_checked wcsp ⌝ ∗
           ∃ zct2 zctp,
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ wcsp ∗
-          ct2 ↦ᵣ WInt zct2 ∗
-          ctp ↦ᵣ WInt zctp )
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] wcsp ∗
+          ct2 ↦ᵣ[th] WInt zct2 ∗
+          ctp ↦ᵣ[th] WInt zctp )
         -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hcsp & Hct2 & Hctp & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_csp_check" "Hswitcher" as "Hcode".

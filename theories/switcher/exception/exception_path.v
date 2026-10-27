@@ -50,7 +50,7 @@ Ltac save_area_hazard :=
 Section Switcher_Spec_Exception.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -111,12 +111,12 @@ Section Switcher_Spec_Exception.
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       ⌜rmap' !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
       ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-      PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+      PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap' -∗
       cstack_frag (cstack_set_top_count cstk n) -∗
       error_state_written 0 -∗
-      na_own cerise_nais F -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      na_own (tpool th) F -∗
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** The resumption of a fault of the first spill of the call path, with
       the resource [R_resume] that the path received in place of the
@@ -129,12 +129,12 @@ Section Switcher_Spec_Exception.
       ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
       ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
       ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-      PC ↦ₚ switcher_label_pc ".Lswitch_just_return" -∗
+      PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
       registers_pointsto rmap' -∗
       R_resume -∗
       error_state_written 0 -∗
-      na_own cerise_nais F -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      na_own (tpool th) F -∗
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** A fault of the path itself, at the switcher's PC of offset [off],
       with the invariant of the switcher closed, after [k] stores of the
@@ -149,8 +149,8 @@ Section Switcher_Spec_Exception.
       registers_pointsto rmap' -∗
       cstack_frag (cstack_set_top_count cstk n) -∗
       (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) -∗
-      na_own cerise_nais F -∗
-      trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+      na_own (tpool th) F -∗
+      trap_safe (switcher_pc off) ⊤ (HO th).
 
   (** ... which only happens for a fault outside the switcher. *)
   Definition path_nested_k (F : coPset) (cstk : CSTK) (w : LWord) (rmap : LReg)
@@ -181,12 +181,12 @@ Section Switcher_Spec_Exception.
       top_export_tbl cstk ↦ₐ□ wpcc -∗
       (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp -∗
       handler_offset kind (top_export_tbl cstk) off -∗
-      PC ↦ₚ wpc -∗
+      PC ↦ₚ[th] wpc -∗
       registers_pointsto regs -∗
       cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
       error_state_written (error_state_size kind) -∗
-      na_own cerise_nais F -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      na_own (tpool th) F -∗
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** ** Auxiliary lemmas *)
 
@@ -210,13 +210,13 @@ Section Switcher_Spec_Exception.
   (** Insert those six registers into such a map. *)
   #[local] Lemma regs_six_insert (rmap : LReg) (wcra wcsp wcgp wca0 wca1 wca2 : LWord) :
     dom rmap = all_registers_s ∖ list_to_set [cra; csp; cgp; ca0; ca1; ca2] →
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
-    cra ↦ᵣ wcra -∗
-    csp ↦ᵣ wcsp -∗
-    cgp ↦ᵣ wcgp -∗
-    ca0 ↦ᵣ wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
-    ca2 ↦ᵣ wca2 -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
+    cra ↦ᵣ[th] wcra -∗
+    csp ↦ᵣ[th] wcsp -∗
+    cgp ↦ᵣ[th] wcgp -∗
+    ca0 ↦ᵣ[th] wca0 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
     registers_pointsto (<[cra := wcra]> (<[csp := wcsp]> (<[cgp := wcgp]> (<[ca0 := wca0]>
                           (<[ca1 := wca1]> (<[ca2 := wca2]> rmap)))))).
   Proof.
@@ -321,32 +321,32 @@ Section Switcher_Spec_Exception.
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
 
-    PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) ∗
-    cra ↦ᵣ wcra ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    cra ↦ᵣ[th] wcra ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
     switcher_code ∗
-    (|={⊤}=> na_own cerise_nais F) ∗
+    (|={⊤}=> na_own (tpool th) F) ∗
     cstack_frag (cstack_set_top_count cstk n) ∗
     error_state_written 0 ∗
     handler_skipped cstk w rmap ∗
     path_unwind_k F cstk w rmap error_state_written
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hno_resume)
       "(HPC & Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -376,34 +376,34 @@ Section Switcher_Spec_Exception.
 
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) ∗
-    cra ↦ᵣ wcra ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
-    (|={⊤}=> na_own cerise_nais F) ∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    cra ↦ᵣ[th] wcra ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
+    (|={⊤}=> na_own (tpool th) F) ∗
     cstack_frag (cstack_set_top_count cstk n) ∗
     (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) ∗
     handler_skipped cstk w rmap ∗
     path_nested_fault F cstk w rmap error_state_written
-    ⊢ trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    ⊢ trap_safe (switcher_pc off) ⊤ (HO th).
   Proof.
     iIntros (Hfull Hno_resume)
       "(Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hclose & Hcstk & Hwritten & Hskip
        & Hnested)".
-    iApply trap_safe_fupd. iSplitL; last (iNext; by iIntros).
+    iApply trap_safe_fupd. iSplitL; last (iNext; rewrite /HO; by iIntros).
     iMod "Hclose" as "Hna". iModIntro.
     iDestruct (regs_rebuild_pointsto with
                 "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
@@ -459,38 +459,38 @@ Section Switcher_Spec_Exception.
     P_mtval mtval ->
     handler_args kind cstk rmap mcause mtval wcsp wca0 wca1 wca2 ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) ∗
-    cra ↦ᵣ handler_word (lload_word p wpcc) off ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ lload_word p wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    cra ↦ᵣ[th] handler_word (lload_word p wpcc) off ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] lload_word p wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
     switcher_code ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
     handler_offset kind (top_export_tbl cstk) off ∗
     cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
     error_state_written (error_state_size kind) ∗
-    na_own cerise_nais F ∗
+    na_own (tpool th) F ∗
     (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) ∗
     (⌜jalr_target_ok cra cra (handler_word wpcc off).(lw) = false⌝ →
        handler_skipped cstk w rmap) ∗
     (path_nested_k F cstk w rmap error_state_written ∧
      path_invoke_k P_mcause P_mtval F cstk rmap w error_state_written)
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hload Hnot_switcher Hev Hframe_stack Hoff Hcause Htval Hargs)
       "(HPC & Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -610,12 +610,12 @@ Section Switcher_Spec_Exception.
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
 
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    PC ↦ₚ lword_of_word mtcc_vec ∗
+    PC ↦ₚ[th] lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
-    na_own cerise_nais (F ∖ ↑Ntrap) ∗
+    na_own (tpool th) (F ∖ ↑Ntrap) ∗
     (if decide (trap_no_resume w) then cstack_frag cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
@@ -624,7 +624,7 @@ Section Switcher_Spec_Exception.
         path_resume_k F R_resume rmap w error_state_written ∧
         path_nested_k F cstk w rmap error_state_written ∧
         path_invoke_k P_mcause P_mtval F cstk rmap w error_state_written )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant, with the token without [Ntrap];
@@ -690,7 +690,7 @@ Section Switcher_Spec_Exception.
                cstack_interp (cstack_set_top_count cstk' n') a_tstk -∗
                trap_entry_res
                ={⊤}=∗
-               na_own cerise_nais F)%I
+               na_own (tpool th) F)%I
       with "[HthreadID Hhazard_slots Htstk Hclose Hna]" as "Hclose".
     { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Htok".
       iMod ("Hclose" with

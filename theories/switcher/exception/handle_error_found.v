@@ -18,7 +18,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 Section Handle_Error_Found.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -40,60 +40,60 @@ Section Handle_Error_Found.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     exp_tbl_cap b_tbl (WCap true p g b_tbl e_tbl b_tbl) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_found" ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ WInt off ∗
-    cs1 ↦ᵣ wcs1 ∗
-    cra ↦ᵣ wcra ∗
-    cgp ↦ᵣ wcgp0 ∗
-    ca0 ↦ᵣ WInt z0 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] WInt off ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cgp ↦ᵣ[th] wcgp0 ∗
+    ca0 ↦ᵣ[th] WInt z0 ∗
     a_cnt_cell ↦ₐ WInt n ∗
     (⌜Z.even n = true⌝ → b_tbl ↦ₐ□ wpcc ∗ (b_tbl ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp) ∗
     switcher_code ∗
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
-          ct2 ↦ᵣ wct2 ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ WInt (n + 1) ∗
-          cra ↦ᵣ wcra' ∗
-          cgp ↦ᵣ wcgp0 ∗
-          ca0 ↦ᵣ WInt z0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ct2 ↦ᵣ[th] wct2 ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] WInt (n + 1) ∗
+          cra ↦ᵣ[th] wcra' ∗
+          cgp ↦ᵣ[th] wcgp0 ∗
+          ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜Z.even n = true ∧ (n + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z⌝ -∗
           ⌜z0 ≠ 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ wcs1' ∗
-          cra ↦ᵣ handler_word (lload_word p wpcc) off ∗
-          cgp ↦ᵣ lload_word p wcgp ∗
-          ca0 ↦ᵣ WInt z0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          cra ↦ᵣ[th] handler_word (lload_word p wpcc) off ∗
+          cgp ↦ᵣ[th] lload_word p wcgp ∗
+          ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜Z.even n = true ∧ (n + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z⌝ -∗
           ⌜z0 = 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_setup" ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e_tbl b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ wcs1' ∗
-          cra ↦ᵣ handler_word (lload_word p wpcc) off ∗
-          cgp ↦ᵣ lload_word p wcgp ∗
-          ca0 ↦ᵣ WInt z0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          cra ↦ᵣ[th] handler_word (lload_word p wpcc) off ∗
+          cgp ↦ᵣ[th] lload_word p wcgp ∗
+          ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_cnt_cell.
     iIntros (Ha_tstk Ha_tstk_end Htbl)
@@ -216,26 +216,26 @@ Section Handle_Error_Found.
     (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (mtval : Z) :
     length save_area = 21%nat ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct0 ↦ᵣ wct0 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_vcsr_res ∗
     vcsr_frag MTVAL (lword_of_word (WInt mtval)) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
-        csp ↦ᵣ wct0 ∗
-        ct0 ↦ᵣ wct0 ∗
-        ca0 ↦ᵣ (save_area !!! 18%nat) ∗
-        ca1 ↦ᵣ WInt mtval ∗
-        ca2 ↦ᵣ WInt 0 ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
+        csp ↦ᵣ[th] wct0 ∗
+        ct0 ↦ᵣ[th] wct0 ∗
+        ca0 ↦ᵣ[th] (save_area !!! 18%nat) ∗
+        ca1 ↦ᵣ[th] WInt mtval ∗
+        ca2 ↦ᵣ[th] WInt 0 ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
         trap_entry_res -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hlen)
       "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & Htok & Hmtval & #Hswitcher & Hpost)".

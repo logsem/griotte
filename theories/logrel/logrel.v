@@ -29,7 +29,7 @@ Section logrel.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ}
@@ -98,7 +98,7 @@ Section logrel.
 
   (* interp expression definitions *)
   Definition registers_pointsto (r : LReg) : iProp Σ :=
-    ([∗ map] r↦w ∈ r, r ↦ᵣ w)%I.
+    ([∗ map] r↦w ∈ r, r ↦ᵣ[th] w)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
   (** Each register is safe once filtered by the world: a register word with
@@ -111,8 +111,7 @@ Section logrel.
   Solve All Obligations with solve_proper.
 
   Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
-    (WP Seq (Instr Executable)
-       {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+    (WP Seq (Instr Executable) @[th] {{ HO th }})%I.
 
   (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
       match with the current world [W] and compartment [C].
@@ -250,11 +249,11 @@ Section logrel.
        ∀ cstk Ws Cs regs,
        ( interp_reg interp W C regs
         ∗ top_cmpt_untrusted interp W C cstk
-        ∗ PC ↦ₚ wpc
+        ∗ PC ↦ₚ[th] wpc
         ∗ registers_pointsto regs
         ∗ world_interp W C
         ∗ interp_cont cstk Ws Cs
-        ∗ na_own cerise_nais ⊤
+        ∗ na_own (tpool th) ⊤
         ∗ cstack_frag cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
           -∗ interp_conf W C)
@@ -531,19 +530,19 @@ Section logrel.
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cra) rcra⌝ -∗
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cs0) rcs0⌝ -∗
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cs1) rcs1⌝ -∗
-       ( PC ↦ₚ lupdatePcPerm rcra
-         ∗ cra ↦ᵣ rcra
-         ∗ csp ↦ᵣ (WCap true RWL Local b_stk e_stk a_stk)
+       ( PC ↦ₚ[th] lupdatePcPerm rcra
+         ∗ cra ↦ᵣ[th] rcra
+         ∗ csp ↦ᵣ[th] (WCap true RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
-         ∗ cgp ↦ᵣ rcgp
-         ∗ cs0 ↦ᵣ rcs0
-         ∗ cs1 ↦ᵣ rcs1
+         ∗ cgp ↦ᵣ[th] rcgp
+         ∗ cs0 ↦ᵣ[th] rcs0
+         ∗ cs1 ↦ᵣ[th] rcs1
          (* ca0 and ca1 are the return value *)
-         ∗ ca0 ↦ᵣ wca0 ∗ interp W C wca0
-         ∗ ca1 ↦ᵣ wca1 ∗ interp W C wca1
+         ∗ ca0 ↦ᵣ[th] wca0 ∗ interp W C wca0
+         ∗ ca1 ↦ᵣ[th] wca1 ∗ interp W C wca1
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
-         ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+         ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
          (* points-to predicate of the stack region *)
          ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
@@ -554,7 +553,7 @@ Section logrel.
          (* Continuation *)
          ∗ interp_cont
          ∗ cstack_frag cstk
-         ∗ na_own cerise_nais ⊤
+         ∗ na_own (tpool th) ⊤
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
@@ -1198,12 +1197,12 @@ Section logrel.
     □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
       (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
-      PC ↦ₚ wvec -∗
+      PC ↦ₚ[th] wvec -∗
       trap_entry_out w -∗
       registers_pointsto regs -∗
-      na_own cerise_nais (⊤ ∖ ↑Ntrap) -∗
+      na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
       cstack_frag cstk -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
     Persistent (trap_vector_safe trusted_fault wvec).
@@ -1218,10 +1217,10 @@ Section logrel.
     trap_vector_safe trusted_fault wvec -∗
     (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
-    na_own cerise_nais (⊤ ∖ ↑Ntrap) -∗
+    na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
     cstack_frag cstk -∗
     trap_entry_out w -∗
-    (PC ↦ₚ wvec -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}).
+    (PC ↦ₚ[th] wvec -∗ WP Seq (Instr Executable) @[th] {{ HO th }}).
   Proof.
     iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hout HPC".
     iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hna Hcstk").
@@ -1238,10 +1237,10 @@ Section logrel.
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
     (|={⊤}=>
        registers_pointsto regs ∗
-       na_own cerise_nais ⊤ ∗
+       na_own (tpool th) ⊤ ∗
        cstack_frag cstk ∗
        (untrusted_fault cstk regs ∨ trusted_fault cstk w regs)) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull) "#Hsafe Hres".
     iApply trap_safe_entry_intro.
@@ -1266,9 +1265,9 @@ Section logrel.
        registers_pointsto regs ∗
        world_interp W C ∗
        interp_continuation cstk Ws Cs ∗
-       na_own cerise_nais ⊤ ∗
+       na_own (tpool th) ⊤ ∗
        cstack_frag cstk) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hreg Htop Hres".
     iApply (interp_trap_safe with "Hsafe"); first done.
@@ -1326,8 +1325,8 @@ Section logrel.
       already have an untagged physical copy. *)
   Lemma reg_refilter_world E W r v :
     heap_provenance (heap_std W) -∗
-    r ↦ᵣ v -∗
-    |~{E}~> r ↦ᵣ filter_heap W v.
+    r ↦ᵣ[th] v -∗
+    |~{E}~> r ↦ᵣ[th] filter_heap W v.
   Proof.
     iIntros "#Hprov Hr".
     destruct (decide (filter_heap W v = v)) as [Heq | Hne].

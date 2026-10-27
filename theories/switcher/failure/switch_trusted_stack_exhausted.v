@@ -15,7 +15,7 @@ From griotte Require Import logrel call_stack switcher_preamble switcher_load_sp
 Section Switch_Trusted_Stack_Exhausted.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -33,31 +33,31 @@ Section Switch_Trusted_Stack_Exhausted.
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-    (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
-    (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-    (∃ wcgp', cgp ↦ᵣ wcgp') ∗
-    (∃ wcra', cra ↦ᵣ wcra') ∗
-    (∃ wca0, ca0 ↦ᵣ wca0) ∗
-    (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
+    (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
+    (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
+    (∃ wcgp', cgp ↦ᵣ[th] wcgp') ∗
+    (∃ wcra', cra ↦ᵣ[th] wcra') ∗
+    (∃ wca0, ca0 ↦ᵣ[th] wca0) ∗
+    (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs0 rcs1,
         ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
-        PC ↦ₚ switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
-        cs0 ↦ᵣ rcs0 ∗
-        cs1 ↦ᵣ rcs1 ∗
-        cgp ↦ᵣ rcgp ∗
-        cra ↦ᵣ rcra ∗
-        ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cra ↦ᵣ[th] rcra ∗
+        ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hstk_mmio Hb_a He_a Ha_spill)
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0]
@@ -134,14 +134,14 @@ Section Switch_Trusted_Stack_Exhausted.
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-    (∃ wcs0', cs0 ↦ᵣ wcs0') ∗
-    (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-    (∃ wcgp', cgp ↦ᵣ wcgp') ∗
-    (∃ wcra', cra ↦ᵣ wcra') ∗
-    (∃ wca0, ca0 ↦ᵣ wca0) ∗
-    (∃ wca1, ca1 ↦ᵣ wca1) ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
+    (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
+    (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
+    (∃ wcgp', cgp ↦ᵣ[th] wcgp') ∗
+    (∃ wcra', cra ↦ᵣ[th] wcra') ∗
+    (∃ wca0, ca0 ↦ᵣ[th] wca0) ∗
+    (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp W C ∗
     switcher_code ∗
@@ -149,18 +149,18 @@ Section Switch_Trusted_Stack_Exhausted.
         ⌜load_heap_in_world W wcgp rcgp ∧ load_heap_in_world W wcra rcra ∧
           load_heap_in_world W wcs0 rcs0 ∧ load_heap_in_world W wcs1 rcs1⌝ -∗
         world_interp W C ∗
-        PC ↦ₚ switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
-        cs0 ↦ᵣ rcs0 ∗
-        cs1 ↦ᵣ rcs1 ∗
-        cgp ↦ᵣ rcgp ∗
-        cra ↦ᵣ rcra ∗
-        ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
-        ca1 ↦ᵣ WInt 0 ∗
-        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cra ↦ᵣ[th] rcra ∗
+        ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
+        ca1 ↦ᵣ[th] WInt 0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hstk_mmio Hb_a He_a Ha_spill)
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0]

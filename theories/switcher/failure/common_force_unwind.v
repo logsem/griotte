@@ -13,7 +13,7 @@ From griotte Require Import switcher_preamble.
 Section Common_Force_Unwind.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -21,15 +21,15 @@ Section Common_Force_Unwind.
   (** From [.Lcommon_force_unwind]: the return values are set, and the PC
       is at the return routine. *)
   Lemma common_force_unwind_spec (wca0 wca1 : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-        ca0 ↦ᵣ WInt ECOMPARTMENTFAIL ∗
-        ca1 ↦ᵣ WInt 0 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ▷ ( PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+        ca0 ↦ᵣ[th] WInt ECOMPARTMENTFAIL ∗
+        ca1 ↦ᵣ[th] WInt 0 -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hca0 & Hca1 & #Hswitcher & Hpost)".
     switcher_open_label ".Lcommon_force_unwind" "Hswitcher" as "Hcode".

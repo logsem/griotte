@@ -25,7 +25,7 @@ From griotte Require Import map_simpl register_tactics.
 Section Switcher_Spec_Install.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -48,8 +48,8 @@ Section Switcher_Spec_Install.
       registers_pointsto rmap' -∗
       cstack_frag cstk -∗
       L i ls -∗
-      na_own cerise_nais F -∗
-      trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+      na_own (tpool th) F -∗
+      trap_safe (switcher_pc off) ⊤ (HO th).
 
   (** The context is installed: the PC is the PCC [wpcc] of the topmost
       table with the address of the first loaded word, the registers hold
@@ -59,12 +59,12 @@ Section Switcher_Spec_Install.
     (L : nat → list LWord → iProp Σ) : iProp Σ :=
     ∀ ls : list LWord,
       ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
-      PC ↦ₚ llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
+      PC ↦ₚ[th] llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
       registers_pointsto (error_state_install rmap (drop 1 ls)) -∗
       cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
       L (Z.to_nat ErrorState_size) ls -∗
-      na_own cerise_nais F -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      na_own (tpool th) F -∗
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** ** Auxiliary lemma *)
 
@@ -81,32 +81,32 @@ Section Switcher_Spec_Install.
 
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) ∗
-    cra ↦ᵣ wcra ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
-    (|={⊤}=> na_own cerise_nais F) ∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    cra ↦ᵣ[th] wcra ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
+    (|={⊤}=> na_own (tpool th) F) ∗
     cstack_frag cstk ∗
     L i ls ∗
     install_nested_k F cstk rmap L
-    ⊢ trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    ⊢ trap_safe (switcher_pc off) ⊤ (HO th).
   Proof.
     iIntros (Hfull Hno_resume Hskipped)
       "(Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hclose & Hcstk & HL & Hnested)".
-    iApply trap_safe_fupd. iSplitL; last (iNext; by iIntros).
+    iApply trap_safe_fupd. iSplitL; last (iNext; rewrite /HO; by iIntros).
     iMod "Hclose" as "Hna". iModIntro.
     iDestruct (error_state_install_pointsto with
                 "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
@@ -132,11 +132,11 @@ Section Switcher_Spec_Install.
     nonZero (rmap !!! ca0).(lw) = false ->
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) ->
 
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_return" ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
-    na_own cerise_nais F ∗
+    na_own (tpool th) F ∗
     cstack_frag cstk ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
@@ -146,7 +146,7 @@ Section Switcher_Spec_Install.
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( install_nested_k F cstk rmap L ∧
         install_resume_k F cstk rmap wpcc L )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HF HFtrap Hfull Hnz Htbl_set)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
@@ -183,9 +183,9 @@ Section Switcher_Spec_Install.
                  ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
                cstack_full (cstack_set_top_count cstk n') -∗
                cstack_interp (cstack_set_top_count cstk n') a_tstk -∗
-               na_own cerise_nais (F ∖ ↑Nswitcher)
+               na_own (tpool th) (F ∖ ↑Nswitcher)
                ={⊤}=∗
-               na_own cerise_nais F)%I
+               na_own (tpool th) F)%I
       with "[HthreadID Hhazard_slots Htstk Hclose]" as "Hclose".
     { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
       iApply ("Hclose" with "[- $Hna]").

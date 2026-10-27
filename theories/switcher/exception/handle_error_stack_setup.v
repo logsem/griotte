@@ -22,7 +22,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 Section Handle_Error_Stack_Setup.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -58,15 +58,15 @@ Section Handle_Error_Stack_Setup.
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
     error_state_fits wcsp ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_setup" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct0 ↦ᵣ wct0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
     trap_vcsr_res ∗
     vcsr_frag MTVAL (lword_of_word (WInt mtval)) ∗
@@ -81,34 +81,34 @@ Section Handle_Error_Stack_Setup.
           ∀ (k : nat) (off : Z),
           ⌜(k < Z.to_nat ErrorState_size)%nat⌝ -∗
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0 ∗
-          cs1 ↦ᵣ - ∗
-          ca0 ↦ᵣ wca0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          cs1 ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] wca0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] - ∗
+          ca3 ↦ᵣ[th] - ∗
+          ca4 ↦ᵣ[th] - ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written k ∗
           trap_entry_res -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜error_state_stores_ok wcsp⌝ -∗
           ∀ (wcs1' wca3' wca4' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
-          csp ↦ᵣ wct0 ∗
-          ct0 ↦ᵣ wct0 ∗
-          cs1 ↦ᵣ wcs1' ∗
-          ca0 ↦ᵣ wct0 ∗
-          ca1 ↦ᵣ (save !!! 18%nat) ∗
-          ca2 ↦ᵣ WInt mtval ∗
-          ca3 ↦ᵣ wca3' ∗
-          ca4 ↦ᵣ wca4' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
+          csp ↦ᵣ[th] wct0 ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          ca0 ↦ᵣ[th] wct0 ∗
+          ca1 ↦ᵣ[th] (save !!! 18%nat) ∗
+          ca2 ↦ᵣ[th] WInt mtval ∗
+          ca3 ↦ᵣ[th] wca3' ∗
+          ca4 ↦ᵣ[th] wca4' ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written (Z.to_nat ErrorState_size) ∗
           trap_entry_res -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hlen Hlea Hfits)
       "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave & Htok & Hmtval

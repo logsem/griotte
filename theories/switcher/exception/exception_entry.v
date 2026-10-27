@@ -20,7 +20,7 @@ From griotte Require Import switcher_exception_states trusted_spill_registers_sp
 Section Exception_Entry.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -29,20 +29,20 @@ Section Exception_Entry.
       not null), and spill the registers of the interrupted context but the
       stack pointer. *)
   #[local] Lemma exception_entry_block_spec (wcsp : LWord) (wregs wold : list LWord) :
-    PC ↦ₚ switcher_label_pc "exception_entry_asm" ∗
-    csp ↦ᵣ wcsp ∗
+    PC ↦ₚ[th] switcher_label_pc "exception_entry_asm" ∗
+    csp ↦ᵣ[th] wcsp ∗
     mtdc ↦ₛᵣ tstack_cap ∗
-    ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ w) ∗
+    ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
     ([∗ list] r;w ∈ exception_spill_regs;wold, (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
-        csp ↦ᵣ tstack_cap ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
+        csp ↦ᵣ[th] tstack_cap ∗
         mtdc ↦ₛᵣ wcsp ∗
-        ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ w) ∗
+        ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
         ([∗ list] r;w ∈ exception_spill_regs;wregs,
            (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hcsp & Hmtdc & Hregs & Hcells & #Hswitcher & Hpost)".
     pose proof trusted_stack_base_nonzero as Hts_nonzero.
@@ -79,11 +79,11 @@ Section Exception_Entry.
   #[local] Lemma exception_exiting_threads_rejoin_spec (P_mcause P_mtval : Z → Prop)
     (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
-    PC ↦ₚ switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ca0 ↦ᵣ wca0 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
     mtdc ↦ₛᵣ wcsp ∗
     b_trusted_stack ↦ₐ ws0 ∗
     (b_trusted_stack ^+ 2)%a ↦ₐ ws2 ∗
@@ -94,11 +94,11 @@ Section Exception_Entry.
     ▷ ( ∀ (wst : LWord) (cause zca0 tval : Z),
           ⌜P_mcause cause⌝ -∗
           ⌜P_mtval tval⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ lmepcc_of_pc w ∗
-          ct1 ↦ᵣ WInt cause ∗
-          ca0 ↦ᵣ WInt zca0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] lmepcc_of_pc w ∗
+          ct1 ↦ᵣ[th] WInt cause ∗
+          ca0 ↦ᵣ[th] WInt zca0 ∗
           mtdc ↦ₛᵣ WInt 0 ∗
           b_trusted_stack ↦ₐ lmepcc_of_pc w ∗
           (b_trusted_stack ^+ 2)%a ↦ₐ wcsp ∗
@@ -106,8 +106,8 @@ Section Exception_Entry.
           (b_trusted_stack ^+ 18)%a ↦ₐ WInt cause ∗
           trap_vcsr_res ∗
           vcsr_frag MTVAL (lword_of_word (WInt tval)) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause)
       "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hout & #Hswitcher
@@ -170,7 +170,7 @@ Section Exception_Entry.
                 PC ↦ₚ switcher_label_pc ".Lhandle_error" -∗
                 ca0 ↦ᵣ WInt zca0 -∗
                 ct1 ↦ᵣ WInt cause -∗
-                WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I
+                WP Seq (Instr Executable) {{ HO th }})%I
       with "[- Hca0 HPC Hct1]" as "Hpost".
     { iIntros (zca0) "HPC Hca0 Hct1".
       subst hpost.
@@ -209,22 +209,22 @@ Section Exception_Entry.
     (∀ c, P_mcause c → mcause_ok c) ->
     length save_area = 21%nat ->
 
-    PC ↦ₚ switcher_label_pc "exception_entry_asm" ∗
-    cra ↦ᵣ wcra ∗
-    csp ↦ᵣ wcsp ∗
-    cgp ↦ᵣ wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
+    PC ↦ₚ[th] switcher_label_pc "exception_entry_asm" ∗
+    cra ↦ᵣ[th] wcra ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
     mtdc ↦ₛᵣ tstack_cap ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
@@ -232,22 +232,22 @@ Section Exception_Entry.
     ▷ ( ∀ (wst : LWord) (cause zca0 tval : Z),
           ⌜P_mcause cause⌝ ∗
           ⌜P_mtval tval⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
-          cra ↦ᵣ wcra ∗
-          csp ↦ᵣ tstack_cap ∗
-          cgp ↦ᵣ wcgp ∗
-          ctp ↦ᵣ wctp ∗
-          ct0 ↦ᵣ lmepcc_of_pc w ∗
-          ct1 ↦ᵣ WInt cause ∗
-          ct2 ↦ᵣ wct2 ∗
-          cs0 ↦ᵣ wcs0 ∗
-          cs1 ↦ᵣ wcs1 ∗
-          ca0 ↦ᵣ WInt zca0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ wca2 ∗
-          ca3 ↦ᵣ wca3 ∗
-          ca4 ↦ᵣ wca4 ∗
-          ca5 ↦ᵣ wca5 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
+          cra ↦ᵣ[th] wcra ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          cgp ↦ᵣ[th] wcgp ∗
+          ctp ↦ᵣ[th] wctp ∗
+          ct0 ↦ᵣ[th] lmepcc_of_pc w ∗
+          ct1 ↦ᵣ[th] WInt cause ∗
+          ct2 ↦ᵣ[th] wct2 ∗
+          cs0 ↦ᵣ[th] wcs0 ∗
+          cs1 ↦ᵣ[th] wcs1 ∗
+          ca0 ↦ᵣ[th] WInt zca0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] wca2 ∗
+          ca3 ↦ᵣ[th] wca3 ∗
+          ca4 ↦ᵣ[th] wca4 ∗
+          ca5 ↦ᵣ[th] wca5 ∗
           mtdc ↦ₛᵣ WInt 0 ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ exception_spill save_area (lmepcc_of_pc w)
@@ -256,8 +256,8 @@ Section Exception_Entry.
                  wst (WInt cause) ]] ∗
           trap_vcsr_res ∗
           vcsr_frag MTVAL (lword_of_word (WInt tval)) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause Hlen)
       "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1

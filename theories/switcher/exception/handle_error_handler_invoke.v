@@ -22,7 +22,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 Section Handle_Error_Handler_Invoke.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -41,25 +41,25 @@ Section Handle_Error_Handler_Invoke.
   Lemma handle_error_handler_invoke_spec (wcra : LWord) (rmap : LReg) :
     dom rmap = all_registers_s ∖ list_to_set [cra; csp; cgp; ca0; ca1; ca2] ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_invoke" ∗
-    cra ↦ᵣ wcra ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
+    cra ↦ᵣ[th] wcra ∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     switcher_code ∗
     ▷ ( ( ⌜jalr_target_ok cra cra wcra.(lw) = true⌝ -∗
           ∀ (mie : InterruptStatus) (rmap' : LReg),
           ⌜dom rmap' = dom rmap⌝ -∗
-          PC ↦ₚ lupdatePcPerm wcra ∗
-          cra ↦ᵣ handler_return_sentry mie ∗
-          ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          PC ↦ₚ[th] lupdatePcPerm wcra ∗
+          cra ↦ᵣ[th] handler_return_sentry mie ∗
+          ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜jalr_target_ok cra cra wcra.(lw) = false⌝ -∗
           ∀ rmap' : LReg,
           ⌜dom rmap' = dom rmap⌝ -∗
-          cra ↦ᵣ wcra ∗
-          ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) -∗
+          cra ↦ᵣ[th] wcra ∗
+          ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) -∗
           trap_safe (switcher_label_pc ".Lhandle_error_handler_cjalr") ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+            (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_error_handler_invoke" "Hswitcher" as "Hcode" pc_a Hpc_a.
@@ -109,18 +109,18 @@ Section Handle_Error_Handler_Invoke.
       zero) forces the unwind; otherwise the switcher installs the context
       of the handler, at [.Lhandle_error_install_context]. *)
   Lemma handle_error_handler_return_spec (wca0 : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_handler_return" ∗
-    ca0 ↦ᵣ wca0 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
+    ca0 ↦ᵣ[th] wca0 ∗
     switcher_code ∗
     ▷ ( ( ⌜nonZero wca0.(lw) = true⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          ca0 ↦ᵣ wca0 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          ca0 ↦ᵣ[th] wca0 -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜nonZero wca0.(lw) = false⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_install_context" ∗
-          ca0 ↦ᵣ wca0 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_install_context" ∗
+          ca0 ↦ᵣ[th] wca0 -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hca0 & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_error_handler_return" "Hswitcher" as "Hcode".

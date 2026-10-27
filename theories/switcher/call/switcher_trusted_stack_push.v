@@ -16,7 +16,7 @@ From griotte Require Import call_stack switcher_preamble clear_hazard_slots_spec
 Section Switcher_Trusted_Stack_Push.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -24,21 +24,21 @@ Section Switcher_Trusted_Stack_Push.
   (** From [.Lswitch_trusted_stack_load]: read the trusted stack into [ct2]
       and clear the hazard slots of the thread. *)
   Lemma switcher_trusted_stack_load_spec (wctp wct2 : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_load" ∗
-    ctp ↦ᵣ wctp ∗
-    ct2 ↦ᵣ wct2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_push" ∗
-        ctp ↦ᵣ hazard_slots_cap ∗
-        ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
+        ctp ↦ᵣ[th] hazard_slots_cap ∗
+        ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
         [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ
           [[ region_addrs_zeroes b_hazard_slots e_hazard_slots ]] -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hctp & Hct2 & Hmtdc & Hhazard & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
@@ -86,24 +86,24 @@ Section Switcher_Trusted_Stack_Push.
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_push" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ctp ↦ᵣ wctp ∗
-    ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    csp ↦ᵣ wstk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] wstk ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_code ∗
     ▷ ( ( ∃ tstk_next',
           ⌜ (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_next ⌝ ∗
           ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitch_stack_chop" ∗
-          cs0 ↦ᵣ WInt (e_trusted_stack - b_trusted_stack) ∗
-          cs1 ↦ᵣ WInt (tstack_frameoffset (S d)) ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
-          ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-          csp ↦ᵣ wstk ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_chop" ∗
+          cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
+          cs1 ↦ᵣ[th] WInt (tstack_frameoffset (S d)) ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+          ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           a_csp ↦ₐ wstk ∗
           a_export_table ↦ₐ - ∗
@@ -111,17 +111,17 @@ Section Switcher_Trusted_Stack_Push.
           [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]] ∗
           £ 2 )
         ∨
-        ( PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-          cs0 ↦ᵣ WInt (e_trusted_stack - b_trusted_stack) ∗
-          cs1 ↦ᵣ wcs1 ∗
-          ctp ↦ᵣ WInt (tstack_frameoffset d) ∗
-          ct2 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-          csp ↦ᵣ wstk ∗
+        ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
+          cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
+          cs1 ↦ᵣ[th] wcs1 ∗
+          ctp ↦ᵣ[th] WInt (tstack_frameoffset d) ∗
+          ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] )
         -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.

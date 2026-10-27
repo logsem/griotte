@@ -8,11 +8,13 @@ From griotte Require Import named_props_extra.
 
 
 
-(* Non atomic invariants *)
+(** Non-atomic invariants: the pool of the running thread, which holds the
+    tokens of trap entry in the state interpretation. Thread-level code names
+    the pool of a thread [th] as [tpool th]. *)
 Class cerise_na_invs Σ :=
   {
     na_invG :: na_invG Σ;
-    cerise_nais : na_inv_pool_name;
+    cerise_pool : na_inv_pool_name;
   }.
 #[export] Hint Mode cerise_na_invs - : typeclass_instances.
 
@@ -96,6 +98,82 @@ Class ceriseG Σ :=
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
+(** * Threads
+
+    The user threads of the firmware image, by index, and the
+    context-switch thread. [Thread] is a class, so that a section thread
+    [{th : Thread}] is found by typeclass search: the per-thread instance
+    [ceriseG_of] below then builds the section's [ceriseG] from it, and
+    predicates defined in a thread section are used elsewhere without their
+    thread. *)
+Inductive Thread : Type := UserThread (t : nat) | CtxSwitch.
+#[global] Instance Thread_eq_dec : EqDecision Thread.
+Proof. solve_decision. Qed.
+Existing Class Thread.
+(* No [Hint Mode]: the class has no parameter, hence no input position. *)
+
+(** Threads in notations: [u n] is the user thread [n], [s] the
+    context-switch thread; a variable or a parenthesised term is a thread
+    too. [u] and [s] are not reserved outside the entry. The escape is a
+    term at level 0, not [x global] or [x ident]: those make the entry fail
+    when it is imported through two paths. *)
+Declare Custom Entry thread.
+Notation "'u' n" := (UserThread n) (in custom thread at level 0, n constr at level 0).
+Notation "'s'" := CtxSwitch (in custom thread at level 0).
+Notation "x" := x (in custom thread at level 0, x constr at level 0).
+
+(** The resources shared by the threads, and the per-thread ones as maps
+    from threads: the PC, the general registers and the non-atomic pool
+    [tpool th]. The system registers are shared. Only [na_invG] and the
+    trap vector, both shared, are [::] fields, so typeclass search finds a
+    per-thread heap only through [ceriseG_of]. The trap vector has a low
+    priority: with a thread in scope, [mtcc_vec] elaborates through
+    [ceriseG_of] as in the rule library; without one, through the base. Both
+    are the same trap vector. *)
+Class ceriseBaseG Σ := CeriseBaseG {
+  cb_invG : invGS Σ;
+  cb_na_invG :: na_invariants.na_invG Σ;
+  cb_mem : gen_heapGS Addr LWord Σ;
+  cb_shadow : gen_heapGS Addr AllocStatus Σ;
+  cb_sreg : gen_heapGS SRegName LWord Σ;
+  cb_registry : allocRegistryG Σ;
+  cb_addr_alloc : addrAllocG Σ;
+  cb_trapVector :: trapVector | 100;
+  cb_pc_of : Thread → pcG Σ;
+  cb_regs_of : Thread → gen_heapGS RegName LWord Σ;
+  tpool : Thread → na_inv_pool_name;
+}.
+#[export] Hint Mode ceriseBaseG - : typeclass_instances.
+#[global] Arguments tpool {Σ _} th : rename.
+
+(** The instance of thread [th]. Every field is a projection of [base]:
+    a record built with [{| f := f |}] would have its fields filled in by
+    typeclass search from an ambient instance. The base is an implicit
+    argument, so that the notations below leave it to typeclass search
+    (an explicit hole is not resolved in a [Program Definition]). *)
+Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
+  @CeriseG Σ (@cb_invG Σ base)
+    (@Build_cerise_na_invs Σ (@cb_na_invG Σ base) (@tpool Σ base th))
+    (@cb_mem Σ base) (@cb_shadow Σ base) (@cb_pc_of Σ base th) (@cb_regs_of Σ base th)
+    (@cb_sreg Σ base) (@cb_registry Σ base) (@cb_addr_alloc Σ base) (@cb_trapVector Σ base).
+#[global] Existing Instance ceriseG_of.
+
+(* Goals keep the thread: [simpl] does not unfold the instance of a thread
+   nor reduce its fields. The per-thread fields are what the thread
+   notations print; a shared field reduced to the base's would no longer
+   unify with a lemma generic in [ceriseG]. *)
+#[global] Arguments ceriseG_of : simpl never.
+#[global] Arguments cerise_invG : simpl never.
+#[global] Arguments cerise_nainvG : simpl never.
+#[global] Arguments mem_gen_memG : simpl never.
+#[global] Arguments shadowtbl_gen_regG : simpl never.
+#[global] Arguments cerise_pcG : simpl never.
+#[global] Arguments reg_gen_regG : simpl never.
+#[global] Arguments sreg_gen_regG : simpl never.
+#[global] Arguments cerise_registryG : simpl never.
+#[global] Arguments cerise_addr_allocG : simpl never.
+#[global] Arguments cerise_trapVector : simpl never.
+
 (** The namespace of the non-atomic token of trap entry: a fault hands it
     to the state interpretation, in exchange for MEPCC, mcause and mtval.
     Its part [Ntval] is exchanged for mtval, the rest for MEPCC and
@@ -125,10 +203,10 @@ Section state_interp.
     "Hmstatus" ∷ (∃ v, pointsto (L:=SRegName) (V:=LWord) MSTATUS (DfracOwn 1) v) ∗
     "Hwin" ∷ (((∃ v, pointsto (L:=SRegName) (V:=LWord) MEPCC (DfracOwn 1) v) ∗
                (∃ v, pointsto (L:=SRegName) (V:=LWord) MCAUSE (DfracOwn 1) v)) ∨
-              na_own cerise_nais (↑Ntrap ∖ ↑Ntval)) ∗
+              na_own cerise_pool (↑Ntrap ∖ ↑Ntval)) ∗
     "Hwin_tval" ∷ ((∃ z : Z, pointsto (L:=SRegName) (V:=LWord) MTVAL (DfracOwn 1)
                                (lword_of_word (WInt z))) ∨
-                   na_own cerise_nais (↑Ntval)) ∗
+                   na_own cerise_pool (↑Ntval)) ∗
     "Hmtcc" ∷ pointsto (L:=SRegName) (V:=LWord) MTCC (DfracOwn 1) (lword_of_word mtcc_vec).
 
   (** The logical system registers, with the reserved points-to. *)
@@ -175,7 +253,7 @@ Section state_interp.
 End state_interp.
 
 (* invariants for memory, and a state interpretation for (mem,reg) *)
-#[global] Instance memG_irisG `{MachineParameters} `{!ceriseG Σ} : irisGS griotte_lang Σ := {
+#[global] Instance memG_irisG `{MachineParameters} `{ceriseg : !ceriseG Σ} : irisGS griotte_lang Σ := {
   iris_invGS := cerise_invG;
   state_interp σ _ κs _ := cerise_state_interp σ;
   fork_post _ := True%I;
@@ -191,6 +269,90 @@ Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=LWord) r q w)
   (at level 20, q at level 50, format "r  ↦ᵣ{ q }  w") : bi_scope.
 Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w) (at level 20) : bi_scope.
 Notation "r ↦ᵣ -" := (∃ w, pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w)%I (at level 20) : bi_scope.
+
+(* Points to predicates for the PC and registers of thread [th] *)
+Notation "'PC' ↦ₚ[ th ] w" := (@PC_frag _ (@cerise_pcG _ (ceriseG_of th)) w)
+  (at level 20, th custom thread, format "'PC'  ↦ₚ[ th ]  w") : bi_scope.
+Notation "r ↦ᵣ[ th ]{ q } w" :=
+  (@pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r q w)
+  (at level 20, th custom thread, q at level 50, format "r  ↦ᵣ[ th ]{ q }  w") : bi_scope.
+Notation "r ↦ᵣ[ th ] w" :=
+  (@pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r (DfracOwn 1) w)
+  (at level 20, th custom thread, format "r  ↦ᵣ[ th ]  w") : bi_scope.
+Notation "r ↦ᵣ[ th ] -" :=
+  (∃ w, @pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r (DfracOwn 1) w)%I
+  (at level 20, th custom thread, format "r  ↦ᵣ[ th ]  -") : bi_scope.
+
+(** * The WP of a thread
+
+    [WP e @[th] E {{ Φ }}] is Iris's WP at the instance of thread [th], so
+    the rule library and the proof mode apply to it unchanged. *)
+Notation "'WP' e '@[' th ] E {{ Φ } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E Φ)
+  (at level 20, th custom thread, e, Φ at level 200,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  Φ  } } ']'") : bi_scope.
+Notation "'WP' e '@[' th ] {{ Φ } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E Φ)
+  (at level 20, th custom thread, e, Φ at level 200,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
+Notation "'WP' e '@[' th ] E {{ v , Q } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E (λ v, Q))
+  (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
+Notation "'WP' e '@[' th ] {{ v , Q } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (λ v, Q))
+  (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
+
+(** The postcondition of a safe execution of thread [th]: when the thread
+    halts, it gives back its non-atomic token. *)
+Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : griotte_lang.val) : iProp Σ :=
+  ⌜v = HaltedV⌝ → na_own (tpool th) ⊤.
+
+(* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
+   by the notations with a binder. *)
+Notation "'WP' e '@[' th ] E {{ 'HO' th' } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E (HO th'))
+  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  HO  th'  } } ']'") : bi_scope.
+Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
+  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
+   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
+
+(** Texan triples of thread [th], as Iris's. *)
+Notation "'{{{' P } } } e '@[' th ] E {{{ x .. y , 'RET' pat ; Q } } }" :=
+  (□ ∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @[th] E {{ Φ }})%I
+  (at level 20, th custom thread, x closed binder, y closed binder,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  E  '/' {{{  '[' x  ..  y ,  RET  pat ;  '/' Q ']'  } } } ']'") : bi_scope.
+Notation "'{{{' P } } } e '@[' th ] {{{ x .. y , 'RET' pat ; Q } } }" :=
+  (□ ∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @[th] {{ Φ }})%I
+  (at level 20, th custom thread, x closed binder, y closed binder,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  '/' {{{  '[' x  ..  y ,  RET  pat ;  '/' Q ']'  } } } ']'") : bi_scope.
+Notation "'{{{' P } } } e '@[' th ] E {{{ 'RET' pat ; Q } } }" :=
+  (□ ∀ Φ, P -∗ ▷ (Q -∗ Φ pat%V) -∗ WP e @[th] E {{ Φ }})%I
+  (at level 20, th custom thread,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  E  '/' {{{  '[' RET  pat ;  '/' Q ']'  } } } ']'") : bi_scope.
+Notation "'{{{' P } } } e '@[' th ] {{{ 'RET' pat ; Q } } }" :=
+  (□ ∀ Φ, P -∗ ▷ (Q -∗ Φ pat%V) -∗ WP e @[th] {{ Φ }})%I
+  (at level 20, th custom thread,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  '/' {{{  '[' RET  pat ;  '/' Q ']'  } } } ']'") : bi_scope.
+Notation "'{{{' P } } } e '@[' th ] E {{{ x .. y , 'RET' pat ; Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @[th] E {{ Φ }})
+  (at level 20, th custom thread, x closed binder, y closed binder,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  E  '/' {{{  '[' x  ..  y ,  RET  pat ;  '/' Q ']'  } } } ']'") : stdpp_scope.
+Notation "'{{{' P } } } e '@[' th ] {{{ x .. y , 'RET' pat ; Q } } }" :=
+  (∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @[th] {{ Φ }})
+  (at level 20, th custom thread, x closed binder, y closed binder,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  '/' {{{  '[' x  ..  y ,  RET  pat ;  '/' Q ']'  } } } ']'") : stdpp_scope.
+Notation "'{{{' P } } } e '@[' th ] E {{{ 'RET' pat ; Q } } }" :=
+  (∀ Φ, P -∗ ▷ (Q -∗ Φ pat%V) -∗ WP e @[th] E {{ Φ }})
+  (at level 20, th custom thread,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  E  '/' {{{  '[' RET  pat ;  '/' Q ']'  } } } ']'") : stdpp_scope.
+Notation "'{{{' P } } } e '@[' th ] {{{ 'RET' pat ; Q } } }" :=
+  (∀ Φ, P -∗ ▷ (Q -∗ Φ pat%V) -∗ WP e @[th] {{ Φ }})
+  (at level 20, th custom thread,
+   format "'[hv' {{{  '[' P ']'  } } }  '/  ' e  '/' '@[' th ]  '/' {{{  '[' RET  pat ;  '/' Q ']'  } } } ']'") : stdpp_scope.
 
 (* Points to predicates for system registers *)
 Notation "sr ↦ₛᵣ{ q } w" := (pointsto (L:=SRegName) (V:=LWord) sr q w)

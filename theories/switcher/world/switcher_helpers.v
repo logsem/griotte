@@ -10,7 +10,7 @@ Section switcher_helper.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -300,21 +300,21 @@ Section switcher_helper.
       interp W C wca0 -∗
       interp W C wca1 -∗
       top_cmpt_untrusted interp W C cstk -∗
-      PC ↦ₚ lupdatePcPerm wret -∗
-      cra ↦ᵣ wret -∗
-      cgp ↦ᵣ wcgp -∗
-      cs0 ↦ᵣ wcs0 -∗
-      cs1 ↦ᵣ wcs1 -∗
-      csp ↦ᵣ wcsp -∗
-      ca0 ↦ᵣ wca0 -∗
-      ca1 ↦ᵣ wca1 -∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) -∗
+      PC ↦ₚ[th] lupdatePcPerm wret -∗
+      cra ↦ᵣ[th] wret -∗
+      cgp ↦ᵣ[th] wcgp -∗
+      cs0 ↦ᵣ[th] wcs0 -∗
+      cs1 ↦ᵣ[th] wcs1 -∗
+      csp ↦ᵣ[th] wcsp -∗
+      ca0 ↦ᵣ[th] wca0 -∗
+      ca1 ↦ᵣ[th] wca1 -∗
+      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝) -∗
       world_interp W C -∗
       interp_continuation cstk Ws Cs -∗
       cstack_frag cstk -∗
-      na_own cerise_nais ⊤ -∗
+      na_own (tpool th) ⊤ -∗
       £ 1 -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
     Proof.
       iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
@@ -383,24 +383,24 @@ Section switcher_helper.
       interp W C wca0 -∗
       interp W C wca1 -∗
       top_cmpt_untrusted interp W C cstk -∗
-      cra ↦ᵣ wret -∗
-      cgp ↦ᵣ wcgp -∗
-      cs0 ↦ᵣ wcs0 -∗
-      cs1 ↦ᵣ wcs1 -∗
-      csp ↦ᵣ wcsp -∗
-      ca0 ↦ᵣ wca0 -∗
-      ca1 ↦ᵣ wca1 -∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝) -∗
+      cra ↦ᵣ[th] wret -∗
+      cgp ↦ᵣ[th] wcgp -∗
+      cs0 ↦ᵣ[th] wcs0 -∗
+      cs1 ↦ᵣ[th] wcs1 -∗
+      csp ↦ᵣ[th] wcsp -∗
+      ca0 ↦ᵣ[th] wca0 -∗
+      ca1 ↦ᵣ[th] wca1 -∗
+      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝) -∗
       interp_continuation cstk Ws Cs -∗
       (|={⊤}=>
          world_interp W C ∗
-         na_own cerise_nais ⊤ ∗
+         na_own (tpool th) ⊤ ∗
          cstack_frag cstk) -∗
-      ( PC ↦ₚ lupdatePcPerm wret ∗
+      ( PC ↦ₚ[th] lupdatePcPerm wret ∗
         £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+        WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
       ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ -∗
-        trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ).
+        trap_safe w ⊤ (HO th) ).
     Proof.
       iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".

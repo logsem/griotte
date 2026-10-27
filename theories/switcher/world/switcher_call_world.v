@@ -14,7 +14,7 @@ From griotte Require Import switcher_call_states.
 Section Switcher_Call_World.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -214,13 +214,13 @@ Section Switcher_Call_World.
     is_arg_rmap arg_rmap' 8 ->
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
-    cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-    csp ↦ᵣ wstk ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    csp ↦ᵣ[th] wstk ∗
     interp W' C wstk ∗
     ( [∗ map] r↦w ∈ arg_rmap',
-        r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
-    ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+        r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
+    ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
     -∗
     ∃ regs,
       registers_pointsto regs ∗
@@ -373,8 +373,8 @@ Section Switcher_Call_World.
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     "Hclose_switcher_inv" ∷
-      (▷ switcher_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais ⊤) ∗
-    "Hna" ∷ na_own cerise_nais (⊤ ∖ ↑Nswitcher) ∗
+      (▷ switcher_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) ⊤) ∗
+    "Hna" ∷ na_own (tpool th) (⊤ ∖ ↑Nswitcher) ∗
     "Hsave_area" ∷
       (∃ save_area,
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -394,8 +394,8 @@ Section Switcher_Call_World.
       under a later, which the first instruction removes. *)
   Lemma switcher_inv_open_call :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    na_inv cerise_nais Nswitcher switcher_inv -∗
-    na_own cerise_nais ⊤
+    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_own (tpool th) ⊤
     ={⊤}=∗
     ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
@@ -437,7 +437,7 @@ Section Switcher_Call_World.
     switcher_hazard -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
     ={⊤}=∗
-    na_own cerise_nais ⊤.
+    na_own (tpool th) ⊤.
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     iIntros "Hopened Hmtdc Hframeoffset Hhazard Htstk".
@@ -486,7 +486,7 @@ Section Switcher_Call_World.
     [[ a_free , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel)
     ={⊤}=∗
-    na_own cerise_nais ⊤ ∗ cstack_frag (cstack_push frm cstk).
+    na_own (tpool th) ⊤ ∗ cstack_frag (cstack_push frm cstk).
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -600,16 +600,16 @@ Section Switcher_Call_World.
   Lemma switcher_cc_exhausted_regs (arg_rmap rmap : LReg) (wct1 wct2 wctp : LWord) :
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
-    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) -∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) -∗
-    ct1 ↦ᵣ wct1 -∗
-    ct2 ↦ᵣ wct2 -∗
-    ctp ↦ᵣ wctp -∗
+    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ[th] w ) -∗
+    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
+    ct1 ↦ᵣ[th] wct1 -∗
+    ct2 ↦ᵣ[th] wct2 -∗
+    ctp ↦ᵣ[th] wctp -∗
     ∃ (wca0 wca1 : LWord) (rmap0 : LReg),
-      ca0 ↦ᵣ wca0 ∗
-      ca1 ↦ᵣ wca1 ∗
+      ca0 ↦ᵣ[th] wca0 ∗
+      ca1 ↦ᵣ[th] wca1 ∗
       ⌜ dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-      ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ w ).
+      ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ[th] w ).
   Proof.
     iIntros (Hrdom Hdom) "Hargs Hregs Hct1 Hct2 Hctp".
     iExtractList "Hargs" [ca0; ca1] as ["Hca0"; "Hca1"].

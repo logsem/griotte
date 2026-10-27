@@ -614,8 +614,8 @@ Section griotte_lang_rules.
   (** The trap-entry token is the token exchanged for MEPCC and mcause, and
       the one of [Ntval], exchanged for mtval. *)
   #[local] Lemma trap_token_split :
-    na_own cerise_nais (↑Ntrap) ⊣⊢
-    na_own cerise_nais (↑Ntrap ∖ ↑Ntval) ∗ na_own cerise_nais (↑Ntval).
+    na_own cerise_pool (↑Ntrap) ⊣⊢
+    na_own cerise_pool (↑Ntrap ∖ ↑Ntval) ∗ na_own cerise_pool (↑Ntval).
   Proof.
     assert (↑Ntval ⊆@{coPset} ↑Ntrap) as Hsub by (rewrite /Ntval; solve_ndisj).
     rewrite -na_own_union; last set_solver.
@@ -623,7 +623,7 @@ Section griotte_lang_rules.
   Qed.
 
   #[local] Lemma trap_vcsr_token_excl :
-    na_own cerise_nais (↑Ntrap ∖ ↑Ntval) -∗ na_own cerise_nais (↑Ntrap ∖ ↑Ntval) -∗ False.
+    na_own cerise_pool (↑Ntrap ∖ ↑Ntval) -∗ na_own cerise_pool (↑Ntrap ∖ ↑Ntval) -∗ False.
   Proof.
     iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
     destruct (nclose_infinite (Ntrap .@ "vcsr") []) as (i & Hi & _).
@@ -633,7 +633,7 @@ Section griotte_lang_rules.
   Qed.
 
   #[local] Lemma trap_tval_token_excl :
-    na_own cerise_nais (↑Ntval) -∗ na_own cerise_nais (↑Ntval) -∗ False.
+    na_own cerise_pool (↑Ntval) -∗ na_own cerise_pool (↑Ntval) -∗ False.
   Proof.
     iIntros "Htok Htok'". iDestruct (na_own_disjoint with "Htok Htok'") as %Hdisj.
     destruct (nclose_infinite Ntval []) as (i & Hi & _). set_solver.
@@ -648,19 +648,19 @@ Section griotte_lang_rules.
      non-atomic token, [trap_entry_res_vcsr_tval] splits it into the parts
      exchanged for MEPCC and mcause ([trap_vcsr_res]) and for mtval
      ([trap_tval_res]), and [trap_entry_out_unfold] gives the registers. *)
-  Definition trap_entry_res_def : iProp Σ := na_own cerise_nais (↑Ntrap).
+  Definition trap_entry_res_def : iProp Σ := na_own cerise_pool (↑Ntrap).
   #[local] Definition trap_entry_res_aux : seal (@trap_entry_res_def). Proof. by eexists. Qed.
   Definition trap_entry_res := trap_entry_res_aux.(unseal).
   #[local] Definition trap_entry_res_unseal :
     @trap_entry_res = @trap_entry_res_def := trap_entry_res_aux.(seal_eq).
 
-  Definition trap_vcsr_res_def : iProp Σ := na_own cerise_nais (↑Ntrap ∖ ↑Ntval).
+  Definition trap_vcsr_res_def : iProp Σ := na_own cerise_pool (↑Ntrap ∖ ↑Ntval).
   #[local] Definition trap_vcsr_res_aux : seal (@trap_vcsr_res_def). Proof. by eexists. Qed.
   Definition trap_vcsr_res := trap_vcsr_res_aux.(unseal).
   #[local] Definition trap_vcsr_res_unseal :
     @trap_vcsr_res = @trap_vcsr_res_def := trap_vcsr_res_aux.(seal_eq).
 
-  Definition trap_tval_res_def : iProp Σ := na_own cerise_nais (↑Ntval).
+  Definition trap_tval_res_def : iProp Σ := na_own cerise_pool (↑Ntval).
   #[local] Definition trap_tval_res_aux : seal (@trap_tval_res_def). Proof. by eexists. Qed.
   Definition trap_tval_res := trap_tval_res_aux.(unseal).
   #[local] Definition trap_tval_res_unseal :
@@ -674,17 +674,6 @@ Section griotte_lang_rules.
   Definition trap_entry_out_cause := trap_entry_out_aux.(unseal).
   #[local] Definition trap_entry_out_unseal :
     @trap_entry_out_cause = @trap_entry_out_def := trap_entry_out_aux.(seal_eq).
-
-  (** The trap-entry token is part of the non-atomic token of any mask that
-      contains [Ntrap]. *)
-  Lemma trap_entry_res_split F :
-    ↑Ntrap ⊆ F →
-    na_own cerise_nais F ⊣⊢ trap_entry_res ∗ na_own cerise_nais (F ∖ ↑Ntrap).
-  Proof.
-    intros HF. rewrite trap_entry_res_unseal /trap_entry_res_def -na_own_union;
-      last set_solver.
-    by rewrite -union_difference_L.
-  Qed.
 
   (** The trap-entry token is the part exchanged for MEPCC and mcause, and
       the part exchanged for mtval. *)
@@ -1036,6 +1025,22 @@ Section griotte_lang_rules.
   Qed.
 
 End griotte_lang_rules.
+
+(** The trap-entry token of a thread, against the thread's pool. *)
+Section thread_trap_tokens.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}.
+
+  (** The trap-entry token is part of the non-atomic token of any mask that
+      contains [Ntrap]. *)
+  Lemma trap_entry_res_split F :
+    ↑Ntrap ⊆ F →
+    na_own (tpool th) F ⊣⊢ trap_entry_res ∗ na_own (tpool th) (F ∖ ↑Ntrap).
+  Proof.
+    intros HF. rewrite trap_entry_res_unseal /trap_entry_res_def -na_own_union;
+      last set_solver.
+    by rewrite -union_difference_L.
+  Qed.
+End thread_trap_tokens.
 
 (** The resources and the obligation of trap entry for the fault causes
     [mcause_ok] and any value. *)

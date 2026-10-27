@@ -6,7 +6,7 @@ From griotte Require Export logrel.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -29,13 +29,13 @@ Section fundamental.
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (π_ih : option AId),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
-            -∗ PC ↦ₚ WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih
+            -∗ PC ↦ₚ[th] WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih
             -∗ registers_pointsto r_ih
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ top_cmpt_untrusted interp W_ih C_ih cstk
-            -∗ na_own cerise_nais ⊤
+            -∗ na_own (tpool th) ⊤
             -∗ cstack_frag cstk
             -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih)
             -∗ interp_conf W_ih C_ih))%I.
@@ -72,15 +72,12 @@ Section fundamental.
         "%Hframe" ∷ ⌜frame_match Ws Cs cstk W C⌝ ∗
         "#Htop" ∷ top_cmpt_untrusted interp W C cstk ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
-        "Hown" ∷ na_own cerise_nais ⊤ ∗
+        "Hown" ∷ na_own (tpool th) ⊤ ∗
         "Htframe" ∷ cstack_frag cstk ∗
         "Hstate" ∷ sts_state_std C (LNonHeap a) ρ ∗
-        "HPC" ∷ PC ↦ₚ (WCap true p g b e a) ∗
-        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
-    -∗ WP Instr Executable
-        {{ v, WP Seq (griotte_lang.of_val v)
-                 {{ v0, ⌜v0 = HaltedV⌝
-                        → na_own cerise_nais ⊤}} }}.
+        "HPC" ∷ PC ↦ₚ[th] (WCap true p g b e a) ∗
+        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ[th] y))
+    -∗ WP Instr Executable @[th] {{ v, WP Seq (griotte_lang.of_val v) @[th] {{ HO th }} }}.
 
   (** A fault in a case of the fundamental theorem, once the case has closed
       the world: trap entry leads to the safe trap vector, with safe
@@ -93,13 +90,13 @@ Section fundamental.
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
     (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
     top_cmpt_untrusted interp W C cstk -∗
-    PC ↦ₚ w -∗
-    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    PC ↦ₚ[th] w -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ[th] y) -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
-    na_own cerise_nais ⊤ -∗
+    na_own (tpool th) ⊤ -∗
     cstack_frag cstk -∗
-    WP Seq (Instr Faulted) {{ v0, ⌜v0 = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    WP Seq (Instr Faulted) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hframe) "Htrap Hreg Htop HPC Hmap Hworld Hcont Hown Hcstk".
     iApply (wp_trap with "HPC").

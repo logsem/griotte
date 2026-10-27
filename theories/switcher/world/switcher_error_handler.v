@@ -13,7 +13,7 @@ From griotte Require Export switcher_preamble switcher_error_state.
 Section Switcher_error_handler.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -35,12 +35,12 @@ Section Switcher_error_handler.
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ⌜rmap !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
       ⌜rmap !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-      PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+      PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap -∗
       cstack_frag (cstack_set_top_count cstk n) -∗
       R_unwind_stk -∗
-      na_own cerise_nais F -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      na_own (tpool th) F -∗
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   Lemma unwind_cont_give (F : coPset) (cstk : CSTK) (R_unwind_stk : iProp Σ) :
     R_unwind_stk -∗ unwind_cont F cstk R_unwind_stk -∗ unwind_cont F cstk True.
@@ -537,7 +537,7 @@ Section Switcher_error_handler.
   (** The switcher's resources at a token [F]. *)
   Definition switcher_res (F : coPset) : iProp Σ :=
     ⌜↑Nswitcher ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static.
 
   (** ** Trusted handlers *)
@@ -564,15 +564,15 @@ Section Switcher_error_handler.
           ⌜mcause_ok mcause⌝ -∗
           ⌜handler_entry wpcc off = Some wpc⌝ -∗
           ⌜handler_invocation_regs kind cstk wcgp rfault mcause mtval regs⌝ -∗
-          PC ↦ₚ wpc -∗
+          PC ↦ₚ[th] wpc -∗
           registers_pointsto regs -∗
           handler_slot kind w rfault -∗
           (⌜kind = Stackless⌝ → handler_skipped cstk w rfault) -∗
           (unwind_or_runs F cstk w rfault (handler_unwind_res kind rfault) ∧
            P_fault F cstk w rfault mcause mtval) -∗
           cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
-          na_own cerise_nais F -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ).
+          na_own (tpool th) F -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ).
 
   #[global] Instance execute_error_handler_persistent b_tbl wpcc wcgp off kind P_fault :
     Persistent (execute_error_handler b_tbl wpcc wcgp off kind P_fault).
@@ -613,11 +613,11 @@ Section Switcher_error_handler.
   Definition context_resume (F : coPset) (cstk : CSTK) (wpc : LWord) (regs : LReg)
     : iProp Σ :=
     (⌜∀ r, is_Some (regs !! r)⌝ -∗
-     PC ↦ₚ wpc -∗
+     PC ↦ₚ[th] wpc -∗
      registers_pointsto regs -∗
      cstack_frag cstk -∗
-     na_own cerise_nais F -∗
-     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+     na_own (tpool th) F -∗
+     WP Seq (Instr Executable) @[th] {{ HO th }})%I.
 
   (** Why the install faults: the [ErrorState] cannot be loaded. *)
   Definition install_skipped (cstk : CSTK) (rmap : LReg) : Prop :=
@@ -711,22 +711,22 @@ Section Switcher_error_handler.
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
        (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ y) -∗
-    cra ↦ᵣ wcra -∗
-    csp ↦ᵣ wcsp -∗
-    cgp ↦ᵣ wcgp -∗
-    ctp ↦ᵣ wctp -∗
-    ct0 ↦ᵣ wct0 -∗
-    ct1 ↦ᵣ wct1 -∗
-    ct2 ↦ᵣ wct2 -∗
-    cs0 ↦ᵣ wcs0 -∗
-    cs1 ↦ᵣ wcs1 -∗
-    ca0 ↦ᵣ wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
-    ca2 ↦ᵣ wca2 -∗
-    ca3 ↦ᵣ wca3 -∗
-    ca4 ↦ᵣ wca4 -∗
-    ca5 ↦ᵣ wca5 -∗
+       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) -∗
+    cra ↦ᵣ[th] wcra -∗
+    csp ↦ᵣ[th] wcsp -∗
+    cgp ↦ᵣ[th] wcgp -∗
+    ctp ↦ᵣ[th] wctp -∗
+    ct0 ↦ᵣ[th] wct0 -∗
+    ct1 ↦ᵣ[th] wct1 -∗
+    ct2 ↦ᵣ[th] wct2 -∗
+    cs0 ↦ᵣ[th] wcs0 -∗
+    cs1 ↦ᵣ[th] wcs1 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
+    ca3 ↦ᵣ[th] wca3 -∗
+    ca4 ↦ᵣ[th] wca4 -∗
+    ca5 ↦ᵣ[th] wca5 -∗
     registers_pointsto (error_state_install rmap
       [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]).
   Proof.

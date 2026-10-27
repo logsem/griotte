@@ -11,7 +11,7 @@ From griotte Require Import clear_stack_spec clear_registers_spec.
 Section switcher_macros.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -78,8 +78,8 @@ Section switcher_macros.
     is_arg_rmap arg_rmap 8 ->
     (nargs <= 7)%nat ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
-      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
+    ( PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
+      ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg
                                         ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                                           then interp W C warg
                                           else True
@@ -87,17 +87,17 @@ Section switcher_macros.
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
-                     rarg ↦ᵣ warg
+                     rarg ↦ᵣ[th] warg
                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                        then interp W C warg
                        else ⌜ warg = WInt 0⌝
                 )
               ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Seq (Instr Executable) @[th] {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Seq (Instr Executable) @[th] {{ φ }}%I.
   Proof.
     iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hargs & #Hcode & Hcont)".
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs Hargs_valid]".

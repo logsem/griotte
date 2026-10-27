@@ -12,7 +12,7 @@ From griotte Require Export world_ghost_theory world_interp_stack switcher_helpe
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -60,7 +60,7 @@ Section fundamental.
       We can distinguish 2 cases.
       1) The call-stack is empty: the frame to pop is the entry frame of
          the thread. The switcher exits the thread, and we close the
-         invariant of the switcher, which gives back [na_own cerise_nais ⊤].
+         invariant of the switcher, which gives back [na_own (tpool th) ⊤].
       2) The call-stack is not empty,
          in which case we can derive information about the top-most frame
          with [cframe_interp].
@@ -104,16 +104,16 @@ Section fundamental.
     rmap !! ca1 = Some wca1 ->
     frame_match Ws Cs cstk W C ->
 
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     registers_pointsto rmap ∗
     interp W C wca0 ∗
     interp W C wca1 ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
-    na_own cerise_nais ⊤ ∗
+    na_own (tpool th) ⊤ ∗
     cstack_frag cstk
     ⊢ interp_conf W C.
   Proof.
@@ -248,7 +248,7 @@ Section fundamental.
 
     (* Depop the topmost frame of the call-stack and close the switcher's
        invariant, after the jump or the exception entry *)
-    iAssert (|={⊤}=> na_own cerise_nais ⊤ ∗
+    iAssert (|={⊤}=> na_own (tpool th) ⊤ ∗
                      cstack_frag {| cstk_entry := ef; cstk_frames := frms |})%I
       with "[Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".

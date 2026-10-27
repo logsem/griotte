@@ -24,7 +24,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 Section Handle_Error_Install_Context.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -92,18 +92,18 @@ Section Handle_Error_Install_Context.
     length save = 21%nat ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_install_context" ∗
-    csp ↦ᵣ wcsp ∗
-    cra ↦ᵣ wcra ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_install_context" ∗
+    csp ↦ᵣ[th] wcsp ∗
+    cra ↦ᵣ[th] wcra ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
     mtdc ↦ₛᵣ tstack_cap ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
@@ -122,39 +122,39 @@ Section Handle_Error_Install_Context.
           ⌜length save' = 21%nat⌝ -∗
           ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
            = save !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-          csp ↦ᵣ wcsp ∗
-          cra ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
+          csp ↦ᵣ[th] wcsp ∗
+          cra ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] - ∗
+          ca2 ↦ᵣ[th] - ∗
+          ca3 ↦ᵣ[th] - ∗
+          ca4 ↦ᵣ[th] - ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt n ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] ∗
           L i ls -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ ls : list LWord,
           ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
           ⌜exp_tbl_cap b_tbl wcell.(lw)⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ tstack_cap ∗
-          cra ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ tstack_cap ∗
-          ct2 ↦ᵣ resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)) ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          cra ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] tstack_cap ∗
+          ct2 ↦ᵣ[th] resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)) ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] - ∗
+          ca2 ↦ᵣ[th] - ∗
+          ca3 ↦ᵣ[th] - ∗
+          ca4 ↦ᵣ[th] - ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
@@ -162,8 +162,8 @@ Section Handle_Error_Install_Context.
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
           L (Z.to_nat ErrorState_size) ls -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_tbl_cell a_cnt_cell.
     iIntros (Ha_tstk Ha_tstk_end Hlen Hwcell)

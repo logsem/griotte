@@ -16,7 +16,7 @@ From griotte Require Import map_simpl register_tactics proofmode.
 Section Switcher_KtK_Call.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -53,8 +53,8 @@ Section Switcher_KtK_Call.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) ∗
-    na_own cerise_nais (F ∖ ↑Nswitcher) ∗
+    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) ∗
+    na_own (tpool th) (F ∖ ↑Nswitcher) ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
@@ -65,38 +65,38 @@ Section Switcher_KtK_Call.
     cstack_full cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
-    PC ↦ₚ switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
-    (∃ wcs0, cs0 ↦ᵣ wcs0) ∗
-    (∃ wcs1, cs1 ↦ᵣ wcs1) ∗
-    cgp ↦ᵣ wcgp_caller ∗
-    cra ↦ᵣ wcra_caller ∗
-    ctp ↦ᵣ wctp ∗
-    ct2 ↦ᵣ wct2 ∗
-    ct1 ↦ᵣ wct1_caller ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
+    (∃ wcs0, cs0 ↦ᵣ[th] wcs0) ∗
+    (∃ wcs1, cs1 ↦ᵣ[th] wcs1) ∗
+    cgp ↦ᵣ[th] wcgp_caller ∗
+    cra ↦ᵣ[th] wcra_caller ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ct1 ↦ᵣ[th] wct1_caller ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ) ∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ w ) ∗
+    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ) ∗
+    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) ∗
     cstack_frag cstk ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
             ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-            na_own cerise_nais F ∗
-            PC ↦ₚ lupdatePcPerm rcra ∗
-            cgp ↦ᵣ rcgp ∗
-            cra ↦ᵣ rcra ∗
-            csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
-            cs0 ↦ᵣ rcs0 ∗
-            cs1 ↦ᵣ rcs1 ∗
-            ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK ∗
-            ca1 ↦ᵣ WInt 0 ∗
-            ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) ∗
+            na_own (tpool th) F ∗
+            PC ↦ₚ[th] lupdatePcPerm rcra ∗
+            cgp ↦ᵣ[th] rcgp ∗
+            cra ↦ᵣ[th] rcra ∗
+            csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+            cs0 ↦ᵣ[th] rcs0 ∗
+            cs1 ↦ᵣ[th] rcs1 ∗
+            ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
+            ca1 ↦ᵣ[th] WInt 0 ∗
+            ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) ∗
             [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
             cstack_frag cstk ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
@@ -201,7 +201,7 @@ Section Switcher_KtK_Call.
     is_heap_cap wcra_caller.(lw) = false ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
 
     (* Export table of the target compartment *)
@@ -211,20 +211,20 @@ Section Switcher_KtK_Call.
 
 
     (* PRE-CONDITION *)
-    ∗ na_own cerise_nais F
+    ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ cgp ↦ᵣ wcgp_caller
-    ∗ cra ↦ᵣ wcra_caller
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ[th] wcgp_caller
+    ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller
-    ∗ cs0 ↦ᵣ wcs0_caller
-    ∗ cs1 ↦ᵣ wcs1_caller
+    ∗ ct1 ↦ᵣ[th] wct1_caller
+    ∗ cs0 ↦ᵣ[th] wcs0_caller
+    ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* All the other registers *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg )
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -236,21 +236,21 @@ Section Switcher_KtK_Call.
     ∗ ▷ ( (∃ mie arg_rmap' rmap',
             ⌜ is_arg_rmap arg_rmap' 8 ⌝
             ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
-            ∗ na_own cerise_nais F
+            ∗ na_own (tpool th) F
             (* Registers *)
-            ∗ PC ↦ₚ WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-            ∗ cgp ↦ᵣ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-            ∗ cra ↦ᵣ (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+            ∗ PC ↦ₚ[th] WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
+            ∗ cgp ↦ᵣ[th] WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+            ∗ cra ↦ᵣ[th] (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
             (* Stack register *)
-            ∗ csp ↦ᵣ callee_csp b_stk e_stk a_stk
+            ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
             (* All the other registers *)
             (* Entry point of the target compartment *)
-            ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ warg
+            ∗ ( [∗ map] rarg↦warg ∈ arg_rmap', rarg ↦ᵣ[th] warg
                                                ∗ (if decide (rarg ∈ dom_arg_rmap nargs)
                                                   then ⌜ arg_rmap !! rarg = Some warg ⌝
                                                   else ⌜warg = WInt 0⌝)
               )
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
 
             (* Stack frame *)
             ∗ ([[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
@@ -263,18 +263,18 @@ Section Switcher_KtK_Call.
           (
             ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
               ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-              ∗ na_own cerise_nais F
+              ∗ na_own (tpool th) F
               (* Registers *)
-              ∗ PC ↦ₚ lupdatePcPerm (rcra)
-              ∗ cgp ↦ᵣ rcgp
-              ∗ cra ↦ᵣ rcra
-              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-              ∗ cs0 ↦ᵣ rcs0
-              ∗ cs1 ↦ᵣ rcs1
-              ∗ ca0 ↦ᵣ WInt ENOTENOUGHTRUSTEDSTACK
-              ∗ ca1 ↦ᵣ WInt 0
+              ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
+              ∗ cgp ↦ᵣ[th] rcgp
+              ∗ cra ↦ᵣ[th] rcra
+              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ cs0 ↦ᵣ[th] rcs0
+              ∗ cs1 ↦ᵣ[th] rcs1
+              ∗ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
+              ∗ ca1 ↦ᵣ[th] WInt 0
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
 
               (* Stack frame *)
               ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[stk_mem']]
@@ -284,10 +284,9 @@ Section Switcher_KtK_Call.
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                   load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
           )
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;

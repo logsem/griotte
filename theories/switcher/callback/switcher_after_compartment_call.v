@@ -18,7 +18,7 @@ From griotte Require Import clear_hazard_slots_spec switcher_zero_callee_frame.
 Section Switcher_After_Compartment_Call.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -38,30 +38,30 @@ Section Switcher_After_Compartment_Call.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     is_heap_address b = false ->
 
-    PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    csp ↦ᵣ wcsp ∗
+    PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    csp ↦ᵣ[th] wcsp ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
-        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
-        ct1 ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-        ct2 ↦ᵣ WInt (tstack_frame_offset (S d)) ∗
-        csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
+        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
+        ct1 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct2 ↦ᵣ[th] WInt (tstack_frame_offset (S d)) ∗
+        csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
         £ 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hb_heap)
@@ -144,23 +144,23 @@ Section Switcher_After_Compartment_Call.
   Lemma switcher_after_compartment_call_exit_spec
     (E : coPset) (Φ : griotte_lang.val → iProp Σ) (wctp wct0 wct2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    PC ↦ₚ switcher_label_pc "switcher_after_compartment_call" ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct2 ↦ᵣ wct2 ∗
+    PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
-        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        ct0 ↦ᵣ WInt TrustedStack_offset_frames ∗
-        ct2 ↦ᵣ WInt (tstack_frame_offset 0) ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
+        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
+        ct2 ↦ᵣ[th] WInt (tstack_frame_offset 0) ∗
         mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard -∗
-        WP Seq (Instr Executable) @ E {{ Φ }} )
-    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
+        WP Seq (Instr Executable) @[th] E {{ Φ }} )
+    ⊢ WP Seq (Instr Executable) @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
     iIntros "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
@@ -229,12 +229,12 @@ Section Switcher_After_Compartment_Call.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
-    cgp ↦ᵣ wcgp_old ∗
-    cra ↦ᵣ wcra_old ∗
-    cs1 ↦ᵣ wcs1_old ∗
-    cs0 ↦ᵣ wcs0_old ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
+    cgp ↦ᵣ[th] wcgp_old ∗
+    cra ↦ᵣ[th] wcra_old ∗
+    cs1 ↦ᵣ[th] wcs1_old ∗
+    cs0 ↦ᵣ[th] wcs0_old ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
@@ -242,16 +242,16 @@ Section Switcher_After_Compartment_Call.
           load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
-        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
-        cgp ↦ᵣ rcgp ∗
-        cra ↦ᵣ rcra ∗
-        cs1 ↦ᵣ rcs1 ∗
-        cs0 ↦ᵣ rcs0 ∗
-        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cra ↦ᵣ[th] rcra ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
@@ -324,12 +324,12 @@ Section Switcher_After_Compartment_Call.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
-    cgp ↦ᵣ wcgp_old ∗
-    cra ↦ᵣ wcra_old ∗
-    cs1 ↦ᵣ wcs1_old ∗
-    cs0 ↦ᵣ wcs0_old ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
+    cgp ↦ᵣ[th] wcgp_old ∗
+    cra ↦ᵣ[th] wcra_old ∗
+    cs1 ↦ᵣ[th] wcs1_old ∗
+    cs0 ↦ᵣ[th] wcs0_old ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
     interp_in_mem RWL Wval C wcgp ∗
@@ -347,16 +347,16 @@ Section Switcher_After_Compartment_Call.
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
          interp Wval C rcs0) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
-        cgp ↦ᵣ rcgp ∗
-        cra ↦ᵣ rcra ∗
-        cs1 ↦ᵣ rcs1 ∗
-        cs0 ↦ᵣ rcs0 ∗
-        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cra ↦ᵣ[th] rcra ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
@@ -432,12 +432,12 @@ Section Switcher_After_Compartment_Call.
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_callee_save_restore" ∗
-    cgp ↦ᵣ wcgp_old ∗
-    cra ↦ᵣ wcra_old ∗
-    cs1 ↦ᵣ wcs1_old ∗
-    cs0 ↦ᵣ wcs0_old ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
+    cgp ↦ᵣ[th] wcgp_old ∗
+    cra ↦ᵣ[th] wcra_old ∗
+    cs1 ↦ᵣ[th] wcs1_old ∗
+    cs0 ↦ᵣ[th] wcs0_old ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
     (if is_untrusted_caller ccrel then
@@ -459,16 +459,16 @@ Section Switcher_After_Compartment_Call.
            interp Wval C rcs1 ∗
            interp Wval C rcs0
          else True) ∗
-        PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
-        cgp ↦ᵣ rcgp ∗
-        cra ↦ᵣ rcra ∗
-        cs1 ↦ᵣ rcs1 ∗
-        cs0 ↦ᵣ rcs0 ∗
-        csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
+        cgp ↦ᵣ[th] rcgp ∗
+        cra ↦ᵣ[th] rcra ∗
+        cs1 ↦ᵣ[th] rcs1 ∗
+        cs0 ↦ᵣ[th] rcs0 ∗
+        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
     { iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)

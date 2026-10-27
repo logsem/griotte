@@ -10,7 +10,7 @@ From griotte Require Import switcher clear_registers_spec.
 Section Switcher_sealing.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -118,7 +118,7 @@ Section Switcher_sealing.
             in its table cell. *)
          ∗ ⌜cstk.(cstk_frames) ≠ [] ∧ top_export_tbl cstk = b_tbl ∧
             top_error_count cstk = 0 ∧ tf_export_tbl_ok (top_tframe cstk)⌝
-         ∗ PC ↦ₚ wpcc
+         ∗ PC ↦ₚ[th] wpcc
          ∗ (execute_entry_point_register wcgp
               (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
          ∗ registers_pointsto regs
@@ -129,7 +129,7 @@ Section Switcher_sealing.
             top. *)
          ∗ ⌜(Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z⌝
          ∗ cstack_frag cstk
-         ∗ na_own cerise_nais ⊤
+         ∗ na_own (tpool th) ⊤
            -∗ interp_conf W C)
     )%I.
   Solve All Obligations with solve_proper.
