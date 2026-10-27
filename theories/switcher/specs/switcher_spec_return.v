@@ -131,7 +131,7 @@ Section Switcher.
     (* No frame to pop: to the thread exit *)
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hcode]").
-    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
     iApply (common_defer_irqs_and_thread_exit_spec with "[- $HPC $Hcode]").
     iIntros "!> _".
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with

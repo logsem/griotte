@@ -670,7 +670,7 @@ Section Switcher_Spec_Exception.
              "[- $HPC $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hmtdc $Hsave_area $Hout $Hcode]");
       [done | done |].
-    iNext; iIntros (wst cause zca0 mtval)
+    iNext; iIntros (g_tstk wst cause zca0 mtval)
       "(%Hcause & %Htval & HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok & Hmtval)".
 
@@ -682,7 +682,7 @@ Section Switcher_Spec_Exception.
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₓ tstack_cap -∗
+               mtdc ↦ₜ TStack tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
                  ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
@@ -707,7 +707,7 @@ Section Switcher_Spec_Exception.
       iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iAssert (cstack_full (cstack_set_top_count cstk' (top_error_count cstk')))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
-    iApply (handle_error_spec _ _ _ (lmepcc_of_pc w) with
+    iApply (handle_error_spec _ _ _ _ (lmepcc_of_pc w) with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hmtdc $Hsave_area
                  $Hframeoffset $Hcode]").
     { exact Hlen_cstk. }
@@ -811,7 +811,7 @@ Section Switcher_Spec_Exception.
       destruct Hwcell as [Hz | (-> & Hexp & Hprov)]; first (exfalso; by apply Htbl_set).
       iEval (fold (top_error_count cstk)) in "Hcnt".
       (* The lookup of an error handler *)
-      iApply (handle_error_stack_oob_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
+      iApply (handle_error_stack_oob_spec _ cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
                 (top_tframe cstk).(tf_export_tbl)
                with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
                        $Hcsp_cell $Hcell $Hcode]").
@@ -870,7 +870,7 @@ Section Switcher_Spec_Exception.
             iExists wpcc, wcgp'. iIntros "_". iFrame "Hpcc Hcgp'".
           - iExists (WInt 0 : LWord), (WInt 0 : LWord). iIntros "%". done. }
         (* Count the fault *)
-        iApply (handle_error_found_spec (length cstk.(cstk_frames)) a_tstk
+        iApply (handle_error_found_spec _ (length cstk.(cstk_frames)) a_tstk
                   (top_export_tbl cstk) e p g (top_error_count cstk) off z0 wpcc wcgp'
                  with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcra $Hcgp $Hca0 $Hcnt
                          $Hcells $Hcode]");
@@ -951,7 +951,7 @@ Section Switcher_Spec_Exception.
             rewrite Hsave'_src.
             iApply ("Hes_acc" with "[//] [//] Heh [//] [] []"); iPureIntro;
               by rewrite Hrmap_csp. }
-          iApply (handle_error_stack_setup_spec save' wcsp wct0_l _ _ _ _ _ _
+          iApply (handle_error_stack_setup_spec _ save' wcsp wct0_l _ _ _ _ _ _
                     error_state_written with
                    "[- $HPC $Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hsave_area
                        $Htok $Hmtval $Hcode $Hwritten $Hacc]");

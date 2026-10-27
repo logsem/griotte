@@ -70,14 +70,14 @@ Section Call_Path.
     cgp ↦ᵣ[th] wcgp ∗
     ct1 ↦ᵣ[th] wct1 ∗
     [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_hazard ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     switcher_code ∗
     ▷ ( (* The entry point is unsealed *)
-        ▷ ( ∀ wsb π,
+        ▷ ( ∀ (g_tstk : Locality) wsb π,
           ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
           ⌜ get_tag_sealable wsb = true ⌝ ∗
           ⌜ switcher_stk_bounds b e a ⌝ ∗
@@ -87,7 +87,7 @@ Section Call_Path.
           cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
           (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
           (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
           csp ↦ᵣ[th] chopped_csp b e a ∗
           cra ↦ᵣ[th] wcra ∗
           cgp ↦ᵣ[th] wcgp ∗
@@ -95,7 +95,7 @@ Section Call_Path.
           switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
           [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
             [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-          mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -106,14 +106,15 @@ Section Call_Path.
           WP Seq (Instr Executable) @[th] {{ HO th }} )
         ∧
         (* The unsealing faults *)
-        ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
+        ( ∀ g_tstk : Locality,
+          ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
           ⌜ switcher_stk_bounds b e a ⌝ ∗
           ⌜ (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_next ⌝ ∗
           ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
           cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
           (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
           (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
           csp ↦ᵣ[th] chopped_csp b e a ∗
           cra ↦ᵣ[th] wcra ∗
           cgp ↦ᵣ[th] wcgp ∗
@@ -121,7 +122,7 @@ Section Call_Path.
           switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
           [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
             [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-          mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           switcher_hazard ∗
           a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -133,19 +134,20 @@ Section Call_Path.
             (HO th) )
         ∧
         (* The trusted stack is exhausted *)
-        ( ⌜ switcher_stk_bounds b e a ⌝ ∗
+        ( ∀ g_tstk : Locality,
+          ⌜ switcher_stk_bounds b e a ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
           cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
           cs1 ↦ᵣ[th] wcs1 ∗
           ctp ↦ᵣ[th] WInt (tstack_frameoffset d) ∗
-          ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
           cra ↦ᵣ[th] wcra ∗
           cgp ↦ᵣ[th] wcgp ∗
           ct1 ↦ᵣ[th] wct1 ∗
           switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
           [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-          mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           switcher_hazard ∗
           [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -162,7 +164,7 @@ Section Call_Path.
           cgp ↦ᵣ[th] wcgp ∗
           ct1 ↦ᵣ[th] wct1 ∗
           [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-          mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           switcher_hazard ∗
           [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -191,7 +193,7 @@ Section Call_Path.
     iNext; iIntros "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hcells & Hstk & %Hbounds)".
     (* [.Lswitch_trusted_stack_load]: read the trusted stack, clear the hazard slots *)
     iApply (switcher_trusted_stack_load_spec with "[- $HPC $Hctp $Hct2 $Hmtdc $Hhazard $Hswitcher]").
-    iNext; iIntros "(HPC & Hctp & Hct2 & Hmtdc & Hhazard_cell & Hslots)".
+    iNext; iIntros (g_tstk) "(HPC & Hctp & Hct2 & Hmtdc & Hhazard_cell & Hslots)".
     iAssert switcher_hazard with "[Hhazard_cell Hslots]" as "Hhazard".
     { iFrame "Hhazard_cell Hslots". }
     (* [.Lswitch_trusted_stack_push]: push the frame *)
@@ -206,7 +208,7 @@ Section Call_Path.
       (HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hframeoffset & Htstk)
     ]"; cycle 1.
     { iDestruct "Hpost" as "(_ & _ & Hpost & _)".
-      iApply "Hpost".
+      iApply ("Hpost" $! g_tstk).
       iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset Hhazard
         Htstk".
       done. }
@@ -219,7 +221,7 @@ Section Call_Path.
     iSplit; cycle 1.
     { iIntros "(%Hnot_entry & Hcs0 & Hct1)".
       iDestruct "Hpost" as "(_ & Hpost & _)".
-      iApply "Hpost".
+      iApply ("Hpost" $! g_tstk).
       iFrame "Hcs0 Hcs1 Hct2 Hctp Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset
         Hhazard Hframe_csp Hframe_tbl Hframe_cnt Hlc".
       iSplit; first done.
@@ -229,7 +231,7 @@ Section Call_Path.
       iExists tstk_next'; iExact "Htstk". }
     iNext; iIntros (wsb π) "(-> & %Htag & HPC & Hcs0 & Hct1)".
     iDestruct "Hpost" as "(Hpost & _)".
-    iApply ("Hpost" $! wsb π).
+    iApply ("Hpost" $! g_tstk wsb π).
     iFrame "HPC Hcs0 Hcs1 Hct2 Hctp Hcsp Hcra Hcgp Hct1 Hcells Hstk Hmtdc Hframeoffset
       Hhazard Hframe_csp Hframe_tbl Hframe_cnt Hlc".
     iSplit; first done.
@@ -249,7 +251,7 @@ Section Call_Path.
       instead. *)
   Lemma switcher_decode_entry_path_spec
     (W : WORLD) (C : CmptName)
-    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (g_tstk : Locality) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (b_stk e_stk a_stk : Addr)
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z)
@@ -280,7 +282,7 @@ Section Call_Path.
     cs1 ↦ᵣ[th] wcs1 ∗
     ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_frame ∗
     a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗
@@ -352,7 +354,7 @@ Section Call_Path.
       arguments are not required to be valid: the argument registers that
       are not cleared keep their initial values. *)
   Lemma switcher_decode_entry_path_known_spec
-    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (g_tstk : Locality) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (b_stk e_stk a_stk : Addr)
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z)
@@ -383,7 +385,7 @@ Section Call_Path.
     cs1 ↦ᵣ[th] wcs1 ∗
     ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_frame ∗
     a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗

@@ -55,7 +55,7 @@ Section Switcher_KtK_Call.
 
     (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) ∗
     na_own (tpool th) (F ∖ ↑Nswitcher) ∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
@@ -343,11 +343,11 @@ Section Switcher_KtK_Call.
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
          fault *)
-      iIntros "(%Hnot_entry & _)"; exfalso.
+      iIntros (g_tstk) "(%Hnot_entry & _)"; exfalso.
       apply Hnot_entry; subst wct1_caller.
       by eexists _, None. }
     { (* The trusted stack is exhausted *)
-      iIntros "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
+      iIntros (g_tstk) "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
         & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Htstk)".
       iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
       iSpecialize ("Hsave_area" with "Hhazard_cell").
@@ -362,7 +362,7 @@ Section Switcher_KtK_Call.
          not fault *)
       iIntros "(%Hnfits & _)". exfalso. apply Hnfits.
       by apply (stk_callee_fits_spill_fits _ _ _ minstk_tgt); [lia|]. }
-    iNext; iIntros (wsb π)
+    iNext; iIntros (g_tstk wsb π)
       "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
       & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".

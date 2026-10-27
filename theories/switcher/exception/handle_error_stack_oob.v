@@ -126,7 +126,7 @@ Section Handle_Error_Stack_Oob.
       the frame at [a_tstk], move the capability to its base, and load the
       word at offset [off_eh] of the header, [eh]. The load faults when the
       cell is cleared. *)
-  #[local] Lemma export_table_header_load_spec
+  #[local] Lemma export_table_header_load_spec (g_tstk : Locality)
     (pc_a a_tstk b_tbl : Addr) (instrs : list Word) (off_eh eh : Z)
     (wcell wct1 wct2 wcs0 : LWord) (dq : dfrac) φ :
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
@@ -142,7 +142,7 @@ Section Handle_Error_Stack_Oob.
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
     PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -150,7 +150,7 @@ Section Handle_Error_Stack_Oob.
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → (b_tbl ^+ off_eh)%a ↦ₐ□ WInt eh) ∗
     codefrag_pers pc_a instrs ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ ∗
-        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
         ct1 ↦ᵣ[th] - ∗
         ct2 ↦ᵣ[th] - ∗
         cs0 ↦ᵣ[th] - ∗
@@ -159,7 +159,7 @@ Section Handle_Error_Stack_Oob.
       ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
         ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ ∗
         PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 4)%a ∗
-        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
         ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
         ct2 ↦ᵣ[th] wct2' ∗
         cs0 ↦ᵣ[th] WInt eh ∗
@@ -217,7 +217,7 @@ Section Handle_Error_Stack_Oob.
   Qed.
 
   (** [.Lhandle_error_try_stackful]: the stackful handler. *)
-  #[local] Lemma handle_error_try_stackful_spec
+  #[local] Lemma handle_error_try_stackful_spec (g_tstk : Locality)
     (a_tstk b_tbl : Addr) (eh : Z) (wcell wct1 wct2 wcs0 : LWord) (dq : dfrac) :
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
     (a_tstk + TrustedStackFrame_offset_calleeExportTable)%a = Some a_tbl_cell ->
@@ -225,7 +225,7 @@ Section Handle_Error_Stack_Oob.
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackful" ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -236,7 +236,7 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
           cs0 ↦ᵣ[th] - ∗
@@ -247,7 +247,7 @@ Section Handle_Error_Stack_Oob.
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜eh ≠ ExportTable_no_handler⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt eh ∗
@@ -258,7 +258,7 @@ Section Handle_Error_Stack_Oob.
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜eh = ExportTable_no_handler⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt eh ∗
@@ -271,7 +271,7 @@ Section Handle_Error_Stack_Oob.
     iIntros (Ha_cell Hcell_bounds Hwcell)
       "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell & #Hheader & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_error_try_stackful" "Hswitcher" as "Hcode".
-    iApply (export_table_header_load_spec _ _ b_tbl _ ExportTable_offset_errorHandler eh
+    iApply (export_table_header_load_spec _ _ _ b_tbl _ ExportTable_offset_errorHandler eh
              with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode Hpost Hcs1]");
       [rewrite /ExportTable_offset_errorHandler /ExportTable_offset_errorHandlerStackless; lia
       | reflexivity | done | cbn; lia | done | done | done |].
@@ -313,7 +313,7 @@ Section Handle_Error_Stack_Oob.
       of the topmost frame: for a pushed frame, the block falls through to
       [.Lhandle_stack_rebound]; for the entry frame, it goes to
       [.Lhandle_stack_recovered]. *)
-  #[local] Lemma handle_error_try_stackless_block_spec
+  #[local] Lemma handle_error_try_stackless_block_spec (g_tstk : Locality)
     (a_tstk b_tbl : Addr) (d : nat) (ehs : Z)
     (wfcsp wcell wct0 wct1 wct2 wcs0 : LWord) (dq : dfrac) :
     let a_csp_cell := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
@@ -323,8 +323,8 @@ Section Handle_Error_Stack_Oob.
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
@@ -337,8 +337,8 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0 ∗
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
@@ -351,8 +351,8 @@ Section Handle_Error_Stack_Oob.
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜ehs = ExportTable_no_handler⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0 ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -366,8 +366,8 @@ Section Handle_Error_Stack_Oob.
           ⌜ehs ≠ ExportTable_no_handler⌝ -∗
           ⌜d = 0⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_recovered" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wfcsp ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -381,8 +381,8 @@ Section Handle_Error_Stack_Oob.
           ⌜ehs ≠ ExportTable_no_handler⌝ -∗
           ⌜d ≠ 0⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_rebound" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wfcsp ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -404,7 +404,7 @@ Section Handle_Error_Stack_Oob.
     assert (withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true) as Hcell_bounds
       by (subst a_tbl_cell; rewrite /withinBounds; tstack_unfold; solve_addr).
     switcher_open_label ".Lhandle_error_try_stackless" "Hswitcher" as "Hcode".
-    iApply (export_table_header_load_spec _ _ b_tbl _
+    iApply (export_table_header_load_spec _ _ _ b_tbl _
               ExportTable_offset_errorHandlerStackless ehs
              with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode Hpost Hcs1 Hcsp Hct0 Hcsp_cell]");
       [rewrite /ExportTable_offset_errorHandlerStackless; lia
@@ -531,7 +531,7 @@ Section Handle_Error_Stack_Oob.
   (** From [.Lhandle_error_try_stackless], reached when the stackful
       handler is not invoked. The continuations are those of
       [handle_error_stack_oob_spec]. *)
-  #[local] Lemma handle_error_try_stackless_spec
+  #[local] Lemma handle_error_try_stackless_spec (g_tstk : Locality)
     (cstk : CSTK) (a_tstk b_tbl : Addr) (eh ehs : Z)
     (wcsp wcell wct0 wct1 wct2 wcs0 wca1 wca2 : LWord) (dq : dfrac) :
     let tf := top_tframe cstk in
@@ -548,8 +548,8 @@ Section Handle_Error_Stack_Oob.
     (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
@@ -565,8 +565,8 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] - ∗
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
@@ -582,8 +582,8 @@ Section Handle_Error_Stack_Oob.
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
           ∀ (wct0' wct1' wct2' wcs0' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -604,8 +604,8 @@ Section Handle_Error_Stack_Oob.
             ehs ≠ ExportTable_no_handler ∧
             (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp))⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -623,7 +623,7 @@ Section Handle_Error_Stack_Oob.
     iIntros (Ha_tstk Ha_tstk_end Hframe_csp Hwcell Hcond)
       "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
        & Hcsp_cell & Hcell & #Hheader & #Hswitcher & Hpost)".
-    iApply (handle_error_try_stackless_block_spec _ _ (length cstk.(cstk_frames)) ehs
+    iApply (handle_error_try_stackless_block_spec _ _ _ (length cstk.(cstk_frames)) ehs
              with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcsp_cell $Hcell
                      $Hswitcher]");
       [done | done | done |].
@@ -689,7 +689,7 @@ Section Handle_Error_Stack_Oob.
       - a handler is found, at offset [off] of the PCC of the table: the
         stackful one ([ca0] is 0), with [wct0] in [ct0], or the stackless
         one ([ca0] is 1), on [stackless_csp cstk]. *)
-  Lemma handle_error_stack_oob_spec
+  Lemma handle_error_stack_oob_spec (g_tstk : Locality)
     (cstk : CSTK) (a_tstk b_tbl : Addr) (eh ehs : Z)
     (wcsp wct0 wcell wct1 wct2 wcs0 wcs1 wca1 wca2 : LWord) (dq : dfrac) :
     let tf := top_tframe cstk in
@@ -706,8 +706,8 @@ Section Handle_Error_Stack_Oob.
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
@@ -723,8 +723,8 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] - ∗
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
@@ -740,8 +740,8 @@ Section Handle_Error_Stack_Oob.
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
           ∀ (wct0' wct1' wct2' wcs0' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -762,8 +762,8 @@ Section Handle_Error_Stack_Oob.
             ehs ≠ ExportTable_no_handler ∧
             (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp))⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
@@ -791,7 +791,7 @@ Section Handle_Error_Stack_Oob.
         as Ha_cell by (subst a_tbl_cell; tstack_unfold; solve_addr).
       assert (withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true) as Hcell_bounds
         by (subst a_tbl_cell; rewrite /withinBounds; tstack_unfold; solve_addr).
-      iApply (handle_error_try_stackful_spec _ b_tbl eh
+      iApply (handle_error_try_stackful_spec _ _ b_tbl eh
                with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcell $Hswitcher]");
         [done | done | done |].
       iSplitR.

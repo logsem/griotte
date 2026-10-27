@@ -23,6 +23,21 @@ Proof.
     solve_addr.
 Qed.
 
+(** A read of mtdc, which holds the trusted stack up to the Global bit,
+    gives the capability with some locality. *)
+Lemma mtdc_match_TStack_cap p g b e a (vm : LWord) :
+  mtdc_match (TStack (WCap true p g b e a)) vm →
+  ∃ g', vm = WCap true p g' b e a.
+Proof.
+  destruct vm as [w π]. rewrite /mtdc_match /=. intros [-> Hw].
+  destruct w as [| [ | ] | | ]; cbn in Hw; simplify_eq; by eexists.
+Qed.
+
+(** A write of the trusted stack to mtdc, with any locality. *)
+Lemma mtdc_match_TStack_cap_any p g g' b e a :
+  mtdc_match (TStack (WCap true p g b e a)) (WCap true p g' b e a).
+Proof. done. Qed.
+
 (** The number of arguments of an export entry, given by its address in the
     export table or by the sealable that points to it. *)
 Class EntryNargs (Σ : gFunctors) (K : Type) := entry_nargs_at : K → nat → iProp Σ.
@@ -417,7 +432,7 @@ Section Switcher_preamble.
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
@@ -444,7 +459,7 @@ Section Switcher_preamble.
     ▷ switcher_inv -∗
     ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
@@ -486,7 +501,7 @@ Section Switcher_preamble.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗

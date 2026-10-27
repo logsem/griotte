@@ -44,18 +44,19 @@ Section Switcher_After_Compartment_Call.
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     csp ↦ᵣ[th] wcsp ∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
-        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( ∀ g_tstk : Locality,
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
+        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
-        ct1 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct1 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset (S d)) ∗
         csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
-        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -78,7 +79,9 @@ Section Switcher_After_Compartment_Call.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hctp $Hmtdc]"
+      as (vm) "(%Hvm & HPC & Hctp & Hmtdc)".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
@@ -135,7 +138,7 @@ Section Switcher_After_Compartment_Call.
     iEval (rewrite Hpopped) in "Hframeoffset".
     switcher_change_pc_label ".Lswitch_callee_save_restore".
     subst hpost.
-    iApply "Hpost".
+    iApply ("Hpost" $! g_tstk).
     iFrame "HPC Hctp Hct0 Hct1 Hct2 Hcsp Hmtdc Hframeoffset Hhazard Ha_tstk Hlc".
   Qed.
 
@@ -148,15 +151,16 @@ Section Switcher_After_Compartment_Call.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
-        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( ∀ g_tstk : Locality,
+        PC ↦ₚ[th] switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
+        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset 0) ∗
-        mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard -∗
         WP Seq (Instr Executable) @[th] E {{ Φ }} )
@@ -172,7 +176,9 @@ Section Switcher_After_Compartment_Call.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hctp $Hmtdc]"
+      as (vm) "(%Hvm & HPC & Hctp & Hmtdc)".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
@@ -215,7 +221,7 @@ Section Switcher_After_Compartment_Call.
     { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_defer_irqs_and_thread_exit")%a
         by switcher_addr_eq. }
     subst hpost.
-    iApply "Hpost".
+    iApply ("Hpost" $! g_tstk).
     iFrame "HPC Hctp Hct0 Hct2 Hmtdc Hframeoffset Hhazard".
   Qed.
 

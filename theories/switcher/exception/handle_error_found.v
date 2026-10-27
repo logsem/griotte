@@ -32,7 +32,7 @@ Section Handle_Error_Found.
       - otherwise, [cra] holds the handler's PC computed from the PCC of the
         table, [cgp] its CGP, and the PC is at the setup of the handler,
         stackless or stackful. *)
-  Lemma handle_error_found_spec
+  Lemma handle_error_found_spec (g_tstk : Locality)
     (d : nat) (a_tstk b_tbl e_tbl : Addr) (p : Perm) (g : Locality) (n off z0 : Z)
     (wpcc wcgp wcra wcgp0 wct2 wcs1 : LWord) :
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
@@ -41,7 +41,7 @@ Section Handle_Error_Found.
     exp_tbl_cap b_tbl (WCap true p g b_tbl e_tbl b_tbl) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
     ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
     cs0 ↦ᵣ[th] WInt off ∗
@@ -55,7 +55,7 @@ Section Handle_Error_Found.
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2 ∗
           cs0 ↦ᵣ[th] WInt off ∗
@@ -69,7 +69,7 @@ Section Handle_Error_Found.
           ⌜z0 ≠ 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt off ∗
@@ -83,7 +83,7 @@ Section Handle_Error_Found.
           ⌜z0 = 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt off ∗
@@ -212,12 +212,12 @@ Section Handle_Error_Found.
       trap (word 18 of the register save area), [ca1] the value of the
       trap, from the lent mtval, which then goes back to the state
       interpretation, [ca2] 0 and [csp] the handler's stack, from [ct0]. *)
-  Lemma handle_error_stackless_setup_spec
+  Lemma handle_error_stackless_setup_spec (g_tstk : Locality)
     (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (mtval : Z) :
     length save_area = 21%nat ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗

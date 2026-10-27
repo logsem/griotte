@@ -180,7 +180,7 @@ Section fundamental.
 
     switcher_trap_safety -∗
     switcher_inv_opened cstk' a_tstk -∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -228,7 +228,7 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (b e a : Addr) (lv : list LWord)
-    (wcs0 wcs1 wcra wcgp wct1 : LWord)
+    (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality)
     (a_tstk : Addr) (tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
@@ -254,14 +254,14 @@ Section fundamental.
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
       cs1 ↦ᵣ[th] wcs1 ∗
       ctp ↦ᵣ[th] WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
-      ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
       csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee lv ]] ∗
-      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -358,7 +358,7 @@ Section fundamental.
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ lv ]] ∗
-      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -394,7 +394,7 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (b e a : Addr) (lv : list LWord)
-    (wcs0 wcs1 wcra wcgp wct1 : LWord) (a_tstk : Addr) :
+    (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality) (a_tstk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     let a_free := (a_next ^+ TrustedStackFrame_size)%a in
@@ -426,7 +426,7 @@ Section fundamental.
       cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-      ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+      ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
       csp ↦ᵣ[th] chopped_csp b e a ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
@@ -434,7 +434,7 @@ Section fundamental.
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
         [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-      mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -523,7 +523,7 @@ Section fundamental.
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     cstack_frag cstk -∗
-    mtdc ↦ₓ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) -∗
@@ -748,17 +748,19 @@ Section fundamental.
     iPoseProof (switcher_inv_opened_seal_pred with "Hopened") as "#Hp_ot_switcher".
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is not sealed by the switcher *)
+      iIntros (g_tstk).
       iApply (interp_switcher_call_unseal_fault with
                "Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk");
         done. }
     { (* The trusted stack is exhausted *)
+      iIntros (g_tstk).
       iApply (interp_switcher_call_tstack_exhausted with
                "Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk");
         done. }
     { (* The callee-save registers do not fit on the caller's stack *)
       iApply (interp_switcher_call_spill_fault with
                "Hsafety Hreg Htop Hopened Hstk_opened Hrmap Hcont Hcstk"); done. }
-    iNext; iIntros (wsb π)
+    iNext; iIntros (g_tstk wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
       & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".

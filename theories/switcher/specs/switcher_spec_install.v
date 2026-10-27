@@ -177,7 +177,7 @@ Section Switcher_Spec_Install.
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₓ tstack_cap -∗
+               mtdc ↦ₜ TStack tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
                  ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -238,7 +238,7 @@ Section Switcher_Spec_Install.
       rewrite /install_skipped Hrmap_csp.
       destruct Hwhy as [Hz | Hnok]; [exfalso; by apply Htbl_set | exact Hnok].
     - (* The [ErrorState] is loaded: the count is incremented *)
-      iIntros (ls Hls Htbl)
+      iIntros (g_tstk ls Hls Htbl)
         "(HPC & Hcsp & [%wcra_r Hcra] & [%wctp_r Hctp] & [%wct0_r Hct0] & Hct1 & Hct2
           & [%wcs0_r Hcs0] & [%wcs1_r Hcs1] & [%wca2_r Hca2] & [%wca3_r Hca3] & [%wca4_r Hca4]
           & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & HL)".
