@@ -2308,4 +2308,9 @@ Section world_resources.
     £ 1 -∗ shared_credit C.
   Proof. rewrite shared_credit_unseal. by iIntros "_". Qed.
 
+  (** In exclusive mode, the carried credit is free. *)
+  Lemma shared_credit_exclusive C :
+    ⊢ shared_credit C.
+  Proof. by rewrite shared_credit_unseal. Qed.
+
 End world_resources.

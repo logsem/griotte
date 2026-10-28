@@ -42,17 +42,61 @@ Section fundamental_generic.
     exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked (HQP HQ)).
   Qed.
 
-  (** The case lemmas of all the instructions give the FTLR step. *)
-  Lemma ftlr_instr_dispatch (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    (∀ i, ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs) →
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P True cstk Ws Cs.
+  #[local] Ltac by_binop_case :=
+    eapply ftlr_instr_base_mono; [| eapply binop_case]; intros ->; eauto 10.
+  #[local] Ltac by_jcond_case :=
+    eapply jcond_case; eauto.
+  #[local] Ltac by_get_case :=
+    eapply get_case; rewrite /is_Get; eauto 10.
+
+  (** The case lemmas of all the instructions. *)
+  Lemma ftlr_instr_cases :
+    ∀ W C regs p p' g b e a w i ρ P cstk Ws Cs,
+      ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
   Proof.
-    intros Hcases.
-    apply (ftlr_instr_base_mono _ _ _ _ _ _ _ _ _ _ _ _ (decodeInstrW w.(lw) = decodeInstrW w.(lw)));
-      [done | apply Hcases].
+    intros W C regs p p' g b e a w i ρ P cstk Ws Cs.
+    (* proof by cases on each instruction *)
+    destruct i.
+    - (* Jmp *) apply jmp_case.
+    - (* Jeq *) by_jcond_case.
+    - (* Jne *) by_jcond_case.
+    - (* Jlt *) by_jcond_case.
+    - (* Jle *) by_jcond_case.
+    - (* Jalr *) apply jalr_case.
+    - (* Mov *) apply mov_case.
+    - (* CLoad *) apply load_case.
+    - (* Store *) apply store_case.
+    - (* Lt *) by_binop_case.
+    - (* Le *) by_binop_case.
+    - (* Add *) by_binop_case.
+    - (* Sub *) by_binop_case.
+    - (* Mul *) by_binop_case.
+    - (* LAnd *) by_binop_case.
+    - (* LOr *) by_binop_case.
+    - (* LShiftL *) by_binop_case.
+    - (* LShiftR *) by_binop_case.
+    - (* Lea *) apply lea_case.
+    - (* SetA *) apply seta_case.
+    - (* Restrict *) apply restrict_case.
+    - (* Subseg *) apply subseg_case.
+    - (* GetB *) by_get_case.
+    - (* GetE *) by_get_case.
+    - (* GetLen *) by_get_case.
+    - (* GetA *) by_get_case.
+    - (* GetP *) by_get_case.
+    - (* GetL *) by_get_case.
+    - (* GetWType *) by_get_case.
+    - (* GetOType *) by_get_case.
+    - (* Seal *) apply seal_case.
+    - (* UnSeal *) apply unseal_case.
+    - (* SpecialRW *) apply specialrw_case.
+    - (* SetMIE *) apply setmie_case.
+    - (* Mret *) apply mret_case.
+    - (* Fail *) apply fail_case.
+    - (* Halt *) apply halt_case.
+    - (* GetTag *) by_get_case.
+    - (* ClearTag *) apply cleartag_case.
+    - (* Auipcc *) apply auipcc_case.
   Qed.
 
 End fundamental_generic.
@@ -77,60 +121,9 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** While the cases are ported: the old shape of the cases. *)
-  Lemma ftlr_instr_base_old_mono (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    (Q → Pinstr) →
-    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
-    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P Q cstk Ws Cs.
-  Proof.
-    intros HQP H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked HQ.
-    exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked (HQP HQ)).
-  Qed.
-
-  Lemma ftlr_instr_old_dispatch (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    (∀ i, ftlr_instr_old trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs) →
-    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P True cstk Ws Cs.
-  Proof.
-    intros Hcases.
-    apply (ftlr_instr_base_old_mono _ _ _ _ _ _ _ _ _ _ _ _ (decodeInstrW w.(lw) = decodeInstrW w.(lw)));
-      [done | apply Hcases].
-  Qed.
-
-  (** A ported case, in the old shape: its value is handled as in the step
-      lemma. *)
-  Lemma ftlr_instr_old_of_new (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V) (Pinstr : Prop)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
-    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs.
-  Proof.
-    intros Hnew Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
-    iIntros "@".
-    iApply (wp_wand with "[- Hcont Hown Htframe]").
-    { iApply (Hnew with "[$IHnew $Hinv_interp $Hreg $Hinva $Hrcond $Hwcond $Hmono $WorldRes
-                          $Hworld_interp $Hstate $HPC $Hmap]"); eauto. }
-    iIntros (v) "Hpost".
-    iApply (ftlr_value with "Htrap Htop Hcont Hown Htframe"); first done.
-    iNext. iDestruct "Hpost" as (W' Hrel) "[Hworld Hpost]".
-    iExists W'. rewrite world_resources_exclusive. by iFrame.
-  Qed.
-
-  #[local] Ltac by_binop_case :=
-    eapply ftlr_instr_base_old_mono; [| eapply binop_case]; intros ->; eauto 10.
-  #[local] Ltac by_jcond_case :=
-    eapply jcond_case; eauto.
-  #[local] Ltac by_get_case :=
-    eapply get_case; rewrite /is_Get; eauto 10.
-
   (** The fundamental theorem, by Löb induction: its induction hypothesis
-      is [ftlr_IH]. *)
+      is [ftlr_IH]. Each step is the step lemma, with the world owned by
+      the thread. *)
   Theorem fundamental W C w :
     ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W C w -∗
@@ -139,89 +132,17 @@ Section fundamental.
     iIntros "#Htrap".
     iLöb as "IH" forall (W C w).
     iIntros "#Hw".
-    iAssert ftlr_IH as "#IHnew"; first by iModIntro.
-    iDestruct (ftlr_IH_old_intro with "IHnew") as "#IHold".
-    iIntros (cstk Ws Cs regs0)
-      "(#Hregs & #Htop & HPC & Hmreg & Hworld_interp & Hcont & Hown & Hcstk & %Hframe)".
-    (* The not-correct-PC branch. *)
-    destruct (decide (isCorrectPC w.(lw))) as [HcorrectPC | Hnpc]; cycle 1.
-    { iPoseProof "Hregs" as "[%Hfull _]".
-      iApply (wp_notCorrectPC_trap with "HPC"); first done.
-      iApply (interp_trap_safe_untrusted with
-               "Htrap Hregs Htop [$Hmreg $Hworld_interp $Hcont $Hown $Hcstk]"); done.
-    }
-    (* The registers are replaced by their filtered words, which are safe. *)
-    iApply (interp_reg_refilter with "Hregs Hmreg Hworld_interp").
-    iIntros (regs) "%Hfull #Hreg Hmreg Hworld_interp".
-    iClear "Hregs". clear regs0.
-    destruct w as [ [ | [ [] p g b e a | ] | | ] π]; try by inversion HcorrectPC.
-    rewrite /registers_pointsto.
-
-    (* A valid PC carries no identifier: its region key is [LNonHeap a]. *)
-    iDestruct (interp_pc_noid with "Hw") as %->; first exact HcorrectPC.
-    assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
-    { eapply in_range_is_correctPC; eauto. solve_addr. }
-    iDestruct (interp_validPCperm with "Hw") as "%Hp"; first done.
-    iDestruct (interp_pc_in_registers with "Hw Hreg")
-      as (p'' P'' Hflp'' Hperscond_P'') "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"
-    ; eauto.
-    assert (∃ (ρ : region_type), (std W) !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked)
-      as [ρ [Hρ Hne ] ].
-    { destruct (isWL p),g; simplify_eq ; eauto.
-      destruct Hstate_a as [Htemp | Hperm];eauto. }
-
-    iDestruct (open_world_interp W C (LNonHeap a) p'' _ ρ with "[$Hrela] [$Hworld_interp]")
-      as "(Hworld_interp & Hstate & (%w & WorldRes) )"
-    ; [apply heap_key_live_nonheap | destruct ρ; auto; contradiction | exact Hρ |].
-
-    iApply (wp_bind (fill [SeqCtx])).
-    iApply (ftlr_instr_old_dispatch W C regs p p'' g b e a w ρ P'' cstk Ws Cs with
-             "[$IHold $IHnew $Htrap $Hw $Hreg $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
-               $Hcont $Hworld_interp $Hown $Hcstk $Htop $Hstate $HPC $Hmreg //]")
-    ; [| eauto..].
-    (* proof by cases on each instruction; the ported cases through
-       [ftlr_instr_old_of_new] *)
-    intros i; destruct i.
-    - (* Jmp *) apply jmp_case.
-    - (* Jeq *) by_jcond_case.
-    - (* Jne *) by_jcond_case.
-    - (* Jlt *) by_jcond_case.
-    - (* Jle *) by_jcond_case.
-    - (* Jalr *) apply ftlr_instr_old_of_new, jalr_case.
-    - (* Mov *) apply ftlr_instr_old_of_new, mov_case.
-    - (* CLoad *) apply load_case.
-    - (* Store *) apply store_case.
-    - (* Lt *) by_binop_case.
-    - (* Le *) by_binop_case.
-    - (* Add *) by_binop_case.
-    - (* Sub *) by_binop_case.
-    - (* Mul *) by_binop_case.
-    - (* LAnd *) by_binop_case.
-    - (* LOr *) by_binop_case.
-    - (* LShiftL *) by_binop_case.
-    - (* LShiftR *) by_binop_case.
-    - (* Lea *) apply lea_case.
-    - (* SetA *) apply seta_case.
-    - (* Restrict *) apply restrict_case.
-    - (* Subseg *) apply subseg_case.
-    - (* GetB *) by_get_case.
-    - (* GetE *) by_get_case.
-    - (* GetLen *) by_get_case.
-    - (* GetA *) by_get_case.
-    - (* GetP *) by_get_case.
-    - (* GetL *) by_get_case.
-    - (* GetWType *) by_get_case.
-    - (* GetOType *) by_get_case.
-    - (* Seal *) apply ftlr_instr_old_of_new, seal_case.
-    - (* UnSeal *) apply ftlr_instr_old_of_new, unseal_case.
-    - (* SpecialRW *) apply specialrw_case.
-    - (* SetMIE *) apply setmie_case.
-    - (* Mret *) apply mret_case.
-    - (* Fail *) apply ftlr_instr_old_of_new, fail_case.
-    - (* Halt *) apply ftlr_instr_old_of_new, halt_case.
-    - (* GetTag *) by_get_case.
-    - (* ClearTag *) apply cleartag_case.
-    - (* Auipcc *) apply auipcc_case.
+    iIntros (cstk Ws Cs regs)
+      "(#Hreg & #Htop & HPC & Hregs & Hworld & Hcont & Hown & Hcstk & %Hframe)".
+    iApply (ftlr_step (λ _, True)%I (λ _, True)%I trusted_fault W C InterruptEnabled w
+              cstk Ws Cs regs (ftlr_instr_cases trusted_fault) Hframe
+              with "[] Htrap [] Hw Hreg Htop HPC Hregs [Hworld] Hcont Hown Hcstk [] []").
+    - iApply world_accessor_exclusive.
+    - by iModIntro.
+    - rewrite world_resources_exclusive. iFrame "Hworld".
+      iApply shared_credit_exclusive.
+    - done.
+    - done.
   Qed.
 
   (* The premise [trap_vector_safe trusted_fault (lword_of_word mtcc_vec)] is discharged in
