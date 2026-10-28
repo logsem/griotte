@@ -5,6 +5,7 @@ From griotte Require Export logrel monotone.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_Store wp_rules_interp.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 Import uPred.
 
 
@@ -14,9 +15,8 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -453,8 +453,8 @@ Section fundamental.
 
    Lemma store_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
-     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-     ftlr_instr trusted_fault W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
+     (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) :
+     ftlr_instr W C regs p p' g b e a w (Store dst src imm) ρ P.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -507,7 +507,7 @@ Section fundamental.
       iApply (interp_cap_not_shadow with "[Hreg]"); eauto using writeAllowed_nonO.
       by iApply "Hreg".
     }
-    iApply (wp_store_imm with "[$HPC $Hmap $HMemRes]"); eauto.
+    iApply (wp_store_imm (CL := link_core) with "[$HPC $Hmap $HMemRes]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
     iDestruct (if_dec_later with "Hwcond") as "Hwcond'";auto.
@@ -522,7 +522,7 @@ Section fundamental.
     { apply incrementPC_Some_inv in Hincr
         as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
 
       rewrite mono_invariant_eq.
       iDestruct (switch_monotonicity_formulation with "HmonoV") as "HmonoV"; [eauto..|].
@@ -539,9 +539,8 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $HSVInterp $HmonoV]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs p g b e apc' None
-               with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]"); auto.
-      iApply (interp_next_PC with "Hinv_interp"); eauto.
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp"); auto.
+      iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
     { subst mem'.
@@ -549,8 +548,7 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp $HmonoV]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
-    Unshelve. all: auto.
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
   Qed.
 
 End fundamental.

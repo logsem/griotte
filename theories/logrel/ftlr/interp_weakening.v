@@ -10,7 +10,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -734,12 +734,8 @@ Section fundamental.
     iModIntro.
     rewrite /enter_cond /interp_expr /=.
     iIntros (W') "#Hfuture %g'' %Hflows !>".
-    iIntros (cstk Ws Cs regs0) "(Hregs & #Htop & HPC & Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)".
-    iApply (interp_reg_refilter with "Hregs Hreg Hworld_interp").
-    iIntros (regs) "Hfull Hmap Hreg Hworld_interp".
-    iApply ("IH" $! W' C cstk Ws Cs regs p g'' b' e' a' None
-      with "Hfull Hmap HPC Hreg Hworld_interp Hcont Hframe Htop Hown Hcstk").
-    iModIntro. iEval (rewrite interp_unfold interp1_eq HpnotO HpXSR).
+    iApply "IH".
+    iEval (rewrite interp_unfold interp1_eq HpnotO HpXSR).
     iSplitR; cycle 1.
     {
       iPureIntro. split; last (split; [exact (proj1 Hregions')|

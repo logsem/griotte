@@ -10,7 +10,7 @@ Section monotone.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -660,5 +660,38 @@ Proof.
   apply Hdom_sta; rewrite elem_of_dom;eauto.
 Qed.
 
+  (** A word safe once filtered by a world is safe once filtered by a public
+      future world. *)
+  Lemma interp_filter_heap_monotone W W' C w :
+    related_sts_pub_world W W' →
+    interp W C (filter_heap W w) -∗ interp W' C (filter_heap W' w).
+  Proof.
+    iIntros (Hrel) "Hw".
+    iPoseProof (interp_in_mem_monotone_raw W W' C w Hrel with "[Hw]") as "Hw'".
+    - rewrite interp_in_mem_eq. by replace (lload_word RWL w) with w by (destruct w; done).
+    - rewrite interp_in_mem_eq. by replace (lload_word RWL w) with w by (destruct w; done).
+  Qed.
+
+  (** The registers safe up to the world's filter, in a public future
+      world. *)
+  Lemma interp_reg_monotone W W' C (regs : LReg) :
+    related_sts_pub_world W W' →
+    interp_reg interp W C regs -∗ interp_reg interp W' C regs.
+  Proof.
+    iIntros (Hrel) "[Hfull #Hregs]". iSplit; first done.
+    iIntros (r v Hv). iApply (interp_filter_heap_monotone with "(Hregs [//])"); done.
+  Qed.
+
+  (** A safe word without identifier is safe in a public future world. *)
+  Lemma interp_monotone_noid W W' C w :
+    related_sts_pub_world W W' →
+    w.(lprov) = None →
+    interp W C w -∗ interp W' C w.
+  Proof.
+    iIntros (Hrel Hnoid) "Hw".
+    iDestruct (interp_filter_heap with "Hw") as "Hw".
+    iDestruct (interp_filter_heap_monotone with "Hw") as "Hw"; first done.
+    by rewrite filter_heap_noid.
+  Qed.
 
 End monotone.
