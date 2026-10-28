@@ -183,8 +183,8 @@ Section region_alloc_cmpt.
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    let pcc_cap := (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
-    let cgp_cap := (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+    let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 
@@ -347,7 +347,7 @@ Section region_alloc_cmpt.
         iApply big_sepL_intro; iModIntro.
         iIntros (k a' Ha').
         apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha'.
-        assert ((cmpt_b_cgp C_cmpt) <= a' < (cmpt_e_cgp C_cmpt))%a as Ha'' by solve_addr.
+        assert (a' ∈ₐ [(cmpt_b_cgp C_cmpt), (cmpt_e_cgp C_cmpt))) as Ha'' by solve_addr.
         apply elem_of_finz_seq_between in Ha''.
         rewrite /addr_key.
         iDestruct (big_sepL_elem_of with "Hrels") as "Hrel_a'"; eauto.
@@ -529,8 +529,8 @@ Section region_alloc_cmpt.
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    let pcc_cap := (WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
-    let cgp_cap := (WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+    let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
     let Winter := (std_update_multiple (std_update_multiple (std_update_multiple W code_addrs Permanent) data_addrs Permanent) imports_addrs Permanent) in
     let Wfinal := std_update_compartment W C_cmpt in
 

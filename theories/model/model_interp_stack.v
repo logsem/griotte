@@ -15,7 +15,7 @@ Section WorldInterpStack.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (*** World Interpretation for Safe Stack *)
 
@@ -28,10 +28,10 @@ Section WorldInterpStack.
   Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
     (la la' : list Addr) (g : Locality) (b e a : Addr) :
     NoDup la ->
-    Forall (fun a' : Addr => (b <= a' < e)%a ) la ->
+    Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) la ->
     la ## la' ->
 
-    interp W C (WCap true RWL g b e a) ∗
+    interp W C (Cap RWL g b e a) ∗
     open_region_many W C (LNonHeap <$> la') ∗
     sts_full_world W C
     -∗
@@ -241,7 +241,7 @@ Section WorldInterpStack.
   Lemma monotone_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 
-    interp W C (WCap true RWL Local b e a)
+    interp W C (Cap RWL Local b e a)
     ∗ sts_full_world W C
     ∗ region W C
     ==∗
@@ -459,7 +459,7 @@ Section WorldInterpStack.
     let ls := finz.seq_between bs es in
     (b <= bs)%a → (es <= e)%a →
 
-    interp W C (WCap true RWL Local b e a)
+    interp W C (Cap RWL Local b e a)
     ∗ sts_full_world W C
     ∗ open_region_many W C (LNonHeap <$> ls)
     ∗ ▷ StackWorldResources interp W C ls lv

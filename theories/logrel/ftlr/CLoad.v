@@ -22,8 +22,8 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation D := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
@@ -96,7 +96,7 @@ Section fundamental.
   Lemma load_prov_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea π}:
     reg_allows_load_imm regs r imm p0 g0 b0 e0 a0 ea →
     read_reg_prov regs r π →
-    regs !! r = Some (WCap true p0 g0 b0 e0 a0 @@? π).
+    regs !! r = Some (Cap p0 g0 b0 e0 a0 @@? π).
   Proof. intros (Hinr0 & _) Hπ. by apply read_reg_prov_cap. Qed.
 
   (* Description of what the resources are supposed to look like
@@ -165,7 +165,7 @@ Section fundamental.
     → read_reg_prov regs src π
     → PermFlowsTo p_pc p_pc'
     → (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)
-    -∗ interp W C (WCap true p_pc g_pc b_pc e_pc a_pc @@? None)
+    -∗ interp W C (Cap p_pc g_pc b_pc e_pc a_pc @@? None)
     -∗ rel C (LNonHeap a_pc) p_pc' (safeC P)
     -∗ world_interp_open W C [LNonHeap a_pc]
     -∗ a_pc ↦ₐ w_pc
@@ -190,7 +190,7 @@ Section fundamental.
       rewrite Hadd. rewrite decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hoff & Hra & Hwb).
     apply andb_prop in Hwb as [Hle Hge].
-    iAssert (interp W C (WCap true p g b e a @@? π)) as "#Hvsrc".
+    iAssert (interp W C (Cap p g b e a @@? π)) as "#Hvsrc".
     { iApply ("Hreg" $! src _ Hsrc). }
     iDestruct (read_allowed_inv _ _ ea with "Hvsrc")
       as (p0 P0 Hflp0 Hcond_pers0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; auto
@@ -339,7 +339,7 @@ Section fundamental.
     PermFlowsTo p_pc p_pc'
     -> reg_allows_load_imm regs src imm p g b e a ea
     -> mem0 !! ea = Some loadv
-    -> interp W C (WCap true p_pc g_pc b_pc e_pc a_pc @@? None)
+    -> interp W C (Cap p_pc g_pc b_pc e_pc a_pc @@? None)
       -∗ (∀ r v, ⌜regs !! r = Some v⌝ → interp W C v)
          -∗ rcond' P C a_pc regs p_pc'
             -∗ P W C pc_w

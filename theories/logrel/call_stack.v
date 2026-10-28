@@ -109,21 +109,21 @@ Arguments tf_stk_e !tf /.
     is its top [SpillSlot_size] words, and the callee's stack the rest. *)
 
 (** The base of the spill area. *)
-Definition stk_spill_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
+Definition stk_spill_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size)).
 (** The cursor after the spill, which the frame saves. *)
-Definition stk_saved_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
+Definition stk_saved_a (a : Addr) : Addr := (a ^+ (- SpillSlot_size)).
 (** The bounds of the callee's stack. *)
 Definition stk_callee_b (b a : Addr) : Addr := b.
-Definition stk_callee_e (e a : Addr) : Addr := (a ^+ (- SpillSlot_size))%a.
+Definition stk_callee_e (e a : Addr) : Addr := (a ^+ (- SpillSlot_size)).
 (** The bounds of the free part of the caller's stack. *)
 Definition stk_free_b (b a : Addr) : Addr := b.
 Definition stk_free_e (e a : Addr) : Addr := a.
 (** Where the cursor of a fresh stack [[b, e)] starts: below the
     [StackEntry_reserved_space] words reserved at its top. *)
-Definition stk_start_a (b e : Addr) : Addr := (e ^+ (- StackEntry_reserved_space))%a.
+Definition stk_start_a (b e : Addr) : Addr := (e ^+ (- StackEntry_reserved_space)).
 (** The spill area does not wrap around the address space. *)
 Definition stk_spill_ok (a : Addr) : Prop :=
-  (a + (- SpillSlot_size))%a = Some (a ^+ (- SpillSlot_size))%a.
+  (a + (- SpillSlot_size))%a = Some (a ^+ (- SpillSlot_size)).
 (** The cursor is not outside the stack on the side of its used part (the
     caller's frames): a trusted caller's spill can only fault at its first
     store. *)
@@ -139,7 +139,7 @@ Definition stk_callee_fits (b e a : Addr) (n : Z) : Prop :=
     a frame saves. *)
 Definition tf_caller_a (tf : trusted_frame) : Addr :=
   match tf.(tf_csp).(lw) with
-  | WCap _ _ _ _ _ c => (c ^+ SpillSlot_size)%a
+  | WCap _ _ _ _ _ c => (c ^+ SpillSlot_size)
   | _ => 0%a
   end.
 
@@ -160,16 +160,16 @@ Qed.
     callee's, with its cursor at the top, before the switcher reserves the
     space at the top of the callee's stack. *)
 Definition chopped_csp (b e a : Addr) : Word :=
-  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_callee_e e a).
+  Cap RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_callee_e e a).
 (** The stack pointer that the switcher gives to the callee. *)
 Definition callee_csp (b e a : Addr) : Word :=
-  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a)
+  Cap RWL Local (stk_callee_b b a) (stk_callee_e e a)
     (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
 (** The callee's stack pointer is that of a fresh stack on the callee's
     bounds. *)
 Lemma callee_csp_start b e a :
   callee_csp b e a =
-  WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a)
+  Cap RWL Local (stk_callee_b b a) (stk_callee_e e a)
     (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
 Proof. done. Qed.
 (** The addresses of the callee's stack. *)
@@ -445,7 +445,7 @@ Section Handler_projections.
       stackless one ([handler_stackless]), [ExportTable_no_handler] for none. Each is
       persistent. *)
   Definition handler_stackful_def (b : Addr) (z : Z) : iProp Σ :=
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    let a_eh := (b ^+ ExportTable_offset_errorHandler) in
     a_eh ↦ₐ□ WInt z.
   #[local] Definition handler_stackful_aux : seal (@handler_stackful_def). Proof. by eexists. Qed.
   Definition handler_stackful := handler_stackful_aux.(unseal).
@@ -453,7 +453,7 @@ Section Handler_projections.
     @handler_stackful = @handler_stackful_def := handler_stackful_aux.(seal_eq).
 
   Definition handler_stackless_def (b : Addr) (z : Z) : iProp Σ :=
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless) in
     a_ehs ↦ₐ□ WInt z.
   #[local] Definition handler_stackless_aux : seal (@handler_stackless_def). Proof. by eexists. Qed.
   Definition handler_stackless := handler_stackless_aux.(unseal).
@@ -466,20 +466,20 @@ Section Handler_projections.
   Proof. rewrite handler_stackless_unseal. apply _. Qed.
 
   Lemma handler_stackful_intro b z :
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    let a_eh := (b ^+ ExportTable_offset_errorHandler) in
     a_eh ↦ₐ□ WInt z ⊢ handler_stackful b z.
   Proof. by rewrite handler_stackful_unseal. Qed.
   Lemma handler_stackless_intro b z :
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless) in
     a_ehs ↦ₐ□ WInt z ⊢ handler_stackless b z.
   Proof. by rewrite handler_stackless_unseal. Qed.
 
   Lemma handler_stackful_elim b z :
-    let a_eh := (b ^+ ExportTable_offset_errorHandler)%a in
+    let a_eh := (b ^+ ExportTable_offset_errorHandler) in
     handler_stackful b z ⊢ a_eh ↦ₐ□ WInt z.
   Proof. by rewrite handler_stackful_unseal. Qed.
   Lemma handler_stackless_elim b z :
-    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless)%a in
+    let a_ehs := (b ^+ ExportTable_offset_errorHandlerStackless) in
     handler_stackless b z ⊢ a_ehs ↦ₐ□ WInt z.
   Proof. by rewrite handler_stackless_unseal. Qed.
 
@@ -505,7 +505,7 @@ Section Handler_projections.
   Proof. apply _. Qed.
 End Handler_projections.
 
-Notation "b ↦ₕ□{stackful} z" := (handler_stackful b z)
-  (at level 20, format "b  ↦ₕ□{stackful}  z") : bi_scope.
-Notation "b ↦ₕ□{stackless} z" := (handler_stackless b z)
-  (at level 20, format "b  ↦ₕ□{stackless}  z") : bi_scope.
+Notation "b ↦ₑ□{stackful} z" := (handler_stackful b z)
+  (at level 20, format "b  ↦ₑ□{stackful}  z") : bi_scope.
+Notation "b ↦ₑ□{stackless} z" := (handler_stackless b z)
+  (at level 20, format "b  ↦ₑ□{stackless}  z") : bi_scope.

@@ -21,8 +21,8 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation D := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
@@ -55,7 +55,7 @@ Section fundamental.
                regs !!ₗ r = Some (WCap t p0 g0 b0 e0 a0 @@? None) →
                t = true → (b0 < e0)%a → disjoint_from_heap b0 e0⌝)%I as %Hnoid.
     { iIntros (r t0 p0 g0 b0 e0 a0 Hr -> Hlt).
-      iAssert (interp W C (WCap true p0 g0 b0 e0 a0 @@? None)) as "Hr".
+      iAssert (interp W C (Cap p0 g0 b0 e0 a0 @@? None)) as "Hr".
       { destruct (decide (r = cnull)) as [->|Hnull].
         + rewrite llookup_reg_cnull /lnull in Hr. simplify_eq.
         + rewrite llookup_reg_not_cnull // in Hr. iApply "Hreg"; eauto. }

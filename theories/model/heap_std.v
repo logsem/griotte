@@ -22,7 +22,7 @@ Proof. solve_decision. Defined.
 Definition Heap := gmap AId AllocObject.
 
 Definition alloc_object_contains (o : AllocObject) (a : Addr) : Prop :=
-  (alloc_object_base o <= a < alloc_object_end o)%a.
+  (a ∈ₐ [alloc_object_base o, alloc_object_end o)).
 
 #[global] Instance alloc_object_contains_dec o a :
   Decision (alloc_object_contains o a).
