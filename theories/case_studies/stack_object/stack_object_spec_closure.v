@@ -101,7 +101,7 @@ Section SO.
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
 
     assert_static b_assert e_assert a_flag
-    ∗ na_inv (tpool th) Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a so_main_code
@@ -109,7 +109,6 @@ Section SO.
     ∗ a_so_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_so_exp_tbl
     ∗ a_so_entry_f ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
-    ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl a_so_entry_f).
   Proof.
@@ -146,8 +145,7 @@ Section SO.
       & #Hso_exp_PCC
       & #Hso_exp_CGP
       & [#Hso_exp_eh #Hso_exp_ehs]
-      & #Hso_exp_awkward
-      & #Hot_switcher)".
+      & #Hso_exp_awkward)".
     iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl,
       (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a,
     pc_b, pc_e, cgp_b, cgp_e, 2, 6, _.

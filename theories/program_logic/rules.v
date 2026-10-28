@@ -5,7 +5,7 @@ From griotte Require Export
      rules_Lea rules_SetA rules_Mov rules_Restrict rules_Subseg
      rules_Jmp rules_JCond rules_Jalr
      rules_Seal rules_UnSeal
-     rules_SpecialRW rules_SetMIE rules_Mret rules_Auipcc rules_registry.
+     rules_SpecialRW rules_SetMIE rules_Mret rules_Auipcc rules_registry rules_trap_entry.
 
 (** Program specifications
 
@@ -53,6 +53,6 @@ From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 
 (* Reexport CMRA for Griotte *)
-From griotte Require Export cerise_instance.
+From griotte Require Export state_interp.
 (* Reexport resources for registers and memory *)
 From griotte Require Export memory_region rules_base machine_instructions.

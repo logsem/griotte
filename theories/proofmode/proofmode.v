@@ -522,7 +522,12 @@ Class FramableCodefrag (a: Addr) (l: list Word) := {}.
 
 #[export] Instance FramableMachineResource_sreg `{ceriseG Σ} sr w :
   FramableSRegisterPointsto sr w →
-  FramableMachineResource (sr ↦ₛᵣ w).
+  FramableMachineResource (sr ↦ₓ w).
+Qed.
+
+(* The mtdc fragment of the thread. *)
+#[export] Instance FramableMachineResource_mtdc `{ceriseG Σ} m :
+  FramableMachineResource (mtdc ↦ₜ m).
 Qed.
 
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
@@ -605,7 +610,7 @@ Qed.
 (* remembering names after auto-framing done by iFrameAuto *)
 
 Ltac2 Type hyp_table_kind :=
-  [ PCReg | Reg | SReg | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
+  [ PCReg | Reg | SReg | Mtdc | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -629,7 +634,8 @@ Ltac2 record_framed
     lazy_match! hh with
     | (PC ↦ₚ _)%I => ('tt, PCReg)
     | (?r ↦ᵣ _)%I => (r, Reg)
-    | (?sr ↦ₛᵣ _)%I => (sr, SReg)
+    | (?sr ↦ₓ _)%I => (sr, SReg)
+    | (mtdc_frag _) => ('tt, Mtdc)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -717,10 +723,15 @@ Definition check_addr_eq (a b: Addr) `{FinZEq _ a b res} := res.
 Ltac2 name_cap_resource (name, lhs, kind) :=
   match kind with
   | SReg =>
-    match! goal with [ |- context [ (?sr ↦ₛᵣ ?x)%I ] ] =>
+    match! goal with [ |- context [ (?sr ↦ₓ ?x)%I ] ] =>
       assert_constr_eq sr lhs;
-      ltac1:(x sr name |- change (sr ↦ₛᵣ x)%I with (name ∷ (sr ↦ₛᵣ x))%I)
+      ltac1:(x sr name |- change (sr ↦ₓ x)%I with (name ∷ (sr ↦ₓ x))%I)
         (Ltac1.of_constr x) (Ltac1.of_constr sr) (Ltac1.of_constr name)
+    end
+  | Mtdc =>
+    match! goal with [ |- context [ mtdc_frag ?x ] ] =>
+      ltac1:(x name |- change (mtdc ↦ₜ x)%I with (name ∷ (mtdc ↦ₜ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr name)
     end
   | PCReg =>
     match! goal with [ |- context [ (PC ↦ₚ ?x)%I ] ] =>
@@ -779,13 +790,25 @@ Proof. intros ->. auto. Qed.
 
 (* An existential that heads the postcondition of a rule is introduced
    first, under its binder's name, so that the resources under it can be
-   named. *)
+   named. So is a binder of the postcondition of a Hoare triple
+   ([{{{ x, RET v; ⌜φ x⌝ ∗ … }}}], as in [wp_readsr_mtdc]); a pure fact
+   that heads the postcondition under such a binder is introduced as the
+   Coq hypothesis [Hpost_pure], for the caller to rename. *)
 Ltac intro_post_exists :=
   repeat lazymatch goal with
   | |- envs_entails _ (bi_wand (bi_exist (fun x => _)) _) =>
       let x' := fresh x in
       iIntros "Hpost_exists"; iDestruct "Hpost_exists" as (x') "Hpost_exists";
       iRevert "Hpost_exists"
+  | |- envs_entails _ (bi_forall (fun x => _)) =>
+      let x' := fresh x in
+      iIntros (x');
+      try lazymatch goal with
+      | |- envs_entails _ (bi_wand (bi_sep (bi_pure _) _) _) =>
+          let H := fresh "Hpost_pure" in
+          iIntros "[Hpost_pure Hpost_exists]"; iPure "Hpost_pure" as H;
+          iRevert "Hpost_exists"
+      end
   end.
 
 Ltac2 reintro_cap_resources tbl :=

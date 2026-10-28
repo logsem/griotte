@@ -51,7 +51,7 @@ Section Handle_Error_Stack_Setup.
       cause (word 18 of the register save area) and [ca2] the value [mtval]
       of the trap, and the PC is at the invocation of the handler. Either
       way, the lent mtval has gone back to the state interpretation. *)
-  Lemma handle_error_stack_setup_spec
+  Lemma handle_error_stack_setup_spec (g_tstk : Locality)
     (save : list LWord) (wcsp wct0 wcs1 wca0 wca1 wca2 wca3 wca4 : LWord)
     (error_state_written : nat → iProp Σ) (mtval : Z) :
     length save = 21%nat ->
@@ -59,7 +59,7 @@ Section Handle_Error_Stack_Setup.
     error_state_fits wcsp ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -81,7 +81,7 @@ Section Handle_Error_Stack_Setup.
           ∀ (k : nat) (off : Z),
           ⌜(k < Z.to_nat ErrorState_size)%nat⌝ -∗
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ[th] tstack_cap ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0 ∗
           cs1 ↦ᵣ[th] - ∗
           ca0 ↦ᵣ[th] wca0 ∗

@@ -104,7 +104,7 @@ Section Handle_Error_Install_Context.
     ca2 ↦ᵣ[th] wca2 ∗
     ca3 ↦ᵣ[th] wca3 ∗
     ca4 ↦ᵣ[th] wca4 ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₜ[th] TStack tstack_cap ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     a_cnt_cell ↦ₐ WInt n ∗
@@ -133,29 +133,29 @@ Section Handle_Error_Install_Context.
           ca2 ↦ᵣ[th] - ∗
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₜ[th] TStack tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt n ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] ∗
           L i ls -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
-        ( ∀ ls : list LWord,
+        ( ∀ (g_tstk : Locality) (ls : list LWord),
           ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
           ⌜exp_tbl_cap b_tbl wcell.(lw)⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           cra ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
           ct0 ↦ᵣ[th] - ∗
-          ct1 ↦ᵣ[th] tstack_cap ∗
+          ct1 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct2 ↦ᵣ[th] resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)) ∗
           cs0 ↦ᵣ[th] - ∗
           cs1 ↦ᵣ[th] - ∗
           ca2 ↦ᵣ[th] - ∗
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
-          mtdc ↦ₛᵣ tstack_cap ∗
+          mtdc ↦ₜ[th] TStack tstack_cap ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt (n + 1) ∗
@@ -200,6 +200,7 @@ Section Handle_Error_Install_Context.
     rewrite /tstack_cap.
     (* SpecialRW ct1 mtdc cnull *)
     iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a = Some a_frameoffset) as Hfo
       by (subst a_frameoffset; tstack_unfold; solve_addr).
     (* CLoad ctp ct1 TrustedStack_offset_frameoffset *)
@@ -432,7 +433,7 @@ Section Handle_Error_Install_Context.
       iInstr "Hcode".
       { transitivity (Some (a_switcher_call ^+ off_cci)%a); [solve_addr | done]. }
       iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" $! (v0 :: ls) with "[%] [%] [-]").
+      iApply ("Hpost" $! g_tstk (v0 :: ls) with "[%] [%] [-]").
       { cbn; rewrite Hls; done. }
       { eexists _, _, _, _; split_and!; done. }
       rewrite /= Hresumed (list_lookup_total_correct _ _ _ Hw0) drop_0.

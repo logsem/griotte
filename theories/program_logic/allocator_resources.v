@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export cerise_instance machine_parameters machine_base alloc_registry.
+From griotte Require Export resources machine_parameters machine_base alloc_registry.
+From griotte Require Import erasure.
 From griotte Require Import region_keys.
 
 (** Case studies start with zeroed free memory and a live shadow entry for

@@ -19,7 +19,7 @@ From griotte Require Import map_simpl register_tactics.
     The specification is generic in the source of the [ErrorState]: a
     resource [L i ls], which holds once the first [i] words [ls] are
     loaded, and a load accessor ([cells_load_acc]) that the caller provides.
-    The installation opens the invariant of the switcher, and gives the
+    The installation opens the trusted-stack invariant, and gives the
     trap-entry token to the context install. *)
 
 Section Switcher_Spec_Install.
@@ -36,7 +36,7 @@ Section Switcher_Spec_Install.
   (** The continuations of [switcher_install_context_spec]. *)
 
   (** A fault of the installation, at the switcher's PC of offset [off],
-      with the invariant of the switcher closed: the handler's [csp] in
+      with the trusted-stack invariant closed: the handler's [csp] in
       [rmap] does not allow the loads of the [ErrorState]
       ([install_skipped]); a load faults once [i] words [ls] are loaded. *)
   Definition install_nested_k (F : coPset) (cstk : CSTK) (rmap : LReg)
@@ -46,7 +46,7 @@ Section Switcher_Spec_Install.
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
-      cstack_frag cstk -∗
+      ◯(CSTK)[th] cstk -∗
       L i ls -∗
       na_own (tpool th) F -∗
       trap_safe (switcher_pc off) ⊤ (HO th).
@@ -61,7 +61,7 @@ Section Switcher_Spec_Install.
       ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
       PC ↦ₚ[th] llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
       registers_pointsto (error_state_install rmap (drop 1 ls)) -∗
-      cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
       L (Z.to_nat ErrorState_size) ls -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -69,7 +69,7 @@ Section Switcher_Spec_Install.
   (** ** Auxiliary lemma *)
 
   (** A fault of the installation, at the switcher's PC of offset [off],
-      once the closing of the invariant of the switcher is ready: the
+      once the closing of the trusted-stack invariant is ready: the
       registers are rebuilt from any fifteen words. *)
   #[local] Lemma switcher_install_nested_finish
     (F : coPset) (cstk : CSTK) (off : Z) (rmap : LReg) (L : nat → list LWord → iProp Σ)
@@ -98,7 +98,7 @@ Section Switcher_Spec_Install.
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     L i ls ∗
     install_nested_k F cstk rmap L
     ⊢ trap_safe (switcher_pc off) ⊤ (HO th).
@@ -120,24 +120,24 @@ Section Switcher_Spec_Install.
   (** From the handler's return, with [ca0] zero, for the call stack
       [cstk] whose topmost table has the PCC [wpcc] and whose topmost
       frame's table word is set, at a token [F] that
-      contains the switcher's invariant and the trap-entry part: the
+      contains the trusted-stack invariant and the trap-entry part: the
       [ErrorState] is read at the handler's [csp] through the accessor,
       and the context it holds is resumed, or a load faults. *)
   Lemma switcher_install_context_spec
     (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
     (L : nat → list LWord → iProp Σ) :
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
     na_own (tpool th) F ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
@@ -153,7 +153,7 @@ Section Switcher_Spec_Install.
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | done |].
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iDestruct (tstack_save_area_length with "Hsave_area") as %Hsave_len.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
@@ -172,29 +172,28 @@ Section Switcher_Spec_Install.
     { iIntros (Hnz') "_". by rewrite Hnz in Hnz'. }
     iIntros (_) "(HPC & Hca0)".
 
-    (* The close of the switcher invariant, for any content of the register
+    (* The close of the trusted-stack invariant, for any content of the register
        save area and any error handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₛᵣ tstack_cap -∗
+               mtdc ↦ₜ TStack tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
                  ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
                cstack_full (cstack_set_top_count cstk n') -∗
                cstack_interp (cstack_set_top_count cstk n') a_tstk -∗
-               na_own (tpool th) (F ∖ ↑Nswitcher)
+               na_own (tpool th) (F ∖ ↑Ntstack)
                ={⊤}=∗
                na_own (tpool th) F)%I
       with "[HthreadID Hhazard_slots Htstk Hclose]" as "Hclose".
     { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
       iApply ("Hclose" with "[- $Hna]").
-      iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
+      iNext. rewrite /trusted_stack_inv /tstack_cap /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
-      iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-              Hp_ot_switcher".
-      iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
+      iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+      iPureIntro. split_and!; [by rewrite Hsave'_hazard | done | done]. }
     iAssert (cstack_full (cstack_set_top_count cstk (top_error_count cstk)))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
 
@@ -238,7 +237,7 @@ Section Switcher_Spec_Install.
       rewrite /install_skipped Hrmap_csp.
       destruct Hwhy as [Hz | Hnok]; [exfalso; by apply Htbl_set | exact Hnok].
     - (* The [ErrorState] is loaded: the count is incremented *)
-      iIntros (ls Hls Htbl)
+      iIntros (g_tstk ls Hls Htbl)
         "(HPC & Hcsp & [%wcra_r Hcra] & [%wctp_r Hctp] & [%wct0_r Hct0] & Hct1 & Hct2
           & [%wcs0_r Hcs0] & [%wcs1_r Hcs1] & [%wca2_r Hca2] & [%wca3_r Hca3] & [%wca4_r Hca4]
           & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & HL)".
@@ -248,7 +247,7 @@ Section Switcher_Spec_Install.
         as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
       (* [.Lcommon_context_install], with the trap-entry token *)
-      iDestruct (trap_entry_res_split (F ∖ ↑Nswitcher) with "Hna") as "[Htok Hna]";
+      iDestruct (trap_entry_res_split (F ∖ ↑Ntstack) with "Hna") as "[Htok Hna]";
         first solve_ndisj.
       iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
@@ -258,7 +257,7 @@ Section Switcher_Spec_Install.
         "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
           & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok)".
       (* After [mret]: the token is recombined, the invariant closed *)
-      iDestruct (trap_entry_res_split (F ∖ ↑Nswitcher) with "[$Htok $Hna]") as "Hna";
+      iDestruct (trap_entry_res_split (F ∖ ↑Ntstack) with "[$Htok $Hna]") as "Hna";
         first solve_ndisj.
       iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna") as "Hna".
       { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r;

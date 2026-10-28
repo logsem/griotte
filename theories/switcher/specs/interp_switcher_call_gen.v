@@ -179,8 +179,8 @@ Section fundamental.
     frame_match Ws Cs cstk W C ->
 
     switcher_trap_safety -∗
-    switcher_inv_opened cstk' a_tstk -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -188,12 +188,12 @@ Section fundamental.
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [common_force_unwind_spec] sets the return
-       values, then close the switcher invariant and run the return routine
+       values, then close the trusted-stack invariant and run the return routine
        ([switcher_return_unwind]) with the integer return values. *)
     iIntros (Hfull_rmap Hframe)
       "#Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp Hcont Hcstk".
@@ -209,7 +209,7 @@ Section fundamental.
     iApply (common_force_unwind_spec with "[- $HPC $Hca0 $Hca1 $Hcode]").
     iNext; iIntros "(HPC & Hca0 & Hca1)".
     iEval (rewrite -switcher_return_offset) in "HPC".
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iDestruct (big_sepM_insert_2 _ _ ca1 with "[Hca1] Hrmap") as "Hrmap"; first iExact "Hca1".
     iDestruct (big_sepM_insert_2 _ _ ca0 with "[Hca0] Hrmap") as "Hrmap"; first iExact "Hca0".
     iApply (switcher_return_unwind with
@@ -228,7 +228,7 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (b e a : Addr) (lv : list LWord)
-    (wcs0 wcs1 wcra wcgp wct1 : LWord)
+    (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality)
     (a_tstk : Addr) (tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
@@ -244,24 +244,24 @@ Section fundamental.
     interp W C wcgp -∗
     interp W C (WCap true RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ switcher_stk_bounds b e a ⌝ ∗
       PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
       cs1 ↦ᵣ[th] wcs1 ∗
       ctp ↦ᵣ[th] WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
-      ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
       csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee lv ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -271,7 +271,7 @@ Section fundamental.
     (* Outline of the proof: [switch_trusted_stack_exhausted_path_spec]
        restores the registers, clears the others and returns,
        [switcher_call_stk_close] closes the caller's stack frame,
-       then close the switcher invariant and
+       then close the trusted-stack invariant and
        [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull Hframe Hstk_mmio Hlen_lv)
       "#Hsafety #Hcs0v #Hcs1v #Hcrav #Hcgpv #Hspv #Htop Hopened Hstk_opened Hrmap Hcont Hcstk
@@ -313,18 +313,18 @@ Section fundamental.
         done. }
 
     (* Jump back to the caller, or unwind the call when the jump faults;
-       close the switcher invariant first *)
+       close the trusted-stack invariant first *)
     iApply (switcher_jump_to_caller_cases_spec with
              "Htrap Hrcrav Hrcgpv Hrcs0v Hrcs1v Hspv [] [] Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
               Hrmap Hcont [-]"); [done|done|iApply interp_int|iApply interp_int|].
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     iFrame "Hworld_interp Hna Hcstk".
   Qed.
 
   (** Fault of the first spill: the checks leave integers in [ct2] and
       [ctp], and the other registers hold the caller's safe words. Close
-      the caller's stack and the switcher invariant, and give the fault to
+      the caller's stack and the trusted-stack invariant, and give the fault to
       the untrusted caller. *)
   Lemma interp_switcher_call_spill_fault
     (W : WORLD) (C : CmptName)
@@ -343,11 +343,11 @@ Section fundamental.
     switcher_trap_safety -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     top_cmpt_untrusted interp W C cstk -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
       csp ↦ᵣ[th] WCap true RWL Local b e a ∗
       ct2 ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
@@ -358,7 +358,7 @@ Section fundamental.
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ lv ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -382,19 +382,19 @@ Section fundamental.
              with "Htrap [] Htop [-]"); [ |done| |].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     { by iApply interp_call_regs_scratch. }
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     iFrame "Hrmap Hworld_interp Hcont Hna Hcstk".
   Qed.
 
   (** Fault of the unsealing: close the caller's stack, push the frame,
-      with the table word [WInt 0] and any word in its table cell, close the switcher invariant, and
-      unwind the call. *)
+      with the table word [WInt 0] and any word in its table cell, close the
+      trusted-stack invariant, and unwind the call. *)
   Lemma interp_switcher_call_unseal_fault
     (W : WORLD) (C : CmptName)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (b e a : Addr) (lv : list LWord)
-    (wcs0 wcs1 wcra wcgp wct1 : LWord) (a_tstk : Addr) :
+    (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality) (a_tstk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     let a_free := (a_next ^+ TrustedStackFrame_size)%a in
@@ -414,11 +414,11 @@ Section fundamental.
     interp W C wcgp -∗
     interp W C (WCap true RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
       ⌜ switcher_stk_bounds b e a ⌝ ∗
       ⌜ (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ⌝ ∗
@@ -426,7 +426,7 @@ Section fundamental.
       cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-      ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+      ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
       csp ↦ᵣ[th] chopped_csp b e a ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
@@ -434,7 +434,7 @@ Section fundamental.
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
         [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -481,7 +481,7 @@ Section fundamental.
     { (* The fault is in the switcher *)
       iLeft; iPureIntro. apply switcher_fault_pc_cap. }
     (* The frame's table word is [WInt 0] *)
-    iMod (switcher_inv_opened_push frame cstk with
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
       as "[Hna Hcstk]"; [done..|by left| |].
     { by rewrite /cframe_stk_own /=. }
@@ -491,7 +491,7 @@ Section fundamental.
   Qed.
 
   (** The callee's stack is too small: push the frame, whose table cell
-      holds the unsealed entry, close the switcher invariant, and return to
+      holds the unsealed entry, close the trusted-stack invariant, and return to
       the caller through the return routine. *)
   Lemma interp_switcher_call_stack_too_small
     (W : WORLD) (C : CmptName)
@@ -519,11 +519,11 @@ Section fundamental.
     switcher_trap_safety -∗
     interp W C (WCap true RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    ◯(CSTK)[th] cstk -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) -∗
@@ -552,7 +552,7 @@ Section fundamental.
        Hframe_cnt Htstk
        (_ & HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2] & [%wctp' Hctp]
        & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hparams & Hrest)".
-    iMod (switcher_inv_opened_push frame cstk with
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
       as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_cell]| |].
     { by rewrite /cframe_stk_own /=. }
@@ -574,7 +574,7 @@ Section fundamental.
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant;
+       - open the trusted-stack invariant;
        - when the stack pointer is not a valid stack capability, its checks
          fail ([interp_switcher_call_force_unwind]) or the first spill
          faults ([switch_entry_first_spill_fail_spec], or
@@ -594,7 +594,7 @@ Section fundamental.
        - [switcher_decode_entry_path_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
          [interp_switcher_call_stack_too_small];
-       - [switcher_inv_opened_push]: push the frame and close the switcher
+       - [trusted_stack_inv_opened_push]: push the frame and close the trusted-stack
          invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
     iIntros "#Hsafety %cstk %Ws %Cs %regs0 (Hregs & #Htop & HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)".
@@ -605,8 +605,8 @@ Section fundamental.
     iPoseProof (fundamental_ih with "Htrap") as "IH". (* used for weakening lemma later *)
     iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
 
-    (* Open the switcher invariant *)
-    iMod (switcher_inv_open_call with "Hinv_switcher Hna")
+    (* Open the trusted-stack invariant *)
+    iMod (trusted_stack_inv_open_call with "Hinv_switcher Hna")
       as (a_tstk cstk' tstk_next)
          "(%Hlen_cstk & %Ha_tstk_e & Hopened & Hmtdc & Hframeoffset & Hhazard & Htstk)".
 
@@ -677,8 +677,8 @@ Section fundamental.
                "Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp Hcont Hcstk");
                [by apply call_regs_with_full|done]. }
            (* The first store faults, and nothing is written: close the
-              switcher invariant, and unwind the call *)
-           iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+              trusted-stack invariant, and unwind the call *)
+           iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
            iApply (switch_entry_first_spill_fail_spec with "[- $HPC $Hcsp $Hcs0 $Hcode]");
              [done | done |].
            iIntros "[Hcsp Hcs0]".
@@ -708,9 +708,9 @@ Section fundamental.
                          | (%Hcontra & _)]";
            last (exfalso; apply Hcontra, switcher_csp_checked_stk).
          (* The first stores write the cells of the spill area below the
-            top, and the store at the top faults: close the switcher
+            top, and the store at the top faults: close the trusted-stack
             invariant and the caller's stack, and unwind the call *)
-         iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+         iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
          iApply (switch_entry_first_spill_above_spec with
                   "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hcode]"); [done..|].
          iIntros (k off [Hk Hk_bounds] Hoff) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk)".
@@ -745,20 +745,23 @@ Section fundamental.
       "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard $Htstk
           $Hb_switcher $Hcode]"); [done..|].
     iNext.
-    iPoseProof (switcher_inv_opened_seal_pred with "Hopened") as "#Hp_ot_switcher".
+    iPoseProof "Hstatic" as "(_ & _ & _ & Hswitcher_global)".
+    iNamed "Hswitcher_global".
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is not sealed by the switcher *)
+      iIntros (g_tstk).
       iApply (interp_switcher_call_unseal_fault with
                "Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk");
         done. }
     { (* The trusted stack is exhausted *)
+      iIntros (g_tstk).
       iApply (interp_switcher_call_tstack_exhausted with
                "Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk");
         done. }
     { (* The callee-save registers do not fit on the caller's stack *)
       iApply (interp_switcher_call_spill_fault with
                "Hsafety Hreg Htop Hopened Hstk_opened Hrmap Hcont Hcstk"); done. }
-    iNext; iIntros (wsb π)
+    iNext; iIntros (g_tstk wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
       & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
@@ -853,8 +856,8 @@ Section fundamental.
     iIntros (mie arg_rmap' rmap'')
       "(%Hbig & %Harg_rmap' & %Hrmap'' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
 
-    (* Push the frame and close the switcher invariant *)
-    iMod (switcher_inv_opened_push frame cstk with
+    (* Push the frame and close the trusted-stack invariant *)
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
       as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_ok]| |].
     { by rewrite /cframe_stk_own /=. }

@@ -84,7 +84,7 @@ Section Heap_Temporal_Safety_Main.
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
-      ∗ na_inv (tpool th) Nswitcher switcher_inv ∗ switcher_static
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv ∗ switcher_static
       ∗ allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
           allocator_pcc_b allocator_pcc_e allocator_pcc_b
       ∗ a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
@@ -115,7 +115,7 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1

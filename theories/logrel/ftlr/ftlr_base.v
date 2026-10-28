@@ -36,7 +36,7 @@ Section fundamental.
             -∗ ⌜frame_match Ws Cs cstk W_ih C_ih⌝
             -∗ top_cmpt_untrusted interp W_ih C_ih cstk
             -∗ na_own (tpool th) ⊤
-            -∗ cstack_frag cstk
+            -∗ ◯(CSTK)[th] cstk
             -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih)
             -∗ interp_conf W_ih C_ih))%I.
 
@@ -73,7 +73,7 @@ Section fundamental.
         "#Htop" ∷ top_cmpt_untrusted interp W C cstk ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
         "Hown" ∷ na_own (tpool th) ⊤ ∗
-        "Htframe" ∷ cstack_frag cstk ∗
+        "Htframe" ∷ ◯(CSTK)[th] cstk ∗
         "Hstate" ∷ sts_state_std C (LNonHeap a) ρ ∗
         "HPC" ∷ PC ↦ₚ[th] (WCap true p g b e a) ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ[th] y))
@@ -95,7 +95,7 @@ Section fundamental.
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Faulted) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hframe) "Htrap Hreg Htop HPC Hmap Hworld Hcont Hown Hcstk".

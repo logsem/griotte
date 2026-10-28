@@ -465,7 +465,7 @@ Section AllocatorFree.
   Lemma allocator_free_valid_correct
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (p : Perm) (g : Locality) (ι : AId) (b e a : Addr)
-    (ws : list LWord) (wret wmtdc : LWord) (rmap : LReg)
+    (ws : list LWord) (wret : LWord) (m : mtdc_val) (rmap : LReg)
     (φ : language.val griotte_lang → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
@@ -479,7 +479,7 @@ Section AllocatorFree.
       {[cgp; cra; ca0; ca1; ca2; ct0; ct1; ct2; ca3; ca4; ctp; cnull]} ->
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
-    (has_authority wmtdc.(lw) -> wmtdc.(lprov) = None) ->
+    (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) = None) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ⊢ (
@@ -508,7 +508,7 @@ Section AllocatorFree.
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
-       mtdc ↦ₛᵣ wmtdc ∗
+       mtdc ↦ₜ[th] m ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
        ▷ (na_own (tpool th) F ∗
@@ -528,7 +528,7 @@ Section AllocatorFree.
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
           ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
-          mtdc ↦ₛᵣ wmtdc ∗
+          mtdc ↦ₜ[th] m ∗
           ι ⊒ AQuar ∗
           £ 1
 
@@ -641,7 +641,7 @@ Section AllocatorFree.
   Lemma allocator_free_invalid_capability_spec
     (E F : coPset) (wsealed : LWord) (P : iProp Σ) :
 
-    ↑Nswitcher ⊆ E ->
+    ↑Ntstack ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
     allocator_service_static ∗

@@ -68,7 +68,7 @@ Section HTS_Spec_Malloc.
     world_interp W_init_C C ∗
     interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
     interp_continuation cstk Ws Cs ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     (malloc_ret -∗
      WP Seq (Instr Executable) @[th] {{ HO th }})
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.

@@ -34,7 +34,7 @@ From griotte Require Import map_simpl register_tactics.
     [ErrorState] (the first one, or the one at the end of the faulting
     [csp]), and the [cjalr] to a word that is not a valid target.
 
-    The path opens the invariant of the switcher: it needs the non-atomic
+    The path opens the trusted-stack invariant: it needs the non-atomic
     token without [Ntrap], which trap entry holds, and gives back the whole
     token, before the [cjalr]. *)
 
@@ -113,7 +113,7 @@ Section Switcher_Spec_Exception.
       ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
       PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap' -∗
-      cstack_frag (cstack_set_top_count cstk n) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       error_state_written 0 -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -137,7 +137,7 @@ Section Switcher_Spec_Exception.
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** A fault of the path itself, at the switcher's PC of offset [off],
-      with the invariant of the switcher closed, after [k] stores of the
+      with the trusted-stack invariant closed, after [k] stores of the
       [ErrorState], and the stackful handler not invoked for the fault at
       [w] with the registers [rmap]... *)
   Definition path_nested_fault (F : coPset) (cstk : CSTK) (w : LWord) (rmap : LReg)
@@ -147,7 +147,7 @@ Section Switcher_Spec_Exception.
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
-      cstack_frag (cstack_set_top_count cstk n) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) -∗
       na_own (tpool th) F -∗
       trap_safe (switcher_pc off) ⊤ (HO th).
@@ -183,7 +183,7 @@ Section Switcher_Spec_Exception.
       handler_offset kind (top_export_tbl cstk) off -∗
       PC ↦ₚ[th] wpc -∗
       registers_pointsto regs -∗
-      cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
       error_state_written (error_state_size kind) -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -313,7 +313,7 @@ Section Switcher_Spec_Exception.
   Qed.
 
   (** The forced unwind, from [.Lcommon_force_unwind], once the closing of
-      the invariant of the switcher is ready. *)
+      the trusted-stack invariant is ready. *)
   #[local] Lemma switcher_exception_unwind_finish
     (F : coPset) (cstk : CSTK) (n : Z) (rmap : LReg) (w : LWord)
     (error_state_written : nat → iProp Σ)
@@ -342,7 +342,7 @@ Section Switcher_Spec_Exception.
     ca5 ↦ᵣ[th] wca5 ∗
     switcher_code ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag (cstack_set_top_count cstk n) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) ∗
     error_state_written 0 ∗
     handler_skipped cstk w rmap ∗
     path_unwind_k F cstk w rmap error_state_written
@@ -366,7 +366,7 @@ Section Switcher_Spec_Exception.
   Qed.
 
   (** A fault of the path, at the switcher's PC of offset [off], once the
-      closing of the invariant of the switcher is ready. *)
+      closing of the trusted-stack invariant is ready. *)
   #[local] Lemma switcher_exception_nested_finish
     (F : coPset) (cstk : CSTK) (off n : Z) (rmap : LReg) (w : LWord)
     (error_state_written : nat → iProp Σ)
@@ -393,7 +393,7 @@ Section Switcher_Spec_Exception.
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag (cstack_set_top_count cstk n) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) ∗
     (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) ∗
     handler_skipped cstk w rmap ∗
     path_nested_fault F cstk w rmap error_state_written
@@ -442,7 +442,7 @@ Section Switcher_Spec_Exception.
     end.
 
   (** From [.Lhandle_error_handler_invoke], for a handler of kind
-      [kind] at offset [off], once the invariant of the switcher is closed:
+      [kind] at offset [off], once the trusted-stack invariant is closed:
       the registers are cleared but the handler's, and the [cjalr] invokes
       the handler or faults. *)
   #[local] Lemma switcher_exception_invoke (P_mcause P_mtval : Z → Prop)
@@ -482,7 +482,7 @@ Section Switcher_Spec_Exception.
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
     handler_offset kind (top_export_tbl cstk) off ∗
-    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
     error_state_written (error_state_size kind) ∗
     na_own (tpool th) F ∗
     (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) ∗
@@ -606,17 +606,17 @@ Section Switcher_Spec_Exception.
     (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
     (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     PC ↦ₚ[th] lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     na_own (tpool th) (F ∖ ↑Ntrap) ∗
-    (if decide (trap_no_resume w) then cstack_frag cstk else R_resume) ∗
+    (if decide (trap_no_resume w) then ◯(CSTK)[th] cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
     path_es_acc cstk w rmap error_state_written ∗
@@ -627,7 +627,7 @@ Section Switcher_Spec_Exception.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant, with the token without [Ntrap];
+       - open the trusted-stack invariant, with the token without [Ntrap];
        - [exception_entry_asm_spec]: spill the registers, MEPCC, mstatus and
          mcause, and give MEPCC and mcause back; mtval stays lent until the
          setup of a handler reads it, and goes back before any other
@@ -644,15 +644,15 @@ Section Switcher_Spec_Exception.
          stack, compute the handler's PC and CGP; then the setup of a
          stackless handler, or the setup of a stackful handler with the
          stores of the [ErrorState]; then the invocation;
-       - close the switcher invariant, and recombine the token. *)
+       - close the trusted-stack invariant, and recombine the token. *)
     iIntros (HP_mcause HF HFtrap Hfull)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hout & Hna & Hcstk & #Hheader & Hwritten
        & #Hes_acc & Hpost)".
-    iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc)".
+    iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc & _)".
     rewrite Hmtcc.
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | solve_ndisj |].
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     (* The call stack of the invariant is [cstk], unless the fault is
        resumed *)
     iAssert ⌜trap_no_resume w → cstk' = cstk⌝%I as %Hcstk_eq.
@@ -670,19 +670,19 @@ Section Switcher_Spec_Exception.
              "[- $HPC $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hmtdc $Hsave_area $Hout $Hcode]");
       [done | done |].
-    iNext; iIntros (wst cause zca0 mtval)
+    iNext; iIntros (g_tstk wst cause zca0 mtval)
       "(%Hcause & %Htval & HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave_area & Htok & Hmtval)".
 
     (* [.Lhandle_error] *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    (* The close of the switcher invariant, and the recombination of the
+    (* The close of the trusted-stack invariant, and the recombination of the
        token, for any content of the register save area and any error
        handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₛᵣ tstack_cap -∗
+               mtdc ↦ₜ TStack tstack_cap -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
                  ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
@@ -697,17 +697,16 @@ Section Switcher_Spec_Exception.
              "[Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
                $Hna]")
         as "Hna".
-      { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
+      { iNext. rewrite /trusted_stack_inv /tstack_cap /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
-        iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-                Hp_ot_switcher".
-        iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
+        iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+        iPureIntro. split_and!; [by rewrite Hsave'_hazard | done | done]. }
       iModIntro.
       iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iAssert (cstack_full (cstack_set_top_count cstk' (top_error_count cstk')))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
-    iApply (handle_error_spec _ _ _ (lmepcc_of_pc w) with
+    iApply (handle_error_spec _ _ _ _ (lmepcc_of_pc w) with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hctp $Hca0 $Hca1 $Hct2 $Hmtdc $Hsave_area
                  $Hframeoffset $Hcode]").
     { exact Hlen_cstk. }
@@ -811,7 +810,7 @@ Section Switcher_Spec_Exception.
       destruct Hwcell as [Hz | (-> & Hexp & Hprov)]; first (exfalso; by apply Htbl_set).
       iEval (fold (top_error_count cstk)) in "Hcnt".
       (* The lookup of an error handler *)
-      iApply (handle_error_stack_oob_spec cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
+      iApply (handle_error_stack_oob_spec _ cstk a_tstk (top_export_tbl cstk) eh ehs wcsp wct0_l
                 (top_tframe cstk).(tf_export_tbl)
                with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
                        $Hcsp_cell $Hcell $Hcode]").
@@ -870,7 +869,7 @@ Section Switcher_Spec_Exception.
             iExists wpcc, wcgp'. iIntros "_". iFrame "Hpcc Hcgp'".
           - iExists (WInt 0 : LWord), (WInt 0 : LWord). iIntros "%". done. }
         (* Count the fault *)
-        iApply (handle_error_found_spec (length cstk.(cstk_frames)) a_tstk
+        iApply (handle_error_found_spec _ (length cstk.(cstk_frames)) a_tstk
                   (top_export_tbl cstk) e p g (top_error_count cstk) off z0 wpcc wcgp'
                  with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcra $Hcgp $Hca0 $Hcnt
                          $Hcells $Hcode]");
@@ -951,7 +950,7 @@ Section Switcher_Spec_Exception.
             rewrite Hsave'_src.
             iApply ("Hes_acc" with "[//] [//] Heh [//] [] []"); iPureIntro;
               by rewrite Hrmap_csp. }
-          iApply (handle_error_stack_setup_spec save' wcsp wct0_l _ _ _ _ _ _
+          iApply (handle_error_stack_setup_spec _ save' wcsp wct0_l _ _ _ _ _ _
                     error_state_written with
                    "[- $HPC $Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hsave_area
                        $Htok $Hmtval $Hcode $Hwritten $Hacc]");

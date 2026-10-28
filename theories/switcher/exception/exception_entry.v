@@ -31,13 +31,14 @@ Section Exception_Entry.
   #[local] Lemma exception_entry_block_spec (wcsp : LWord) (wregs wold : list LWord) :
     PC ↦ₚ[th] switcher_label_pc "exception_entry_asm" ∗
     csp ↦ᵣ[th] wcsp ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₜ[th] TStack tstack_cap ∗
     ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
     ([∗ list] r;w ∈ exception_spill_regs;wold, (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
-        csp ↦ᵣ[th] tstack_cap ∗
-        mtdc ↦ₛᵣ wcsp ∗
+    ▷ ( ∀ g_tstk : Locality,
+        PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
+        csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] ExceptionScratch wcsp ∗
         ([∗ list] r;w ∈ exception_spill_regs;wregs, r ↦ᵣ[th] w) ∗
         ([∗ list] r;w ∈ exception_spill_regs;wregs,
            (b_trusted_stack ^+ TrustedStack_offset_reg r)%a ↦ₐ w) -∗
@@ -50,7 +51,8 @@ Section Exception_Entry.
     rewrite /tstack_cap.
     (* SpecialRW csp mtdc csp *)
     iInstr "Hcode".
-    rewrite llegalise_mtdc.
+    { apply mtdc_match_ExceptionScratch. }
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* Jeq .Lexception_reentered csp 0 *)
     iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hcsp]" as "(HPC & Hcsp)".
     { cbn; apply Z.eqb_neq; exact Hts_nonzero. }
@@ -69,22 +71,23 @@ Section Exception_Entry.
     rewrite trusted_spill_registers_instrs_length /exception_spill_regs.
     cbn [length].
     switcher_change_pc_label ".Lexception_exiting_threads_rejoin".
-    iApply "Hpost". iFrame "HPC Hcsp Hmtdc Hregs Hcells".
+    iApply ("Hpost" $! g_tstk). iFrame "HPC Hcsp Hmtdc Hregs Hcells".
   Qed.
 
   (** [.Lexception_exiting_threads_rejoin]: the stack pointer, MEPCC,
       mstatus and mcause, then the dispatch on the cause, which satisfies
       the cause predicate [P_mcause] of fault causes. mtval, with a value
       that satisfies the value predicate [P_mtval], stays lent. *)
-  #[local] Lemma exception_exiting_threads_rejoin_spec (P_mcause P_mtval : Z → Prop)
+  #[local] Lemma exception_exiting_threads_rejoin_spec
+    (g_tstk : Locality) (P_mcause P_mtval : Z → Prop)
     (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
     PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ca0 ↦ᵣ[th] wca0 ∗
-    mtdc ↦ₛᵣ wcsp ∗
+    mtdc ↦ₜ[th] ExceptionScratch wcsp ∗
     b_trusted_stack ↦ₐ ws0 ∗
     (b_trusted_stack ^+ 2)%a ↦ₐ ws2 ∗
     (b_trusted_stack ^+ 17)%a ↦ₐ ws17 ∗
@@ -95,11 +98,11 @@ Section Exception_Entry.
           ⌜P_mcause cause⌝ -∗
           ⌜P_mtval tval⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
-          csp ↦ᵣ[th] tstack_cap ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] lmepcc_of_pc w ∗
           ct1 ↦ᵣ[th] WInt cause ∗
           ca0 ↦ᵣ[th] WInt zca0 ∗
-          mtdc ↦ₛᵣ WInt 0 ∗
+          mtdc ↦ₜ[th] ExceptionScratch (WInt 0) ∗
           b_trusted_stack ↦ₐ lmepcc_of_pc w ∗
           (b_trusted_stack ^+ 2)%a ↦ₐ wcsp ∗
           (b_trusted_stack ^+ 17)%a ↦ₐ wst ∗
@@ -133,7 +136,8 @@ Section Exception_Entry.
     iInstr "Hcode".
     (* SpecialRW ct1 mtdc ct1 *)
     iInstr "Hcode".
-    rewrite !llegalise_mtdc.
+    { apply mtdc_match_ExceptionScratch. }
+    cbn in Hpost_pure; subst vm.
     pose proof (Hts_k 2 ltac:(lia)) as Hts_2.
     (* Store csp ct1 2 *)
     iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
@@ -225,16 +229,16 @@ Section Exception_Entry.
     ca3 ↦ᵣ[th] wca3 ∗
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
-    mtdc ↦ₛᵣ tstack_cap ∗
+    mtdc ↦ₜ[th] TStack tstack_cap ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     switcher_code ∗
-    ▷ ( ∀ (wst : LWord) (cause zca0 tval : Z),
+    ▷ ( ∀ (g_tstk : Locality) (wst : LWord) (cause zca0 tval : Z),
           ⌜P_mcause cause⌝ ∗
           ⌜P_mtval tval⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
           cra ↦ᵣ[th] wcra ∗
-          csp ↦ᵣ[th] tstack_cap ∗
+          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           cgp ↦ᵣ[th] wcgp ∗
           ctp ↦ᵣ[th] wctp ∗
           ct0 ↦ᵣ[th] lmepcc_of_pc w ∗
@@ -248,7 +252,7 @@ Section Exception_Entry.
           ca3 ↦ᵣ[th] wca3 ∗
           ca4 ↦ᵣ[th] wca4 ∗
           ca5 ↦ᵣ[th] wca5 ∗
-          mtdc ↦ₛᵣ WInt 0 ∗
+          mtdc ↦ₜ[th] ExceptionScratch (WInt 0) ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ exception_spill save_area (lmepcc_of_pc w)
                  [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1;
@@ -283,7 +287,7 @@ Section Exception_Entry.
     { cbn [big_sepL2 exception_spill_regs]. iFrame "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5". }
     iSplitL "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15".
     { cbn [big_sepL2 exception_spill_regs]. iFrame "Hs1 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15". }
-    iNext; iIntros "(HPC & Hcsp & Hmtdc & Hregs & Hcells)".
+    iNext; iIntros (g_tstk) "(HPC & Hcsp & Hmtdc & Hregs & Hcells)".
     iEval (cbn [big_sepL2 exception_spill_regs]) in "Hregs Hcells".
     iDestruct "Hregs" as
       "(Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -293,12 +297,12 @@ Section Exception_Entry.
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & _)".
 
     (* The stack pointer, MEPCC, mstatus, mcause and the dispatch *)
-    iApply (exception_exiting_threads_rejoin_spec P_mcause P_mtval _ _ _ _ _ _ _ _ _
+    iApply (exception_exiting_threads_rejoin_spec g_tstk P_mcause P_mtval _ _ _ _ _ _ _ _ _
               HP_mcause with
              "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hout $Hswitcher]").
     iNext; iIntros (wst cause zca0 tval Hcause Htval)
       "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Htok & Hmtval)".
-    iApply ("Hpost" $! wst cause zca0 tval).
+    iApply ("Hpost" $! g_tstk wst cause zca0 tval).
     iSplit; first done. iSplit; first done.
     iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5
             Hmtdc Htok Hmtval".

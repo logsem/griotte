@@ -69,6 +69,7 @@ Section vae_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack vae_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [vae_firmware fw_cmpts]) in "Hcmpts".
@@ -138,7 +139,7 @@ Section vae_obligations.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W1');
-        last iFrame "#"; auto.
+        last iFrame "Hswitcher_static #"; auto.
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
@@ -161,7 +162,7 @@ Section vae_obligations.
             _ _ _ 1 (fw_nth 1 (fw_cmpts vae_firmware) default_fw_cmpt) _
             HC_l W1' C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
+           with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts vae_firmware].
       iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static").
@@ -218,7 +219,6 @@ Section vae_obligations.
                          $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
-                         $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }

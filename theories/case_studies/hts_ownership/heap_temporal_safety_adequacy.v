@@ -105,6 +105,7 @@ Section hts_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 7 in Hentry_min_stack.
     assert (∀ b e : Z, b + Z.of_nat 7 + StackEntry_reserved_space <= e →
@@ -177,10 +178,10 @@ Section hts_obligations.
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
-        iFrame "#".
+        iFrame "Hswitcher_static #".
       - iApply (free_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
-        iFrame "#". }
+        iFrame "Hswitcher_static #". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
     (* 9 - Seal the allocator capability of B, with its owner identifier *)
@@ -218,7 +219,7 @@ Section hts_obligations.
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
             HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
+           with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _

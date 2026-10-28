@@ -151,7 +151,7 @@ Section AllocatorOwnerMacro.
     (P : iProp Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in
-    ↑Nswitcher ⊆ E ->
+    ↑Ntstack ⊆ E ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
     (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off)%a ->
     disjoint_from_shadow pc_b pc_e ->

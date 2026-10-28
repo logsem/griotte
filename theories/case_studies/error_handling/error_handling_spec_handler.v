@@ -26,8 +26,8 @@ From griotte Require Import
 (** The namespace of the invariant of [stats]. *)
 Definition Nstats : namespace := nroot .@ "stats".
 
-Lemma Nswitcher_Nstats : Nswitcher ## Nstats.
-Proof. rewrite /Nswitcher /Nstats. solve_ndisj. Qed.
+Lemma Ntstack_Nstats : Ntstack ## Nstats.
+Proof. rewrite /Ntstack /Nstats. solve_ndisj. Qed.
 
 Section Error_Handling_Handler.
   Context
@@ -330,7 +330,7 @@ Section Error_Handling_Handler.
     registers_pointsto regs -∗
     STATS_cgp_b ↦ₐ WInt 1 -∗
     error_state_area rfault -∗
-    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
     na_own (tpool th) F -∗
     ▷ unwind_cont F cstk (error_state_area rfault ∗ stats_inv) -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.

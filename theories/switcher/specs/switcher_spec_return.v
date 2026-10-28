@@ -74,13 +74,13 @@ Section Switcher.
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own (tpool th) ⊤
@@ -102,28 +102,28 @@ Section Switcher.
   (** A return through the switcher's return entry at the thread's entry call
       stack: the switcher finds no frame to pop and goes to
       [.Lcommon_defer_irqs_and_thread_exit], and the thread exits, with the
-      switcher invariant closed. Only three scratch registers are used: the
+      trusted-stack invariant closed. Only three scratch registers are used: the
       stack, the world and the other registers are not read. *)
   Lemma switcher_ret_thread_exit_specification
     (cstk : CSTK) (wctp wct0 wct2 : LWord) :
     cstk.(cstk_frames) = [] ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct cstk as [ef frms]; cbn; intros ->.
     iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk)".
     iPoseProof "Hstatic" as "[#Hcode _]".
-    (* Open the switcher invariant *)
+    (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)"; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
@@ -131,12 +131,12 @@ Section Switcher.
     (* No frame to pop: to the thread exit *)
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hcode]").
-    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
     iApply (common_defer_irqs_and_thread_exit_spec with "[- $HPC $Hcode]").
     iIntros "!> _".
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
            "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
-            Hcstk_full Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|done|].
+            Hcstk_full Hstk_interp") as "Hna"; [done|done|].
     iModIntro; iIntros (_); iExact "Hna".
   Qed.
 
@@ -167,13 +167,13 @@ Section Switcher.
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     trap_no_resume w ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     no_handler (top_export_tbl cstk) ∗
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
     (|={⊤}=>
        [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs ∗
        world_interp Wcur C ∗
        na_own (tpool th) ⊤ ∗

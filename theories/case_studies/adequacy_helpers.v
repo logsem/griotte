@@ -9,6 +9,26 @@ From griotte Require Import allocator_resources.
 (** The namespace of the invariant on the flag of the assert library. *)
 Definition Nassert_flag : namespace := nroot .@ "assert_flag".
 
+(** The layout of a trusted stack [ [b, e)] with contents [ts] and hazard
+    slots [ [b_hz, e_hz)]. *)
+Section trusted_stack_layout.
+  Context `{MP : MachineParameters}.
+
+  Record trusted_stack_layout (b e b_hz e_hz : Addr) (ts : list Word) : Prop :=
+    MkTrustedStackLayout {
+    tsl_size : (b + length ts)%a = Some e;
+    tsl_frameoffset :
+      ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
+    tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
+    tsl_error_count :
+      ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
+      = Some (WInt 0);
+    tsl_words : Forall trusted_stack_word ts;
+    tsl_hazard :
+      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (WCap true WO Global b_hz e_hz b_hz);
+  }.
+End trusted_stack_layout.
+
 Section adequacy_helpers.
   Context
     {Σ:gFunctors}
@@ -70,95 +90,105 @@ Section adequacy_helpers.
       + by rewrite (assert_flag_size assert_cmpt).
     Qed.
 
-    (** The entry frame of the thread holds the words [w_csp] and [w_tbl], a
-        capability to the export table at [b_tbl], of the initial trusted
-        stack, and no error handler invocation. *)
-    Lemma initialise_switcher_compartment
-      {E : coPset} (switcher_cmpt : cmptSwitcher)
-      (w_csp w_tbl : Word) (b_tbl : Addr) :
-      let swlayout :=  (cmptSwitcher_switcherLayout switcher_cmpt) in
-      let ef := {| tf_csp := lword_of_word w_csp; tf_export_tbl := lword_of_word w_tbl;
-                   tf_error_count := 0 |} in
+    (** The code of the switcher and its sealing type, once for every
+        thread: the code and the unsealing key become persistent, and the
+        sealing type gets the predicate of the export entries. The layout
+        is the class [swlayout], as in the switcher's specifications. *)
+    Lemma initialise_switcher_shared
+      {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset} :
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
-      trusted_stack_content switcher_cmpt
-        !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp) = Some w_csp ->
-      trusted_stack_content switcher_cmpt
-        !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
-        = Some w_tbl ->
-      exp_tbl_cap b_tbl w_tbl ->
-      ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
-      can_alloc_pred (ot_switcher switcher_cmpt) -∗
-      cstack_full (entry_cstack ef) -∗
-      mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
+      ([∗ map] k↦y ∈ mkregion switcher.b_switcher switcher.a_switcher_call
+                       (switcher_data_words switcher.ot_switcher) ∪
+                     mkregion switcher.a_switcher_call switcher.e_switcher switcher_instrs,
+         k ↦ₐ lword_of_word y) -∗
+      can_alloc_pred switcher.ot_switcher
       ={E}=∗
-      seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
-      na_inv (tpool th) Nswitcher switcher_inv ∗
-      switcher_static ∗
-      [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ
-        [[ lword_of_word <$> stack_content switcher_cmpt ]].
+      seal_pred switcher.ot_switcher ot_switcher_propC ∗
+      switcher_static.
     Proof.
-      intros swlayout ef Hmtcc Hw_csp Hw_tbl Htbl_cap.
-      iIntros "Hcmpt_switcher Hseal_store Hcstk_full Hmtdc".
-      rewrite /mk_initial_switcher.
-      iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hcmpt_switcher Hhazard_slots]".
-      { apply cmpt_switcher_hazard_mregion_disjoint. }
-      iDestruct (big_sepM_union with "Hcmpt_switcher") as "[Hswitcher Hstack]".
-      { eapply cmpt_switcher_stack_mregion_disjoint ; eauto. }
-      iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher Htrusted_stack]".
-      { eapply cmpt_switcher_trusted_stack_mregion_disjoint ; eauto. }
-
-      rewrite /cmpt_switcher_code_mregion.
+      intros Hmtcc.
+      iIntros "Hswitcher Hseal_store".
+      pose proof switcher.switcher_call_entry_point as Hcall.
+      pose proof switcher.switcher_size as Hsize.
       iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
-      { eapply cmpt_switcher_code_stack_mregion_disjoint ; eauto. }
+      { apply map_disjoint_dom_2.
+        repeat rewrite dom_mkregion_eq; try solve_addr.
+        apply elem_of_disjoint. intros a Ha Ha'.
+        rewrite !elem_of_list_to_set !elem_of_finz_seq_between in Ha, Ha'.
+        solve_addr. }
       (* The data words of the switcher, with its key at their second word *)
-      pose proof (switcher_call_entry_point switcher_cmpt) as Hcall.
       iDestruct (mkregion_prepare with "[Hswitcher_sealing]") as ">Hswitcher_data"; auto.
       { exact Hcall. }
       rewrite /switcher_data_words.
-      rewrite (finz_seq_between_cons (b_switcher switcher_cmpt)); last solve_addr.
-      rewrite (finz_seq_between_cons (b_switcher switcher_cmpt ^+ 1)%a); last solve_addr.
+      rewrite (finz_seq_between_cons switcher.b_switcher); last solve_addr.
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1)%a); last solve_addr.
       iDestruct "Hswitcher_data" as "(_ & Hswitcher_sealing & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
-      { apply switcher_size. }
-      rewrite /cmpt_switcher_trusted_stack_mregion.
-      iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
-      { apply (trusted_stack_size switcher_cmpt). }
-      iMod (seal_store_update_alloc _ ( ot_switcher_propC ) with "Hseal_store") as "#Hsealed_pred_ot_switcher".
-      iAssert (codefrag (a_switcher_call switcher_cmpt) switcher_instrs)
+      { exact Hsize. }
+      iMod (seal_store_update_alloc _ ot_switcher_propC with "Hseal_store")
+        as "#Hsealed_pred_ot_switcher".
+      iAssert (codefrag switcher.a_switcher_call switcher_instrs)
         with "[Hswitcher]" as "Hswitcher_code".
-      {
-        rewrite /codefrag /region_pointsto.
+      { rewrite /codefrag /region_pointsto.
         setoid_rewrite big_sepL2_fmap_r.
-        replace ((a_switcher_call switcher_cmpt) ^+ length switcher_instrs)%a
-          with (e_switcher switcher_cmpt).
-        2: { pose proof (switcher_size switcher_cmpt) as H.
-             solve_addr+H.
-        }
-        iFrame.
-      }
-      rewrite /cmpt_switcher_hazard_mregion.
+        replace (switcher.a_switcher_call ^+ length switcher_instrs)%a
+          with switcher.e_switcher by solve_addr+Hsize.
+        iFrame. }
+      iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
+      iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
+      iModIntro. iFrame "Hsealed_pred_ot_switcher".
+      rewrite /switcher_static /switcher_sealing_inv.
+      iFrame "Hswitcher_code Hswitcher_sealing".
+      iPureIntro. split; [done | apply switcher.ot_switcher_size].
+    Qed.
+
+    (** The trusted-stack invariant for the thread [th], from its trusted
+        stack with contents [ts], its hazard slots and its call stack. The
+        entry frame of the thread holds the words [w_csp] and [w_tbl], a
+        capability to the export table at [b_tbl], and no error handler
+        invocation. *)
+    Lemma initialise_switcher_thread
+      {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
+      (ts : list Word) (w_csp w_tbl : Word) (b_tbl : Addr) :
+      let ef := {| tf_csp := lword_of_word w_csp; tf_export_tbl := lword_of_word w_tbl;
+                   tf_error_count := 0 |} in
+      trusted_stack_layout switcher.b_trusted_stack switcher.e_trusted_stack
+        switcher.b_hazard_slots switcher.e_hazard_slots ts ->
+      ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp) = Some w_csp ->
+      ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
+        = Some w_tbl ->
+      exp_tbl_cap b_tbl w_tbl ->
+      ([∗ map] k↦y ∈ mkregion switcher.b_trusted_stack switcher.e_trusted_stack ts,
+         k ↦ₐ lword_of_word y) -∗
+      ([∗ map] k↦y ∈ mkregion switcher.b_hazard_slots switcher.e_hazard_slots [WInt 0; WInt 0],
+         k ↦ₐ lword_of_word y) -∗
+      ●(CSTK)[th] (entry_cstack ef) -∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global switcher.b_trusted_stack
+                           switcher.e_trusted_stack switcher.b_trusted_stack)
+      ={E}=∗
+      na_inv (tpool th) Ntstack trusted_stack_inv.
+    Proof.
+      intros ef Hts Hw_csp Hw_tbl Htbl_cap.
+      iIntros "Htrusted_stack Hhazard_slots Hcstk_full Hmtdc".
+      destruct Hts as [Htstk_size Hframeoffset [n Hfit] Hw_cnt _ Hhazard_cell].
+      iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
+      { exact Htstk_size. }
       iDestruct (mkregion_prepare with "[Hhazard_slots]") as ">Hhazard_slots"; auto.
-      { apply (hazard_slots_size switcher_cmpt). }
-      iAssert (|==> switcher_preamble.switcher_inv)%I
+      { apply switcher.hazard_slots_size. }
+      iAssert (|==> switcher_preamble.trusted_stack_inv)%I
         with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">Hswitcher".
       {
-        pose proof (trusted_stack_content_error_count switcher_cmpt) as Hw_cnt.
-        pose proof (trusted_stack_content_frameoffset switcher_cmpt) as Hframeoffset.
-        pose proof (trusted_stack_size switcher_cmpt) as Htstk_size.
-        pose proof (trusted_stack_frames_fit switcher_cmpt) as [n Hfit].
-        pose proof (ot_switcher_size switcher_cmpt) as Hot.
-        iAssert ([[ b_trusted_stack switcher_cmpt, e_trusted_stack switcher_cmpt ]]
-                   ↦ₐ [[ lword_of_word <$> trusted_stack_content switcher_cmpt ]])%I
+        iAssert ([[ switcher.b_trusted_stack, switcher.e_trusted_stack ]]
+                   ↦ₐ [[ lword_of_word <$> ts ]])%I
           with "[Htrusted_stack]" as "Htrusted_stack".
         { rewrite /region_pointsto big_sepL2_fmap_r. iFrame. }
-        pose proof (trusted_stack_content_hazard switcher_cmpt) as Hhazard_cell.
-        iAssert (∃ ws, [[ b_hazard_slots switcher_cmpt, e_hazard_slots switcher_cmpt ]] ↦ₐ [[ ws ]])%I
+        iAssert (∃ ws, [[ switcher.b_hazard_slots, switcher.e_hazard_slots ]] ↦ₐ [[ ws ]])%I
           with "[Hhazard_slots]" as "Hhazard_slots".
         { iExists (lword_of_word <$> [WInt 0; WInt 0]).
           rewrite /region_pointsto big_sepL2_fmap_r. iFrame. }
-        set (b := b_trusted_stack switcher_cmpt) in *.
-        set (e := e_trusted_stack switcher_cmpt) in *.
-        set (l := trusted_stack_content switcher_cmpt) in *.
+        set (b := switcher.b_trusted_stack) in *.
+        set (e := switcher.e_trusted_stack) in *.
+        set (l := ts) in *.
         set (i_frameoffset := Z.to_nat TrustedStack_offset_frameoffset) in Hframeoffset.
         set (a_threadID := (b ^+ TrustedStack_offset_threadID)%a).
         (* The entry frame [frames[0]], and its cells *)
@@ -212,13 +242,12 @@ Section adequacy_helpers.
           [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
         iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
         iModIntro.
-        rewrite /switcher_inv.
+        rewrite /trusted_stack_inv.
         iExists a_entry, (entry_cstack ef), _, _.
         rewrite /cstack_interp.
         subst ef. cbn.
         rewrite /trusted_frame_interp /TrustedStackFrame_offset_csp finz_add_0_default /=.
         iFrame "∗ #".
-        iSplit; first done.
         iSplit.
         { iPureIntro. rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
           by rewrite Hhazard_cell. }
@@ -226,17 +255,8 @@ Section adequacy_helpers.
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
-      iMod (na_inv_alloc (tpool th) _ Nswitcher _ with "Hswitcher") as "#Hswitcher".
-      iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
-      iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
-      iAssert switcher_static as "#Hswitcher_static".
-      { rewrite /switcher_static. iFrame "Hswitcher_code Hswitcher_sealing". by iPureIntro. }
-      iClear "Hswitcher_code Hswitcher_sealing".
-
-      iDestruct (mkregion_prepare with "[Hstack]") as ">Hstack"; auto.
-      { apply (stack_size switcher_cmpt). }
-      rewrite /region_pointsto big_sepL2_fmap_r.
-      by iFrame "∗ Hsealed_pred_ot_switcher Hswitcher Hswitcher_static".
+      iMod (na_inv_alloc (tpool th) _ Ntstack _ with "Hswitcher") as "#Hswitcher".
+      by iModIntro.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :

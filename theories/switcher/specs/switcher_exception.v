@@ -69,7 +69,7 @@ Section Switcher_Exception.
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hframe) "#Htrap #Hregs #Htop #Hstatic HPC Hrmap Hworld_interp Hcont Hna Hcstk".
@@ -329,7 +329,7 @@ Section Switcher_Exception.
     switcher_static -∗
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" -∗
     registers_pointsto rmap -∗
-    cstack_frag (cstack_set_top_count cstk n) -∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
     unwind_cont F cstk R_unwind_stk -∗
     R_unwind_stk -∗
     na_own (tpool th) F -∗
@@ -354,7 +354,7 @@ Section Switcher_Exception.
     nonZero (rmap !!! ca0).(lw) = false ->
     frame_match Ws Cs cstk W C ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
@@ -364,7 +364,7 @@ Section Switcher_Exception.
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hnz Hframe)
@@ -418,7 +418,7 @@ Section Switcher_Exception.
       switcher unwinds, and with [ca0] zero, it installs the context of the
       [ErrorState]. *)
   Lemma interp_expr_handler_return_gen (W : WORLD) (C : CmptName) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec)
     ⊢ interp_expr interp (interp_cont interp) W C
@@ -447,7 +447,7 @@ Section Switcher_Exception.
       vector (needed only under the sentry's later). *)
   Lemma interp_handler_return_sentry_gen
     (W : WORLD) (C : CmptName) (mie : InterruptStatus) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     ▷ trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec)
     ⊢ interp W C (handler_return_sentry mie).
@@ -476,7 +476,7 @@ Section Switcher_Exception.
     handler_entry wpcc off = Some wpc ->
     handler_invocation_regs kind cstk wcgp rmap mcause mtval regs ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     top_cmpt_untrusted interp W C cstk -∗
@@ -487,7 +487,7 @@ Section Switcher_Exception.
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
-    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
     na_own (tpool th) ⊤ -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
@@ -565,7 +565,7 @@ Section Switcher_Exception.
       stores, after any number of them. *)
   Lemma exception_entry_safe_nested (F : coPset) (cstk : CSTK)
     (w : LWord) (rmap : LReg) (error_state_written : nat → iProp Σ) :
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
     exception_entry_safe -∗
     (∀ k : nat,
@@ -609,7 +609,7 @@ Section Switcher_Exception.
     (∀ c, P_mcause c → mcause_ok c) ->
     (∀ r, is_Some (rmap !! r)) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     ▷ exception_entry_safe -∗
     untrusted_fault cstk rmap -∗
@@ -617,7 +617,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause Hfull_rmap)
@@ -673,13 +673,13 @@ Section Switcher_Exception.
   Lemma exception_entry_unwind_safe (P_mcause P_mtval : Z → Prop) (F : coPset)
     (cstk : CSTK) (rmap : LReg) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
     (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     ▷ exception_entry_safe -∗
     unwind_cont F cstk True -∗
@@ -693,7 +693,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
@@ -748,13 +748,13 @@ Section Switcher_Exception.
     (cstk : CSTK) (rmap : LReg) (w : LWord)
     (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z) :
     (∀ c, P_mcause c → mcause_ok c) ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume w ->
     (¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     ▷ exception_entry_safe -∗
     trusted_handler (top_export_tbl cstk) P_fault -∗
@@ -766,7 +766,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
@@ -879,7 +879,7 @@ Section Switcher_Exception.
       needs it only after its first instruction, and a nested fault of the
       path enters it again under the later of trap entry. *)
   Lemma switcher_exception_entry_safe :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ exception_entry_safe.
   Proof.
@@ -911,10 +911,10 @@ Section Switcher_Exception.
       trap entry, the switcher spills the registers, overwrites the return
       values with [-ENOTENOUGHSTACK] and 0, and installs the context again,
       at [.Lswitch_just_return]. The non-atomic token [F] provides the
-      trap-entry token, and the exception path opens the invariant of the
-      switcher with the rest of [F]. *)
+      trap-entry token, and the exception path opens the trusted-stack
+      invariant with the rest of [F]. *)
   Lemma switcher_resume_safe_intro :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ switcher_resume_safe.
   Proof.
@@ -951,7 +951,7 @@ Section Switcher_Exception.
   (** The trap safety of the switcher, from its invariant and static
       resources. *)
   Lemma switcher_trap_safety_intro :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ switcher_trap_safety.
   Proof.
@@ -966,7 +966,7 @@ Section Switcher_Exception.
       is safe, for the faults in an untrusted compartment and for the
       faults that it handles ([trap_handler_ok ⊤]). *)
   Lemma switcher_mtcc_vec_safe :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
@@ -977,12 +977,12 @@ Section Switcher_Exception.
 
   (** The exception entry of the switcher is a safe trap vector. *)
   Lemma switcher_trap_vector_safe :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ trap_vector_safe (trap_handler_ok ⊤) (switcher_label_pc "exception_entry_asm").
   Proof.
     iIntros "[#Hinv_switcher #Hstatic]".
-    iPoseProof "Hstatic" as "(_ & _ & %Hmtcc)".
+    iPoseProof "Hstatic" as "(_ & _ & %Hmtcc & _)".
     rewrite -Hmtcc.
     iApply (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]"); done.
   Qed.
@@ -991,7 +991,7 @@ Section Switcher_Exception.
   Lemma logrel_unwind_cont (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
@@ -1004,7 +1004,7 @@ Section Switcher_Exception.
 
   (** The handler-return entry point is safe to execute. *)
   Lemma interp_expr_handler_return (W : WORLD) (C : CmptName) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp_expr interp (interp_cont interp) W C
         (switcher_label_pc ".Lhandle_error_handler_return").
@@ -1017,7 +1017,7 @@ Section Switcher_Exception.
   (** The sentry that the switcher gives a handler is safe. *)
   Lemma interp_handler_return_sentry
     (W : WORLD) (C : CmptName) (mie : InterruptStatus) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp W C (handler_return_sentry mie).
   Proof.
@@ -1039,12 +1039,12 @@ Section Switcher_Exception.
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
     registers_pointsto rmap ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull_rmap Hframe)
@@ -1060,19 +1060,19 @@ Section Switcher_Exception.
       [P_mcause] of fault causes and a value predicate [P_mtval]. The
       resources come under an update at the time of the fault; the
       non-atomic token [F] provides the trap-entry token, and the exception
-      path opens the invariant of the switcher with the rest of [F]. *)
+      path opens the trusted-stack invariant with the rest of [F]. *)
   Lemma trap_safe_exception_entry (P_mcause P_mtval : Z → Prop) (F : coPset) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     (|={⊤}=>
        ∃ (rmap : LReg) (cstk : CSTK),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
-         cstack_frag cstk ∗
+         ◯(CSTK)[th] cstk ∗
          trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
     trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
@@ -1087,13 +1087,13 @@ Section Switcher_Exception.
       return values with [-ENOTENOUGHSTACK] and 0, and installs the context
       again, at [.Lswitch_just_return]. The resources come under an update
       at the time of the fault; the non-atomic token [F] provides the
-      trap-entry token, and the exception path opens the invariant of the
-      switcher with the rest of [F]. *)
+      trap-entry token, and the exception path opens the trusted-stack
+      invariant with the rest of [F]. *)
   Lemma trap_safe_resume (F : coPset) (w : LWord) :
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
     ¬ trap_no_resume w →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     (|={⊤}=>
        ∃ rmap : LReg,
@@ -1123,12 +1123,12 @@ Section Switcher_Exception.
       (for instance, to close an invariant). *)
   Lemma trap_safe_unwind (cstk : CSTK) (rmap : LReg) (w : LWord) :
     (∀ r, is_Some (rmap !! r)) ->
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
@@ -1149,7 +1149,7 @@ Section Switcher_Exception.
     frame_match Ws Cs cstk W C ->
     trap_no_resume w ->
 
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     (⌜switcher_fault_pc w⌝ ∨
      (no_handler (top_export_tbl cstk) ∗
@@ -1159,7 +1159,7 @@ Section Switcher_Exception.
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk) -∗
+       ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hinv_switcher #Hstatic Hcase Hres".
@@ -1180,7 +1180,7 @@ Section Switcher_Exception.
   Lemma switcher_handler_return_install (F : coPset) (cstk : CSTK)
     (rmap : LReg) (wpcc : LWord) (p : Perm) (g : Locality) (b e a : Addr)
     (ws : list LWord) :
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
@@ -1190,13 +1190,13 @@ Section Switcher_Exception.
     disjoint_from_shadow a (a ^+ ErrorState_size)%a →
     length ws = Z.to_nat ErrorState_size →
 
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
     install_region a ws ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     na_own (tpool th) F ∗
     ▷ ( ( ⌜install_skipped cstk rmap⌝ -∗
           install_region a ws -∗
@@ -1252,7 +1252,7 @@ Section Switcher_Exception.
   (** The return-to-switcher entry point is safe to execute: the registers
       are re-filtered, then the return routine runs ([switcher_return_unwind]). *)
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
@@ -1272,7 +1272,7 @@ Section Switcher_Exception.
 
   Lemma interp_switcher_return (W : WORLD) (C : CmptName)
     (mie : InterruptStatus) :
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp W C (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.

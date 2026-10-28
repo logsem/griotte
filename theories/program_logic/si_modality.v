@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-From griotte Require Export cerise_instance.
+From griotte Require Export state_interp_def.
 
 (** * The state-interpretation update modality
 
@@ -26,7 +26,7 @@ Notation "|~{ E }~> P" := (si_upd E P)
 
 Section si_upd_laws.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
 
   Lemma si_upd_ghost E P Q :
@@ -68,10 +68,10 @@ Section si_upd_laws.
     (|~{E}~> P) -∗ (P -∗ WP e @ s; E {{ Φ }}) -∗ WP e @ s; E {{ Φ }}.
   Proof.
     rewrite si_upd_unseal. iIntros (He) "HP Hwp". rewrite !wp_unfold /wp_pre He /=.
-    iIntros (σ ns κ κs nt) "Hσ".
+    iIntros (σ ns κ κs nt) "[Hσ Hlink]".
     iMod ("HP" with "Hσ") as "[Hσ HP]".
     iSpecialize ("Hwp" with "HP").
-    iApply ("Hwp" $! σ ns κ κs nt with "Hσ").
+    iApply ("Hwp" $! σ ns κ κs nt with "[$Hσ $Hlink]").
   Qed.
 
   #[global] Instance from_modal_si_upd E P :

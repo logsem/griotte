@@ -46,7 +46,7 @@ Section Switcher.
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk))
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ (callee_stk_region b_stk e_stk a_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
@@ -87,7 +87,7 @@ Section Switcher.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
                 load_heap_in_world W wcra_caller rcra ∧
@@ -109,7 +109,7 @@ Section Switcher.
       as if the call had returned [-ENOTENOUGHSTACK] and 0: the caller must
       be safe from there, with the PC and the registers of a successful
       return (the other registers hold any words; no interrupt status is
-      promised), the switcher invariant closed, and its unchanged stack and
+      promised), the trusted-stack invariant closed, and its unchanged stack and
       world. *)
   Definition switcher_cc_fault
     (W : WORLD) (C : CmptName)
@@ -133,7 +133,7 @@ Section Switcher.
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
       world_interp W C ∗
       StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
-      cstack_frag cstk ∗
+      ◯(CSTK)[th] cstk ∗
       interp_continuation cstk Ws Cs -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
@@ -141,7 +141,7 @@ Section Switcher.
       of the switcher resumes the caller at [.Lswitch_just_return], whose
       return to [cra] goes to the continuation of the fault case. The
       resources come under an update at the time of the fault, with the
-      switcher invariant closed: the caller's registers, of which [ct2] and
+      trusted-stack invariant closed: the caller's registers, of which [ct2] and
       [ctp] hold the scratch words of the checks, and its stack. *)
   Lemma switcher_cc_fault_resume
     (W : WORLD) (C : CmptName)
@@ -167,7 +167,7 @@ Section Switcher.
        [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
        world_interp W C ∗
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs) -∗
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
@@ -405,7 +405,7 @@ Section Switcher.
     iPureIntro; exact (conj Hrcgp (conj Hrcra (conj Hrcs0 Hrcs1))).
   Qed.
 
-  (** Fault of the first spill: close the switcher invariant and resume the
+  (** Fault of the first spill: close the trusted-stack invariant and resume the
       caller through [switcher_cc_fault_resume]. *)
   #[local] Lemma switcher_cc_spill_fault
     (W : WORLD) (C : CmptName)
@@ -422,12 +422,12 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
 
     switcher_trap_safety -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
@@ -441,7 +441,7 @@ Section Switcher.
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] wct1_caller ∗
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -458,7 +458,7 @@ Section Switcher.
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iApply (switcher_cc_fault_resume with "Hsafety [-Hfault] Hfault");
       [done | exact Hspill | done |].
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     iFrame "Hna Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap0 Hstk Hworld_interp Hstk_val Hcstk Hcont".
   Qed.
@@ -472,7 +472,7 @@ Section Switcher.
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
-    (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
+    (cstk' : CSTK) (g_tstk : Locality) (a_tstk : Addr) (tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     disjoint_from_mmio b_stk e_stk ->
@@ -482,12 +482,12 @@ Section Switcher.
     is_heap_cap wcra_caller.(lw) = false ->
 
     switcher_trap_safety -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_post W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
@@ -496,14 +496,14 @@ Section Switcher.
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
       cs1 ↦ᵣ[th] wcs1_caller ∗
       ctp ↦ᵣ[th] WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
-      ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
       csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
       cra ↦ᵣ[th] wcra_caller ∗
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] wct1_caller ∗
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -512,7 +512,7 @@ Section Switcher.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
        registers, [switch_trusted_stack_exhausted_path_world_spec] restores
-       the registers, clears the others and returns, then close the switcher
+       the registers, clears the others and returns, then close the trusted-stack
        invariant and use the second post-condition. The return address is a
        valid target, so the jump back does not fault. *)
     iIntros (Hstk_mmio Hdom Hrdom Hret_jalr Hret_heap)
@@ -540,7 +540,7 @@ Section Switcher.
       subst rcra; congruence. }
     iIntros "[HPC Hlc']".
     iCombine "Hlc Hlc'" as "Hlc".
-    iMod (switcher_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1); iRight.
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hworld_interp Hstk_val Hcstk
       Hcont Hlc".
@@ -562,7 +562,7 @@ Section Switcher.
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
-    (cstk' : CSTK) (a_tstk : Addr) :
+    (cstk' : CSTK) (g_tstk : Locality) (a_tstk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     let a_free := (a_next ^+ TrustedStackFrame_size)%a in
@@ -578,12 +578,12 @@ Section Switcher.
     is_heap_cap wcra_caller.(lw) = false ->
 
     switcher_trap_safety -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_post W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
@@ -594,7 +594,7 @@ Section Switcher.
       cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-      ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
+      ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
       csp ↦ᵣ[th] chopped_csp b_stk e_stk a_stk ∗
       cra ↦ᵣ[th] wcra_caller ∗
       cgp ↦ᵣ[th] wcgp_caller ∗
@@ -602,7 +602,7 @@ Section Switcher.
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
         [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]] ∗
-      mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
       a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
@@ -645,7 +645,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
-    iMod (switcher_inv_opened_push frame cstk with
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|by left| |].
@@ -688,12 +688,12 @@ Section Switcher.
     tf_export_tbl_ok (cf_tframe frame) ->
 
     switcher_trap_safety -∗
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     world_interp W' C -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs) -∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
     a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
@@ -725,7 +725,7 @@ Section Switcher.
        Hframe_cnt Htstk
        (_ & HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2] & [%wctp' Hctp]
        & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs)".
-    iMod (switcher_inv_opened_push frame cstk with
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|right; split; [done | exact Htbl_cell]| |].
@@ -799,7 +799,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
 
@@ -818,7 +818,7 @@ Section Switcher.
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
                    ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
@@ -860,7 +860,7 @@ Section Switcher.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
                 load_heap_in_world W wcra_caller rcra ∧
@@ -878,7 +878,7 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant ([switcher_inv_open_call]);
+       - open the trusted-stack invariant ([trusted_stack_inv_open_call]);
        - [switcher_call_path_spec]: check the stack pointer, spill the
          callee-save registers, push the frame, clear the callee's stack and
          unseal the entry point; its fault and failure exits close through
@@ -890,7 +890,7 @@ Section Switcher.
        - [switcher_decode_entry_path_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
          [switcher_cc_stack_too_small];
-       - [switcher_inv_opened_push]: push the frame and close the switcher
+       - [trusted_stack_inv_opened_push]: push the frame and close the trusted-stack
          invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
     iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
@@ -907,8 +907,8 @@ Section Switcher.
       apply elem_of_difference; split; [apply all_registers_s_correct|set_solver]. }
     iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first exact Hwctp.
 
-    (* Open the switcher invariant *)
-    iMod (switcher_inv_open_call with "Hswitcher Hna")
+    (* Open the trusted-stack invariant *)
+    iMod (trusted_stack_inv_open_call with "Hswitcher Hna")
       as (a_tstk cstk' tstk_next)
          "(%Hlen_cstk & %Ha_tstk_e & Hopened & Hmtdc & Hframeoffset & Hhazard & Htstk)".
 
@@ -918,14 +918,17 @@ Section Switcher.
       "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard $Htstk
           $Hb_switcher $Hcode]"); [done..|].
     iNext.
-    iPoseProof (switcher_inv_opened_seal_pred with "Hopened") as "#Hp_ot_switcher".
+    iPoseProof "Hstatic" as "(_ & _ & _ & Hswitcher_global)".
+    iNamed "Hswitcher_global".
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is not sealed by the switcher: the frame is pushed,
          and the exception entry returns to the caller's continuation *)
+      iIntros (g_tstk).
       iDestruct "Hpost" as "[Hpost _]".
       iApply (switcher_cc_unseal_fault with
                "Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost"); done. }
     { (* The trusted stack is exhausted *)
+      iIntros (g_tstk).
       iDestruct "Hpost" as "[Hpost _]".
       iApply (switcher_cc_spec_tstack_exhausted with
                "Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost"); done. }
@@ -938,7 +941,7 @@ Section Switcher.
     (* The entry point satisfies the sealing predicate of the switcher *)
     iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v Hworld_interp")
       as "[Hworld_interp Hentry_prop]".
-    iNext; iIntros (wsb π)
+    iNext; iIntros (g_tstk wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
       & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
@@ -989,8 +992,8 @@ Section Switcher.
     iIntros (mie arg_rmap' rmap')
       "(%Hbig & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
 
-    (* Push the frame and close the switcher invariant *)
-    iMod (switcher_inv_opened_push frame cstk with
+    (* Push the frame and close the trusted-stack invariant *)
+    iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
       [done|done|done|done|done|done|by intros _|right; split; [done | exact Htbl_cell]| |].
@@ -1074,7 +1077,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
 
@@ -1096,7 +1099,7 @@ Section Switcher.
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
-            ∗ cstack_frag cstk
+            ∗ ◯(CSTK)[th] cstk
             ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ[th] rcgp

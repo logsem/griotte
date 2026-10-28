@@ -73,7 +73,7 @@ Section DLE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv (tpool th) Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
 
@@ -93,7 +93,7 @@ Section DLE.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1

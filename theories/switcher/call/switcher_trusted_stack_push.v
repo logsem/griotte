@@ -27,13 +27,14 @@ Section Switcher_Trusted_Stack_Push.
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
     ctp ↦ᵣ[th] wctp ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
+    ▷ ( ∀ g_tstk : Locality,
+        PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
         ctp ↦ᵣ[th] hazard_slots_cap ∗
-        ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
         [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ
           [[ region_addrs_zeroes b_hazard_slots e_hazard_slots ]] -∗
@@ -47,6 +48,7 @@ Section Switcher_Trusted_Stack_Push.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ct2 mtdc *)
     iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ct2 ctp *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ct2 ctp with "Hcode") as "Hcode_hz";
@@ -66,7 +68,7 @@ Section Switcher_Trusted_Stack_Push.
     rewrite clear_hazard_slots_instrs_length.
     switcher_change_pc_label ".Lswitch_trusted_stack_push".
     subst hpost.
-    iApply "Hpost".
+    iApply ("Hpost" $! g_tstk).
     rewrite /tstack_hazard_cell /hazard_slots_cap.
     iFrame "HPC Hctp Hct2 Hmtdc Hhazard_cell Hslots".
   Qed.
@@ -76,7 +78,7 @@ Section Switcher_Trusted_Stack_Push.
       the stack pointer [wstk] of the caller, and increment [frameoffset].
       The call-stack has [d] frames, the topmost one at [a_tstk]. *)
   Lemma switcher_trusted_stack_push_spec
-    (d : nat) (a_tstk : Addr) (tstk_next : list LWord) (wcs0 wcs1 wctp wstk : LWord) :
+    (g_tstk : Locality) (d : nat) (a_tstk : Addr) (tstk_next : list LWord) (wcs0 wcs1 wctp wstk : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     let a_free := (a_next ^+ TrustedStackFrame_size)%a in
@@ -90,7 +92,7 @@ Section Switcher_Trusted_Stack_Push.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ctp ↦ᵣ[th] wctp ∗
-    ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ[th] wstk ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
@@ -101,8 +103,8 @@ Section Switcher_Trusted_Stack_Push.
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_chop" ∗
           cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
           cs1 ↦ᵣ[th] WInt (tstack_frameoffset (S d)) ∗
-          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_next ∗
-          ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
+          ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           a_csp ↦ₐ wstk ∗
@@ -115,7 +117,7 @@ Section Switcher_Trusted_Stack_Push.
           cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
           cs1 ↦ᵣ[th] wcs1 ∗
           ctp ↦ᵣ[th] WInt (tstack_frameoffset d) ∗
-          ct2 ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] )

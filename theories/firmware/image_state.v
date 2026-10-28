@@ -68,9 +68,11 @@ Section img_state.
             (<[MEPCC := WInt 0]>
                (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
 
-  (** The memory, built in another order than in [firmware_ok]. *)
+  (** The memory, built in another order than in [firmware_ok], with the
+      memory of every thread. *)
   Definition img_mem (fw : firmware) (img : fw_image) : Mem :=
-    foldr (λ ft acc, thread_mem img 0 ft ∪ acc) ∅ (take 1 (fw_threads fw)) ∪
+    foldr (λ '(i, ft) acc, thread_mem img i ft ∪ acc) ∅
+      (zip (seq 0 (length (fw_threads fw))) (fw_threads fw)) ∪
     foldr (λ fc acc, cmpt_mem img fc ∪ acc) ∅ (fw_cmpts fw) ∪
     assert_flag_mem img ∪ assert_code_mem img ∪ switcher_mem img ∪
     initial_heap_memory.
@@ -237,7 +239,7 @@ Section checks.
 
   Lemma word_exec_okb_sound w : word_exec_okb w = true → word_exec_ok w.
   Proof.
-    rewrite /word_exec_okb /word_exec_ok /lword_exec /lword_of_word /=.
+    rewrite /word_exec_okb /word_exec_ok /erasure.lword_exec /lword_of_word /=.
     intros Hw _ Hx. rewrite Hx in Hw. split; first done.
     intros b e Hbe. rewrite Hbe in Hw. split.
     - apply (closed_outside_heap_spec b e b Hw). by left.

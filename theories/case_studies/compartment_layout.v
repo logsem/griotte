@@ -155,37 +155,41 @@ Section CmptLayout.
   (** The initial contents of a trusted stack with room for the entry frame
       and [n] frames: a register save area, zeroed but for its word
       [hazardPointers], which holds the capability [w_hazard] to the hazard
-      slots of the thread, [frameoffset] pointing after the entry frame, a
-      zeroed [threadID], the entry frame, and zeroed frames. The entry frame
-      holds the stack pointer [w_csp] of the thread, the export table
-      [w_export_table] of the compartment it starts in, and no error handler
-      invocation. *)
-  Definition initial_trusted_stack_content (w_csp w_export_table w_hazard : Word) (n : nat)
-    : list Word :=
+      slots of the thread, [frameoffset] pointing after the entry frame,
+      the [threadID] [thread_id], the entry frame, and zeroed frames. The
+      entry frame holds the stack pointer [w_csp] of the thread, the export
+      table [w_export_table] of the compartment it starts in, and no error
+      handler invocation. *)
+  Definition initial_trusted_stack_content (w_csp w_export_table w_hazard : Word)
+      (thread_id : nat) (n : nat) : list Word :=
     replicate (Z.to_nat TrustedStack_offset_hazardPointers) (WInt 0) ++
     [w_hazard] ++
     replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)) (WInt 0) ++
-    [WInt (tstack_frameoffset 0); WInt 0] ++
+    [WInt (tstack_frameoffset 0); WInt (Z.of_nat thread_id)] ++
     [w_csp; w_export_table; WInt 0] ++
     replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_words (w_csp w_export_table w_hazard : Word) (n : nat) :
+  Lemma initial_trusted_stack_content_words (w_csp w_export_table w_hazard : Word)
+      (thread_id : nat) (n : nat) :
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
-    Forall trusted_stack_word (initial_trusted_stack_content w_csp w_export_table w_hazard n).
+    Forall trusted_stack_word
+      (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n).
   Proof.
     intros Hcsp Hexport_table Hhazard. rewrite /initial_trusted_stack_content.
     pose proof (trusted_stack_word_int 0) as Hzero.
     repeat apply Forall_app_2; try by apply Forall_replicate.
     - by apply Forall_singleton.
-    - by apply Forall_cons_2; [apply trusted_stack_word_int | apply Forall_singleton].
+    - apply Forall_cons_2; first apply trusted_stack_word_int.
+      apply Forall_singleton, trusted_stack_word_int.
     - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
   Qed.
 
   (** The word [hazardPointers] of an initial trusted stack. *)
-  Lemma initial_trusted_stack_content_hazard (w_csp w_export_table w_hazard : Word) (n : nat) :
-    initial_trusted_stack_content w_csp w_export_table w_hazard n
+  Lemma initial_trusted_stack_content_hazard (w_csp w_export_table w_hazard : Word)
+      (thread_id : nat) (n : nat) :
+    initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n
       !! Z.to_nat TrustedStack_offset_hazardPointers = Some w_hazard.
   Proof. reflexivity. Qed.
 
@@ -300,6 +304,8 @@ Section CmptLayout.
     proj2 (switcher_not_heap_range C).
 
 
+  (** The layout of a single-thread switcher: every thread has the trusted
+      stack and the hazard slots of [switcher_cmpt]. *)
   #[global] Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
   Proof.
     refine (@mkSwitcherLayout
@@ -308,10 +314,11 @@ Section CmptLayout.
               (a_switcher_call switcher_cmpt)
               (a_switcher_return switcher_cmpt)
               (ot_switcher switcher_cmpt)
-              (b_trusted_stack switcher_cmpt)
-              (e_trusted_stack switcher_cmpt)
-              (b_hazard_slots switcher_cmpt)
-              (e_hazard_slots switcher_cmpt)
+              (λ _, mkThreadLayout
+                      (b_trusted_stack switcher_cmpt)
+                      (e_trusted_stack switcher_cmpt)
+                      (b_hazard_slots switcher_cmpt)
+                      (e_hazard_slots switcher_cmpt))
            ).
   Defined.
 

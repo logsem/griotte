@@ -18,7 +18,7 @@ From griotte Require Export logrel switcher switcher_preamble.
     whose offsets are given by [switcher_label_offset] (see
     [switcher_tactics]).
 
-    This file also holds the closing of the switcher invariant at the
+    This file also holds the closing of the trusted-stack invariant at the
     exits of the routine, shared by the proofs and by the known-to-known
     specification. *)
 
@@ -38,7 +38,7 @@ Section Switcher_Return_States.
     a_switcher_return = (a_switcher_call ^+ switcher_label_offset "switcher_after_compartment_call")%a.
   Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
 
-  (** The switcher invariant, opened by the return routine, closes again
+  (** The trusted-stack invariant, opened by the return routine, closes again
       with the trusted stack unchanged: after the thread exit. *)
   Lemma switcher_return_exit_close
     (F : coPset) (cstk : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord) :
@@ -48,37 +48,34 @@ Section Switcher_Return_States.
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     (b_trusted_stack + tstack_frame_offset (length cstk.(cstk_frames)))%a = Some a_tstk ∧
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) -∗
-    na_own (tpool th) (F ∖ ↑Nswitcher) -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
+    na_own (tpool th) (F ∖ ↑Ntstack) -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     switcher_hazard -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    cstack_full cstk -∗
-    ▷ cstack_interp cstk a_tstk -∗
-    ▷ seal_pred ot_switcher ot_switcher_propC
+    ●(CSTK)[th] cstk -∗
+    ▷ cstack_interp cstk a_tstk
     ={⊤}=∗
     na_own (tpool th) F.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    iIntros (Hlen Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
-      Htstk Hcstk_full Hstk_interp Hp_ot_switcher".
+    iIntros (Hlen Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
+      Htstk Hcstk_full Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iApply ("Hclose" with "[- $Hna]").
     iNext. iExists a_tstk, cstk, save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-      Hp_ot_switcher".
-    iSplit; [|iSplit]; iPureIntro; done.
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+    iSplit; iPureIntro; done.
   Qed.
 
-  (** The switcher invariant, opened by the return routine, closes again
+  (** The trusted-stack invariant, opened by the return routine, closes again
       after the pop of the topmost frame [frm], at [a_tstk]. *)
   Lemma switcher_return_pop_close
     (F : coPset) (frm : cframe) (cstk : CSTK) (a_tstk : Addr)
@@ -93,12 +90,11 @@ Section Switcher_Return_States.
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) -∗
-    na_own (tpool th) (F ∖ ↑Nswitcher) -∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
+    (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
+    na_own (tpool th) (F ∖ ↑Ntstack) -∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     switcher_hazard -∗
@@ -107,26 +103,24 @@ Section Switcher_Return_States.
     a_export_table ↦ₐ w1 -∗
     a_error_count ↦ₐ w2 -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    cstack_full (cstack_push frm cstk) -∗
-    cstack_frag (cstack_push frm cstk) -∗
-    ▷ cstack_interp cstk a_prev -∗
-    ▷ seal_pred ot_switcher ot_switcher_propC
+    ●(CSTK)[th] (cstack_push frm cstk) -∗
+    ◯(CSTK)[th] (cstack_push frm cstk) -∗
+    ▷ cstack_interp cstk a_prev
     ={⊤}=∗
-    na_own (tpool th) F ∗ cstack_frag cstk.
+    na_own (tpool th) F ∗ ◯(CSTK)[th] cstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Ha_tstk Ha_tstk_e Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
-      Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp
-      Hp_ot_switcher".
+    iIntros (Ha_tstk Ha_tstk_e Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
+      Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iApply ("Hclose" with "[- $Hna]").
     iNext.
-    iApply (switcher_inv_pop_frame _ cstk with
+    iApply (trusted_stack_inv_pop_frame _ cstk with
              "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp Hframe_tbl
-              Hframe_cnt Htstk Hcstk_full Hstk_interp Hp_ot_switcher"); done.
+              Hframe_cnt Htstk Hcstk_full Hstk_interp"); done.
   Qed.
 
 End Switcher_Return_States.

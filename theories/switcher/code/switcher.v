@@ -4,6 +4,18 @@ From griotte Require Export clear_stack copy_context clear_registers export_tabl
 From griotte Require Export trusted_stack_layout.
 From griotte Require Export clear_hazard_slots.
 
+(** The trusted stack and the two hazard slots of a user thread. *)
+Class threadLayout : Type :=
+  mkThreadLayout {
+      b_trusted_stack : Addr;
+      e_trusted_stack : Addr;
+
+      (* The two hazard slots of the thread. *)
+      b_hazard_slots : Addr;
+      e_hazard_slots : Addr;
+    }.
+(* No [Hint Mode]: the class has no parameter, hence no input position. *)
+
 Class switcherLayout : Type :=
   mkSwitcherLayout {
       b_switcher : Addr ;
@@ -13,12 +25,8 @@ Class switcherLayout : Type :=
 
       ot_switcher : OType ;
 
-      b_trusted_stack : Addr;
-      e_trusted_stack : Addr;
-
-      (* The two hazard slots of the thread. *)
-      b_hazard_slots : Addr;
-      e_hazard_slots : Addr;
+      (* The layout of the user thread [i]. *)
+      swl_thread : nat → threadLayout;
     }.
 
 Section Switcher.
@@ -750,25 +758,11 @@ Section Switcher.
   Definition switcher_data_words (ot : OType) : list Word :=
     [WInt 0; WSealRange true (true, true) Global ot (ot ^+ 1)%ot ot; WInt 0; WInt 0; WInt 0].
 
-  Class switcherLayoutWf `{!switcherLayout} : Type :=
-    mkSwitcherLayoutWf {
-        switcher_size :
-        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
-
-        switcher_call_entry_point :
-        (b_switcher + 5)%a = Some a_switcher_call ;
-
-        switcher_return_entry_point :
-        (b_switcher + (5 + length switcher_call_instrs) )%a = Some a_switcher_return ;
-
-        ot_switcher_size :
-        (ot_switcher < ot_switcher ^+ 1)%ot;
-
+  (** The well-formedness of the layout of a user thread. *)
+  Class threadLayoutWf {tlayout : threadLayout} : Type :=
+    mkThreadLayoutWf {
         trusted_stack_disjoint_from_shadow :
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
-
-        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1)%a = false;
-        switcher_not_heap_range : not_heap_range b_switcher e_switcher;
         (* The register save area of the trusted stack is not in the heap. *)
         trusted_stack_not_heap :
         not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a;
@@ -785,6 +779,26 @@ Section Switcher.
         hazard_slots_disjoint_from_shadow :
         disjoint_from_shadow b_hazard_slots e_hazard_slots;
         hazard_slots_not_heap : not_heap_range b_hazard_slots e_hazard_slots
+      }.
+
+  Class switcherLayoutWf `{!switcherLayout} : Type :=
+    mkSwitcherLayoutWf {
+        switcher_size :
+        (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
+
+        switcher_call_entry_point :
+        (b_switcher + 5)%a = Some a_switcher_call ;
+
+        switcher_return_entry_point :
+        (b_switcher + (5 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+
+        ot_switcher_size :
+        (ot_switcher < ot_switcher ^+ 1)%ot;
+
+        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1)%a = false;
+        switcher_not_heap_range : not_heap_range b_switcher e_switcher;
+        (* The layout of every user thread is well formed. *)
+        swl_thread_wf : ∀ i, threadLayoutWf (tlayout := swl_thread i)
       }.
 
   Lemma switcher_base_not_heap
@@ -806,6 +820,8 @@ Section Switcher.
   Qed.
 
 End Switcher.
+#[export] Hint Mode threadLayoutWf - ! : typeclass_instances.
+#[export] Hint Mode switcherLayoutWf - ! : typeclass_instances.
 
 (** Unfold the constants of the layout of the trusted stack, everywhere. *)
 Ltac tstack_unfold :=

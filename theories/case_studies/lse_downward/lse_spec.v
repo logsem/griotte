@@ -75,7 +75,7 @@ Section LSE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv (tpool th) Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a lse_main_code
@@ -97,13 +97,11 @@ Section LSE.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
-
-      ∗ seal_pred ot_switcher ot_switcher_propC
 
       ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
@@ -135,7 +133,6 @@ Section LSE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
-      & #Hot_switcher
       )".
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).

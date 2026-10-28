@@ -21,7 +21,7 @@ Section helpers_switcher_adequacy.
     (args minstk off : nat) :
     let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
     disjoint_from_heap b_cgp e_cgp ->
-    na_inv (tpool th) Nswitcher switcher_inv
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ⊢ switcher_static -∗
     b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
     a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
@@ -118,7 +118,7 @@ Section helpers_switcher_adequacy.
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
     a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
@@ -131,7 +131,7 @@ Section helpers_switcher_adequacy.
     registers_pointsto regs -∗
     world_interp W C -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag (entry_cstack ef) -∗
+    ◯(CSTK)[th] (entry_cstack ef) -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
@@ -192,7 +192,7 @@ Section helpers_switcher_adequacy.
     (entries_etbl <= a_etbl < e_etbl)%a
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
-    → na_inv (tpool th) Nswitcher switcher_inv
+    → na_inv (tpool th) Ntstack trusted_stack_inv
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp

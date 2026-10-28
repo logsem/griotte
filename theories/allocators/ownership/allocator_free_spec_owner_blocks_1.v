@@ -65,7 +65,7 @@ Section AllocatorFreeOwnerBlocks1.
     (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
     (P : iProp Σ) :
     let a_owner_end := (pc_a ^+ length (allocator_owner_instrs allocator_free_owner_off ctp ca0))%a in
-    ↑Nswitcher ⊆ E ->
+    ↑Ntstack ⊆ E ->
     allocator_free_code_bounds pc_b pc_e pc_a ->
     (pc_b + allocator_free_pcc_off)%a = Some pc_a ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->

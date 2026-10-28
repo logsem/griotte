@@ -72,6 +72,7 @@ Section vae_untrusted_entry_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [vae_untrusted_entry_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & #Hmain_pers) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].
@@ -142,7 +143,7 @@ Section vae_untrusted_entry_obligations.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W1');
-        last iFrame "#"; auto.
+        last iFrame "Hswitcher_static #"; auto.
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
@@ -166,7 +167,7 @@ Section vae_untrusted_entry_obligations.
             (fw_nth 1 (fw_cmpts vae_untrusted_entry_firmware) default_fw_cmpt) _
             HC_l W1' C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
+           with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & _)".
     { iIntros "(_ & _ & #Hexports)".
       cbn [fc_name fc_imports fw_nth fw_cmpts vae_untrusted_entry_firmware].

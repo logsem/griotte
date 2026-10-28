@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth.
 From iris.base_logic Require Import own.
 From griotte Require Import griotte_lang.
-From griotte Require Export cerise_instance machine_parameters machine_word machine_base addresses.
+From griotte Require Export resources machine_parameters machine_word machine_base addresses.
 From griotte Require Export logical_words export_table_layout.
 
 
@@ -211,7 +211,7 @@ Ltac stk_unfold :=
     the callee-saved registers values are stored in the compartment's stack,
     and the way to handle the points-to predicates
     depend on whether the region is shared.
-    More explanation in the switcher's invariant.
+    More explanation in [trusted_stack_inv].
  **)
 Record cframe := MkCFrame {
       cf_tframe : trusted_frame;
@@ -341,9 +341,10 @@ Class CSTACK_preG Σ :=
   { cstack_preG :: inG Σ cstackUR; }.
 #[export] Hint Mode CSTACK_preG - : typeclass_instances.
 
+(** The ghost name of the call stack of each thread. *)
 Class CSTACKG Σ :=
   { cstack_inG :: inG Σ cstackUR;
-    γcstack : gname;
+    γcstack : Thread → gname;
   }.
 #[export] Hint Mode CSTACKG - : typeclass_instances.
 
@@ -355,13 +356,14 @@ Definition CSTACK_preΣ :=
 Proof. solve_inG. Qed.
 
 Section CStack.
-  Context {Σ : gFunctors} {cstackg : CSTACKG Σ}.
+  Context {Σ : gFunctors} {cstackg : CSTACKG Σ} {th : Thread}.
 
+  (** The call stack of the section's thread. *)
   Definition cstack_full (cstk : cstack) : iProp Σ
-    := own γcstack (●E (cstk : leibnizO cstack) : cstackUR).
+    := own (γcstack th) (●E (cstk : leibnizO cstack) : cstackUR).
 
   Definition cstack_frag (cstk : cstack) : iProp Σ
-    := own γcstack (◯E (cstk : leibnizO cstack) : cstackUR).
+    := own (γcstack th) (◯E (cstk : leibnizO cstack) : cstackUR).
 
   Lemma cstack_agree (cstk cstk' : cstack) :
    cstack_full cstk -∗
@@ -391,16 +393,46 @@ Section CStack.
 
 End CStack.
 
+(** The call stack of a thread: [●(CSTK)[th] cs] and [◯(CSTK)[th] cs]; the
+    plain forms [●(CSTK) cs] and [◯(CSTK) cs] are at the thread in scope.
+    The plain forms are declared first, so that the annotated ones print. *)
+Notation "●(CSTK) cs" := (cstack_full cs) (at level 20) : bi_scope.
+Notation "◯(CSTK) cs" := (cstack_frag cs) (at level 20) : bi_scope.
+Notation "●(CSTK)[ th ] cs" := (cstack_full (th := th) cs)
+  (at level 20, th custom thread, format "●(CSTK)[ th ]  cs") : bi_scope.
+Notation "◯(CSTK)[ th ] cs" := (cstack_frag (th := th) cs)
+  (at level 20, th custom thread, format "◯(CSTK)[ th ]  cs") : bi_scope.
+
 Section pre_CSTACK.
   Context {Σ : gFunctors} {cstackg : CSTACK_preG Σ}.
 
-  Lemma gen_cstack_init (cstk : cstack) :
-    ⊢ |==> (∃ (cstackg : CSTACKG Σ), cstack_full cstk ∗ cstack_frag cstk).
+  (** The call stacks of the user thread 0 and of the user threads [S k];
+      the context-switch thread and the other user threads get a call stack
+      [cs0] each, which is dropped. *)
+  Lemma gen_cstack_init (cs0 : cstack) (css : list cstack) :
+    ⊢ |==> ∃ (cstackg : CSTACKG Σ),
+      ●(CSTK)[u 0] cs0 ∗ ◯(CSTK)[u 0] cs0 ∗
+      [∗ list] k ↦ cs ∈ css, ●(CSTK)[u (S k)] cs ∗ ◯(CSTK)[u (S k)] cs.
   Proof.
-    iMod (own_alloc (A:=cstackUR) (●E (cstk : leibnizO _) ⋅ ◯E (cstk : leibnizO _) )) as (γcstack) "Hcstack"
-    ; first by apply excl_auth_valid.
-    iModIntro. iExists (Build_CSTACKG _ _ γcstack).
-    by rewrite own_op.
+    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
+      as (γ0) "[Hfull Hfrag]"; first by apply excl_auth_valid.
+    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
+      as (γc) "_"; first by apply excl_auth_valid.
+    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
+      as (γd) "_"; first by apply excl_auth_valid.
+    iAssert (|==> ∃ γs : list gname, [∗ list] k ↦ cs ∈ css,
+               own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR))%I
+      as ">[%γs Hcss]".
+    { iClear "∗". iInduction css as [|cs css] "IH".
+      - iModIntro. by iExists [].
+      - iMod (own_alloc (A:=cstackUR) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _)))
+          as (γ) "Hγ"; first by apply excl_auth_valid.
+        iMod "IH" as (γs) "Hcss".
+        iModIntro. iExists (γ :: γs). by iFrame. }
+    iModIntro. iExists (Build_CSTACKG _ _ (thread_map γ0 γs γc γd)).
+    iFrame "Hfull Hfrag".
+    iApply (big_sepL_impl with "Hcss").
+    iIntros "!>" (k cs _) "Hcs". rewrite /cstack_full /cstack_frag -own_op //.
   Qed.
 
 End pre_CSTACK.

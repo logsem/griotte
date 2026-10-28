@@ -34,7 +34,7 @@ Section Error_Handling_Main_Blocks_2.
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
@@ -46,7 +46,7 @@ Section Error_Handling_Main_Blocks_2.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own (tpool th) ⊤ ∗
@@ -59,7 +59,7 @@ Section Error_Handling_Main_Blocks_2.
         cra ↦ᵣ[th] wcra ∗
         ctp ↦ᵣ[th] wctp ∗
         cs0 ↦ᵣ[th] thread_return_sentry ∗
-        cstack_frag cstk ∗
+        ◯(CSTK)[th] cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -200,7 +200,7 @@ Section Error_Handling_Main_Blocks_2.
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = ECOMPARTMENTFAIL ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_2")%a ∗
@@ -212,7 +212,7 @@ Section Error_Handling_Main_Blocks_2.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own (tpool th) ⊤ ∗
@@ -225,7 +225,7 @@ Section Error_Handling_Main_Blocks_2.
         cra ↦ᵣ[th] wcra ∗
         ctp ↦ᵣ[th] wctp ∗
         cs0 ↦ᵣ[th] thread_return_sentry ∗
-        cstack_frag cstk ∗
+        ◯(CSTK)[th] cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.

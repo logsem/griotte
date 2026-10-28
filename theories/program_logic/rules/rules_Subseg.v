@@ -16,7 +16,7 @@ Ltac solve_subseg_root_free :=
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
@@ -946,7 +946,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section instruction_outcomes.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {CL : CritLink Σ}.
 
   (* Internal proof lemmas over maps. Public outcome rules below expose
      each required register explicitly. *)

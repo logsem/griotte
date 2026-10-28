@@ -113,7 +113,7 @@ Section Switch_Unseal_Entry.
       minimum stack size of the entry plus the reserved space, the PC is at
       [.Lswitch_stack_too_small]. *)
   Lemma switcher_decode_entry_spec
-    (wcs0 wcs1 wct2 wcgp wcra : LWord) (a_frame : Addr) (wtbl : LWord)
+    (wcs0 wcs1 wct2 wcgp wcra : LWord) (g_tstk : Locality) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (b_stk e_stk a_stk : Addr)
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z) :
@@ -141,7 +141,7 @@ Section Switch_Unseal_Entry.
     cs1 ↦ᵣ[th] wcs1 ∗
     ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_frame ∗
     a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗

@@ -191,7 +191,7 @@ Section KVS_spec_erase.
     kvs_static ∗
     na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
     na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
     a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗

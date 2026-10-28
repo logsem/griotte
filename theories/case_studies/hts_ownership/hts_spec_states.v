@@ -188,7 +188,7 @@ Section HTS_States.
     assert_static b_assert e_assert a_flag ∗
     allocator_service_ctx ∗
     allocator_service_static ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
@@ -236,7 +236,7 @@ Section HTS_States.
     csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     (∃ w, cs1 ↦ᵣ[th] w) ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     hts_static_mem.
 
   (** The registers cleared by the switcher. *)
@@ -257,7 +257,7 @@ Section HTS_States.
     (∃ w, cra ↦ᵣ[th] w) ∗
     (∃ w, ctp ↦ᵣ[th] w) ∗
     (∃ w, ct2 ↦ᵣ[th] w) ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
 

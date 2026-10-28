@@ -71,7 +71,7 @@ Section Heap_Temporal_Safety_Allocator.
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ∗
-    na_inv (tpool th) Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗

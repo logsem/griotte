@@ -28,7 +28,7 @@ Section DLE_Assert_Blocks_4.
     disjoint_from_mmio cgp_b cgp_e ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
@@ -40,7 +40,7 @@ Section DLE_Assert_Blocks_4.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a dle_main_code

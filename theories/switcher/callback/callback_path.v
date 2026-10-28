@@ -43,11 +43,11 @@ Section Callback_Path.
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard
         ={E}=∗
@@ -60,7 +60,7 @@ Section Callback_Path.
       as "([%wctp Hctp] & [%wct0 Hct0] & _ & [%wct2 Hct2] & _)"; first done.
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hswitcher]").
-    iIntros "!> (HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
     iApply (common_defer_irqs_and_thread_exit_spec with
       "[$HPC $Hswitcher Hpost Hmtdc Hframeoffset Hhazard]").
     iIntros "!> _".
@@ -95,7 +95,7 @@ Section Callback_Path.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -106,7 +106,7 @@ Section Callback_Path.
         ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
           load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -148,7 +148,7 @@ Section Callback_Path.
     iApply (switcher_after_compartment_call_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hswitcher]");
       [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
+    iNext; iIntros (g_tstk) "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
                     & _)".
     (* [.Lswitch_callee_save_restore]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
@@ -196,12 +196,12 @@ Section Callback_Path.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
         a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
@@ -267,7 +267,7 @@ Section Callback_Path.
     iApply (switcher_after_compartment_call_spec with
       "[- $HPC $Hctp $Hct0 $Hct1 $Hct2 $Hcsp $Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hswitcher]");
       [done|done|done|].
-    iNext; iIntros "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
+    iNext; iIntros (g_tstk) "(HPC & Hctp & Hct0 & Hct1 & Hct2 & Hcsp & Hmtdc & Hframeoffset & Hhazard & Ha_csp
                     & Hlc)".
     (* The logical step: the spill area, the callee's stack, the open world *)
     iMod ("Hmid" with "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hlc]")

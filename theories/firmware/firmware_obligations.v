@@ -91,9 +91,10 @@ Section obligation_facts.
     img_switcher_layout (img_sw img) (thread_of img 0)
       (replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)).
   Proof.
-    intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
-    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
-    split; [by eapply img_wf_trusted_stack_layout | by eapply img_wf_switcher_layout].
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
+    pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
+    split; [exact (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf)
+           | exact (img_wf_switcher_layout _ _ _ _ H0 Hwf)].
   Qed.
 
   Lemma fw_cmpts_disjoint_at fw img σ i j fci fcj
@@ -115,8 +116,8 @@ Section obligation_facts.
   Lemma fw_switcher_layout_wf_of fw img σ :
     firmware_ok fw img σ → @switcherLayoutWf MP (fw_switcher_layout img).
   Proof.
-    intros Hok. destruct (fw_switcher_layouts _ _ _ Hok) as [Hts Hsw].
-    exact (fw_switcher_layout_wf img _ _ Hts Hsw).
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
+    exact (fw_switcher_layout_wf fw img Hwf (firmware_ok_thread0 _ _ _ Hok)).
   Qed.
 
   Definition fw_switcher_cmpt fw img σ (Hok : firmware_ok fw img σ) : cmptSwitcher :=
@@ -393,15 +394,12 @@ Section prepared.
       thread, run as the thread [th], with the compartments initialised and
       the first thread at the code of its compartment. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let sw := img_sw img in
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hseal_switcher" ∷
-      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
     "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
@@ -422,7 +420,7 @@ Section prepared.
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space
          <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
-      cstack_frag
+      ◯(CSTK)[th]
         (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
                          tf_export_tbl :=
                            WCap true RW Global (cmpt_exp_tbl_pcc m)
@@ -436,14 +434,11 @@ Section prepared.
       ([fw_obligations_of_untrusted]). The stack is there: the case study
       closes it in the world of the entry compartment. *)
   Definition fw_setup_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let sw := img_sw img in
     let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hseal_switcher" ∷
-      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
     "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
@@ -564,6 +559,7 @@ Proof.
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseb sealsg stsg relg cstackg Hok).
+  iDestruct "Hswitcher_static" as "#Hswitcher_static".
   iFrame "∗ # %".
 Qed.
 
@@ -596,7 +592,7 @@ Section adversary.
   (** The switcher call sentry is safe to import. *)
   Lemma fw_switcher_call_safe fw img σ c W C :
     firmware_ok fw img σ →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
@@ -625,7 +621,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
-    (na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    (na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
      switcher_static (swlayout := swl) -∗
      fw_cmpt_pers_res img fc -∗
      □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
@@ -713,9 +709,8 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     [[ b_stack t, e_stack t ]] ↦ₐ
@@ -735,7 +730,8 @@ Section adversary.
       interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
+    iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
@@ -770,9 +766,8 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     [[ b_stack t, e_stack t ]] ↦ₐ
@@ -788,9 +783,9 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal Hmem #Hpers Hstack Himports Hworld".
+    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack Himports Hworld".
     by iMod (fw_close_adv_world_entry fw img σ i fc ub Hc W C Hok Hi Hbody Hnargs Hfree
-           with "Hswitcher Hstatic Hseal Hmem Hpers Hstack Himports Hworld")
+           with "Hswitcher Hstatic Hmem Hpers Hstack Himports Hworld")
       as "($ & _ & _ & $ & $)".
   Qed.
 
@@ -811,9 +806,8 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
@@ -827,7 +821,8 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Himports Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Himports Hworld".
+    iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
@@ -902,7 +897,6 @@ Proof.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
   iDestruct "Hswitcher" as "#Hswitcher".
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
-  iDestruct "Hseal_switcher" as "#Hseal_switcher".
   iDestruct "Hassert" as "#Hassert".
   iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   (* The export table of the entry compartment *)
@@ -915,7 +909,7 @@ Proof.
   iMod (Hsetup img σ ceriseb sealsg stsg relg cstackg Hok
          with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
     as (W C) "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".
-  { iFrame "∗ #". }
+  { iFrame "Hswitcher_static". iFrame "∗ #". }
   (* The thread's stack, outside the heap *)
   iAssert (entry_stack_interp (interp (th := UserThread 0)) W C (fw_entry_frame fw img 0))
     as "#Hstk".

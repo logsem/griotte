@@ -33,12 +33,12 @@ Section Common_Context_Install.
   (** From [.Lcommon_context_install]: the registers receive the words of
       the register save area, and the PC the word in [ct2], as MEPCC holds
       it. *)
-  Lemma common_context_install_spec (wpc : LWord) (save_area : list LWord)
+  Lemma common_context_install_spec (g_tstk : Locality) (wpc : LWord) (save_area : list LWord)
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     length save_area = 21%nat ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
-    csp ↦ᵣ[th] tstack_cap ∗
+    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     cra ↦ᵣ[th] wcra ∗
     cgp ↦ᵣ[th] wcgp ∗
     ctp ↦ᵣ[th] wctp ∗

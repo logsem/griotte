@@ -37,7 +37,7 @@ Section Switcher_error_handler.
       ⌜rmap !! ca1 = Some (WInt 0 : LWord)⌝ -∗
       PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap -∗
-      cstack_frag (cstack_set_top_count cstk n) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       R_unwind_stk -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -536,8 +536,8 @@ Section Switcher_error_handler.
 
   (** The switcher's resources at a token [F]. *)
   Definition switcher_res (F : coPset) : iProp Σ :=
-    ⌜↑Nswitcher ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    ⌜↑Ntstack ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static.
 
   (** ** Trusted handlers *)
@@ -570,7 +570,7 @@ Section Switcher_error_handler.
           (⌜kind = Stackless⌝ → handler_skipped cstk w rfault) -∗
           (unwind_or_runs F cstk w rfault (handler_unwind_res kind rfault) ∧
            P_fault F cstk w rfault mcause mtval) -∗
-          cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
+          ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own (tpool th) F -∗
           WP Seq (Instr Executable) @[th] {{ HO th }} ).
 
@@ -615,7 +615,7 @@ Section Switcher_error_handler.
     (⌜∀ r, is_Some (regs !! r)⌝ -∗
      PC ↦ₚ[th] wpc -∗
      registers_pointsto regs -∗
-     cstack_frag cstk -∗
+     ◯(CSTK)[th] cstk -∗
      na_own (tpool th) F -∗
      WP Seq (Instr Executable) @[th] {{ HO th }})%I.
 

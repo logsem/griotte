@@ -1,8 +1,8 @@
 From stdpp Require Import namespaces strings.
-From griotte Require Import cerise_instance.
+From griotte Require Import resources.
 
-(** The namespace of the invariant [switcher_inv]. *)
-Definition Nswitcher : namespace := nroot .@ "switcher".
+(** The namespace of the invariant [trusted_stack_inv]. *)
+Definition Ntstack : namespace := nroot .@ "tstack".
 
-Lemma Nswitcher_Ntrap : Nswitcher ## Ntrap.
+Lemma Ntstack_Ntrap : Ntstack ## Ntrap.
 Proof. solve_ndisj. Qed.

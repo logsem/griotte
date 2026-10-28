@@ -373,14 +373,14 @@ Section Error_Handling_Read_Safe.
     csp_sync cstk b_stk e_stk →
     extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) →
     (∀ r, is_Some (rmap !! r)) →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     interp W0 C (rmap !!! ca0) -∗
     interp W0 C (rmap !!! ca1) -∗
     PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
     registers_pointsto rmap -∗
     [[ b_stk , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     world_interp (revoke W0) C -∗
     ▷ RevokedResources W0 C l -∗
@@ -427,7 +427,7 @@ Section Error_Handling_Read_Safe.
     (b_stk <= es)%a →
     (cur <= e_stk)%a →
     rfault !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk cur) →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     interp W0 C (WCap true RWL Local b_stk e_stk cur) -∗
     world_interp_open W0 C (LNonHeap <$> finz.seq_between es cur) -∗
@@ -465,7 +465,7 @@ Section Error_Handling_Read_Safe.
   Lemma stats_read_entry_point_spec
     (g_tbl : Locality) (W : WORLD) (C : CmptName) :
     STATS_pcc_b ≠ b_switcher →
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv

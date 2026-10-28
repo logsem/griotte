@@ -311,7 +311,7 @@ Section switcher_helper.
       ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝) -∗
       world_interp W C -∗
       interp_continuation cstk Ws Cs -∗
-      cstack_frag cstk -∗
+      ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
       £ 1 -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -395,7 +395,7 @@ Section switcher_helper.
       (|={⊤}=>
          world_interp W C ∗
          na_own (tpool th) ⊤ ∗
-         cstack_frag cstk) -∗
+         ◯(CSTK)[th] cstk) -∗
       ( PC ↦ₚ[th] lupdatePcPerm wret ∗
         £ 1 -∗
         WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧

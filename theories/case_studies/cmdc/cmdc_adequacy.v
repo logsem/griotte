@@ -102,7 +102,7 @@ Section cmdc_obligations.
             _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HB_l fw_world0 B Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_B_f_args; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers [] Hworld_B")
+           with "Hswitcher Hswitcher_static HB HB_pers [] Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
       by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
@@ -110,7 +110,7 @@ Section cmdc_obligations.
             _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_C_g_args; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers [] Hworld_C")
+           with "Hswitcher Hswitcher_static HC HC_pers [] Hworld_C")
       as "(Hworld_C & Hrevoked_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
       by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }

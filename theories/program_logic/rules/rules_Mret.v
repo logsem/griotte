@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -41,6 +41,117 @@ Section griotte_lang_rules.
       Mret_failure lpc →
       Mret_spec lpc sregs lpc' FaultedV.
 
+  (** [mret] writes MIE (it receives MPIE): the premise
+      [link_transfer mie_from_mpie T1 T2] gives [T1] up for [T2] with the
+      link on success; [T1] comes back on a fault. *)
+  Lemma wp_Mret_link Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq (T1 T2 : iProp Σ) :
+    decodeInstrW w.(lw) = Mret →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    (if has_sreg_access pc_p
+     then sregs_of Mret ⊆ dom sregs
+     else True) →
+    link_transfer mie_from_mpie T1 T2 →
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
+        ▷ T1
+    }}}
+      Instr Executable @ Ep
+    {{{ lpc' retv, RET retv;
+        ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
+        (⌜retv = NextIV⌝ ∗ T2 ∨ ⌜retv = FaultedV⌝ ∗ T1)
+    }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Dsregs Htr φ) "(>HPC & >Hpc_a & >Hsmap & HT) Hφ".
+    iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
+    iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
+    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iDestruct (sys_interp_valid with "Hsr Hsmap") as %[Hlsregs _].
+    pose proof (ls_join_mstatus lsreg) as Hvst'.
+    rewrite Hinstr /exec in Hstep.
+    destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
+    { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
+      iApply (instr_close_link_kept with "Hlink").
+      iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
+      iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a Hsmap". iSplit.
+      - iPureIntro. apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr.
+      - iRight. by iFrame. }
+    destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MEPCC) as (vepcc & Hvepcc & Hvepcc');
+      first (rewrite /sregs_of; set_solver).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc & Hwepcc & Hrelepcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    apply reg_phys_no_bounds in Hrelst; last done. cbn in Hrelst. subst wst.
+    cbn in Hstep. rewrite Hxsr Hwepcc Hwst /= mpie_of_mstatus_enc in Hstep.
+    injection Hstep as <- <-.
+    rewrite /update_pcc /update_sreg /=.
+    (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS
+      (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
+      (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
+    specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
+                  ltac:(apply reg_phys_lword_of_word)).
+    rewrite -ls_join_set_mstatus in Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
+    specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
+                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
+    iMod (sys_interp_set_mstatus _ (ls_mpie lsreg) InterruptEnabled with "Hsr") as "Hsr".
+    iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
+    iMod (Htr _ (wepcc, r,
+                 <[MSTATUS := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
+           with "[$Hlink $HT]") as "[Hlink HT]".
+    { split.
+      - by rewrite /mie_st /mpie_st /= lookup_insert_eq Hwst /= mie_of_mstatus_enc
+          mpie_of_mstatus_enc.
+      - by rewrite /= lookup_insert_ne. }
+    iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
+    iModIntro. iFrame "HSI Hlink". iApply "Hφ". iFrame "HPC Hpc_a Hsmap". iSplit.
+    - iPureIntro. by eapply Mret_spec_success.
+    - iLeft. by iFrame.
+  Qed.
+
+  (** [mret], with the link-transfer premise. *)
+  Lemma wp_mret_success_link E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) dq
+      (T1 T2 : iProp Σ) :
+    decodeInstrW w.(lw) = Mret →
+    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    link_transfer mie_from_mpie T1 T2 →
+
+    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ mepcc ↦ₓ vepcc
+        ∗ ▷ T1 }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ vepcc
+          ∗ pc_a ↦ₐ{dq} w
+          ∗ mepcc ↦ₓ vepcc
+          ∗ T2 }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Htr φ) "(>HPC & >Hpc_a & >Hepcc & HT) Hφ".
+    iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".
+    iApply (wp_Mret_link with "[$HPC $Hsmap $Hpc_a $HT]"); eauto.
+    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hsmap & HT)".
+    destruct Hspec as [p g b e a π Hpc Hx Hvepcc | -> [p g b e a π Hpc Hx]];
+      simplify_eq; last by rewrite Hxsr in Hx.
+    simplify_map_eq.
+    iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.
+    iApply "Hφ". iFrame.
+    iApply (sregs_of_map_1 with "Hsmap").
+  Qed.
+
+End griotte_lang_rules.
+
+(** The core corollaries, with today's statements. *)
+Section griotte_lang_rules_core.
+  Context `{MP: MachineParameters}.
+  Context `{ceriseg: ceriseG Σ}.
+  Implicit Types w : LWord.
+
   Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq :
     decodeInstrW w.(lw) = Mret →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
@@ -49,49 +160,20 @@ Section griotte_lang_rules.
      else True) →
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
         ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
-        ([∗ map] k↦y ∈ sregs, k ↦ₛᵣ y)
+        ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dsregs φ) "(>HPC & >Hpc_a & >Hsmap) Hφ".
-    iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
-    iApply (wp_instr_step _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
-    iAssert (⌜sregs ⊆ lsreg⌝)%I as %Hlsregs.
-    { iDestruct "Hsr" as "[Hsr _]". iApply (gen_heap_valid_inclSepM with "Hsr Hsmap"). }
-    iAssert (⌜∃ vst, lsreg !! MSTATUS = Some vst⌝)%I as %[vst Hvst'].
-    { iApply (sreg_interp_mstatus with "Hsr"). }
-    rewrite Hinstr /exec in Hstep.
-    destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
-    { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
-      apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr. }
-    destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MEPCC) as (vepcc & Hvepcc & Hvepcc');
-      first (rewrite /sregs_of; set_solver).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc & Hwepcc & Hrelepcc).
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
-    assert (get_a wst = get_a vst.(lw)) as Hast.
-    { destruct (reg_phys_and_tag _ _ _ Hrelst) as [s ->]. apply get_a_and_tag. }
-    cbn in Hstep. rewrite Hxsr Hwepcc Hwst /= Hast in Hstep.
-    injection Hstep as <- <-.
-    (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS (mret_mstatus vst)
-      (WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled)) Her) as Her1.
-    specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
-                  ltac:(apply reg_phys_lword_of_word)).
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
-    specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
-                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
-    iMod (sreg_interp_update_mstatus _ (mret_mstatus vst) with "Hsr") as "Hsr".
-    iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
-    iModIntro. iSplitR "Hφ HPC Hpc_a Hsmap".
-    - iExists vepcc, _, _, lmem, R, C. iFrame. iPureIntro. exact Her2.
-    - iApply "Hφ". iFrame. iPureIntro. by eapply Mret_spec_success.
+    iApply (wp_Mret_link _ _ _ _ _ _ _ _ _ _ True%I True%I with "[$HPC $Hpc_a $Hsmap]");
+      [done | done | done | apply link_transfer_core | done |].
+    iNext. iIntros (lpc' retv) "(Hspec & HPC & Hpc_a & Hsmap & _)". iApply "Hφ". iFrame.
   Qed.
 
   (** [mret]: the PC receives MEPCC; MIE receives MPIE and MPIE becomes
@@ -103,23 +185,17 @@ Section griotte_lang_rules.
 
     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ mepcc ↦ₛᵣ vepcc }}}
+        ∗ ▷ mepcc ↦ₓ vepcc }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ vepcc
           ∗ pc_a ↦ₐ{dq} w
-          ∗ mepcc ↦ₛᵣ vepcc }}}.
+          ∗ mepcc ↦ₓ vepcc }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr φ) "(>HPC & >Hpc_a & >Hepcc) Hφ".
-    iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".
-    iApply (wp_Mret with "[$HPC $Hsmap $Hpc_a]"); eauto.
-    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
-    iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hsmap)".
-    destruct Hspec as [p g b e a π Hpc Hx Hvepcc | -> [p g b e a π Hpc Hx]];
-      simplify_eq; last by rewrite Hxsr in Hx.
-    simplify_map_eq.
-    iApply "Hφ". iFrame.
-    iApply (sregs_of_map_1 with "Hsmap").
+    iApply (wp_mret_success_link _ _ _ _ _ _ _ _ _ _ True%I True%I
+             with "[$HPC $Hpc_a $Hepcc]"); [done..| apply link_transfer_core | done |].
+    iNext. iIntros "(HPC & Hpc_a & Hepcc & _)". iApply "Hφ". iFrame.
   Qed.
 
-End griotte_lang_rules.
+End griotte_lang_rules_core.
