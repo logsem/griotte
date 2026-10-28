@@ -60,22 +60,20 @@ Section Switcher_Return_States.
     (∃ w, a_threadID ↦ₐ w) -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ●(CSTK)[th] cstk -∗
-    ▷ cstack_interp cstk a_tstk -∗
-    ▷ seal_pred ot_switcher ot_switcher_propC
+    ▷ cstack_interp cstk a_tstk
     ={⊤}=∗
     na_own (tpool th) F.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
     iIntros (Hlen Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
-      Htstk Hcstk_full Hstk_interp Hp_ot_switcher".
+      Htstk Hcstk_full Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iApply ("Hclose" with "[- $Hna]").
     iNext. iExists a_tstk, cstk, save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-      Hp_ot_switcher".
-    iSplit; [|iSplit]; iPureIntro; done.
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+    iSplit; iPureIntro; done.
   Qed.
 
   (** The switcher invariant, opened by the return routine, closes again
@@ -109,16 +107,14 @@ Section Switcher_Return_States.
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ●(CSTK)[th] (cstack_push frm cstk) -∗
     ◯(CSTK)[th] (cstack_push frm cstk) -∗
-    ▷ cstack_interp cstk a_prev -∗
-    ▷ seal_pred ot_switcher ot_switcher_propC
+    ▷ cstack_interp cstk a_prev
     ={⊤}=∗
     na_own (tpool th) F ∗ ◯(CSTK)[th] cstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     iIntros (Ha_tstk Ha_tstk_e Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
-      Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp
-      Hp_ot_switcher".
+      Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (cstack_update _ _ cstk with "Hcstk_full Hcstk") as "[Hcstk_full $]".
@@ -126,7 +122,7 @@ Section Switcher_Return_States.
     iNext.
     iApply (switcher_inv_pop_frame _ cstk with
              "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp Hframe_tbl
-              Hframe_cnt Htstk Hcstk_full Hstk_interp Hp_ot_switcher"); done.
+              Hframe_cnt Htstk Hcstk_full Hstk_interp"); done.
   Qed.
 
 End Switcher_Return_States.

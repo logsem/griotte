@@ -136,7 +136,7 @@ Section Switcher.
     iIntros "!> _".
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
            "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
-            Hcstk_full Hstk_interp Hp_ot_switcher") as "Hna"; [done|done|done|].
+            Hcstk_full Hstk_interp") as "Hna"; [done|apply ot_switcher_size|done|].
     iModIntro; iIntros (_); iExact "Hna".
   Qed.
 

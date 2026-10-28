@@ -122,7 +122,7 @@ Section so_obligations.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (stack_object_f_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W0');
-        last iFrame "#"; auto.
+        last iFrame "Hswitcher_static #"; auto.
       { (* The code of main is outside the switcher's: its PCC holds the
            imports *)
         apply (switcher_cmpt_disjoint_pcc_b main_cmpt swc Hsw_main).

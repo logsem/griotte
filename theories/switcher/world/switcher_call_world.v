@@ -333,8 +333,7 @@ Section Switcher_Call_World.
     [[ a_free , e_trusted_stack ]]
       ↦ₐ [[ tstk_next ]] -∗
     cstack_interp cstk' a_tstk -∗
-    cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel) -∗
-    seal_pred ot_switcher ot_switcher_propC
+    cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel)
     ==∗
     switcher_inv ∗ ◯(CSTK)[th] (cstack_push frm cstk).
   Proof.
@@ -343,19 +342,18 @@ Section Switcher_Call_World.
     iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot Hcsp (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret
              Htbl Hsave_hazard)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
-       Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe #Hp_ot_switcher".
+       Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iMod (cstack_update _ _ (cstack_push frm cstk) with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iModIntro.
     iExists (a_tstk ^+ TrustedStackFrame_size)%a, (cstack_push frm cstk), save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hp_ot_switcher".
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full".
     rewrite /cstack_interp.
     cbn.
     replace ((a_tstk ^+ TrustedStackFrame_size) ^+ - TrustedStackFrame_size)%a with a_tstk
       by (tstack_unfold; solve_addr).
     rewrite /cframe_interp /trusted_frame_interp Hcsp.
     iFrame "Hstk_interp Hframe_csp Hframe_cnt".
-    iSplit; first done.
     iSplit; first done.
     iSplit; first (iPureIntro; split; done).
     iSplitL "Hframe_tbl"; first (iExists wtbl; by iFrame).
@@ -384,11 +382,9 @@ Section Switcher_Call_World.
     "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
     "Hcstk_full" ∷ ●(CSTK)[th] cstk' ∗
     "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
-    "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC ∗
     "%Hlen_cstk" ∷ ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a
                      = Some a_tstk ⌝ ∗
-    "%Ha_tstk_e" ∷ ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
-    "%Hot_bounds" ∷ ⌜ (ot_switcher < ot_switcher ^+ 1)%ot ⌝.
+    "%Ha_tstk_e" ∷ ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝.
 
   (** Open the switcher invariant for the call routine. The resources come
       under a later, which the first instruction removes. *)
@@ -412,8 +408,8 @@ Section Switcher_Call_World.
     iMod (na_inv_acc with "Hinv Hna") as "(Hswitcher_inv & Hna & Hclose)"; [done|done|].
     iMod (switcher_inv_open with "Hswitcher_inv") as
       (a_tstk cstk' save_area tstk_next)
-      "(Hmtdc & %Hot & Hsave_area & %Hsave_hazard & Hhazard_slots & Hframeoffset & HthreadID
-       & Htstk & Hcstk_full & %Hlen & Hstk_interp & #Hp_ot_switcher)".
+      "(Hmtdc & Hsave_area & %Hsave_hazard & Hhazard_slots & Hframeoffset & HthreadID
+       & Htstk & Hcstk_full & %Hlen & Hstk_interp)".
     destruct Hlen as [Hlen Ha_tstk_e].
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
@@ -423,7 +419,7 @@ Section Switcher_Call_World.
     iSplit; first done.
     iSplit; first done.
     iNext.
-    iFrame "Hclose Hna Hsave_area HthreadID Hcstk_full Hstk_interp Hp_ot_switcher".
+    iFrame "Hclose Hna Hsave_area HthreadID Hcstk_full Hstk_interp".
     done.
   Qed.
 
@@ -447,8 +443,7 @@ Section Switcher_Call_World.
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iApply ("Hclose_switcher_inv" with "[- $Hna]").
     iNext. iExists a_tstk, cstk', save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-      Hp_ot_switcher".
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
     iPureIntro; done.
   Qed.
 
@@ -498,15 +493,10 @@ Section Switcher_Call_World.
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (switcher_inv_push_frame frm cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
-            Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe Hp_ot_switcher")
-      as "[Hinv $]"; [done..|].
+            Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe")
+      as "[Hinv $]"; [done|done|done|apply ot_switcher_size|done..|].
     iApply ("Hclose_switcher_inv" with "[$Hinv $Hna]").
   Qed.
-
-  (** The sealing predicate of [ot_switcher], from the open invariant. *)
-  Lemma switcher_inv_opened_seal_pred (cstk' : CSTK) (a_tstk : Addr) :
-    switcher_inv_opened cstk' a_tstk ⊢ seal_pred ot_switcher ot_switcher_propC.
-  Proof. iIntros "Hopened"; iNamed "Hopened"; iExact "Hp_ot_switcher". Qed.
 
   (** ** Functional specification *)
 

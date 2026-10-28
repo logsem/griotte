@@ -431,7 +431,8 @@ Section Switcher_preamble.
 
       The code of the switcher and the unsealing capability of the switcher's
       otype are read-only: they are not in the invariant, but in the persistent
-      resource [switcher_static].
+      resource [switcher_static], with the global part [switcher_inv_global].
+      [switcher_inv] is the part of the section's thread.
 
       Finally, the invariant holds the points-to predicates of the trusted stack.
       The topmost frame is at [a_tstk]; the unused part, from the next frame
@@ -448,7 +449,6 @@ Section Switcher_preamble.
     ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
       "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
-      "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -462,8 +462,7 @@ Section Switcher_preamble.
         ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
          ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       (* link the topmost frame of cstk' to the state *)
-      "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
-      "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
+      "Hstk_interp" ∷ cstack_interp cstk' a_tstk.
 
   (** Opens [switcher_inv] under the later of [na_inv_acc]: the timeless
       conjuncts lose their later, so that [iNamed] can name them. *)
@@ -475,7 +474,6 @@ Section Switcher_preamble.
     ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
       "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
-      "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -488,15 +486,14 @@ Section Switcher_preamble.
       "%Hlen_cstk" ∷
         ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
          ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
-      "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk ∗
-      "#Hp_ot_switcher" ∷ ▷ seal_pred ot_switcher ot_switcher_propC.
+      "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
     iIntros "Hinv". rewrite /switcher_inv /=.
     iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
-      "(>Hmtdc & >% & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
-       & >Hcstk_full & >% & Hstk_interp & #Hp_ot_switcher)".
-    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ # %".
+      "(>Hmtdc & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
+       & >Hcstk_full & >% & Hstk_interp)".
+    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ %".
   Qed.
 
   (** Close [switcher_inv] after popping the topmost frame, at [a_tstk],
@@ -513,7 +510,6 @@ Section Switcher_preamble.
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
@@ -527,20 +523,17 @@ Section Switcher_preamble.
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ●(CSTK)[th] cstk -∗
     cstack_interp cstk a_prev -∗
-    seal_pred ot_switcher ot_switcher_propC -∗
     switcher_inv.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Ha_tstk_e Hot Hsave_hazard)
+    iIntros (Hlen_cstk Ha_tstk_e Hsave_hazard)
       "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
-       Hstk_interp #Hp_ot_switcher".
+       Hstk_interp".
     iExists (a_tstk ^+ - TrustedStackFrame_size)%a, cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp
-      Hp_ot_switcher".
+    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp".
     replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a with a_tstk
       by (tstack_unfold; solve_addr).
-    iSplit; first done.
     iSplit; first done.
     iSplitL "Hw0 Hw1 Hw2 Htstk".
     { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)%a
@@ -554,16 +547,28 @@ Section Switcher_preamble.
     iPureIntro; tstack_unfold; split; solve_addr.
   Qed.
 
+  (** The part of the switcher's invariant shared by the threads: the bounds
+      of the switcher's otype, and the predicate of the sealed export
+      entries, at the section's thread. *)
+  Definition switcher_inv_global : iProp Σ :=
+    "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
+    "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
+
+  #[global] Instance switcher_inv_global_persistent : Persistent switcher_inv_global.
+  Proof. apply _. Qed.
+
   (** [switcher_static] holds the read-only memory of the switcher: its code,
-      and the unsealing capability of the switcher's otype; and the fact that
-      the trap vector is the exception entry of the switcher. *)
+      and the unsealing capability of the switcher's otype; the fact that
+      the trap vector is the exception entry of the switcher; and the global
+      part of the switcher's invariant. *)
   Definition switcher_static : iProp Σ :=
     codefrag_pers a_switcher_call switcher_instrs ∗
     (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
     ⌜mtcc_vec =
        WCap true XSRW_ Local b_switcher e_switcher
          (a_switcher_call ^+
-            asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝.
+            asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝ ∗
+    switcher_inv_global.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.

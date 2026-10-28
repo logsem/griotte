@@ -324,7 +324,8 @@ Section Switcher_KtK_Call.
     iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first by simplify_map_eq.
 
     (* Open the switcher invariant *)
-    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
+    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _ & Hswitcher_global)".
+    iNamed "Hswitcher_global".
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed switcher_inv_open "Hswitcher_inv".
@@ -406,7 +407,7 @@ Section Switcher_KtK_Call.
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (switcher_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
-            Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells] Hp_ot_switcher")
+            Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells]")
       as "[Hinv Hcstk]";
       [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _
       |right; split; [done | exact Htbl_cell]|done| |].

@@ -138,7 +138,7 @@ Section vae_obligations.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W1');
-        last iFrame "#"; auto.
+        last iFrame "Hswitcher_static #"; auto.
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
         apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }

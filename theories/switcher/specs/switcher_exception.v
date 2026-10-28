@@ -982,7 +982,7 @@ Section Switcher_Exception.
     ⊢ trap_vector_safe (trap_handler_ok ⊤) (switcher_label_pc "exception_entry_asm").
   Proof.
     iIntros "[#Hinv_switcher #Hstatic]".
-    iPoseProof "Hstatic" as "(_ & _ & %Hmtcc)".
+    iPoseProof "Hstatic" as "(_ & _ & %Hmtcc & _)".
     rewrite -Hmtcc.
     iApply (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]"); done.
   Qed.

@@ -190,8 +190,8 @@ Section Switcher_KtK_Return.
     subst hclose_switcher_inv.
     iMod (switcher_return_pop_close F _ cstk with
            "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
-            Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next Hp_ot_switcher")
-      as "[Hna Hcstk]"; [done|done|done|done|].
+            Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next")
+      as "[Hna Hcstk]"; [done|done|apply ot_switcher_size|done|].
 
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hregs Hstk Hcstk".

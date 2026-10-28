@@ -129,7 +129,7 @@ Section lse_obligations.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ W0');
-        last iFrame "#"; auto.
+        last iFrame "Hswitcher_static #"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).

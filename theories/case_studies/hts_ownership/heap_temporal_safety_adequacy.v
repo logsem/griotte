@@ -177,10 +177,10 @@ Section hts_obligations.
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
-        iFrame "#".
+        iFrame "Hswitcher_static #".
       - iApply (free_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
-        iFrame "#". }
+        iFrame "Hswitcher_static #". }
     set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
     (* 9 - Seal the allocator capability of B, with its owner identifier *)

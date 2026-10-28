@@ -648,7 +648,7 @@ Section Switcher_Spec_Exception.
     iIntros (HP_mcause HF HFtrap Hfull)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hout & Hna & Hcstk & #Hheader & Hwritten
        & #Hes_acc & Hpost)".
-    iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc)".
+    iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc & _)".
     rewrite Hmtcc.
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | solve_ndisj |].
@@ -700,9 +700,8 @@ Section Switcher_Spec_Exception.
       { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
-        iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-                Hp_ot_switcher".
-        iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
+        iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+        iPureIntro. split_and!; [by rewrite Hsave'_hazard | done | done]. }
       iModIntro.
       iApply (trap_entry_res_split F with "[$Htok $Hna]"); first done. }
     iAssert (cstack_full (cstack_set_top_count cstk' (top_error_count cstk')))

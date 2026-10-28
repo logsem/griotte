@@ -192,9 +192,8 @@ Section Switcher_Spec_Install.
       iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
-      iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
-              Hp_ot_switcher".
-      iPureIntro. split_and!; [exact Hot_bounds | by rewrite Hsave'_hazard | done | done]. }
+      iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+      iPureIntro. split_and!; [by rewrite Hsave'_hazard | done | done]. }
     iAssert (cstack_full (cstack_set_top_count cstk (top_error_count cstk)))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
 

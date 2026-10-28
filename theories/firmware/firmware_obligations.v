@@ -564,7 +564,9 @@ Proof.
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseb sealsg stsg relg cstackg Hok).
-  iFrame "∗ # %".
+  (* [switcher_static] first: it holds the predicate of [Hseal_switcher]. *)
+  iDestruct "Hswitcher_static" as "#Hswitcher_static".
+  iFrame "Hswitcher_static". iFrame "∗ # %".
 Qed.
 
 (** ** Closing the world of an untrusted compartment *)
@@ -915,7 +917,7 @@ Proof.
   iMod (Hsetup img σ ceriseb sealsg stsg relg cstackg Hok
          with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
     as (W C) "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".
-  { iFrame "∗ #". }
+  { iFrame "Hswitcher_static". iFrame "∗ #". }
   (* The thread's stack, outside the heap *)
   iAssert (entry_stack_interp (interp (th := UserThread 0)) W C (fw_entry_frame fw img 0))
     as "#Hstk".
