@@ -14,7 +14,7 @@ From griotte Require Import vae_spec_states.
 Section VAE_Awkward_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -33,29 +33,29 @@ Section VAE_Awkward_Blocks_1.
     related_sts_priv_world W (<l[i:=false]l>W) ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    cra ↦ᵣ wcra ∗
-    ca0 ↦ᵣ wca0 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    cra ↦ᵣ[th] wcra ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
     pc_b ↦ₐ□ vae_switcher_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (∀ mie, world_interp (<l[i:=false]l>W) C ∗
-        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
-        ca0 ↦ᵣ WInt 0 ∗
-        ct0 ↦ᵣ vae_switcher_entry ∗
-        ct1 ↦ᵣ wca0 ∗
-        cs0 ↦ᵣ wcra ∗
-        cs1 ↦ᵣ wca0 ∗
+        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
+        ca0 ↦ᵣ[th] WInt 0 ∗
+        ct0 ↦ᵣ[th] vae_switcher_entry ∗
+        ct1 ↦ᵣ[th] wca0 ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cs1 ↦ᵣ[th] wca0 ∗
         pc_b ↦ₐ□ vae_switcher_entry ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hrevoke Hpriv)

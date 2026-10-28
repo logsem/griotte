@@ -20,7 +20,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_World_Call.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -382,19 +382,19 @@ Section SO_World_Call.
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
-    ca0 ↦ᵣ wca0 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
     interp W C wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
     interp W C wca1 -∗
-    ct0 ↦ᵣ so_switcher_entry -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ct0 ↦ᵣ[th] so_switcher_entry -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg) ∗
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".

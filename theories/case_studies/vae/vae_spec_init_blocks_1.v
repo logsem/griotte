@@ -13,7 +13,7 @@ From griotte Require Import vae_spec_states.
 Section VAE_Init_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -32,28 +32,28 @@ Section VAE_Init_Blocks_1.
     loc W !! i = Some (encode false) ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cra ↦ᵣ[th] wcra ∗
     pc_b ↦ₐ□ vae_switcher_entry ∗
     (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (∀ mie, world_interp W C ∗
-        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ct0 ↦ᵣ vae_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher C_f ∗
-        cs0 ↦ᵣ wcra ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ct0 ↦ᵣ[th] vae_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
           (pc_a ^+ vae_label_offset ".Lvae_init_return")%a ∗
         pc_b ↦ₐ□ vae_switcher_entry ∗
         (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hsealed_nonheap Hloc)

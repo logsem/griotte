@@ -9,7 +9,7 @@ From griotte Require Import
 Section KVS_spec_read_safe.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
@@ -36,50 +36,50 @@ Section KVS_spec_read_safe.
 
     ( seal_pred KVS_OTYPE kvs_otype_propC ∗
       kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ interp Wca0 C wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ wca1 ∗ (* Key to update *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] wca0 ∗ interp Wca0 C wca0 ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] wca1 ∗ (* Key to update *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
 
       world_interp W C ∗
 
-      ( ▷ (na_own cerise_nais F ∗
-           PC ↦ₚ lupdatePcPerm wret ∗
-           cgp ↦ᵣ - ∗
-           cra ↦ᵣ - ∗
-           (ca0 ↦ᵣ WInt ASM_TRUE ∨ ca0 ↦ᵣ WInt ASM_FALSE) ∗
-           ( (∃ w, ca1 ↦ᵣ w ∗ interp W C w) ∨ ca1 ↦ᵣ WInt 0 ) ∗
-           ct1 ↦ᵣ - ∗ (* scratch *)
-           ct2 ↦ᵣ - ∗ (* scratch *)
-           ctp ↦ᵣ - ∗ (* scratch *)
+      ( ▷ (na_own (tpool th) F ∗
+           PC ↦ₚ[th] lupdatePcPerm wret ∗
+           cgp ↦ᵣ[th] - ∗
+           cra ↦ᵣ[th] - ∗
+           (ca0 ↦ᵣ[th] WInt ASM_TRUE ∨ ca0 ↦ᵣ[th] WInt ASM_FALSE) ∗
+           ( (∃ w, ca1 ↦ᵣ[th] w ∗ interp W C w) ∨ ca1 ↦ᵣ[th] WInt 0 ) ∗
+           ct1 ↦ᵣ[th] - ∗ (* scratch *)
+           ct2 ↦ᵣ[th] - ∗ (* scratch *)
+           ctp ↦ᵣ[th] - ∗ (* scratch *)
 
            world_interp W C
 
-           -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+           -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         ) ∧
         (* The load after the failed unsealing of the user key faults *)
         ▷ ( ∀ a,
-            na_own cerise_nais F ∗
-            cgp ↦ᵣ - ∗
-            cra ↦ᵣ - ∗
-            ca0 ↦ᵣ - ∗
-            ca1 ↦ᵣ - ∗
-            ct1 ↦ᵣ - ∗
-            ct2 ↦ᵣ - ∗
-            ctp ↦ᵣ - ∗
+            na_own (tpool th) F ∗
+            cgp ↦ᵣ[th] - ∗
+            cra ↦ᵣ[th] - ∗
+            ca0 ↦ᵣ[th] - ∗
+            ca1 ↦ᵣ[th] - ∗
+            ct1 ↦ᵣ[th] - ∗
+            ct2 ↦ᵣ[th] - ∗
+            ctp ↦ᵣ[th] - ∗
             world_interp W C -∗
             trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
-              (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+              (HO th) ) )
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca0_W Htgt)
       "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
@@ -205,9 +205,9 @@ Section KVS_spec_read_safe.
     KVS_pcc_b ≠ b_switcher ->
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
-    na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-    na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+    na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
     a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗

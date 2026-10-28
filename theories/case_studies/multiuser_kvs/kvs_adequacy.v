@@ -33,7 +33,7 @@ Section kvs_obligations.
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
     intros Hkeys. apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -188,7 +188,7 @@ Section kvs_obligations.
       as "[ [Hkvs_logical_user_B HB_lukvs_frag] _]"; first by set_solver+Hkeys.
 
     pose proof (
-        @kvs_main_spec Σ ceriseg seal_storeg _ _ _ _ _ _ _
+        @kvs_main_spec Σ ceriseb (UserThread 0) seal_storeg _ _ _ _ _ _ _
           kvsg _ _ B
       ) as Spec.
 
@@ -209,7 +209,8 @@ Section kvs_obligations.
       as "(Hkvs_etbl_entries_addOrUpdate & Hkvs_etbl_entries_read
           & Hkvs_etbl_entries_erase & _)".
 
-    iMod (seal_store_update_alloc _ ( kvs_otype_propC ) with "Hseal_store_kvs") as "#Hsealed_pred_ot_kvs".
+    iMod (seal_store_update_alloc _ (kvs_otype_propC (th := UserThread 0)) with "Hseal_store_kvs")
+      as "#Hsealed_pred_ot_kvs".
 
     (* 6 - Seal the exported entries of the KVS with [ot_switcher] in the
        world of B *)
@@ -223,7 +224,8 @@ Section kvs_obligations.
 
     set (W1 := <o[ switcher.ot_switcher := adversary_imports]o> W0).
 
-    iAssert (ot_switcher_prop W1 B (WSealable kvs_addOrUpdate)) as "#ot_switcher_kvs_addOrUpdate".
+    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_addOrUpdate))
+      as "#ot_switcher_kvs_addOrUpdate".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
@@ -233,7 +235,8 @@ Section kvs_obligations.
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
 
-    iAssert (ot_switcher_prop W1 B (WSealable kvs_read)) as "#ot_switcher_kvs_read".
+    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_read))
+      as "#ot_switcher_kvs_read".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
@@ -243,7 +246,8 @@ Section kvs_obligations.
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
 
-    iAssert (ot_switcher_prop W1 B (WSealable kvs_erase)) as "#ot_switcher_kvs_erase".
+    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_erase))
+      as "#ot_switcher_kvs_erase".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
@@ -256,7 +260,8 @@ Section kvs_obligations.
     assert (switcher.ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
     { by subst W0. }
     iMod
-      (world_interp_salloc W0 B ot_switcher_propC switcher.ot_switcher adversary_imports
+      (world_interp_salloc W0 B (ot_switcher_propC (th := UserThread 0))
+        switcher.ot_switcher adversary_imports
         with "[$Hseal_switcher] [ ] [ ] [$Hworld_B]")
       as "(Hworld_B & Hseal_kvs_f)"; first done.
     { iIntros (w); iApply mono_priv_ot_switcher. }
@@ -269,19 +274,22 @@ Section kvs_obligations.
     }
     subst W1; set (W1 := <o[ switcher.ot_switcher := adversary_imports]o> W0).
 
-    iAssert ( interp W1 B (WSealed switcher.ot_switcher kvs_addOrUpdate)) as "#Hinterp_kvs_addOrUpdate".
+    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_addOrUpdate))
+      as "#Hinterp_kvs_addOrUpdate".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
     }
-    iAssert ( interp W1 B (WSealed switcher.ot_switcher kvs_read)) as "#Hinterp_kvs_read".
+    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_read))
+      as "#Hinterp_kvs_read".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
       apply heap_cap_valid_disjoint, (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
     }
-    iAssert ( interp W1 B (WSealed switcher.ot_switcher kvs_erase)) as "#Hinterp_kvs_erase".
+    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_erase))
+      as "#Hinterp_kvs_erase".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
       iPureIntro; cbn.
@@ -293,7 +301,7 @@ Section kvs_obligations.
     set ( adversary_kvs_keys := ( {[ lword_of_word (WSealable kvs_user_key_B_sb) ; lword_of_word (WSealable kvs_user_key_B_sb')]} : gset LWord)).
     set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
 
-    iAssert (kvs_otype_prop W1' B (WSealable kvs_user_key_B_sb))
+    iAssert (kvs_otype_prop (th := UserThread 0) W1' B (WSealable kvs_user_key_B_sb))
       with "[$Hkvs_logical_user_B $Ha_user_key_B HB_lukvs_frag]" as "ot_kvs_user_key_B".
     {
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
@@ -315,7 +323,7 @@ Section kvs_obligations.
     assert (ot_kvs ∉ dom (seal_std W1)) as Hot_notin_W1.
     { subst W0 W1; rewrite dom_insert_L dom_empty_L; set_solver+Hot_kvs_switcher. }
     iMod
-      (world_interp_salloc W1 B kvs_otype_propC ot_kvs adversary_kvs_keys
+      (world_interp_salloc W1 B (kvs_otype_propC (th := UserThread 0)) ot_kvs adversary_kvs_keys
         with "[$Hsealed_pred_ot_kvs] [ ] [ ot_kvs_user_key_B ] [$Hworld_B]")
       as "(Hworld_B & Hseal_kvs_ku)"; first done.
     { iIntros (w); iApply mono_priv_ot_kvs. }
@@ -324,7 +332,8 @@ Section kvs_obligations.
     }
     subst W1' ; set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
 
-    iAssert ( interp W1' B (WSealed ot_kvs kvs_user_key_B_sb)) as "#Hinterp_kvs_user_key_B".
+    iAssert (interp (th := UserThread 0) W1' B (WSealed ot_kvs kvs_user_key_B_sb))
+      as "#Hinterp_kvs_user_key_B".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+).
       iPureIntro; cbn.
@@ -339,7 +348,7 @@ Section kvs_obligations.
 
     (* 7 - Close the world of B: its compartment becomes permanent, and the
        stack temporary; its export is safe to share. *)
-    iMod (fw_close_adv_world _ _ _ 2
+    iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
             HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")

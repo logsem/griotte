@@ -267,7 +267,7 @@ Proof. done. Qed.
 Section prepared.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -390,15 +390,15 @@ Section prepared.
     fw_cmpt_mem_res c ∗ fw_cmpt_static_res c ∗ fw_cmpt_pers_res img fc.
 
   (** The resources of [fw_shared_res] and [fw_thread_res] at the first
-      thread, with the compartments initialised and the first thread at the
-      code of its compartment. *)
+      thread, run as the thread [th], with the compartments initialised and
+      the first thread at the code of its compartment. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) : iProp Σ :=
     let sw := img_sw img in
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "#Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -409,11 +409,12 @@ Section prepared.
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
-    "HPC" ∷ PC ↦ₚ WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
-    "Hcgp" ∷ cgp ↦ᵣ WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
-    "Hcsp" ∷ csp ↦ᵣ WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
-    "Hcra" ∷ cra ↦ᵣ thread_return_sentry (swlayout := fw_switcher_layout img) ∗
-    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ w) ∗
+    "HPC" ∷ PC ↦ₚ[th] WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
+    "Hcgp" ∷ cgp ↦ᵣ[th] WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
+    "Hcsp" ∷
+      csp ↦ᵣ[th] WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
+    "Hcra" ∷ cra ↦ᵣ[th] thread_return_sentry (swlayout := fw_switcher_layout img) ∗
+    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ[th] w) ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
@@ -427,7 +428,7 @@ Section prepared.
                            WCap true RW Global (cmpt_exp_tbl_pcc m)
                              (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
                          tf_error_count := 0 |}) ∗
-    "Hna" ∷ na_own cerise_nais ⊤.
+    "Hna" ∷ na_own (tpool th) ⊤.
 
   (** The resources of [fw_init_res] that set up the worlds: those of a
       firmware whose first thread starts in an untrusted compartment,
@@ -439,7 +440,7 @@ Section prepared.
     let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "#Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -546,23 +547,23 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParam
     (fw : firmware) :
   fw_entry_at_code fw →
   (∀ (img : fw_image) (σ : ExecConf)
-     (ceriseg : ceriseG Σ) (sealsg : sealStoreG Σ)
+     (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
      (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     ⊢ fw_init_res fw img
+     ⊢ fw_init_res (th := UserThread 0) fw img
        ={⊤}=∗
-       WP Seq (Instr Executable) {{ _, True }}) →
+       WP Seq (Instr Executable) @[u 0] {{ _, True }}) →
   fw_obligations Σ fw.
 Proof.
-  intros Hentry Hprep img σ ceriseg sealsg stsg relg cstackg Hok.
+  intros Hentry Hprep img σ ceriseb sealsg stsg relg cstackg Hok.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
-  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
+  iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_cra_eq) in "Hcra".
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
-  iApply (Hprep img σ ceriseg sealsg stsg relg cstackg Hok).
+  iApply (Hprep img σ ceriseb sealsg stsg relg cstackg Hok).
   iFrame "∗ # %".
 Qed.
 
@@ -570,7 +571,7 @@ Qed.
 Section adversary.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -595,7 +596,7 @@ Section adversary.
   (** The switcher call sentry is safe to import. *)
   Lemma fw_switcher_call_safe fw img σ c W C :
     firmware_ok fw img σ →
-    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) -∗
+    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
@@ -624,7 +625,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
-    (na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
+    (na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
      switcher_static (swlayout := swl) -∗
      fw_cmpt_pers_res img fc -∗
      □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
@@ -712,7 +713,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -769,7 +770,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -810,7 +811,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv cerise_nais Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -871,20 +872,20 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} `{MP : Ma
     (fw : firmware) :
   fw_entry_untrusted fw →
   (∀ (img : fw_image) (σ : ExecConf)
-     (ceriseg : ceriseG Σ) (sealsg : sealStoreG Σ)
+     (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
      (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     ⊢ fw_setup_res fw img
+     ⊢ fw_setup_res (th := UserThread 0) fw img
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
-         world_interp W C ∗
-         interp W C (fw_entry_pcc fw img 0) ∗
-         interp W C (fw_entry_cgp fw img 0) ∗
-         interp W C (fw_thread_csp img 0)) →
+         world_interp (ceriseg := ceriseG_of (UserThread 0)) W C ∗
+         interp (th := UserThread 0) W C (fw_entry_pcc fw img 0) ∗
+         interp (th := UserThread 0) W C (fw_entry_cgp fw img 0) ∗
+         interp (th := UserThread 0) W C (fw_thread_csp img 0)) →
   fw_obligations Σ fw.
 Proof.
-  intros Huntrusted Hsetup img σ ceriseg sealsg stsg relg cstackg Hok.
+  intros Huntrusted Hsetup img σ ceriseb sealsg stsg relg cstackg Hok.
   pose proof Hok as (_ & _ & Hregs & Hwf).
   destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
   rewrite /fw_entry_untrusted in Huntrusted.
@@ -903,7 +904,7 @@ Proof.
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
   iDestruct "Hseal_switcher" as "#Hseal_switcher".
   iDestruct "Hassert" as "#Hassert".
-  iMod (fw_cmpts_init with "Hcmpts") as "Hcmpts"; first exact Hok.
+  iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   (* The export table of the entry compartment *)
   iDestruct (fw_cmpts_res_pers with "Hcmpts") as "[Hcmpts #Hpers_all]".
   iDestruct (big_sepL_elem_of with "Hpers_all") as "Hpers"; first exact Hin.
@@ -911,12 +912,13 @@ Proof.
   iDestruct "Hpers" as "(#Htbl_pcc & #Htbl_cgp & (%eh & %ehs & #Heh & #Hehs) & _)".
   (* The case study's worlds *)
   iEval (rewrite fw_thread_of_0) in "Hstack".
-  iMod (Hsetup img σ ceriseg sealsg stsg relg cstackg Hok
+  iMod (Hsetup img σ ceriseb sealsg stsg relg cstackg Hok
          with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
     as (W C) "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".
   { iFrame "∗ #". }
   (* The thread's stack, outside the heap *)
-  iAssert (entry_stack_interp interp W C (fw_entry_frame fw img 0)) as "#Hstk".
+  iAssert (entry_stack_interp (interp (th := UserThread 0)) W C (fw_entry_frame fw img 0))
+    as "#Hstk".
   { iEval (rewrite /fw_thread_csp) in "Hcsp_i".
     iDestruct (interp_cap_disjoint_wl with "Hcsp_i") as %[_ Hheap]; first done.
     iExists RWL, Local, _, _, _.
@@ -926,11 +928,12 @@ Proof.
   set (regs := <[cra := lword_of_word (fw_thread_cra img)]>
                  (<[csp := lword_of_word (fw_thread_csp img 0)]>
                     (<[cgp := lword_of_word (fw_entry_cgp fw img 0)]> fw_cleared_regs))).
-  iAssert (registers_pointsto regs) with "[Hcgp Hcsp Hcra Hregs]" as "Hrmap".
+  iAssert (registers_pointsto (th := UserThread 0) regs)
+    with "[Hcgp Hcsp Hcra Hregs]" as "Hrmap".
   { rewrite /registers_pointsto /regs.
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcra").
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
-    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcgp").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcra").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcsp").
+    iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ[u 0] w)%I with "Hcgp").
     iExact "Hregs". }
   assert (∀ r, is_Some (regs !! r)) as Hfull.
   { intros r. rewrite /regs.

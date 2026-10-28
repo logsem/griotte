@@ -26,7 +26,7 @@ From griotte Require Import switcher_exception_states.
 Section Handle_Error.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -42,42 +42,42 @@ Section Handle_Error.
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ctp ↦ᵣ wctp ∗
-    ca0 ↦ᵣ wca0 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ca0 ↦ᵣ[th] wca0 ∗
     mtdc ↦ₛᵣ wmtdc ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_code ∗
     ▷ ( ( ⌜get_b wmepcc.(lw) = b_switcher⌝ -∗
           ∀ (wct0' wctp' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_in_switcher" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wmepcc ∗
-          ctp ↦ᵣ wctp' ∗
-          ca0 ↦ᵣ wca0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_in_switcher" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wmepcc ∗
+          ctp ↦ᵣ[th] wctp' ∗
+          ca0 ↦ᵣ[th] wca0 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
           ∀ (wct0' wct1' : LWord),
           ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_oob" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ca0 ↦ᵣ WInt 0 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset.
     iIntros (Ha_tstk Hlen Hmepcc)
@@ -189,41 +189,41 @@ Section Handle_Error.
   #[local] Lemma handle_error_in_switcher_spec (wmepcc wctp wca0 wca1 wct2 w10 w11 : LWord) :
     let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a in
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_in_switcher" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct1 ↦ᵣ wmepcc ∗
-    ctp ↦ᵣ wctp ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ct2 ↦ᵣ wct2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_in_switcher" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct1 ↦ᵣ[th] wmepcc ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
     (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 ∗
     switcher_code ∗
     ▷ ( ( ⌜get_a wmepcc.(lw) ≠ (a_first_spill : Z)⌝ -∗
           ∀ (wct1' wctp' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ wctp' ∗
-          ca0 ↦ᵣ wca0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ct2 ↦ᵣ wct2 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] wctp' ∗
+          ca0 ↦ᵣ[th] wca0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ct2 ↦ᵣ[th] wct2 ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜get_a wmepcc.(lw) = (a_first_spill : Z)⌝ -∗
           ∀ (wct1' wctp' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ wctp' ∗
-          ca0 ↦ᵣ WInt ENOTENOUGHSTACK ∗
-          ca1 ↦ᵣ WInt 0 ∗
-          ct2 ↦ᵣ switcher_label_pc ".Lswitch_just_return" ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] wctp' ∗
+          ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ct2 ↦ᵣ[th] switcher_label_pc ".Lswitch_just_return" ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ WInt ENOTENOUGHSTACK ∗
           (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ WInt 0 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_first_spill.
     iIntros "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & #Hswitcher & Hpost)".
@@ -301,64 +301,64 @@ Section Handle_Error.
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ctp ↦ᵣ wctp ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ct2 ↦ᵣ wct2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     mtdc ↦ₛᵣ wmtdc ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     switcher_code ∗
     ▷ ( ( ⌜get_b wmepcc.(lw) = b_switcher ∧ get_a wmepcc.(lw) ≠ a_first_spill⌝ -∗
           ∀ (wct0' wct1' wctp' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ wctp' ∗
-          ca0 ↦ᵣ wca0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ct2 ↦ᵣ wct2 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] wctp' ∗
+          ca0 ↦ᵣ[th] wca0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ct2 ↦ᵣ[th] wct2 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜get_b wmepcc.(lw) = b_switcher ∧ get_a wmepcc.(lw) = a_first_spill⌝ -∗
           ∀ (wct0' wct1' wctp' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ wctp' ∗
-          ca0 ↦ᵣ WInt ENOTENOUGHSTACK ∗
-          ca1 ↦ᵣ WInt 0 ∗
-          ct2 ↦ᵣ switcher_label_pc ".Lswitch_just_return" ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] wctp' ∗
+          ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ct2 ↦ᵣ[th] switcher_label_pc ".Lswitch_just_return" ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ <[ Z.to_nat TrustedStack_offset_ca0 := (WInt ENOTENOUGHSTACK : LWord) ]>
                  (<[ Z.to_nat TrustedStack_offset_ca1 := (WInt 0 : LWord) ]> save_area) ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
           ∀ (wct0' wct1' : LWord),
           ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_oob" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ct2 ↦ᵣ wct2 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ct2 ↦ᵣ[th] wct2 ∗
           mtdc ↦ₛᵣ tstack_cap ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_first_spill.
     iIntros (Ha_tstk Hlen Hmepcc)

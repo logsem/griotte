@@ -23,7 +23,7 @@ From griotte Require Export code_blocks.
 Section Switcher_call_args.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -35,15 +35,15 @@ Section Switcher_call_args.
 
   Lemma switcher_call_args_0 W C (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ->
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
+      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 0)
                                       then interp W C warg
                                       else True)) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom) "Hrmap".
     iExtractList "Hrmap" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
@@ -64,17 +64,17 @@ Section Switcher_call_args.
 
   Lemma switcher_call_args_1 W C (rmap : LReg) (wca0 : LWord) :
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ]} ->
-    ca0 ↦ᵣ wca0 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
     interp W C wca0 -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
+      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 1)
                                       then interp W C warg
                                       else True)) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hrmap".
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5;ct0]
@@ -95,19 +95,19 @@ Section Switcher_call_args.
 
   Lemma switcher_call_args_2 W C (rmap : LReg) (wca0 wca1 : LWord) :
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
-    ca0 ↦ᵣ wca0 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
     interp W C wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
     interp W C wca1 -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
+      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 2)
                                       then interp W C warg
                                       else True)) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hrmap".
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5;ct0]
@@ -128,21 +128,21 @@ Section Switcher_call_args.
 
   Lemma switcher_call_args_3 W C (rmap : LReg) (wca0 wca1 wca2 : LWord) :
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ca2 ]} ->
-    ca0 ↦ᵣ wca0 -∗
+    ca0 ↦ᵣ[th] wca0 -∗
     interp W C wca0 -∗
-    ca1 ↦ᵣ wca1 -∗
+    ca1 ↦ᵣ[th] wca1 -∗
     interp W C wca1 -∗
-    ca2 ↦ᵣ wca2 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
     interp W C wca2 -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) -∗
+    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗
+      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
                                      (if decide (rarg ∈ dom_arg_rmap 3)
                                       then interp W C warg
                                       else True)) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ w).
+      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
   Proof.
     iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hca2 #Hinterp_ca2 Hrmap".
     iExtractList "Hrmap" [ca3;ca4;ca5;ct0]
@@ -170,7 +170,7 @@ End Switcher_call_args.
 Section Fresh_stack.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -256,7 +256,7 @@ Qed.
 Section Register_maps.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -268,7 +268,7 @@ Section Register_maps.
   Lemma registers_pointsto_extract (rmap : LReg) (r : RegName) (w : LWord) :
     rmap !! r = Some w →
     registers_pointsto rmap ⊢
-    r ↦ᵣ w ∗ (∀ w', r ↦ᵣ w' -∗ registers_pointsto (<[r:=w']> rmap)).
+    r ↦ᵣ[th] w ∗ (∀ w', r ↦ᵣ[th] w' -∗ registers_pointsto (<[r:=w']> rmap)).
   Proof.
     iIntros (Hr) "Hregs". rewrite /registers_pointsto.
     iDestruct (big_sepM_delete _ _ r with "Hregs") as "[$ Hregs]"; first done.
@@ -282,11 +282,11 @@ Section Register_maps.
     rmap !! r1 = Some w1 →
     rmap !! r2 = Some w2 →
     registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗
-    r2 ↦ᵣ w2 ∗
+    r1 ↦ᵣ[th] w1 ∗
+    r2 ↦ᵣ[th] w2 ∗
     (∀ w1' w2',
-       r1 ↦ᵣ w1' -∗
-       r2 ↦ᵣ w2' -∗
+       r1 ↦ᵣ[th] w1' -∗
+       r2 ↦ᵣ[th] w2' -∗
        registers_pointsto (<[r1:=w1']> (<[r2:=w2']> rmap))).
   Proof.
     iIntros (Hne Hr1 Hr2) "Hregs". rewrite /registers_pointsto.
@@ -305,13 +305,13 @@ Section Register_maps.
     rmap !! r2 = Some w2 →
     rmap !! r3 = Some w3 →
     registers_pointsto rmap ⊢
-    r1 ↦ᵣ w1 ∗
-    r2 ↦ᵣ w2 ∗
-    r3 ↦ᵣ w3 ∗
+    r1 ↦ᵣ[th] w1 ∗
+    r2 ↦ᵣ[th] w2 ∗
+    r3 ↦ᵣ[th] w3 ∗
     (∀ w1' w2' w3',
-       r1 ↦ᵣ w1' -∗
-       r2 ↦ᵣ w2' -∗
-       r3 ↦ᵣ w3' -∗
+       r1 ↦ᵣ[th] w1' -∗
+       r2 ↦ᵣ[th] w2' -∗
+       r3 ↦ᵣ[th] w3' -∗
        registers_pointsto (<[r1:=w1']> (<[r2:=w2']> (<[r3:=w3']> rmap)))).
   Proof.
     iIntros (Hne12 Hne13 Hne23 Hr1 Hr2 Hr3) "Hregs". rewrite /registers_pointsto.
@@ -333,14 +333,14 @@ Section Register_maps.
     registers_pointsto rmap ⊢
     ∃ rmap_ret : LReg,
       ⌜dom rmap_ret = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}⌝ ∗
-      cgp ↦ᵣ - ∗
-      cra ↦ᵣ - ∗
-      cs0 ↦ᵣ - ∗
-      cs1 ↦ᵣ - ∗
-      csp ↦ᵣ (rmap !!! csp) ∗
-      ca0 ↦ᵣ (rmap !!! ca0) ∗
-      ca1 ↦ᵣ (rmap !!! ca1) ∗
-      ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ w).
+      cgp ↦ᵣ[th] - ∗
+      cra ↦ᵣ[th] - ∗
+      cs0 ↦ᵣ[th] - ∗
+      cs1 ↦ᵣ[th] - ∗
+      csp ↦ᵣ[th] (rmap !!! csp) ∗
+      ca0 ↦ᵣ[th] (rmap !!! ca0) ∗
+      ca1 ↦ᵣ[th] (rmap !!! ca1) ∗
+      ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w).
   Proof.
     iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
     pose proof (lregmap_full_dom _ Hfull) as Hdom.
@@ -372,10 +372,10 @@ Section Register_maps.
     registers_pointsto rmap ⊢
     ∃ rest : LReg,
       ⌜dom rest = all_registers_s ∖ {[ csp ; ca0 ; ca1 ]}⌝ ∗
-      csp ↦ᵣ (rmap !!! csp) ∗
-      ca0 ↦ᵣ (rmap !!! ca0) ∗
-      ca1 ↦ᵣ (rmap !!! ca1) ∗
-      ([∗ map] r↦w ∈ rest, r ↦ᵣ w).
+      csp ↦ᵣ[th] (rmap !!! csp) ∗
+      ca0 ↦ᵣ[th] (rmap !!! ca0) ∗
+      ca1 ↦ᵣ[th] (rmap !!! ca1) ∗
+      ([∗ map] r↦w ∈ rest, r ↦ᵣ[th] w).
   Proof.
     iIntros (Hfull) "Hregs". rewrite /registers_pointsto.
     pose proof (lregmap_full_dom _ Hfull) as Hdom.

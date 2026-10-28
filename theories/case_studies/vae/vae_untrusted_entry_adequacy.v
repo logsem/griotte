@@ -30,7 +30,7 @@ Section vae_untrusted_entry_obligations.
     fw_obligations Σ vae_untrusted_entry_firmware.
   Proof.
     apply fw_obligations_of_untrusted; first exact I.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -116,7 +116,8 @@ Section vae_untrusted_entry_obligations.
     set (W1 := <l[i := false, (awk_rel_pub, awk_rel_priv)]l> fw_world0).
     iMod (world_interp_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hworld_C")
       as "(Hworld_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
-    iMod (inv_alloc Nawk _ (awk_inv C i _) with "[Hcgp_b Hst_i]") as "#Hawk_inv".
+    iMod (inv_alloc Nawk _ (awk_inv (ceriseg := ceriseG_of (UserThread 0)) C i _)
+           with "[Hcgp_b Hst_i]") as "#Hawk_inv".
     { iExists false; iFrame. }
 
     (* 5 - Seal the exported entry [awkward] of main with [ot_switcher] in
@@ -130,7 +131,8 @@ Section vae_untrusted_entry_obligations.
     set (W1' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_awk);
                        lword_of_word (borrow (WSealable main_awk)) ]} ]o> W1).
-    iAssert (ot_switcher_prop W1' C (WSealable main_awk)) as "#Hot_switcher_main_awk".
+    iAssert (ot_switcher_prop (th := UserThread 0) W1' C (WSealable main_awk))
+      as "#Hot_switcher_main_awk".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          length (@vae_main_imports swl asl C_f ++ VAE_main_code_init))%a)
         as Hentry_some.
@@ -160,7 +162,7 @@ Section vae_untrusted_entry_obligations.
        [awkward] of main and the own export [g] of C are safe to import;
        the PCC and the CGP of C are safe, for the thread that starts in
        it. *)
-    iMod (fw_close_adv_world_entry _ _ _ 1
+    iMod (fw_close_adv_world_entry (th := UserThread 0) _ _ _ 1
             (fw_nth 1 (fw_cmpts vae_untrusted_entry_firmware) default_fw_cmpt) _
             HC_l W1' C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)

@@ -19,7 +19,7 @@ From griotte Require Import call_stack switcher_preamble wp_rules_interp.
 Section Switch_Unseal_Entry.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -28,23 +28,23 @@ Section Switch_Unseal_Entry.
       [wct1] is not a valid entry point sealed by the switcher, the load of
       [.Lswitcher_decode_entry] faults. *)
   Lemma switch_unseal_entry_spec (wct1 : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitch_unseal_entry" ∗
-    cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-    ct1 ↦ᵣ wct1 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_unseal_entry" ∗
+    cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    ct1 ↦ᵣ[th] wct1 ∗
     switcher_code ∗
     ( ▷ ( ∀ wsb π,
           ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
           ⌜ get_tag_sealable wsb = true ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitcher_decode_entry" ∗
-          cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-          ct1 ↦ᵣ WSealable wsb @@? π -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          PC ↦ₚ[th] switcher_label_pc ".Lswitcher_decode_entry" ∗
+          cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+          ct1 ↦ᵣ[th] WSealable wsb @@? π -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
       ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
-        cs0 ↦ᵣ WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        ct1 ↦ᵣ - -∗
+        cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        ct1 ↦ᵣ[th] - -∗
         trap_safe (switcher_label_pc ".Lswitcher_decode_entry") ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hcs0 & Hct1 & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode" a_unseal Ha_unseal.
@@ -136,43 +136,43 @@ Section Switch_Unseal_Entry.
     b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
     a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
-    PC ↦ₚ switcher_label_pc ".Lswitcher_decode_entry" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitcher_decode_entry" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_frame ∗
     a_export_table ↦ₐ wtbl ∗
-    cgp ↦ᵣ wcgp ∗
-    cra ↦ᵣ wcra ∗
-    csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    cra ↦ᵣ[th] wcra ∗
+    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
     switcher_code ∗
     ▷ ( ( ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ WInt b_tbl ∗
-          ct1 ↦ᵣ WCap true RO g_tbl b_tbl e_tbl b_tbl ∗
-          ct2 ↦ᵣ WInt (e_stk - b_stk) ∗
-          ctp ↦ᵣ WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] WInt b_tbl ∗
+          ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl b_tbl ∗
+          ct2 ↦ᵣ[th] WInt (e_stk - b_stk) ∗
+          ctp ↦ᵣ[th] WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
           a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
-          cgp ↦ᵣ wcgp_tgt ∗
-          cra ↦ᵣ WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
-          csp ↦ᵣ WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a )
+          cgp ↦ᵣ[th] wcgp_tgt ∗
+          cra ↦ᵣ[th] WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
+          csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a )
         ∨
         ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
-          PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - ∗
           a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk )
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk )
         -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow

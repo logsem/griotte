@@ -9,7 +9,7 @@ From griotte Require Import
 Section KVS_spec_erase.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
@@ -44,14 +44,14 @@ Section KVS_spec_erase.
 
     ((* initial register file *)
 
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       codefrag_pers kvs_erase_pcc_addr kvs_erase_instrs ∗
@@ -61,14 +61,14 @@ Section KVS_spec_erase.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ( ▷ (
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-          ca1 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ - ∗ (* scratch *)
-          ct1 ↦ᵣ - ∗ (* scratch *)
-          ct2 ↦ᵣ - ∗ (* scratch *)
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ctp ↦ᵣ[th] - ∗ (* scratch *)
+          ct1 ↦ᵣ[th] - ∗ (* scratch *)
+          ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           codefrag_pers kvs_erase_pcc_addr kvs_erase_instrs ∗
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
@@ -76,9 +76,9 @@ Section KVS_spec_erase.
 
           is_physical_kvs KVS_cgp_b (<[idx := None]> pkvs)
 
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         ) )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -174,18 +174,18 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       user_key_addr ↦ₐ WInt user_key ∗
@@ -194,15 +194,15 @@ Section KVS_spec_erase.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais F ∗
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-          ca1 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ - ∗ (* scratch *)
-          ct1 ↦ᵣ - ∗ (* scratch *)
-          ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ ( na_own (tpool th) F ∗
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ctp ↦ᵣ[th] - ∗ (* scratch *)
+          ct1 ↦ᵣ[th] - ∗ (* scratch *)
+          ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           user_key_addr ↦ₐ WInt user_key ∗
 
@@ -210,9 +210,9 @@ Section KVS_spec_erase.
           is_logical_kvs ( lkvs <∖> (user_key, nkey) ) ∗
           user_key ↦(LKVS) (delete nkey m)
 
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -297,41 +297,41 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (na_own cerise_nais F ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt 0 ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ (na_own (tpool th) F ∗
+         PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cgp ↦ᵣ[th] - ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt 0 ∗
+         ca1 ↦ᵣ[th] WInt 0 ∗
+         ctp ↦ᵣ[th] - ∗ (* scratch *)
+         ct1 ↦ᵣ[th] - ∗ (* scratch *)
+         ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
          user_key_addr ↦ₐ WInt user_key ∗
 
          user_key ↦(LKVS) (delete nkey m)
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -376,43 +376,43 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) - ∗
 
-      ▷ (na_own cerise_nais F ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt 0 ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ (na_own (tpool th) F ∗
+         PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cgp ↦ᵣ[th] - ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt 0 ∗
+         ca1 ↦ᵣ[th] WInt 0 ∗
+         ctp ↦ᵣ[th] - ∗ (* scratch *)
+         ct1 ↦ᵣ[th] - ∗ (* scratch *)
+         ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
          user_kvs_inv user_key ∗
          user_key_addr ↦ₐ WInt user_key ∗
 
          (user_key, nkey) ↦(KVS) ⊥
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -461,14 +461,14 @@ Section KVS_spec_erase.
 
     ((* initial register file *)
 
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       codefrag_pers kvs_erase_pcc_addr kvs_erase_instrs ∗
@@ -478,14 +478,14 @@ Section KVS_spec_erase.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ( ▷ (
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-          ca1 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ - ∗ (* scratch *)
-          ct1 ↦ᵣ - ∗ (* scratch *)
-          ct2 ↦ᵣ - ∗ (* scratch *)
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ctp ↦ᵣ[th] - ∗ (* scratch *)
+          ct1 ↦ᵣ[th] - ∗ (* scratch *)
+          ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           codefrag_pers kvs_erase_pcc_addr kvs_erase_instrs ∗
           (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
@@ -493,9 +493,9 @@ Section KVS_spec_erase.
 
           is_physical_kvs KVS_cgp_b pkvs
 
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         ) )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -610,17 +610,17 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_own (tpool th) F ∗
 
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to update *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       user_key_addr ↦ₐ WInt user_key ∗
@@ -629,15 +629,15 @@ Section KVS_spec_erase.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( na_own cerise_nais F ∗
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
-          ca1 ↦ᵣ WInt 0 ∗
-          ctp ↦ᵣ - ∗ (* scratch *)
-          ct1 ↦ᵣ - ∗ (* scratch *)
-          ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ ( na_own (tpool th) F ∗
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ctp ↦ᵣ[th] - ∗ (* scratch *)
+          ct1 ↦ᵣ[th] - ∗ (* scratch *)
+          ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           user_key_addr ↦ₐ WInt user_key ∗
 
@@ -645,9 +645,9 @@ Section KVS_spec_erase.
           is_logical_kvs lkvs ∗
           user_key ↦(LKVS) m
 
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -720,41 +720,41 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (na_own cerise_nais F ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt 0 ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ (na_own (tpool th) F ∗
+         PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cgp ↦ᵣ[th] - ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt 0 ∗
+         ca1 ↦ᵣ[th] WInt 0 ∗
+         ctp ↦ᵣ[th] - ∗ (* scratch *)
+         ct1 ↦ᵣ[th] - ∗ (* scratch *)
+         ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
          user_key_addr ↦ₐ WInt user_key ∗
 
          user_key ↦(LKVS) m
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt)
@@ -796,43 +796,43 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ctp ↦ᵣ - ∗ (* scratch *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) ⊥ ∗
 
-      ▷ (na_own cerise_nais F ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cgp ↦ᵣ - ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt 0 ∗
-         ca1 ↦ᵣ WInt 0 ∗
-         ctp ↦ᵣ - ∗ (* scratch *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
-         ct2 ↦ᵣ - ∗ (* scratch *)
+      ▷ (na_own (tpool th) F ∗
+         PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cgp ↦ᵣ[th] - ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt 0 ∗
+         ca1 ↦ᵣ[th] WInt 0 ∗
+         ctp ↦ᵣ[th] - ∗ (* scratch *)
+         ct1 ↦ᵣ[th] - ∗ (* scratch *)
+         ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
          user_key_addr ↦ₐ WInt user_key ∗
 
          user_kvs_inv user_key ∗
          (user_key, nkey) ↦(KVS) ⊥
 
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt)
@@ -869,24 +869,24 @@ Section KVS_spec_erase.
 
     (
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ - ∗
-      ca1 ↦ᵣ wca1 ∗ (* Key to erase *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] - ∗
+      ca1 ↦ᵣ[th] wca1 ∗ (* Key to erase *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_erase_instrs ∗
 
-      ( ▷ (PC ↦ₚ lupdatePcPerm wret ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
-         ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
-         ct1 ↦ᵣ - ∗ (* scratch *)
+      ( ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
+         ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
+         ct1 ↦ᵣ[th] - ∗ (* scratch *)
          codefrag_pers pc_a kvs_erase_instrs
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         ) )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HsubBounds Hnkey_is_uint16 Htgt)
@@ -934,25 +934,25 @@ Section KVS_spec_erase.
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ( kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_own cerise_nais F ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ - ∗
-      ca1 ↦ᵣ wca1 ∗ (* Key to erase *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] - ∗
+      ca1 ↦ᵣ[th] wca1 ∗ (* Key to erase *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
 
-      ( ▷ (na_own cerise_nais F ∗
-         PC ↦ₚ lupdatePcPerm wret ∗
-         cra ↦ᵣ - ∗
-         ca0 ↦ᵣ WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
-         ca1 ↦ᵣ WInt 0 ∗ (* Dummy value *)
-         ct1 ↦ᵣ - (* scratch *)
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+      ( ▷ (na_own (tpool th) F ∗
+         PC ↦ₚ[th] lupdatePcPerm wret ∗
+         cra ↦ᵣ[th] - ∗
+         ca0 ↦ᵣ[th] WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
+         ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
+         ct1 ↦ᵣ[th] - (* scratch *)
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
         ) )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HE Hnkey_is_uint16 Htgt)
@@ -993,14 +993,14 @@ Section KVS_spec_erase.
 
     (
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] wca0 ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_erase_instrs ∗
@@ -1008,17 +1008,17 @@ Section KVS_spec_erase.
 
       (* The load after the failed unsealing of the user key faults *)
       ▷ ( ∀ a,
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ - ∗
-          ca1 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          ctp ↦ᵣ - -∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] - ∗
+          ca1 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - -∗
           trap_safe (WCap true RX Global pc_b pc_e a) ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+            (HO th) )
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HsubBounds Hpc_a Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
@@ -1069,32 +1069,32 @@ Section KVS_spec_erase.
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
 
     ( kvs_static ∗
-      na_own cerise_nais F ∗
+      na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
-      cgp ↦ᵣ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
-      cra ↦ᵣ wret ∗
-      ca0 ↦ᵣ wca0 ∗ (* Sealed User Key *)
-      ca1 ↦ᵣ WInt nkey @@? πnkey ∗ (* Key to erase *)
-      ct1 ↦ᵣ - ∗ (* scratch *)
-      ct2 ↦ᵣ - ∗ (* scratch *)
-      ctp ↦ᵣ - ∗ (* scratch *)
+      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_erase_pcc_addr ∗
+      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      cra ↦ᵣ[th] wret ∗
+      ca0 ↦ᵣ[th] wca0 ∗ (* Sealed User Key *)
+      ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to erase *)
+      ct1 ↦ᵣ[th] - ∗ (* scratch *)
+      ct2 ↦ᵣ[th] - ∗ (* scratch *)
+      ctp ↦ᵣ[th] - ∗ (* scratch *)
 
       (* The load after the failed unsealing of the user key faults *)
       ▷ ( ∀ a,
-          na_own cerise_nais F ∗
-          cgp ↦ᵣ - ∗
-          cra ↦ᵣ - ∗
-          ca0 ↦ᵣ - ∗
-          ca1 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          ctp ↦ᵣ - -∗
+          na_own (tpool th) F ∗
+          cgp ↦ᵣ[th] - ∗
+          cra ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] - ∗
+          ca1 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - -∗
           trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I )
+            (HO th) )
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Hnkey_is_uint16 Hwca0)
@@ -1140,8 +1140,8 @@ Section KVS_spec_erase.
     arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt nkey)) ->
     kvs_static ∗
-    na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-    na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
+    na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+    na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
     ⊢
     switcher_cc_specification_known_to_known_function false
       (user_key_addr ↦ₐ WInt user_key ∗

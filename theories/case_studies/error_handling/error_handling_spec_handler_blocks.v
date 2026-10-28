@@ -27,7 +27,7 @@ From griotte Require Import error_handling_spec_states.
 Section Error_Handling_Handler_Blocks.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -63,26 +63,26 @@ Section Error_Handling_Handler_Blocks.
   Lemma stats_handler_decode_spec
     (pc_b pc_e : Addr) (c v : Z) (wct0 : LWord) :
     stats_code_bounds pc_b pc_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler")%a ∗
-    ca1 ↦ᵣ WInt c ∗
-    ca2 ↦ᵣ WInt v ∗
-    ct0 ↦ᵣ wct0 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler")%a ∗
+    ca1 ↦ᵣ[th] WInt c ∗
+    ca2 ↦ᵣ[th] WInt v ∗
+    ct0 ↦ᵣ[th] wct0 ∗
     codefrag_pers pc_b stats_code ∗
     ▷ ( (⌜stats_repairable c v⌝ -∗
-         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
-         ca1 ↦ᵣ WInt c ∗
-         ca2 ↦ᵣ WInt v ∗
-         ct0 ↦ᵣ WInt (mtval_reg_field v) ∗
+         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
+         ca1 ↦ᵣ[th] WInt c ∗
+         ca2 ↦ᵣ[th] WInt v ∗
+         ct0 ↦ᵣ[th] WInt (mtval_reg_field v) ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
         (⌜¬ stats_repairable c v⌝ -∗
-         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
-         ca1 ↦ᵣ WInt c ∗
-         ca2 ↦ᵣ WInt v ∗
-         ct0 ↦ᵣ - ∗
+         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+         ca1 ↦ᵣ[th] WInt c ∗
+         ca2 ↦ᵣ[th] WInt v ∗
+         ct0 ↦ᵣ[th] - ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap))
       "(HPC & Hca1 & Hca2 & Hct0 & Hcode_stats & Hpost)".
@@ -178,37 +178,37 @@ Section Error_Handling_Handler_Blocks.
     length ws = Z.to_nat ErrorState_size ->
     (TrustedStack_offset_cra <= n <= TrustedStack_offset_ca5)%Z ->
     ws !! Z.to_nat n = Some (MkLWord (WCap true p g b e a) π) ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
-    ca0 ↦ᵣ WCap true RWL g0 b0 e0 a16 ∗
-    ct0 ↦ᵣ WInt n ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
+    ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+    ct0 ↦ᵣ[th] WInt n ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] wctp ∗
     [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_b stats_code ∗
     ▷ ( (∀ t, ⌜(b < e)%a⌝ -∗
           ⌜stats_base_outside a16 b⌝ -∗
           ⌜lload_heap (MkLWord (WCap true p g b e a) π) (MkLWord (WCap t p g b e a) π)⌝ -∗
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
-          ca0 ↦ᵣ WCap true RWL g0 b0 e0 a16 ∗
-          ct0 ↦ᵣ WInt b ∗
-          ct1 ↦ᵣ WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
-          ct2 ↦ᵣ MkLWord (WCap t p g b e a) π ∗
-          ctp ↦ᵣ - ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
+          ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+          ct0 ↦ᵣ[th] WInt b ∗
+          ct1 ↦ᵣ[th] WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
+          ct2 ↦ᵣ[th] MkLWord (WCap t p g b e a) π ∗
+          ctp ↦ᵣ[th] - ∗
           [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
           codefrag_pers pc_b stats_code
-          -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) ∧
+          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
         (⌜¬ ((b < e)%a ∧ stats_base_outside a16 b)⌝ -∗
-         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
-         ca0 ↦ᵣ WCap true RWL g0 b0 e0 a16 ∗
-         ct0 ↦ᵣ - ∗
-         ct1 ↦ᵣ - ∗
-         ct2 ↦ᵣ - ∗
-         ctp ↦ᵣ - ∗
+         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+         ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+         ct0 ↦ᵣ[th] - ∗
+         ct1 ↦ᵣ[th] - ∗
+         ct2 ↦ᵣ[th] - ∗
+         ctp ↦ᵣ[th] - ∗
          [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Hws_n)
       "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hctp & Hes & Hcode_stats & Hpost)".
@@ -327,25 +327,25 @@ Section Error_Handling_Handler_Blocks.
     length ws = Z.to_nat ErrorState_size ->
     (TrustedStack_offset_cra <= n <= TrustedStack_offset_ca5)%Z ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
-    ca0 ↦ᵣ WCap true RWL g0 b0 e0 a16 ∗
-    ct0 ↦ᵣ WInt b ∗
-    ct1 ↦ᵣ WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
-    ct2 ↦ᵣ MkLWord (WCap t p g b e a) π ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
+    ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+    ct0 ↦ᵣ[th] WInt b ∗
+    ct1 ↦ᵣ[th] WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
+    ct2 ↦ᵣ[th] MkLWord (WCap t p g b e a) π ∗
+    cra ↦ᵣ[th] wcra ∗
     [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
-       ca0 ↦ᵣ WInt InstallContext ∗
-       ct0 ↦ᵣ - ∗
-       ct1 ↦ᵣ - ∗
-       ct2 ↦ᵣ - ∗
-       cra ↦ᵣ wcra ∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
+       ca0 ↦ᵣ[th] WInt InstallContext ∗
+       ct0 ↦ᵣ[th] - ∗
+       ct1 ↦ᵣ[th] - ∗
+       ct2 ↦ᵣ[th] - ∗
+       cra ↦ᵣ[th] wcra ∗
        [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ
          [[ <[Z.to_nat n := stats_repair_word (MkLWord (WCap t p g b e a) π)]> ws ]] ∗
        codefrag_pers pc_b stats_code
-       -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+       -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Htgt)
       "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hcra & Hes & Hcode_stats & Hpost)".
@@ -392,20 +392,20 @@ Section Error_Handling_Handler_Blocks.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ca0 ↦ᵣ wca0 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ wlock ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ lupdatePcPerm wcra ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WInt ForceUnwind ∗
-        cra ↦ᵣ wcra ∗
+    ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] WInt ForceUnwind ∗
+        cra ↦ᵣ[th] wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt)
       "(HPC & Hcgp & Hca0 & Hcra & Hlock & Hcode_stats & Hpost)".

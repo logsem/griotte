@@ -112,7 +112,7 @@ End Switcher_Restore.
 
 Section Switcher_Restore_Interp.
   Context
-    {Σ : gFunctors} {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
@@ -139,14 +139,14 @@ Section Switcher_Restore_Interp.
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
+    {{{ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ actual, RET NextIV;
         ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
     iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
@@ -171,13 +171,13 @@ Section Switcher_Restore_Interp.
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
+    {{{ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
     iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)

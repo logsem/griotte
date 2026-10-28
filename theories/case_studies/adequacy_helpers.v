@@ -12,7 +12,7 @@ Definition Nassert_flag : namespace := nroot .@ "assert_flag".
 Section adequacy_helpers.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -92,7 +92,7 @@ Section adequacy_helpers.
       mtdc ↦ₛᵣ WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt)
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗
-      na_inv cerise_nais Nswitcher switcher_inv ∗
+      na_inv (tpool th) Nswitcher switcher_inv ∗
       switcher_static ∗
       [[ (b_stack switcher_cmpt), (e_stack switcher_cmpt) ]] ↦ₐ
         [[ lword_of_word <$> stack_content switcher_cmpt ]].
@@ -226,7 +226,7 @@ Section adequacy_helpers.
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
-      iMod (na_inv_alloc cerise_nais _ Nswitcher _ with "Hswitcher") as "#Hswitcher".
+      iMod (na_inv_alloc (tpool th) _ Nswitcher _ with "Hswitcher") as "#Hswitcher".
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
       iAssert switcher_static as "#Hswitcher_static".

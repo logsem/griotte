@@ -17,7 +17,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 Section HTS_Reload.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     `{MP: MachineParameters}.
@@ -33,25 +33,23 @@ Section HTS_Reload.
     disjoint_from_shadow b e ->
     (b <= s < e)%a ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
-    (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-     csp ↦ᵣ WCap true RWL Local b e s ∗
-     ca0 ↦ᵣ w0 ∗
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+     csp ↦ᵣ[th] WCap true RWL Local b e s ∗
+     ca0 ↦ᵣ[th] w0 ∗
      s ↦ₐ raw ∗
      codefrag_pers pc_a hts_reload_buffer_instrs ∗
      load_witness_res wit ∗
      ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
-       PC ↦ₚ WCap true RX Global pc_b pc_e
+       PC ↦ₚ[th] WCap true RX Global pc_b pc_e
          (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
-       csp ↦ᵣ WCap true RWL Local b e s ∗
-       ca0 ↦ᵣ actual ∗
+       csp ↦ᵣ[th] WCap true RWL Local b e s ∗
+       ca0 ↦ᵣ[th] actual ∗
        s ↦ₐ raw ∗
        codefrag_pers pc_a hts_reload_buffer_instrs ∗
        load_witness_res wit -∗
-       WP Seq (Instr Executable)
-         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-     ⊢ WP Seq (Instr Executable)
-         {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+       WP Seq (Instr Executable) @[th] {{ HO th }})
+     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     iIntros (Hshadow Hbounds Hsub)
       "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
@@ -73,7 +71,7 @@ End HTS_Reload.
 Section HTS_Spec_Free.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -112,8 +110,8 @@ Section HTS_Spec_Free.
     hts_ctx ∗
     adv1_ret ∗
     (free_ret -∗
-     WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+     WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap
       Hstk_shadow Hstk_heap Hstk_min HsubBounds

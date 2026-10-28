@@ -34,7 +34,7 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 Section Handle_Error_Stack_Oob.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -46,29 +46,29 @@ Section Handle_Error_Stack_Oob.
   #[local] Lemma handle_error_stack_oob_block_spec (wcsp wct0 wct1 wct2 wcs1 : LWord) :
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_oob" ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs1 ↦ᵣ wcs1 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
     switcher_code ∗
     ▷ ( ( ⌜error_state_fits wcsp⌝ -∗
           ∀ (wct1' wct2' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackful" ∗
-          ct0 ↦ᵣ wct0 ∗
-          ct1 ↦ᵣ wct1' ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackful" ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜¬ error_state_fits wcsp ∨ tag_strippable wcsp⌝ -∗
           ∀ (wct1' wct2' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackless" ∗
-          ct0 ↦ᵣ wct0 ∗
-          ct1 ↦ᵣ wct1' ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler -∗
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hlea) "(HPC & Hct0 & Hct1 & Hct2 & Hcs1 & #Hswitcher & Hpost)".
     pose proof (error_state_fits_lea _ _ Hlea) as Hfits_iff.
@@ -141,31 +141,31 @@ Section Handle_Error_Stack_Oob.
     withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
+    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher pc_a ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → (b_tbl ^+ off_eh)%a ↦ₐ□ WInt eh) ∗
     codefrag_pers pc_a instrs ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ ∗
-        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-        ct1 ↦ᵣ - ∗
-        ct2 ↦ᵣ - ∗
-        cs0 ↦ᵣ - ∗
+        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct1 ↦ᵣ[th] - ∗
+        ct2 ↦ᵣ[th] - ∗
+        cs0 ↦ᵣ[th] - ∗
         a_tbl_cell ↦ₐ{dq} wcell -∗
         trap_safe (WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 3)%a) ⊤ φ ) ∧
       ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
         ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ ∗
-        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 4)%a ∗
-        ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-        ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-        ct2 ↦ᵣ wct2' ∗
-        cs0 ↦ᵣ WInt eh ∗
+        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ 4)%a ∗
+        ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+        ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+        ct2 ↦ᵣ[th] wct2' ∗
+        cs0 ↦ᵣ[th] WInt eh ∗
         a_tbl_cell ↦ₐ{dq} wcell -∗
-        WP Seq (Instr Executable) {{ φ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+        WP Seq (Instr Executable) @[th] {{ φ }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ φ }}.
   Proof.
     intros a_tbl_cell.
     iIntros (Hoff Hinstrs Hsub Hlen Ha_cell Hcell_bounds Hwcell)
@@ -224,48 +224,48 @@ Section Handle_Error_Stack_Oob.
     withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackful" ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackful" ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₕ□{stackful} eh) ∗
     switcher_code ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜eh ≠ ExportTable_no_handler⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_found" ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt eh ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt eh ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜eh = ExportTable_no_handler⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackless" ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt eh ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt eh ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_tbl_cell.
     iIntros (Ha_cell Hcell_bounds Hwcell)
@@ -322,14 +322,14 @@ Section Handle_Error_Stack_Oob.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackless" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
     a_csp_cell ↦ₐ wfcsp ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₕ□{stackless} ehs) ∗
@@ -337,61 +337,61 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0 ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ WInt ExportTable_no_handler ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
           a_csp_cell ↦ₐ wfcsp ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜ehs = ExportTable_no_handler⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0 ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt ehs ∗
-          cs1 ↦ᵣ wcs1' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt ehs ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
           a_csp_cell ↦ₐ wfcsp ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜ehs ≠ ExportTable_no_handler⌝ -∗
           ⌜d = 0⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_stack_recovered" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wfcsp ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt ehs ∗
-          cs1 ↦ᵣ wcs1' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_recovered" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wfcsp ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt ehs ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
           a_csp_cell ↦ₐ wfcsp ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
           ⌜ehs ≠ ExportTable_no_handler⌝ -∗
           ⌜d ≠ 0⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_stack_rebound" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wfcsp ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt ehs ∗
-          cs1 ↦ᵣ wcs1' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_rebound" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wfcsp ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt ehs ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
           a_csp_cell ↦ₐ wfcsp ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hwcell)
@@ -482,17 +482,17 @@ Section Handle_Error_Stack_Oob.
     (a <= e)%a ->
     ((b < a)%a → is_heap_address b = false) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_stack_rebound" ∗
-    ct0 ↦ᵣ WCap true p g b e a @@? π ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_rebound" ∗
+    ct0 ↦ᵣ[th] WCap true p g b e a @@? π ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lhandle_stack_recovered" ∗
-        ct0 ↦ᵣ WCap true p g b a b @@? π ∗
-        ca1 ↦ᵣ WInt a ∗
-        ca2 ↦ᵣ WInt b -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_recovered" ∗
+        ct0 ↦ᵣ[th] WCap true p g b a b @@? π ∗
+        ca1 ↦ᵣ[th] WInt a ∗
+        ca2 ↦ᵣ[th] WInt b -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hba Hae Hheap) "(HPC & Hct0 & Hca1 & Hca2 & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_stack_rebound" "Hswitcher" as "Hcode".
@@ -512,13 +512,13 @@ Section Handle_Error_Stack_Oob.
 
   (** [.Lhandle_stack_recovered]: a stackless handler. *)
   #[local] Lemma handle_stack_recovered_spec (wca0 : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lhandle_stack_recovered" ∗
-    ca0 ↦ᵣ wca0 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_stack_recovered" ∗
+    ca0 ↦ᵣ[th] wca0 ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lhandle_error_found" ∗
-        ca0 ↦ᵣ WInt 1 -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
+        ca0 ↦ᵣ[th] WInt 1 -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hca0 & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_stack_recovered" "Hswitcher" as "Hcode".
@@ -547,17 +547,17 @@ Section Handle_Error_Stack_Oob.
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
     (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp) ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_try_stackless" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ WInt ExportTable_no_handler ∗
-    ca0 ↦ᵣ WInt 0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_try_stackless" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
+    ca0 ↦ᵣ[th] WInt 0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
     a_csp_cell ↦ₐ tf.(tf_csp) ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₕ□{stackful} eh ∗ b_tbl ↦ₕ□{stackless} ehs) ∗
@@ -565,36 +565,36 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ wca2 ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜ehs = ExportTable_no_handler ∧
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
           ∀ (wct0' wct1' wct2' wcs0' wcs1' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ wcs0' ∗
-          cs1 ↦ᵣ wcs1' ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ wca2 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] wcs0' ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (off n : Z)
             (wct0' wct2' wcs1' wca1' wca2' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
@@ -603,21 +603,21 @@ Section Handle_Error_Stack_Oob.
            (n = 1 ∧ off = ehs ∧ wct0' = stackless_csp cstk ∧
             ehs ≠ ExportTable_no_handler ∧
             (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp))⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_found" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ wcs1' ∗
-          ca0 ↦ᵣ WInt n ∗
-          ca1 ↦ᵣ wca1' ∗
-          ca2 ↦ᵣ wca2' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          ca0 ↦ᵣ[th] WInt n ∗
+          ca1 ↦ᵣ[th] wca1' ∗
+          ca2 ↦ᵣ[th] wca2' ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros tf a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hframe_csp Hwcell Hcond)
@@ -705,17 +705,17 @@ Section Handle_Error_Stack_Oob.
     wcell = lword_of_word (WInt 0) ∨ (exp_tbl_cap b_tbl wcell.(lw) ∧ wcell.(lprov) = None) ->
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
 
-    PC ↦ₚ switcher_label_pc ".Lhandle_error_stack_oob" ∗
-    csp ↦ᵣ tstack_cap ∗
-    ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ WInt 0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] WInt 0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
     a_csp_cell ↦ₐ tf.(tf_csp) ∗
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₕ□{stackful} eh ∗ b_tbl ↦ₕ□{stackless} ehs) ∗
@@ -723,36 +723,36 @@ Section Handle_Error_Stack_Oob.
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          cs0 ↦ᵣ - ∗
-          cs1 ↦ᵣ - ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ wca2 ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          cs0 ↦ᵣ[th] - ∗
+          cs1 ↦ᵣ[th] - ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          trap_safe (switcher_pc off) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) ∧
+          trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜ehs = ExportTable_no_handler ∧
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
           ∀ (wct0' wct1' wct2' wcs0' wcs1' : LWord),
-          PC ↦ₚ switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ wct1' ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ wcs0' ∗
-          cs1 ↦ᵣ wcs1' ∗
-          ca0 ↦ᵣ WInt 0 ∗
-          ca1 ↦ᵣ wca1 ∗
-          ca2 ↦ᵣ wca2 ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] wct1' ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] wcs0' ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          ca0 ↦ᵣ[th] WInt 0 ∗
+          ca1 ↦ᵣ[th] wca1 ∗
+          ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (off n : Z)
             (wct0' wct2' wcs1' wca1' wca2' : LWord),
           ⌜wcell = lword_of_word (WCap true p g b_tbl e a)⌝ -∗
@@ -761,21 +761,21 @@ Section Handle_Error_Stack_Oob.
            (n = 1 ∧ off = ehs ∧ wct0' = stackless_csp cstk ∧
             ehs ≠ ExportTable_no_handler ∧
             (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp))⌝ -∗
-          PC ↦ₚ switcher_label_pc ".Lhandle_error_found" ∗
-          csp ↦ᵣ tstack_cap ∗
-          ctp ↦ᵣ WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
-          ct0 ↦ᵣ wct0' ∗
-          ct1 ↦ᵣ WCap true p g b_tbl e b_tbl ∗
-          ct2 ↦ᵣ wct2' ∗
-          cs0 ↦ᵣ WInt off ∗
-          cs1 ↦ᵣ wcs1' ∗
-          ca0 ↦ᵣ WInt n ∗
-          ca1 ↦ᵣ wca1' ∗
-          ca2 ↦ᵣ wca2' ∗
+          PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
+          csp ↦ᵣ[th] tstack_cap ∗
+          ctp ↦ᵣ[th] WCap true RWL Global b_trusted_stack e_trusted_stack a_tstk ∗
+          ct0 ↦ᵣ[th] wct0' ∗
+          ct1 ↦ᵣ[th] WCap true p g b_tbl e b_tbl ∗
+          ct2 ↦ᵣ[th] wct2' ∗
+          cs0 ↦ᵣ[th] WInt off ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          ca0 ↦ᵣ[th] WInt n ∗
+          ca1 ↦ᵣ[th] wca1' ∗
+          ca2 ↦ᵣ[th] wca2' ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
           a_tbl_cell ↦ₐ{dq} wcell -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros tf a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hframe_csp Hwcell Hlea)

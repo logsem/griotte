@@ -13,7 +13,7 @@ From griotte Require Import cmdc_spec_states.
 Section CMDC_Call_Blocks_2.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -70,23 +70,23 @@ Section CMDC_Call_Blocks_2.
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
     (wctp wct1 wcra : LWord) :
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c))%a ∗
-    ctp ↦ᵣ wctp ∗
-    ct1 ↦ᵣ wct1 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c))%a ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cra ↦ᵣ[th] wcra ∗
     pc_b ↦ₐ□ cmdc_switcher_entry ∗
     (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        ctp ↦ᵣ cmdc_switcher_entry ∗
-        ct1 ↦ᵣ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        ctp ↦ᵣ[th] cmdc_switcher_entry ∗
+        ct1 ↦ᵣ[th] WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
           (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
         pc_b ↦ₐ□ cmdc_switcher_entry ∗
         (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         codefrag_pers pc_a cmdc_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct c; cbn [cmdc_call_label cmdc_return_label cmdc_call_import cmdc_call_target].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap

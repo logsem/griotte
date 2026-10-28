@@ -28,7 +28,7 @@ From griotte Require Import
 Section Error_Handling_Read_Safe.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -61,25 +61,25 @@ Section Error_Handling_Read_Safe.
     withinBounds b e a = true →
     addr_key π a ∉ s →
     {{{ interp W C (WCap true p g b e a @@? π) ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
-        r ↦ᵣ (WCap true p g b e a @@? π) ∗
+        r ↦ᵣ[th] (WCap true p g b e a @@? π) ∗
         world_interp_open W C s }}}
-      Instr Executable @ E
+      Instr Executable @[th] E
     {{{ retv, RET retv;
         ( ∃ wa,
           ⌜retv = FaultedV⌝ ∗
           ⌜is_shadow_address a = false⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ (WCap true p g b e a @@? π) ∗
+          r ↦ᵣ[th] (WCap true p g b e a @@? π) ∗
           a ↦ₐ wa ∗
           (a ↦ₐ wa -∗ world_interp_open W C s) ) ∨
         ( ∃ wload,
           ⌜retv = NextIV⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ wload ∗ interp W C wload ∗
+          r ↦ᵣ[th] wload ∗ interp W C wload ∗
           world_interp_open W C s ) }}}.
   Proof.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr Hra Hwb Hnin_s φ)
@@ -186,23 +186,23 @@ Section Error_Handling_Read_Safe.
   Lemma stats_read_load_interp_open_spec (W : WORLD) (C : CmptName) (s : list LAddr)
     (wptr : LWord) :
     load_key_closed wptr s →
-    PC ↦ₚ stats_pcc stats_load_addr ∗
-    ca0 ↦ᵣ wptr ∗
+    PC ↦ₚ[th] stats_pcc stats_load_addr ∗
+    ca0 ↦ᵣ[th] wptr ∗
     interp W C wptr ∗
     world_interp_open W C s ∗
     codefrag_pers STATS_pcc_b stats_code ∗
     ( (∀ f, ⌜stats_load_interp_fault wptr f⌝ -∗
-        ca0 ↦ᵣ wptr -∗
+        ca0 ↦ᵣ[th] wptr -∗
         world_interp_open W C s -∗
         trap_safe_cause (stats_load_mcause f) (stats_load_mtval wptr f)
-          (stats_pcc stats_load_addr) ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I) ∧
+          (stats_pcc stats_load_addr) ⊤ (HO th)) ∧
       ▷ (∀ wload,
-           PC ↦ₚ stats_pcc stats_release_addr -∗
-           ca0 ↦ᵣ wload -∗
+           PC ↦ₚ[th] stats_pcc stats_release_addr -∗
+           ca0 ↦ᵣ[th] wload -∗
            interp W C wload -∗
            world_interp_open W C s -∗
-           WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+           WP Seq (Instr Executable) @[th] {{ HO th }}) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hclosed) "(HPC & Hca0 & #Hinterp & Hworld & #Hcode_stats & Hcont)".
     iDestruct (stats_load_instr_pers with "Hcode_stats") as "#Hinstr".
@@ -373,19 +373,19 @@ Section Error_Handling_Read_Safe.
     csp_sync cstk b_stk e_stk →
     extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) →
     (∀ r, is_Some (rmap !! r)) →
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
     interp W0 C (rmap !!! ca0) -∗
     interp W0 C (rmap !!! ca1) -∗
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
     registers_pointsto rmap -∗
     [[ b_stk , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
     cstack_frag cstk -∗
     interp_continuation cstk Ws Cs -∗
     world_interp (revoke W0) C -∗
     ▷ RevokedResources W0 C l -∗
-    na_own cerise_nais ⊤ -∗
-    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    na_own (tpool th) ⊤ -∗
+    WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframe_match Hsync_csp Hl_unk Hfull)
       "#Hinv_switcher #Hswitcher_static #Hinterp_ca0 #Hinterp_ca1 HPC Hregs Hstk Hcstk HK
@@ -427,13 +427,13 @@ Section Error_Handling_Read_Safe.
     (b_stk <= es)%a →
     (cur <= e_stk)%a →
     rfault !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk cur) →
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
     interp W0 C (WCap true RWL Local b_stk e_stk cur) -∗
     world_interp_open W0 C (LNonHeap <$> finz.seq_between es cur) -∗
     ▷ StackOpenWorldResources interp W0 C (finz.seq_between es cur) lv -∗
     interp_continuation cstk Ws Cs -∗
-    (▷ stats_inv ∗ na_own cerise_nais (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own cerise_nais ⊤) -∗
+    (▷ stats_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own (tpool th) ⊤) -∗
     unwind_cont (⊤ ∖ ↑Nstats) cstk (error_state_area rfault ∗ stats_inv).
   Proof.
     intros es Hframe_match Hsync_csp Hb_es Hcur_e Hcsp.
@@ -465,10 +465,10 @@ Section Error_Handling_Read_Safe.
   Lemma stats_read_entry_point_spec
     (g_tbl : Locality) (W : WORLD) (C : CmptName) :
     STATS_pcc_b ≠ b_switcher →
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     stats_static ∗
-    na_inv cerise_nais Nstats stats_inv
+    na_inv (tpool th) Nstats stats_inv
     -∗
     ot_switcher_prop W C
       (WCap true RO g_tbl b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).

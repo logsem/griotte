@@ -17,7 +17,7 @@ From griotte Require Import switcher_call_states switcher_macros_spec clear_regi
 Section Switcher_Clear_Unused_Args.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -31,22 +31,22 @@ Section Switcher_Clear_Unused_Args.
     (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg) :
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_skip_interrupt_enable" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ wctp ∗
-    cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_skip_interrupt_enable" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    cra ↦ᵣ[th] WCap true RX Global bpcc epcc a_tgt ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     switcher_code ∗
     ▷ ( ∀ (mie : InterruptStatus) (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        PC ↦ₚ[th] WCap true RX Global bpcc epcc a_tgt ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hregs & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_call"; first iFrame "Hswitcher".
@@ -105,27 +105,27 @@ Section Switcher_Clear_Unused_Args.
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
-    cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
+    cra ↦ᵣ[th] WCap true RX Global bpcc epcc a_tgt ∗
     ( [∗ map] r↦w ∈ arg_rmap,
-        r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+        r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     switcher_code ∗
     ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↦ₚ[th] WCap true RX Global bpcc epcc a_tgt ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
-            r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+            r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hnargs Hargs Hdom)
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
@@ -174,28 +174,28 @@ Section Switcher_Clear_Unused_Args.
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ctp ↦ᵣ WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
-    cra ↦ᵣ WCap true RX Global bpcc epcc a_tgt ∗
-    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ w ) ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ctp ↦ᵣ[th] WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
+    cra ↦ᵣ[th] WCap true RX Global bpcc epcc a_tgt ∗
+    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ[th] w ) ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     switcher_code ∗
     ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
-        PC ↦ₚ WCap true RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        PC ↦ₚ[th] WCap true RX Global bpcc epcc a_tgt ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
-            r ↦ᵣ w ∗ if decide (r ∈ dom_arg_rmap nargs)
+            r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝
                      else ⌜ w = WInt 0 ⌝ ) ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hnargs Hargs Hdom)
       "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".

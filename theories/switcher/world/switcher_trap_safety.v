@@ -17,7 +17,7 @@ From griotte Require Export switcher_error_handler.
 Section Switcher_trap_safety.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -39,12 +39,12 @@ Section Switcher_trap_safety.
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
        trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
-      PC ↦ₚ lword_of_word mtcc_vec -∗
+      PC ↦ₚ[th] lword_of_word mtcc_vec -∗
       trap_entry_out_cause P_mcause P_mtval w -∗
       registers_pointsto rmap -∗
-      na_own cerise_nais (F ∖ ↑Ntrap) -∗
+      na_own (tpool th) (F ∖ ↑Ntrap) -∗
       cstack_frag cstk -∗
-      WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+      WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   #[global] Instance exception_entry_safe_persistent :
     Persistent (exception_entry_safe).
@@ -62,18 +62,18 @@ Section Switcher_trap_safety.
       (|={⊤}=>
          ∃ rmap : LReg,
            ⌜∀ r, is_Some (rmap !! r)⌝ ∗
-           na_own cerise_nais F ∗
+           na_own (tpool th) F ∗
            registers_pointsto rmap ∗
            (∀ rmap' : LReg,
               ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
               ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
               ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
               ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-              PC ↦ₚ switcher_label_pc ".Lswitch_just_return" -∗
+              PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
               registers_pointsto rmap' -∗
-              na_own cerise_nais F -∗
-              WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})) -∗
-      trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+              na_own (tpool th) F -∗
+              WP Seq (Instr Executable) @[th] {{ HO th }})) -∗
+      trap_safe w ⊤ (HO th).
 
   #[global] Instance switcher_resume_safe_persistent :
     Persistent (switcher_resume_safe).
@@ -81,7 +81,7 @@ Section Switcher_trap_safety.
 
   (** The trap safety of the switcher. *)
   Definition switcher_trap_safety : iProp Σ :=
-    "Hinv_switcher" ∷ na_inv cerise_nais Nswitcher switcher_inv ∗
+    "Hinv_switcher" ∷ na_inv (tpool th) Nswitcher switcher_inv ∗
     "Hstatic" ∷ switcher_static ∗
     "Hentry_safe" ∷ exception_entry_safe ∗
     "Hresume_safe" ∷ switcher_resume_safe.
@@ -93,7 +93,7 @@ Section Switcher_trap_safety.
   (** The invariant and the static resources of the switcher. *)
   Lemma switcher_trap_safety_res :
     switcher_trap_safety ⊢
-    na_inv cerise_nais Nswitcher switcher_inv ∗ switcher_static.
+    na_inv (tpool th) Nswitcher switcher_inv ∗ switcher_static.
   Proof. iIntros "#Hsafety". iNamed "Hsafety". iFrame "#". Qed.
 
   Lemma exception_entry_safe_vector :
@@ -113,7 +113,7 @@ Section Switcher_trap_safety.
   Lemma logrel_unwind_cont_gen (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     world_interp W C -∗
@@ -153,11 +153,11 @@ Section Switcher_trap_safety.
     (|={⊤}=>
        ∃ (rmap : LReg) (cstk : CSTK),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
-         na_own cerise_nais F ∗
+         na_own (tpool th) F ∗
          registers_pointsto rmap ∗
          cstack_frag cstk ∗
          trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
-    trap_safe_cause P_mcause P_mtval w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
     iIntros (HP_mcause HF HFtrap) "#Hsafety Hres".
     iNamed "Hsafety".
@@ -182,18 +182,18 @@ Section Switcher_trap_safety.
     (|={⊤}=>
        ∃ rmap : LReg,
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
-         na_own cerise_nais F ∗
+         na_own (tpool th) F ∗
          registers_pointsto rmap ∗
          (∀ rmap' : LReg,
             ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
             ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
             ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
             ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-            PC ↦ₚ switcher_label_pc ".Lswitch_just_return" -∗
+            PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
             registers_pointsto rmap' -∗
-            na_own cerise_nais F -∗
-            WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+            na_own (tpool th) F -∗
+            WP Seq (Instr Executable) @[th] {{ HO th }})) -∗
+    trap_safe w ⊤ (HO th).
   Proof.
     iIntros (HF HFtrap Hresume) "#Hsafety Hres".
     iNamed "Hsafety".
@@ -208,10 +208,10 @@ Section Switcher_trap_safety.
     switcher_trap_safety -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
-       na_own cerise_nais ⊤ ∗
+       na_own (tpool th) ⊤ ∗
        cstack_frag cstk ∗
        (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap) "#Hsafety Hres".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
@@ -238,9 +238,9 @@ Section Switcher_trap_safety.
        registers_pointsto rmap ∗
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
-       na_own cerise_nais ⊤ ∗
+       na_own (tpool th) ⊤ ∗
        cstack_frag cstk) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+    trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hsafety Hcase Hres".
     iApply (trap_safe_unwind_of_safety with "Hsafety"); [done |].

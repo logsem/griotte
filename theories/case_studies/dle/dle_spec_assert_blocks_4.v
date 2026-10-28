@@ -12,7 +12,7 @@ From griotte Require Import dle_spec_states.
 Section DLE_Assert_Blocks_4.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -28,23 +28,23 @@ Section DLE_Assert_Blocks_4.
     disjoint_from_mmio cgp_b cgp_e ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ca2 ↦ᵣ wca2 ∗
-    cra ↦ᵣ wcra ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
     cstack_frag cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a dle_main_code
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio Hframes)

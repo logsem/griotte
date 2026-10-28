@@ -14,7 +14,7 @@ From griotte.switcher.callback Require Import switcher_zero_callee_frame.
 Section Switcher_unwind.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -25,18 +25,18 @@ Section Switcher_unwind.
   (** From [.Lswitch_just_return], where the exception path resumes a
       context: the return to [cra]. *)
   Lemma switcher_just_return_spec (wret : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
-    cra ↦ᵣ wret ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
+    cra ↦ᵣ[th] wret ∗
     switcher_code ∗
-    ( ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
-          cra ↦ᵣ wret ∗
+    ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cra ↦ᵣ[th] wret ∗
           £ 1 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
-        cra ↦ᵣ wret -∗
+        cra ↦ᵣ[th] wret -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
     iApply (switcher_return_to_caller_spec with "[$HPC $Hcra $Hswitcher $Hpost]").
@@ -53,14 +53,14 @@ Section Switcher_unwind.
     (∀ r, is_Some (rmap !! r)) ->
     frame_match Ws Cs cstk W C ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_stack_too_small" ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
     registers_pointsto rmap ∗
     switcher_trap_safety ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
-    na_own cerise_nais ⊤ ∗
+    na_own (tpool th) ⊤ ∗
     cstack_frag cstk
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull_rmap Hframe)
       "(HPC & Hrmap & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".

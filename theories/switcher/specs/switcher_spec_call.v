@@ -13,7 +13,7 @@ From griotte Require Import switcher_exception.
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -46,29 +46,29 @@ Section Switcher.
     is_heap_cap wcra_caller.(lw) = false ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
-    ∗ na_own cerise_nais ⊤
+    ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ cgp ↦ᵣ wcgp_caller
-    ∗ cra ↦ᵣ wcra_caller
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ[th] wcgp_caller
+    ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ interp W C wct1_caller
+    ∗ ct1 ↦ᵣ[th] wct1_caller ∗ interp W C wct1_caller
     ∗ w_entry_point ↦ₑ□{nargs} nargs
-    ∗ cs0 ↦ᵣ wcs0_caller
-    ∗ cs1 ↦ᵣ wcs1_caller
+    ∗ cs0 ↦ᵣ[th] wcs0_caller
+    ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* Argument registers, need to be safe-to-share *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg
                                       ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                                         then interp W C warg
                                         else True )
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -94,33 +94,32 @@ Section Switcher.
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝
-            ∗ na_own cerise_nais ⊤
+            ∗ na_own (tpool th) ⊤
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ₚ lupdatePcPerm (rcra)
+            ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
-            ∗ cgp ↦ᵣ rcgp
-            ∗ cra ↦ᵣ rcra
-            ∗ cs0 ↦ᵣ rcs0
-            ∗ cs1 ↦ᵣ rcs1
-            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-            ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-            ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ cgp ↦ᵣ[th] rcgp
+            ∗ cra ↦ᵣ[th] rcra
+            ∗ cs0 ↦ᵣ[th] rcs0
+            ∗ cs1 ↦ᵣ[th] rcs1
+            ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+            ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
+            ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+              -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
@@ -177,25 +176,25 @@ Section Switcher.
     is_heap_cap wcra_caller.(lw) = false ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
-    ∗ na_own cerise_nais ⊤
+    ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ cgp ↦ᵣ wcgp_caller
-    ∗ cra ↦ᵣ wcra_caller
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ[th] wcgp_caller
+    ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
-    ∗ ct1 ↦ᵣ wct1_caller ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
-    ∗ cs0 ↦ᵣ wcs0_caller
-    ∗ cs1 ↦ᵣ wcs1_caller
+    ∗ ct1 ↦ᵣ[th] wct1_caller ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
+    ∗ cs0 ↦ᵣ[th] wcs0_caller
+    ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* Argument registers, need to be safe-to-share *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg ∗ interp W C warg )
+    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg )
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -221,35 +220,34 @@ Section Switcher.
             ∗ ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; ca0 ; ca1 ; cs0 ; cs1 ]} ⌝
             ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
             ∗ ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝
-            ∗ na_own cerise_nais ⊤
+            ∗ na_own (tpool th) ⊤
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
             ∗ cstack_frag cstk
-            ∗ PC ↦ₚ lupdatePcPerm (rcra)
+            ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
-            ∗ cgp ↦ᵣ rcgp
-            ∗ cra ↦ᵣ rcra
-            ∗ cs0 ↦ᵣ rcs0
-            ∗ cs1 ↦ᵣ rcs1
-            ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-            ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-            ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ cgp ↦ᵣ[th] rcgp
+            ∗ cra ↦ᵣ[th] rcra
+            ∗ cs0 ↦ᵣ[th] rcs0
+            ∗ cs1 ↦ᵣ[th] rcs1
+            ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+            ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
+            ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
+            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
                 load_heap_in_world W2 wcs0_caller rcs0 ∧
                 load_heap_in_world W2 wcs1_caller rcs1⌝
-              -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
+              -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v

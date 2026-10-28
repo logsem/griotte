@@ -10,7 +10,7 @@ From griotte.allocators.common Require Import allocator_common_malloc_spec_shado
     [allocator_malloc_spec_world]. *)
 
 Section AllocatorMalloc.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {FA : FreeAuth Σ}
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {FA : FreeAuth Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
   Context {layout_wf : allocatorLayoutWf}.
@@ -34,43 +34,43 @@ Section AllocatorMalloc.
 
        allocator_service_ctx ∗
        allocator_service_static ∗
-       na_own cerise_nais F ∗
+       na_own (tpool th) F ∗
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
-       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
-       cgp ↦ᵣ WCap true RW Global
+       cgp ↦ᵣ[th] WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-       cra ↦ᵣ wret ∗
-       ca0 ↦ᵣ allocator_capability g_owner a_owner ∗
-       ca1 ↦ᵣ wreq ∗
-       ca2 ↦ᵣ - ∗
-       ct0 ↦ᵣ - ∗
-       ct1 ↦ᵣ - ∗
-       ct2 ↦ᵣ - ∗
-       ca3 ↦ᵣ - ∗
-       ca4 ↦ᵣ - ∗
-       ctp ↦ᵣ - ∗
+       cra ↦ᵣ[th] wret ∗
+       ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
+       ca1 ↦ᵣ[th] wreq ∗
+       ca2 ↦ᵣ[th] - ∗
+       ct0 ↦ᵣ[th] - ∗
+       ct1 ↦ᵣ[th] - ∗
+       ct2 ↦ᵣ[th] - ∗
+       ca3 ↦ᵣ[th] - ∗
+       ca4 ↦ᵣ[th] - ∗
+       ctp ↦ᵣ[th] - ∗
 
-       ▷ (na_own cerise_nais F ∗
+       ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt o ∗
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ WCap true RW Global
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-          cra ↦ᵣ wret ∗
-          ca0 ↦ᵣ WInt ALLOC_INVALID ∗
-          ca1 ↦ᵣ WInt 0 ∗
-          ca2 ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
-          ctp ↦ᵣ -
+          cra ↦ᵣ[th] wret ∗
+          ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
+          ca1 ↦ᵣ[th] WInt 0 ∗
+          ca2 ↦ᵣ[th] - ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          ca3 ↦ᵣ[th] - ∗
+          ca4 ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] -
 
-          -∗ WP Seq (Instr Executable) @ E {{ φ }})
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
+          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
+       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a Hinvalid Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 &
@@ -128,57 +128,57 @@ Section AllocatorMalloc.
 
        allocator_service_ctx ∗
        allocator_service_static ∗
-       na_own cerise_nais F ∗
+       na_own (tpool th) F ∗
        allocator_owner_id id Ω ∗
        a_owner ↦ₐ WInt id ∗
 
        (* Initial register file. *)
-       PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
-       cgp ↦ᵣ WCap true RW Global
+       cgp ↦ᵣ[th] WCap true RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-       cra ↦ᵣ wret ∗
-       ca0 ↦ᵣ allocator_capability g_owner a_owner ∗
-       ca1 ↦ᵣ WInt n @@? πn ∗
-       ca2 ↦ᵣ - ∗
-       ct0 ↦ᵣ - ∗
-       ct1 ↦ᵣ - ∗
-       ct2 ↦ᵣ - ∗
-       ca3 ↦ᵣ - ∗
-       ca4 ↦ᵣ - ∗
-       ctp ↦ᵣ - ∗
+       cra ↦ᵣ[th] wret ∗
+       ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
+       ca1 ↦ᵣ[th] WInt n @@? πn ∗
+       ca2 ↦ᵣ[th] - ∗
+       ct0 ↦ᵣ[th] - ∗
+       ct1 ↦ᵣ[th] - ∗
+       ct2 ↦ᵣ[th] - ∗
+       ca3 ↦ᵣ[th] - ∗
+       ca4 ↦ᵣ[th] - ∗
+       ctp ↦ᵣ[th] - ∗
 
-       ▷ (na_own cerise_nais F ∗
+       ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt id ∗
-          PC ↦ₚ lupdatePcPerm wret ∗
-          cgp ↦ᵣ WCap true RW Global
+          PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cgp ↦ᵣ[th] WCap true RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
-          cra ↦ᵣ wret ∗
-          ca2 ↦ᵣ - ∗
-          ct0 ↦ᵣ - ∗
-          ct1 ↦ᵣ - ∗
-          ct2 ↦ᵣ - ∗
-          ca3 ↦ᵣ - ∗
-          ca4 ↦ᵣ - ∗
-          ctp ↦ᵣ - ∗
+          cra ↦ᵣ[th] wret ∗
+          ca2 ↦ᵣ[th] - ∗
+          ct0 ↦ᵣ[th] - ∗
+          ct1 ↦ᵣ[th] - ∗
+          ct2 ↦ᵣ[th] - ∗
+          ca3 ↦ᵣ[th] - ∗
+          ca4 ↦ᵣ[th] - ∗
+          ctp ↦ᵣ[th] - ∗
 
           ((allocator_owner_id id Ω ∗
-            ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
-            ca1 ↦ᵣ WInt 0)
+            ca0 ↦ᵣ[th] WInt ALLOC_NO_MEMORY ∗
+            ca1 ↦ᵣ[th] WInt 0)
            ∨ (∃ (ι : AId) (b e : Addr),
                 ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧
                   (e - b = n)%Z⌝ ∗
                 ⌜ι ∉ S⌝ ∗
                 ⌜ι ∉ Ω⌝ ∗
-                ca0 ↦ᵣ (WCap true RW Global b e b) @@ ι ∗
-                ca1 ↦ᵣ WInt 0 ∗
+                ca0 ↦ᵣ[th] (WCap true RW Global b e b) @@ ι ∗
+                ca1 ↦ᵣ[th] WInt 0 ∗
                 alloc_obj ι b e ∗
                 free_auth_held ι ∗
                 allocator_owner_id id (Ω ∪ {[ι]}) ∗
                 [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))
 
-          -∗ WP Seq (Instr Executable) @ E {{ φ }})
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})%I.
+          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
+       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a Hpositive Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
@@ -294,24 +294,24 @@ Section AllocatorMalloc.
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
     allocator_service_static ∗
-    na_own cerise_nais F ∗
-    PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
+    na_own (tpool th) F ∗
+    PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
       allocator_malloc_pcc_addr ∗
-    ca0 ↦ᵣ wsealed ∗
-    ctp ↦ᵣ - ∗
-    ca3 ↦ᵣ - ∗
-    ca4 ↦ᵣ - ∗
+    ca0 ↦ᵣ[th] wsealed ∗
+    ctp ↦ᵣ[th] - ∗
+    ca3 ↦ᵣ[th] - ∗
+    ca4 ↦ᵣ[th] - ∗
     (∀ a, ⌜(allocator_malloc_pcc_addr <= a <
             allocator_malloc_pcc_addr
               ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a⌝ -∗
-      na_own cerise_nais F ∗
-      ctp ↦ᵣ - ∗
-      ca0 ↦ᵣ wsealed ∗
-      ca3 ↦ᵣ - ∗
-      ca4 ↦ᵣ - -∗
+      na_own (tpool th) F ∗
+      ctp ↦ᵣ[th] - ∗
+      ca0 ↦ᵣ[th] wsealed ∗
+      ca3 ↦ᵣ[th] - ∗
+      ca4 ↦ᵣ[th] - -∗
       trap_safe (WCap true RX Global allocator_pcc_b allocator_pcc_e a) E
         (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+    ⊢ WP Seq (Instr Executable) @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     iIntros (HEswitcher Hwsealed)
       "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".

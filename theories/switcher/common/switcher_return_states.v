@@ -25,7 +25,7 @@ From griotte Require Export logrel switcher switcher_preamble.
 Section Switcher_Return_States.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -51,8 +51,8 @@ Section Switcher_Return_States.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) -∗
-    na_own cerise_nais (F ∖ ↑Nswitcher) -∗
+    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) -∗
+    na_own (tpool th) (F ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -63,7 +63,7 @@ Section Switcher_Return_States.
     ▷ cstack_interp cstk a_tstk -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
-    na_own cerise_nais F.
+    na_own (tpool th) F.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
@@ -96,8 +96,8 @@ Section Switcher_Return_States.
     (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    (▷ switcher_inv ∗ na_own cerise_nais (F ∖ ↑Nswitcher) ={⊤}=∗ na_own cerise_nais F) -∗
-    na_own cerise_nais (F ∖ ↑Nswitcher) -∗
+    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) -∗
+    na_own (tpool th) (F ∖ ↑Nswitcher) -∗
     mtdc ↦ₛᵣ WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -112,7 +112,7 @@ Section Switcher_Return_States.
     ▷ cstack_interp cstk a_prev -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
-    na_own cerise_nais F ∗ cstack_frag cstk.
+    na_own (tpool th) F ∗ cstack_frag cstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.

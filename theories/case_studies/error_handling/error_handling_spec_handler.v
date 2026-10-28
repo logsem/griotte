@@ -32,7 +32,7 @@ Proof. rewrite /Nswitcher /Nstats. solve_ndisj. Qed.
 Section Error_Handling_Handler.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -326,14 +326,14 @@ Section Error_Handling_Handler.
     regs !! cgp = Some stats_wcgp →
     switcher_static -∗
     codefrag_pers STATS_pcc_b stats_code -∗
-    PC ↦ₚ stats_pcc (STATS_pcc_b ^+ stats_label ".Lstats_handler_unwind")%a -∗
+    PC ↦ₚ[th] stats_pcc (STATS_pcc_b ^+ stats_label ".Lstats_handler_unwind")%a -∗
     registers_pointsto regs -∗
     STATS_cgp_b ↦ₐ WInt 1 -∗
     error_state_area rfault -∗
     cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
-    na_own cerise_nais F -∗
+    na_own (tpool th) F -∗
     ▷ unwind_cont F cstk (error_state_area rfault ∗ stats_inv) -∗
-    WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hcra Hcgp) "#Hstatic #Hcode_stats HPC Hregs Hlock Harea Hcstk Hna HU".
     destruct (Hfull ca0) as [wca0 Hca0].

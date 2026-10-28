@@ -13,7 +13,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_Call_Blocks_3.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -31,14 +31,14 @@ Section SO_Call_Blocks_3.
     (* The stack frame holds the secret and [z], below the space reserved at
        the top of the stack *)
     (csp_b + 2 + StackEntry_reserved_space <= csp_e)%Z ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
-    ca1 ↦ᵣ wca1 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
+    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    cra ↦ᵣ[th] wcra ∗
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     pc_b ↦ₐ□ so_switcher_entry ∗
     codefrag_pers pc_a so_main_code ∗
@@ -46,22 +46,22 @@ Section SO_Call_Blocks_3.
         ⌜(a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e⌝ ∗
         ⌜(a_stk2 + 1)%a = Some a_stk1⌝ ∗
         ⌜(csp_b <= a_stk2)%a⌝ ∗
-        PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk2 ∗
-        ca1 ↦ᵣ WCap true RWL Local a_stk2 a_stk1 a_stk2 ∗
-        ct0 ↦ᵣ so_switcher_entry ∗
-        ct1 ↦ᵣ wct1 ∗
-        cs0 ↦ᵣ wcra ∗
-        cs1 ↦ᵣ wct1 ∗
-        cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk2 ∗
+        ca1 ↦ᵣ[th] WCap true RWL Local a_stk2 a_stk1 a_stk2 ∗
+        ct0 ↦ᵣ[th] so_switcher_entry ∗
+        ct1 ↦ᵣ[th] wct1 ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cs1 ↦ᵣ[th] wct1 ∗
+        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
         [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]] ∗
         a_stk1 ↦ₐ WInt so_secret ∗
         a_stk2 ↦ₐ WInt 0 ∗
         [[csp_b, a_stk2]] ↦ₐ [[stk_mem']] ∗
         pc_b ↦ₐ□ so_switcher_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap Hstk_size)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Himport_switcher

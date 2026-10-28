@@ -139,7 +139,9 @@ End initial_rootedness.
     The premise receives the program-logic resources of the initial state
     (registers, system registers, memory, shadow table, address claims, the
     non-atomic invariant token) and must produce a WP for the machine together with
-    the invariant of the assert flag. *)
+    the invariant of the assert flag. The machine runs as the user thread [0]:
+    its PC, registers and pool are those of [UserThread 0] in the base; the
+    shared heaps are stated at the base. *)
 Lemma cerise_flag_adequacy (Σ : gFunctors)
   {inv_preg : invGpreS Σ}
   {cerise_preg : ceriseGpreS Σ}
@@ -150,19 +152,19 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   (es : list griotte_lang.expr) :
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
-  (∀ (ceriseg : ceriseG Σ),
-     (* the trap vector of [ceriseg] is the one of the initial state *)
-     @mtcc_vec (@cerise_trapVector Σ ceriseg) = @mtcc_vec TV →
-     PC ↦ₚ lword_of_word pc -∗
-     ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ w) -∗
+  (∀ (ceriseb : ceriseBaseG Σ),
+     (* the trap vector of [ceriseb] is the one of the initial state *)
+     @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
+     PC ↦ₚ[u 0] lword_of_word pc -∗
+     ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ[u 0] w) -∗
      ([∗ map] r↦w ∈ sregs_handed_out sreg, r ↦ₛᵣ lword_of_word w) -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
-     (* the pool of [ceriseg], not the [na_invg] parameter *)
-     @na_own Σ (@cerise_instance.na_invG Σ (@cerise_nainvG Σ ceriseg)) cerise_nais ⊤
+     (* the pool of thread [0] in [ceriseb], not the [na_invg] parameter *)
+     @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread 0)) ⊤
      ={⊤}=∗
-     WP Seq (Instr Executable) {{ _, True }} ∗
+     WP Seq (Instr Executable) @[u 0] {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
   rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
@@ -173,25 +175,28 @@ Proof.
   specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
                 (state_is_good (pc', reg', sreg', m', sh'))).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
-  iMod (@na_alloc Σ na_invg) as (cerise_nais) "Hna".
-  pose cerise_na_invs := Build_cerise_na_invs _ na_invg cerise_nais.
+  iMod (@na_alloc Σ na_invg) as (pool) "Hna".
+  pose cerise_na_invs := Build_cerise_na_invs _ na_invg pool.
   iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H Hinit)
     as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg)
        "(Hσ & HPC & Hreg & Hsreg & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
-  pose ceriseg := {|
-    cerise_invG := Hinv;
-    cerise_nainvG := cerise_na_invs;
-    mem_gen_memG := mem_heapg;
-    shadowtbl_gen_regG := shadow_heapg;
-    cerise_pcG := pc_g;
-    reg_gen_regG := reg_heapg;
-    sreg_gen_regG := sreg_heapg;
-    cerise_registryG := registryg;
-    cerise_addr_allocG := addr_allocg;
-    cerise_trapVector := TV |}.
-  iMod (Hwp ceriseg eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
+  (* Every thread has the PC, the registers and the pool of the machine. *)
+  pose ceriseb := {|
+    cb_invG := Hinv;
+    cb_na_invG := na_invg;
+    cb_mem := mem_heapg;
+    cb_shadow := shadow_heapg;
+    cb_sreg := sreg_heapg;
+    cb_registry := registryg;
+    cb_addr_alloc := addr_allocg;
+    cb_trapVector := TV;
+    cb_pc_of := λ _, pc_g;
+    cb_regs_of := λ _, reg_heapg;
+    tpool := λ _, pool |}.
+  pose ceriseg := ceriseG_of (base := ceriseb) (UserThread 0).
+  iMod (Hwp ceriseb eq_refl with "HPC Hreg Hsreg Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
   iModIntro.
   iExists (fun σ _ _ => cerise_state_interp σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
@@ -240,7 +245,7 @@ End world_init.
 Section adversary_world.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -661,7 +666,7 @@ Notation adv_world_revoked := (adv_world_with Revoked).
 Section adversary_exports.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -677,7 +682,7 @@ Section adversary_exports.
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
-    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -732,7 +737,7 @@ Section adversary_exports.
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
-    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Nswitcher switcher_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -769,7 +774,7 @@ End adversary_exports.
 Section adversary_imports.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -779,7 +784,7 @@ Section adversary_imports.
   Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) :
     let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
-    na_inv cerise_nais Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Nswitcher switcher_inv ⊢
     switcher_static -∗
     interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
   Proof.
@@ -847,7 +852,7 @@ End adversary_imports.
 Section service_exports.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -925,7 +930,7 @@ End initial_heap.
 Section main_exports.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}

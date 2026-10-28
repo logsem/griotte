@@ -10,7 +10,7 @@ From griotte Require Import lse_spec_states lse_spec_world
 Section LSE.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -54,11 +54,11 @@ Section LSE.
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
 
     assert_static b_assert e_assert a_flag
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a lse_main_code
-    ∗ na_inv cerise_nais Nlse (cgp_b ↦ₐ WInt 2)
+    ∗ na_inv (tpool th) Nlse (cgp_b ↦ₐ WInt 2)
     ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
     ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_lse_exp_tbl

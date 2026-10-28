@@ -10,7 +10,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 Section Heap_Temporal_Safety_Main.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -84,7 +84,7 @@ Section Heap_Temporal_Safety_Main.
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
-      ∗ na_inv cerise_nais Nswitcher switcher_inv ∗ switcher_static
+      ∗ na_inv (tpool th) Nswitcher switcher_inv ∗ switcher_static
       ∗ allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
           allocator_pcc_b allocator_pcc_e allocator_pcc_b
       ∗ a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
@@ -95,14 +95,14 @@ Section Heap_Temporal_Safety_Main.
       ∗ a_alloc_entry_free ↦ₐ□
           WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
             allocator_free_pcc_off)
-      ∗ na_own cerise_nais ⊤
+      ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-      ∗ cra ↦ᵣ thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ[th] thread_return_sentry
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a hts_main_code
@@ -121,7 +121,7 @@ Section Heap_Temporal_Safety_Main.
       ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     (* The proof follows the control flow of [hts_main_asm]; each segment
        ends at a switcher call or at the return:

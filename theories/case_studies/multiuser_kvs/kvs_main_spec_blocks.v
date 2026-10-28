@@ -53,7 +53,7 @@ Ltac kvs_main_fetch_bounds :=
 Section KVS_Main_Blocks.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -226,11 +226,11 @@ Section KVS_Main_Blocks.
   Proof. by rewrite /is_arg_rmap /kvs_main_read_arg_rmap. Qed.
 
   Lemma kvs_main_adversary_arg_rmap_resources (W : WORLD) (C : CmptName) :
-    ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0
-    ∗ ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0
-    ∗ ct0 ↦ᵣ WInt 0
+    ca0 ↦ᵣ[th] WInt 0 ∗ ca1 ↦ᵣ[th] WInt 0 ∗ ca2 ↦ᵣ[th] WInt 0
+    ∗ ca3 ↦ᵣ[th] WInt 0 ∗ ca4 ↦ᵣ[th] WInt 0 ∗ ca5 ↦ᵣ[th] WInt 0
+    ∗ ct0 ↦ᵣ[th] WInt 0
     -∗ [∗ map] rarg ↦ warg ∈ kvs_main_adversary_arg_rmap,
-        rarg ↦ᵣ warg ∗ interp W C warg.
+        rarg ↦ᵣ[th] warg ∗ interp W C warg.
   Proof.
     iIntros "(Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0)".
     iAssert (interp W C (WInt 0)) as "#Hint".
@@ -255,20 +255,20 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖
         ({[ cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ cgp ↦ᵣ wcgp ∗ cra ↦ᵣ wcra
-    ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-    ∗ ct1 ↦ᵣ WSealed ot_switcher target
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ cgp ↦ᵣ[th] wcgp ∗ cra ↦ᵣ[th] wcra
+    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ ct1 ↦ᵣ[th] WSealed ot_switcher target
     ∗ interp W C (WSealed ot_switcher target)
     ∗ target ↦ₑ□{nargs} 0
-    ∗ cs0 ↦ᵣ wcs0 ∗ cs1 ↦ᵣ wcs1
-    ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0 ∗ ca2 ↦ᵣ WInt 0
-    ∗ ca3 ↦ᵣ WInt 0 ∗ ca4 ↦ᵣ WInt 0 ∗ ca5 ↦ᵣ WInt 0
-    ∗ ct0 ↦ᵣ WInt 0
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w)
+    ∗ cs0 ↦ᵣ[th] wcs0 ∗ cs1 ↦ᵣ[th] wcs1
+    ∗ ca0 ↦ᵣ[th] WInt 0 ∗ ca1 ↦ᵣ[th] WInt 0 ∗ ca2 ↦ᵣ[th] WInt 0
+    ∗ ca3 ↦ᵣ[th] WInt 0 ∗ ca4 ↦ᵣ[th] WInt 0 ∗ ca5 ↦ᵣ[th] WInt 0
+    ∗ ct0 ↦ᵣ[th] WInt 0
+    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w)
     ∗ [[stk_free_b b_stk a_stk, stk_free_e e_stk a_stk]] ↦ₐ [[stk_mem]]
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
@@ -290,25 +290,23 @@ Section KVS_Main_Blocks.
         ∗ StackRevokedResources W2 C (stk_free b_stk e_stk a_stk)
         ∗ ⌜revoked_addresses (revoke W2)
             (stk_free b_stk e_stk a_stk)⌝
-        ∗ na_own cerise_nais ⊤
+        ∗ na_own (tpool th) ⊤
         ∗ ⌜callee_stk_bounds b_stk e_stk a_stk⌝
         ∗ world_interp (revoke W2) C
         ∗ cstack_frag cstk
-        ∗ PC ↦ₚ lupdatePcPerm (rcra)
-        ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra
-        ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
-        ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
-        ∗ (∃ warg0, ca0 ↦ᵣ warg0 ∗ interp W2 C warg0)
-        ∗ (∃ warg1, ca1 ↦ᵣ warg1 ∗ interp W2 C warg1)
-        ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
+        ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
+        ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra
+        ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
+        ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+        ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
+        ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
+        ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
         ∗ [[stk_free_b b_stk a_stk, stk_free_e e_stk a_stk]] ↦ₐ [[stk_mem']]
         ∗ interp_continuation cstk Ws Cs
         ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
              load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
-        -∗ WP Seq (Instr Executable)
-          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -343,18 +341,18 @@ Section KVS_Main_Blocks.
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
     cstk.(cstk_frames) = [] ->
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
-    cra ↦ᵣ wcra ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct2 ↦ᵣ wct2 ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
+    cra ↦ᵣ[th] wcra ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     cstack_frag cstk ∗
     codefrag_pers pc_a kvs_main_code
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HsubBounds Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
@@ -392,21 +390,21 @@ Section KVS_Main_Blocks.
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ kvs_static
-    ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
-    ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
+    ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
+    ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
     ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-    ∗ cra ↦ᵣ thread_return_sentry
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w)
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+    ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+    ∗ cra ↦ᵣ[th] thread_return_sentry
+    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w)
     ∗ pc_b ↦ₐ□
         WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
@@ -422,16 +420,16 @@ Section KVS_Main_Blocks.
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
-        ∗ na_own cerise_nais ⊤
-        ∗ PC ↦ₚ WCap true RX Global pc_b pc_e
+        ∗ na_own (tpool th) ⊤
+        ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e
             (pc_a ^+ length kvs_main_add_phase_instrs)%a
-        ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-        ∗ (∃ wcra, cra ↦ᵣ wcra)
-        ∗ cs0 ↦ᵣ thread_return_sentry
-        ∗ cs1 ↦ᵣ kvs_user_seal_key Global static_sealed_b
-        ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-        ∗ ca0 ↦ᵣ WInt 0 ∗ ca1 ↦ᵣ WInt 0
-        ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
+        ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+        ∗ (∃ wcra, cra ↦ᵣ[th] wcra)
+        ∗ cs0 ↦ᵣ[th] thread_return_sentry
+        ∗ cs1 ↦ᵣ[th] kvs_user_seal_key Global static_sealed_b
+        ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+        ∗ ca0 ↦ᵣ[th] WInt 0 ∗ ca1 ↦ᵣ[th] WInt 0
+        ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
         ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
             [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]]
         ∗ cstack_frag cstk
@@ -445,10 +443,8 @@ Section KVS_Main_Blocks.
         ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
             kvs_user_seal_key Global static_sealed_b
         ∗ codefrag_pers pc_a kvs_main_code
-        -∗ WP Seq (Instr Executable)
-          {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_kvs_exp_tbl_cgp.
     subst a_kvs_exp_tbl_cgp.
@@ -721,26 +717,26 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     assert_static b_assert e_assert a_flag
-    ∗ na_inv cerise_nais Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ kvs_static
-    ∗ na_inv cerise_nais (Nkvs.@"physical") kvs_inv
-    ∗ na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv
+    ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
+    ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
     ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ₚ WCap true RX Global pc_b pc_e
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e
         (pc_a ^+ length
           (kvs_main_add_phase_instrs ++
            kvs_main_adversary_phase_instrs))%a
-    ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ cra ↦ᵣ wcra ∗ cs0 ↦ᵣ thread_return_sentry
-    ∗ cs1 ↦ᵣ kvs_user_seal_key Global static_sealed_b
-    ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-    ∗ ca0 ↦ᵣ wca0 ∗ ca1 ↦ᵣ wca1
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝)
+    ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ cra ↦ᵣ[th] wcra ∗ cs0 ↦ᵣ[th] thread_return_sentry
+    ∗ cs1 ↦ᵣ[th] kvs_user_seal_key Global static_sealed_b
+    ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+    ∗ ca0 ↦ᵣ[th] wca0 ∗ ca1 ↦ᵣ[th] wca1
+    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
     ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
     ∗ cstack_frag cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
@@ -753,8 +749,7 @@ Section KVS_Main_Blocks.
     ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ□
         WSentry Inherit true RX Global b_assert e_assert b_assert
     ∗ codefrag_pers pc_a kvs_main_code
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_kvs_exp_tbl_cgp.
     subst a_kvs_exp_tbl_cgp.

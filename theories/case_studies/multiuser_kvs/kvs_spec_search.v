@@ -7,7 +7,7 @@ From griotte Require Export kvs_preamble.
 Section KVS_search.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -19,10 +19,10 @@ Section KVS_search.
     (rkey ridx ridx_empty rscratch : RegName)
     (pkvs : kvs_physical_map) (idx : nat) (fkey : full_key_t) (w : LWord) : iProp Σ :=
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
-    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+     cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx))%a ∗
-     rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt idx ∗ ridx_empty ↦ᵣ - ∗ rscratch ↦ᵣ - ∗
+     rkey ↦ᵣ[th] WInt fkey ∗ ridx ↦ᵣ[th] WInt idx ∗ ridx_empty ↦ᵣ[th] - ∗ rscratch ↦ᵣ[th] - ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx))%a ↦ₐ WInt ASM_SOME ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 1))%a ↦ₐ WInt fkey ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a ↦ₐ w ∗
@@ -37,10 +37,10 @@ Section KVS_search.
     (pkvs : kvs_physical_map) (fkey : full_key_t) : iProp Σ :=
     let instrs := kvs_search_instrs rkey ridx ridx_empty rscratch in
     ((∃ idx_empty_slot : nat,
-       PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-       cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-       rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt (-1)%Z ∗
-       ridx_empty ↦ᵣ WInt idx_empty_slot ∗ rscratch ↦ᵣ - ∗
+       PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+       cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+       rkey ↦ᵣ[th] WInt fkey ∗ ridx ↦ᵣ[th] WInt (-1)%Z ∗
+       ridx_empty ↦ᵣ[th] WInt idx_empty_slot ∗ rscratch ↦ᵣ[th] - ∗
        is_physical_kvs_open cgp_b pkvs idx_empty_slot ∗
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot + 1))%a ↦ₐ - ∗
@@ -49,10 +49,10 @@ Section KVS_search.
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty_slot + 2))%a = true⌝ ∗
        ⌜0 <= idx_empty_slot⌝ ∗
        ⌜pkvs !! idx_empty_slot = Some None⌝ ∗ codefrag_pers pc_a instrs) ∨
-     (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ WInt (-1)%Z ∗
-      ridx_empty ↦ᵣ WInt (-1)%Z ∗ rscratch ↦ᵣ - ∗
+     (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      rkey ↦ᵣ[th] WInt fkey ∗ ridx ↦ᵣ[th] WInt (-1)%Z ∗
+      ridx_empty ↦ᵣ[th] WInt (-1)%Z ∗ rscratch ↦ᵣ[th] - ∗
       is_physical_kvs cgp_b pkvs ∗ codefrag_pers pc_a instrs))%I.
 
   Lemma kvs_physical_map_open_any
@@ -86,31 +86,31 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
-     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+     cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
-     rkey ↦ᵣ WInt fkey ∗
-     ridx ↦ᵣ WInt n ∗
-     ridx_empty ↦ᵣ wempty ∗
-     rscratch ↦ᵣ wscratch ∗
+     rkey ↦ᵣ[th] WInt fkey ∗
+     ridx ↦ᵣ[th] WInt n ∗
+     ridx_empty ↦ᵣ[th] wempty ∗
+     rscratch ↦ᵣ[th] wscratch ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_NONE ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ w1 ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ w2 ∗
      codefrag_pers pc_a instrs ∗
 
-     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+     ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a ∗
-        rkey ↦ᵣ WInt fkey ∗
-        ridx ↦ᵣ WInt (n + 1) ∗
-        ridx_empty ↦ᵣ WInt n ∗
-        rscratch ↦ᵣ WInt 0 ∗
+        rkey ↦ᵣ[th] WInt fkey ∗
+        ridx ↦ᵣ[th] WInt (n + 1) ∗
+        ridx_empty ↦ᵣ[th] WInt n ∗
+        rscratch ↦ᵣ[th] WInt 0 ∗
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_NONE ∗
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ w1 ∗
         (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ w2 ∗
         codefrag_pers pc_a instrs -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+        WP Seq (Instr Executable) @[th] {{ HO th }})
+     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hcgp_bound Hn Hrscratch Hridx Hridx_empty Hkey.
     iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & #Hcode & Hpost)".
@@ -153,44 +153,44 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
-     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+     cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
        (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
-     rkey ↦ᵣ WInt fkey ∗
-     ridx ↦ᵣ WInt n ∗
-     ridx_empty ↦ᵣ wempty ∗
-     rscratch ↦ᵣ wscratch ∗
+     rkey ↦ᵣ[th] WInt fkey ∗
+     ridx ↦ᵣ[th] WInt n ∗
+     ridx_empty ↦ᵣ[th] wempty ∗
+     rscratch ↦ᵣ[th] wscratch ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
      (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
      codefrag_pers pc_a instrs ∗
 
      ▷ (((⌜fkey = kidx⌝ ∗
-           PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-           cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+           PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+           cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
              (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ∗
-           rkey ↦ᵣ WInt fkey ∗
-           ridx ↦ᵣ WInt n ∗
-           ridx_empty ↦ᵣ wempty ∗
-           rscratch ↦ᵣ WInt 0 ∗
+           rkey ↦ᵣ[th] WInt fkey ∗
+           ridx ↦ᵣ[th] WInt n ∗
+           ridx_empty ↦ᵣ[th] wempty ∗
+           rscratch ↦ᵣ[th] WInt 0 ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
            codefrag_pers pc_a instrs) ∨
           (⌜fkey ≠ kidx⌝ ∗
-           PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
-           cgp ↦ᵣ WCap true RW Global cgp_b cgp_e
+           PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+           cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e
              (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * (n + 1)))%a ∗
-           rkey ↦ᵣ WInt fkey ∗
-           ridx ↦ᵣ WInt (n + 1) ∗
-           ridx_empty ↦ᵣ wempty ∗
-           rscratch ↦ᵣ WInt (fkey - kidx) ∗
+           rkey ↦ᵣ[th] WInt fkey ∗
+           ridx ↦ᵣ[th] WInt (n + 1) ∗
+           ridx_empty ↦ᵣ[th] wempty ∗
+           rscratch ↦ᵣ[th] WInt (fkey - kidx) ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n))%a ↦ₐ WInt ASM_SOME ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))%a ↦ₐ WInt kidx ∗
            (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 2))%a ↦ₐ widx ∗
            codefrag_pers pc_a instrs)) -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+        WP Seq (Instr Executable) @[th] {{ HO th }})
+     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hcgp_bound Hn Hrscratch Hridx Hridx_empty Hkey.
     iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & Hn0 & Hn1 & Hn2 & #Hcode & Hpost)".
@@ -263,23 +263,23 @@ Section KVS_search.
     ridx_empty ≠ cnull ->
     rkey ≠ cnull ->
 
-    (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
-     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_e ∗
-     rkey ↦ᵣ WInt fkey ∗
-     ridx ↦ᵣ WInt SIZE_MAP ∗
-     ridx_empty ↦ᵣ wempty ∗
-     rscratch ↦ᵣ wscratch ∗
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ 2)%a ∗
+     cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_e ∗
+     rkey ↦ᵣ[th] WInt fkey ∗
+     ridx ↦ᵣ[th] WInt SIZE_MAP ∗
+     ridx_empty ↦ᵣ[th] wempty ∗
+     rscratch ↦ᵣ[th] wscratch ∗
      codefrag_pers pc_a instrs ∗
 
-     ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        rkey ↦ᵣ WInt fkey ∗
-        ridx ↦ᵣ WInt (-1)%Z ∗
-        ridx_empty ↦ᵣ wempty ∗
-        rscratch ↦ᵣ WInt 0 ∗
+     ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        rkey ↦ᵣ[th] WInt fkey ∗
+        ridx ↦ᵣ[th] WInt (-1)%Z ∗
+        ridx_empty ↦ᵣ[th] wempty ∗
+        rscratch ↦ᵣ[th] WInt 0 ∗
         codefrag_pers pc_a instrs -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+        WP Seq (Instr Executable) @[th] {{ HO th }})
+     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey.
     iIntros "(HPC & Hcgp & Hrkey & Hridx & Hempty & Hscratch & #Hcode & Hpost)".
@@ -309,14 +309,14 @@ Section KVS_search.
     withinBounds cgp_b cgp_e cgp_b = true ->
     ((cgp_b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP)%Z)%a = Some cgp_e)%a ->
     rscratch ≠ cnull -> ridx ≠ cnull -> ridx_empty ≠ cnull -> rkey ≠ cnull ->
-    (PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-     cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-     rkey ↦ᵣ WInt fkey ∗ ridx ↦ᵣ - ∗ ridx_empty ↦ᵣ - ∗ rscratch ↦ᵣ - ∗
+    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+     cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+     rkey ↦ᵣ[th] WInt fkey ∗ ridx ↦ᵣ[th] - ∗ ridx_empty ↦ᵣ[th] - ∗ rscratch ↦ᵣ[th] - ∗
      is_physical_kvs cgp_b pkvs ∗ codefrag_pers pc_a instrs ∗
      ▷ (kvs_search_outcome_resources pc_b pc_e pc_a cgp_b cgp_e
           rkey ridx ridx_empty rscratch pkvs fkey -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-     ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+        WP Seq (Instr Executable) @[th] {{ HO th }})
+     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs.
     iIntros (Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hrscratch Hridx Hridx_empty Hkey)
@@ -619,23 +619,23 @@ Section KVS_search.
     rkey ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      rkey ↦ᵣ WInt fkey ∗
-      ridx ↦ᵣ - ∗
-      ridx_empty ↦ᵣ - ∗
-      rscratch ↦ᵣ - ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      rkey ↦ᵣ[th] WInt fkey ∗
+      ridx ↦ᵣ[th] - ∗
+      ridx_empty ↦ᵣ[th] - ∗
+      rscratch ↦ᵣ[th] - ∗
 
       is_physical_kvs cgp_b pkvs ∗
 
       codefrag_pers pc_a instrs ∗
       ▷ (
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-          cgp ↦ᵣ WCap true RW Global cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx) )%a ∗
-          rkey ↦ᵣ WInt fkey ∗
-          ridx ↦ᵣ WInt idx ∗
-          ridx_empty ↦ᵣ - ∗
-          rscratch ↦ᵣ - ∗
+          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx) )%a ∗
+          rkey ↦ᵣ[th] WInt fkey ∗
+          ridx ↦ᵣ[th] WInt idx ∗
+          ridx_empty ↦ᵣ[th] - ∗
+          rscratch ↦ᵣ[th] - ∗
 
 
           (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a ↦ₐ WInt ASM_SOME ∗
@@ -648,9 +648,9 @@ Section KVS_search.
 
           codefrag_pers pc_a instrs -∗
 
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hlookup Hrscratch Hridx_ne Hridx_empty_ne Hrkey_ne.
     iIntros "(HPC & HcgpReg & Hrkey & Hridx & Hridx_empty & HscratchReg & HKVS & #Hcode & Hpost)".
@@ -695,12 +695,12 @@ Section KVS_search.
     rkey ≠ cnull ->
 
     (
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      rkey ↦ᵣ WInt fkey ∗
-      ridx ↦ᵣ - ∗
-      ridx_empty ↦ᵣ - ∗
-      rscratch ↦ᵣ - ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      rkey ↦ᵣ[th] WInt fkey ∗
+      ridx ↦ᵣ[th] - ∗
+      ridx_empty ↦ᵣ[th] - ∗
+      rscratch ↦ᵣ[th] - ∗
 
       is_physical_kvs cgp_b pkvs ∗
 
@@ -708,12 +708,12 @@ Section KVS_search.
       ▷ ( (* An empty slot was found*)
           ( ∃ idx_empty_slot : nat,
             (
-            PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-            cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-            rkey ↦ᵣ WInt fkey ∗
-            ridx ↦ᵣ WInt (-1)%Z ∗
-            ridx_empty ↦ᵣ WInt idx_empty_slot ∗
-            rscratch ↦ᵣ - ∗
+            PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+            cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+            rkey ↦ᵣ[th] WInt fkey ∗
+            ridx ↦ᵣ[th] WInt (-1)%Z ∗
+            ridx_empty ↦ᵣ[th] WInt idx_empty_slot ∗
+            rscratch ↦ᵣ[th] - ∗
 
             is_physical_kvs_open cgp_b pkvs idx_empty_slot ∗
             (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY*idx_empty_slot))%a ↦ₐ WInt ASM_NONE ∗
@@ -729,20 +729,20 @@ Section KVS_search.
           )
           ∨ (* No empty slot found*)
             (
-              PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
-              cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-              rkey ↦ᵣ WInt fkey ∗
-              ridx ↦ᵣ WInt (-1) ∗
-              ridx_empty ↦ᵣ WInt (-1) ∗
-              rscratch ↦ᵣ - ∗
+              PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+              cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+              rkey ↦ᵣ[th] WInt fkey ∗
+              ridx ↦ᵣ[th] WInt (-1) ∗
+              ridx_empty ↦ᵣ[th] WInt (-1) ∗
+              rscratch ↦ᵣ[th] - ∗
 
               is_physical_kvs cgp_b pkvs ∗
 
               codefrag_pers pc_a instrs
             ) -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+          WP Seq (Instr Executable) @[th] {{ HO th }}
         )
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros instrs fkey Hcgp_shadow HsubBounds Hbounds_cgp Hcgp_bound Hnotin Huint16
       Hrscratch Hridx_ne Hridx_empty_ne Hrkey_ne.

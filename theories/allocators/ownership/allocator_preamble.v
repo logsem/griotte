@@ -137,7 +137,7 @@ Proof.
 Qed.
 
 Section AllocatorService.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}
     {FA : FreeAuth Σ} {allocator_ownerg : allocatorOwnerG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
@@ -178,7 +178,7 @@ Section AllocatorService.
     ∃ next : Addr, allocator_service_data next.
 
   Definition allocator_service_ctx : iProp Σ :=
-    na_inv cerise_nais Nallocator_service allocator_service_inv.
+    na_inv (tpool th) Nallocator_service allocator_service_inv.
 
 End AllocatorService.
 

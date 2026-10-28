@@ -161,7 +161,7 @@ End HTS_Layout.
 Section HTS_States.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -188,7 +188,7 @@ Section HTS_States.
     assert_static b_assert e_assert a_flag ∗
     allocator_service_ctx ∗
     allocator_service_static ∗
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
@@ -229,13 +229,13 @@ Section HTS_States.
   (** The registers restored by the switcher on return to [a_ret], and the
       resources that are threaded through every call. *)
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e a_ret ∗
-    (∃ mie, cra ↦ᵣ WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ WCap true RWL Local csp_b csp_e a_stk ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
-    (∃ w, cs1 ↦ᵣ w) ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e a_ret ∗
+    (∃ mie, cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
+    (∃ w, cs1 ↦ᵣ[th] w) ∗
     cstack_frag cstk ∗
     hts_static_mem.
 
@@ -243,20 +243,20 @@ Section HTS_States.
   Definition hts_zero_regs : iProp Σ :=
     ∃ rmap : LReg,
       ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ w ∗ ⌜w = WInt 0⌝).
+      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝).
 
   (** Enough to run a failing result check at [a], and to return through the
       switcher's return sentry saved in [cs0], at the thread's entry call
       stack: [ca0] holds the integer error code [z]. *)
   Definition hts_halt_ready (a : Addr) (z : Z) : iProp Σ :=
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e a ∗
-    ca0 ↦ᵣ WInt z ∗
-    (∃ w, ct0 ↦ᵣ w) ∗
-    cs0 ↦ᵣ thread_return_sentry ∗
-    (∃ w, cra ↦ᵣ w) ∗
-    (∃ w, ctp ↦ᵣ w) ∗
-    (∃ w, ct2 ↦ᵣ w) ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e a ∗
+    ca0 ↦ᵣ[th] WInt z ∗
+    (∃ w, ct0 ↦ᵣ[th] w) ∗
+    cs0 ↦ᵣ[th] thread_return_sentry ∗
+    (∃ w, cra ↦ᵣ[th] w) ∗
+    (∃ w, ctp ↦ᵣ[th] w) ∗
+    (∃ w, ct2 ↦ᵣ[th] w) ∗
     cstack_frag cstk ∗
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
@@ -276,8 +276,8 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
       hts_frame a_ret (stk_start_a csp_b csp_e) ∗
-      ca0 ↦ᵣ hts_buffer b @@ ι ∗
-      ca1 ↦ᵣ WInt 0 ∗
+      ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
+      ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
       [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
         [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]] ∗
@@ -311,8 +311,8 @@ Section HTS_States.
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1)%a ∗
-      (∃ w, ca0 ↦ᵣ w) ∗
-      (∃ w, ca1 ↦ᵣ w) ∗
+      (∃ w, ca0 ↦ᵣ[th] w) ∗
+      (∃ w, ca1 ↦ᵣ[th] w) ∗
       hts_zero_regs ∗
       (stk_start_a csp_b csp_e ^+ -1)%a ↦ₐ hts_buffer b @@ ι ∗
       (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1)%a,
@@ -334,8 +334,8 @@ Section HTS_States.
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1)%a ∗
-      ca0 ↦ᵣ WInt 0 ∗
-      ca1 ↦ᵣ WInt 0 ∗
+      ca0 ↦ᵣ[th] WInt 0 ∗
+      ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
       (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1)%a,
                 stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)%a]] ↦ₐ [[stk]]) ∗

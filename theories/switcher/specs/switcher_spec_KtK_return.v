@@ -14,7 +14,7 @@ From griotte Require Import map_simpl register_tactics proofmode.
 Section Switcher_KtK_Return.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -67,24 +67,24 @@ Section Switcher_KtK_Return.
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
     (* NA token*)
-    ∗ na_own cerise_nais F
+    ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
-    ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
+    ∗ cgp ↦ᵣ[th] - ∗ cra ↦ᵣ[th] - ∗ cs0 ↦ᵣ[th] - ∗ cs1 ↦ᵣ[th] -
     (* Stack register, any word: the return routine reloads it *)
-    ∗ csp ↦ᵣ -
+    ∗ csp ↦ᵣ[th] -
     (* Return values *)
-    ∗ ca0 ↦ᵣ wca0
-    ∗ ca1 ↦ᵣ wca1
+    ∗ ca0 ↦ᵣ[th] wca0
+    ∗ ca1 ↦ᵣ[th] wca1
 
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
     (* Stack frame *)
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -100,17 +100,17 @@ Section Switcher_KtK_Return.
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
-              ∗ na_own cerise_nais F
+              ∗ na_own (tpool th) F
               (* Registers *)
-              ∗ PC ↦ₚ lupdatePcPerm (rcra)
-              ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
+              ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
+              ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
               (* Stack register *)
-              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
-              ∗ ca0 ↦ᵣ wca0
-              ∗ ca1 ↦ᵣ wca1
+              ∗ ca0 ↦ᵣ[th] wca0
+              ∗ ca1 ↦ᵣ[th] wca1
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
 
               (* Stack frame *)
               ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
@@ -119,11 +119,10 @@ Section Switcher_KtK_Return.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
 
-                -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+                -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
             )
         )
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant, and read the topmost frame of the call
@@ -235,24 +234,24 @@ Section Switcher_KtK_Return.
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
     (* NA token*)
-    ∗ na_own cerise_nais F
+    ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
-    ∗ cgp ↦ᵣ - ∗ cra ↦ᵣ - ∗ cs0 ↦ᵣ - ∗ cs1 ↦ᵣ -
+    ∗ cgp ↦ᵣ[th] - ∗ cra ↦ᵣ[th] - ∗ cs0 ↦ᵣ[th] - ∗ cs1 ↦ᵣ[th] -
     (* Stack register *)
-    ∗ csp ↦ᵣ callee_csp b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
     (* Return values *)
-    ∗ ca0 ↦ᵣ wca0
-    ∗ ca1 ↦ᵣ wca1
+    ∗ ca0 ↦ᵣ[th] wca0
+    ∗ ca1 ↦ᵣ[th] wca1
 
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
     (* Stack frame *)
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -268,17 +267,17 @@ Section Switcher_KtK_Return.
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
               ∗ ⌜ dom rmap' = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ⌝
               (* NA token*)
-              ∗ na_own cerise_nais F
+              ∗ na_own (tpool th) F
               (* Registers *)
-              ∗ PC ↦ₚ lupdatePcPerm (rcra)
-              ∗ cgp ↦ᵣ rcgp ∗ cra ↦ᵣ rcra ∗ cs0 ↦ᵣ rcs0 ∗ cs1 ↦ᵣ rcs1
+              ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
+              ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
               (* Stack register *)
-              ∗ csp ↦ᵣ WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
               (* Return values *)
-              ∗ ca0 ↦ᵣ wca0
-              ∗ ca1 ↦ᵣ wca1
+              ∗ ca0 ↦ᵣ[th] wca0
+              ∗ ca1 ↦ᵣ[th] wca1
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
 
               (* Stack frame *)
               ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
@@ -287,11 +286,10 @@ Section Switcher_KtK_Return.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ cstack_frag cstk
 
-                -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}
+                -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
             )
         )
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)

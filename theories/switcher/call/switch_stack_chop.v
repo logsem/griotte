@@ -17,7 +17,7 @@ From griotte Require Import call_stack switcher_preamble clear_stack_spec.
 Section Switch_Stack_Chop.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -31,23 +31,23 @@ Section Switch_Stack_Chop.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_stack_chop" ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    csp ↦ᵣ WCap true RWL Local b e (stk_saved_a a) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_chop" ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ switcher_label_pc ".Lswitch_unseal_entry" ∗
-        cs0 ↦ᵣ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
-        (∃ wcs1', cs1 ↦ᵣ wcs1') ∗
-        (∃ wct2', ct2 ↦ᵣ wct2') ∗
-        csp ↦ᵣ chopped_csp b e a ∗
+    ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_unseal_entry" ∗
+        cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
+        (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
+        csp ↦ᵣ[th] chopped_csp b e a ∗
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
       "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & Hstk & #Hb_switcher & #Hswitcher & Hpost)".

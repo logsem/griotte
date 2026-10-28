@@ -28,7 +28,7 @@ Section dle_obligations.
     fw_obligations Σ dle_firmware.
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -82,7 +82,8 @@ Section dle_obligations.
     (* 4 - Close the world of C: its compartment becomes permanent, and the
        stack temporary, because main shares it with C; its export is safe
        to share. *)
-    iMod (fw_close_adv_world _ _ _ 1 (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt) _
+    iMod (fw_close_adv_world (th := UserThread 0)
+            _ _ _ 1 (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".

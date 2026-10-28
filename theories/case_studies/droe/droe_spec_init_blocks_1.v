@@ -10,7 +10,7 @@ From griotte Require Import droe_spec_states.
 Section DROE_Init_Blocks_1.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -25,26 +25,26 @@ Section DROE_Init_Blocks_1.
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-    ca0 ↦ᵣ wca0 ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     cgp_b ↦ₐ WInt 0 ∗
     (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
     codefrag_pers pc_a droe_main_code ∗
-    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
-        (∃ w, ct0 ↦ᵣ w) ∗
-        (∃ w, ct1 ↦ᵣ w) ∗
-        (∃ w, ct2 ↦ᵣ w) ∗
+    ▷ ( PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
+        (∃ w, ct0 ↦ᵣ[th] w) ∗
+        (∃ w, ct1 ↦ᵣ[th] w) ∗
+        (∃ w, ct2 ↦ᵣ[th] w) ∗
         cgp_b ↦ₐ WInt 42 ∗
         (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
         codefrag_pers pc_a droe_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio [Hcgp_nonheap Hcgp_heap])
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hcgp_b & Hcgp_a & Hcode_main & Hpost)".

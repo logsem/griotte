@@ -16,7 +16,7 @@ From griotte Require Import call_stack switcher_preamble clear_stack_spec clear_
 Section Switcher_Zero_Callee_Frame.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -24,18 +24,18 @@ Section Switcher_Zero_Callee_Frame.
   (** From [.Lswitch_just_return]: the jump to [wret], which faults
       when [wret] is not a valid target. *)
   Lemma switcher_return_to_caller_spec (wret : LWord) :
-    PC ↦ₚ switcher_label_pc ".Lswitch_just_return" ∗
-    cra ↦ᵣ wret ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
+    cra ↦ᵣ[th] wret ∗
     switcher_code ∗
-    ( ▷ ( PC ↦ₚ lupdatePcPerm wret ∗
-          cra ↦ᵣ wret ∗
+    ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
+          cra ↦ᵣ[th] wret ∗
           £ 1 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
-        cra ↦ᵣ wret -∗
+        cra ↦ᵣ[th] wret -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-          (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+          (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_just_return" "Hswitcher" as "Hcode" a_ret Ha_ret.
@@ -60,21 +60,21 @@ Section Switcher_Zero_Callee_Frame.
   Lemma switch_callee_dead_zeros_spec (wcra : LWord) (rmap : LReg) :
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
-    cra ↦ᵣ wcra ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
+    cra ↦ᵣ[th] wcra ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        cra ↦ᵣ wcra ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        ( PC ↦ₚ lupdatePcPerm wcra ∗
+        cra ↦ᵣ[th] wcra ∗
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        ( PC ↦ₚ[th] lupdatePcPerm wcra ∗
           £ 1 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+            (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_ret"; first iFrame "Hswitcher".
@@ -106,40 +106,40 @@ Section Switcher_Zero_Callee_Frame.
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
 
-    PC ↦ₚ switcher_label_pc ".Lswitch_callee_stack_zero" ∗
-    cgp ↦ᵣ wcgp' ∗
-    cra ↦ᵣ wcra' ∗
-    cs1 ↦ᵣ wcs1' ∗
-    cs0 ↦ᵣ wcs0' ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ctp ↦ᵣ wctp ∗
-    csp ↦ᵣ WCap true RWL Local b e a ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
+    cgp ↦ᵣ[th] wcgp' ∗
+    cra ↦ᵣ[th] wcra' ∗
+    cs1 ↦ᵣ[th] wcs1' ∗
+    cs0 ↦ᵣ[th] wcs0' ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ctp ↦ᵣ[th] wctp ∗
+    csp ↦ᵣ[th] WCap true RWL Local b e a ∗
     switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        cra ↦ᵣ wcra' ∗
-        cgp ↦ᵣ wcgp' ∗
-        cs0 ↦ᵣ wcs0' ∗
-        cs1 ↦ᵣ wcs1' ∗
-        csp ↦ᵣ WCap true RWL Local b e a ∗
+        cra ↦ᵣ[th] wcra' ∗
+        cgp ↦ᵣ[th] wcgp' ∗
+        cs0 ↦ᵣ[th] wcs0' ∗
+        cs1 ↦ᵣ[th] wcs1' ∗
+        csp ↦ᵣ[th] WCap true RWL Local b e a ∗
         [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
           [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ ) -∗
-        ( PC ↦ₚ lupdatePcPerm wcra' ∗
+        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        ( PC ↦ₚ[th] lupdatePcPerm wcra' ∗
           £ 1 -∗
-          WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} ) ∧
+          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-            (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I ) )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+            (HO th) ) )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hbounds Hstk_mmio Hdom)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp

@@ -17,7 +17,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_World_List.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -113,7 +113,7 @@ End SO_World_List.
 Section SO_World_Object.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG LAddr region_type OType LWord Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}

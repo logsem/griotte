@@ -17,7 +17,7 @@ From griotte Require Import switcher_exception_states trusted_spill_registers_sp
 Section Common_Context_Install.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -37,45 +37,45 @@ Section Common_Context_Install.
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     length save_area = 21%nat ->
 
-    PC ↦ₚ switcher_label_pc ".Lcommon_context_install" ∗
-    csp ↦ᵣ tstack_cap ∗
-    cra ↦ᵣ wcra ∗
-    cgp ↦ᵣ wcgp ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wpc ∗
-    cs0 ↦ᵣ wcs0 ∗
-    cs1 ↦ᵣ wcs1 ∗
-    ca0 ↦ᵣ wca0 ∗
-    ca1 ↦ᵣ wca1 ∗
-    ca2 ↦ᵣ wca2 ∗
-    ca3 ↦ᵣ wca3 ∗
-    ca4 ↦ᵣ wca4 ∗
-    ca5 ↦ᵣ wca5 ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
+    csp ↦ᵣ[th] tstack_cap ∗
+    cra ↦ᵣ[th] wcra ∗
+    cgp ↦ᵣ[th] wcgp ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wpc ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ca1 ↦ᵣ[th] wca1 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    ca3 ↦ᵣ[th] wca3 ∗
+    ca4 ↦ᵣ[th] wca4 ∗
+    ca5 ↦ᵣ[th] wca5 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_res ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ llegalise MEPCC wpc ∗
-        cra ↦ᵣ (save_area !!! 1%nat) ∗
-        csp ↦ᵣ (save_area !!! 2%nat) ∗
-        cgp ↦ᵣ (save_area !!! 3%nat) ∗
-        ctp ↦ᵣ (save_area !!! 4%nat) ∗
-        ct0 ↦ᵣ (save_area !!! 5%nat) ∗
-        ct1 ↦ᵣ (save_area !!! 6%nat) ∗
-        ct2 ↦ᵣ (save_area !!! 7%nat) ∗
-        cs0 ↦ᵣ (save_area !!! 8%nat) ∗
-        cs1 ↦ᵣ (save_area !!! 9%nat) ∗
-        ca0 ↦ᵣ (save_area !!! 10%nat) ∗
-        ca1 ↦ᵣ (save_area !!! 11%nat) ∗
-        ca2 ↦ᵣ (save_area !!! 12%nat) ∗
-        ca3 ↦ᵣ (save_area !!! 13%nat) ∗
-        ca4 ↦ᵣ (save_area !!! 14%nat) ∗
-        ca5 ↦ᵣ (save_area !!! 15%nat) ∗
+    ▷ ( PC ↦ₚ[th] llegalise MEPCC wpc ∗
+        cra ↦ᵣ[th] (save_area !!! 1%nat) ∗
+        csp ↦ᵣ[th] (save_area !!! 2%nat) ∗
+        cgp ↦ᵣ[th] (save_area !!! 3%nat) ∗
+        ctp ↦ᵣ[th] (save_area !!! 4%nat) ∗
+        ct0 ↦ᵣ[th] (save_area !!! 5%nat) ∗
+        ct1 ↦ᵣ[th] (save_area !!! 6%nat) ∗
+        ct2 ↦ᵣ[th] (save_area !!! 7%nat) ∗
+        cs0 ↦ᵣ[th] (save_area !!! 8%nat) ∗
+        cs1 ↦ᵣ[th] (save_area !!! 9%nat) ∗
+        ca0 ↦ᵣ[th] (save_area !!! 10%nat) ∗
+        ca1 ↦ᵣ[th] (save_area !!! 11%nat) ∗
+        ca2 ↦ᵣ[th] (save_area !!! 12%nat) ∗
+        ca3 ↦ᵣ[th] (save_area !!! 13%nat) ∗
+        ca4 ↦ᵣ[th] (save_area !!! 14%nat) ∗
+        ca5 ↦ᵣ[th] (save_area !!! 15%nat) ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
         trap_entry_res -∗
-        WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }} )
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        WP Seq (Instr Executable) @[th] {{ HO th }} )
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hlen)
       "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1

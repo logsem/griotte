@@ -11,7 +11,7 @@ From griotte Require Import cmdc_spec_states.
 Section CMDC_Check_Blocks_3.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -62,28 +62,28 @@ Section CMDC_Check_Blocks_3.
     (cgp_b <= a_chk < cgp_e)%a ->
     is_mmio_address a_chk = false ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
-    cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct1 ↦ᵣ wct1 ∗
-    ct2 ↦ᵣ wct2 ∗
-    ca2 ↦ᵣ wca2 ∗
-    cra ↦ᵣ wcra ∗
+    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
+    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e a_chk ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
+    ca2 ↦ᵣ[th] wca2 ∗
+    cra ↦ᵣ[th] wcra ∗
     a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
     (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_next_label c))%a ∗
-        cgp ↦ᵣ WCap true RW Global cgp_b cgp_e a_chk ∗
-        ct0 ↦ᵣ WInt 0 ∗
-        ct1 ↦ᵣ WInt 0 ∗
-        ct2 ↦ᵣ WInt 0 ∗
-        ca2 ↦ᵣ WInt 0 ∗
-        cra ↦ᵣ wcra ∗
+    ▷ ( PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_next_label c))%a ∗
+        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e a_chk ∗
+        ct0 ↦ᵣ[th] WInt 0 ∗
+        ct1 ↦ᵣ[th] WInt 0 ∗
+        ct2 ↦ᵣ[th] WInt 0 ∗
+        ca2 ↦ᵣ[th] WInt 0 ∗
+        cra ↦ᵣ[th] wcra ∗
         a_chk ↦ₐ WInt (cmdc_call_expected c) ∗
         (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
         codefrag_pers pc_a cmdc_main_code
-        -∗ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct c; cbn [cmdc_return_label cmdc_next_label cmdc_call_expected].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap

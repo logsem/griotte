@@ -44,7 +44,7 @@ End Thread_Return_Sentry.
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -75,7 +75,7 @@ Section Switcher.
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
     (* Switcher Invariant *)
-    na_inv cerise_nais Nswitcher switcher_inv
+    na_inv (tpool th) Nswitcher switcher_inv
     ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
@@ -83,15 +83,14 @@ Section Switcher.
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ ▷ RevokedResources Wfixed C l
-    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
-    ∗ ca0 ↦ᵣ wca0
-    ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ wcsp
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y)
+    ∗ ca0 ↦ᵣ[th] wca0
+    ∗ ca1 ↦ᵣ[th] wca1
+    ∗ csp ↦ᵣ[th] wcsp
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
@@ -108,15 +107,15 @@ Section Switcher.
   Lemma switcher_ret_thread_exit_specification
     (cstk : CSTK) (wctp wct0 wct2 : LWord) :
     cstk.(cstk_frames) = [] ->
-    na_inv cerise_nais Nswitcher switcher_inv ∗
+    na_inv (tpool th) Nswitcher switcher_inv ∗
     switcher_static ∗
-    na_own cerise_nais ⊤ ∗
-    PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-    ctp ↦ᵣ wctp ∗
-    ct0 ↦ᵣ wct0 ∗
-    ct2 ↦ᵣ wct2 ∗
+    na_own (tpool th) ⊤ ∗
+    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    ctp ↦ᵣ[th] wctp ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     cstack_frag cstk
-    ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct cstk as [ef frms]; cbn; intros ->.
     iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk)".
@@ -168,7 +167,7 @@ Section Switcher.
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     trap_no_resume w ->
 
-    na_inv cerise_nais Nswitcher switcher_inv -∗
+    na_inv (tpool th) Nswitcher switcher_inv -∗
     switcher_static -∗
     no_handler (top_export_tbl cstk) ∗
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
@@ -177,13 +176,13 @@ Section Switcher.
        cstack_frag cstk ∗
        interp_continuation cstk Ws Cs ∗
        world_interp Wcur C ∗
-       na_own cerise_nais ⊤ ∗
+       na_own (tpool th) ⊤ ∗
        RevokedResources Wfixed C l ∗
-       ([∗ map] k↦y ∈ rmap, k ↦ᵣ y) ∗
-       ca0 ↦ᵣ - ∗
-       ca1 ↦ᵣ - ∗
-       csp ↦ᵣ -) -∗
-    trap_safe w ⊤ (λ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤)%I.
+       ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y) ∗
+       ca0 ↦ᵣ[th] - ∗
+       ca1 ↦ᵣ[th] - ∗
+       csp ↦ᵣ[th] -) -∗
+    trap_safe w ⊤ (HO th).
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked

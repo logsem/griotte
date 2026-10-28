@@ -10,7 +10,7 @@ From griotte Require Import stack_object_spec_states stack_object_spec_world_cal
 Section SO.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -76,21 +76,21 @@ Section SO.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv cerise_nais Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Nswitcher switcher_inv
       ∗ switcher_static
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a so_main_code
       ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
       ∗ a_so_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
       ∗ a_so_entry_f ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
-      ∗ na_own cerise_nais ⊤
+      ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
-      ∗ cra ↦ᵣ thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
+      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ cra ↦ᵣ[th] thread_return_sentry
+      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
 
       (* initial memory layout *)
       ∗ world_interp W0 C
@@ -105,7 +105,7 @@ Section SO.
 
       ∗ seal_pred ot_switcher ot_switcher_propC
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     (* Outline of the proof:
        - [so_world_run_call]: revoke the world, to get the stack frame;

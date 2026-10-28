@@ -16,7 +16,7 @@ From griotte Require Export world_ghost_theory world_interp_stack switcher_helpe
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -54,15 +54,14 @@ Section Switcher.
     ∗ cstack_frag cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
-    ∗ na_own cerise_nais ⊤
-    ∗ PC ↦ₚ WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ ▷ RevokedResources Wfixed C l
-    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ y)
-    ∗ ca0 ↦ᵣ wca0
-    ∗ ca1 ↦ᵣ wca1
-    ∗ csp ↦ᵣ wcsp
-    ⊢ WP Seq (Instr Executable)
-      {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }}.
+    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y)
+    ∗ ca0 ↦ᵣ[th] wca0
+    ∗ ca1 ↦ᵣ[th] wca1
+    ∗ csp ↦ᵣ[th] wcsp
+    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
        - open the switcher invariant;
@@ -179,7 +178,7 @@ Section Switcher.
     (* Depop the topmost frame of the call-stack, close the switcher's
        invariant and fix the world, after the jump or the exception entry *)
     iAssert (|={⊤}=>
-               na_own cerise_nais ⊤ ∗
+               na_own (tpool th) ⊤ ∗
                cstack_frag {| cstk_entry := ef; cstk_frames := frms |} ∗
                world_interp Wfixed C ∗
                (if is_untrusted_caller ccrel

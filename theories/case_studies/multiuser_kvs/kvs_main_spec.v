@@ -15,7 +15,7 @@ From griotte Require Import case_study_spec_helpers.
 Section KVS_main_spec.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -82,25 +82,25 @@ Section KVS_main_spec.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     (
       assert_static b_assert e_assert a_flag ∗
-      na_inv cerise_nais Nswitcher switcher_inv ∗
+      na_inv (tpool th) Nswitcher switcher_inv ∗
       switcher_static ∗
       kvs_static ∗
-      na_inv cerise_nais (Nkvs.@"physical") kvs_inv ∗
-      na_inv cerise_nais (Nkvs.@"logical") logical_kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
+      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
 
       b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
       a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
       kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read ∗
 
-      na_own cerise_nais ⊤ ∗
+      na_own (tpool th) ⊤ ∗
 
       (* initial register file *)
-      PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ WCap true RW Global cgp_b cgp_e cgp_b ∗
-      csp ↦ᵣ WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
-      cra ↦ᵣ thread_return_sentry ∗
-      ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w ) ∗
+      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+      cra ↦ᵣ[th] thread_return_sentry ∗
+      ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
 
       (* initial memory layout *)
       [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
@@ -119,7 +119,7 @@ Section KVS_main_spec.
       B_f ↦ₑ□{nargs} 0 ∗
       interp W0 B (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) {{ v, ⌜v = HaltedV⌝ → na_own cerise_nais ⊤ }})%I.
+      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.

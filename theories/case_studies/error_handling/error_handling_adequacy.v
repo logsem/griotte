@@ -31,7 +31,7 @@ Section error_handling_obligations.
     fw_obligations Σ error_handling_firmware.
   Proof.
     apply fw_obligations_of; first reflexivity.
-    intros img σ ceriseg seal_storeg stsg relg cstackg Hok.
+    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -141,7 +141,7 @@ Section error_handling_obligations.
     iEval (cbn [fc_name]) in "Hstats_etbl_eh Hstats_etbl_ehs". fw_fold_cmpt stats_cmpt.
 
     (* 4.1 The static resources of [stats] *)
-    iAssert stats_static as "#Hstats_static".
+    iAssert (stats_static (th := UserThread 0)) as "#Hstats_static".
     { rewrite /stats_static /stats_wpcc /stats_pcc /stats_wcgp.
       cbn [STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e b_stats_exp_tbl e_stats_exp_tbl
            statsl].
@@ -155,7 +155,8 @@ Section error_handling_obligations.
     { pose proof (cmpt_data_size stats_cmpt) as Hsize. rewrite stats_data_eq in Hsize.
       exact Hsize. }
     rewrite /stats_data /= in Hvlock. injection Hvlock as <-.
-    iMod (na_inv_alloc cerise_nais _ Nstats stats_inv with "[Hlock]") as "#Hinv_stats".
+    iMod (na_inv_alloc (tpool (UserThread 0)) _ Nstats (stats_inv (th := UserThread 0))
+            with "[Hlock]") as "#Hinv_stats".
     { iNext. iExact "Hlock". }
 
     (* 5 - Seal the export [stats_read] with [ot_switcher] in the world of
@@ -165,7 +166,8 @@ Section error_handling_obligations.
     set (W0' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable stats_read_sb);
                        lword_of_word (borrow (WSealable stats_read_sb)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop W0' C (WSealable stats_read_sb)) as "#Hot_switcher_read".
+    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable stats_read_sb))
+      as "#Hot_switcher_read".
     { iApply (stats_read_entry_point_spec Global W0' C).
       - exact Hstats_switcher.
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
@@ -189,7 +191,8 @@ Section error_handling_obligations.
     (* 7 - Close the world of [adv]: its compartment becomes permanent, and
        the stack temporary; [stats_read] is safe to import; the export of
        [adv] is safe to share. *)
-    iMod (fw_close_adv_world _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
+    iMod (fw_close_adv_world (th := UserThread 0)
+            _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
             _ Hadv_l W0' C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
            with "Hswitcher Hswitcher_static Hseal_switcher Hadv Hadv_pers Hstack [] Hworld_C")

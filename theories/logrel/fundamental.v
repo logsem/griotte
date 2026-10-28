@@ -10,7 +10,7 @@ From griotte Require Import register_tactics.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -317,8 +317,8 @@ Section fundamental.
                (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
-         else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ lupdatePcPerm w
-                          -∗ WP Seq (Instr Executable) {{ φ }} )).
+         else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ[th] lupdatePcPerm w
+                          -∗ WP Seq (Instr Executable) @[th] {{ φ }} )).
   Proof.
     iIntros "#Htrap #Hw".
     destruct (decide (isCorrectPC (updatePcPerm w.(lw)))).
