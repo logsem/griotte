@@ -47,9 +47,8 @@ Section Switcher_Trusted_Stack_Push.
     switcher_open_label ".Lswitch_trusted_stack_load" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ct2 mtdc *)
-    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hct2 $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hct2 & Hmtdc)".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
+    iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ct2 ctp *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ct2 ctp with "Hcode") as "Hcode_hz";

@@ -790,13 +790,25 @@ Proof. intros ->. auto. Qed.
 
 (* An existential that heads the postcondition of a rule is introduced
    first, under its binder's name, so that the resources under it can be
-   named. *)
+   named. So is a binder of the postcondition of a Hoare triple
+   ([{{{ x, RET v; ⌜φ x⌝ ∗ … }}}], as in [wp_readsr_mtdc]); a pure fact
+   that heads the postcondition under such a binder is introduced as the
+   Coq hypothesis [Hpost_pure], for the caller to rename. *)
 Ltac intro_post_exists :=
   repeat lazymatch goal with
   | |- envs_entails _ (bi_wand (bi_exist (fun x => _)) _) =>
       let x' := fresh x in
       iIntros "Hpost_exists"; iDestruct "Hpost_exists" as (x') "Hpost_exists";
       iRevert "Hpost_exists"
+  | |- envs_entails _ (bi_forall (fun x => _)) =>
+      let x' := fresh x in
+      iIntros (x');
+      try lazymatch goal with
+      | |- envs_entails _ (bi_wand (bi_sep (bi_pure _) _) _) =>
+          let H := fresh "Hpost_pure" in
+          iIntros "[Hpost_pure Hpost_exists]"; iPure "Hpost_pure" as H;
+          iRevert "Hpost_exists"
+      end
   end.
 
 Ltac2 reintro_cap_resources tbl :=

@@ -199,9 +199,8 @@ Section Handle_Error_Install_Context.
     iEval (simpl length) in "Hcopy".
     rewrite /tstack_cap.
     (* SpecialRW ct1 mtdc cnull *)
-    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hct1 $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hct1 & Hmtdc)".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
+    iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a = Some a_frameoffset) as Hfo
       by (subst a_frameoffset; tstack_unfold; solve_addr).
     (* CLoad ctp ct1 TrustedStack_offset_frameoffset *)

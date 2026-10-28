@@ -50,10 +50,9 @@ Section Exception_Entry.
     switcher_open_label "exception_entry_asm" "Hswitcher" as "Hcode" a_entry Ha_entry.
     rewrite /tstack_cap.
     (* SpecialRW csp mtdc csp *)
-    iInstrApply "Hcode" wp_specialrw_swap_mtdc with "[$HPC $Hcsp $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hcsp & Hmtdc)".
+    iInstr "Hcode".
     { apply mtdc_match_ExceptionScratch. }
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* Jeq .Lexception_reentered csp 0 *)
     iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hcsp]" as "(HPC & Hcsp)".
     { cbn; apply Z.eqb_neq; exact Hts_nonzero. }
@@ -136,10 +135,9 @@ Section Exception_Entry.
     (* Mov ct1 0 *)
     iInstr "Hcode".
     (* SpecialRW ct1 mtdc ct1 *)
-    iInstrApply "Hcode" wp_specialrw_swap_mtdc with "[$HPC $Hct1 $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hct1 & Hmtdc)".
+    iInstr "Hcode".
     { apply mtdc_match_ExceptionScratch. }
-    cbn in Hvm; subst vm.
+    cbn in Hpost_pure; subst vm.
     pose proof (Hts_k 2 ltac:(lia)) as Hts_2.
     (* Store csp ct1 2 *)
     iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].

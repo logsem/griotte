@@ -79,9 +79,8 @@ Section Switcher_After_Compartment_Call.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
-    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hctp $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hctp & Hmtdc)".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
+    iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
@@ -176,9 +175,8 @@ Section Switcher_After_Compartment_Call.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
-    iInstrApply "Hcode" wp_readsr_mtdc with "[$HPC $Hctp $Hmtdc]"
-      as (vm) "(%Hvm & HPC & Hctp & Hmtdc)".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hvm) as [g_tstk ->].
+    iInstr "Hcode".
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
