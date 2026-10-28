@@ -1483,15 +1483,24 @@ End entries_facts.
 
 (** ** The resources handed to the trusted code *)
 
-(** The layout of the switcher of an image, with the trusted stack of the
-    first thread. *)
+(** The layout of the user thread [i]; thread 0's for an index beyond the
+    image. Thread 0's case is [thread_of img 0] itself, so that its fields
+    are convertible to the image's. *)
+Definition fw_thread_layout (img : fw_image) (i : nat) : threadLayout :=
+  let t := match i with
+           | 0 => thread_of img 0
+           | _ => fw_nth i (img_threads img) (thread_of img 0)
+           end in
+  mkThreadLayout (b_trusted_stack t) (e_trusted_stack t) (b_hazard t) (e_hazard t).
+
+(** The layout of the switcher of an image, with the trusted stack of each
+    thread. *)
 Definition fw_switcher_layout (img : fw_image) : switcherLayout :=
   mkSwitcherLayout
     (b_switcher (img_sw img)) (e_switcher (img_sw img))
     (a_switcher_call (img_sw img)) (a_switcher_return (img_sw img))
     (ot_switcher (img_sw img))
-    (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
-    (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)).
+    (fw_thread_layout img).
 
 (** The registers other than [cgp], [cra] and [csp], cleared. *)
 Definition fw_cleared_regs : LReg :=
@@ -1924,17 +1933,34 @@ Section obligation_layouts.
 End obligation_layouts.
 
 (** ** The switcher layout of an image is well formed *)
+(** The layout of a thread [t] of the image is well formed. *)
+Definition img_thread_layout_wf `{MP : MachineParameters} (img : fw_image) (t : img_thread)
+    (ts ss : list Word)
+    (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t)
+             (b_hazard t) (e_hazard t) ts)
+    (Hsw : img_switcher_layout (img_sw img) t ss) :
+    @threadLayoutWf MP
+      (mkThreadLayout (b_trusted_stack t) (e_trusted_stack t) (b_hazard t) (e_hazard t)) :=
+  mkThreadLayoutWf _ _
+    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_trusted_stack_not_heap _ _ _ Hsw)
+    (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
+    (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))
+    (isl_hazard_not_heap _ _ _ Hsw).
+
+(** Thread 0's layout from its facts, the other threads' layouts from
+    [Hthreads]. *)
 Definition fw_switcher_layout_wf `{MP : MachineParameters} (img : fw_image) (ts ss : list Word)
     (Hts : trusted_stack_layout (b_trusted_stack (thread_of img 0))
              (e_trusted_stack (thread_of img 0))
              (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0)) ts)
-    (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss) :
+    (Hsw : img_switcher_layout (img_sw img) (thread_of img 0) ss)
+    (Hthreads : ∀ k, @threadLayoutWf MP (fw_thread_layout img (S k))) :
     @switcherLayoutWf MP (fw_switcher_layout img) :=
   mkSwitcherLayoutWf (fw_switcher_layout img)
     (isl_switcher_size _ _ _ Hsw) (isl_call_entry_point _ _ _ Hsw)
     (isl_return_entry_point _ _ _ Hsw) (isl_ot_switcher_size _ _ _ Hsw)
-    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_switcher_key_not_shadow _ _ _ Hsw)
-    (isl_switcher_not_heap _ _ _ Hsw) (isl_trusted_stack_not_heap _ _ _ Hsw)
-    (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
-    (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))
-    (isl_hazard_not_heap _ _ _ Hsw).
+    (isl_switcher_key_not_shadow _ _ _ Hsw) (isl_switcher_not_heap _ _ _ Hsw)
+    (λ i, match i return @threadLayoutWf MP (fw_thread_layout img i) with
+          | 0 => img_thread_layout_wf img (thread_of img 0) ts ss Hts Hsw
+          | S k => Hthreads k
+          end).

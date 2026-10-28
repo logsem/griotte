@@ -44,6 +44,7 @@ Section Switcher_Exception_States.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}
+    {th : Thread}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 

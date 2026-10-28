@@ -300,6 +300,8 @@ Section CmptLayout.
     proj2 (switcher_not_heap_range C).
 
 
+  (** The layout of a single-thread switcher: every thread has the trusted
+      stack and the hazard slots of [switcher_cmpt]. *)
   #[global] Instance cmptSwitcher_switcherLayout (switcher_cmpt : cmptSwitcher) : switcherLayout.
   Proof.
     refine (@mkSwitcherLayout
@@ -308,10 +310,11 @@ Section CmptLayout.
               (a_switcher_call switcher_cmpt)
               (a_switcher_return switcher_cmpt)
               (ot_switcher switcher_cmpt)
-              (b_trusted_stack switcher_cmpt)
-              (e_trusted_stack switcher_cmpt)
-              (b_hazard_slots switcher_cmpt)
-              (e_hazard_slots switcher_cmpt)
+              (λ _, mkThreadLayout
+                      (b_trusted_stack switcher_cmpt)
+                      (e_trusted_stack switcher_cmpt)
+                      (b_hazard_slots switcher_cmpt)
+                      (e_hazard_slots switcher_cmpt))
            ).
   Defined.
 
