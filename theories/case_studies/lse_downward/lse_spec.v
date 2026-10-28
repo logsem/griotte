@@ -103,8 +103,6 @@ Section LSE.
       ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ∗ seal_pred ot_switcher ot_switcher_propC
-
       ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
   Proof.
     (* Outline of the proof:
@@ -135,7 +133,6 @@ Section LSE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
-      & #Hot_switcher
       )".
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).

@@ -308,7 +308,6 @@ Section Switcher_Call_World.
     (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     disjoint_from_mmio b_stk e_stk ->
@@ -339,7 +338,7 @@ Section Switcher_Call_World.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hot Hcsp (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret
+    iIntros (Hlen_cstk Hlen_cstk' Htstk_e Hcsp (Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap Hret
              Htbl Hsave_hazard)
       "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
        Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe".
@@ -494,7 +493,7 @@ Section Switcher_Call_World.
     iMod (trusted_stack_inv_push_frame frm cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe")
-      as "[Hinv $]"; [done|done|done|apply ot_switcher_size|done..|].
+      as "[Hinv $]"; [done|done|done|done..|].
     iApply ("Hclose_switcher_inv" with "[$Hinv $Hna]").
   Qed.
 

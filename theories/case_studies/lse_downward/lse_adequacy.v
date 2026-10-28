@@ -67,6 +67,7 @@ Section lse_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack lse_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [lse_firmware fw_cmpts]) in "Hcmpts".
@@ -149,7 +150,7 @@ Section lse_obligations.
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts lse_firmware) default_fw_cmpt) _
             HC_l W0' C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HC HC_pers Hstack [] Hworld_C")
+           with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts lse_firmware].
       iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static").
@@ -188,7 +189,6 @@ Section lse_obligations.
                          $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
-                         $Hseal_switcher
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { eapply disjoint_from_shadow_not_in;

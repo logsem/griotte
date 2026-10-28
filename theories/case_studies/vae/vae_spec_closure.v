@@ -84,7 +84,6 @@ Section VAE.
     ∗ a_vae_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_vae_exp_tbl
     ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
-    ∗ seal_pred ot_switcher ot_switcher_propC
     (* invariant for d *)
     ∗ inv Nawk (awk_inv C i cgp_b)
     ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
@@ -129,7 +128,6 @@ Section VAE.
       & #Hvae_exp_CGP
       & [#Hvae_exp_eh #Hvae_exp_ehs]
       & #Hvae_exp_awkward
-      & #Hot_switcher
       & #Hawk_inv & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl,
       (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a,

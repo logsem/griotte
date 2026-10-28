@@ -158,7 +158,7 @@ Section fundamental.
       subst hclose_switcher_inv.
       iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
              "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
-              Hcstk_full Hstk_interp") as "Hna"; [done|apply ot_switcher_size|done|].
+              Hcstk_full Hstk_interp") as "Hna"; [done|done|].
       iModIntro; iIntros (_); iExact "Hna".
     }
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
@@ -256,7 +256,7 @@ Section fundamental.
       iApply (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
              "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next");
-        [done|done|apply ot_switcher_size|done]. }
+        [done|done|done]. }
 
     set (lv' := region_addrs_zeroes b_stk s).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.

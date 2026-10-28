@@ -63,7 +63,6 @@ Section LSE.
     ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_lse_exp_tbl
     ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
-    ∗ seal_pred ot_switcher ot_switcher_propC
       -∗
     ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl a_lse_entry_f).
   Proof.
@@ -86,8 +85,7 @@ Section LSE.
       & #Hlse_exp_PCC
       & #Hlse_exp_CGP
       & [#Hlse_exp_eh #Hlse_exp_ehs]
-      & #Hlse_exp_f
-      & #Hot_switcher)".
+      & #Hlse_exp_f)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl,
       (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a,
     pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.

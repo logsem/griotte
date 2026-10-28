@@ -573,6 +573,11 @@ Section Switcher_preamble.
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.
 
+  (** The predicate of the sealed export entries, from [switcher_static]. *)
+  Lemma switcher_static_seal_pred :
+    switcher_static ⊢ seal_pred ot_switcher ot_switcher_propC.
+  Proof. iIntros "(_ & _ & _ & Hsealing)". iNamed "Hsealing". iExact "Hp_ot_switcher". Qed.
+
 End Switcher_preamble.
 
 (** A trusted-stack address is not a shadow-table address, when [H] states

@@ -394,15 +394,12 @@ Section prepared.
       thread, run as the thread [th], with the compartments initialised and
       the first thread at the code of its compartment. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let sw := img_sw img in
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hseal_switcher" ∷
-      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
     "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
@@ -437,14 +434,11 @@ Section prepared.
       ([fw_obligations_of_untrusted]). The stack is there: the case study
       closes it in the world of the entry compartment. *)
   Definition fw_setup_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let sw := img_sw img in
     let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hseal_switcher" ∷
-      seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
     "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
@@ -565,9 +559,8 @@ Proof.
   iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseb sealsg stsg relg cstackg Hok).
-  (* [switcher_static] first: it holds the predicate of [Hseal_switcher]. *)
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
-  iFrame "Hswitcher_static". iFrame "∗ # %".
+  iFrame "∗ # %".
 Qed.
 
 (** ** Closing the world of an untrusted compartment *)
@@ -718,7 +711,6 @@ Section adversary.
           std W !! LNonHeap a = None) →
     na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     [[ b_stack t, e_stack t ]] ↦ₐ
@@ -738,7 +730,8 @@ Section adversary.
       interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack Himports Hworld".
+    iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
@@ -775,7 +768,6 @@ Section adversary.
           std W !! LNonHeap a = None) →
     na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     [[ b_stack t, e_stack t ]] ↦ₐ
@@ -791,9 +783,9 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal Hmem #Hpers Hstack Himports Hworld".
+    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack Himports Hworld".
     by iMod (fw_close_adv_world_entry fw img σ i fc ub Hc W C Hok Hi Hbody Hnargs Hfree
-           with "Hswitcher Hstatic Hseal Hmem Hpers Hstack Himports Hworld")
+           with "Hswitcher Hstatic Hmem Hpers Hstack Himports Hworld")
       as "($ & _ & _ & $ & $)".
   Qed.
 
@@ -816,7 +808,6 @@ Section adversary.
           std W !! LNonHeap a = None) →
     na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
-    seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
@@ -830,7 +821,8 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic #Hseal (Himp & Hcode & Hdata) #Hpers Himports Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Himports Hworld".
+    iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
     set (swc := fw_switcher_cmpt fw img σ Hok).
@@ -905,7 +897,6 @@ Proof.
   iIntros "Hshared Hthread". iNamed "Hshared". iNamed "Hthread".
   iDestruct "Hswitcher" as "#Hswitcher".
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
-  iDestruct "Hseal_switcher" as "#Hseal_switcher".
   iDestruct "Hassert" as "#Hassert".
   iMod (fw_cmpts_init (th := UserThread 0) with "Hcmpts") as "Hcmpts"; first exact Hok.
   (* The export table of the entry compartment *)

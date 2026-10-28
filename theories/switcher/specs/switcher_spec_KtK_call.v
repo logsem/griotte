@@ -48,7 +48,6 @@ Section Switcher_KtK_Call.
     switcher_stk_bounds b_stk e_stk a_stk ->
     (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
@@ -64,7 +63,6 @@ Section Switcher_KtK_Call.
     switcher_static ∗
     ●(CSTK)[th] cstk' ∗
     cstack_interp cstk' a_tstk ∗
-    seal_pred ot_switcher ot_switcher_propC ∗
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0, cs0 ↦ᵣ[th] wcs0) ∗
     (∃ wcs1, cs1 ↦ᵣ[th] wcs1) ∗
@@ -105,11 +103,10 @@ Section Switcher_KtK_Call.
        registers, clears the others and returns, then close the trusted-stack
        invariant. The return address is a valid
        target, so the jump back does not fault. *)
-    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hsave_hazard Hret_jalr
-             Hret_heap)
+    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hsave_hazard Hret_jalr Hret_heap)
       "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hhazard_slots & Hframeoffset & HthreadID
       & Htstk & #Hstatic & Hcstk_full & Hstk_interp
-      & #Hp_ot_switcher & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
+      & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
       & Hargs & Hregs & Hcstk & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
@@ -356,7 +353,7 @@ Section Switcher_KtK_Call.
         "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hhazard_slots $Hframeoffset $HthreadID $Htstk
           $Hstatic
           $Hcstk_full $Hstk_interp
-          $Hp_ot_switcher $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
+          $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
           $Hargs $Hregs $Hcstk Hpost]"); [done..|].
       iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H". }
     { (* The callee-save registers fit on the caller's stack: the spill does
@@ -409,7 +406,7 @@ Section Switcher_KtK_Call.
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells]")
       as "[Hinv Hcstk]";
-      [done|done|done|done|done|exact Hstk_bounds|done|done|by intros _
+      [done|done|done|done|exact Hstk_bounds|done|done|by intros _
       |right; split; [done | exact Htbl_cell]|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".

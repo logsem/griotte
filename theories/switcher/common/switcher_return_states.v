@@ -48,7 +48,6 @@ Section Switcher_Return_States.
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
     (b_trusted_stack + tstack_frame_offset (length cstk.(cstk_frames)))%a = Some a_tstk ∧
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
@@ -66,7 +65,7 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    iIntros (Hlen Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
+    iIntros (Hlen Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
       Htstk Hcstk_full Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
@@ -91,7 +90,6 @@ Section Switcher_Return_States.
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    (ot_switcher < ot_switcher ^+ 1)%ot ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
@@ -113,7 +111,7 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Ha_tstk Ha_tstk_e Hot Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
+    iIntros (Ha_tstk Ha_tstk_e Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
       Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").

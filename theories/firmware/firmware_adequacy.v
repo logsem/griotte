@@ -1691,12 +1691,8 @@ Section resources.
       generic in [ceriseG] are taken at the instance of the user thread [0],
       the shared heaps at the base. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let sw := img_sw img in
     let asrt := img_asrt img in
     "Hswitcher_static" ∷ switcher_static (th := UserThread 0) (swlayout := fw_switcher_layout img) ∗
-    "Hseal_switcher" ∷
-      seal_pred (ot_switcher sw)
-        (ot_switcher_propC (th := UserThread 0) (swlayout := fw_switcher_layout img)) ∗
     "Hassert" ∷
       assert_static (ceriseg := ceriseG_of (UserThread 0))
         (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
@@ -2040,7 +2036,7 @@ Proof.
     in "Hsw_code".
   iMod (initialise_switcher_shared (th := UserThread 0) (swlayout := fw_switcher_layout img)
           (swlayoutwf := fw_switcher_layout_wf fw img Hwf H0) Hmtcc
-         with "Hsw_code Hseal_switcher") as "[#Hseal_switcher #Hswitcher_static]".
+         with "Hsw_code Hseal_switcher") as "[_ #Hswitcher_static]".
   (* The trusted-stack invariant of each thread, and the stack of the user thread
      [0]. *)
   iMod (fw_thread_trusted_stack_inv_alloc fw img 0 (fw_thread0 fw) ⊤ Hwf H0 H0

@@ -140,6 +140,7 @@ Section kvs_obligations.
 
     (* 5 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (kvs_firmware ot_kvs key_main key_B) 0) with 6 in Hentry_min_stack.
     assert (∀ b e : Z, b + Z.of_nat 6 + StackEntry_reserved_space <= e →
@@ -351,7 +352,7 @@ Section kvs_obligations.
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
             HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static Hseal_switcher HB HB_pers Hstack [] Hworld_B")
+           with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
