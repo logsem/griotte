@@ -28,19 +28,19 @@ Section KVS_check_uint16.
     (rv rdst : RegName) (wrv : LWord)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs) ->
 
     rv ≠ cnull ->
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ[th] wrv ∗
       rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ length instrs) ∗
           rv ↦ᵣ[th] wrv ∗
           codefrag_pers pc_a instrs ∗
           (
@@ -49,9 +49,9 @@ Section KVS_check_uint16.
               ( rdst ↦ᵣ[th] WInt ASM_FALSE ∗ ⌜ ¬ word_is_uint16 wrv.(lw) ⌝ )
           )
           -∗
-            WP Seq (Instr Executable) @[th] {{ HO th }}
+            safe[th]
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+    ⊢ safe[th])%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hrv Hrdst)
@@ -136,27 +136,27 @@ Section KVS_check_uint16.
     (rv rdst : RegName) (nkey : Z) (πnkey : option AId)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs) ->
     is_uint16 nkey ->
 
     rv ≠ cnull ->
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ[th] WInt nkey @@? πnkey ∗
       rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ length instrs) ∗
           rv ↦ᵣ[th] WInt nkey @@? πnkey ∗
           codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ[th] WInt ASM_TRUE
           -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }}
+          safe[th]
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+    ⊢ safe[th])%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".
@@ -171,27 +171,27 @@ Section KVS_check_uint16.
     (rv rdst : RegName) (wrv : LWord)
     :
     let instrs := (kvs_check_uint16_instrs rv rdst) in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs) ->
     ¬ word_is_uint16 wrv.(lw) ->
 
     rv ≠ cnull ->
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       rv ↦ᵣ[th] wrv ∗
       rdst ↦ᵣ[th] - ∗
       codefrag_pers pc_a instrs ∗
 
       ▷ (
-          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ length instrs) ∗
           rv ↦ᵣ[th] wrv ∗
           codefrag_pers pc_a instrs ∗
           rdst ↦ᵣ[th] WInt ASM_FALSE
           -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }}
+          safe[th]
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+    ⊢ safe[th])%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (HsubBounds Hnkey Hrv Hrdst) "(HPC & Hrv & Hrdst & #Hcode & Hpost)".

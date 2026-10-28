@@ -38,7 +38,7 @@ Section Switcher_sealing.
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
-       ∧ ⌜ ∃ mie, reg !! cra = Some (lword_of_word (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
+       ∧ ⌜ ∃ mie, reg !! cra = Some (lword_of_word (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
        ∗ (∀ (r : RegName) (v : LWord), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
@@ -91,9 +91,9 @@ Section Switcher_sealing.
       [top_cmpt_untrusted].
 
       An important point is the use of [csp_sync] and the stack capability
-      [WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)] of the callee.
+      [Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)] of the callee.
       We know that the caller's stack looks like
-      [WCap true RWL Local b e a] (it is tested by the switcher's call routine).
+      [Cap RWL Local b e a] (it is tested by the switcher's call routine).
       The switcher reserves the spill area, from [stk_spill_a a], for the
       callee-saved registers, and passes the callee's part
       [[stk_callee_b b a, stk_callee_e e a)] of the stack to the callee,
@@ -120,7 +120,7 @@ Section Switcher_sealing.
             top_error_count cstk = 0 ∧ tf_export_tbl_ok (top_tframe cstk)⌝
          ∗ PC ↦ₚ[th] wpcc
          ∗ (execute_entry_point_register wcgp
-              (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
+              (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
          ∗ registers_pointsto regs
          ∗ world_interp W C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝
@@ -130,7 +130,7 @@ Section Switcher_sealing.
          ∗ ⌜(Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z⌝
          ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
-           -∗ interp_conf W C)
+           -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
 
@@ -151,8 +151,8 @@ Section Switcher_sealing.
 
       [ot_switcher_prop] describes the logical state of the physical state described above:
       the export table's PCC and CGP, and the entry itself, as persistent points-to,
-      and the handler offsets of the header, as projections ([↦ₕ□{stackful}],
-      [↦ₕ□{stackless}]) of any value.
+      and the handler offsets of the header, as projections ([↦ₑ□{stackful}],
+      [↦ₑ□{stackless}]) of any value.
       The entry word determines the number of arguments [nargs] the callee uses
       (the switcher clears the other argument registers); callers of a known entry
       read it through [↦ₑ□{nargs}] on the entry's address or its sealable.
@@ -171,11 +171,11 @@ Section Switcher_sealing.
           (bcgp ecgp : Addr)
           (nargs minstk : nat) (off : Z) (posture : InterruptStatus)
           (eh ehs : Z),
-           let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
-           let a_tbl_ehs := (b_tbl ^+ ExportTable_offset_errorHandlerStackless)%a in
-           "%Hw" ∷ ⌜ w = WCap true RO g_tbl b_tbl e_tbl a_tbl ⌝ ∗
+           let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
+           let a_tbl_ehs := (b_tbl ^+ ExportTable_offset_errorHandlerStackless) in
+           "%Hw" ∷ ⌜ w = Cap RO g_tbl b_tbl e_tbl a_tbl ⌝ ∗
            "%Htbl_shadow" ∷ ⌜ disjoint_from_shadow b_tbl e_tbl ⌝ ∗
-           "%Hatbl" ∷ ⌜ (b_tbl <= a_tbl < e_tbl)%a ⌝ ∗
+           "%Hatbl" ∷ ⌜ a_tbl ∈ₐ [b_tbl, e_tbl) ⌝ ∗
            "%Hbtbl" ∷ ⌜ (b_tbl < a_tbl_cgp)%a ⌝ ∗
            "%Hbtbl_header" ∷ ⌜ (a_tbl_ehs < a_tbl)%a ⌝ ∗
            "%Hnargs" ∷ ⌜ (0 <= nargs <= 7 )%nat ⌝ ∗
@@ -186,17 +186,17 @@ Section Switcher_sealing.
            "%Hbtbl_cgp_shadow" ∷ ⌜ is_shadow_address a_tbl_cgp = false ⌝ ∗
            "%Hbpcc_heap" ∷ ⌜ is_heap_address bpcc = false ⌝ ∗
            "%Hbcgp_heap" ∷ ⌜ is_heap_address bcgp = false ⌝ ∗
-           "#Htbl_pcc" ∷ b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
-           "#Htbl_cgp" ∷ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp ecgp bcgp ∗
-           "#Htbl_eh" ∷ b_tbl ↦ₕ□{stackful} eh ∗
-           "#Htbl_ehs" ∷ b_tbl ↦ₕ□{stackless} ehs ∗
+           "#Htbl_pcc" ∷ b_tbl ↦ₐ□ Cap RX Global bpcc epcc bpcc ∗
+           "#Htbl_cgp" ∷ a_tbl_cgp ↦ₐ□ Cap RW Global bcgp ecgp bcgp ∗
+           "#Htbl_eh" ∷ b_tbl ↦ₑ□{stackful} eh ∗
+           "#Htbl_ehs" ∷ b_tbl ↦ₑ□{stackless} ehs ∗
            "#Htbl_entry" ∷
              a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
            "#Hentry_cont" ∷
              □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
                    ▷ (execute_entry_point b_tbl
-                            (WCap true RX Global bpcc epcc (bpcc ^+ off)%a)
-                            (WCap true RW Global bcgp ecgp bcgp)
+                            (Cap RX Global bpcc epcc (bpcc ^+ off))
+                            (Cap RW Global bcgp ecgp bcgp)
                             nargs minstk
                             W' C))
       )%I.

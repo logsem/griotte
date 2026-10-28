@@ -105,7 +105,7 @@ Section rules_registry.
     iDestruct (reg_lookup_own with "HR Htok") as %(b1 & e1 & γ & HRι).
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ' & s & HRι').
     rewrite HRι in HRι'. simplify_eq.
-    iAssert (⌜∀ a, (b <= a < e')%a → shadowtbl σ !! a = Some ShadowQuarantined⌝)%I
+    iAssert (⌜∀ a, a ∈ₐ [b, e') → shadowtbl σ !! a = Some ShadowQuarantined⌝)%I
       as %Hpainted.
     { iIntros (a Ha).
       iDestruct (big_sepL_elem_of with "Hcells") as "Hc".
@@ -124,7 +124,7 @@ Section rules_registry.
       apply Hclean; last done.
       right; right. exists x. split; first done. destruct (Hfull x Hxn) as [v' Hv'].
       by rewrite (lookup_weaken _ _ _ _ Hv' Hincl) in Hx; simplify_eq.
-    - destruct (decide (x = MTDC)) as [->|Hxn].
+    - destruct (decide (x = mtdc)) as [->|Hxn].
       { rewrite Hmtdc in Hx. simplify_eq. apply Hclean; [by right; left | done]. }
       by rewrite (er_sreg_legal_id _ _ _ _ _ _ _ Her x v Hxn Hx Hauth).
   Qed.
@@ -247,7 +247,7 @@ Section rules_registry.
   Definition regs_prov_heap (regs : LReg) : Prop :=
     ∀ r v ι b e, regs !! r = Some v →
       get_tag v.(lw) = true → memory_cap_bounds v.(lw) = Some (b, e) → (b < e)%a →
-      v.(lprov) = Some ι → ∀ x, (b <= x < e)%a → is_heap_address x = true.
+      v.(lprov) = Some ι → ∀ x, x ∈ₐ [b, e) → is_heap_address x = true.
 
   Lemma observe_regs_prov_heap E (regs : LReg) :
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗

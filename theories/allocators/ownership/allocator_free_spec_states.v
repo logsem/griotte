@@ -71,7 +71,7 @@ Section AllocatorFreeStates.
 
   (** The bounds of the code: the PCC, the shadow table and the bump slot. *)
   Definition allocator_free_code_bounds (pc_b pc_e pc_a : Addr) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_free_code) ∧
     disjoint_from_shadow pc_b pc_e ∧
     allocator_cgp_b ∉ finz.seq_between pc_b pc_e.
 
@@ -89,7 +89,7 @@ Section AllocatorFreeStates.
   Lemma allocator_free_tail_bounds pc_b pc_e pc_a :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e
-      (pc_a ^+ allocator_free_block_offset 5)%a.
+      (pc_a ^+ allocator_free_block_offset 5).
   Proof.
     intros (Hpc & Hshadow & _). split; last done.
     cbn in Hpc. offsets_compute. solve_addr.
@@ -102,13 +102,13 @@ Section AllocatorFreeSegments.
 
   Lemma allocator_free_tail_acc pc_a :
     codefrag_pers pc_a allocator_free_code -∗
-    codefrag_pers (pc_a ^+ allocator_free_block_offset 5)%a allocator_free_tail_code.
+    codefrag_pers (pc_a ^+ allocator_free_block_offset 5) allocator_free_tail_code.
   Proof.
     iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_free_unfold_code "Hcode_main".
     focus_block_nochangePC 5 "Hcode_main" as a_tail Ha_tail "Hcode" "Hcont".
-    assert (a_tail = (pc_a ^+ allocator_free_block_offset 5)%a) as <-
+    assert (a_tail = pc_a ^+ allocator_free_block_offset 5) as <-
       by (cbn in Ha_tail; offsets_compute; solve_addr).
     iExact "Hcode".
   Qed.

@@ -25,12 +25,11 @@ Section Heap_Temporal_Safety_Main.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO Word) -n> iPropO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -53,14 +52,14 @@ Section Heap_Temporal_Safety_Main.
     (w_main_tbl : LWord)
 
     :
-    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
-    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
-    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
+    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off) in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off) in
 
     let imports := hts_main_imports owner_a C_f in
 
     is_shadow_address owner_a = false ->
-    withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
+    withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
     is_heap_address owner_a = false ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -70,7 +69,7 @@ Section Heap_Temporal_Safety_Main.
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
 
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
@@ -85,9 +84,9 @@ Section Heap_Temporal_Safety_Main.
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv ∗ switcher_static
-      ∗ allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+      ∗ allocator_exp_tbl_b ↦ₐ□ Cap RX Global
           allocator_pcc_b allocator_pcc_e allocator_pcc_b
-      ∗ a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
+      ∗ a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ a_alloc_entry_malloc ↦ₐ□
           WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
@@ -98,11 +97,11 @@ Section Heap_Temporal_Safety_Main.
       ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ cra ↦ᵣ[th] thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+      ∗ regs[th] rmap
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a hts_main_code
@@ -119,9 +118,9 @@ Section Heap_Temporal_Safety_Main.
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
-      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     (* The proof follows the control flow of [hts_main_asm]; each segment
        ends at a switcher call or at the return:

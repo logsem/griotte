@@ -18,8 +18,8 @@ Section fundamental.
   Implicit Types C : CmptName.
 
   Notation E := (CSTK -n> list WORLD -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
   Lemma enter_cond_weakening W C p b e a π :
@@ -332,18 +332,18 @@ Section fundamental.
     - iEval (rewrite interp_unfold /= /interp_sb) in "Hsealed".
       iDestruct "Hsealed" as "[_ %Hvalid]". cbn in Hvalid.
       iEval (rewrite interp_in_mem_eq) in "Hmem".
-      replace (lload_word RWL (WCap true p g b e a @@? π)) with (WCap true p g b e a @@? π)
+      replace (lload_word RWL (Cap p g b e a @@? π)) with (Cap p g b e a @@? π)
         by done.
-      destruct (decide (filter_heap W (WCap true p g b e a @@? π) = WCap true p g b e a @@? π))
+      destruct (decide (filter_heap W (Cap p g b e a @@? π) = Cap p g b e a @@? π))
         as [Hkeep|Hne]; first by rewrite Hkeep.
       destruct (filter_heap_cleared W _ Hne) as (b0 & ι & o & Hb & Hι & Ho & Hq).
       cbn in Hι. subst π.
-      change (heap_authority_base (WCap true p g b e a) = Some b0) in Hb.
+      change (heap_authority_base (Cap p g b e a) = Some b0) in Hb.
       apply heap_authority_base_memory_cap_bounds in Hb as (e0 & [= <- <-] & Hlt & _).
       destruct (Hvalid Hlt) as (_ & o' & Ho' & Hlive & _). congruence.
     - iApply interp_untagged; done.
     - iEval (rewrite interp_in_mem_eq) in "Hmem".
-      replace (lload_word RWL (WSealRange true p g b e a @@? π)) with (WSealRange true p g b e a @@? π)
+      replace (lload_word RWL (SealRange p g b e a @@? π)) with (SealRange p g b e a @@? π)
         by done.
       by rewrite filter_heap_nonheap.
     - iApply interp_untagged; done.
@@ -478,7 +478,7 @@ Section fundamental.
     permit_seal p = true ->
     withinBounds b e a = true ->
     interp W C (WSealable sb @@? π) -∗
-    interp W C (WSealRange true p g b e a @@? πr) -∗
+    interp W C (SealRange p g b e a @@? πr) -∗
     world_interp W C
     ==∗
     ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
@@ -491,7 +491,7 @@ Section fundamental.
     2: { iModIntro. iExists W. iFrame.
          iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
          iSplit; first done. iApply interp_untagged. done. }
-    rewrite (interp_unfold W C (WSealRange true _ _ _ _ _ @@? _)).
+    rewrite (interp_unfold W C (SealRange _ _ _ _ _ @@? _)).
     iDestruct "HVsr" as "[Hss _]"; rewrite /= Hseal.
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
@@ -528,7 +528,7 @@ Section fundamental.
         permit_unseal p0 = true →
         withinBounds b0 e0 o = true →
         interp W C (WSealed o sb @@? π) -∗
-        interp W C (WSealRange true p0 g0 b0 e0 a0 @@? π0) -∗
+        interp W C (SealRange p0 g0 b0 e0 a0 @@? π0) -∗
         world_interp_open W C s
         -∗
         ▷ (interp W C (WSealable (unseal_sb g0 sb) @@? π) ∗
@@ -539,7 +539,7 @@ Section fundamental.
     destruct (get_tag_sealable sb) eqn:Htag.
     2: { iNext. iFrame. iApply interp_untagged. by rewrite /= get_tag_unseal Htag. }
     rewrite
-      (interp_unfold W C (WSealRange true _ _ _ _ _ @@? _))
+      (interp_unfold W C (SealRange _ _ _ _ _ @@? _))
       (interp_unfold W C (WSealed _ _ @@? _)) /= Htag Hpseal /interp_sb.
     iDestruct "HVsr" as "[_ Hss]".
     iDestruct "HVsd" as "[HVsd _]".
@@ -737,7 +737,6 @@ Section fundamental.
     iIntros (cstk Ws Cs regs0) "(Hregs & #Htop & HPC & Hreg & Hworld_interp & Hcont & Hown & Hcstk & Hframe)".
     iApply (interp_reg_refilter with "Hregs Hreg Hworld_interp").
     iIntros (regs) "Hfull Hmap Hreg Hworld_interp".
-    rewrite /interp_conf.
     iApply ("IH" $! W' C cstk Ws Cs regs p g'' b' e' a' None
       with "Hfull Hmap HPC Hreg Hworld_interp Hcont Hframe Htop Hown Hcstk").
     iModIntro. iEval (rewrite interp_unfold interp1_eq HpnotO HpXSR).

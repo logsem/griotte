@@ -74,21 +74,15 @@ Section LSE_States.
   (** The bounds of the code and of the imports, as given to
       [lse_run_spec] and [lse_f_spec]. *)
   Definition lse_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code) ∧
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition lse_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
-  (** The capability of the entry point of the assert routine. *)
-  Definition lse_assert_entry : Word :=
-    WSentry Inherit true RX Global b_assert e_assert b_assert.
 
   (** The capability of [a], pushed on the stack by [f]. *)
   Definition lse_a_cap (cgp_b : Addr) : Word :=
-    WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b.
+    Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b.
 
 End LSE_States.

@@ -23,7 +23,7 @@ Section griotte_lang_rules.
 
   Inductive SetMIE_failure (lpc : LWord) : Prop :=
   | SetMIE_fail_nonxsr p g b e a π :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = false →
       SetMIE_failure lpc
   | SetMIE_fail_incrPC :
@@ -34,7 +34,7 @@ Section griotte_lang_rules.
       it. *)
   Inductive SetMIE_spec (lpc : LWord) (lpc' : LWord) : griotte_lang.val → Prop :=
   | SetMIE_spec_success p g b e a π :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
       incrementPC lpc = Some lpc' →
       SetMIE_spec lpc lpc' NextIV
@@ -48,15 +48,15 @@ Section griotte_lang_rules.
       fault. *)
   Lemma wp_SetMIE_link Ep pc_p pc_g pc_b pc_e pc_a pc_π w mie dq (T1 T2 : iProp Σ) :
     decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     link_transfer (mie_set mie) T1 T2 →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ T1
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ SetMIE_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
+        ⌜ SetMIE_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         (⌜retv = NextIV⌝ ∗ T2 ∨ ⌜retv = FaultedV⌝ ∗ T1)
@@ -78,7 +78,7 @@ Section griotte_lang_rules.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
     apply reg_phys_no_bounds in Hrelst; last done. cbn in Hrelst. subst wst.
     cbn in Hstep. rewrite Hxsr Hwst /= mpie_of_mstatus_enc in Hstep.
-    destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
+    destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
     { (* The PC increment fails: the state and the link are unchanged. *)
       pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
@@ -91,7 +91,7 @@ Section griotte_lang_rules.
       - iPureIntro. apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC.
       - iRight. by iFrame. }
     (* The new mstatus *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
                   (lword_of_word (WInt (mstatus_enc mie (ls_mpie lsreg))))
                   (WInt (mstatus_enc mie (ls_mpie lsreg))) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
@@ -103,8 +103,8 @@ Section griotte_lang_rules.
     cbn [reg sreg mem pcc shadowtbl fst snd].
     iMod (sys_interp_set_mstatus _ mie (ls_mpie lsreg) with "Hsr") as "Hsr".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-    iMod (Htr _ (WCap true pc_p pc_g pc_b pc_e pc_a', r,
-                 <[MSTATUS := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr, m, st)
+    iMod (Htr _ (Cap pc_p pc_g pc_b pc_e pc_a', r,
+                 <[mstatus := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr, m, st)
            with "[$Hlink $HT]") as "[Hlink HT]".
     { split.
       - by rewrite /= lookup_insert_ne.
@@ -121,16 +121,16 @@ Section griotte_lang_rules.
   Lemma wp_setmie_success_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w mie dq
       (T1 T2 : iProp Σ) :
     decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     link_transfer (mie_set mie) T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ T1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w ∗ T2 }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Htr φ) "(>HPC & >Hpc_a & HT) Hφ".
@@ -156,13 +156,13 @@ Section griotte_lang_rules_core.
 
   Lemma wp_SetMIE Ep pc_p pc_g pc_b pc_e pc_a pc_π w mie dq :
     decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ SetMIE_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
+        ⌜ SetMIE_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w
     }}}.
@@ -178,15 +178,15 @@ Section griotte_lang_rules_core.
       becomes [mie], MPIE is unchanged, in the state interpretation. *)
   Lemma wp_setmie_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w mie dq :
     decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' φ) "(>HPC & >Hpc_a) Hφ".

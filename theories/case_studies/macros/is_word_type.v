@@ -73,26 +73,26 @@ Section Is_WordType_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let is_int := (is_int_instrs r r1) in
-    let a_last := (pc_a ^+ length is_int)%a in
+    let a_last := (pc_a ^+ length is_int) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     r ≠ cnull ->
     r1 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ w
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ codefrag_pers pc_a is_int
-    ∗ ( ▷ ( ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ( ▷ ( ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
               ∗ r ↦ᵣ w ∗ ⌜ ∃ z, w.(lw) = WInt z ⌝
               ∗ r1 ↦ᵣ WInt 0%Z
               ∗ codefrag_pers pc_a is_int)
-                -∗ WP Seq (Instr Executable) {{ φ }}
+                -∗ WP Exec {{ φ }}
           ) ∧
         ( r ↦ᵣ w ∗
           r1 ↦ᵣ - -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 4)%a) ⊤ φ ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e (pc_a ^+ 4)) ⊤ φ ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull)

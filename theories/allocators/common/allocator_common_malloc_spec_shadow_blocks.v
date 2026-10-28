@@ -21,22 +21,22 @@ Section AllocatorMallocShadowBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b <= b /\ b < finish /\ finish <= heap_e)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    ca2 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
+    ca2 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
     ι ↦st{q} ALive ∗
     ct2 ↦ᵣ WInt finish ∗
     ca3 ↦ᵣ w3 ∗
     allocator_range_memory b finish ∗
     codefrag_pers pc_a allocator_malloc_shadow_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
-       ca2 ↦ᵣ (WCap true RW Global b finish finish) @@ ι ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1) ∗
+       ca2 ↦ᵣ (Cap RW Global b finish finish) @@ ι ∗
        ι ↦st{q} ALive ∗
        ct2 ↦ᵣ WInt finish ∗
        ca3 ↦ᵣ WInt 0 ∗
        ([∗ list] a ∈ finz.seq_between b finish, a ↦ₐ WInt 0) ∗
        codefrag_pers pc_a allocator_malloc_shadow_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hrange.
     iIntros "(HPC & Hca2 & Hst & Hct2 & Hct3 & Hmem & #Hcode_main & Hφ)".
@@ -54,7 +54,7 @@ Section AllocatorMallocShadowBlocks.
     { repeat constructor; set_solver. }
     iNext. iIntros "(HPC & Hca2 & Hst & Hct2 & Hct3 & Hzeros & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a.
+    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 1).
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
@@ -65,29 +65,29 @@ Section AllocatorMallocShadowBlocks.
     (heap_b < next)%a ->
     (next + allocator_header_words)%a = Some b ->
     (b < finish /\ finish <= heap_e)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1)%a ∗
-    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 1) ∗
+    ctp ↦ᵣ Cap RW Global shadow_b shadow_e shadow_b ∗
     ca3 ↦ᵣ w3 ∗
     ca2 ↦ᵣ wa2 ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+    ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt finish ∗
     ([∗ list] a ∈ finz.seq_between next b, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
     ([∗ list] a ∈ finz.seq_between b finish, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_malloc_shadow_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 5)%a ∗
-       ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (finish - heap_b))%a ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_shadow_block_offset 5) ∗
+       ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (finish - heap_b)) ∗
        ca3 ↦ᵣ WInt (next - heap_b) ∗
        ca2 ↦ᵣ WInt 0 ∗
-       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt finish ∗
        ([∗ list] a ∈ finz.seq_between next b,
           a ↦ₛ ShadowQuarantined ∗ addr_alloc a Unclaimed) ∗
        ([∗ list] a ∈ finz.seq_between b finish, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
        codefrag_pers pc_a allocator_malloc_shadow_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hnext Hbase Hrange.
     iIntros "(HPC & Hctp & Hct3 & Hca2 & Hct0 & Hct1 & Hct2 & Hheader & Hpayload &
@@ -97,9 +97,9 @@ Section AllocatorMallocShadowBlocks.
     unfold allocator_header_words in Hbase.
     pose proof heap_shadow_same_size as Hss.
     pose proof heap_valid.
-    set (sh := (shadow_b ^+ (next - heap_b))%a).
-    set (sb := (shadow_b ^+ (b - heap_b))%a).
-    set (se := (shadow_b ^+ (finish - heap_b))%a).
+    set (sh := shadow_b ^+ (next - heap_b)).
+    set (sb := shadow_b ^+ (b - heap_b)).
+    set (se := shadow_b ^+ (finish - heap_b)).
     assert (Hshadow : (shadow_b <= sh /\ sh < sb /\ sb < se /\ se <= shadow_e)%a).
     { subst sh sb se. solve_addr. }
 
@@ -158,7 +158,7 @@ Section AllocatorMallocShadowBlocks.
     { repeat constructor; set_solver. }
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hpayload & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 5)%a.
+    change_pc_to (pc_a ^+ allocator_malloc_shadow_block_offset 5).
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

@@ -27,12 +27,12 @@ Section KVS_main_spec.
   Context {B : CmptName}.
 
   Implicit Types W : WORLD.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -60,7 +60,7 @@ Section KVS_main_spec.
     let imports :=
       kvs_main_imports static_sealed_b b_switcher e_switcher a_switcher_call ot_switcher b_assert e_assert B_f
     in
-    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
 
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -70,7 +70,7 @@ Section KVS_main_spec.
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
 
     (static_sealed_b + length (kvs_main_static_sealed KVS_USER_KEY_MAIN))%a = Some static_sealed_e ->
     (cgp_b + length (kvs_main_data))%a = Some cgp_e ->
@@ -88,19 +88,19 @@ Section KVS_main_spec.
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
       na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
 
-      b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
-      a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
+      a_kvs_exp_tbl_cgp ↦ₐ□ Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate ∗
       kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read ∗
 
       na_own (tpool th) ⊤ ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-      csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+      csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
       cra ↦ᵣ[th] thread_return_sentry ∗
-      ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
+      regs[th] rmap ∗
 
       (* initial memory layout *)
       [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
@@ -117,9 +117,9 @@ Section KVS_main_spec.
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
-      interp W0 B (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      interp W0 B (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.
@@ -142,7 +142,7 @@ Section KVS_main_spec.
       & #Hinterp_W0_csp
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
-    assert (withinBounds static_sealed_b (static_sealed_b ^+ 1)%a static_sealed_b = true)
+    assert (withinBounds static_sealed_b (static_sealed_b ^+ 1) static_sealed_b = true)
       as Hstatic_sealed_b by solve_addr.
     iDestruct (kvs_main_imports_pointsto_pers pc_b pc_a static_sealed_b
       b_assert e_assert B_f Himports_contiguous with "Himports_main") as
@@ -201,11 +201,11 @@ Section KVS_main_spec.
       "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     changePCto a_fetch1.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
-    replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
+    replace (pc_b ^+ SWITCHER_CALL_OFFSET) with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hctp & _ & _)".
     iEval (cbn) in "Hctp".
@@ -237,7 +237,7 @@ Section KVS_main_spec.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (rmap_B :=
-      <[ctp := lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp := lword_of_word switcher_entry_call]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
     set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
@@ -262,8 +262,8 @@ Section KVS_main_spec.
       as Hstack_revoked_W1_free.
 
     iApply (kvs_main_adversary_phase_spec W1 B
-             (WCap true RW Global cgp_b cgp_e cgp_b)
-             (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
+             (Cap RW Global cgp_b cgp_e cgp_b)
+             (Sentry (ret_kind mie) RX Global pc_b pc_e (a_call ^+ 1))
              thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
              ).
@@ -308,10 +308,10 @@ Section KVS_main_spec.
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".
     iEval (cbn) in "Hcs1".
-    assert ((a_call ^+ 1)%a =
-      (pc_a ^+ length
+    assert (a_call ^+ 1 =
+      pc_a ^+ length
         (kvs_main_add_phase_instrs ++
-         kvs_main_adversary_phase_instrs))%a) as Hread_start.
+         kvs_main_adversary_phase_instrs)) as Hread_start.
     { rewrite /kvs_main_add_phase_instrs
         /kvs_main_adversary_phase_instrs.
       solve_addr+Ha_call. }
@@ -319,7 +319,7 @@ Section KVS_main_spec.
     iApply (kvs_main_read_assert_phase_spec
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_call ^+ 1)%a)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (a_call ^+ 1))
       KVS_USER_KEY_MAIN b_assert e_assert a_flag
       stk_mem cstk0 with
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical

@@ -54,7 +54,7 @@ Section dle_obligations.
 
     (* 2 - The export entry of C, imported by main *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry dle_C_entry_f)%a).
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry dle_C_entry_f)).
     assert (cmpt_export_sb (cmpt_of img "C") dle_C_entry_f = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @dle_main_imports swl asl C_f)
@@ -149,7 +149,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem dle_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   dle_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

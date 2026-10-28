@@ -74,14 +74,14 @@ Section griotte_lang_rules.
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
     is_BinOp i dst arg1 arg2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ BinOp_spec (decodeInstrW w.(lw)) (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst arg1 arg2 lpc' regs' retv ⌝ ∗
+        ⌜ BinOp_spec (decodeInstrW w.(lw)) (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst arg1 arg2 lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
           pc_a ↦ₐ{dq} w ∗
           [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -101,7 +101,7 @@ Section griotte_lang_rules.
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
 
-    assert (exec_opt i pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
+    assert (exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1' Hn2'; cbn. }
     rewrite HH in Hstep.
@@ -135,12 +135,12 @@ Section griotte_lang_rules.
   Lemma wp_BinOp_next E i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs n1 n2 lpc' dq :
     decodeInstrW w.(lw) = i →
     is_BinOp i dst arg1 arg2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     ({[dst]} ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
-    incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
@@ -163,16 +163,16 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = ins →
     is_BinOp ins dst (inl n1) (inl n2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -188,18 +188,18 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inr r1) (inl n2) →
     IsLInt w1 n1 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
@@ -217,18 +217,18 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inl n1) (inr r2) →
     IsLInt w2 n2 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ w2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
@@ -247,12 +247,12 @@ Section griotte_lang_rules.
     IsLInt w1 n1 →
     IsLInt w2 n2 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ r2 ↦ᵣ w2
@@ -260,7 +260,7 @@ Section griotte_lang_rules.
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ r2 ↦ᵣ w2
@@ -280,18 +280,18 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inr r) (inr r) →
     IsLInt wr n →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r ↦ᵣ wr
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ wr
           ∗ dst ↦ᵣ WInt (denote ins n n)
@@ -309,16 +309,16 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inr dst) (inl n2) →
     IsLInt wdst n1 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -335,16 +335,16 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inl n1) (inr dst) →
     IsLInt wdst n2 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
       }}}.
@@ -362,18 +362,18 @@ Section griotte_lang_rules.
     IsLInt wdst n1 →
     IsLInt w2 n2 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r2 ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r2 ↦ᵣ w2
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r2 ↦ᵣ w2
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
@@ -393,18 +393,18 @@ Section griotte_lang_rules.
     IsLInt w1 n1 →
     IsLInt wdst n2 →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
     r1 ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ r1 ↦ᵣ w1
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ w1
           ∗ dst ↦ᵣ WInt (denote ins n1 n2)
@@ -423,16 +423,16 @@ Section griotte_lang_rules.
     is_BinOp ins dst (inr dst) (inr dst) →
     IsLInt wdst n →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     dst ≠ cnull ->
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
         ∗ dst ↦ᵣ wdst
     }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ WInt (denote ins n n)
       }}}.
@@ -448,17 +448,17 @@ Section griotte_lang_rules.
   Lemma wp_sub_dst_r_any E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst r2 w2 pc_a' dq :
     decodeInstrW w.(lw) = Sub dst (inr dst) (inr r2) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     dst ≠ cnull →
     r2 ≠ cnull →
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r2 ↦ᵣ w2 ∗
         dst ↦ᵣ wdst }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r2 ↦ᵣ w2 ∗
         dst ↦ᵣ WInt (get_a wdst.(lw) - get_a w2.(lw)) }}}.
@@ -476,17 +476,17 @@ Section griotte_lang_rules.
   Lemma wp_sub_r_dst_any E dst pc_p pc_g pc_b pc_e pc_a pc_π w wdst r1 w1 pc_a' dq :
     decodeInstrW w.(lw) = Sub dst (inr r1) (inr dst) →
     (pc_a + 1)%a = Some pc_a' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     dst ≠ cnull →
     r1 ≠ cnull →
 
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 ∗
         dst ↦ᵣ wdst }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 ∗
         dst ↦ᵣ WInt (get_a w1.(lw) - get_a wdst.(lw)) }}}.

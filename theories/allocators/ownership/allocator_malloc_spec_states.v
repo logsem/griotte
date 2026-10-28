@@ -76,7 +76,7 @@ Section AllocatorMallocStates.
 
   (** The bounds of the code: the PCC, the shadow table and the bump slot. *)
   Definition allocator_malloc_code_bounds (pc_b pc_e pc_a : Addr) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length allocator_malloc_code) ∧
     disjoint_from_shadow pc_b pc_e ∧
     allocator_cgp_b ∉ finz.seq_between pc_b pc_e.
 
@@ -94,7 +94,7 @@ Section AllocatorMallocStates.
   Lemma allocator_malloc_shadow_bounds pc_b pc_e pc_a :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e
-      (pc_a ^+ allocator_malloc_block_offset 3)%a.
+      (pc_a ^+ allocator_malloc_block_offset 3).
   Proof.
     intros (Hpc & Hshadow & _). split; last done.
     cbn in Hpc. offsets_compute. solve_addr.
@@ -103,7 +103,7 @@ Section AllocatorMallocStates.
   Lemma allocator_malloc_exit_bounds pc_b pc_e pc_a :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e
-      (pc_a ^+ allocator_malloc_block_offset 5)%a.
+      (pc_a ^+ allocator_malloc_block_offset 5).
   Proof.
     intros (Hpc & Hshadow & _). split; last done.
     cbn in Hpc. offsets_compute. solve_addr.
@@ -111,8 +111,8 @@ Section AllocatorMallocStates.
 
   Lemma allocator_malloc_shadow_end pc_b pc_e pc_a :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
-    ((pc_a ^+ allocator_malloc_block_offset 3) ^+ allocator_malloc_shadow_block_offset 5)%a =
-    (pc_a ^+ allocator_malloc_block_offset 4)%a.
+    ((pc_a ^+ allocator_malloc_block_offset 3) ^+ allocator_malloc_shadow_block_offset 5) =
+    (pc_a ^+ allocator_malloc_block_offset 4).
   Proof. intros (Hpc & _ & _). cbn in Hpc. offsets_compute. solve_addr. Qed.
 
 End AllocatorMallocStates.
@@ -122,26 +122,26 @@ Section AllocatorMallocSegments.
 
   Lemma allocator_malloc_shadow_acc pc_a :
     codefrag_pers pc_a allocator_malloc_code -∗
-    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 3)%a allocator_malloc_shadow_code.
+    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 3) allocator_malloc_shadow_code.
   Proof.
     iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     focus_block_nochangePC 3 "Hcode_main" as a_shadow Ha_shadow "Hcode" "Hcont".
-    assert (a_shadow = (pc_a ^+ allocator_malloc_block_offset 3)%a) as <-
+    assert (a_shadow = pc_a ^+ allocator_malloc_block_offset 3) as <-
       by (cbn in Ha_shadow; offsets_compute; solve_addr).
     iExact "Hcode".
   Qed.
 
   Lemma allocator_malloc_exit_acc pc_a :
     codefrag_pers pc_a allocator_malloc_code -∗
-    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 5)%a allocator_malloc_exit_code.
+    codefrag_pers (pc_a ^+ allocator_malloc_block_offset 5) allocator_malloc_exit_code.
   Proof.
     iIntros "#Hcode_main".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     focus_block_nochangePC 5 "Hcode_main" as a_exit Ha_exit "Hcode" "Hcont".
-    assert (a_exit = (pc_a ^+ allocator_malloc_block_offset 5)%a) as <-
+    assert (a_exit = pc_a ^+ allocator_malloc_block_offset 5) as <-
       by (cbn in Ha_exit; offsets_compute; solve_addr).
     iExact "Hcode".
   Qed.

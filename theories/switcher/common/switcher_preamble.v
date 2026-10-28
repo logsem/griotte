@@ -40,18 +40,15 @@ Qed.
 
 (** A read of mtdc, which holds the trusted stack up to the Global bit,
     gives the capability with some locality. *)
-Lemma mtdc_match_TStack_cap p g b e a (vm : LWord) :
-  mtdc_match (TStack (WCap true p g b e a)) vm →
-  ∃ g', vm = WCap true p g' b e a.
-Proof.
-  destruct vm as [w π]. rewrite /mtdc_match /=. intros [-> Hw].
-  destruct w as [| [ | ] | | ]; cbn in Hw; simplify_eq; by eexists.
-Qed.
+Lemma mtdc_match_TStack_cap p b e a (vm : LWord) :
+  mtdc_match (Capₗ p _ b e a) vm →
+  ∃ g', vm = Cap p g' b e a.
+Proof. done. Qed.
 
 (** A write of the trusted stack to mtdc, with any locality. *)
-Lemma mtdc_match_TStack_cap_any p g g' b e a :
-  mtdc_match (TStack (WCap true p g b e a)) (WCap true p g' b e a).
-Proof. done. Qed.
+Lemma mtdc_match_TStack_cap_any p g' b e a :
+  mtdc_match (Capₗ p _ b e a) (Cap p g' b e a).
+Proof. by eexists. Qed.
 
 (** The number of arguments of an export entry, given by its address in the
     export table or by the sealable that points to it. *)
@@ -285,7 +282,7 @@ Section Switcher_preamble.
   (** The export table cell of a pushed frame holding the unsealed entry,
       a capability to the export table. *)
   Lemma tf_export_tbl_cell_entry (tf : trusted_frame) g b e a :
-    tf.(tf_export_tbl) = lword_of_word (WCap true RO g b e a) →
+    tf.(tf_export_tbl) = lword_of_word (Cap RO g b e a) →
     (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
     (a < e)%a →
     disjoint_from_shadow b e →
@@ -307,9 +304,9 @@ Section Switcher_preamble.
       holds the frame's word, the unsealed entry.
    *)
   Definition trusted_frame_interp (entry : bool) (tf : trusted_frame) (a_tstk : Addr) : iProp Σ :=
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
     ("Htf_csp" ∷ a_csp ↦ₐ tf.(tf_csp) ∗
      "Htf_tbl" ∷ (if entry
                   then a_export_table ↦ₐ□ tf.(tf_export_tbl) ∗ ⌜tf_export_tbl_ok tf⌝
@@ -323,9 +320,9 @@ Section Switcher_preamble.
       [SpillSlot_pcc]. *)
   Definition switcher_stk_cells (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
     a ↦ₐ w0 ∗
-    (a ^+ SpillSlot_cs1)%a ↦ₐ w1 ∗
-    (a ^+ SpillSlot_cgp)%a ↦ₐ w2 ∗
-    (a ^+ SpillSlot_pcc)%a ↦ₐ w3.
+    (a ^+ SpillSlot_cs1) ↦ₐ w1 ∗
+    (a ^+ SpillSlot_cgp) ↦ₐ w2 ∗
+    (a ^+ SpillSlot_pcc) ↦ₐ w3.
 
   (** [cframe_stk_own s saved ccrel] holds the spill area
       [[s, s + SpillSlot_size)] where the switcher spilled the callee-saved
@@ -347,7 +344,7 @@ Section Switcher_preamble.
       [[b, e)], and does not wrap around. *)
   Definition switcher_stk_bounds (b e a : Addr) : Prop :=
     (b <= stk_spill_a a)%a ∧
-    (b <= (stk_spill_a a ^+ (SpillSlot_size - 1))%a < e)%a ∧
+    (stk_spill_a a ^+ (SpillSlot_size - 1)) ∈ₐ [b, e) ∧
     stk_spill_ok a.
 
   (** [cframe_interp] interprets a call-frame, i.e.,
@@ -360,7 +357,7 @@ Section Switcher_preamble.
     "Hcf_tframe" ∷ trusted_frame_interp false frm.(cf_tframe) a_tstk ∗
     ∃ b_stk e_stk a_stk : Addr,
     "%Hcf_csp" ∷
-      ⌜ frm.(cf_tframe).(tf_csp) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∧
+      ⌜ frm.(cf_tframe).(tf_csp) = Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∧
         switcher_stk_bounds b_stk e_stk a_stk ∧
         disjoint_from_mmio b_stk e_stk ∧ disjoint_from_heap b_stk e_stk ∧
         (* a trusted caller returns to a valid target, outside the heap *)
@@ -375,7 +372,7 @@ Section Switcher_preamble.
     (match frms with
     | [] => trusted_frame_interp true ef a_tstk
     | frm::frms' =>
-        let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
+        let a_prev := (a_tstk ^+ - TrustedStackFrame_size) in
         frames_interp ef frms' a_prev ∗ cframe_interp frm a_tstk
     end)%I.
 
@@ -401,11 +398,11 @@ Section Switcher_preamble.
   (** The store-only capability to the two hazard slots of the thread, in
       the word [hazardPointers] of the register save area. *)
   Definition hazard_slots_cap : Word :=
-    WCap true WO Global b_hazard_slots e_hazard_slots b_hazard_slots.
+    Cap WO Global b_hazard_slots e_hazard_slots b_hazard_slots.
 
   (** The word [hazardPointers] of the register save area. *)
   Definition tstack_hazard_cell : Addr :=
-    (b_trusted_stack ^+ TrustedStack_offset_hazardPointers)%a.
+    (b_trusted_stack ^+ TrustedStack_offset_hazardPointers).
 
   (** What the switcher uses to clear the hazard slots: the word
       [hazardPointers] of the register save area, and the two slots. *)
@@ -443,12 +440,12 @@ Section Switcher_preamble.
       them. The used part is contained in the definition of [cstack_interp].
    *)
   Definition trusted_stack_inv : iProp Σ :=
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
-      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+      "Hmtdc" ∷ mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -467,13 +464,13 @@ Section Switcher_preamble.
   (** Opens [trusted_stack_inv] under the later of [na_inv_acc]: the timeless
       conjuncts lose their later, so that [iNamed] can name them. *)
   Lemma trusted_stack_inv_open :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     ▷ trusted_stack_inv -∗
     ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
-      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-      "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+      "Hmtdc" ∷ mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -500,19 +497,19 @@ Section Switcher_preamble.
       of the trusted stack: its cells go back to the unused part. *)
   Lemma trusted_stack_inv_pop_frame
     (a_tstk : Addr) (cstk : CSTK) (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_prev := (a_tstk ^+ - TrustedStackFrame_size) in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
@@ -530,18 +527,18 @@ Section Switcher_preamble.
     iIntros (Hlen_cstk Ha_tstk_e Hsave_hazard)
       "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
        Hstk_interp".
-    iExists (a_tstk ^+ - TrustedStackFrame_size)%a, cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
+    iExists (a_tstk ^+ - TrustedStackFrame_size), cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
     iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp".
-    replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a with a_tstk
+    replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size) with a_tstk
       by (tstack_unfold; solve_addr).
     iSplit; first done.
     iSplitL "Hw0 Hw1 Hw2 Htstk".
-    { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)%a
+    { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)
                    with "[$Hw2 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
-      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a
+      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)
                    with "[$Hw1 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
       iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Hw0".
-      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a
+      iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)
                    with "[$Hw0 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
       iFrame "Htstk". }
     iPureIntro; tstack_unfold; split; solve_addr.
@@ -563,9 +560,9 @@ Section Switcher_preamble.
       part of the switcher's invariant. *)
   Definition switcher_static : iProp Σ :=
     codefrag_pers a_switcher_call switcher_instrs ∗
-    (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher^+1)%ot ot_switcher ∗
+    (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher^+1) ot_switcher ∗
     ⌜mtcc_vec =
-       WCap true XSRW_ Local b_switcher e_switcher
+       Cap XSRW_ Local b_switcher e_switcher
          (a_switcher_call ^+
             asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝ ∗
     switcher_sealing_inv.
@@ -596,7 +593,7 @@ Section Switcher_Hazard.
   (** Take the word [hazardPointers] out of the register save area
       [save_area], with the hazard slots. *)
   Lemma switcher_hazard_open (save_area : list LWord) :
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
@@ -632,9 +629,9 @@ Section Switcher_Stack_Traps.
   .
 
   Lemma switcher_stk_cells_region_4 a w0 w1 w2 w3 :
-    (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size)%a ->
+    (a + SpillSlot_size)%a = Some (a ^+ SpillSlot_size) ->
     switcher_stk_cells a w0 w1 w2 w3 ⊣⊢
-    [[ a , (a ^+ SpillSlot_size)%a ]] ↦ₐ [[ [w0; w1; w2; w3] ]].
+    [[ a , a ^+ SpillSlot_size ]] ↦ₐ [[ [w0; w1; w2; w3] ]].
   Proof.
     rewrite /SpillSlot_size.
     iIntros (Ha4); iSplit; iIntros "H".
@@ -643,7 +640,7 @@ Section Switcher_Stack_Traps.
   Qed.
 
   (** The spill area ends at the cursor. *)
-  Lemma stk_spill_a_end a : stk_spill_ok a → (stk_spill_a a ^+ SpillSlot_size)%a = a.
+  Lemma stk_spill_a_end a : stk_spill_ok a → (stk_spill_a a ^+ SpillSlot_size) = a.
   Proof. stk_unfold; solve_addr. Qed.
 
   (** The free part of a caller's stack splits into its spill area and the
@@ -651,7 +648,7 @@ Section Switcher_Stack_Traps.
   Lemma stk_free_split_addrs b e a :
     switcher_stk_bounds b e a →
     stk_free b e a =
-      stk_mem_join (finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
+      stk_mem_join (finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size))
         (callee_stk_region b e a).
   Proof.
     rewrite /switcher_stk_bounds; intros (Hb & Hb3 & Ha4).
@@ -662,7 +659,7 @@ Section Switcher_Stack_Traps.
   Lemma stk_free_split_zeroes b e a :
     switcher_stk_bounds b e a →
     region_addrs_zeroes (stk_free_b b a) (stk_free_e e a) =
-      stk_mem_join (region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a)
+      stk_mem_join (region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size))
         (region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a)).
   Proof.
     rewrite /switcher_stk_bounds; intros (Hb & Hb3 & Ha4).
@@ -674,7 +671,7 @@ Section Switcher_Stack_Traps.
     switcher_stk_bounds b e a →
     length ls = Z.to_nat SpillSlot_size →
     [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem_join ls lc ]] ⊣⊢
-    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ ls ]] ∗
+    [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ ls ]] ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]].
   Proof.
     rewrite /switcher_stk_bounds.
@@ -688,7 +685,7 @@ Section Switcher_Stack_Traps.
     switcher_stk_bounds b e a →
     length l = length (stk_free b e a) →
     [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ l ]] ⊣⊢
-    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_spill l ]] ∗
+    [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_spill l ]] ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee l ]].
   Proof.
     intros Hbounds Hl.
@@ -717,7 +714,7 @@ Section Switcher_Stack_Traps.
   Lemma callee_stk_region_incl b e a x :
     callee_stk_bounds b e a →
     x ∈ callee_stk_region b e a →
-    (b <= x < e)%a.
+    x ∈ₐ [b, e).
   Proof.
     stk_unfold; intros (Hb & He & Hbe & Ha) Hx.
     apply elem_of_finz_seq_between in Hx. solve_addr.

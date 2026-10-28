@@ -63,26 +63,26 @@ Section Error_Handling_Handler_Blocks.
   Lemma stats_handler_decode_spec
     (pc_b pc_e : Addr) (c v : Z) (wct0 : LWord) :
     stats_code_bounds pc_b pc_e ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler")%a ∗
     ca1 ↦ᵣ[th] WInt c ∗
     ca2 ↦ᵣ[th] WInt v ∗
     ct0 ↦ᵣ[th] wct0 ∗
     codefrag_pers pc_b stats_code ∗
     ▷ ( (⌜stats_repairable c v⌝ -∗
-         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
+         PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
          ca1 ↦ᵣ[th] WInt c ∗
          ca2 ↦ᵣ[th] WInt v ∗
          ct0 ↦ᵣ[th] WInt (mtval_reg_field v) ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
+         -∗ safe[th]) ∧
         (⌜¬ stats_repairable c v⌝ -∗
-         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+         PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
          ca1 ↦ᵣ[th] WInt c ∗
          ca2 ↦ᵣ[th] WInt v ∗
          ct0 ↦ᵣ[th] - ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+         -∗ safe[th]) )
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap))
       "(HPC & Hca1 & Hca2 & Hct0 & Hcode_stats & Hpost)".
@@ -156,7 +156,7 @@ Section Error_Handling_Handler_Blocks.
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iDestruct "Hpost" as "[Hpost _]".
-    assert ((a_decode ^+ 7)%a = (pc_b ^+ stats_label ".Lstats_handler_check")%a) as ->
+    assert (a_decode ^+ 7 = (pc_b ^+ stats_label ".Lstats_handler_check")%a) as ->
       by (offsets_compute; solve_addr).
     iApply ("Hpost" with "[%] [$HPC $Hca1 $Hca2 $Hct0 $Hcode_stats]").
     split_and!; [done | done | lia ..].
@@ -174,41 +174,41 @@ Section Error_Handling_Handler_Blocks.
     stats_code_bounds pc_b pc_e ->
     (b0 <= a16)%a ->
     (a16 + ErrorState_size <= e0)%Z ->
-    disjoint_from_shadow a16 (a16 ^+ ErrorState_size)%a ->
+    disjoint_from_shadow a16 (a16 ^+ ErrorState_size) ->
     length ws = Z.to_nat ErrorState_size ->
     (TrustedStack_offset_cra <= n <= TrustedStack_offset_ca5)%Z ->
-    ws !! Z.to_nat n = Some (MkLWord (WCap true p g b e a) π) ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
-    ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+    ws !! Z.to_nat n = Some (MkLWord (Cap p g b e a) π) ->
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_check")%a ∗
+    ca0 ↦ᵣ[th] Cap RWL g0 b0 e0 a16 ∗
     ct0 ↦ᵣ[th] WInt n ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ctp ↦ᵣ[th] wctp ∗
-    [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
+    [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_b stats_code ∗
     ▷ ( (∀ t, ⌜(b < e)%a⌝ -∗
           ⌜stats_base_outside a16 b⌝ -∗
-          ⌜lload_heap (MkLWord (WCap true p g b e a) π) (MkLWord (WCap t p g b e a) π)⌝ -∗
-          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
-          ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+          ⌜lload_heap (MkLWord (Cap p g b e a) π) (MkLWord (WCap t p g b e a) π)⌝ -∗
+          PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
+          ca0 ↦ᵣ[th] Cap RWL g0 b0 e0 a16 ∗
           ct0 ↦ᵣ[th] WInt b ∗
-          ct1 ↦ᵣ[th] WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
+          ct1 ↦ᵣ[th] Cap RWL g0 b0 e0 (a16 ^+ Z.to_nat n) ∗
           ct2 ↦ᵣ[th] MkLWord (WCap t p g b e a) π ∗
           ctp ↦ᵣ[th] - ∗
-          [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
+          [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws ]] ∗
           codefrag_pers pc_b stats_code
-          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
+          -∗ safe[th]) ∧
         (⌜¬ ((b < e)%a ∧ stats_base_outside a16 b)⌝ -∗
-         PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
-         ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+         PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+         ca0 ↦ᵣ[th] Cap RWL g0 b0 e0 a16 ∗
          ct0 ↦ᵣ[th] - ∗
          ct1 ↦ᵣ[th] - ∗
          ct2 ↦ᵣ[th] - ∗
          ctp ↦ᵣ[th] - ∗
-         [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
+         [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws ]] ∗
          codefrag_pers pc_b stats_code
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+         -∗ safe[th]) )
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Hws_n)
       "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hctp & Hes & Hcode_stats & Hpost)".
@@ -217,8 +217,8 @@ Section Error_Handling_Handler_Blocks.
     rewrite /ErrorState_size /TrustedStack_offset_cra /TrustedStack_offset_ca5
       in Ha16_e0 Hes_shadow Hlen Hn |- *.
     set (k := Z.to_nat n) in Hws_n |- *.
-    assert ((a16 + n)%a = Some (a16 ^+ k)%a) as Ha16_k by (subst k; solve_addr).
-    assert (is_shadow_address (a16 ^+ k)%a = false) as Hk_shadow.
+    assert ((a16 + n)%a = Some (a16 ^+ k)) as Ha16_k by (subst k; solve_addr).
+    assert (is_shadow_address (a16 ^+ k) = false) as Hk_shadow.
     { eapply disjoint_from_shadow_not_in; first exact Hes_shadow.
       apply withinBounds_true_iff; subst k; solve_addr. }
     iEval (rewrite (region_pointsto_cells a16); last (rewrite Hlen; solve_addr)) in "Hes".
@@ -236,12 +236,12 @@ Section Error_Handling_Handler_Blocks.
     assert (∃ t, wload = MkLWord (WCap t p g b e a) π) as [t ->].
     { rewrite /lload_word /lift_word /= load_word_no_dl_dro // in Hwload.
       destruct Hwload as [-> | [_ ->] ]; by eexists. }
-    assert (lload_heap (MkLWord (WCap true p g b e a) π) (MkLWord (WCap t p g b e a) π))
+    assert (lload_heap (MkLWord (Cap p g b e a) π) (MkLWord (WCap t p g b e a) π))
       as Hlh by (rewrite /lload_word /lift_word /= load_word_no_dl_dro // in Hwload).
     (* The memory is unchanged: give the cell back now, for both exits *)
     iDestruct ("Hes" with "Hes_k") as "Hes".
     rewrite list_insert_id //.
-    iEval (rewrite -(region_pointsto_cells a16 (a16 ^+ 16)%a ws); [|rewrite Hlen; solve_addr])
+    iEval (rewrite -(region_pointsto_cells a16 (a16 ^+ 16) ws); [|rewrite Hlen; solve_addr])
       in "Hes".
     (* GetLen ct0 ct2 *)
     iInstr "Hcode".
@@ -272,7 +272,7 @@ Section Error_Handling_Handler_Blocks.
       assert ((b <? a16)%Z = true) as Hjmp by (apply Z.ltb_lt; done).
       (* Jlt .Lstats_handler_fix ct0 ctp *)
       iInstr "Hcode".
-      assert ((a_check ^+ 9)%a = (pc_b ^+ stats_label ".Lstats_handler_fix")%a) as ->
+      assert (a_check ^+ 9 = (pc_b ^+ stats_label ".Lstats_handler_fix")%a) as ->
         by (offsets_compute; solve_addr).
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
       iDestruct "Hpost" as "[Hpost _]".
@@ -304,7 +304,7 @@ Section Error_Handling_Handler_Blocks.
     (* Jlt .Lstats_handler_unwind ct0 ctp *)
     iInstr "Hcode".
     (* Above the slot: fall through to the fix *)
-    assert ((a_check ^+ 9)%a = (pc_b ^+ stats_label ".Lstats_handler_fix")%a) as ->
+    assert (a_check ^+ 9 = (pc_b ^+ stats_label ".Lstats_handler_fix")%a) as ->
       by (offsets_compute; solve_addr).
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iDestruct "Hpost" as "[Hpost _]".
@@ -323,17 +323,17 @@ Section Error_Handling_Handler_Blocks.
     stats_code_bounds pc_b pc_e ->
     (b0 <= a16)%a ->
     (a16 + ErrorState_size <= e0)%Z ->
-    disjoint_from_shadow a16 (a16 ^+ ErrorState_size)%a ->
+    disjoint_from_shadow a16 (a16 ^+ ErrorState_size) ->
     length ws = Z.to_nat ErrorState_size ->
     (TrustedStack_offset_cra <= n <= TrustedStack_offset_ca5)%Z ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
-    ca0 ↦ᵣ[th] WCap true RWL g0 b0 e0 a16 ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
+    ca0 ↦ᵣ[th] Cap RWL g0 b0 e0 a16 ∗
     ct0 ↦ᵣ[th] WInt b ∗
-    ct1 ↦ᵣ[th] WCap true RWL g0 b0 e0 (a16 ^+ Z.to_nat n)%a ∗
+    ct1 ↦ᵣ[th] Cap RWL g0 b0 e0 (a16 ^+ Z.to_nat n) ∗
     ct2 ↦ᵣ[th] MkLWord (WCap t p g b e a) π ∗
     cra ↦ᵣ[th] wcra ∗
-    [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]] ∗
+    [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_b stats_code ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
        ca0 ↦ᵣ[th] WInt InstallContext ∗
@@ -341,11 +341,11 @@ Section Error_Handling_Handler_Blocks.
        ct1 ↦ᵣ[th] - ∗
        ct2 ↦ᵣ[th] - ∗
        cra ↦ᵣ[th] wcra ∗
-       [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ
+       [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ
          [[ <[Z.to_nat n := stats_repair_word (MkLWord (WCap t p g b e a) π)]> ws ]] ∗
        codefrag_pers pc_b stats_code
-       -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+       -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Htgt)
       "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hcra & Hes & Hcode_stats & Hpost)".
@@ -354,7 +354,7 @@ Section Error_Handling_Handler_Blocks.
     rewrite /ErrorState_size /TrustedStack_offset_cra /TrustedStack_offset_ca5
       in Ha16_e0 Hes_shadow Hlen Hn |- *.
     set (k := Z.to_nat n).
-    assert (is_shadow_address (a16 ^+ k)%a = false) as Hk_shadow.
+    assert (is_shadow_address (a16 ^+ k) = false) as Hk_shadow.
     { eapply disjoint_from_shadow_not_in; first exact Hes_shadow.
       apply withinBounds_true_iff; subst k; solve_addr. }
     destruct (lookup_lt_is_Some_2 ws k) as [wk Hws_k]; first (rewrite Hlen; subst k; lia).
@@ -392,20 +392,20 @@ Section Error_Handling_Handler_Blocks.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ wlock ∗
     codefrag_pers pc_b stats_code ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] WInt ForceUnwind ∗
         cra ↦ᵣ[th] wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt)
       "(HPC & Hcgp & Hca0 & Hcra & Hlock & Hcode_stats & Hpost)".

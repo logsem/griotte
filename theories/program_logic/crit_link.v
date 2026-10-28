@@ -11,11 +11,11 @@ From griotte Require Export erasure.
 
 (** MIE of a configuration (InterruptDisabled if mstatus is absent). *)
 Definition mie_st (σ : ExecConf) : InterruptStatus :=
-  match sreg σ !! MSTATUS with Some w => mie_of (get_a w) | None => InterruptDisabled end.
+  match sreg σ !! mstatus with Some w => mie_of (get_a w) | None => InterruptDisabled end.
 
 (** MPIE of a configuration (InterruptDisabled if mstatus is absent). *)
 Definition mpie_st (σ : ExecConf) : InterruptStatus :=
-  match sreg σ !! MSTATUS with Some w => mpie_of (get_a w) | None => InterruptDisabled end.
+  match sreg σ !! mstatus with Some w => mpie_of (get_a w) | None => InterruptDisabled end.
 
 Lemma mstatus_ok_mie_st σ mie mpie : mstatus_ok σ mie mpie → mie_st σ = mie.
 Proof. rewrite /mstatus_ok /mie_st. intros ->. apply mie_of_mstatus_enc. Qed.
@@ -26,7 +26,7 @@ Proof. rewrite /mstatus_ok /mpie_st. intros ->. apply mpie_of_mstatus_enc. Qed.
 Class CritLink Σ := {
   crit_link : ExecConf → iProp Σ;
   crit_link_stable σ σ' :
-    mie_st σ = mie_st σ' → sreg σ !! MTDC = sreg σ' !! MTDC →
+    mie_st σ = mie_st σ' → sreg σ !! mtdc = sreg σ' !! mtdc →
     crit_link σ ⊢ crit_link σ';
 }.
 #[export] Hint Mode CritLink + : typeclass_instances.
@@ -38,7 +38,7 @@ Class CritLink Σ := {
 
 (** A step that keeps MIE and the physical mtdc. *)
 Definition sys_kept (σ σ' : ExecConf) : Prop :=
-  mie_st σ' = mie_st σ ∧ sreg σ' !! MTDC = sreg σ !! MTDC.
+  mie_st σ' = mie_st σ ∧ sreg σ' !! mtdc = sreg σ !! mtdc.
 
 Lemma sys_kept_refl σ : sys_kept σ σ.
 Proof. done. Qed.
@@ -51,7 +51,7 @@ Proof. rewrite /sys_kept /mie_st. by intros ->. Qed.
 
 (** A write to a system register other than MTDC and mstatus. *)
 Lemma sys_kept_insert_sreg (pc : Word) (r : Reg) (sr : SReg) m st x w :
-  x ≠ MTDC → x ≠ MSTATUS → sys_kept (pc, r, sr, m, st) (pc, r, <[x := w]> sr, m, st).
+  x ≠ mtdc → x ≠ mstatus → sys_kept (pc, r, sr, m, st) (pc, r, <[x := w]> sr, m, st).
 Proof. intros H1 H2. rewrite /sys_kept /mie_st /=. by rewrite !lookup_insert_ne. Qed.
 
 (** The link-transfer premise of a step that may change MIE or mtdc: [P]
@@ -69,11 +69,11 @@ Proof. iIntros (σ σ' _) "_". done. Qed.
     mstatus]) or MPIE ([mret]), or is unchanged ([None]); mtdc is unchanged
     in each. The mtdc writers keep MIE. *)
 Definition mie_update (o : option InterruptStatus) (σ σ' : ExecConf) : Prop :=
-  sreg σ' !! MTDC = sreg σ !! MTDC ∧
+  sreg σ' !! mtdc = sreg σ !! mtdc ∧
   match o with Some b => mie_st σ' = b | None => mie_st σ' = mie_st σ end.
 Definition mie_set (b : InterruptStatus) : ExecConf → ExecConf → Prop := mie_update (Some b).
 Definition mie_from_mpie (σ σ' : ExecConf) : Prop :=
-  mie_st σ' = mpie_st σ ∧ sreg σ' !! MTDC = sreg σ !! MTDC.
+  mie_st σ' = mpie_st σ ∧ sreg σ' !! mtdc = sreg σ !! mtdc.
 Definition mtdc_written (σ σ' : ExecConf) : Prop := mie_st σ' = mie_st σ.
 
 (** The relations of the writers are closed under a following step that

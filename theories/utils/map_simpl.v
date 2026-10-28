@@ -234,7 +234,7 @@ Theorem boxed_eq `(P : A): (boxed P) = P. Proof. auto. Qed.
 (* Abstract the values of the reified map by variables, so that the kernel
    never sees them when checking the [vm_compute] step: the kernel VM
    normalises the values it sees, and a value such as
-   [WCap p g b e (b ^+ 1)%a] then costs seconds at [Qed]. The values are
+   [WCap p g b e (b ^+ 1)] then costs seconds at [Qed]. The values are
    abstracted by [generalize] (a beta-redex in the proof term), not by
    [remember], which produces a [let] whose body the kernel VM unfolds. *)
 #[local] Ltac box_all := repeat (match goal with

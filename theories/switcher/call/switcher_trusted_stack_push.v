@@ -27,19 +27,18 @@ Section Switcher_Trusted_Stack_Push.
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
     ctp ↦ᵣ[th] wctp ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     switcher_hazard ∗
     switcher_code ∗
     ▷ ( ∀ g_tstk : Locality,
         PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_push" ∗
         ctp ↦ᵣ[th] hazard_slots_cap ∗
-        ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+        ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
-        [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ
-          [[ region_addrs_zeroes b_hazard_slots e_hazard_slots ]] -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        [[ b_hazard_slots , e_hazard_slots ]] ↦ₐ [[ 0…0 ]] -∗
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hctp & Hct2 & Hmtdc & Hhazard & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
@@ -48,13 +47,13 @@ Section Switcher_Trusted_Stack_Push.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ct2 mtdc *)
     iInstr "Hcode".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ct2 ctp *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ct2 ctp with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
-    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    iEval (rewrite (_ : a_block ^+ 1%nat = a_block ^+ 1); last done) in "Hcode_hz".
     pose proof hazard_slots_size as Hhz_size.
     pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
     pose proof hazard_slots_not_heap as Hhz_heap.
@@ -79,12 +78,12 @@ Section Switcher_Trusted_Stack_Push.
       The call-stack has [d] frames, the topmost one at [a_tstk]. *)
   Lemma switcher_trusted_stack_push_spec
     (g_tstk : Locality) (d : nat) (a_tstk : Addr) (tstk_next : list LWord) (wcs0 wcs1 wctp wstk : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
 
@@ -92,7 +91,7 @@ Section Switcher_Trusted_Stack_Push.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ctp ↦ᵣ[th] wctp ∗
-    ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     csp ↦ᵣ[th] wstk ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
@@ -103,8 +102,8 @@ Section Switcher_Trusted_Stack_Push.
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_chop" ∗
           cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
           cs1 ↦ᵣ[th] WInt (tstack_frameoffset (S d)) ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
-          ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
+          ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
           a_csp ↦ₐ wstk ∗
@@ -117,13 +116,13 @@ Section Switcher_Trusted_Stack_Push.
           cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
           cs1 ↦ᵣ[th] wcs1 ∗
           ctp ↦ᵣ[th] WInt (tstack_frameoffset d) ∗
-          ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           csp ↦ᵣ[th] wstk ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
           [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] )
         -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -132,7 +131,7 @@ Section Switcher_Trusted_Stack_Push.
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
-            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
+            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)) as Hfo
       by (tstack_unfold; solve_addr).
     switcher_open_label ".Lswitch_trusted_stack_push" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
@@ -161,7 +160,7 @@ Section Switcher_Trusted_Stack_Push.
     { cbn [jcond_test get_a lw]; apply Z.leb_gt; lia. }
     (* Lea ctp ct2 ctp *)
     iInstr "Hcode" with "Hlc'".
-    { instantiate (1 := (a_tstk ^+ TrustedStackFrame_size)%a). tstack_unfold; solve_addr. }
+    { instantiate (1 := a_tstk ^+ TrustedStackFrame_size). tstack_unfold; solve_addr. }
     (* Split the new frame off the unused part of the trusted stack *)
     iDestruct (big_sepL2_length with "Htstk") as %Hlen.
     rewrite finz_seq_between_length in Hlen.
@@ -172,21 +171,21 @@ Section Switcher_Trusted_Stack_Push.
     destruct tstk_next as [|w2 tstk_next];
       first (exfalso; cbn in Hlen; rewrite /finz.dist in Hlen; tstack_unfold; solve_addr).
     iDestruct (region_pointsto_cons _
-                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_offset_calleeExportTable)%a
+                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_offset_calleeExportTable)
                  with "Htstk") as "[Hframe_csp Htstk]"; [tstack_unfold; solve_addr..|].
     iDestruct (region_pointsto_cons _
-                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_offset_errorHandlerCount)%a
+                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_offset_errorHandlerCount)
                  with "Htstk") as "[Hframe_export_table Htstk]"; [tstack_unfold; solve_addr..|].
     iDestruct (region_pointsto_cons _
-                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_size)%a
+                 ((a_tstk ^+ TrustedStackFrame_size) ^+ TrustedStackFrame_size)
                  with "Htstk") as "[Hframe_error_count Htstk]"; [tstack_unfold; solve_addr..|].
     assert (((a_tstk ^+ TrustedStackFrame_size) + TrustedStackFrame_offset_calleeExportTable)%a
             = Some ((a_tstk ^+ TrustedStackFrame_size)
-                    ^+ TrustedStackFrame_offset_calleeExportTable)%a)
+                    ^+ TrustedStackFrame_offset_calleeExportTable))
       as Ha_export_table by (tstack_unfold; solve_addr).
     assert (((a_tstk ^+ TrustedStackFrame_size) + TrustedStackFrame_offset_errorHandlerCount)%a
             = Some ((a_tstk ^+ TrustedStackFrame_size)
-                    ^+ TrustedStackFrame_offset_errorHandlerCount)%a)
+                    ^+ TrustedStackFrame_offset_errorHandlerCount))
       as Ha_error_count by (tstack_unfold; solve_addr).
     (* Store ctp csp TrustedStackFrame_offset_csp *)
     iInstr "Hcode".

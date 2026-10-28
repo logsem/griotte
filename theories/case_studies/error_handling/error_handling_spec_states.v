@@ -90,7 +90,7 @@ Section Error_Handling_States.
   (** The bounds of the code of [main]: its PCC [[pc_b, pc_e)] starts with
       the imports, and the code starts at [pc_a]. *)
   Definition main_code_bounds (pc_b pc_e pc_a : Addr) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length error_handling_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length error_handling_main_code) ∧
     (pc_b + main_label ".Lmain")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
@@ -98,16 +98,10 @@ Section Error_Handling_States.
   (** The bounds of the code of [stats]: its PCC [[pc_b, pc_e)] starts with
       the code. *)
   Definition stats_code_bounds (pc_b pc_e : Addr) : Prop :=
-    SubBounds pc_b pc_e pc_b (pc_b ^+ length stats_code)%a ∧
+    SubBounds pc_b pc_e pc_b (pc_b ^+ length stats_code) ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition main_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
-  (** The capability of the entry point of the assert routine. *)
-  Definition main_assert_entry : Word :=
-    WSentry Inherit true RX Global b_assert e_assert b_assert.
 
 End Error_Handling_States.

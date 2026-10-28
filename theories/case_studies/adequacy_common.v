@@ -23,13 +23,13 @@ Section initial_capabilities.
 
   (** PCC and CGP of a compartment, as stored in its export table. *)
   Definition cmpt_pcc_cap (C_cmpt : cmpt) : Word :=
-    WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt).
+    Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt).
   Definition cmpt_cgp_cap (C_cmpt : cmpt) : Word :=
-    WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt).
+    Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt).
 
   (** Stack and trusted-stack capabilities of the switcher. *)
   Definition stack_cap (sw : cmptSwitcher) : Word :=
-    WCap true RWL Local (b_stack sw) (e_stack sw) (stk_start_a (b_stack sw) (e_stack sw)).
+    Cap RWL Local (b_stack sw) (e_stack sw) (stk_start_a (b_stack sw) (e_stack sw)).
 
   (** The (unsealed) export-table capability for the entry at address [a]. *)
   Definition cmpt_export (C_cmpt : cmpt) (a : Addr) : Sealable :=
@@ -44,7 +44,7 @@ Section initial_capabilities.
 
   Lemma cmpt_exp_tbl_addrs_lookup (C_cmpt : cmpt) (i : nat) (a : Addr) :
     cmpt_exp_tbl_addrs C_cmpt !! i = Some a →
-    a = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a ∧
+    a = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i) ∧
     i < length (cmpt_exp_tbl_entries C_cmpt).
   Proof.
     intros Ha.
@@ -61,7 +61,7 @@ Section initial_capabilities.
 
   Lemma cmpt_exp_tbl_addrs_elem_of (C_cmpt : cmpt) (i : nat) :
     i < length (cmpt_exp_tbl_entries C_cmpt) →
-    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a ∈ cmpt_exp_tbl_addrs C_cmpt.
+    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i) ∈ cmpt_exp_tbl_addrs C_cmpt.
   Proof.
     intros Hi.
     pose proof (cmpt_exp_tbl_entries_size C_cmpt) as Hsize.
@@ -99,9 +99,9 @@ Section initial_rootedness.
     pc_ok pc →
     (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
     (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
-    sreg !! MTCC = Some mtcc_vec →
-    (∃ z, sreg !! MTVAL = Some (WInt z)) →
-    (∃ mie mpie, sreg !! MSTATUS = Some (WInt (mstatus_enc mie mpie))) →
+    sreg !! mtcc = Some mtcc_vec →
+    (∃ z, sreg !! mtval = Some (WInt z)) →
+    (∃ mie mpie, sreg !! mstatus = Some (WInt (mstatus_enc mie mpie))) →
     ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
   Proof.
     intros HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
@@ -211,16 +211,17 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   `{MP: MachineParameters} {TV : trapVector}
   (flagN : namespace) (flag : Addr) (H : gset Addr)
   (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
-  (wmtdc : Word) (ms : list mtdc_val) (es : list griotte_lang.expr) :
+  (wmtdc : Word) (m0 : mtdc_val) (ms : list mtdc_val) (es : list griotte_lang.expr) :
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
-  sreg !! MTDC = Some wmtdc →
+  sreg !! mtdc = Some wmtdc →
+  mtdc_match m0 (lword_of_word wmtdc) →
   (∀ (ceriseb : ceriseBaseG Σ),
      (* the trap vector of [ceriseb] is the one of the initial state *)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
      PC ↦ₚ[u 0] lword_of_word pc -∗
-     ([∗ map] r↦w ∈ lword_of_word <$> reg, r ↦ᵣ[u 0] w) -∗
-     mtdc ↦ₜ[u 0] TStack (lword_of_word wmtdc) -∗
+     regs[u 0] (lword_of_word <$> reg) -∗
+     mtdc ↦ₜ[u 0] m0 -∗
      ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
@@ -231,15 +232,15 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
         mtdc ↦ₜ[u (S k)] m ∗
         @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread (S k))) ⊤)
      ={⊤}=∗
-     WP Seq (Instr Executable) @[u 0] {{ _, True }} ∗
+     WP Exec @[u 0] {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
-  rtc erased_step ([Seq (Instr Executable)], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
+  rtc erased_step ([Exec], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
   m' !! flag = Some (WInt 0).
 Proof.
-  intros Hinit Hnull Hmtdc Hwp Hstep.
+  intros Hinit Hnull Hmtdc Hm0 Hwp Hstep.
   pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
   pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
-  specialize (WPI (Seq (Instr Executable)) (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
+  specialize (WPI Exec (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
                 (state_is_good (pc', reg', sreg', m', sh'))).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
   iMod (@na_alloc Σ na_invg) as (pool) "Hna".
@@ -257,8 +258,7 @@ Proof.
     as (pg_c rg_c mtg_c mieg_c) "_".
   iMod (thread_ghost_init (ExceptionScratch (lword_of_word (WInt 0))))
     as (pg_d rg_d mtg_d mieg_d) "_".
-  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H (TStack (lword_of_word wmtdc)) wmtdc
-          Hinit Hmtdc (mtdc_match_TStack _))
+  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H m0 wmtdc Hinit Hmtdc Hm0)
     as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg)
        "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
@@ -415,7 +415,7 @@ Section adversary_world.
     disjoint_from_heap b e →
     Forall (λ a, std W !! LNonHeap a = Some Temporary) (finz.seq_between b e) →
     ([∗ list] a ∈ finz.seq_between b e, rel C (LNonHeap a) RWL interp_in_memC) -∗
-    interp W C (WCap true RWL Local b e (stk_start_a b e)).
+    interp W C (Cap RWL Local b e (stk_start_a b e)).
   Proof.
     iIntros (Hmmio Hheap Htemp) "#Hrel".
     rewrite /stk_start_a.
@@ -781,17 +781,17 @@ Section adversary_exports.
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
     (posture : InterruptStatus) (i args minstk off : nat) (a : Addr) (eh ehs : Z) :
     cmpt_exp_tbl_entries C_cmpt !! i = Some (WInt (encode_entry_point posture args minstk off)) →
-    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
+    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i) = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
     na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
-    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackful} eh -∗
-    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackless} ehs -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₑ□{stackful} eh -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₑ□{stackless} ehs -∗
     ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries C_cmpt,
-       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v) -∗
+       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k) ↦ₐ□ lword_of_word v) -∗
     interp W C (cmpt_pcc_cap C_cmpt) -∗
     interp W C (cmpt_cgp_cap C_cmpt) -∗
     ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a)).
@@ -812,7 +812,7 @@ Section adversary_exports.
   (** The [i]-th sealed entry of the export table of an adversary [C_cmpt]
       is safe to share. *)
   Lemma adversary_export_interp (W : WORLD) (C : CmptName) (C_cmpt : cmpt) (i : nat) (a : Addr) :
-    (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
+    cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i = a →
     i < length (cmpt_exp_tbl_entries C_cmpt) →
     ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v) -∗
     interp W C (WSealed switcher.ot_switcher (cmpt_export C_cmpt a)).
@@ -843,10 +843,10 @@ Section adversary_exports.
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
-    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackful} eh -∗
-    cmpt_exp_tbl_pcc C_cmpt ↦ₕ□{stackless} ehs -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₑ□{stackful} eh -∗
+    cmpt_exp_tbl_pcc C_cmpt ↦ₑ□{stackless} ehs -∗
     ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries C_cmpt,
-       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v) -∗
+       (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry k) ↦ₐ□ lword_of_word v) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
@@ -884,7 +884,7 @@ Section adversary_imports.
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
   Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) :
-    let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
+    let w := lword_of_word (Sentry FwdDisable XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
     na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_static -∗
@@ -893,7 +893,7 @@ Section adversary_imports.
     intros w; subst w.
     iIntros "#Hswitcher #Hswitcher_static".
     assert (heap_authority_base
-              (WSentry FwdDisable true XSRW_ Local
+              (Sentry FwdDisable XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) = None)
       as Hcall_nonheap.
     { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
@@ -1087,7 +1087,7 @@ Section main_sizes.
     cmpt_code main = code →
     cmpt_data main = data →
     SubBounds (cmpt_b_pcc main) (cmpt_e_pcc main)
-      (cmpt_a_code main) (cmpt_a_code main ^+ length code)%a
+      (cmpt_a_code main) (cmpt_a_code main ^+ length code)
     ∧ (cmpt_b_cgp main + length data)%a = Some (cmpt_e_cgp main)
     ∧ (cmpt_b_pcc main + length imports)%a = Some (cmpt_a_code main).
   Proof.
@@ -1100,11 +1100,11 @@ Section main_sizes.
   Qed.
 
   Lemma cmpt_exp_tbl_cgp_eq (C_cmpt : cmpt) :
-    cmpt_exp_tbl_cgp C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a.
+    cmpt_exp_tbl_cgp C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp).
   Proof. pose proof (cmpt_exp_tbl_pcc_size C_cmpt); solve_addr. Qed.
 
   Lemma cmpt_exp_tbl_entries_start_eq (C_cmpt : cmpt) :
-    cmpt_exp_tbl_entries_start C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entries)%a.
+    cmpt_exp_tbl_entries_start C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entries).
   Proof.
     pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
     pose proof (cmpt_exp_tbl_header_size C_cmpt).
@@ -1117,7 +1117,7 @@ Section main_sizes.
     codefrag (cmpt_a_code main) (cmpt_code main).
   Proof.
     rewrite /codefrag.
-    replace (cmpt_a_code main ^+ length (cmpt_code main))%a with (cmpt_e_pcc main); first done.
+    replace (cmpt_a_code main ^+ length (cmpt_code main)) with (cmpt_e_pcc main); first done.
     pose proof (cmpt_code_size main); solve_addr.
   Qed.
 

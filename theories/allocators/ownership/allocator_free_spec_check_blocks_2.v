@@ -28,9 +28,9 @@ Section AllocatorFreeCheckBlocks2.
     (next <= heap_e)%a ->
     allocator_free_in_prefix next wreq.(lw) ->
     (∀ C, addr_alloc_auth C -∗ P -∗ ⌜Φc C⌝) ->
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ca0 ↦ᵣ wa0 ∗
     ca1 ↦ᵣ wreq ∗
     ctp ↦ᵣ WInt o ∗
@@ -41,8 +41,8 @@ Section AllocatorFreeCheckBlocks2.
     deref_witness_res dw ∗
     P ∗
     codefrag_pers pc_a allocator_free_code ∗
-    ▷ (allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    ▷ (allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca0 ↦ᵣ WInt o ∗
        ca1 ↦ᵣ wreq ∗
        ctp ↦ᵣ WInt o ∗
@@ -50,21 +50,21 @@ Section AllocatorFreeCheckBlocks2.
        P ∗
        codefrag_pers pc_a allocator_free_code ∗
        ((∃ (p : Perm) (g : Locality) (b e a : Addr),
-          ⌜wreq.(lw) = WCap true p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a⌝ ∗
+          ⌜wreq.(lw) = Cap p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a⌝ ∗
           ⌜gettag_result dw Φc wreq 1⌝ ∗
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3)%a ∗
-          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+          PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3) ∗
+          ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
           ct1 ↦ᵣ WInt b ∗
           ct2 ↦ᵣ WInt e ∗
           ca3 ↦ᵣ WInt 0) ∨
         (⌜wreq.(lprov) ≠ deref_id dw⌝ ∗
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
+          PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset) ∗
           ct0 ↦ᵣ - ∗
           ct1 ↦ᵣ - ∗
           ct2 ↦ᵣ - ∗
           ca3 ↦ᵣ -))
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & Hcgp_pc) Hnext (p & g & b & e & a & Hreq & Hbounds) HP.
     destruct wreq as [wreq π]; cbn in Hreq; subst wreq.
@@ -112,10 +112,10 @@ Section AllocatorFreeCheckBlocks2.
       cbn.
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset).
       iApply "Hφ". iFrame "∗ Hcode_main". iRight. iFrame. done. }
     rewrite Z.sub_diag.
     (* Jne .free_invalid ca3 0. *)
@@ -156,7 +156,7 @@ Section AllocatorFreeCheckBlocks2.
     (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_free_block_offset 3)%a.
+    change_pc_to (pc_a ^+ allocator_free_block_offset 3).
     iApply "Hφ". iFrame "Hslot Hcgp Hca0 Hca1 Hctp Hdw HPr Hcode_main".
     iLeft. iExists p, g, b, e, a. iFrame "∗". done.
   Qed.
@@ -172,9 +172,9 @@ Section AllocatorFreeCheckBlocks2.
     (next <= heap_e)%a ->
     allocator_free_in_prefix next wreq.(lw) ->
     wreq.(lprov) = deref_id dw ->
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ca0 ↦ᵣ wa0 ∗
     ca1 ↦ᵣ wreq ∗
     ctp ↦ᵣ WInt o ∗
@@ -184,22 +184,22 @@ Section AllocatorFreeCheckBlocks2.
     ca3 ↦ᵣ w3 ∗
     deref_witness_res dw ∗
     codefrag_pers pc_a allocator_free_code ∗
-    ▷ (allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    ▷ (allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca0 ↦ᵣ WInt o ∗
        ca1 ↦ᵣ wreq ∗
        ctp ↦ᵣ WInt o ∗
        deref_witness_res dw ∗
        codefrag_pers pc_a allocator_free_code ∗
        (∃ (p : Perm) (g : Locality) (b e a : Addr),
-          ⌜wreq.(lw) = WCap true p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a⌝ ∗
-          PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3)%a ∗
-          ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+          ⌜wreq.(lw) = Cap p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a⌝ ∗
+          PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3) ∗
+          ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
           ct1 ↦ᵣ WInt b ∗
           ct2 ↦ᵣ WInt e ∗
           ca3 ↦ᵣ WInt 0)
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     iIntros (Hbounds Hnext Hprefix Hπ)
       "(Hslot & HPC & Hcgp & Hca0 & Hca1 & Hctp & Hct0 & Hct1 & Hct2 & Hct3 & Hdw & #Hcode & Hφ)".
@@ -218,9 +218,9 @@ Section AllocatorFreeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_free_in_prefix next wreq.(lw) ->
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 1) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ca0 ↦ᵣ wa0 ∗
     ca1 ↦ᵣ wreq ∗
     ctp ↦ᵣ WInt o ∗
@@ -229,19 +229,19 @@ Section AllocatorFreeCheckBlocks2.
     ct2 ↦ᵣ w2 ∗
     ca3 ↦ᵣ w3 ∗
     codefrag_pers pc_a allocator_free_code ∗
-    ▷ (allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    ▷ (allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca0 ↦ᵣ WInt o ∗
        ca1 ↦ᵣ wreq ∗
        ctp ↦ᵣ WInt o ∗
        codefrag_pers pc_a allocator_free_code ∗
-       PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
+       PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset) ∗
        ct0 ↦ᵣ - ∗
        ct1 ↦ᵣ - ∗
        ct2 ↦ᵣ - ∗
        ca3 ↦ᵣ -
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & Hcgp_pc) Hrequest.
     destruct wreq as [wreq π]; cbn in Hrequest.
@@ -269,10 +269,10 @@ Section AllocatorFreeCheckBlocks2.
         all: try (destruct sb; cbn in Hreq_cap, Hencode; try discriminate); contradiction. }
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset).
       iApply "Hφ". iFrame "∗ Hcode_main". }
     destruct wreq; cbn in Hreq_cap; try done.
     destruct sb; cbn in Hreq_cap; try done.
@@ -296,10 +296,10 @@ Section AllocatorFreeCheckBlocks2.
       cbn.
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset).
       iApply "Hφ". iFrame "∗ Hcode_main". }
     assert (tag = true) as ->
       by (destruct Hz as [Hz | [Hz _] ]; [destruct tag; cbn in Hz; lia | lia]).
@@ -332,10 +332,10 @@ Section AllocatorFreeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset).
       iApply "Hφ". iFrame "∗ Hcode_main". }
     replace (heap_b <? b)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jne .free_base_ok ca3 0. *)
@@ -348,10 +348,10 @@ Section AllocatorFreeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .free_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_free_invalid_offset).
       iApply "Hφ". iFrame "∗ Hcode_main". }
     replace (b <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jne .free_nonempty ca3 0. *)
@@ -365,10 +365,10 @@ Section AllocatorFreeCheckBlocks2.
     replace (next <? e)%Z with true by (symmetry; apply Z.ltb_lt; solve_addr).
     (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+    { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
         offsets_compute; solve_addr. }
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_free_invalid_offset)%a.
+    change_pc_to (pc_a ^+ allocator_free_invalid_offset).
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

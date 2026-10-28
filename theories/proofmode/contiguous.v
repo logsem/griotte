@@ -87,7 +87,7 @@ Section Contiguous.
     revert a b l. induction n.
     { intros. cbn in *. subst l. assert (a = b) as -> by solve_addr.
       constructor. }
-    { intros * -> ?. cbn. eapply (contiguous_between_cons _ (a^+1)%a); first solve_addr.
+    { intros * -> ?. cbn. eapply (contiguous_between_cons _ (a^+1)); first solve_addr.
       apply IHn; auto. solve_addr. }
   Qed.
 
@@ -103,7 +103,7 @@ Section Contiguous.
       destruct l as [| a' l].
       { inversion Hl; subst. exfalso. solve_addr. }
       { inversion Hl; subst. f_equal. eapply (IHn _ b). 2: solve_addr.
-        assert ((a^+1)%a = a'0) as -> by solve_addr. auto. } }
+        assert (a^+1 = a'0) as -> by solve_addr. auto. } }
   Qed.
 
   Lemma contiguous_between_of_region_addrs l a b :
@@ -267,7 +267,7 @@ Section Contiguous.
     rewrite length_app in Hlength.
     set (n1 := length prog1) in *.
     set (n2 := length prog2) in *.
-    rewrite -(take_drop n1 a). set (k := (i ^+ n1)%a).
+    rewrite -(take_drop n1 a). set (k := i ^+ n1).
     iExists (take n1 a), (drop n1 a), k.
     iDestruct (big_sepL2_app' with "Hprog") as "[Hprog1 Hprog2]".
     { subst n1. rewrite length_take. lia. }

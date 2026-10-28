@@ -22,7 +22,7 @@ Notation switcher_block s := (asm_block switcher_asm s).
 
 (** The PC capability of the switcher at offset [off] of the code. *)
 Notation switcher_pc off :=
-  (WCap true XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)%a) (only parsing).
+  (Cap XSRW_ Local b_switcher e_switcher (a_switcher_call ^+ off)).
 
 (** The PC capability of the switcher at its label [s]. *)
 Notation switcher_label_pc s := (switcher_pc (switcher_label_offset s)) (only parsing).
@@ -41,7 +41,7 @@ Ltac switcher_unfold_code h :=
     (see [switcher_focus_label]). *)
 Ltac switcher_unabstract :=
   repeat match goal with
-  | H : ?x = (a_switcher_call ^+ _)%a |- context [?x] => is_var x; rewrite !H
+  | H : ?x = (a_switcher_call ^+ _) |- context [?x] => is_var x; rewrite !H
   end.
 
 (** Prove [a = a_switcher_call ^+ off], an equality between addresses of
@@ -74,7 +74,7 @@ Ltac switcher_set_pc a' :=
 
 (** Change the PC to [a_switcher_call ^+ off]. Does nothing when the PC is
     already this address, syntactically. *)
-Ltac switcher_change_pc off := switcher_set_pc (a_switcher_call ^+ off)%a.
+Ltac switcher_change_pc off := switcher_set_pc (a_switcher_call ^+ off).
 
 (** Change the PC to the label [s] of the switcher. *)
 Ltac switcher_change_pc_label s := switcher_change_pc (switcher_label_offset s).
@@ -90,7 +90,7 @@ Tactic Notation "switcher_focus_block" constr(n) constr(h)
   let a := fresh "a_block" in
   let Ha := fresh "Ha_block" in
   focus_block_nochangePC n h as a Ha hi hcont;
-  assert (a = (a_switcher_call ^+ switcher_block_offset n)%a) as ->
+  assert (a = a_switcher_call ^+ switcher_block_offset n) as ->
     by (clear - Ha; cbn in Ha; offsets_compute; solve_addr);
   clear Ha;
   try switcher_change_pc (switcher_block_offset n).
@@ -104,14 +104,14 @@ Ltac switcher_focus_label_as s h hi hcont a Ha :=
   let n := eval vm_compute in (switcher_block s) in
   let Hb := fresh "Ha_block" in
   focus_block_nochangePC n h as a Hb hi hcont;
-  assert (a = (a_switcher_call ^+ switcher_label_offset s)%a) as Ha
+  assert (a = a_switcher_call ^+ switcher_label_offset s) as Ha
     by (clear - Hb; cbn in Hb; offsets_compute; solve_addr);
   clear Hb;
   try (unfold lword_of_word);
   first
     [ match goal with
       |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a') @@? _)%I ] =>
-        constr_eq a' (a_switcher_call ^+ switcher_label_offset s)%a;
+        constr_eq a' (a_switcher_call ^+ switcher_label_offset s);
         iEval (rewrite -Ha) in i
       end
     | match goal with
@@ -145,7 +145,7 @@ Section Switcher_Code.
 
   Lemma switcher_SubBounds :
     SubBounds b_switcher e_switcher a_switcher_call
-      (a_switcher_call ^+ length switcher_instrs)%a.
+      (a_switcher_call ^+ length switcher_instrs).
   Proof.
     pose proof switcher_size.
     pose proof switcher_call_entry_point.
@@ -168,7 +168,7 @@ Section Switcher_Code.
       [Jalr cnull cra]. *)
   Lemma jalr_target_ok_switcher_return_sentry mie :
     jalr_target_ok cnull cra
-      (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
+      (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return) = true.
   Proof. by destruct mie. Qed.
 
 End Switcher_Code.
@@ -202,10 +202,10 @@ Tactic Notation "switcher_open_label" constr(s) constr(h) "as" constr(hi) :=
     block, where [iInstr] looks for the instruction. *)
 Ltac switcher_pc_in_block sb s h :=
   let k := eval vm_compute in (switcher_label_offset s - switcher_label_offset sb)%Z in
-  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb) |- _ =>
     is_var a;
     let Heq := fresh "Heq_pc" in
-    assert ((a_switcher_call ^+ switcher_label_offset s)%a = (a ^+ k)%a) as Heq
+    assert (a_switcher_call ^+ switcher_label_offset s = a ^+ k) as Heq
       by switcher_addr_eq;
     iEval (rewrite Heq) in h; clear Heq
   end.
@@ -222,13 +222,13 @@ Ltac switcher_label_index sb s :=
     end of a macro: the labels are not unfolded. *)
 Ltac switcher_set_pc_in_block sb s :=
   let k := switcher_label_index sb s in
-  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb) |- _ =>
     is_var a;
     try (unfold lword_of_word);
     match goal with
     |- context [ environments.Esnoc _ ?i (PC ↦ₚ (WCap _ _ _ _ _ ?a') @@? _)%I ] =>
       let Heq := fresh "Heq_pc" in
-      assert (a' = (a ^+ k)%a) as Heq by (clear H; cbn; solve_addr);
+      assert (a' = a ^+ k) as Heq by (clear H; cbn; solve_addr);
       iEval (rewrite Heq) in i; clear Heq
     end
   end.
@@ -239,9 +239,9 @@ Ltac switcher_set_pc_in_block sb s :=
     with [k] computed from the labels, for an exit of the block to [s]. *)
 Ltac switcher_label_in_block sb s Heq :=
   let k := switcher_label_index sb s in
-  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb) |- _ =>
     is_var a;
-    assert ((a ^+ k)%a = (a_switcher_call ^+ switcher_label_offset s)%a) as Heq
+    assert (a ^+ k = a_switcher_call ^+ switcher_label_offset s) as Heq
       by switcher_addr_eq
   end.
 
@@ -252,9 +252,9 @@ Tactic Notation "switcher_label_in_block" constr(sb) constr(s) "as" ident(Heq) :
     [Hsome : (a + k)%a = Some (a_switcher_call ^+ switcher_label_offset s)]. *)
 Ltac switcher_jump_in_block sb s Hsome :=
   let k := switcher_label_index sb s in
-  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb)%a |- _ =>
+  match goal with H : ?a = (a_switcher_call ^+ switcher_label_offset sb) |- _ =>
     is_var a;
-    assert ((a + k)%a = Some (a_switcher_call ^+ switcher_label_offset s)%a) as Hsome
+    assert ((a + k)%a = Some (a_switcher_call ^+ switcher_label_offset s)) as Hsome
       by switcher_addr_eq
   end.
 
@@ -266,9 +266,9 @@ Tactic Notation "switcher_jump_in_block" constr(sb) constr(s) "as" ident(Hsome) 
     abstracted start address of an opened block. *)
 Ltac switcher_addr_offset a :=
   lazymatch a with
-  | (a_switcher_call ^+ ?off)%a => off
-  | (?a' ^+ ?k)%a => let off := switcher_addr_offset a' in constr:((off + k)%Z)
-  | ?x => match goal with H : x = (a_switcher_call ^+ ?off)%a |- _ => off end
+  | (a_switcher_call ^+ ?off) => off
+  | (?a' ^+ ?k) => let off := switcher_addr_offset a' in constr:((off + k)%Z)
+  | ?x => match goal with H : x = (a_switcher_call ^+ ?off) |- _ => off end
   end.
 
 (** Rewrite the addresses of the capabilities of the switcher in the goal,
@@ -280,9 +280,9 @@ Ltac switcher_merge_pc :=
   try (unfold lword_of_word);
   repeat match goal with
   | |- context [ WCap _ _ _ b_switcher e_switcher ?a ] =>
-      lazymatch a with (a_switcher_call ^+ _)%a => fail | _ => idtac end;
+      lazymatch a with (a_switcher_call ^+ _) => fail | _ => idtac end;
       let off := switcher_addr_offset a in
       let Heq := fresh "Heq_pc" in
-      assert (a = (a_switcher_call ^+ off)%a) as Heq by switcher_addr_eq;
+      assert (a = a_switcher_call ^+ off) as Heq by switcher_addr_eq;
       first [ iEval (rewrite Heq) | rewrite Heq ]; clear Heq
   end.

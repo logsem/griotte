@@ -28,12 +28,12 @@ Section Switcher_After_Compartment_Call.
 
   (** From [switcher_after_compartment_call], with [S d] frames above the
       entry frame: pop the topmost frame, at [a_tstk], which contains the
-      stack pointer [WCap true RWL Local b e (stk_saved_a a)] of the caller,
+      stack pointer [Cap RWL Local b e (stk_saved_a a)] of the caller,
       and decrement [frameoffset]. *)
   Lemma switcher_after_compartment_call_spec
     (d : nat) (a_tstk b e a : Addr) (wctp wct0 wct1 wct2 wcsp : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     is_heap_address b = false ->
@@ -44,25 +44,25 @@ Section Switcher_After_Compartment_Call.
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     csp ↦ᵣ[th] wcsp ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
-    a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+    a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
     ▷ ( ∀ g_tstk : Locality,
         PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_save_restore" ∗
-        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
-        ct1 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+        ct1 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset (S d)) ∗
-        csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
-        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+        csp ↦ᵣ[th] Cap RWL Local b e (stk_saved_a a) ∗
+        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
-        a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+        a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
         £ 1 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hb_heap)
@@ -71,22 +71,22 @@ Section Switcher_After_Compartment_Call.
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
-            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
+            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)) as Hfo
       by (tstack_unfold; solve_addr).
-    assert (is_heap_cap (WCap true RWL Local b e (stk_saved_a a)) = false) as Hstk_nonheap.
+    assert (is_heap_cap (Cap RWL Local b e (stk_saved_a a)) = false) as Hstk_nonheap.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap //. }
     iEval (rewrite /TrustedStackFrame_offset_csp finz_add_0_default) in "Ha_tstk Hpost".
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
-    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    iEval (rewrite (_ : a_block ^+ 1%nat = a_block ^+ 1); last done) in "Hcode_hz".
     pose proof hazard_slots_size as Hhz_size.
     pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
     pose proof hazard_slots_not_heap as Hhz_heap.
@@ -101,7 +101,7 @@ Section Switcher_After_Compartment_Call.
     { rewrite /switcher_hazard /tstack_hazard_cell /hazard_slots_cap.
       iFrame "Hhazard_cell Hslots". }
     rewrite clear_hazard_slots_instrs_length.
-    rewrite (_ : ((a_block ^+ 1) ^+ 3%nat)%a = (a_block ^+ 4)%a); last solve_addr.
+    rewrite (_ : (a_block ^+ 1) ^+ 3%nat = a_block ^+ 4); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
@@ -145,44 +145,44 @@ Section Switcher_After_Compartment_Call.
       entry frame: the PC is at [.Lcommon_defer_irqs_and_thread_exit]. *)
   Lemma switcher_after_compartment_call_exit_spec
     (E : coPset) (Φ : griotte_lang.val → iProp Σ) (wctp wct0 wct2 : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
     ▷ ( ∀ g_tstk : Locality,
         PC ↦ₚ[th] switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗
-        ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+        ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
         ct0 ↦ᵣ[th] WInt TrustedStack_offset_frames ∗
         ct2 ↦ᵣ[th] WInt (tstack_frame_offset 0) ∗
-        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard -∗
-        WP Seq (Instr Executable) @[th] E {{ Φ }} )
-    ⊢ WP Seq (Instr Executable) @[th] E {{ Φ }}.
+        WP Exec @[th] E {{ Φ }} )
+    ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
     iIntros "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a
-            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a) as Hfo
+            = Some (b_trusted_stack ^+ TrustedStack_offset_frameoffset)) as Hfo
       by (tstack_unfold; solve_addr).
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_hide "Hpost" as hpost.
     (* ReadSR ctp mtdc *)
     iInstr "Hcode".
-    destruct (mtdc_match_TStack_cap _ _ _ _ _ _ Hpost_pure) as [g_tstk ->].
+    destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
     iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
-    iEval (rewrite (_ : (a_block ^+ 1%nat)%a = (a_block ^+ 1)%a); last done) in "Hcode_hz".
+    iEval (rewrite (_ : a_block ^+ 1%nat = a_block ^+ 1); last done) in "Hcode_hz".
     pose proof hazard_slots_size as Hhz_size.
     pose proof hazard_slots_disjoint_from_shadow as Hhz_shadow.
     pose proof hazard_slots_not_heap as Hhz_heap.
@@ -197,7 +197,7 @@ Section Switcher_After_Compartment_Call.
     { rewrite /switcher_hazard /tstack_hazard_cell /hazard_slots_cap.
       iFrame "Hhazard_cell Hslots". }
     rewrite clear_hazard_slots_instrs_length.
-    rewrite (_ : ((a_block ^+ 1) ^+ 3%nat)%a = (a_block ^+ 4)%a); last solve_addr.
+    rewrite (_ : (a_block ^+ 1) ^+ 3%nat = a_block ^+ 4); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
     { tstk_not_shadow Hts_shadow. }
@@ -229,7 +229,7 @@ Section Switcher_After_Compartment_Call.
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     disjoint_from_mmio b_stk e_stk ->
-    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
+    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
@@ -238,7 +238,7 @@ Section Switcher_After_Compartment_Call.
     cra ↦ᵣ[th] wcra_old ∗
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
@@ -251,11 +251,11 @@ Section Switcher_After_Compartment_Call.
         cra ↦ᵣ[th] rcra ∗
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
@@ -264,9 +264,9 @@ Section Switcher_After_Compartment_Call.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     assert ((a_stk + 0)%a = Some a_stk) as Ha0 by solve_addr.
-    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
-    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
-    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
+    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)) as Ha1 by solve_addr.
+    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)) as Ha2 by solve_addr.
+    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
@@ -324,7 +324,7 @@ Section Switcher_After_Compartment_Call.
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
-    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
+    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
@@ -333,7 +333,7 @@ Section Switcher_After_Compartment_Call.
     cra ↦ᵣ[th] wcra_old ∗
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
     interp_in_mem RWL Wval C wcgp ∗
@@ -356,11 +356,11 @@ Section Switcher_After_Compartment_Call.
         cra ↦ᵣ[th] rcra ∗
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
@@ -370,9 +370,9 @@ Section Switcher_After_Compartment_Call.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     assert ((a_stk + 0)%a = Some a_stk) as Ha0 by solve_addr.
-    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
-    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
-    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
+    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)) as Ha1 by solve_addr.
+    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)) as Ha2 by solve_addr.
+    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
@@ -432,7 +432,7 @@ Section Switcher_After_Compartment_Call.
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
-    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
+    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
 
@@ -441,7 +441,7 @@ Section Switcher_After_Compartment_Call.
     cra ↦ᵣ[th] wcra_old ∗
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp_open Wworld C opened ∗
     (if is_untrusted_caller ccrel then
@@ -468,11 +468,11 @@ Section Switcher_After_Compartment_Call.
         cra ↦ᵣ[th] rcra ∗
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
     { iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
@@ -488,9 +488,9 @@ Section Switcher_After_Compartment_Call.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     assert ((a_stk + 0)%a = Some a_stk) as Ha0 by solve_addr.
-    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
-    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
-    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
+    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)) as Ha1 by solve_addr.
+    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)) as Ha2 by solve_addr.
+    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)) as Ha3 by solve_addr.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.

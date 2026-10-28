@@ -25,7 +25,7 @@ Section LSE_F_Blocks_2.
     lse_code_bounds pc_b pc_e pc_a C_f ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
     cgp ↦ᵣ[th] wcgp ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     ct0 ↦ᵣ[th] WInt 2 ∗
@@ -33,7 +33,7 @@ Section LSE_F_Blocks_2.
     cra ↦ᵣ[th] wcra ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
         cgp ↦ᵣ[th] WInt 0 ∗
@@ -43,17 +43,17 @@ Section LSE_F_Blocks_2.
         cra ↦ᵣ[th] wcra ∗
         ca0 ↦ᵣ[th] WInt 0 ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
-        (pc_b ^+ 1)%a ↦ₐ□ lse_assert_entry ∗
+        (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Htgt)
       "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
-    rewrite /lse_assert_entry.
+    rewrite /assert_entry.
 
     (* Block 5: assert that [a] contains [2] *)
     focus_block (lse_block ".Llse_f_assert") "Hcode_main" of lse_main_blocks at pc_a as a_assert Ha_assert "Hcode" "Hcont".

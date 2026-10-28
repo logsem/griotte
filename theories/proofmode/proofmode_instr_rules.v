@@ -189,10 +189,10 @@ Ltac dispatch_instr_rule instr cont :=
   | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
   | UnSeal _ _ _ => cont (@wp_unseal_success)
   (* SpecialRW on mtdc, before the generic cases: its own ghost state *)
-  | SpecialRW _ MTDC (inr cnull) => cont (@wp_readsr_mtdc)
-  | SpecialRW cnull MTDC (inr _) => cont (@wp_writesr_mtdc)
-  | SpecialRW cnull MTDC (inl _) => cont (@wp_specialrw_imm_mtdc)
-  | SpecialRW ?r MTDC (inr ?r) => cont (@wp_specialrw_swap_mtdc)
+  | SpecialRW _ mtdc (inr cnull) => cont (@wp_readsr_mtdc)
+  | SpecialRW cnull mtdc (inr _) => cont (@wp_writesr_mtdc)
+  | SpecialRW cnull mtdc (inl _) => cont (@wp_specialrw_imm_mtdc)
+  | SpecialRW ?r mtdc (inr ?r) => cont (@wp_specialrw_swap_mtdc)
   (* SpecialRW: readsr, writesr, csrw with an immediate, swaps *)
   | SpecialRW _ _ (inr cnull) => cont (@wp_readsr_success)
   | SpecialRW cnull _ (inr _) => cont (@wp_writesr_success)
@@ -216,7 +216,7 @@ Ltac dispatch_instr_rule instr cont :=
 Ltac dispatch_generic_failure instr cont :=
   let regs := instr_failure_registers instr in
   lazymatch goal with
-  | |- context [ Esnoc _ _ (PC ↦ₚ WCap true ?p ?g ?b ?e ?a @@? ?π)%I ] =>
+  | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?p ?g ?b ?e ?a @@? ?π)%I ] =>
     lazymatch regs with
     | [] => cont (fun E => @wp_instr_faulted_0 _ _ _ _ E p g b e a π
                             (encodeInstrW instr @@? None) instr)

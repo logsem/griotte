@@ -19,9 +19,9 @@ Section TrustedSpillRegisters.
       in its bounds [b, e) and outside the shadow table. *)
   Definition trusted_save_cells_ok (b e a : Addr) (regs : list RegName) : Prop :=
     ∀ r, r ∈ regs →
-         (a + TrustedStack_offset_reg r)%a = Some (a ^+ TrustedStack_offset_reg r)%a ∧
-         withinBounds b e (a ^+ TrustedStack_offset_reg r)%a = true ∧
-         is_shadow_address (a ^+ TrustedStack_offset_reg r)%a = false.
+         (a + TrustedStack_offset_reg r)%a = Some (a ^+ TrustedStack_offset_reg r) ∧
+         withinBounds b e (a ^+ TrustedStack_offset_reg r) = true ∧
+         is_shadow_address (a ^+ TrustedStack_offset_reg r) = false.
 
   Lemma trusted_spill_registers_instrs_length regs :
     length (trusted_spill_registers_instrs regs) = length regs.
@@ -43,24 +43,24 @@ Section TrustedSpillRegisters.
     (regs : list RegName) (wregs wold : list LWord) φ :
     regs ≠ [] ->
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (trusted_spill_registers_instrs regs))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (trusted_spill_registers_instrs regs)) ->
     trusted_save_cells_ok b e a regs ->
     csp ∉ regs ->
     cnull ∉ regs ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-    csp ↦ᵣ WCap true RWL g b e a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
+    csp ↦ᵣ Cap RWL g b e a ∗
     ([∗ list] r;w ∈ regs;wregs, r ↦ᵣ w) ∗
-    ([∗ list] r;w ∈ regs;wold, (a ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
+    ([∗ list] r;w ∈ regs;wold, (a ^+ TrustedStack_offset_reg r) ↦ₐ w) ∗
     codefrag_pers pc_a (trusted_spill_registers_instrs regs) ∗
-    ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-            (pc_a ^+ length (trusted_spill_registers_instrs regs))%a ∗
-        csp ↦ᵣ WCap true RWL g b e a ∗
+    ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+            (pc_a ^+ length (trusted_spill_registers_instrs regs)) ∗
+        csp ↦ᵣ Cap RWL g b e a ∗
         ([∗ list] r;w ∈ regs;wregs, r ↦ᵣ w) ∗
-        ([∗ list] r;w ∈ regs;wregs, (a ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
+        ([∗ list] r;w ∈ regs;wregs, (a ^+ TrustedStack_offset_reg r) ↦ₐ w) ∗
         codefrag_pers pc_a (trusted_spill_registers_instrs regs) -∗
-        WP Seq (Instr Executable) {{ φ }} )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+        WP Exec {{ φ }} )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hne Hx Hbounds Hcells Hcsp Hcnull)
       "(HPC & Hcsp & Hregs & Hcells & #Hcode & Hpost)".
@@ -73,9 +73,9 @@ Section TrustedSpillRegisters.
     assert (r ≠ cnull) as Hr_cnull by set_solver.
     iDestruct (codefrag_contiguous_region_pers with "Hcode") as %[pc_end Hpc_end].
     rewrite trusted_spill_registers_instrs_length /= in Hpc_end.
-    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc_a1 by solve_addr.
+    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)) as Hpc_a1 by solve_addr.
     codefrag_facts "Hcode".
-    iAssert (codefrag_pers (pc_a ^+ 1)%a (trusted_spill_registers_instrs regs))%I as "#Hcode'".
+    iAssert (codefrag_pers (pc_a ^+ 1) (trusted_spill_registers_instrs regs))%I as "#Hcode'".
     { iDestruct (codefrag_app_pers _ [_] with "Hcode") as "[_ $]". }
     iEval (rewrite /trusted_spill_registers_instrs /trusted_spill_registers) in "Hcode".
     (* Store csp r (TrustedStack_offset_reg r) *)
@@ -85,7 +85,7 @@ Section TrustedSpillRegisters.
     { iDestruct (big_sepL2_nil_inv_l with "Hregs") as %->.
       iDestruct (big_sepL2_nil_inv_l with "Hcells") as %->.
       iApply "Hpost".
-      rewrite (_ : (pc_a ^+ length (trusted_spill_registers_instrs [r]))%a = (pc_a ^+ 1)%a); last by rewrite trusted_spill_registers_instrs_length.
+      rewrite (_ : pc_a ^+ length (trusted_spill_registers_instrs [r]) = pc_a ^+ 1); last by rewrite trusted_spill_registers_instrs_length.
       iFrame "∗ #". }
     iApply ("IH" with "[] [] [] [] [] Hcode' HPC Hcsp Hregs Hcells [Hr Hc Hpost]").
     { done. }
@@ -99,7 +99,7 @@ Section TrustedSpillRegisters.
     { iPureIntro. set_solver. }
     iNext; iIntros "(HPC & Hcsp & Hregs & Hcells & _)".
     iApply "Hpost". iFrame "∗ #".
-    rewrite (_ : ((pc_a ^+ 1) ^+ length (trusted_spill_registers_instrs regs))%a = (pc_a ^+ length (trusted_spill_registers_instrs (r :: regs)))%a);
+    rewrite (_ : (pc_a ^+ 1) ^+ length (trusted_spill_registers_instrs regs) = pc_a ^+ length (trusted_spill_registers_instrs (r :: regs)));
       first iFrame.
     rewrite !trusted_spill_registers_instrs_length. cbn [length]. solve_addr.
   Qed.
@@ -110,24 +110,24 @@ Section TrustedSpillRegisters.
     (regs : list RegName) (wregs wsaved : list LWord) φ :
     regs ≠ [] ->
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (trusted_reload_registers_instrs regs))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (trusted_reload_registers_instrs regs)) ->
     trusted_save_cells_ok b e a regs ->
     csp ∉ regs ->
     cnull ∉ regs ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-    csp ↦ᵣ WCap true RWL g b e a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
+    csp ↦ᵣ Cap RWL g b e a ∗
     ([∗ list] r;w ∈ regs;wregs, r ↦ᵣ w) ∗
-    ([∗ list] r;w ∈ regs;wsaved, (a ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
+    ([∗ list] r;w ∈ regs;wsaved, (a ^+ TrustedStack_offset_reg r) ↦ₐ w) ∗
     codefrag_pers pc_a (trusted_reload_registers_instrs regs) ∗
-    ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-            (pc_a ^+ length (trusted_reload_registers_instrs regs))%a ∗
-        csp ↦ᵣ WCap true RWL g b e a ∗
+    ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+            (pc_a ^+ length (trusted_reload_registers_instrs regs)) ∗
+        csp ↦ᵣ Cap RWL g b e a ∗
         ([∗ list] r;w ∈ regs;wsaved, r ↦ᵣ w) ∗
-        ([∗ list] r;w ∈ regs;wsaved, (a ^+ TrustedStack_offset_reg r)%a ↦ₐ w) ∗
+        ([∗ list] r;w ∈ regs;wsaved, (a ^+ TrustedStack_offset_reg r) ↦ₐ w) ∗
         codefrag_pers pc_a (trusted_reload_registers_instrs regs) -∗
-        WP Seq (Instr Executable) {{ φ }} )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+        WP Exec {{ φ }} )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hne Hx Hbounds Hcells Hcsp Hcnull)
       "(HPC & Hcsp & Hregs & Hcells & #Hcode & Hpost)".
@@ -140,9 +140,9 @@ Section TrustedSpillRegisters.
     assert (r ≠ cnull) as Hr_cnull by set_solver.
     iDestruct (codefrag_contiguous_region_pers with "Hcode") as %[pc_end Hpc_end].
     rewrite trusted_reload_registers_instrs_length /= in Hpc_end.
-    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)%a) as Hpc_a1 by solve_addr.
+    assert ((pc_a + 1)%a = Some (pc_a ^+ 1)) as Hpc_a1 by solve_addr.
     codefrag_facts "Hcode".
-    iAssert (codefrag_pers (pc_a ^+ 1)%a (trusted_reload_registers_instrs regs))%I as "#Hcode'".
+    iAssert (codefrag_pers (pc_a ^+ 1) (trusted_reload_registers_instrs regs))%I as "#Hcode'".
     { iDestruct (codefrag_app_pers _ [_] with "Hcode") as "[_ $]". }
     iEval (rewrite /trusted_reload_registers_instrs /trusted_reload_registers) in "Hcode".
     (* The saved words may be heap capabilities: they are loaded exactly *)
@@ -156,7 +156,7 @@ Section TrustedSpillRegisters.
     { iDestruct (big_sepL2_nil_inv_l with "Hregs") as %->.
       iDestruct (big_sepL2_nil_inv_l with "Hcells") as %->.
       iApply "Hpost".
-      rewrite (_ : (pc_a ^+ length (trusted_reload_registers_instrs [r]))%a = (pc_a ^+ 1)%a); last by rewrite trusted_reload_registers_instrs_length.
+      rewrite (_ : pc_a ^+ length (trusted_reload_registers_instrs [r]) = pc_a ^+ 1); last by rewrite trusted_reload_registers_instrs_length.
       iFrame "∗ #". }
     iApply ("IH" with "[] [] [] [] [] Hcode' HPC Hcsp Hregs Hcells [Hr Hc Hpost]").
     { done. }
@@ -170,7 +170,7 @@ Section TrustedSpillRegisters.
     { iPureIntro. set_solver. }
     iNext; iIntros "(HPC & Hcsp & Hregs & Hcells & _)".
     iApply "Hpost". iFrame "∗ #".
-    rewrite (_ : ((pc_a ^+ 1) ^+ length (trusted_reload_registers_instrs regs))%a = (pc_a ^+ length (trusted_reload_registers_instrs (r :: regs)))%a);
+    rewrite (_ : (pc_a ^+ 1) ^+ length (trusted_reload_registers_instrs regs) = pc_a ^+ length (trusted_reload_registers_instrs (r :: regs)));
       first iFrame.
     rewrite !trusted_reload_registers_instrs_length. cbn [length]. solve_addr.
   Qed.

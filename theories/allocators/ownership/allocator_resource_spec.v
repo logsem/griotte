@@ -50,7 +50,7 @@ Section AllocatorServiceInitializationProofs.
     iMod (codefrag_persist with "Hcode") as "#Hcode".
     iMod (na_inv_alloc (tpool th) E Nallocator_service allocator_service_inv
       with "[Hdata Hcells Howners]") as "#Hservice".
-    { iNext. iExists (heap_b ^+ 1)%a, [], ∅, ∅, allocator_initial_cells.
+    { iNext. iExists (heap_b ^+ 1), [], ∅, ∅, allocator_initial_cells.
       iFrame "Hdata Hcells Howners".
       rewrite /allocator_entries_res /=.
       iPureIntro.

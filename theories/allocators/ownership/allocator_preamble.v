@@ -30,7 +30,7 @@ Definition allocator_entries_wf (allocations : list allocator_header_entry) : Pr
 Definition allocator_free_valid {MP : MachineParameters}
   (next : Addr) (allocations : list allocator_header_entry) (o : Z) (w : Word) : Prop :=
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
-    w = WCap true p g b e a ∧
+    w = Cap p g b e a ∧
     (heap_b < b /\ b < e /\ e <= next)%a ∧ allocator_owned_bounds allocations o b e.
 
 (** The identifiers of the entries recorded with owner [id]. *)
@@ -166,8 +166,8 @@ Section AllocatorService.
     (∃ (allocations : list allocator_header_entry) (live issued : gset AId)
        (Cs : gmap Addr (AddrClaim * AllocStatus * bool)),
      "%Hnext" ∷ ⌜(heap_b < next /\ next <= heap_e)%a⌝ ∗ (* Bump bounds. *)
-     "Hslot" ∷ allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗ (* Bump slot. *)
-     "Hheaders" ∷ allocator_headers (heap_b ^+ 1)%a next allocations ∗ (* Physical header chain. *)
+     "Hslot" ∷ allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗ (* Bump slot. *)
+     "Hheaders" ∷ allocator_headers (heap_b ^+ 1) next allocations ∗ (* Physical header chain. *)
      "%Hwf" ∷ ⌜allocator_entries_wf allocations⌝ ∗ (* Reserved word 0, distinct identifiers. *)
      "%Hcwf" ∷ ⌜allocator_cells_wf next allocations live issued Cs⌝ ∗ (* Cursor and claim clauses. *)
      "Htoks" ∷ allocator_entries_res live allocations ∗ (* Identifiers and status tokens. *)

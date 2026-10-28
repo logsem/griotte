@@ -43,23 +43,23 @@ Section Handle_Error_Handler_Invoke.
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
     cra ↦ᵣ[th] wcra ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     switcher_code ∗
     ▷ ( ( ⌜jalr_target_ok cra cra wcra.(lw) = true⌝ -∗
           ∀ (mie : InterruptStatus) (rmap' : LReg),
           ⌜dom rmap' = dom rmap⌝ -∗
           PC ↦ₚ[th] lupdatePcPerm wcra ∗
           cra ↦ᵣ[th] handler_return_sentry mie ∗
-          ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          regs₀[th] rmap' -∗
+          safe[th] ) ∧
         ( ⌜jalr_target_ok cra cra wcra.(lw) = false⌝ -∗
           ∀ rmap' : LReg,
           ⌜dom rmap' = dom rmap⌝ -∗
           cra ↦ᵣ[th] wcra ∗
-          ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) -∗
+          regs₀[th] rmap' -∗
           trap_safe (switcher_label_pc ".Lhandle_error_handler_cjalr") ⊤
             (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_error_handler_invoke" "Hswitcher" as "Hcode" pc_a Hpc_a.
@@ -70,7 +70,7 @@ Section Handle_Error_Handler_Invoke.
     (* SetMIE InterruptEnabled *)
     iInstr "Hcode".
     (* The clearing of the registers *)
-    rewrite (_ : (pc_a ^+ length (encodeInstrsW [SetMIE InterruptEnabled]))%a = (pc_a ^+ 1)%a);
+    rewrite (_ : pc_a ^+ length (encodeInstrsW [SetMIE InterruptEnabled]) = pc_a ^+ 1);
       last (cbn; solve_addr).
     rewrite -registers_except_handler_invoke.
     iApply (zero_all_registers_except_spec with "[- $HPC $Hrmap $Hclear]").
@@ -115,12 +115,12 @@ Section Handle_Error_Handler_Invoke.
     ▷ ( ( ⌜nonZero wca0.(lw) = true⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
           ca0 ↦ᵣ[th] wca0 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜nonZero wca0.(lw) = false⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_install_context" ∗
           ca0 ↦ᵣ[th] wca0 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+          safe[th] ) )
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hca0 & #Hswitcher & Hpost)".
     switcher_open_label ".Lhandle_error_handler_return" "Hswitcher" as "Hcode".

@@ -32,18 +32,18 @@ Section Error_Handling_Read_Blocks.
     stats_code_bounds pc_b pc_e ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_read")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ[th] wct0 ∗
     cgp_b ↦ₐ WInt 0 ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ▷ (PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ[th] WInt 0 ∗
         cgp_b ↦ₐ WInt 1 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow)
       "(HPC & Hcgp & Hct0 & Hlock & Hcode_stats & Hpost)".
@@ -72,7 +72,7 @@ Section Error_Handling_Read_Blocks.
     iInstr "Hcode".
     { apply withinBounds_true_iff; solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
-    assert ((a_lock ^+ 1)%a = (pc_b ^+ stats_label ".Lread_load")%a) as ->
+    assert (a_lock ^+ 1 = (pc_b ^+ stats_label ".Lread_load")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.
@@ -86,16 +86,16 @@ Section Error_Handling_Read_Blocks.
     withinBounds b e a = true ->
     is_shadow_address a = false ->
     is_heap_cap w.(lw) = false ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
-    ca0 ↦ᵣ[th] WCap true p g b e a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_load")%a ∗
+    ca0 ↦ᵣ[th] Cap p g b e a ∗
     a ↦ₐ w ∗
     codefrag_pers pc_b stats_code ∗
-    ▷ (PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
+    ▷ (PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
         ca0 ↦ᵣ[th] lload_word p w ∗
         a ↦ₐ w ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hread Ha_bounds Ha_shadow Hw_nonheap)
       "(HPC & Hca0 & Ha & Hcode_stats & Hpost)".
@@ -109,7 +109,7 @@ Section Error_Handling_Read_Blocks.
     (* CLoad ca0 ca0 0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
-    assert ((a_load ^+ 1)%a = (pc_b ^+ stats_label ".Lread_release")%a) as ->
+    assert (a_load ^+ 1 = (pc_b ^+ stats_label ".Lread_release")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.
@@ -122,20 +122,20 @@ Section Error_Handling_Read_Blocks.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca1 ↦ᵣ[th] wca1 ∗
     cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ wlock ∗
     codefrag_pers pc_b stats_code ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
         cra ↦ᵣ[th] wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
         codefrag_pers pc_b stats_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt)
       "(HPC & Hcgp & Hca1 & Hcra & Hlock & Hcode_stats & Hpost)".

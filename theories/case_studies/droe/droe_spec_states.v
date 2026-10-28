@@ -63,9 +63,9 @@ Section DROE_States.
 
   (** The imported words, in the order of [droe_main_imports]. *)
   Definition droe_imports (pc_b : Addr) (C_f : Sealable) : iProp Σ :=
-    pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
-    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f.
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f.
 
   (** The imports and the code, that the block groups return unchanged. *)
   Definition droe_static_mem (pc_b pc_a : Addr) (C_f : Sealable) : iProp Σ :=
@@ -74,14 +74,11 @@ Section DROE_States.
 
   (** The bounds of the code and of the imports, as given to [droe_spec]. *)
   Definition droe_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code) ∧
     (pc_b + droe_label ".Ldroe_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher C_f) = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition droe_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End DROE_States.

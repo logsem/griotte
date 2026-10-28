@@ -84,7 +84,7 @@ Qed.
     the flag of the assert library is still zero. *)
 Theorem vae_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], vae_demo_state)
+    rtc erased_step ([Exec], vae_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt vae_demo_image) = Some (WInt 0%Z).
 Proof.

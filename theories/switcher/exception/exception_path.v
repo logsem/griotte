@@ -64,13 +64,13 @@ Section Switcher_Spec_Exception.
   Definition handler_header (cstk : CSTK) : iProp Σ :=
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ∃ eh ehs : Z,
-      top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-      top_export_tbl cstk ↦ₕ□{stackless} ehs ∗
+      top_export_tbl cstk ↦ₑ□{stackful} eh ∗
+      top_export_tbl cstk ↦ₑ□{stackless} ehs ∗
       (⌜(eh ≠ ExportTable_no_handler ∨ ehs ≠ ExportTable_no_handler) ∧
         Z.even (top_error_count cstk) = true⌝ →
          ∃ wpcc wcgp : LWord,
            top_export_tbl cstk ↦ₐ□ wpcc ∗
-           (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp).
+           (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp).
 
   #[global] Instance handler_header_persistent cstk : Persistent (handler_header cstk).
   Proof. rewrite /handler_header. apply _. Qed.
@@ -86,11 +86,11 @@ Section Switcher_Spec_Exception.
     □ ∀ (eh : Z) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
       ⌜¬ switcher_fault_pc w⌝ -∗
       ⌜Z.even (top_error_count cstk) = true⌝ -∗
-      top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+      top_export_tbl cstk ↦ₑ□{stackful} eh -∗
       ⌜eh ≠ ExportTable_no_handler⌝ -∗
-      ⌜rmap !!! csp = WCap true p g b e a @@? π⌝ -∗
+      ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
       ⌜error_state_first_store_ok (rmap !!! csp)⌝ -∗
-      cells_store_acc error_state_written p e (a ^+ (- ErrorState_size))%a π
+      cells_store_acc error_state_written p e (a ^+ (- ErrorState_size)) π
         (error_state_src w rmap).
 
   #[global] Instance path_es_acc_persistent cstk w rmap error_state_written :
@@ -111,12 +111,12 @@ Section Switcher_Spec_Exception.
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       ⌜rmap' !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
       ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-      PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+      PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap' -∗
       ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       error_state_written 0 -∗
       na_own (tpool th) F -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   (** The resumption of a fault of the first spill of the call path, with
       the resource [R_resume] that the path received in place of the
@@ -134,7 +134,7 @@ Section Switcher_Spec_Exception.
       R_resume -∗
       error_state_written 0 -∗
       na_own (tpool th) F -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   (** A fault of the path itself, at the switcher's PC of offset [off],
       with the trusted-stack invariant closed, after [k] stores of the
@@ -179,14 +179,14 @@ Section Switcher_Spec_Exception.
       ⌜handler_invocation_regs kind cstk wcgp rmap mcause mtval regs⌝ -∗
       (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) -∗
       top_export_tbl cstk ↦ₐ□ wpcc -∗
-      (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp -∗
+      (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp -∗
       handler_offset kind (top_export_tbl cstk) off -∗
       PC ↦ₚ[th] wpc -∗
       registers_pointsto regs -∗
       ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
       error_state_written (error_state_size kind) -∗
       na_own (tpool th) F -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   (** ** Auxiliary lemmas *)
 
@@ -210,7 +210,7 @@ Section Switcher_Spec_Exception.
   (** Insert those six registers into such a map. *)
   #[local] Lemma regs_six_insert (rmap : LReg) (wcra wcsp wcgp wca0 wca1 wca2 : LWord) :
     dom rmap = all_registers_s ∖ list_to_set [cra; csp; cgp; ca0; ca1; ca2] →
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
+    (regs[th] rmap) -∗
     cra ↦ᵣ[th] wcra -∗
     csp ↦ᵣ[th] wcsp -∗
     cgp ↦ᵣ[th] wcgp -∗
@@ -287,7 +287,7 @@ Section Switcher_Spec_Exception.
   #[local] Lemma handler_skipped_no_stackful (cstk : CSTK) (w : LWord) (rmap : LReg) (eh : Z) :
     (error_state_fits (rmap !!! csp) →
      eh = ExportTable_no_handler ∨ tag_strippable (rmap !!! csp)) →
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
     handler_skipped cstk w rmap.
   Proof.
     iIntros (Hcond) "#Heh !> (%eh' & %wpcc & #Heh' & _ & %Hruns)".
@@ -302,7 +302,7 @@ Section Switcher_Spec_Exception.
   #[local] Lemma handler_skipped_jump (cstk : CSTK) (w : LWord) (rmap : LReg)
     (eh : Z) (wpcc : LWord) :
     jalr_target_ok cra cra (handler_word wpcc eh).(lw) = false →
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
     top_export_tbl cstk ↦ₐ□ wpcc -∗
     handler_skipped cstk w rmap.
   Proof.
@@ -322,9 +322,7 @@ Section Switcher_Spec_Exception.
     trap_no_resume w ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
-       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap)))))))))))))) ∗
     cra ↦ᵣ[th] wcra ∗
     csp ↦ᵣ[th] wcsp ∗
     cgp ↦ᵣ[th] wcgp ∗
@@ -346,7 +344,7 @@ Section Switcher_Spec_Exception.
     error_state_written 0 ∗
     handler_skipped cstk w rmap ∗
     path_unwind_k F cstk w rmap error_state_written
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hfull Hno_resume)
       "(HPC & Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -374,9 +372,7 @@ Section Switcher_Spec_Exception.
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume (switcher_pc off) ->
 
-    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
-       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap)))))))))))))) ∗
     cra ↦ᵣ[th] wcra ∗
     csp ↦ᵣ[th] wcsp ∗
     cgp ↦ᵣ[th] wcgp ∗
@@ -460,9 +456,7 @@ Section Switcher_Spec_Exception.
     handler_args kind cstk rmap mcause mtval wcsp wca0 wca1 wca2 ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
-    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
-       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap)))))))))))))) ∗
     cra ↦ᵣ[th] handler_word (lload_word p wpcc) off ∗
     csp ↦ᵣ[th] wcsp ∗
     cgp ↦ᵣ[th] lload_word p wcgp ∗
@@ -480,7 +474,7 @@ Section Switcher_Spec_Exception.
     ca5 ↦ᵣ[th] wca5 ∗
     switcher_code ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
-    (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
+    (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp ∗
     handler_offset kind (top_export_tbl cstk) off ∗
     ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
     error_state_written (error_state_size kind) ∗
@@ -490,7 +484,7 @@ Section Switcher_Spec_Exception.
        handler_skipped cstk w rmap) ∗
     (path_nested_k F cstk w rmap error_state_written ∧
      path_invoke_k P_mcause P_mtval F cstk rmap w error_state_written)
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hfull Hload Hnot_switcher Hev Hframe_stack Hoff Hcause Htval Hargs)
       "(HPC & Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -624,7 +618,7 @@ Section Switcher_Spec_Exception.
         path_resume_k F R_resume rmap w error_state_written ∧
         path_nested_k F cstk w rmap error_state_written ∧
         path_invoke_k P_mcause P_mtval F cstk rmap w error_state_written )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant, with the token without [Ntrap];
@@ -682,9 +676,9 @@ Section Switcher_Spec_Exception.
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₜ TStack tstack_cap -∗
+               mtdc ↦ₜ Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
-               (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
+               (b_trusted_stack ^+ TrustedStack_offset_frameoffset)
                  ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
                cstack_full (cstack_set_top_count cstk' n') -∗
                cstack_interp (cstack_set_top_count cstk' n') a_tstk -∗
@@ -697,7 +691,7 @@ Section Switcher_Spec_Exception.
              "[Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
                $Hna]")
         as "Hna".
-      { iNext. rewrite /trusted_stack_inv /tstack_cap /tstack_save_end.
+      { iNext. rewrite /trusted_stack_inv /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
         iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
@@ -747,7 +741,7 @@ Section Switcher_Spec_Exception.
         "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
           & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok)".
       (* The PC to resume is a valid PC: MEPCC keeps it *)
-      rewrite (_ : llegalise MEPCC (switcher_label_pc ".Lswitch_just_return") =
+      rewrite (_ : llegalise mepcc (switcher_label_pc ".Lswitch_just_return") =
                    switcher_label_pc ".Lswitch_just_return"); last reflexivity.
       iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full [Hstk_interp] Htok") as "Hna".
       { save_area_hazard. }
@@ -848,7 +842,7 @@ Section Switcher_Spec_Exception.
             & Hcsp_cell & Hcell)".
         rewrite Hw /= in Hexp.
         assert (exp_tbl_cap (top_export_tbl cstk)
-                  (WCap true p g (top_export_tbl cstk) e (top_export_tbl cstk))) as Htbl.
+                  (Cap p g (top_export_tbl cstk) e (top_export_tbl cstk))) as Htbl.
         { destruct Hexp as (p' & g' & e' & a' & Heq & Hread & Hbnd & Hshadow & Hdl & Hdro).
           injection Heq as <- <- <- _. by exists p, g, e, (top_export_tbl cstk). }
         (* The loads through the table's capability give the words of the table *)
@@ -859,7 +853,7 @@ Section Switcher_Spec_Exception.
         iAssert (∃ wpcc wcgp' : LWord,
                    ⌜Z.even (top_error_count cstk) = true⌝ →
                    top_export_tbl cstk ↦ₐ□ wpcc ∗
-                   (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp')%I
+                   (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp')%I
           as (wpcc wcgp') "#Hcells".
         { destruct (Z.even (top_error_count cstk)) eqn:Hev.
           - iDestruct ("Hpcc_cgp" with "[]") as (wpcc wcgp') "[Hpcc Hcgp']".
@@ -941,9 +935,9 @@ Section Switcher_Spec_Exception.
           (* The stores of the [ErrorState], from the words of the register
              save area *)
           iAssert (∀ (p' : Perm) (g' : Locality) (b' e' a' : Addr) (π' : option AId),
-                     ⌜wcsp = WCap true p' g' b' e' a' @@? π'⌝ -∗
+                     ⌜wcsp = Cap p' g' b' e' a' @@? π'⌝ -∗
                      ⌜error_state_first_store_ok wcsp⌝ -∗
-                     cells_store_acc error_state_written p' e' (a' ^+ (- ErrorState_size))%a π'
+                     cells_store_acc error_state_written p' e' (a' ^+ (- ErrorState_size)) π'
                        (lclear_tag (save' !!! 0%nat) :: take 15 (drop 1 save')))%I
             as "Hacc".
           { iIntros (p' g' b' e' a' π' Hwcsp' Hok).

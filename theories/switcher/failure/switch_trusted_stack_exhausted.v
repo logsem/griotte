@@ -31,7 +31,7 @@ Section Switch_Trusted_Stack_Exhausted.
     disjoint_from_mmio b_stk e_stk ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
-    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
+    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
@@ -40,7 +40,7 @@ Section Switch_Trusted_Stack_Exhausted.
     (∃ wcra', cra ↦ᵣ[th] wcra') ∗
     (∃ wca0, ca0 ↦ᵣ[th] wca0) ∗
     (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs0 rcs1,
@@ -53,11 +53,11 @@ Section Switch_Trusted_Stack_Exhausted.
         cra ↦ᵣ[th] rcra ∗
         ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 1 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hb_a He_a Ha_spill)
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0]
@@ -66,9 +66,9 @@ Section Switch_Trusted_Stack_Exhausted.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     assert ((a_stk + 0)%a = Some a_stk) as Ha0 by solve_addr.
-    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
-    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
-    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
+    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)) as Ha1 by solve_addr.
+    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)) as Ha2 by solve_addr.
+    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)) as Ha3 by solve_addr.
     switcher_open_label ".Lswitch_trusted_stack_exhausted" "Hswitcher" as "Hcode".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
@@ -132,7 +132,7 @@ Section Switch_Trusted_Stack_Exhausted.
     disjoint_from_mmio b_stk e_stk ->
     (b_stk <= a_stk)%a ->
     (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
-    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size)%a ->
+    (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
@@ -141,7 +141,7 @@ Section Switch_Trusted_Stack_Exhausted.
     (∃ wcra', cra ↦ᵣ[th] wcra') ∗
     (∃ wca0, ca0 ↦ᵣ[th] wca0) ∗
     (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
     world_interp W C ∗
     switcher_code ∗
@@ -156,11 +156,11 @@ Section Switch_Trusted_Stack_Exhausted.
         cra ↦ᵣ[th] rcra ∗
         ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size)%a ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
         switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
         £ 1 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hb_a He_a Ha_spill)
       "(HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wcgp' Hcgp] & [%wcra' Hcra] & [%wca0 Hca0]
@@ -170,9 +170,9 @@ Section Switch_Trusted_Stack_Exhausted.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     assert ((a_stk + 0)%a = Some a_stk) as Ha0 by solve_addr.
-    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)%a) as Ha1 by solve_addr.
-    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)%a) as Ha2 by solve_addr.
-    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)%a) as Ha3 by solve_addr.
+    assert ((a_stk + 1)%a = Some (a_stk ^+ 1)) as Ha1 by solve_addr.
+    assert ((a_stk + 2)%a = Some (a_stk ^+ 2)) as Ha2 by solve_addr.
+    assert ((a_stk + 3)%a = Some (a_stk ^+ 3)) as Ha3 by solve_addr.
     iEval (rewrite open_world_interp_empty) in "Hworld".
     switcher_open_label ".Lswitch_trusted_stack_exhausted" "Hswitcher" as "Hcode".
     switcher_hide "Hpost" as hpost.

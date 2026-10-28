@@ -22,8 +22,8 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation D := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
@@ -43,7 +43,7 @@ Section fundamental.
   Lemma store_prov_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea π}:
     reg_allows_store_imm regs r imm p0 g0 b0 e0 a0 ea →
     read_reg_prov regs r π →
-    regs !! r = Some (WCap true p0 g0 b0 e0 a0 @@? π).
+    regs !! r = Some (Cap p0 g0 b0 e0 a0 @@? π).
   Proof. intros (Hinr0 & _) Hπ. by apply read_reg_prov_cap. Qed.
 
   Lemma store_inr_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea t1 p1 g1 b1 e1 a1}:
@@ -165,7 +165,7 @@ Section fundamental.
     → read_reg_prov regs r1 π0
     → PermFlowsTo p p'
     → lword_of_argument regs r2 = Some storev
-    → interp W C (WCap true p g b e a @@? None)
+    → interp W C (Cap p g b e a @@? None)
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ rel C (LNonHeap a) p' (safeC P)
     -∗ world_interp_open W C [LNonHeap a]
@@ -192,7 +192,7 @@ Section fundamental.
       rewrite Hea decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hadd & Hwa & Hwb).
     apply andb_prop in Hwb as [Hle Hge].
-    iAssert (interp W C (WCap true p0 g0 b0 e0 a0 @@? π0)) as "#Hvsrc".
+    iAssert (interp W C (Cap p0 g0 b0 e0 a0 @@? π0)) as "#Hvsrc".
     { iApply ("Hreg" $! r1 _ Hsrc). }
     iDestruct (write_allowed_inv _ _ ea0 with "Hvsrc")
       as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hwcond'' & Hrcond'' & HmonoR'')"; auto
@@ -333,7 +333,7 @@ Section fundamental.
     -> ρ ≠ Revoked
     → allow_store_mem imm W C r1 r2 regs pc_a pc_p' pc_w mem0 false
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
-    -∗ interp W C (WCap true pc_p pc_g pc_b pc_e pc_a @@? None)
+    -∗ interp W C (Cap pc_p pc_g pc_b pc_e pc_a @@? None)
     -∗ P W C pc_w
     -∗ wcond' P C pc_a regs
     -∗ monoReq W C (LNonHeap pc_a) pc_p' P

@@ -245,13 +245,13 @@ Ltac instr_auto_solve_addr_result :=
         match goal with
         | H : (?base + ?prior)%a = Some a |- _ =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%a; instr_auto_solve_addr
+            unify result (base ^+ total); instr_auto_solve_addr
         end
       | lazymatch a with
-        | (?base ^+ ?prior)%a =>
+        | (?base ^+ ?prior) =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%a; instr_auto_solve_addr
-        | _ => unify result (a ^+ off)%a; instr_auto_solve_addr
+            unify result (base ^+ total); instr_auto_solve_addr
+        | _ => unify result (a ^+ off); instr_auto_solve_addr
         end ]
   | |- (?a + ?off)%ot = Some ?result =>
       is_evar result;
@@ -264,13 +264,13 @@ Ltac instr_auto_solve_addr_result :=
         match goal with
         | H : (?base + ?prior)%ot = Some a |- _ =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%ot; instr_auto_solve_addr
+            unify result (base ^+ total); instr_auto_solve_addr
         end
       | lazymatch a with
-        | (?base ^+ ?prior)%ot =>
+        | (?base ^+ ?prior) =>
             let total := instr_auto_add_offsets prior off in
-            unify result (base ^+ total)%ot; instr_auto_solve_addr
-        | _ => unify result (a ^+ off)%ot; instr_auto_solve_addr
+            unify result (base ^+ total); instr_auto_solve_addr
+        | _ => unify result (a ^+ off); instr_auto_solve_addr
         end ]
   end.
 
@@ -307,7 +307,7 @@ Ltac instr_auto_solve_nonshadow_general :=
 
 Ltac instr_auto_addr_base a :=
   lazymatch a with
-  | (?b ^+ _)%a => instr_auto_addr_base b
+  | (?b ^+ _) => instr_auto_addr_base b
   | _ => a
   end.
 

@@ -31,25 +31,25 @@ Section HTS_Reload.
   Lemma hts_reload_retained_buffer_spec
     pc_b pc_e pc_a b s e (raw w0 : LWord) wit :
     disjoint_from_shadow b e ->
-    (b <= s < e)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs)%a ->
-    (PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-     csp ↦ᵣ[th] WCap true RWL Local b e s ∗
+    s ∈ₐ [b, e) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_reload_buffer_instrs) ->
+    (PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+     csp ↦ᵣ[th] Cap RWL Local b e s ∗
      ca0 ↦ᵣ[th] w0 ∗
      s ↦ₐ raw ∗
      codefrag_pers pc_a hts_reload_buffer_instrs ∗
      load_witness_res wit ∗
      ▷ (∀ actual,
        ⌜load_post wit RWL raw actual⌝ -∗
-       PC ↦ₚ[th] WCap true RX Global pc_b pc_e
-         (pc_a ^+ length hts_reload_buffer_instrs)%a ∗
-       csp ↦ᵣ[th] WCap true RWL Local b e s ∗
+       PC ↦ₚ[th] Cap RX Global pc_b pc_e
+         (pc_a ^+ length hts_reload_buffer_instrs) ∗
+       csp ↦ᵣ[th] Cap RWL Local b e s ∗
        ca0 ↦ᵣ[th] actual ∗
        s ↦ₐ raw ∗
        codefrag_pers pc_a hts_reload_buffer_instrs ∗
        load_witness_res wit -∗
-       WP Seq (Instr Executable) @[th] {{ HO th }})
-     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+       safe[th])
+     ⊢ safe[th])%I.
   Proof.
     iIntros (Hshadow Hbounds Hsub)
       "(HPC & Hcsp & Hca0 & Ha & Hcode & Hwit & Hpost)".
@@ -97,7 +97,7 @@ Section HTS_Spec_Free.
   Lemma hts_spec_free :
     cstk.(cstk_frames) = [] ->
     is_shadow_address owner_a = false ->
-    withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
+    withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
     is_heap_address owner_a = false ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -105,13 +105,13 @@ Section HTS_Spec_Free.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     adv1_ret ∗
     (free_ret -∗
-     WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+     safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap
       Hstk_shadow Hstk_heap Hstk_min HsubBounds
@@ -130,7 +130,7 @@ Section HTS_Spec_Free.
        & Himport_free & Himport_alloc_cap)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
-    assert ((b + 1)%a = Some (b ^+ 1)%a) as Hsucc by solve_addr.
+    assert ((b + 1)%a = Some (b ^+ 1)) as Hsucc by solve_addr.
     pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
 
     (* Main still holds the free right of ι: ι is live, open its world
@@ -149,7 +149,7 @@ Section HTS_Spec_Free.
     iHide "Hcont" as hcont.
     (* CLoad ca0 csp 0. *)
     iApply (hts_reload_retained_buffer_spec pc_b pc_e a_reload
-      csp_b (stk_start_a csp_b csp_e ^+ -1)%a csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
+      csp_b (stk_start_a csp_b csp_e ^+ -1) csp_e (hts_buffer b @@ ι) _ (LoadLive ι (1/2)%Qp)
       with "[- $HPC $Hcsp $Hca0 $Hslot $Hcode $Hright]").
     { exact (disjoint_from_mmio_shadow _ _ Hstk_shadow). }
     { unfold stk_start_a, SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *;
@@ -207,7 +207,7 @@ Section HTS_Spec_Free.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
     iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch13
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
@@ -216,7 +216,7 @@ Section HTS_Spec_Free.
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
@@ -249,16 +249,16 @@ Section HTS_Spec_Free.
     (* Jalr cra ctp. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_freecall ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_free_result")%a) as Ha_next
+    assert (a_freecall ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_free_result")%a) as Ha_next
       by (offsets_compute; solve_addr).
     rewrite Ha_next.
     clear Ha_reload Ha_private Ha_fetch12 Ha_fetch13 Ha_fetch14.
 
-    iAssert ([[b,(b ^+ 1)%a]] ↦ₕ[ι]
-      [[ [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)] ]])%I
+    iAssert ([[b,b ^+ 1]] ↦ₕ[ι]
+      [[ [lword_of_word (Cap RW Global cgp_b cgp_e cgp_b)] ]])%I
       with "[Hb Hb_share]" as "Hfree_mem".
     { rewrite /heap_region_pointsto
-        (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) big_sepL2_singleton.
+        (finz_seq_between_singleton b (b ^+ 1) Hsucc) big_sepL2_singleton.
       iFrame. }
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].
@@ -275,21 +275,21 @@ Section HTS_Spec_Free.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]). done. }
     iInsertList "Hrmap" [ctp].
     set (free_other :=
-      <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp:=lword_of_word switcher_entry_call]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
     iPoseProof (hts_free_known_function
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a b (b ^+ 1)%a b
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) b (b ^+ 1) b
       free_arg cstk RW Global ι
-      [lword_of_word (WCap true RW Global cgp_b cgp_e cgp_b)]
+      [lword_of_word (Cap RW Global cgp_b cgp_e cgp_b)]
       Global owner_a hts_main_owner_id {[ι]}
       with "[$Hservice $Hservice_static $Hswitcher]") as "Hfree_fun".
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { exact Hbounds. }
-    { rewrite (finz_seq_between_singleton b (b ^+ 1)%a Hsucc).
+    { rewrite (finz_seq_between_singleton b (b ^+ 1) Hsucc).
       reflexivity. }
     { subst free_arg. reflexivity. }
     { subst free_arg. reflexivity. }
@@ -306,13 +306,13 @@ Section HTS_Spec_Free.
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
-      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a stk free_arg
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) stk free_arg
       free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤
       allocator_exp_tbl_b
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a
+      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
@@ -334,7 +334,7 @@ Section HTS_Spec_Free.
     { solve_addr. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { rewrite /allocator_free_nargs; lia. }
-    { exists (allocator_code_b ^+ length allocator_malloc_instrs)%a.
+    { exists (allocator_code_b ^+ length allocator_malloc_instrs).
       rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off.
       pose proof allocator_size_imports as Himports_size.
       pose proof allocator_size_code as Hcode_size.

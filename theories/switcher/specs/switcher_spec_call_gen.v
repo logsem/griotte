@@ -24,10 +24,10 @@ Section Switcher.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** The post-condition of [switcher_cc_specification_gen], once the
-      caller's stack pointer [WCap true RWL Local b_stk e_stk a_stk] is known. *)
+      caller's stack pointer [Cap RWL Local b_stk e_stk a_stk] is known. *)
   Definition switcher_cc_post
     (W : WORLD) (C : CmptName)
     (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
@@ -51,11 +51,11 @@ Section Switcher.
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ regs₀[th] rmap'
+              ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
@@ -75,12 +75,12 @@ Section Switcher.
               ∗ cra ↦ᵣ[th] rcra
               ∗ cs0 ↦ᵣ[th] rcs0
               ∗ cs1 ↦ᵣ[th] rcs1
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               ∗ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
               ∗ ca1 ↦ᵣ[th] WInt 0
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ regs₀[th] rmap'
               (* Stack frame *)
-              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
+              ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ
                   [[ [wcs0_caller; wcs1_caller; wcgp_caller; wcra_caller] ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
@@ -96,7 +96,7 @@ Section Switcher.
               ∗ £ 2
             )
           )
-            -∗ WP Seq (Instr Executable) @[th] {{ HO th }}.
+            -∗ safe[th].
 
   (** The spill of the callee-save registers at the cursor [a_stk] does not
       fit in the caller's stack [[b_stk, e_stk)]. *)
@@ -126,16 +126,16 @@ Section Switcher.
       cra ↦ᵣ[th] wcra_caller ∗
       cs0 ↦ᵣ[th] wcs0_caller ∗
       cs1 ↦ᵣ[th] wcs1_caller ∗
-      csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+      csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
       ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
-      ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ) ∗
+      regs[th] rmap' ∗
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
       world_interp W C ∗
       StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
       ◯(CSTK)[th] cstk ∗
       interp_continuation cstk Ws Cs -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   (** The fault of the first spill of a trusted caller: the exception path
       of the switcher resumes the caller at [.Lswitch_just_return], whose
@@ -160,10 +160,10 @@ Section Switcher.
        cra ↦ᵣ[th] wcra_caller ∗
        cs0 ↦ᵣ[th] wcs0_caller ∗
        cs1 ↦ᵣ[th] wcs1_caller ∗
-       csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+       csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
        (∃ wca0, ca0 ↦ᵣ[th] wca0) ∗
        (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
-       ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ[th] w ) ∗
+       regs[th] rmap0 ∗
        [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
        world_interp W C ∗
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
@@ -199,7 +199,7 @@ Section Switcher.
       by (rewrite Hsame //; by simplify_map_eq).
     assert (rmap' !! cgp = Some wcgp_caller) as Hcgp'
       by (rewrite Hsame //; by simplify_map_eq).
-    assert (rmap' !! csp = Some (WCap true RWL Local b_stk e_stk a_stk : LWord)) as Hcsp'
+    assert (rmap' !! csp = Some (Cap RWL Local b_stk e_stk a_stk : LWord)) as Hcsp'
       by (rewrite Hsame //; by simplify_map_eq).
     assert (rmap' !! cs0 = Some wcs0_caller) as Hcs0'
       by (rewrite Hsame //; by simplify_map_eq).
@@ -252,7 +252,7 @@ Section Switcher.
   #[local] Lemma switcher_cc_full_regs (rmap0 : LReg)
     (wcra wcgp wcsp wcs0 wcs1 wca0 wca1 : LWord) :
     dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
-    ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ[th] w ) -∗
+    regs[th] rmap0 -∗
     cra ↦ᵣ[th] wcra -∗
     cgp ↦ᵣ[th] wcgp -∗
     csp ↦ᵣ[th] wcsp -∗
@@ -294,7 +294,7 @@ Section Switcher.
 
   #[local] Lemma switcher_cc_args_regs W C wct1 arg_rmap is_entry_point_known :
     switcher_cc_args W C wct1 arg_rmap is_entry_point_known ⊢
-    [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg.
+    regs[th] arg_rmap.
   Proof.
     iIntros "Hargs".
     destruct is_entry_point_known.
@@ -309,7 +309,7 @@ Section Switcher.
   #[local] Lemma switcher_cc_args_entry W C π g_tbl b_tbl e_tbl a_tbl arg_rmap
     is_entry_point_known (posture : InterruptStatus) (nargs minstk : nat) (off : Z) :
     nargs <= 7 ->
-    switcher_cc_args W C (WSealed ot_switcher (SCap true RO g_tbl b_tbl e_tbl a_tbl) @@? π) arg_rmap
+    switcher_cc_args W C (Sealed ot_switcher RO g_tbl b_tbl e_tbl a_tbl @@? π) arg_rmap
       is_entry_point_known -∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) -∗
     [∗ map] r↦w ∈ arg_rmap,
@@ -331,7 +331,7 @@ Section Switcher.
   Definition switcher_cc_frame (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (wtbl : LWord) : cframe :=
     {| cf_tframe :=
-         {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
+         {| tf_csp := Cap RWL Local b_stk e_stk (stk_saved_a a_stk);
             tf_export_tbl := wtbl;
             tf_error_count := 0 |};
        cf_saved :=
@@ -415,8 +415,8 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
     (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) (wct2 wctp : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
@@ -424,7 +424,7 @@ Section Switcher.
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
+    regs[th] delete ctp (delete ct2 rmap) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
@@ -432,7 +432,7 @@ Section Switcher.
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
     ( ⌜ ¬ stk_spill_fits b_stk e_stk a_stk ⌝ ∗
-      csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+      csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
       ct2 ↦ᵣ[th] wct2 ∗
       ctp ↦ᵣ[th] wctp ∗
       cs0 ↦ᵣ[th] wcs0_caller ∗
@@ -441,7 +441,7 @@ Section Switcher.
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] wct1_caller ∗
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -473,8 +473,8 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
     (cstk' : CSTK) (g_tstk : Locality) (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     disjoint_from_mmio b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -484,7 +484,7 @@ Section Switcher.
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
+    regs[th] delete ctp (delete ct2 rmap) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
@@ -496,18 +496,18 @@ Section Switcher.
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
       cs1 ↦ᵣ[th] wcs1_caller ∗
       ctp ↦ᵣ[th] WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
-      ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
-      csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+      ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
       cra ↦ᵣ[th] wcra_caller ∗
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] wct1_caller ∗
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
       [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }} ).
+      safe[th] ).
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
@@ -563,12 +563,12 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (is_entry_point_known : bool)
     (cstk' : CSTK) (g_tstk : Locality) (a_tstk : Addr) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
@@ -580,7 +580,7 @@ Section Switcher.
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
+    regs[th] delete ctp (delete ct2 rmap) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
@@ -591,21 +591,20 @@ Section Switcher.
       ⌜ switcher_stk_bounds b_stk e_stk a_stk ⌝ ∗
       ⌜ (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ⌝ ∗
       ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
-      cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+      cs0 ↦ᵣ[th] SealRange (true,true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-      ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
+      ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
       csp ↦ᵣ[th] chopped_csp b_stk e_stk a_stk ∗
       cra ↦ᵣ[th] wcra_caller ∗
       cgp ↦ᵣ[th] wcgp_caller ∗
       ct1 ↦ᵣ[th] - ∗
       switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
-      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
-        [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
-      a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+      a_csp ↦ₐ Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
       a_export_table ↦ₐ - ∗
       a_error_count ↦ₐ WInt 0 ∗
       (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
@@ -669,13 +668,13 @@ Section Switcher.
     (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr) (nargs minstk : nat) :
     let W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary in
     let frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                   b_stk e_stk a_stk (WCap true RO g_tbl b_tbl e_tbl a_tbl) in
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+                   b_stk e_stk a_stk (Cap RO g_tbl b_tbl e_tbl a_tbl) in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     switcher_stk_bounds b_stk e_stk a_stk ->
@@ -693,10 +692,10 @@ Section Switcher.
     ◯(CSTK)[th] cstk -∗
     interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs) -∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
-    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
+    a_csp ↦ₐ Cap RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_error_count ↦ₐ WInt 0 -∗
     [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ( ⌜ (stk_callee_e e_stk a_stk - stk_callee_b b_stk a_stk
@@ -709,13 +708,13 @@ Section Switcher.
       ctp ↦ᵣ[th] - ∗
       cgp ↦ᵣ[th] - ∗
       cra ↦ᵣ[th] - ∗
-      csp ↦ᵣ[th] WCap true RWL Local (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
+      csp ↦ᵣ[th] Cap RWL Local (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
                (stk_saved_a a_stk) ∗
-      a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+      a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
       ( [∗ map] r↦w ∈ arg_rmap,
           r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
-      ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }} ).
+      regs[th] delete ctp (delete ct2 rmap) -∗
+      safe[th] ).
   Proof.
     intros W' frame a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -767,11 +766,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp_caller
     ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ[th] wct1_caller
     ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
@@ -790,7 +789,7 @@ Section Switcher.
     ∗ cs0 ↦ᵣ[th] wcs0_caller
     ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -824,11 +823,11 @@ Section Switcher.
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
               ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
               ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
-              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+              ∗ regs₀[th] rmap'
+              ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
@@ -848,12 +847,12 @@ Section Switcher.
               ∗ cra ↦ᵣ[th] rcra
               ∗ cs0 ↦ᵣ[th] rcs0
               ∗ cs1 ↦ᵣ[th] rcs1
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               ∗ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
               ∗ ca1 ↦ᵣ[th] WInt 0
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ regs₀[th] rmap'
               (* Stack frame *)
-              ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ
+              ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ
                   [[ [wcs0_caller; wcs1_caller; wcgp_caller; wcra_caller] ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
@@ -869,13 +868,13 @@ Section Switcher.
               ∗ £ 2
             )
           )
-            -∗ WP Seq (Instr Executable) @[th] {{ HO th }} )
+            -∗ safe[th] )
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant ([trusted_stack_inv_open_call]);
@@ -964,9 +963,9 @@ Section Switcher.
     iSpecialize ("Hentry_cont" $! W' with "[]").
     { iPureIntro. by apply related_sts_pub_priv_world. }
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
-                    b_stk e_stk a_stk (WCap true RO g_tbl b_tbl e_tbl a_tbl)).
+                    b_stk e_stk a_stk (Cap RO g_tbl b_tbl e_tbl a_tbl)).
     iDestruct (switcher_cc_cont_frame W C _ _ _ _ _ _ _ _ _ _ _
-                 (WCap true RO g_tbl b_tbl e_tbl a_tbl) with "Hpost Hlc Hcont Hstk4v")
+                 (Cap RO g_tbl b_tbl e_tbl a_tbl) with "Hpost Hlc Hcont Hstk4v")
       as "Hcont_frame"; [done|done|done|].
     fold frame.
     (* The table cell holds the unsealed entry *)
@@ -1045,11 +1044,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp_caller
     ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ[th] wct1_caller
     ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
@@ -1068,7 +1067,7 @@ Section Switcher.
     ∗ cs0 ↦ᵣ[th] wcs0_caller
     ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -1106,24 +1105,24 @@ Section Switcher.
             ∗ cra ↦ᵣ[th] rcra
             ∗ cs0 ↦ᵣ[th] rcs0
             ∗ cs1 ↦ᵣ[th] rcs1
-            ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
                 load_heap_in_world W2 wcs0_caller rcs0 ∧
                 load_heap_in_world W2 wcs1_caller rcs1⌝
-              -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+              -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
 
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof: apply [switcher_cc_specification_gen], then
        revoke the world in the post-condition, with

@@ -24,6 +24,12 @@ Ltac auto_equiv :=
 
 Ltac solve_proper ::= (repeat intros ?; simpl; auto_equiv).
 
+(** The types of the logical relation: the interpretations of words and of
+    register maps, and the continuations. *)
+Notation interpO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+Notation regsO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+Notation contO Σ := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
+
 (** interp : is a unary logical relation. *)
 Section logrel.
 
@@ -36,10 +42,10 @@ Section logrel.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
   Implicit Types W : WORLD.
@@ -98,7 +104,7 @@ Section logrel.
 
   (* interp expression definitions *)
   Definition registers_pointsto (r : LReg) : iProp Σ :=
-    ([∗ map] r↦w ∈ r, r ↦ᵣ[th] w)%I.
+    (regs[th] r)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
   (** Each register is safe once filtered by the world: a register word with
@@ -109,9 +115,6 @@ Section logrel.
       (full_map reg ∧
        ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C (filter_heap W v)))%I.
   Solve All Obligations with solve_proper.
-
-  Definition interp_conf (W : WORLD) (C : CmptName) : iProp Σ :=
-    (WP Seq (Instr Executable) @[th] {{ HO th }})%I.
 
   (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
       match with the current world [W] and compartment [C].
@@ -192,7 +195,7 @@ Section logrel.
   Definition entry_stack_interp (interp : V) (W : WORLD) (C : CmptName) (ef : trusted_frame)
     : iProp Σ :=
     ∃ (p : Perm) (g : Locality) (b e a : Addr),
-      ⌜ef.(tf_csp) = lword_of_word (WCap true p g b e a)⌝ ∗
+      ⌜ef.(tf_csp) = lword_of_word (Cap p g b e a)⌝ ∗
       ⌜disjoint_from_heap b e⌝ ∗
       □ interp W C ef.(tf_csp).
 
@@ -208,12 +211,12 @@ Section logrel.
     : iProp Σ :=
     let tf := top_tframe cstk in
     let b_tbl := tf_export_tbl_b tf in
-    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     (∃ (pcc cgp : LWord) (eh ehs : Z),
        b_tbl ↦ₐ□ pcc ∗
        a_tbl_cgp ↦ₐ□ cgp ∗
-       b_tbl ↦ₕ□{stackful} eh ∗
-       b_tbl ↦ₕ□{stackless} ehs ∗
+       b_tbl ↦ₑ□{stackful} eh ∗
+       b_tbl ↦ₑ□{stackless} ehs ∗
        (□ ∀ W', ⌜related_sts_priv_world W W'⌝ → interp W' C pcc ∗ interp W' C cgp) ∗
        ⌜tf.(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝) ∗
     match cstk.(cstk_frames) with
@@ -256,7 +259,7 @@ Section logrel.
         ∗ na_own (tpool th) ⊤
         ∗ ◯(CSTK)[th] cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
-          -∗ interp_conf W C)
+          -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
 
@@ -532,7 +535,7 @@ Section logrel.
        ⌜load_heap_in_world W frm.(cf_saved).(cs_cs1) rcs1⌝ -∗
        ( PC ↦ₚ[th] lupdatePcPerm rcra
          ∗ cra ↦ᵣ[th] rcra
-         ∗ csp ↦ᵣ[th] (WCap true RWL Local b_stk e_stk a_stk)
+         ∗ csp ↦ᵣ[th] (Cap RWL Local b_stk e_stk a_stk)
          (* cgp, cs0 and cs1 are callee-saved registers *)
          ∗ cgp ↦ᵣ[th] rcgp
          ∗ cs0 ↦ᵣ[th] rcs0
@@ -542,9 +545,9 @@ Section logrel.
          ∗ ca1 ↦ᵣ[th] wca1 ∗ interp W C wca1
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
-         ∗ ( [∗ map] r↦w ∈ regs, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+         ∗ regs₀[th] regs
          (* points-to predicate of the stack region *)
-         ∗ [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]]
+         ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
          (* World interpretation *)
          ∗ world_interp_open W C (LNonHeap <$> shared_stk_region)
@@ -554,7 +557,7 @@ Section logrel.
          ∗ interp_cont
          ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
-           -∗ interp_conf W C)
+           -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
   #[global] Instance interp_cont_exec_ne n :
@@ -562,7 +565,7 @@ Section logrel.
   Proof. solve_proper. Qed.
 
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
-      When a caller calls the switcher-call routine with a capability [WCap true p g b e a] in the [csp]
+      When a caller calls the switcher-call routine with a capability [Cap p g b e a] in the [csp]
       register, the switcher is using the spill area at [stk_spill_a a] as callee-saved registers area,
       and giving the region [[stk_callee_b b a, stk_callee_e e a)] as callee-stack frame.
 
@@ -628,7 +631,7 @@ Section logrel.
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct
-               (WCap true RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_caller_a frm))
+               (Cap RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_caller_a frm))
                (is_untrusted_caller_frm frm)
              (* An untrusted caller records that its topmost compartment is
                 untrusted, for the return to it; a trusted caller, the
@@ -677,9 +680,9 @@ Section logrel.
     (p : Perm) (g : Locality) (b e : Addr) (π : option AId)
     (interp : V) : iProp Σ :=
     (∀ (a : Addr) (W' : WORLD),
-       ⌜a ∈ₐ [[ b , e ]]⌝
+       ⌜a ∈ₐ [b, e)⌝
        → future_world g W W'
-       → ▷ interp_expr interp (interp_cont interp) W' C (WCap true p g b e a @@? π))%I.
+       → ▷ interp_expr interp (interp_cont interp) W' C (Cap p g b e a @@? π))%I.
   #[global] Instance exec_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) exec_cond.
   Proof.
@@ -716,7 +719,7 @@ Section logrel.
     (interp : V) : iProp Σ :=
     (∀ W',
        future_world g W W'
-       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (WCap true p g' b e a @@? π)))
+       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (Cap p g' b e a @@? π)))
     )%I.
   #[global] Instance enter_cond_ne n :
     Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
@@ -877,7 +880,7 @@ Section logrel.
 
   Program Definition interp_cap_O : V := λne W _ w,
     ⌜match w.(lw) with
-      | WCap true p g b e a => heap_cap_O_valid W p g b e w.(lprov)
+      | Cap p g b e a => heap_cap_O_valid W p g b e w.(lprov)
       | _ => True
       end⌝%I.
   Solve All Obligations with solve_proper.
@@ -1063,7 +1066,7 @@ Section logrel.
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : LWord) : iPropO Σ :=
     (sts_seals_std C o {[w ; lborrow w ]} ∗
      ⌜match w.(lw) with
-       | WCap true p g b e a => heap_cap_valid W p b e w.(lprov)
+       | Cap p g b e a => heap_cap_valid W p b e w.(lprov)
        | _ => True
        end⌝)%I.
   Solve All Obligations with solve_proper.
@@ -1202,7 +1205,7 @@ Section logrel.
       registers_pointsto regs -∗
       na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
       ◯(CSTK)[th] cstk -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
     Persistent (trap_vector_safe trusted_fault wvec).
@@ -1220,7 +1223,7 @@ Section logrel.
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
     ◯(CSTK)[th] cstk -∗
     trap_entry_out w -∗
-    (PC ↦ₚ[th] wvec -∗ WP Seq (Instr Executable) @[th] {{ HO th }}).
+    (PC ↦ₚ[th] wvec -∗ safe[th]).
   Proof.
     iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hout HPC".
     iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hna Hcstk").
@@ -1376,10 +1379,10 @@ Section logrel.
         (∀ (r : RegName) (v : LWord), ⌜regs' !! r = Some v⌝ → interp W C v) -∗
         registers_pointsto regs' -∗
         world_interp W C -∗
-        interp_conf W C) -∗
-    interp_conf W C.
+        safe[th]) -∗
+    safe[th].
   Proof.
-    iIntros "[%Hfull Hsafe] Hregs Hworld Hcont". rewrite /interp_conf.
+    iIntros "[%Hfull Hsafe] Hregs Hworld Hcont".
     iMod (registers_refilter with "Hworld Hregs Hsafe") as "(Hworld & Hregs & Hsafe)".
     iApply ("Hcont" with "[] Hsafe Hregs Hworld").
     iIntros (r). iPureIntro. rewrite lookup_fmap. by destruct (Hfull r) as [? ->].
@@ -1507,9 +1510,9 @@ Section logrel.
   Notation interp_in_memC := (safeC (interp_in_mem RWL)).
 
   Lemma interp1_eq interp (W: WORLD) (C : CmptName) p g b e a π :
-    ((interp1 interp W C (WCap true p g b e a @@? π)) ≡
+    ((interp1 interp W C (Cap p g b e a @@? π)) ≡
        (if (isO p)
-        then interp_cap_O W C (WCap true p g b e a @@? π)
+        then interp_cap_O W C (Cap p g b e a @@? π)
         else
           if (has_sreg_access p)
           then False
@@ -1548,7 +1551,7 @@ Section logrel.
 
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a π :
     isO p = false →
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝.
   Proof.
     iIntros (HnonO) "Hinterp".
@@ -1561,7 +1564,7 @@ Section logrel.
   Lemma interp_cap_addr_live W C p g b e a ea π :
     isO p = false ->
     withinBounds b e ea = true ->
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜heap_key_live (heap_std W) (addr_key π ea)⌝.
   Proof.
     iIntros (Hp Hbounds) "Hinterp".
@@ -1570,7 +1573,7 @@ Section logrel.
   Qed.
 
   Lemma interp_cap_heap_conditions W C p g b e a π :
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜heap_cap_O_valid W p g b e π⌝.
   Proof.
     rewrite interp_unfold interp1_eq.
@@ -1589,7 +1592,7 @@ Section logrel.
 
   Lemma interp_cap_disjoint (W : WORLD) (C : CmptName) p g b e a π :
     executeAllowed p = true →
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hexec) "Hinterp".
@@ -1605,7 +1608,7 @@ Section logrel.
 
   Lemma interp_cap_disjoint_wl (W : WORLD) (C : CmptName) p g b e a π :
     isWL p = true →
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
@@ -1622,7 +1625,7 @@ Section logrel.
   Lemma interp_cap_not_shadow (W : WORLD) (C : CmptName) p g b e a a' π :
     isO p = false →
     withinBounds b e a' = true →
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜is_shadow_address a' = false⌝.
+    interp W C (Cap p g b e a @@? π) -∗ ⌜is_shadow_address a' = false⌝.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap]; auto.
@@ -1633,7 +1636,7 @@ Section logrel.
   Lemma interp_cap_not_mmio (W : WORLD) (C : CmptName) p g b e a a' π :
     isO p = false →
     withinBounds b e a' = true →
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜is_mmio_address a' = false⌝.
+    interp W C (Cap p g b e a @@? π) -∗ ⌜is_mmio_address a' = false⌝.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[Hmmio Hheap]; auto.
@@ -1644,7 +1647,7 @@ Section logrel.
   (* Inversion lemmas about about when R-capability *)
   Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a' π :
     readAllowed p = true ->
-    interp W C (WCap true p g b e a' @@? π) -∗
+    interp W C (Cap p g b e a' @@? π) -∗
     ⌜Forall (fun a => ∃ ρ, std W !! addr_key π a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
@@ -1667,7 +1670,7 @@ Section logrel.
   Lemma read_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
@@ -1694,8 +1697,8 @@ Section logrel.
 
   Lemma read_allowed_inv_many (W : WORLD) (C : CmptName) (a b e: Addr) p g l π :
     readAllowed p →
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l,
           (
             ∃ (p' : Perm) (P:V),
@@ -1720,7 +1723,7 @@ Section logrel.
 
   Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g π :
     readAllowed p →
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e),
           (
             ∃ (p' : Perm) (P:V),
@@ -1743,7 +1746,7 @@ Section logrel.
   Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a' π :
     readAllowed p = true ->
     withinBounds b e a' = true ->
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜∃ ρ, std W !! addr_key π a' = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
@@ -1765,7 +1768,7 @@ Section logrel.
   Lemma write_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
     (b ≤ a' ∧ a' < e)%Z →
     writeAllowed p →
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
@@ -1792,8 +1795,8 @@ Section logrel.
 
   Lemma write_allowed_inv_many (W : WORLD) (C : CmptName) (a b e: Addr) p g l π :
     writeAllowed p →
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l,
           (
             ∃ (p' : Perm) (P:V),
@@ -1818,7 +1821,7 @@ Section logrel.
 
   Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g π :
     writeAllowed p →
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e),
           (
             ∃ (p' : Perm) (P:V),
@@ -1850,7 +1853,7 @@ Section logrel.
   Lemma writeAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a π :
     writeAllowed p = true ->
     withinBounds b e a = true ->
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜∃ ρ, std W !! addr_key π a = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hra Hb. iIntros "Hinterp".
@@ -1871,7 +1874,7 @@ Section logrel.
   Lemma writeAllowed_valid_cap_implies_at W C p g b e a ea π :
     writeAllowed p = true →
     withinBounds b e ea = true →
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜∃ ρ, std W !! addr_key π ea = Some ρ ∧ ρ <> Revoked⌝.
   Proof.
     intros Hwa Hb.
@@ -1881,7 +1884,7 @@ Section logrel.
 
   Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a' π :
     writeAllowed p = true ->
-    interp W C (WCap true p g b e a' @@? π) -∗
+    interp W C (Cap p g b e a' @@? π) -∗
     ⌜Forall (fun a => ∃ ρ, std W !! addr_key π a = Some ρ ∧ ρ <> Revoked) (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwa) "Hinterp".
@@ -1905,7 +1908,7 @@ Section logrel.
   Lemma writeLocalAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a' π :
     isWL p = true ->
     withinBounds b e a = true ->
-    interp W C (WCap true p g b e a' @@? π) -∗
+    interp W C (Cap p g b e a' @@? π) -∗
     ⌜std W !! addr_key π a = Some Temporary⌝.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
@@ -1922,8 +1925,8 @@ Section logrel.
 
   Lemma writeLocalAllowed_valid_cap_implies_many (W : WORLD) (C : CmptName) p g b e a l π :
     isWL p = true ->
-    Forall (fun a' : Addr => (b <= a' < e)%a ) l ->
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l, ⌜std W !! addr_key π a' = Some Temporary⌝.
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
@@ -1936,7 +1939,7 @@ Section logrel.
 
   Lemma writeLocalAllowed_valid_cap_implies_full_cap (W : WORLD) (C : CmptName) p g b e a π :
     isWL p = true ->
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! addr_key π a' = Some Temporary⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
@@ -1950,7 +1953,7 @@ Section logrel.
      by [LNonHeap]. *)
   Lemma interp_WL_addr_key W C p g b e a π :
     isWL p = true ->
-    interp W C (WCap true p g b e a @@? π) -∗
+    interp W C (Cap p g b e a @@? π) -∗
     ⌜Forall (λ a', addr_key π a' = LNonHeap a') (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
@@ -1969,7 +1972,7 @@ Section logrel.
       [Temporary] coverage is stated over [LNonHeap] keys. *)
   Lemma writeLocalAllowed_valid_cap_implies_full_cap_nonheap (W : WORLD) (C : CmptName) p g b e a π :
     isWL p = true ->
-    ⊢ (interp W C (WCap true p g b e a @@? π)) →
+    ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e), ⌜std W !! LNonHeap a' = Some Temporary⌝.
   Proof.
     iIntros (Hwl) "#Hinterp".
@@ -2017,8 +2020,8 @@ Section logrel.
 
   (** A valid PC is executable and so carries no identifier. *)
   Lemma interp_pc_noid W C p g b e a π :
-    isCorrectPC (WCap true p g b e a) ->
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜π = None⌝.
+    isCorrectPC (Cap p g b e a) ->
+    interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hpc) "Hinterp".
     assert (executeAllowed p = true) as Hexec by (by inversion Hpc).
@@ -2212,7 +2215,7 @@ Section logrel.
       identifier: heap authority is never executable. *)
   Lemma interp_exec_noid W C p g b e a π :
     executeAllowed p = true → (b < e)%a →
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜π = None⌝.
+    interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hexec Hbe) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];

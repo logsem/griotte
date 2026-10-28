@@ -26,7 +26,7 @@ Section Common_Context_Install.
       registers. *)
   #[local] Definition common_context_install_instrs : list Word :=
     encodeInstrsW [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
-                   SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)] ++
+                   SpecialRW cnull mstatus (inr cra); SpecialRW cnull mepcc (inr ct2)] ++
     trusted_reload_registers_instrs exception_spill_regs ++
     encodeInstrsW [machine_instructions.CLoad csp csp TrustedStack_offset_csp; Mret].
 
@@ -38,7 +38,7 @@ Section Common_Context_Install.
     length save_area = 21%nat ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
-    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     cra ↦ᵣ[th] wcra ∗
     cgp ↦ᵣ[th] wcgp ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -56,7 +56,7 @@ Section Common_Context_Install.
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_entry_res ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] llegalise MEPCC wpc ∗
+    ▷ ( PC ↦ₚ[th] llegalise mepcc wpc ∗
         cra ↦ᵣ[th] (save_area !!! 1%nat) ∗
         csp ↦ᵣ[th] (save_area !!! 2%nat) ∗
         cgp ↦ᵣ[th] (save_area !!! 3%nat) ∗
@@ -74,8 +74,8 @@ Section Common_Context_Install.
         ca5 ↦ᵣ[th] (save_area !!! 15%nat) ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
         trap_entry_res -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hlen)
       "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
@@ -85,8 +85,8 @@ Section Common_Context_Install.
       [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
       [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
       try done.
-    rewrite /tstack_save_end /tstack_cap.
-    assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a)
+    rewrite /tstack_save_end.
+    assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ))
       as Hsave_end by (tstack_unfold; solve_addr).
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
@@ -119,10 +119,10 @@ Section Common_Context_Install.
     (* SpecialRW cnull mepcc ct2 *)
     iInstrApply "Hcode" wp_cspecialw_mepcc with "[$HPC $Hct2 $Hmepcc]" as "(HPC & Hct2 & Hmepcc)".
     (* The reload of the registers but the stack pointer *)
-    rewrite (_ : (pc_a ^+ length (encodeInstrsW
+    rewrite (_ : pc_a ^+ length (encodeInstrsW
                    [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
-                    SpecialRW cnull MSTATUS (inr cra); SpecialRW cnull MEPCC (inr ct2)]))%a =
-                 (pc_a ^+ 1 ^+ 1 ^+ 1)%a); last (clear; solve_addr).
+                    SpecialRW cnull mstatus (inr cra); SpecialRW cnull mepcc (inr ct2)]) =
+                 pc_a ^+ 1 ^+ 1 ^+ 1); last (clear; solve_addr).
     iApply (trusted_reload_registers_spec _ _ _ _ _ _ _ _ _ exception_spill_regs
               [s17; wcgp; wctp; wct0; wct1; wpc; wcs0; wcs1; wca0; wca1; wca2; wca3; wca4; wca5]
               [s1; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15]
@@ -148,8 +148,8 @@ Section Common_Context_Install.
     pose proof (tstack_save_cell_ok TrustedStack_offset_csp
                   ltac:(unfold TrustedStack_offset_csp; lia))
       as (Hts_2 & Hts_2_bounds & Hts_2_shadow).
-    rewrite (_ : ((((pc_a ^+ 1) ^+ 1) ^+ 1) ^+ length exception_spill_regs)%a =
-                 (pc_a ^+ (3 + length exception_spill_regs)%nat)%a); last (clear; solve_addr).
+    rewrite (_ : (((pc_a ^+ 1) ^+ 1) ^+ 1) ^+ length exception_spill_regs =
+                 pc_a ^+ (3 + length exception_spill_regs)%nat); last (clear; solve_addr).
     (* CLoad csp csp TrustedStack_offset_csp *)
     iInstrApply "Hcode"
       (wp_load_witness_imm_same_inbounds _ _ _ _ _ _ _ csp TrustedStack_offset_csp

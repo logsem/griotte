@@ -26,7 +26,7 @@ Section SO.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** Steps of the proofs:
       - 1) Revoke the world, obtain [l] the unknown addresses being revoked.
@@ -86,16 +86,16 @@ Section SO.
     :
 
     let imports := so_main_imports C_f in
-    let a_so_exp_tbl_cgp := (b_so_exp_tbl ^+ ExportTable_offset_cgp)%a in
-    let a_so_entry_f := (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a in
+    let a_so_exp_tbl_cgp := (b_so_exp_tbl ^+ ExportTable_offset_cgp) in
+    let a_so_entry_f := (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f) in
 
     pc_b ≠ b_switcher ->
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow b_so_exp_tbl e_so_exp_tbl ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
-    (b_so_exp_tbl <= a_so_entry_f < e_so_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ->
+    a_so_entry_f ∈ₐ [b_so_exp_tbl, e_so_exp_tbl) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code) ->
     (pc_b + so_label ".Lso_run")%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
@@ -105,12 +105,12 @@ Section SO.
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a so_main_code
-    ∗ b_so_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ a_so_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ b_so_exp_tbl ↦ₐ□ Cap RX Global pc_b pc_e pc_b
+    ∗ a_so_exp_tbl_cgp ↦ₐ□ Cap RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_so_exp_tbl
     ∗ a_so_entry_f ↦ₐ□ WInt (encode_entry_point InterruptEnabled 2 6 (length (imports ++ SO_main_code_run)))
       -∗
-    ot_switcher_prop W C (WCap true RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl a_so_entry_f).
+    ot_switcher_prop W C (Cap RO g_so_exp_tbl b_so_exp_tbl e_so_exp_tbl a_so_entry_f).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -147,7 +147,7 @@ Section SO.
       & [#Hso_exp_eh #Hso_exp_ehs]
       & #Hso_exp_awkward)".
     iExists g_so_exp_tbl, b_so_exp_tbl, e_so_exp_tbl,
-      (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f)%a,
+      (b_so_exp_tbl ^+ ExportTable_offset_entry so_entry_f),
     pc_b, pc_e, cgp_b, cgp_e, 2, 6, _.
     iFrame "#".
     iSplit; first done.
@@ -175,7 +175,7 @@ Section SO.
       iPureIntro. by apply tf_export_tbl_ok_nonzero. }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
-    rewrite /interp_conf /registers_pointsto.
+    rewrite /registers_pointsto.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -198,7 +198,7 @@ Section SO.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
 
     (* Blocks 3-5: save the callback, check [in] *)
-    iEval (rewrite (_ : (pc_b ^+ length (so_main_imports C_f ++ SO_main_code_run))%a =
+    iEval (rewrite (_ : pc_b ^+ length (so_main_imports C_f ++ SO_main_code_run) =
                         (pc_a ^+ so_label_offset ".Lso_f")%a);
            [|rewrite length_app; offsets_compute; cbn in Hso_imports |- *; solve_addr]) in "HPC".
     iApply (so_check_blocks_1_spec with

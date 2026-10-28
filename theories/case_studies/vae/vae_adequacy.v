@@ -55,7 +55,7 @@ Section vae_obligations.
 
     (* 2 - The export entries of C and main, imported by each other *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry vae_C_entry_adv)%a).
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry vae_C_entry_adv)).
     assert (cmpt_export_sb (cmpt_of img "C") vae_C_entry_adv = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @vae_main_imports swl asl C_f)
@@ -96,8 +96,7 @@ Section vae_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hmain_exp_tbl_size.
     rewrite main_exp_tbl in Hmain_exp_tbl_size.
-    assert (cmpt_exp_tbl_pcc main_cmpt <= cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward
-            < cmpt_exp_tbl_entries_end main_cmpt)%a as Hmain_exp_tbl_bounds.
+    assert (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward ∈ₐ [cmpt_exp_tbl_pcc main_cmpt, cmpt_exp_tbl_entries_end main_cmpt)) as Hmain_exp_tbl_bounds.
     { pose proof (cmpt_exp_tbl_header_size main_cmpt) as Hheader.
       clear -Hmain_exp_tbl_size Hheader. rewrite /vae_entry_awkward. cbn in *. solve_addr. }
     iEval (rewrite big_sepL_cons) in "Hmain_etbl_entries".
@@ -121,10 +120,10 @@ Section vae_obligations.
     (* 5 - Seal the exported entry [awkward] of main with [ot_switcher] in
        the world of C *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry vae_C_entry_adv)%a) in *.
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry vae_C_entry_adv)) in *.
     set (main_awk := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                        (cmpt_exp_tbl_entries_end main_cmpt)
-                       (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward)%a) in *.
+                       (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward)) in *.
     set (W1' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_awk);
                        lword_of_word (borrow (WSealable main_awk)) ]} ]o> W1).
@@ -172,8 +171,8 @@ Section vae_obligations.
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts vae_firmware
              fc_name fc_body tb_exports fe_name String.eqb Ascii.eqb Bool.eqb andb addr_off].
         fw_fold_cmpt main_cmpt.
-        change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)%a
-          with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward)%a.
+        change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
+          with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward).
         fold main_awk.
         iSplit.
         + iApply interp_to_in_mem.
@@ -262,7 +261,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem vae_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   vae_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

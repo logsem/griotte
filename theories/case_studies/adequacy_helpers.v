@@ -25,7 +25,7 @@ Section trusted_stack_layout.
       = Some (WInt 0);
     tsl_words : Forall trusted_stack_word ts;
     tsl_hazard :
-      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (WCap true WO Global b_hz e_hz b_hz);
+      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (Cap WO Global b_hz e_hz b_hz);
   }.
 End trusted_stack_layout.
 
@@ -72,7 +72,7 @@ Section adequacy_helpers.
       iAssert (codefrag (b_assert assert_cmpt) assert_subroutine_instrs)
         with "[Hassert]" as "Hassert".
       { rewrite /codefrag /region_pointsto big_sepL2_fmap_r.
-        replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)%a
+        replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)
           with (cap_assert assert_cmpt).
         2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
         iFrame.
@@ -121,7 +121,7 @@ Section adequacy_helpers.
       { exact Hcall. }
       rewrite /switcher_data_words.
       rewrite (finz_seq_between_cons switcher.b_switcher); last solve_addr.
-      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1)%a); last solve_addr.
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1)); last solve_addr.
       iDestruct "Hswitcher_data" as "(_ & Hswitcher_sealing & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { exact Hsize. }
@@ -131,7 +131,7 @@ Section adequacy_helpers.
         with "[Hswitcher]" as "Hswitcher_code".
       { rewrite /codefrag /region_pointsto.
         setoid_rewrite big_sepL2_fmap_r.
-        replace (switcher.a_switcher_call ^+ length switcher_instrs)%a
+        replace (switcher.a_switcher_call ^+ length switcher_instrs)
           with switcher.e_switcher by solve_addr+Hsize.
         iFrame. }
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
@@ -163,8 +163,7 @@ Section adequacy_helpers.
       ([∗ map] k↦y ∈ mkregion switcher.b_hazard_slots switcher.e_hazard_slots [WInt 0; WInt 0],
          k ↦ₐ lword_of_word y) -∗
       ●(CSTK)[th] (entry_cstack ef) -∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global switcher.b_trusted_stack
-                           switcher.e_trusted_stack switcher.b_trusted_stack)
+      mtdc ↦ₜ[th] Capₗ RWL _ switcher.b_trusted_stack switcher.e_trusted_stack switcher.b_trusted_stack
       ={E}=∗
       na_inv (tpool th) Ntstack trusted_stack_inv.
     Proof.
@@ -190,12 +189,12 @@ Section adequacy_helpers.
         set (e := switcher.e_trusted_stack) in *.
         set (l := ts) in *.
         set (i_frameoffset := Z.to_nat TrustedStack_offset_frameoffset) in Hframeoffset.
-        set (a_threadID := (b ^+ TrustedStack_offset_threadID)%a).
+        set (a_threadID := b ^+ TrustedStack_offset_threadID).
         (* The entry frame [frames[0]], and its cells *)
-        set (a_entry := (b ^+ TrustedStack_offset_frames)%a).
-        set (a_export_table := (a_entry ^+ TrustedStackFrame_offset_calleeExportTable)%a).
-        set (a_error_count := (a_entry ^+ TrustedStackFrame_offset_errorHandlerCount)%a).
-        set (a_next := (a_entry ^+ TrustedStackFrame_size)%a).
+        set (a_entry := b ^+ TrustedStack_offset_frames).
+        set (a_export_table := a_entry ^+ TrustedStackFrame_offset_calleeExportTable).
+        set (a_error_count := a_entry ^+ TrustedStackFrame_offset_errorHandlerCount).
+        set (a_next := a_entry ^+ TrustedStackFrame_size).
         assert (length l = Z.to_nat (tstack_frame_offset (S n))) as Hlen
           by (tstack_unfold; solve_addr).
         (* The save area, the header ([frameoffset] and [threadID]), the entry
@@ -222,7 +221,7 @@ Section adequacy_helpers.
         destruct rest as [|w_error_count rest]; first (cbn in Hlen_rest; tstack_unfold; lia).
         intros Hw_csp' Hw_tbl' Hw_cnt'. cbn in Hw_csp', Hw_tbl', Hw_cnt'. simplify_eq.
         rewrite fmap_app fmap_cons.
-        iDestruct (region_pointsto_split _ _ (b ^+ TSTACK_REGFRAME_SZ)%a with "Htrusted_stack")
+        iDestruct (region_pointsto_split _ _ (b ^+ TSTACK_REGFRAME_SZ) with "Htrusted_stack")
           as "[Hsave_area Htrusted_stack]".
         { tstack_unfold; solve_addr. }
         { rewrite length_fmap length_take /finz.dist; subst i_frameoffset; tstack_unfold; solve_addr. }
@@ -260,10 +259,10 @@ Section adequacy_helpers.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
-      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
-      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a in
-      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a in
+      let PCC := Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+      let CGP := Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler) in
+      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless) in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗
@@ -320,8 +319,8 @@ Section adequacy_helpers.
       pose proof (cmpt_exp_tbl_header_size C_cmpt).
       assert (finz.seq_between (cmpt_exp_tbl_cgp C_cmpt) (cmpt_exp_tbl_entries_start C_cmpt) =
                 [cmpt_exp_tbl_cgp C_cmpt;
-                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a;
-                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a])
+                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler);
+                 (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)])
         as Hheader_addrs.
       { rewrite finz_seq_between_cons; last solve_addr.
         rewrite finz_seq_between_cons; last solve_addr.
@@ -336,11 +335,11 @@ Section adequacy_helpers.
     Qed.
 
     Lemma initialise_adversary_compartment ( C_cmpt : cmpt ) :
-      let PCC := WCap true RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
-      let CGP := WCap true RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
+      let PCC := Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
+      let CGP := Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
       let exp_tbl_addrs := (finz.seq_between (cmpt_exp_tbl_entries_start C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)) in
-      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler)%a in
-      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless)%a in
+      let a_eh := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandler) in
+      let a_ehs := (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_errorHandlerStackless) in
       ([∗ map] k↦y ∈ mk_initial_cmpt C_cmpt, k ↦ₐ lword_of_word y)
       ==∗
       [[ (cmpt_b_pcc C_cmpt), (cmpt_a_code C_cmpt) ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] ∗

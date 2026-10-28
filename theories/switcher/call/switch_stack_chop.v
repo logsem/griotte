@@ -35,19 +35,18 @@ Section Switch_Stack_Chop.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
+    csp ↦ᵣ[th] Cap RWL Local b e (stk_saved_a a) ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-    (b_switcher ^+ 1)%a ↦ₐ□ WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_unseal_entry" ∗
-        cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        cs0 ↦ᵣ[th] SealRange (true,true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
         (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
         (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
         csp ↦ᵣ[th] chopped_csp b e a ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-          [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] -∗
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hstk_heap)
       "(HPC & Hcs0 & Hcs1 & Hct2 & Hcsp & Hstk & #Hb_switcher & #Hswitcher & Hpost)".
@@ -77,7 +76,7 @@ Section Switch_Stack_Chop.
     iInstr "Hcode".
 
     (* zero_stack t2, s0, gp *)
-    iAssert (codefrag_pers (a_chop ^+ 6%nat)%a (clear_stack_instrs ct2 cs0)) as "Hcode_zero".
+    iAssert (codefrag_pers (a_chop ^+ 6%nat) (clear_stack_instrs ct2 cs0)) as "Hcode_zero".
     { iEval (rewrite -(take_drop 6 (encodeInstrsW _))) in "Hcode".
       iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode']".
       rewrite length_take_le; last (cbn; lia).
@@ -97,7 +96,7 @@ Section Switch_Stack_Chop.
     switcher_open_label ".Lswitch_after_zero" "Hswitcher_key" as "Hcode_key".
     (* Auipcc cs0 .unsealing_key_import_tables *)
     iInstr "Hcode_key".
-    { instantiate (1 := (b_switcher ^+ 1)%a). switcher_addr_eq. }
+    { instantiate (1 := b_switcher ^+ 1). switcher_addr_eq. }
     (* CLoad cs0 cs0 0 *)
     iInstr "Hcode_key".
     { apply switcher_key_not_shadow. }

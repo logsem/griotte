@@ -37,13 +37,13 @@ Section Handle_Error.
   #[local] Lemma handle_error_block_spec (g_tstk : Locality)
     (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
-    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -55,29 +55,29 @@ Section Handle_Error.
     ▷ ( ( ⌜get_b wmepcc.(lw) = b_switcher⌝ -∗
           ∀ (wct0' wctp' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_in_switcher" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wmepcc ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] wca0 ∗
-          mtdc ↦ₜ[th] TStack tstack_cap ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
           ∀ (wct0' wct1' : LWord),
           ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ca0 ↦ᵣ[th] WInt 0 ∗
-          mtdc ↦ₜ[th] TStack tstack_cap ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+          safe[th] ) )
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset.
     iIntros (Ha_tstk Hlen Hmepcc)
@@ -90,8 +90,8 @@ Section Handle_Error.
       [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
       try done.
     injection Hmepcc as ->.
-    rewrite /tstack_save_end /tstack_cap.
-    assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a)
+    rewrite /tstack_save_end.
+    assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ))
       as Hsave_end by (tstack_unfold; solve_addr).
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
@@ -101,7 +101,7 @@ Section Handle_Error.
 
     (* SpecialRW cnull mtdc csp *)
     iInstr "Hcode".
-    { apply (mtdc_match_TStack_cap_any _ Global). }
+    { apply mtdc_match_TStack_cap_any. }
     (* Auipcc ct0 0 *)
     iInstr "Hcode".
     assert ((b_trusted_stack + 0)%a = Some b_trusted_stack) as Hts_0 by solve_addr.
@@ -135,7 +135,7 @@ Section Handle_Error.
       iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct0 $Hctp]"
         as "(HPC & Hct0 & Hctp)".
       { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
-      assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)%a) as Hts_2
+      assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)) as Hts_2
         by (tstack_unfold; solve_addr).
       (* CLoad ct0 csp 2 *)
       iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds _ _ _ _ _ _ _ ct0 csp 2)
@@ -191,46 +191,45 @@ Section Handle_Error.
     let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a in
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_in_switcher" ∗
-    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct1 ↦ᵣ[th] wmepcc ∗
     ctp ↦ᵣ[th] wctp ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
-    (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 ∗
+    (b_trusted_stack ^+ TrustedStack_offset_ca0) ↦ₐ w10 ∗
+    (b_trusted_stack ^+ TrustedStack_offset_ca1) ↦ₐ w11 ∗
     switcher_code ∗
     ▷ ( ( ⌜get_a wmepcc.(lw) ≠ (a_first_spill : Z)⌝ -∗
           ∀ (wct1' wctp' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] wca0 ∗
           ca1 ↦ᵣ[th] wca1 ∗
           ct2 ↦ᵣ[th] wct2 ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ w10 ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ w11 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          (b_trusted_stack ^+ TrustedStack_offset_ca0) ↦ₐ w10 ∗
+          (b_trusted_stack ^+ TrustedStack_offset_ca1) ↦ₐ w11 -∗
+          safe[th] ) ∧
         ( ⌜get_a wmepcc.(lw) = (a_first_spill : Z)⌝ -∗
           ∀ (wct1' wctp' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ct2 ↦ᵣ[th] switcher_label_pc ".Lswitch_just_return" ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca0)%a ↦ₐ WInt ENOTENOUGHSTACK ∗
-          (b_trusted_stack ^+ TrustedStack_offset_ca1)%a ↦ₐ WInt 0 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+          (b_trusted_stack ^+ TrustedStack_offset_ca0) ↦ₐ WInt ENOTENOUGHSTACK ∗
+          (b_trusted_stack ^+ TrustedStack_offset_ca1) ↦ₐ WInt 0 -∗
+          safe[th] ) )
+    ⊢ safe[th].
   Proof.
     intros a_first_spill.
     iIntros "(HPC & Hcsp & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hs10 & Hs11 & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
-    rewrite /tstack_cap.
     switcher_open_label ".Lhandle_error_in_switcher" "Hswitcher" as "Hcode".
     (* Auipcc ctp .Lswitch_entry_first_spill *)
     iInstr "Hcode".
@@ -254,10 +253,10 @@ Section Handle_Error.
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_just_return")%a
           by switcher_addr_eq. }
       assert ((b_trusted_stack + TrustedStack_offset_ca0)%a =
-                Some (b_trusted_stack ^+ TrustedStack_offset_ca0)%a) as Hts_10
+                Some (b_trusted_stack ^+ TrustedStack_offset_ca0)) as Hts_10
         by (rewrite /TrustedStack_offset_ca0; tstack_unfold; solve_addr).
       assert ((b_trusted_stack + TrustedStack_offset_ca1)%a =
-                Some (b_trusted_stack ^+ TrustedStack_offset_ca1)%a) as Hts_11
+                Some (b_trusted_stack ^+ TrustedStack_offset_ca1)) as Hts_11
         by (rewrite /TrustedStack_offset_ca1; tstack_unfold; solve_addr).
       (* Store csp ca0 TrustedStack_offset_ca0 *)
       iInstr "Hcode".
@@ -296,14 +295,14 @@ Section Handle_Error.
   Lemma handle_error_spec (g_tstk : Locality)
     (d : nat) (a_tstk : Addr) (save_area : list LWord)
     (wmepcc wmtdc wct0 wct1 wctp wca0 wca1 wct2 : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_first_spill := (a_switcher_call ^+ switcher_label_offset ".Lswitch_entry_first_spill")%a in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     length save_area = 21%nat ->
     save_area !! 0%nat = Some wmepcc ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error" ∗
-    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -317,49 +316,49 @@ Section Handle_Error.
     ▷ ( ( ⌜get_b wmepcc.(lw) = b_switcher ∧ get_a wmepcc.(lw) ≠ a_first_spill⌝ -∗
           ∀ (wct0' wct1' wctp' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] wca0 ∗
           ca1 ↦ᵣ[th] wca1 ∗
           ct2 ↦ᵣ[th] wct2 ∗
-          mtdc ↦ₜ[th] TStack tstack_cap ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜get_b wmepcc.(lw) = b_switcher ∧ get_a wmepcc.(lw) = a_first_spill⌝ -∗
           ∀ (wct0' wct1' wctp' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
           ctp ↦ᵣ[th] wctp' ∗
           ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ct2 ↦ᵣ[th] switcher_label_pc ".Lswitch_just_return" ∗
-          mtdc ↦ₜ[th] TStack tstack_cap ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
             [[ <[ Z.to_nat TrustedStack_offset_ca0 := (WInt ENOTENOUGHSTACK : LWord) ]>
                  (<[ Z.to_nat TrustedStack_offset_ca1 := (WInt 0 : LWord) ]> save_area) ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜get_b wmepcc.(lw) ≠ b_switcher⌝ -∗
           ∀ (wct0' wct1' : LWord),
           ⌜lea_result (save_area !!! 2%nat) (- ErrorState_size) = Some wct0'⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_oob" ∗
-          csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0' ∗
           ct1 ↦ᵣ[th] wct1' ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
           ca0 ↦ᵣ[th] WInt 0 ∗
           ca1 ↦ᵣ[th] wca1 ∗
           ct2 ↦ᵣ[th] wct2 ∗
-          mtdc ↦ₜ[th] TStack tstack_cap ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
           a_frameoffset ↦ₐ WInt (tstack_frameoffset d) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+          safe[th] ) )
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_first_spill.
     iIntros (Ha_tstk Hlen Hmepcc)
@@ -378,7 +377,7 @@ Section Handle_Error.
         [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
         try done.
       rewrite /tstack_save_end.
-      assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a)
+      assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ))
         as Hsave_end by (tstack_unfold; solve_addr).
       iRegionSplit "Hsave" as
         "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10

@@ -28,8 +28,8 @@ Section Switch_Stack_Too_Small.
     ▷ ( PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
         ca0 ↦ᵣ[th] WInt ENOTENOUGHSTACK ∗
         ca1 ↦ᵣ[th] WInt 0 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hca0 & Hca1 & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_stack_too_small" "Hswitcher" as "Hcode".

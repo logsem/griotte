@@ -260,12 +260,12 @@ Section VAE_World_Call.
     switcher_static -∗
     ca0 ↦ᵣ[th] WInt 0 -∗
     ca1 ↦ᵣ[th] WInt 0 -∗
-    ct0 ↦ᵣ[th] vae_switcher_entry -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
+    ct0 ↦ᵣ[th] switcher_entry_call -∗
+    regs[th] rmap -∗
     ∃ rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ([∗ map] rarg↦warg ∈ vae_call_adv_arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
+      regs[th] rmap'.
   Proof.
     iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 Hca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
@@ -282,7 +282,7 @@ Section VAE_World_Call.
       rewrite !dom_delete_L Hrmap_dom /dom_arg_rmap.
       set_solver+. }
     iAssert (interp W C (WInt 0)) as "#Hint"; first iApply interp_int.
-    iAssert (interp W C vae_switcher_entry) as "#Hentry".
+    iAssert (interp W C switcher_entry_call) as "#Hentry".
     { iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]"); done. }
     rewrite /vae_call_adv_arg_rmap.
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
@@ -293,7 +293,7 @@ Section VAE_World_Call.
       frame. The entry point of [B.adv] is still safe in the revoked
       world. *)
   Lemma vae_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

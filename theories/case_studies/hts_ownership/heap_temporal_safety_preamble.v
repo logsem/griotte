@@ -7,7 +7,7 @@ Section Heap_Temporal_Safety_Resources.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
   Definition hts_buffer (b : Addr) : Word :=
-    WCap true RW Global b (b ^+ 1)%a b.
+    Cap RW Global b (b ^+ 1) b.
 
   Lemma hts_private_data_initial p e :
     (p + 1)%a = Some e ->
@@ -29,21 +29,21 @@ Section Heap_Temporal_Safety_Imports.
   Lemma hts_main_imports_pointsto_pers b e owner_a adv_f :
     (b + 6)%a = Some e ->
     [[b, e]] ↦ₐ□ [[lword_of_word <$> hts_main_imports owner_a adv_f]] ⊣⊢
-      b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
-      ∗ (b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert
-      ∗ (b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f
-      ∗ (b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global)
-      ∗ (b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global)
-      ∗ (b ^+ 5)%a ↦ₐ□ allocator_capability Global owner_a
-      ∗ region_pointsto_pers (b ^+ 6)%a e [].
+      b ↦ₐ□ switcher_entry_call
+      ∗ (b ^+ 1) ↦ₐ□ assert_entry
+      ∗ (b ^+ 2) ↦ₐ□ WSealed ot_switcher adv_f
+      ∗ (b ^+ 3) ↦ₐ□ WSealed ot_switcher (allocator_malloc Global)
+      ∗ (b ^+ 4) ↦ₐ□ WSealed ot_switcher (allocator_free Global)
+      ∗ (b ^+ 5) ↦ₐ□ allocator_capability Global owner_a
+      ∗ region_pointsto_pers (b ^+ 6) e [].
   Proof.
     intros Hsize. rewrite /hts_main_imports.
-    rewrite (region_pointsto_pers_cons b (b ^+ 1)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_pers_cons (b ^+ 1)%a (b ^+ 2)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_pers_cons (b ^+ 2)%a (b ^+ 3)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_pers_cons (b ^+ 3)%a (b ^+ 4)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_pers_cons (b ^+ 4)%a (b ^+ 5)%a e); [|solve_addr|solve_addr].
-    rewrite (region_pointsto_pers_cons (b ^+ 5)%a (b ^+ 6)%a e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons b (b ^+ 1) e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 1) (b ^+ 2) e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 2) (b ^+ 3) e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 3) (b ^+ 4) e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 4) (b ^+ 5) e); [|solve_addr|solve_addr].
+    rewrite (region_pointsto_pers_cons (b ^+ 5) (b ^+ 6) e); [|solve_addr|solve_addr].
     done.
   Qed.
 End Heap_Temporal_Safety_Imports.

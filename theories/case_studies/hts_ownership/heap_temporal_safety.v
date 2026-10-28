@@ -210,8 +210,8 @@ Section Heap_Temporal_Safety.
       main compartment's static sealed region. *)
   Definition hts_main_imports `{!switcherLayout} `{!assertLayout}
       `{!allocatorLayout} (owner_a : Addr) (adv_f : Sealable) : list Word :=
-    [WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
-     WSentry Inherit true RX Global b_assert e_assert b_assert;
+    [switcher_entry_call;
+     assert_entry;
      WSealed ot_switcher adv_f;
      WSealed ot_switcher (allocator_malloc Global);
      WSealed ot_switcher (allocator_free Global);

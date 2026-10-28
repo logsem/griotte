@@ -162,15 +162,15 @@ Ltac solve_nonZero :=
 #[export] Hint Extern 1 (get_tag_sealable _ = true) => reflexivity : solve_pure.
 
 (* canStore *)
-#[export] Hint Extern 1 (canStore WO (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore WO (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RW (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RW (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWX (WCap true _ Global _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWX (WCap true _ Local _ _ _ ) = false) => done : solve_pure.
-#[export] Hint Extern 1 (canStore WLO (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWL (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
-#[export] Hint Extern 1 (canStore RWLX (WCap true _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (Cap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WO (Cap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (Cap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RW (Cap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (Cap _ Global _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWX (Cap _ Local _ _ _ ) = false) => done : solve_pure.
+#[export] Hint Extern 1 (canStore WLO (Cap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWL (Cap _ _ _ _ _ ) = true) => done : solve_pure.
+#[export] Hint Extern 1 (canStore RWLX (Cap _ _ _ _ _ ) = true) => done : solve_pure.
 #[export] Hint Resolve canStoreRWL : solve_pure.
 
 (* Untagged data does not require store-local permission. Avoid choosing
@@ -275,9 +275,9 @@ Proof. do 2 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall p g b e a,
   executeAllowed p = true →
-  SubBounds b e a (a ^+ 5)%a →
+  SubBounds b e a (a ^+ 5) →
   ContiguousRegion a 5 →
-  isCorrectPC (WCap true p g b e a).
+  isCorrectPC (Cap p g b e a).
 Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2: RegName), exists r1 r2,
@@ -287,9 +287,9 @@ Proof. do 2 eexists. repeat apply conj; first solve_pure. all: reflexivity. Qed.
 
 Goal forall p g b e a,
   executeAllowed p = true →
-  SubBounds b e a (a ^+ 5)%a →
+  SubBounds b e a (a ^+ 5) →
   ContiguousRegion a 5 →
-  isCorrectPC (WCap true p g b e (a ^+ 1)%a).
+  isCorrectPC (Cap p g b e (a ^+ 1)).
 Proof. intros. solve_pure. Qed.
 
 Goal forall (r_t1 r_t2 r_t3: RegName), exists r1 r2 r3,

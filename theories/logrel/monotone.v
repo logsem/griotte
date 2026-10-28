@@ -17,10 +17,10 @@ Section monotone.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -474,7 +474,7 @@ Section monotone.
       cbn in Htag; try discriminate;
       rewrite !interp_unfold /= /interp_sb; last done.
     iDestruct "Hw" as "[$ %Hvalid]". cbn in Hvalid. iPureIntro.
-    eapply (heap_cap_valid_future_retained W W' (WSealed ot (SCap true p g b e a) @@? π)); eauto.
+    eapply (heap_cap_valid_future_retained W W' (Sealed ot p g b e a @@? π)); eauto.
     - exact (proj2 (proj2 (proj2 Hrelated))).
     - intros. by apply heap_authority_base_sealed_heap.
   Qed.

@@ -92,7 +92,7 @@ Qed.
     suffice; 5000 reaches [Halted]. *)
 Theorem dle_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], dle_demo_state)
+    rtc erased_step ([Exec], dle_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt dle_demo_image) = Some (WInt 0%Z).
 Proof.

@@ -82,15 +82,15 @@ Section KVS_physical_map.
 
   Definition physical_kvs_entry
     (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
-    let a_opt_idx := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
-    let a_opt_idx_next := (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a in
+    let a_opt_idx := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx)) in
+    let a_opt_idx_next := (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)) in
     ∃ (wuk wmk : LWord),
       [[ a_opt_idx, a_opt_idx_next ]] ↦ₐ [[ option_pair_ASM opt_kw wuk wmk ]].
 
   Definition physical_kvs_entry' (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) : iProp Σ :=
-    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
-    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
-    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx)) in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1)) in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2)) in
     ( a_opt ↦ₐ ( match opt_kw with | None => WInt ASM_NONE | Some _ => WInt ASM_SOME end ) ) ∗
     ( match opt_kw with
       | None =>       a_key ↦ₐ -
@@ -102,24 +102,24 @@ Section KVS_physical_map.
       end).
 
   Definition physical_kvs_entry_some' (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) : iProp Σ :=
-    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
-    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
-    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx)) in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1)) in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2)) in
     ( a_opt ↦ₐ WInt ASM_SOME ∗
       a_key ↦ₐ WInt k ∗
       a_val ↦ₐ w).
 
   Definition physical_kvs_entry_none' (a : Addr) (idx : kvs_idx_t) : iProp Σ :=
-    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx))%a in
-    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1))%a in
-    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2))%a in
+    let a_opt := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx)) in
+    let a_key := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+1)) in
+    let a_val := (a ^+ (ASM_SIZEOF_KVS_ENTRY*idx+2)) in
     ( a_opt ↦ₐ WInt ASM_NONE ∗
       a_key ↦ₐ - ∗
       a_val ↦ₐ -).
 
   Lemma destruct_physical_kvs_entry_some (a : Addr) (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
   (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
-  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))
     ->
 
     physical_kvs_entry a idx (Some (k, w)) ⊣⊢ physical_kvs_entry_some' a idx k w.
@@ -127,19 +127,19 @@ Section KVS_physical_map.
     intros H.
     iSplit; iIntros "H".
     - iDestruct "H" as "(%&%&H)".
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1)) with "H") as
         "[$ H]"; try solve_addr.
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2)) with "H") as
         "[$ H]"; try solve_addr.
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3)) with "H") as
         "[$ H]"; try solve_addr.
     - iDestruct "H" as "(?&?&?)".
       iExists (WInt 0), (WInt 0).
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1)))
       ; [solve_addr | solve_addr | iFrame].
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2)))
       ; [solve_addr | solve_addr | iFrame].
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3)))
       ; [solve_addr | solve_addr | iFrame].
       rewrite /region_pointsto.
       rewrite finz_seq_between_empty; done.
@@ -147,7 +147,7 @@ Section KVS_physical_map.
 
   Lemma destruct_physical_kvs_entry_None (a : Addr) (idx : kvs_idx_t) :
     (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
-    = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+    = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))
     ->
 
       physical_kvs_entry a idx None ⊣⊢ physical_kvs_entry_none' a idx.
@@ -155,19 +155,19 @@ Section KVS_physical_map.
     intros H.
     iSplit; iIntros "H".
     - iDestruct "H" as "(%&%&H)".
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1)) with "H") as
         "[$ H]"; try solve_addr.
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2)) with "H") as
         "[$ H]"; try solve_addr.
-      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a with "H") as
+      iDestruct (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3)) with "H") as
         "[$ H]"; try solve_addr.
     - iDestruct "H" as "( ? & [%wuk ?] & [%wmk ?] )".
       iExists wuk, wmk.
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+1)))
       ; [solve_addr | solve_addr | iFrame].
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+2)))
       ; [solve_addr | solve_addr | iFrame].
-      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3))%a)
+      iApply (region_pointsto_cons _ (a ^+ ((ASM_SIZEOF_KVS_ENTRY * idx)+3)))
       ; [solve_addr | solve_addr | iFrame].
       rewrite /region_pointsto.
       rewrite finz_seq_between_empty; done.
@@ -175,7 +175,7 @@ Section KVS_physical_map.
 
   Lemma destruct_physical_kvs_entry (a : Addr) (idx : kvs_idx_t) (opt_kw : kvs_physical_entry) :
   (a ^+ ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY)%a
-  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))%a
+  = Some (a ^+ (ASM_SIZEOF_KVS_ENTRY * idx + ASM_SIZEOF_KVS_ENTRY))
     ->
 
     physical_kvs_entry a idx opt_kw ⊣⊢ physical_kvs_entry' a idx opt_kw.
@@ -1297,8 +1297,8 @@ Section KVS_init.
   Proof.
     rewrite /kvs_physical_map_init /kvs_data.
     generalize dependent e.
-    replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a by solve_addr.
-    rewrite {3}(_ : (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat))%a = b); last solve_addr.
+    replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat)) by solve_addr.
+    rewrite {3}(_ : b^+(ASM_SIZEOF_KVS_ENTRY*0%nat) = b); last solve_addr.
     generalize 0 as k.
     induction SIZE_MAP; iIntros (k e Hbe) "Hmem"; cbn; first done.
 
@@ -1319,14 +1319,14 @@ Section KVS_init.
       ) by done.
 
     iDestruct (region_pointsto_split
-                 (b ^+ ASM_SIZEOF_KVS_ENTRY * k)%a _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+ASM_SIZEOF_KVS_ENTRY))%a
+                 (b ^+ ASM_SIZEOF_KVS_ENTRY * k)%a _ (b ^+ ((ASM_SIZEOF_KVS_ENTRY * k)+ASM_SIZEOF_KVS_ENTRY))
                  with "Hmem") as "[Hasm_idx Hmem]"
     ; [ solve_addr+Hbe | symmetry; apply finz_incr_iff_dist; solve_addr+Hbe | ].
 
     iSplitL "Hasm_idx".
     - iFrame.
-    - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n))))%a with "[Hmem]"); first solve_addr+Hbe.
-      replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY))%a by solve_addr.
+    - iApply (IHn (b ^+ (ASM_SIZEOF_KVS_ENTRY * (k + (S n)))) with "[Hmem]"); first solve_addr+Hbe.
+      replace (b ^+ ASM_SIZEOF_KVS_ENTRY * S k)%a with (b ^+ (ASM_SIZEOF_KVS_ENTRY * k + ASM_SIZEOF_KVS_ENTRY)) by solve_addr.
       replace e with (b ^+ ASM_SIZEOF_KVS_ENTRY * (k + S n))%a by solve_addr.
       done.
   Qed.
@@ -1437,14 +1437,14 @@ Section KVS_preamble.
       import table. *)
   Lemma kvs_static_unsealing_key {KVS : kvsLayout} {KVS_wf : kvsLayoutWf} :
     kvs_static ⊢
-    (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key.
+    (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key.
   Proof.
     pose proof KVS_size_imports as Hsize.
     rewrite /length_kvs_imports /= in Hsize.
     rewrite /kvs_static /region_pointsto_pers /kvs_imports /kvs.kvs_imports_pre.
     rewrite !fmap_cons fmap_nil.
     rewrite (finz_seq_between_cons KVS_pcc_b); last solve_addr.
-    rewrite (finz_seq_between_cons (KVS_pcc_b ^+ 1)%a); last solve_addr.
+    rewrite (finz_seq_between_cons (KVS_pcc_b ^+ 1)); last solve_addr.
     rewrite /UNSEALING_USER_KEY_OFFSET.
     iIntros "[(_ & $ & _) _]".
   Qed.
@@ -1465,7 +1465,7 @@ Section KVS_preamble.
     ∃ (uk : user_key_t) (a : Addr),
       (* Shape of the capability*)
       ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
-      ⌜ withinBounds a (a^+1)%a a = true ⌝ ∗
+      ⌜ withinBounds a (a^+1) a = true ⌝ ∗
       ⌜ is_shadow_address a = false ⌝ ∗
       (* Payload contains the user key *)
       a ↦ₐ WInt uk ∗

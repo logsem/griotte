@@ -43,8 +43,8 @@ Section Switch_Csp_Check.
           ct2 ↦ᵣ[th] WInt zct2 ∗
           ctp ↦ᵣ[th] WInt zctp )
         -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hcsp & Hct2 & Hctp & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_csp_check" "Hswitcher" as "Hcode".

@@ -45,7 +45,7 @@ Section Error_Handling_Main_Spec.
   (** The call stack of a thread that starts in [main], with the stack
       [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -54,20 +54,20 @@ Section Error_Handling_Main_Spec.
     (pc_b + length (error_handling_main_imports adv_f))%a = Some pc_a ->
     [[ pc_b, pc_a ]] ↦ₐ□ [[ lword_of_word <$> error_handling_main_imports adv_f ]]
     ⊢
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
-    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global).
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher adv_f ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global).
   Proof.
     intros Himports.
     rewrite /error_handling_main_imports /= in Himports.
     rewrite /region_pointsto_pers /error_handling_main_imports !fmap_cons fmap_nil.
     rewrite (finz_seq_between_cons pc_b); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1)%a); last solve_addr.
-    assert ((pc_b ^+ 1 ^+ 1)%a = (pc_b ^+ 2)%a) as -> by solve_addr.
-    assert ((pc_b ^+ 2 ^+ 1)%a = (pc_b ^+ 3)%a) as -> by solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
+    assert (pc_b ^+ 1 ^+ 1 = pc_b ^+ 2) as -> by solve_addr.
+    assert (pc_b ^+ 2 ^+ 1 = pc_b ^+ 3) as -> by solve_addr.
     iIntros "($ & $ & $ & $ & _)".
   Qed.
 
@@ -124,37 +124,37 @@ Section Error_Handling_Main_Spec.
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
     cgp ↦ᵣ[th] wcgp ∗
-    cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret ∗
+    cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e a_ret ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ct1 ↦ᵣ[th] WSealed ot_switcher (STATS_read Global) ∗
     ca0 ↦ᵣ[th] wptr ∗
     ca1 ↦ᵣ[th] wca1 ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     ◯(CSTK)[th] cstk ∗
     stats_arg_pre wptr v ∗
     ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs1 : LWord),
         ⌜dom rmap_ret = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝ ∗
         na_own (tpool th) ⊤ ∗
-        PC ↦ₚ[th] WCap true RX Global pc_b pc_e a_ret ∗
+        PC ↦ₚ[th] Cap RX Global pc_b pc_e a_ret ∗
         cgp ↦ᵣ[th] wcgp ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e a_ret ∗
         cs0 ↦ᵣ[th] wcs0 ∗
         cs1 ↦ᵣ[th] rcs1 ∗
-        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+        csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ca0 ↦ᵣ[th] wca0 ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
-        ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) ∗
+        regs₀[th] rmap_ret ∗
         [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem' ]] ∗
         ◯(CSTK)[th] cstk ∗
         (stats_arg_post wptr v wca0 ∨
          ⌜wca0 = WInt ENOTENOUGHTRUSTEDSTACK⌝ ∗ stats_arg_pre wptr v)
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hpc_nonheap Hcgp_nonheap Hcs0_nonheap Hstk_mmio Hstk_heap Hstk_min
                Hdom_rmap)
@@ -169,7 +169,7 @@ Section Error_Handling_Main_Spec.
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hargs".
     { subst arg_rmap. repeat (iApply big_sepM_insert; [done | iFrame]). done. }
     iPoseProof (stats_read_spec_known_to_known wcgp
-                  (WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret)
+                  (Sentry (ret_kind mie) RX Global pc_b pc_e a_ret)
                   wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) arg_rmap cstk wptr v
                  with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats]")
       as "Hread"; [done | | done |].
@@ -181,7 +181,7 @@ Section Error_Handling_Main_Spec.
     iPoseProof "Hstats_static" as "Hstats_static'". iNamed "Hstats_static'".
     pose proof stats_exp_tbl_size as Hstats_exp_tbl_size.
     rewrite /length_stats_exports_tbl /stats_nb_exports in Hstats_exp_tbl_size.
-    assert (∀ a, (b_stats_exp_tbl <= a < e_stats_exp_tbl)%a → is_shadow_address a = false)
+    assert (∀ a, a ∈ₐ [b_stats_exp_tbl, e_stats_exp_tbl) → is_shadow_address a = false)
       as Hexport_shadow.
     { intros a Ha. eapply disjoint_from_shadow_not_in;
         [exact stats_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
@@ -291,23 +291,23 @@ Section Error_Handling_Main_Spec.
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_3")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_3")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
@@ -380,23 +380,23 @@ Section Error_Handling_Main_Spec.
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_2")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_2")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
@@ -480,23 +480,23 @@ Section Error_Handling_Main_Spec.
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
@@ -598,11 +598,11 @@ Section Error_Handling_Main_Spec.
     na_inv (tpool th) Nstats stats_inv ∗
     na_own (tpool th) ⊤ ∗
     (* The initial registers *)
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     cra ↦ᵣ[th] thread_return_sentry ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     (* The memory of [main] *)
     [[ pc_b, pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
     codefrag_pers pc_a error_handling_main_code ∗
@@ -613,8 +613,8 @@ Section Error_Handling_Main_Spec.
     ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
     interp W0 C (WSealed ot_switcher adv_f) ∗
     adv_f ↦ₑ□{nargs} 0 ∗
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+    ⊢ safe[th].
   Proof.
     intros imports. subst imports.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).

@@ -43,7 +43,7 @@ Section griotte_lang_rules.
 
   Inductive SpecialRW_failure (lpc : LWord) : Prop :=
   | SpecialRW_fail_nonxsr p g b e a π :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = false →
       SpecialRW_failure lpc
   | SpecialRW_fail_incrPC :
@@ -55,7 +55,7 @@ Section griotte_lang_rules.
     (src : Z + RegName) (lpc' : LWord) (regs' : LReg) (sregs' : LSReg)
     : griotte_lang.val → Prop :=
   | SpecialRW_spec_success p g b e a π vold :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
       sregs !! sr = Some vold →
       specialrw_sregs regs sregs sr src = Some sregs' →
@@ -118,7 +118,7 @@ Section griotte_lang_rules.
   (** The physical write of [SpecialRW] to a register other than MTDC and
       mstatus keeps MIE and mtdc. *)
   Lemma specialrw_sys_kept pc (r : Reg) psr m st psr' sr src :
-    sr ≠ MTDC → sr ≠ MSTATUS →
+    sr ≠ mtdc → sr ≠ mstatus →
     (match src with
      | inr rs =>
          if decide (rs = cnull) then Some (pc, r, psr, m, st)
@@ -135,19 +135,19 @@ Section griotte_lang_rules.
 
   Lemma wp_SpecialRW Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst sr src regs sregs dq :
     decodeInstrW w.(lw) = SpecialRW dst sr src →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (SpecialRW dst sr src) ⊆ dom regs →
     (if has_sreg_access pc_p
      then sregs_of (SpecialRW dst sr src) ⊆ dom sregs
      else True) →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}
       Instr Executable @ Ep
     {{{ lpc' regs' sregs' retv, RET retv;
-        ⌜ SpecialRW_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
+        ⌜ SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
             lpc' regs' sregs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -172,13 +172,13 @@ Section griotte_lang_rules.
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
     { rewrite /regs_of /operands_of in Dregs. set_solver. } { done. }
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
-    destruct (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
+    destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
     { (* The PC increment fails: the state is unchanged. *)
       pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
       rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
-      assert (∀ φ', pcc φ' = WCap true pc_p pc_g pc_b pc_e pc_a → nextPC φ' = None) as Hfail'.
+      assert (∀ φ', pcc φ' = Cap pc_p pc_g pc_b pc_e pc_a → nextPC φ' = None) as Hfail'.
       { intros φ' Hpc. by rewrite /nextPC /advancePC Hpc Hpca'. }
       rewrite Hfail' in Hstep; last by case_decide.
       instr_fail Hstep.
@@ -199,7 +199,7 @@ Section griotte_lang_rules.
       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-        (λ lpc' retv, SpecialRW_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs
+        (λ lpc' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs
            dst sr src lpc' regs sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
       { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
@@ -214,7 +214,7 @@ Section griotte_lang_rules.
         as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
-        (λ lpc' regs' retv, SpecialRW_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs
+        (λ lpc' regs' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs
            sregs dst sr src lpc' regs' sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
       { exact Her1. } { exact Hlregs. }
@@ -235,9 +235,9 @@ Section griotte_lang_rules.
       lpc' regs' sregs' retv :
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
-    SpecialRW_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
+    SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
       lpc' regs' sregs' retv →
-    retv = NextIV ∧ lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
+    retv = NextIV ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
     ∃ vold, sregs !! sr = Some vold ∧
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       regs' = specialrw_regs regs dst vold.
@@ -253,18 +253,18 @@ Section griotte_lang_rules.
 
   Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :
     decodeInstrW w.(lw) = SpecialRW dst src (inr cnull) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull ->
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ₓ wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ lword_of_word wsrc
           ∗ src ↦ₓ wsrc }}}.
@@ -287,18 +287,18 @@ Section griotte_lang_rules.
 
   Lemma wp_writesr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :
     decodeInstrW w.(lw) = SpecialRW cnull dst (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull ->
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ₓ wdst
         ∗ ▷ src ↦ᵣ lword_of_word wsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ₓ legalise dst wsrc
           ∗ src ↦ᵣ lword_of_word wsrc }}}.
@@ -324,18 +324,18 @@ Section griotte_lang_rules.
   (** The swap of a register with a system register. *)
   Lemma wp_specialrw_swap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r sr (v vold : LWord) dq :
     decodeInstrW w.(lw) = SpecialRW r sr (inr r) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r ↦ᵣ v
         ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r ↦ᵣ vold
           ∗ sr ↦ₓ llegalise sr v }}}.
@@ -362,20 +362,20 @@ Section griotte_lang_rules.
   Lemma wp_specialrw_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst sr src
       (v vold : LWord) dq :
     decodeInstrW w.(lw) = SpecialRW dst sr (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     src ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ wdst
         ∗ ▷ src ↦ᵣ v
         ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ dst ↦ᵣ vold
           ∗ src ↦ᵣ v
@@ -402,16 +402,16 @@ Section griotte_lang_rules.
   (** The write of an immediate, as [csrw sr, z]. *)
   Lemma wp_specialrw_imm_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w sr (z : Z) vold dq :
     decodeInstrW w.(lw) = SpecialRW cnull sr (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ sr ↦ₓ vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ sr ↦ₓ legalise sr (WInt z) }}}.
   Proof.
@@ -437,20 +437,20 @@ Section griotte_lang_rules.
 
   (** [cspecialr dst, mtdc]. *)
   Lemma wp_readsr_mtdc E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst m dq :
-    decodeInstrW w.(lw) = SpecialRW dst MTDC (inr cnull) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW dst mtdc (inr cnull) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wdst ∗
         ▷ mtdc ↦ₜ m }}}
       Instr Executable @ E
       {{{ vm, RET NextIV;
           ⌜mtdc_match m vm⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           dst ↦ᵣ vm ∗
           mtdc ↦ₜ m }}}.
@@ -467,7 +467,7 @@ Section griotte_lang_rules.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
     destruct (decide (dst = cnull)) as [Hc|_]; first done. cbn in Hstep.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (ls_vmtdc lsreg) wold _ _ _
-      (λ lpc' regs' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
+      (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                           regs' = <[dst := ls_vmtdc lsreg]ₗ> {[dst := wdst]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
     { exact Her. } { exact Hlregs. } { right. set_solver. } { exact Hok. } { exact Hstep. }
@@ -484,22 +484,22 @@ Section griotte_lang_rules.
       for the written word. *)
   Lemma wp_writesr_mtdc_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m m' dq
       (T1 T2 : iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW cnull MTDC (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
     mtdc_match m' v →
     link_transfer mtdc_written T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ v ∗
         ▷ mtdc ↦ₜ m ∗
         ▷ T1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           src ↦ᵣ v ∗
           mtdc ↦ₜ m' ∗
@@ -519,19 +519,19 @@ Section griotte_lang_rules.
     destruct (decide (src = cnull)) as [Hc|_]; first done.
     rewrite Hrs /= in Hstep.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ MTDC v (and_tag s (lw v)) Her Hok Hrel)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
       as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' v) in Her1. cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' v Hm' with "Hsr Hmtdc_f") as "[Hsr Hmtdc_f]".
     iApply (instr_close_link_transfer _ _ _ _
-              (WCap true pc_p pc_g pc_b pc_e pc_a, r, <[MTDC := and_tag s (lw v)]> psr, mm, st)
+              (Cap pc_p pc_g pc_b pc_e pc_a, r, <[mtdc := and_tag s (lw v)]> psr, mm, st)
               with "Hlink HT"); [exact Htr | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-      (λ lpc' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
+      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
     { intros lpc' Hi. rewrite /incrementPC_gen /= Hpca' in Hi. by simplify_eq. }
@@ -545,15 +545,15 @@ Section griotte_lang_rules.
       [m'] that stands for the word written. *)
   Lemma wp_specialrw_swap_mtdc_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m m' dq
       (T1 T2 : iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW r MTDC (inr r) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
     mtdc_match m' v →
     link_transfer mtdc_written T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r ↦ᵣ v ∗
         ▷ mtdc ↦ₜ m ∗
@@ -561,7 +561,7 @@ Section griotte_lang_rules.
       Instr Executable @ E
       {{{ vm, RET NextIV;
           ⌜mtdc_match m vm⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           r ↦ᵣ vm ∗
           mtdc ↦ₜ m' ∗
@@ -582,17 +582,17 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= in Hstep.
     destruct (decide (r = cnull)) as [Hc|_]; first done.
     rewrite Hrs /= in Hstep.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ MTDC v (and_tag s (lw v)) Her Hok Hrel)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
       as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' v) in Her1. cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' v Hm' with "Hsr Hmtdc_f") as "[Hsr Hmtdc_f]".
     iApply (instr_close_link_transfer _ _ _ _
-              (WCap true pc_p pc_g pc_b pc_e pc_a, rf, <[MTDC := and_tag s (lw v)]> psr, mm, st)
+              (Cap pc_p pc_g pc_b pc_e pc_a, rf, <[mtdc := and_tag s (lw v)]> psr, mm, st)
               with "Hlink HT"); [exact Htr | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold _ _ _
-      (λ lpc' regs' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
+      (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                           regs' = <[r := ls_vmtdc lsreg]ₗ> {[r := v]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
     { exact Her1. } { exact Hlregs. } { right. set_solver. } { exact Hokold. }
@@ -612,20 +612,20 @@ Section griotte_lang_rules.
   (** [cspecialw mtdc, z]: the write of an immediate. *)
   Lemma wp_specialrw_imm_mtdc_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m m' dq
       (T1 T2 : iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW cnull MTDC (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     mtdc_match m' (lword_of_word (WInt z)) →
     link_transfer mtdc_written T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ mtdc ↦ₜ m ∗
         ▷ T1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           mtdc ↦ₜ m' ∗
           T2 }}}.
@@ -638,20 +638,20 @@ Section griotte_lang_rules.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & _).
     rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= in Hstep.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ MTDC (lword_of_word (WInt z)) (WInt z)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc (lword_of_word (WInt z)) (WInt z)
                   Her (reg_word_ok_int _ _ _ _) (reg_phys_lword_of_word _ _)) as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' (lword_of_word (WInt z))) in Her1.
     cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' _ Hm' with "Hsr Hmtdc_f") as "[Hsr Hmtdc_f]".
     iApply (instr_close_link_transfer _ _ _ _
-              (WCap true pc_p pc_g pc_b pc_e pc_a, r, <[MTDC := WInt z]> psr, mm, st)
+              (Cap pc_p pc_g pc_b pc_e pc_a, r, <[mtdc := WInt z]> psr, mm, st)
               with "Hlink HT"); [exact Htr | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-      (λ lpc' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
+      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
     { intros lpc' Hi. rewrite /incrementPC_gen /= Hpca' in Hi. by simplify_eq. }
@@ -670,20 +670,20 @@ Section griotte_lang_rules_core.
   Implicit Types w : LWord.
 
   Lemma wp_writesr_mtdc E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m m' dq :
-    decodeInstrW w.(lw) = SpecialRW cnull MTDC (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
     mtdc_match m' v →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ v ∗
         ▷ mtdc ↦ₜ m }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           src ↦ᵣ v ∗
           mtdc ↦ₜ m' }}}.
@@ -697,21 +697,21 @@ Section griotte_lang_rules_core.
   Qed.
 
   Lemma wp_specialrw_swap_mtdc E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m m' dq :
-    decodeInstrW w.(lw) = SpecialRW r MTDC (inr r) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
     mtdc_match m' v →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r ↦ᵣ v ∗
         ▷ mtdc ↦ₜ m }}}
       Instr Executable @ E
       {{{ vm, RET NextIV;
           ⌜mtdc_match m vm⌝ ∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           r ↦ᵣ vm ∗
           mtdc ↦ₜ m' }}}.
@@ -725,18 +725,18 @@ Section griotte_lang_rules_core.
   Qed.
 
   Lemma wp_specialrw_imm_mtdc E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m m' dq :
-    decodeInstrW w.(lw) = SpecialRW cnull MTDC (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     mtdc_match m' (lword_of_word (WInt z)) →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ mtdc ↦ₜ m }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           mtdc ↦ₜ m' }}}.
   Proof.

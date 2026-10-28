@@ -27,7 +27,7 @@ Section KVS_spec_addOrUpdate_safe.
     (F : coPset)
     :
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
     ↑Nkvs_otype ⊆ F ->
@@ -42,8 +42,8 @@ Section KVS_spec_addOrUpdate_safe.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] wca0 ∗ interp Wca C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to update *)
@@ -67,7 +67,7 @@ Section KVS_spec_addOrUpdate_safe.
 
            world_interp W C
 
-           -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+           -∗ safe[th]
         ) ∧
         (* The load after the failed unsealing of the user key faults *)
         ▷ ( ∀ a,
@@ -81,9 +81,9 @@ Section KVS_spec_addOrUpdate_safe.
             ct1 ↦ᵣ[th] - ∗
             ct2 ↦ᵣ[th] - ∗
             world_interp W C -∗
-            trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
+            trap_safe (Cap RX Global KVS_pcc_b KVS_pcc_e a) ⊤
               (HO th) ) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt)
       "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
@@ -237,7 +237,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     :
 
-    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     KVS_pcc_b ≠ b_switcher ->
     seal_pred KVS_OTYPE kvs_otype_propC ∗
     kvs_static ∗
@@ -245,12 +245,12 @@ Section KVS_spec_addOrUpdate_safe.
     na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
-    b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
-    a_kvs_exp_tbl_cgp ↦ₐ□ WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+    b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
+    a_kvs_exp_tbl_cgp ↦ₐ□ Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
     no_handler b_kvs_exp_tbl ∗
     kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate
     -∗
-    ot_switcher_prop W C (WCap true RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
+    ot_switcher_prop W C (Cap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
     intros a_kvs_exp_tbl_cgp Hpc_switcher.
     subst a_kvs_exp_tbl_cgp.
@@ -303,7 +303,6 @@ Section KVS_spec_addOrUpdate_safe.
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /stk_start_a in Hcsp |- *.
-    rewrite /interp_conf.
     rewrite /registers_pointsto.
 
     (* Extract the registers that we will need *)
@@ -329,7 +328,7 @@ Section KVS_spec_addOrUpdate_safe.
     set (W1 := revoke W0).
     assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
-    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false)
       as Hunsealing_shadow.
     { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
       apply withinBounds_true_iff.
@@ -346,7 +345,7 @@ Section KVS_spec_addOrUpdate_safe.
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
 
     iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) C
-              (WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+              (Sentry (ret_kind mie_ret) XSRW_ Local b_switcher e_switcher a_switcher_return)
               wca0 wca1 wca2 ⊤ Hunsealing_shadow
              with "[$Hspred $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
                     $Hca0 $Hinterp_wca0 $Hca1 $Hca2 $Hinterp_wca2 $Hctp $Hct1 $Hct2 $Hworld_C

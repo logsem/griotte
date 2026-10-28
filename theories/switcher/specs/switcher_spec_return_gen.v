@@ -25,7 +25,7 @@ Section Switcher.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   Lemma switcher_ret_specification_gen
     (W0 Wcur : WORLD)
@@ -55,13 +55,13 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own (tpool th) ⊤
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ ▷ RevokedResources Wfixed C l
-    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y)
+    ∗ regs[th] rmap
     ∗ ca0 ↦ᵣ[th] wca0
     ∗ ca1 ↦ᵣ[th] wca1
     ∗ csp ↦ᵣ[th] wcsp
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant;
@@ -127,7 +127,7 @@ Section Switcher.
     iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
     destruct HWF as (-> & Hstk_bounds & Hstk_mmio & Hstk_heap & Hret_ok).
-    assert (∀ tf, tf.(tf_csp).(lw) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) →
+    assert (∀ tf, tf.(tf_csp).(lw) = Cap RWL Local b_stk e_stk (stk_saved_a a_stk) →
                   tf_caller_a tf = a_stk) as Hspill.
     { intros tf Htf. eapply tf_caller_a_saved; [apply Hstk_bounds | exact Htf]. }
     (* The callee's stack is the one carved out of the caller's *)
@@ -183,8 +183,7 @@ Section Switcher.
                world_interp Wfixed C ∗
                (if is_untrusted_caller ccrel
                 then True
-                else [[stk_spill_a a_stk, (stk_spill_a a_stk ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes
-                       (stk_spill_a a_stk) (stk_spill_a a_stk ^+ SpillSlot_size)%a]]))%I
+                else [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]))%I
       with "[Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hworld_interp Hstk' Hstk Hrevoked Hlc'']" as "Hupd".

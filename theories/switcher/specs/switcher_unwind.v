@@ -31,12 +31,12 @@ Section Switcher_unwind.
     ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
           cra ↦ᵣ[th] wret ∗
           £ 1 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
         cra ↦ᵣ[th] wret -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
           (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
     iApply (switcher_return_to_caller_spec with "[$HPC $Hcra $Hswitcher $Hpost]").
@@ -60,7 +60,7 @@ Section Switcher_unwind.
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
       "(HPC & Hrmap & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".

@@ -11,7 +11,7 @@ Definition AddrRegionRange (l: list Addr) (b e: Addr) :=
 
 Lemma AddrRegionRange_singleton a :
   ByReflexivity (eqb_addr a addresses.top = false) →
-  AddrRegionRange [a] a (a^+1)%a.
+  AddrRegionRange [a] a (a^+1).
 Proof.
   unfold ByReflexivity. cbn. intros ?%Z.eqb_neq.
   intros a' ->%list_elem_of_singleton. solve_addr.

@@ -24,7 +24,7 @@ Section Switcher_KtK_Return.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
 
   (** The return to a known caller: the stack pointer can hold any word,
@@ -42,7 +42,7 @@ Section Switcher_KtK_Return.
     :
     let frame :=
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
+                {| tf_csp := Cap RWL Local b_stk e_stk (stk_saved_a a_stk);
                    tf_export_tbl := w_callee_exp_tbl;
                    tf_error_count := n_cnt |};
               cf_saved :=
@@ -74,7 +74,7 @@ Section Switcher_KtK_Return.
     (* NA token*)
     ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
     ∗ cgp ↦ᵣ[th] - ∗ cra ↦ᵣ[th] - ∗ cs0 ↦ᵣ[th] - ∗ cs1 ↦ᵣ[th] -
     (* Stack register, any word: the return routine reloads it *)
@@ -84,7 +84,7 @@ Section Switcher_KtK_Return.
     ∗ ca1 ↦ᵣ[th] wca1
 
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -105,24 +105,23 @@ Section Switcher_KtK_Return.
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
               (* Stack register *)
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               (* Return values *)
               ∗ ca0 ↦ᵣ[th] wca0
               ∗ ca1 ↦ᵣ[th] wca1
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ regs₀[th] rmap'
 
               (* Stack frame *)
-              ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
-                   [[region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)]])
+              ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]])
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
 
-                -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+                -∗ safe[th]
             )
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant, and read the topmost frame of the call
@@ -209,7 +208,7 @@ Section Switcher_KtK_Return.
     :
     let frame :=
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
+                {| tf_csp := Cap RWL Local b_stk e_stk (stk_saved_a a_stk);
                    tf_export_tbl := w_callee_exp_tbl;
                    tf_error_count := 0 |};
               cf_saved :=
@@ -241,7 +240,7 @@ Section Switcher_KtK_Return.
     (* NA token*)
     ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return
     (* Callee-saved registers *)
     ∗ cgp ↦ᵣ[th] - ∗ cra ↦ᵣ[th] - ∗ cs0 ↦ᵣ[th] - ∗ cs1 ↦ᵣ[th] -
     (* Stack register *)
@@ -251,7 +250,7 @@ Section Switcher_KtK_Return.
     ∗ ca1 ↦ᵣ[th] wca1
 
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -272,24 +271,23 @@ Section Switcher_KtK_Return.
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
               (* Stack register *)
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               (* Return values *)
               ∗ ca0 ↦ᵣ[th] wca0
               ∗ ca1 ↦ᵣ[th] wca1
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ regs₀[th] rmap'
 
               (* Stack frame *)
-              ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
-                   [[region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)]])
+              ∗ ([[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]])
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
 
-                -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+                -∗ safe[th]
             )
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)

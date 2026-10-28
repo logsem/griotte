@@ -149,8 +149,10 @@ Section griotte_lang.
     | _ => False
     end.
 
-
 End griotte_lang.
+
+(** The program of a thread: execute instructions until it halts or fails. *)
+Notation Exec := (Seq (Instr Executable)).
 
 Canonical Structure cap_ectxi_lang `{MachineParameters} := EctxiLanguage griotte_lang_mixin.
 Canonical Structure cap_ectx_lang `{MachineParameters} := EctxLanguageOfEctxi cap_ectxi_lang.

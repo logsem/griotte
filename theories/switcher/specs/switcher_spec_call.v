@@ -52,11 +52,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp_caller
     ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ[th] wct1_caller ∗ interp W C wct1_caller
     ∗ w_entry_point ↦ₑ□{nargs} nargs
@@ -68,7 +68,7 @@ Section Switcher.
                                         then interp W C warg
                                         else True )
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -105,21 +105,21 @@ Section Switcher.
             ∗ cra ↦ᵣ[th] rcra
             ∗ cs0 ↦ᵣ[th] rcs0
             ∗ cs1 ↦ᵣ[th] rcs1
-            ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
-              -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+              -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
@@ -182,11 +182,11 @@ Section Switcher.
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp_caller
     ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ[th] wct1_caller ∗ (if is_sealed_with_o wct1_caller.(lw) ot_switcher then interp W C wct1_caller else True)
     ∗ cs0 ↦ᵣ[th] wcs0_caller
@@ -194,7 +194,7 @@ Section Switcher.
     (* Argument registers, need to be safe-to-share *)
     ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg )
     (* All the other registers *)
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -231,23 +231,23 @@ Section Switcher.
             ∗ cra ↦ᵣ[th] rcra
             ∗ cs0 ↦ᵣ[th] rcs0
             ∗ cs1 ↦ᵣ[th] rcs1
-            ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+            ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
                 load_heap_in_world W2 wcra_caller rcra ∧
                 load_heap_in_world W2 wcs0_caller rcs0 ∧
                 load_heap_in_world W2 wcs1_caller rcs1⌝
-              -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
+              -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
           b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
 
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v

@@ -20,11 +20,11 @@ Section Thread_Return_Sentry.
       [switcher_after_compartment_call]. A return from the thread's entry
       through it exits the thread ([switcher_ret_thread_exit_specification]). *)
   Definition thread_return_sentry : Word :=
-    WSentry RetDisable true XSRW_ Local b_switcher e_switcher a_switcher_return.
+    Sentry RetDisable XSRW_ Local b_switcher e_switcher a_switcher_return.
 
   Lemma thread_return_sentry_pc :
     lupdatePcPerm (lword_of_word thread_return_sentry) =
-    lword_of_word (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    lword_of_word (Cap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof. reflexivity. Qed.
 
   (** A return ([Jalr cnull cra]) accepts it. *)
@@ -53,7 +53,7 @@ Section Switcher.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   Lemma switcher_ret_specification
     (W0 Wcur : WORLD)
@@ -84,13 +84,13 @@ Section Switcher.
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own (tpool th) ⊤
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return
     ∗ ▷ RevokedResources Wfixed C l
-    ∗ ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y)
+    ∗ regs[th] rmap
     ∗ ca0 ↦ᵣ[th] wca0
     ∗ ca1 ↦ᵣ[th] wca1
     ∗ csp ↦ᵣ[th] wcsp
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
@@ -110,12 +110,12 @@ Section Switcher.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     destruct cstk as [ef frms]; cbn; intros ->.
     iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk)".
@@ -178,7 +178,7 @@ Section Switcher.
        world_interp Wcur C ∗
        na_own (tpool th) ⊤ ∗
        RevokedResources Wfixed C l ∗
-       ([∗ map] k↦y ∈ rmap, k ↦ᵣ[th] y) ∗
+       regs[th] rmap ∗
        ca0 ↦ᵣ[th] - ∗
        ca1 ↦ᵣ[th] - ∗
        csp ↦ᵣ[th] -) -∗

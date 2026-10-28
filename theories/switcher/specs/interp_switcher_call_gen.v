@@ -26,10 +26,10 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -60,7 +60,7 @@ Section fundamental.
       [ctp] back in. *)
   #[local] Lemma interp_call_regs_exhausted (regs : LReg) (wct1 wct2 wctp : LWord) :
     (∀ r, is_Some (regs !! r)) ->
-    ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
+    regs[th] call_regs_without regs -∗
     ct1 ↦ᵣ[th] wct1 -∗
     ct2 ↦ᵣ[th] wct2 -∗
     ctp ↦ᵣ[th] wctp -∗
@@ -68,7 +68,7 @@ Section fundamental.
       ca0 ↦ᵣ[th] wca0 ∗
       ca1 ↦ᵣ[th] wca1 ∗
       ⌜ dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-      ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ[th] w ).
+      regs[th] rmap0.
   Proof.
     iIntros (Hfull) "Hregs Hct1 Hct2 Hctp".
     destruct (Hfull ca0) as [wca0 Hwca0].
@@ -92,8 +92,8 @@ Section fundamental.
     (wcsp wct2 wctp wcs0 wcs1 wcra wcgp wct1 : LWord) :
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
-    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ[th] w ) -∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) -∗
+    regs[th] arg_rmap -∗
+    regs[th] rmap -∗
     csp ↦ᵣ[th] wcsp -∗
     ct2 ↦ᵣ[th] wct2 -∗
     ctp ↦ᵣ[th] wctp -∗
@@ -123,12 +123,12 @@ Section fundamental.
   Qed.
 
   (** The frame of an untrusted caller, whose stack pointer is
-      [WCap true RWL Local b e a], with the word [wtbl] in its table cell.
+      [Cap RWL Local b e a], with the word [wtbl] in its table cell.
       The saved registers are not read: the caller's spill area belongs to
       its world. *)
   Definition interp_call_frame (b e a : Addr) (wtbl : LWord) : cframe :=
     {| cf_tframe :=
-         {| tf_csp := WCap true RWL Local b e (stk_saved_a a);
+         {| tf_csp := Cap RWL Local b e (stk_saved_a a);
             tf_export_tbl := wtbl;
             tf_error_count := 0 |};
        cf_saved :=
@@ -145,7 +145,7 @@ Section fundamental.
     disjoint_from_heap b e ->
     switcher_stk_bounds b e a ->
     switcher_trap_safety -∗
-    interp W C (WCap true RWL Local b e a) -∗
+    interp W C (Cap RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
     interp_cont interp cstk Ws Cs -∗
     interp_cont interp (cstack_push (interp_call_frame b e a wtbl) cstk) (W :: Ws) (C :: Cs).
@@ -173,14 +173,14 @@ Section fundamental.
     (W : WORLD) (C : CmptName)
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
 
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -189,7 +189,7 @@ Section fundamental.
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [common_force_unwind_spec] sets the return
@@ -230,8 +230,8 @@ Section fundamental.
     (regs : LReg) (b e a : Addr) (lv : list LWord)
     (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality)
     (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     disjoint_from_mmio b e ->
@@ -242,11 +242,11 @@ Section fundamental.
     interp W C wcs1 -∗
     interp W C wcra -∗
     interp W C wcgp -∗
-    interp W C (WCap true RWL Local b e a) -∗
+    interp W C (Cap RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
-    ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
+    regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
     ( ⌜ switcher_stk_bounds b e a ⌝ ∗
@@ -254,18 +254,18 @@ Section fundamental.
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
       cs1 ↦ᵣ[th] wcs1 ∗
       ctp ↦ᵣ[th] WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
-      ct2 ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
-      csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
+      ct2 ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+      csp ↦ᵣ[th] Cap RWL Local b e (stk_saved_a a) ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
       [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem_callee lv ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }} ).
+      safe[th] ).
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [switch_trusted_stack_exhausted_path_spec]
@@ -332,10 +332,10 @@ Section fundamental.
     (regs : LReg) (b e a : Addr) (lv : list LWord)
     (wcs0 wcs1 wcra wcgp wct1 : LWord)
     (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     (∀ r, is_Some (regs !! r)) ->
-    regs !! csp = Some (WCap true RWL Local b e a : LWord) -> regs !! cs0 = Some wcs0 ->
+    regs !! csp = Some (Cap RWL Local b e a : LWord) -> regs !! cs0 = Some wcs0 ->
     regs !! cs1 = Some wcs1 -> regs !! cra = Some wcra -> regs !! cgp = Some wcgp ->
     regs !! ct1 = Some wct1 ->
     frame_match Ws Cs cstk W C ->
@@ -345,11 +345,11 @@ Section fundamental.
     top_cmpt_untrusted interp W C cstk -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
-    ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
+    regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
-      csp ↦ᵣ[th] WCap true RWL Local b e a ∗
+      csp ↦ᵣ[th] Cap RWL Local b e a ∗
       ct2 ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
       ctp ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
       cs0 ↦ᵣ[th] wcs0 ∗
@@ -358,7 +358,7 @@ Section fundamental.
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] wct1 ∗
       [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ lv ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -395,12 +395,12 @@ Section fundamental.
     (cstk cstk' : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (b e a : Addr) (lv : list LWord)
     (wcs0 wcs1 wcra wcgp wct1 : LWord) (g_tstk : Locality) (a_tstk : Addr) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     disjoint_from_mmio b e ->
@@ -412,32 +412,31 @@ Section fundamental.
     interp W C wcs1 -∗
     interp W C wcra -∗
     interp W C wcgp -∗
-    interp W C (WCap true RWL Local b e a) -∗
+    interp W C (Cap RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
-    ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
+    regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
       ⌜ switcher_stk_bounds b e a ⌝ ∗
       ⌜ (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ⌝ ∗
       ⌜ (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
-      cs0 ↦ᵣ[th] WSealRange true (true,true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+      cs0 ↦ᵣ[th] SealRange (true,true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
       (∃ wcs1', cs1 ↦ᵣ[th] wcs1') ∗
       (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
-      ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
+      ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_next ∗
       csp ↦ᵣ[th] chopped_csp b e a ∗
       cra ↦ᵣ[th] wcra ∗
       cgp ↦ᵣ[th] wcgp ∗
       ct1 ↦ᵣ[th] - ∗
       switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
-      [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-        [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) ∗
       switcher_hazard ∗
-      a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+      a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
       a_export_table ↦ₐ - ∗
       a_error_count ↦ₐ WInt 0 ∗
       (∃ tstk_next', [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next' ]]) ∗
@@ -499,13 +498,13 @@ Section fundamental.
     (b e a : Addr) (a_tstk : Addr) (tstk_next : list LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl : Addr) (nargs minstk : nat)
     (arg_rmap rmap : LReg) :
-    let frame := interp_call_frame b e a (WCap true RO g_tbl b_tbl e_tbl a_tbl) in
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let frame := interp_call_frame b e a (Cap RO g_tbl b_tbl e_tbl a_tbl) in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     frame_match Ws Cs cstk W C ->
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
@@ -517,16 +516,16 @@ Section fundamental.
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
 
     switcher_trap_safety -∗
-    interp W C (WCap true RWL Local b e a) -∗
+    interp W C (Cap RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
-    a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) -∗
+    a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) -∗
     a_error_count ↦ₐ WInt 0 -∗
     [[ a_free, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ( ⌜ (stk_callee_e e a - stk_callee_b b a < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
@@ -538,12 +537,12 @@ Section fundamental.
       ctp ↦ᵣ[th] - ∗
       cgp ↦ᵣ[th] - ∗
       cra ↦ᵣ[th] - ∗
-      csp ↦ᵣ[th] WCap true RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_saved_a a) ∗
-      a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+      csp ↦ᵣ[th] Cap RWL Local (stk_callee_b b a) (stk_callee_e e a) (stk_saved_a a) ∗
+      a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
       ( [∗ map] r↦w ∈ arg_rmap,
           r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
-      ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }} ).
+      regs[th] rmap -∗
+      safe[th] ).
   Proof.
     intros frame a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -559,7 +558,7 @@ Section fundamental.
     iDestruct (big_sepM_sep with "Hparams") as "[Hparams _]".
     iDestruct (interp_call_regs_full with "Hparams Hrest Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1")
       as (regs) "[%Hfull Hregs]"; [done|done|].
-    iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (WCap true RO g_tbl b_tbl e_tbl a_tbl)
+    iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (Cap RO g_tbl b_tbl e_tbl a_tbl)
                 with "Hsafety Hspv Htop Hcont") as "Hcont"; [done|done|].
     iApply (switcher_call_stack_too_small_unwind_of_safety _ _ (cstack_push frame cstk)
              (W :: Ws) (C :: Cs)
@@ -571,7 +570,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_call_gen (W : WORLD) (C : CmptName) :
     switcher_trap_safety
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr interp (interp_cont interp) W C (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant;
@@ -630,8 +629,8 @@ Section fundamental.
 
     (* Is the stack pointer a valid stack capability, whose cursor is not
        above its top? *)
-    iAssert (⌜(∃ b e a, wcsp = WCap true RWL Local b e a ∧ (b < e)%a ∧ (a <= e)%a)
-            ∨ (∀ b e a, wcsp.(lw) = WCap true RWL Local b e a → (e <= b)%a ∨ (e < a)%a)⌝)%I
+    iAssert (⌜(∃ b e a, wcsp = Cap RWL Local b e a ∧ (b < e)%a ∧ (a <= e)%a)
+            ∨ (∀ b e a, wcsp.(lw) = Cap RWL Local b e a → (e <= b)%a ∨ (e < a)%a)⌝)%I
       as %[(b & e & a & -> & Hbe & Hae) | Hnot_stk].
     { destruct wcsp as [ [| [t p g b e a|] | |] π]; try (iPureIntro; right; intros; discriminate).
       destruct t; [|iPureIntro; right; intros; discriminate].
@@ -643,9 +642,9 @@ Section fundamental.
       - iPureIntro; right; intros ??? Heq; inversion Heq; subst; tauto. }
     2: { (* The stack pointer is not a valid stack capability: the spill
             faults. Is the furthest cell of the spill within its bounds? *)
-         iAssert (⌜(∃ b e a, wcsp = WCap true RWL Local b e a ∧
-                              stk_spill_ok a ∧ (b <= stk_spill_a a < e)%a)
-                 ∨ (∀ b e a a4, wcsp.(lw) = WCap true RWL Local b e a →
+         iAssert (⌜(∃ b e a, wcsp = Cap RWL Local b e a ∧
+                              stk_spill_ok a ∧ stk_spill_a a ∈ₐ [b, e))
+                 ∨ (∀ b e a a4, wcsp.(lw) = Cap RWL Local b e a →
                                 (a + (SpillSlot_cs0 - SpillSlot_size))%a = Some a4 →
                                 (a4 < b)%a ∨ (e <= a4)%a)⌝)%I
            as %[(b & e & a & -> & Ha4 & Ha4_in) | Hfirst].
@@ -656,7 +655,7 @@ Section fundamental.
            destruct (a + -4)%a as [a4|] eqn:Ha4; cycle 1.
            { iPureIntro; right; intros ???? Heq Ha4'; inversion Heq; subst.
              change (SpillSlot_cs0 - SpillSlot_size)%Z with (-4)%Z in Ha4'. congruence. }
-           destruct (decide (b <= a4 < e)%a) as [Ha4_in|Ha4_out]; cycle 1.
+           destruct (decide (a4 ∈ₐ [b, e))) as [Ha4_in|Ha4_out]; cycle 1.
            { iPureIntro; right; intros ???? Heq Ha4'; inversion Heq; subst.
              change (SpillSlot_cs0 - SpillSlot_size)%Z with (-4)%Z in Ha4'.
              rewrite Ha4 in Ha4'; simplify_eq; solve_addr. }
@@ -843,7 +842,7 @@ Section fundamental.
       reflexivity. }
     { clear -Ha_next; tstack_unfold; solve_addr. }
     { clear -Ha_next Ha_next_e; tstack_unfold; solve_addr. }
-    set (frame := interp_call_frame b e a (WCap true RO g_tbl b_tbl e_tbl a_tbl)).
+    set (frame := interp_call_frame b e a (Cap RO g_tbl b_tbl e_tbl a_tbl)).
     (* The table cell holds the unsealed entry *)
     assert (tf_export_tbl_ok (cf_tframe frame)) as Htbl_ok.
     { apply (tf_export_tbl_cell_entry (cf_tframe frame) g_tbl b_tbl e_tbl a_tbl eq_refl
@@ -861,7 +860,7 @@ Section fundamental.
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk []")
       as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_ok]| |].
     { by rewrite /cframe_stk_own /=. }
-    iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (WCap true RO g_tbl b_tbl e_tbl a_tbl)
+    iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (Cap RO g_tbl b_tbl e_tbl a_tbl)
                 with "Hsafety Hspv Htop Hcont") as "Hcont"; [done|done|].
 
     (* Execute the entry point of the callee *)

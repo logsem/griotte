@@ -54,30 +54,30 @@ Section Error_Handling_Read_Safe.
     (r : RegName) (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi : LWord) (dq : dfrac) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) :
     decodeInstrW wi.(lw) = CLoad r r 0 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
     readAllowed p = true →
     withinBounds b e a = true →
     addr_key π a ∉ s →
-    {{{ interp W C (WCap true p g b e a @@? π) ∗
-        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    {{{ interp W C (Cap p g b e a @@? π) ∗
+        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
-        r ↦ᵣ[th] (WCap true p g b e a @@? π) ∗
+        r ↦ᵣ[th] (Cap p g b e a @@? π) ∗
         world_interp_open W C s }}}
       Instr Executable @[th] E
     {{{ retv, RET retv;
         ( ∃ wa,
           ⌜retv = FaultedV⌝ ∗
           ⌜is_shadow_address a = false⌝ ∗
-          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗
+          PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
           pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ[th] (WCap true p g b e a @@? π) ∗
+          r ↦ᵣ[th] (Cap p g b e a @@? π) ∗
           a ↦ₐ wa ∗
           (a ↦ₐ wa -∗ world_interp_open W C s) ) ∨
         ( ∃ wload,
           ⌜retv = NextIV⌝ ∗
-          PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗
+          PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗
           pc_a ↦ₐ{dq} wi ∗
           r ↦ᵣ[th] wload ∗ interp W C wload ∗
           world_interp_open W C s ) }}}.
@@ -105,7 +105,7 @@ Section Error_Handling_Read_Safe.
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ□ revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
     iApply (wp_load_general_shadow_imm E pc_p pc_g pc_b pc_e pc_a None r r 0 wi
@@ -201,8 +201,8 @@ Section Error_Handling_Read_Safe.
            ca0 ↦ᵣ[th] wload -∗
            interp W C wload -∗
            world_interp_open W C s -∗
-           WP Seq (Instr Executable) @[th] {{ HO th }}) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+           safe[th]) )
+    ⊢ safe[th].
   Proof.
     iIntros (Hclosed) "(HPC & Hca0 & #Hinterp & Hworld & #Hcode_stats & Hcont)".
     iDestruct (stats_load_instr_pers with "Hcode_stats") as "#Hinstr".
@@ -239,12 +239,12 @@ Section Error_Handling_Read_Safe.
       + (* The load succeeds *)
         iDestruct "Hcont" as "[_ Hcont]".
         unfocus_block "Hcode" "Hcont_code" as "Hcode_stats".
-        assert ((a_load ^+ 1)%a = (STATS_pcc_b ^+ stats_label ".Lread_release")%a) as ->
+        assert (a_load ^+ 1 = (STATS_pcc_b ^+ stats_label ".Lread_release")%a) as ->
           by (offsets_compute; solve_addr).
         iApply ("Hcont" with "HPC Hca0 Hwload Hworld").
     - (* The checks pass: a tagged capability that allows the load, in its bounds *)
       destruct wptr as [w π].
-      assert (∃ p g b e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
+      assert (∃ p g b e a, w = Cap p g b e a ∧ readAllowed p = true ∧
                 withinBounds b e a = true ∧ ea = a)
         as (p & g & b & e & a & -> & Hra & Hwb & ->).
       { revert Hcheck. rewrite /data_cap_check /=.
@@ -268,7 +268,7 @@ Section Error_Handling_Read_Safe.
           by apply dfrac_valid_own_l in Hv. }
         set (lm := <[stats_load_addr := (DfracDiscarded, stats_load_instr)]>
                      {[a := (DfracOwn 1, wa)]} : gmap Addr (dfrac * LWord)).
-        assert (lfault (stats_pcc stats_load_addr) {[ca0 := WCap true p g b e a @@? π]}
+        assert (lfault (stats_pcc stats_load_addr) {[ca0 := Cap p g b e a @@? π]}
                   (snd <$> lm) = fault_default) as Hlfault.
         { pose proof stats_load_pc_correct as Hpc.
           rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
@@ -309,7 +309,7 @@ Section Error_Handling_Read_Safe.
       + (* The load succeeds *)
         iDestruct "Hcont" as "[_ Hcont]".
         unfocus_block "Hcode" "Hcont_code" as "Hcode_stats".
-        assert ((a_load ^+ 1)%a = (STATS_pcc_b ^+ stats_label ".Lread_release")%a) as ->
+        assert (a_load ^+ 1 = (STATS_pcc_b ^+ stats_label ".Lread_release")%a) as ->
           by (offsets_compute; solve_addr).
         iApply ("Hcont" with "HPC Hca0 Hwload Hworld").
   Qed.
@@ -324,7 +324,7 @@ Section Error_Handling_Read_Safe.
     stats_load_mtval wptr f v →
     stats_repairable c v →
     mtval_reg_field v = reg_index ca0 ∧
-    ∃ p g b e a π, wptr = MkLWord (WCap true p g b e a) π.
+    ∃ p g b e a π, wptr = MkLWord (Cap p g b e a) π.
   Proof.
     intros Hf [_ ->] [-> | [_ ->] ] Hrep.
     2: { exfalso. destruct Hrep as (_ & Hcode & _).
@@ -377,7 +377,7 @@ Section Error_Handling_Read_Safe.
     switcher_static -∗
     interp W0 C (rmap !!! ca0) -∗
     interp W0 C (rmap !!! ca1) -∗
-    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+    PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return -∗
     registers_pointsto rmap -∗
     [[ b_stk , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
     ◯(CSTK)[th] cstk -∗
@@ -385,7 +385,7 @@ Section Error_Handling_Read_Safe.
     world_interp (revoke W0) C -∗
     ▷ RevokedResources W0 C l -∗
     na_own (tpool th) ⊤ -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hframe_match Hsync_csp Hl_unk Hfull)
       "#Hinv_switcher #Hswitcher_static #Hinterp_ca0 #Hinterp_ca1 HPC Hregs Hstk Hcstk HK
@@ -421,15 +421,15 @@ Section Error_Handling_Read_Safe.
   Lemma stats_read_unwind_open (W0 : WORLD) (C : CmptName) (cstk : CSTK)
     (Ws : list WORLD) (Cs : list CmptName) (rfault : LReg)
     (b_stk e_stk cur : Addr) (lv : list LWord) :
-    let es := (cur ^+ (- ErrorState_size))%a in
+    let es := (cur ^+ (- ErrorState_size)) in
     frame_match Ws Cs cstk W0 C →
     csp_sync cstk b_stk e_stk →
     (b_stk <= es)%a →
     (cur <= e_stk)%a →
-    rfault !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk cur) →
+    rfault !!! csp = lword_of_word (Cap RWL Local b_stk e_stk cur) →
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
-    interp W0 C (WCap true RWL Local b_stk e_stk cur) -∗
+    interp W0 C (Cap RWL Local b_stk e_stk cur) -∗
     world_interp_open W0 C (LNonHeap <$> finz.seq_between es cur) -∗
     ▷ StackOpenWorldResources interp W0 C (finz.seq_between es cur) lv -∗
     interp_continuation cstk Ws Cs -∗
@@ -471,7 +471,7 @@ Section Error_Handling_Read_Safe.
     na_inv (tpool th) Nstats stats_inv
     -∗
     ot_switcher_prop W C
-      (WCap true RO g_tbl b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
+      (Cap RO g_tbl b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
     iIntros (Hswitcher)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
@@ -525,8 +525,7 @@ Section Error_Handling_Read_Safe.
     destruct Htop_tbl as (Hframes & Htbl & Hcount & Htbl_ok).
     rewrite /stats_read_min_stack in Hminstk.
     set (wret :=
-      WSentry (ret_kind mie_ret) true XSRW_ Local b_switcher e_switcher a_switcher_return).
-    rewrite /interp_conf.
+      Sentry (ret_kind mie_ret) XSRW_ Local b_switcher e_switcher a_switcher_return).
     destruct (Hfull ca0) as [wptr Hwptr].
     iAssert (interp W0 C wptr) as "#Hinterp_wptr".
     { iApply "Hinterp_rmap"; iPureIntro; last exact Hwptr.
@@ -542,7 +541,7 @@ Section Error_Handling_Read_Safe.
     { intros r. rewrite /rtake lookup_insert_is_Some'. by right. }
     assert (rtake !! cgp = Some stats_wcgp) as Hcgp_take.
     { by rewrite /rtake lookup_insert_ne. }
-    assert (rtake !!! csp = lword_of_word (WCap true RWL Local b_stk e_stk cur)) as Hcsp_take.
+    assert (rtake !!! csp = lword_of_word (Cap RWL Local b_stk e_stk cur)) as Hcsp_take.
     { rewrite /rtake lookup_total_alt. by simplify_map_eq. }
     assert (rtake !!! cra = lword_of_word wret) as Hcra_take.
     { rewrite /rtake lookup_total_alt. by simplify_map_eq. }
@@ -551,7 +550,7 @@ Section Error_Handling_Read_Safe.
     clearbody rtake.
     iDestruct (registers_pointsto_extract _ ca0 with "Hregs") as "[Hca0 Hregs]"; first exact Hca0_take.
     (* The slot of the [ErrorState], below the cursor of the stack *)
-    set (es := (cur ^+ (- ErrorState_size))%a).
+    set (es := cur ^+ (- ErrorState_size)).
     assert ((b_stk <= es)%a ∧ (es + 16)%a = Some cur ∧ (cur <= e_stk)%a) as
       (Hb_es & Hes_cur & Hcur_e).
     { rewrite /es /cur /stk_start_a /ErrorState_size /StackEntry_reserved_space in Hminstk |- *.

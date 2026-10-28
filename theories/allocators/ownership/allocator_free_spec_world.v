@@ -25,33 +25,33 @@ Section AllocatorFreeWorld.
     (next b e : Addr) (o : Z) (allocations : list allocator_header_entry) (live issued : gset AId)
     (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
     (heap_b < b /\ b < e /\ e <= next /\ next <= heap_e)%a ->
-    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_chain (heap_b ^+ 1) next allocations ->
     allocator_cells_wf next allocations live issued Cs ->
     allocator_cells Cs -∗
-    allocator_headers (heap_b ^+ 1)%a next allocations -∗
+    allocator_headers (heap_b ^+ 1) next allocations -∗
     ∃ (s1 s2 : AllocStatus) (eh : Addr) (oh : Z),
       ⌜s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e ∧ oh = o <->
         allocator_owned_bounds allocations o b e⌝ ∗
       ⌜s1 = ShadowQuarantined -> s2 = ShadowLive ->
         (heap_b + allocator_header_words < b)%Z⌝ ∗
-      (b ^+ (-1))%a ↦ₛ s1 ∗
+      (b ^+ (-1)) ↦ₛ s1 ∗
       b ↦ₛ s2 ∗
       (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
-       then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh ∗
-            ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt oh
+       then (b ^+ (- allocator_header_words)) ↦ₐ WInt eh ∗
+            ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt oh
        else emp) ∗
-      ((b ^+ (-1))%a ↦ₛ s1 -∗
+      ((b ^+ (-1)) ↦ₛ s1 -∗
        b ↦ₛ s2 -∗
        (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
-        then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh ∗
-             ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt oh
+        then (b ^+ (- allocator_header_words)) ↦ₐ WInt eh ∗
+             ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt oh
         else emp) -∗
-       allocator_cells Cs ∗ allocator_headers (heap_b ^+ 1)%a next allocations).
+       allocator_cells Cs ∗ allocator_headers (heap_b ^+ 1) next allocations).
   Proof.
     intros Hbounds Hchain Hcwf.
     iIntros "Hcells Hheaders".
     assert (Hb1 : ((b ^+ -1) + 1)%a = Some b) by solve_addr.
-    destruct (acw_dom _ _ _ _ _ Hcwf (b ^+ -1)%a) as [ [ [c1 s1] h1] Hc1]; first solve_addr.
+    destruct (acw_dom _ _ _ _ _ Hcwf (b ^+ -1)) as [ [ [c1 s1] h1] Hc1]; first solve_addr.
     destruct (acw_dom _ _ _ _ _ Hcwf b) as [ [ [c2 s2] h2] Hc2]; first solve_addr.
     pose proof (acw_header _ _ _ _ _ Hcwf _ _ _ _ Hc1) as Hh1.
     pose proof (acw_header _ _ _ _ _ Hcwf _ _ _ _ Hc2) as Hh2.
@@ -67,11 +67,11 @@ Section AllocatorFreeWorld.
         apply (allocator_chain_payload_not_header _ _ _ _ _ _ _ b Hchain Hin);
           first solve_addr.
         by apply Hh2, Hp2. }
-    iDestruct (allocator_cells_shadow_pair _ (b ^+ -1)%a b with "Hcells")
+    iDestruct (allocator_cells_shadow_pair _ (b ^+ -1) b with "Hcells")
       as "(Hs1 & Hs2 & Hcells_close)"; [solve_addr|exact Hc1|exact Hc2|].
     destruct (decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)) as [ [-> ->]|Hcheck].
     - (* The base follows a header word: it is the base of an entry. *)
-      destruct (allocator_is_header_base allocations (b ^+ -1)%a b) as (e' & [oh r] & ι & Hin).
+      destruct (allocator_is_header_base allocations (b ^+ -1) b) as (e' & [oh r] & ι & Hin).
       { by apply Hh1, Hp1. }
       { intros Hh. by apply Hh2 in Hh; apply Hp2 in Hh. }
       { exact Hb1. }
@@ -131,12 +131,12 @@ Section AllocatorFreeWorld.
     (allocations : list allocator_header_entry) (live issued : gset AId)
     (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
     (heap_b < next /\ next <= heap_e)%a ->
-    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_chain (heap_b ^+ 1) next allocations ->
     allocator_entries_wf allocations ->
     allocator_cells_wf next allocations live issued Cs ->
     (b, e, r0, ι) ∈ allocations ->
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next -∗
-    allocator_headers (heap_b ^+ 1)%a next allocations -∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next -∗
+    allocator_headers (heap_b ^+ 1) next allocations -∗
     allocator_service_owners allocations -∗
     allocator_cells (allocator_cells_update (finz.seq_between b e) allocator_free_cell Cs) -∗
     (∀ live', ⌜∀ ι', ι' ≠ ι -> (ι' ∈ live <-> ι' ∈ live')⌝ -∗

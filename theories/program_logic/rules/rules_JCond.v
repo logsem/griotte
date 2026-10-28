@@ -87,14 +87,14 @@ Section griotte_lang_rules.
   Lemma wp_JCond Ep i pc_p pc_g pc_b pc_e pc_a pc_π w off arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
     is_JCond i off arg1 arg2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of i ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ JCond_spec i (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs off arg1 arg2 lpc' retv ⌝ ∗
+        ⌜ JCond_spec i (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs off arg1 arg2 lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
-    set (φc := (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
+    set (φc := (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
     rewrite (exec_opt_is_JCond _ _ _ _ _ _ Hi) /exec_jcond /= Hn1' Hn2' /= in Hstep.
     destruct (jcond_test i n1 n2) eqn:Htest.
     - destruct (lz_of_argument_dom regs off) as [imm Himm].
@@ -178,14 +178,14 @@ Section griotte_lang_rules.
   Lemma wp_jcond_jmp E i pc_p pc_g pc_b pc_e pc_a pc_π w off arg1 arg2 regs n1 n2 imm lpc' dq :
     decodeInstrW w.(lw) = i →
     is_JCond i off arg1 arg2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = true →
     lz_of_argument regs off = Some imm →
-    incrementPC_gen (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm = Some lpc' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm = Some lpc' →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
@@ -205,13 +205,13 @@ Section griotte_lang_rules.
   Lemma wp_jcond_next E i pc_p pc_g pc_b pc_e pc_a pc_π w off arg1 arg2 regs n1 n2 lpc' dq :
     decodeInstrW w.(lw) = i →
     is_JCond i off arg1 arg2 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (regs_of_argument off ∪ regs_of_argument arg1 ∪ regs_of_argument arg2) ∖ {[ cnull ]} ⊆ dom regs →
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = false →
-    incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
@@ -234,19 +234,19 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_jmp_r_r E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r1 r2 w1 w2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a w1.(lw)) (get_a w2.(lw)) = true →
     (pc_a + imm)%a = Some pc_a' →
     r1 ≠ cnull →
     r2 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 ∗
         ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 ∗
         r2 ↦ᵣ w2 }}}.
@@ -261,19 +261,19 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_next_r_r E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r1 r2 w1 w2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a w1.(lw)) (get_a w2.(lw)) = false →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     r2 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 ∗
         ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 ∗
         r2 ↦ᵣ w2 }}}.
@@ -287,17 +287,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_jmp_r_r_same E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r wr dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r) (inr r) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a wr.(lw)) (get_a wr.(lw)) = true →
     (pc_a + imm)%a = Some pc_a' →
     r ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r ↦ᵣ wr }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r ↦ᵣ wr }}}.
   Proof.
@@ -312,17 +312,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_next_r_r_same E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r wr dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r) (inr r) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a wr.(lw)) (get_a wr.(lw)) = false →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r ↦ᵣ wr }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r ↦ᵣ wr }}}.
   Proof.
@@ -336,17 +336,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_jmp_r_z E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r1 w1 n2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r1) (inl n2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a w1.(lw)) n2 = true →
     (pc_a + imm)%a = Some pc_a' →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 }}}.
   Proof.
@@ -361,17 +361,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_next_r_z E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm r1 w1 n2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inr r1) (inl n2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins (get_a w1.(lw)) n2 = false →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ w1 }}}.
   Proof.
@@ -385,17 +385,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_jmp_z_r E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm n1 r2 w2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inl n1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins n1 (get_a w2.(lw)) = true →
     (pc_a + imm)%a = Some pc_a' →
     r2 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r2 ↦ᵣ w2 }}}.
   Proof.
@@ -410,17 +410,17 @@ Section griotte_lang_rules.
   Lemma wp_jcond_success_next_z_r E ins pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm n1 r2 w2 dq :
     decodeInstrW w.(lw) = ins →
     is_JCond ins (inl imm) (inl n1) (inr r2) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     jcond_test ins n1 (get_a w2.(lw)) = false →
     (pc_a + 1)%a = Some pc_a' →
     r2 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r2 ↦ᵣ w2 }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r2 ↦ᵣ w2 }}}.
   Proof.
@@ -436,17 +436,17 @@ Section griotte_lang_rules.
 
   Lemma wp_jnez_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jne (inl imm) (inr rcond) (inl 0%Z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     nonZero wcond.(lw) = true →
     (pc_a + imm)%a = Some pc_a' →
     rcond ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rcond ↦ᵣ wcond }}}.
   Proof.
@@ -457,15 +457,15 @@ Section griotte_lang_rules.
   Lemma wp_jnez_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jne (inl imm) (inr rcond) (inl 0%Z) →
     IsLInt wcond 0 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rcond ↦ᵣ wcond }}}.
   Proof.
@@ -483,16 +483,16 @@ Section griotte_lang_rules.
   Lemma wp_jnez_success_next_any E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jne (inl imm) (inr rcond) (inl 0%Z) →
     nonZero wcond.(lw) = false →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rcond ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rcond ↦ᵣ wcond }}}.
   Proof.
@@ -503,15 +503,15 @@ Section griotte_lang_rules.
   Lemma wp_jeqz_success_jmp_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jeq (inl imm) (inr rcond) (inl 0%Z) →
     IsLInt wcond 0 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + imm)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rcond ↦ᵣ wcond }}}.
   Proof.
@@ -527,17 +527,17 @@ Section griotte_lang_rules.
 
   Lemma wp_jeqz_success_next_z E rcond pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm wcond dq :
     decodeInstrW w.(lw) = Jeq (inl imm) (inr rcond) (inl 0%Z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     nonZero wcond.(lw) = true →
     (pc_a + 1)%a = Some pc_a' →
     rcond ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ rcond ↦ᵣ wcond }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rcond ↦ᵣ wcond }}}.
   Proof.

@@ -14,7 +14,7 @@ Section Stack_World_Resources.
   .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
 
   (** ** Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)

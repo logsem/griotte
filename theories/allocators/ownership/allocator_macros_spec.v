@@ -25,7 +25,7 @@ Section AllocatorLayoutFacts.
 
   Lemma allocator_malloc_pcc_bounds :
     SubBounds allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr
-      (allocator_malloc_pcc_addr ^+ length allocator_malloc_instrs)%a.
+      (allocator_malloc_pcc_addr ^+ length allocator_malloc_instrs).
   Proof.
     pose proof allocator_size_code as Hsize_code.
     pose proof allocator_size_imports as Himports_size.
@@ -37,7 +37,7 @@ Section AllocatorLayoutFacts.
 
   Lemma allocator_free_pcc_bounds :
     SubBounds allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr
-      (allocator_free_pcc_addr ^+ length allocator_free_instrs)%a.
+      (allocator_free_pcc_addr ^+ length allocator_free_instrs).
   Proof.
     pose proof allocator_size_code as Hsize_code.
     pose proof allocator_size_imports as Himports_size.
@@ -84,7 +84,7 @@ Section AllocatorOwnerMacro.
   .
 
   Definition allocator_unsealing_key : Word :=
-    WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype.
+    SealRange (false, true) Global AllocOtype (AllocOtype ^+ 1) AllocOtype.
 
   (** Load the owner identifier of an allocator capability. The physical owner
       word is only read. Block 0 of both allocator entries is this macro. *)
@@ -95,34 +95,34 @@ Section AllocatorOwnerMacro.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
-    (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
+    (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off) ->
     disjoint_from_shadow pc_b pc_e ->
-    withinBounds pc_b pc_e (pc_b ^+ allocator_unsealing_key_import_off)%a = true ->
+    withinBounds pc_b pc_e (pc_b ^+ allocator_unsealing_key_import_off) = true ->
     is_shadow_address a = false ->
     (a < a ^+ 1)%a ->
 
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ wtp ∗
     ca0 ↦ᵣ allocator_capability g a ∗
-    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
+    (pc_b ^+ allocator_unsealing_key_import_off) ↦ₐ□ allocator_unsealing_key ∗
     a ↦ₐ WInt o ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ length code)%a ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ length code) ∗
          ctp ↦ᵣ WInt o ∗
          ca0 ↦ᵣ allocator_capability g a ∗
-         (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
+         (pc_b ^+ allocator_unsealing_key_import_off) ↦ₐ□ allocator_unsealing_key ∗
          a ↦ₐ WInt o ∗
          codefrag_pers pc_a code
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+         -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros code; subst code.
     iIntros (Hpc Hoff Hdisjoint Hkey Hshadow_a Ha)
       "(HPC & Hctp & Hca0 & #Hkey & Ha & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     pose proof allocator_otype_size as Hotype.
-    assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off)%a = false)
+    assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off) = false)
       as Hshadow_key by (eapply disjoint_from_shadow_not_in; eauto).
     rewrite /allocator_unsealing_key /allocator_capability /allocator_capability_scap.
     (* Auipcc ctp off. *)
@@ -152,29 +152,29 @@ Section AllocatorOwnerMacro.
 
     let code := allocator_owner_instrs off ctp ca0 in
     ↑Ntstack ⊆ E ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
-    (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
+    (pc_a + off)%a = Some (pc_b ^+ allocator_unsealing_key_import_off) ->
     disjoint_from_shadow pc_b pc_e ->
-    withinBounds pc_b pc_e (pc_b ^+ allocator_unsealing_key_import_off)%a = true ->
+    withinBounds pc_b pc_e (pc_b ^+ allocator_unsealing_key_import_off) = true ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ wtp ∗
     ca0 ↦ᵣ wsealed ∗
-    (pc_b ^+ allocator_unsealing_key_import_off)%a ↦ₐ□ allocator_unsealing_key ∗
+    (pc_b ^+ allocator_unsealing_key_import_off) ↦ₐ□ allocator_unsealing_key ∗
     codefrag_pers pc_a code ∗
-    (∀ a, ⌜(pc_a <= a < pc_a ^+ length code)%a⌝ -∗
+    (∀ a, ⌜a ∈ₐ [pc_a, pc_a ^+ length code)⌝ -∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed -∗
-      trap_safe (WCap true RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Seq (Instr Executable) @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+      trap_safe (Cap RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
+    ⊢ WP Exec @ E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     intros code; subst code.
     iIntros (HEswitcher Hpc Hoff Hdisjoint Hkey Hwsealed)
       "(HPC & Hctp & Hca0 & #Hkey & #Hcode & Hfailed)".
     codefrag_facts "Hcode".
     pose proof allocator_otype_size as Hotype.
-    assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off)%a = false)
+    assert (is_shadow_address (pc_b ^+ allocator_unsealing_key_import_off) = false)
       as Hshadow_key by (eapply disjoint_from_shadow_not_in; eauto).
     rewrite /allocator_unsealing_key.
     (* Auipcc ctp off. *)
@@ -185,7 +185,7 @@ Section AllocatorOwnerMacro.
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     iDestruct (map_of_regs_2 with "Hctp Hca0") as "[Hmap %Hctpca0]".
     (* UnSeal ctp ctp ca0. *)
-    iInstrApply "Hcode" (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2)%a None _ ctp ctp ca0)
+    iInstrApply "Hcode" (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2) None _ ctp ctp ca0)
       with "[$HPC $Hmap]"
       as (lpc' regs' retv) "(%Hspec & HPC & Hmap)".
     { rewrite /regs_of /operands_of !dom_insert_L. set_solver+. }
@@ -200,7 +200,7 @@ Section AllocatorOwnerMacro.
       destruct Hwsealed as [Hne|Hne]; [apply Z.eqb_neq in Hne; solve_addr|congruence].
     - (* The unsealed word is untagged, and the load traps. *)
       simplify_map_eq.
-      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)%a) as Ha3 by solve_addr.
+      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)) as Ha3 by solve_addr.
       rewrite Ha3 in HincrPC; simplify_eq.
       iEval (rewrite !insert_insert_eq) in "Hmap".
       iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.
@@ -214,7 +214,7 @@ Section AllocatorOwnerMacro.
       iTrap with "Hfailed".
     - (* The word is not sealed: it loses its tag, and the load traps. *)
       simplify_map_eq.
-      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)%a) as Ha3 by solve_addr.
+      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)) as Ha3 by solve_addr.
       rewrite Ha3 in HincrPC; simplify_eq.
       iEval (rewrite !insert_insert_eq) in "Hmap".
       iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.

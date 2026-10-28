@@ -42,7 +42,7 @@ Section SO_World_Call.
     std W0 !! LNonHeap a_stk1 = Some Temporary ->
     std W2 !! LNonHeap a_stk1 = Some Revoked ->
     related_sts_priv_world W0 W2 ->
-    interp W0 C (WCap true RWL Local stack_b stack_e stack_a)
+    interp W0 C (Cap RWL Local stack_b stack_e stack_a)
     ∗ world_interp W2 C
     ∗ a_stk1 ↦ₐ WInt 0
     ∗ £ 1
@@ -50,7 +50,7 @@ Section SO_World_Call.
       world_interp W3 C
       ∗ ⌜related_sts_pub_world W2 W3⌝
       ∗ ⌜std W3 !! LNonHeap a_stk1 = Some Temporary⌝
-      ∗ interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1).
+      ∗ interp W3 C (Cap RWL Local a_stk1 a_stk2 a_stk1).
   Proof.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
     iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
@@ -134,7 +134,7 @@ Section SO_World_Call.
     assert (std W3 !! LNonHeap a_stk1 = Some Temporary) as Ha_stk1_W3.
     { apply close_list_lookup_in; auto; set_solver+. }
 
-    iAssert (interp W3 C (WCap true RWL Local a_stk1 a_stk2 a_stk1))%I
+    iAssert (interp W3 C (Cap RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_fresh".
     { iEval (rewrite interp_unfold interp1_eq).
       cbn.
@@ -236,7 +236,7 @@ Section SO_World_Call.
     (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (csp_b <= a_stk2)%a ->
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C wct1 -∗
     world_interp W2q C -∗
     interp W2 C (WCap t p g b e (finz.max b e) @@? π) -∗
@@ -246,7 +246,7 @@ Section SO_World_Call.
     ={⊤}=∗
     world_interp W3 C ∗
     interp W3 C (WCap t p g b e (finz.max b e) @@? π) ∗
-    interp W3 C (WCap true RWL Local a_stk2 a_stk1 a_stk2) ∗
+    interp W3 C (Cap RWL Local a_stk2 a_stk1 a_stk2) ∗
     (if is_sealed_with_o wct1.(lw) ot_switcher then interp W3 C wct1 else True) ∗
     StackRevokedResources W3 C (stk_free csp_b csp_e a_stk2) ∗
     ⌜revoked_addresses W3 (stk_free csp_b csp_e a_stk2)⌝ ∗
@@ -388,13 +388,13 @@ Section SO_World_Call.
     interp W C wca0 -∗
     ca1 ↦ᵣ[th] wca1 -∗
     interp W C wca1 -∗
-    ct0 ↦ᵣ[th] so_switcher_entry -∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) -∗
+    ct0 ↦ᵣ[th] switcher_entry_call -∗
+    regs[th] rmap -∗
     ∃ arg_rmap rmap',
       ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
       ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg) ∗
-      ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w).
+      regs[th] rmap'.
   Proof.
     iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
@@ -407,7 +407,7 @@ Section SO_World_Call.
     { rewrite !lookup_delete_ne //; apply Hzero; set_solver+. }
     iExists {[ ca0 := wca0; ca1 := wca1; ca2 := lword_of_word (WInt 0);
                ca3 := lword_of_word (WInt 0); ca4 := lword_of_word (WInt 0);
-               ca5 := lword_of_word (WInt 0); ct0 := lword_of_word so_switcher_entry ]}, _.
+               ca5 := lword_of_word (WInt 0); ct0 := lword_of_word switcher_entry_call ]}, _.
     iFrame "Hrmap".
     iSplit.
     { iPureIntro.
@@ -416,7 +416,7 @@ Section SO_World_Call.
     }
     iSplit; first by rewrite /is_arg_rmap.
     iAssert (interp W C (WInt 0)) as "#Hinterp_0"; first iApply interp_int.
-    iAssert (interp W C so_switcher_entry) as "#Hinterp_switcher".
+    iAssert (interp W C switcher_entry_call) as "#Hinterp_switcher".
     { iApply interp_switcher_call. iFrame "Hswitcher Hswitcher_static". }
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
     done.
@@ -427,7 +427,7 @@ Section SO_World_Call.
       Revoke the world [W0], to get the stack frame. The entry point of the
       adversary is still safe in the revoked world. *)
   Lemma so_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗

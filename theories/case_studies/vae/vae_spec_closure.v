@@ -23,7 +23,7 @@ Section VAE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** Quarantined addresses are heap addresses: they are disjoint from any
       part of the stack. *)
@@ -58,16 +58,16 @@ Section VAE.
     :
 
     let imports := vae_main_imports C_f in
-    let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp)%a in
-    let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a in
+    let a_vae_exp_tbl_cgp := (b_vae_exp_tbl ^+ ExportTable_offset_cgp) in
+    let a_vae_entry_awkward := (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward) in
 
     is_shadow_address cgp_b = false ->
     disjoint_from_shadow b_vae_exp_tbl e_vae_exp_tbl ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     is_heap_address cgp_b = false ->
-    (b_vae_exp_tbl <= a_vae_entry_awkward < e_vae_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ->
+    a_vae_entry_awkward ∈ₐ [b_vae_exp_tbl, e_vae_exp_tbl) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code) ->
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
@@ -80,15 +80,15 @@ Section VAE.
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a vae_main_code
-    ∗ b_vae_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ a_vae_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ b_vae_exp_tbl ↦ₐ□ Cap RX Global pc_b pc_e pc_b
+    ∗ a_vae_exp_tbl_cgp ↦ₐ□ Cap RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_vae_exp_tbl
     ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
     (* invariant for d *)
     ∗ inv Nawk (awk_inv C i cgp_b)
     ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
       -∗
-    ot_switcher_prop W C (WCap true RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl a_vae_entry_awkward).
+    ot_switcher_prop W C (Cap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl a_vae_entry_awkward).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -130,7 +130,7 @@ Section VAE.
       & #Hvae_exp_awkward
       & #Hawk_inv & #Hsts_rel)".
     iExists g_vae_exp_tbl, b_vae_exp_tbl, e_vae_exp_tbl,
-      (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward)%a,
+      (b_vae_exp_tbl ^+ ExportTable_offset_entry vae_entry_awkward),
     pc_b, pc_e, cgp_b, cgp_e, 1, 4, _.
     iFrame "#".
     iSplit; first done.
@@ -153,7 +153,7 @@ Section VAE.
     iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
-    rewrite /interp_conf /registers_pointsto.
+    rewrite /registers_pointsto.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).

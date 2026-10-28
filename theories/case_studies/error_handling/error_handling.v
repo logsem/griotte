@@ -257,7 +257,7 @@ Section Stats.
       }.
 
   Definition stats_read_exp_tbl_addr {STATS : statsLayout} : Addr :=
-    (b_stats_exp_tbl ^+ stats_read_exp_tbl_off)%a.
+    (b_stats_exp_tbl ^+ stats_read_exp_tbl_off).
   (** The export of [stats_read], before its sealing by the switcher. *)
   Definition STATS_read {STATS : statsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr.
@@ -422,8 +422,8 @@ Section Main.
   Definition error_handling_main_imports `{!switcherLayout} `{!assertLayout} `{!statsLayout}
     (adv_f : Sealable) : list Word :=
     [
-      WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry Inherit true RX Global b_assert e_assert b_assert;
+      switcher_entry_call;
+      assert_entry;
       WSealed ot_switcher adv_f;
       WSealed ot_switcher (STATS_read Global)
     ].

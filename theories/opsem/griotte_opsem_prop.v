@@ -348,7 +348,7 @@ Qed.
     (* SetMIE and Mret write mstatus; Mret jumps to MEPCC. *)
     all: try (apply sys_pc_ok_update_sreg_not_pc; [done|]).
     all: try exact Hinv.
-    all: try (eapply (sys_pc_ok_update_pcc_sreg _ MEPCC); [done|eassumption|exact Hinv]).
+    all: try (eapply (sys_pc_ok_update_pcc_sreg _ mepcc); [done|eassumption|exact Hinv]).
     (* Jalr checks its target. *)
     all: match goal with
       | Ht : get_tag ?w = true, Hs : jalr_sealing_ok ?rd ?rs ?w = true,
@@ -387,12 +387,12 @@ Qed.
     sys_pc_ok φ → sys_pc_ok (enter_exc cv φ).
   Proof.
     intros [Hpc Hsr]. rewrite /enter_exc /sreg_word. split.
-    - cbn. destruct (sreg φ !! MTCC) as [w|] eqn:Hmtcc; cbn; last done.
-      by apply (Hsr MTCC).
+    - cbn. destruct (sreg φ !! mtcc) as [w|] eqn:Hmtcc; cbn; last done.
+      by apply (Hsr mtcc).
     - intros sr w Hsr_pc. cbn. destruct sr; try done.
       + rewrite !lookup_insert_ne //. by apply Hsr.
-      + rewrite (lookup_insert_ne _ MTVAL) // (lookup_insert_ne _ MCAUSE) //
-          (lookup_insert_ne _ MSTATUS) // lookup_insert_eq.
+      + rewrite (lookup_insert_ne _ mtval) // (lookup_insert_ne _ mcause) //
+          (lookup_insert_ne _ mstatus) // lookup_insert_eq.
         intros [= <-]. rewrite /mepcc_of_pc.
         case_match; last done.
         apply pc_ok_untagged, get_tag_clear_tag.
@@ -414,7 +414,7 @@ Qed.
   Lemma data_cap_check_bounds perm_ok perm_code r w imm :
     perm_code ≠ BoundsViolation →
     data_cap_check perm_ok perm_code r w imm = inl (FaultCheri BoundsViolation (CheriGPR r)) →
-    ∃ p g b e a, w = WCap true p g b e a ∧ perm_ok p = true.
+    ∃ p g b e a, w = Cap p g b e a ∧ perm_ok p = true.
   Proof.
     intros Hcode. rewrite /data_cap_check.
     destruct w as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try (intros [=]; fail);

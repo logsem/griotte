@@ -44,7 +44,7 @@ Section Switcher_trap_safety.
       registers_pointsto rmap -∗
       na_own (tpool th) (F ∖ ↑Ntrap) -∗
       ◯(CSTK)[th] cstk -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   #[global] Instance exception_entry_safe_persistent :
     Persistent (exception_entry_safe).
@@ -72,7 +72,7 @@ Section Switcher_trap_safety.
               PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
               registers_pointsto rmap' -∗
               na_own (tpool th) F -∗
-              WP Seq (Instr Executable) @[th] {{ HO th }})) -∗
+              safe[th])) -∗
       trap_safe w ⊤ (HO th).
 
   #[global] Instance switcher_resume_safe_persistent :
@@ -192,7 +192,7 @@ Section Switcher_trap_safety.
             PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
             registers_pointsto rmap' -∗
             na_own (tpool th) F -∗
-            WP Seq (Instr Executable) @[th] {{ HO th }})) -∗
+            safe[th])) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (HF HFtrap Hresume) "#Hsafety Hres".

@@ -130,8 +130,8 @@ Section CmptLayout.
   Definition cmpt_static_sealed_mregion (C: cmpt) : gmap Addr Word :=
     mkregion (cmpt_b_static_sealed C) (cmpt_e_static_sealed C) (cmpt_static_sealed C).
   Definition cmpt_exp_tbl_mregion (C: cmpt) : gmap Addr Word :=
-    let pcc_word := WCap true RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
-    let cgp_word := WCap true RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
+    let pcc_word := Cap RX Global (cmpt_b_pcc C) (cmpt_e_pcc C) (cmpt_b_pcc C) in
+    let cgp_word := Cap RW Global (cmpt_b_cgp C) (cmpt_e_cgp C) (cmpt_b_cgp C) in
     mkregion (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_cgp C) [pcc_word] ∪
       mkregion (cmpt_exp_tbl_cgp C) (cmpt_exp_tbl_entries_start C)
         [cgp_word; cmpt_exp_tbl_handler C; cmpt_exp_tbl_handler_stackless C] ∪
@@ -257,7 +257,7 @@ Section CmptLayout.
         trusted_stack_disjoint_from_mmio :
         disjoint_from_mmio b_trusted_stack e_trusted_stack;
 
-        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1)%a = false;
+        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1) = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
 
         stack_disjoint_from_mmio : disjoint_from_mmio b_stack e_stack;
@@ -269,7 +269,7 @@ Section CmptLayout.
         switcher_end_not_heap : is_heap_address e_switcher = false;
         (* The register save area of the trusted stack is not in the heap. *)
         trusted_stack_not_heap :
-        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a;
+        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ);
 
         (* The two hazard slots of the thread; the word [hazardPointers] of
            the register save area holds the store-only capability to them. *)
@@ -280,7 +280,7 @@ Section CmptLayout.
 
         trusted_stack_content_hazard :
         trusted_stack_content !! Z.to_nat TrustedStack_offset_hazardPointers
-        = Some (WCap true WO Global b_hazard_slots e_hazard_slots b_hazard_slots);
+        = Some (Cap WO Global b_hazard_slots e_hazard_slots b_hazard_slots);
 
         hazard_slots_disjointness :
         (finz.seq_between b_hazard_slots e_hazard_slots) ## (finz.seq_between b_switcher e_switcher)
@@ -393,17 +393,17 @@ Section CmptLayout.
         (cap_assert + 1)%a = Some e_assert;
 
         assert_flag_size :
-        (flag_assert + 1)%a = Some (flag_assert ^+ 1)%a;
+        (flag_assert + 1)%a = Some (flag_assert ^+ 1);
 
         assert_code_nonheap : is_heap_address b_assert = false;
 
         assert_flag_disjoint :
         (finz.seq_between b_assert e_assert) ##
-        (finz.seq_between flag_assert (flag_assert ^+ 1)%a);
+        (finz.seq_between flag_assert (flag_assert ^+ 1));
 
         assert_disjoint_from_mmio : disjoint_from_mmio b_assert e_assert;
         assert_flag_disjoint_from_mmio :
-        disjoint_from_mmio flag_assert (flag_assert ^+ 1)%a;
+        disjoint_from_mmio flag_assert (flag_assert ^+ 1);
         (* The assert sentry is executable: its closed bounds avoid the heap. *)
         assert_end_not_heap : is_heap_address e_assert = false
       }.
@@ -421,9 +421,9 @@ Section CmptLayout.
     mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
   Definition cmpt_assert_cap_mregion (Cassert : cmptAssert) :=
     mkregion (cap_assert Cassert) (e_assert Cassert)
-      [WCap true RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a (flag_assert Cassert)].
+      [Cap RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1) (flag_assert Cassert)].
   Definition cmpt_assert_flag_mregion (Cassert : cmptAssert) :=
-    mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1)%a [WInt 0].
+    mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1) [WInt 0].
 
   Definition mk_initial_assert (Cassert : cmptAssert) : gmap Addr Word :=
     cmpt_assert_code_mregion Cassert ∪
@@ -707,9 +707,9 @@ Section CmptLayout.
   Qed.
   Lemma cmpt_exp_tbl_entries_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
-      [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      [Cap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ∪ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
+      [Cap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
        cmpt_exp_tbl_handler B_cmpt; cmpt_exp_tbl_handler_stackless B_cmpt]
       ##ₘ mkregion (cmpt_exp_tbl_entries_start B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt) (cmpt_exp_tbl_entries B_cmpt).
   Proof.
@@ -728,9 +728,9 @@ Section CmptLayout.
 
   Lemma cmpt_exp_tbl_pcc_cgp_disjoint (B_cmpt : cmpt) :
     mkregion (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_cgp B_cmpt)
-      [WCap true RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
+      [Cap RX Global (cmpt_b_pcc B_cmpt) (cmpt_e_pcc B_cmpt) (cmpt_b_pcc B_cmpt)]
       ##ₘ mkregion (cmpt_exp_tbl_cgp B_cmpt) (cmpt_exp_tbl_entries_start B_cmpt)
-      [WCap true RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
+      [Cap RW Global (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt) (cmpt_b_cgp B_cmpt);
        cmpt_exp_tbl_handler B_cmpt; cmpt_exp_tbl_handler_stackless B_cmpt].
   Proof.
     apply map_disjoint_dom_2.

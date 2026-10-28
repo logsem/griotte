@@ -27,10 +27,10 @@ Section AllocatorHeaderContracts.
     ∀ h stop allocations (b e : Addr) o r ι,
       (b, e, (o, r), ι) ∈ allocations ->
       allocator_headers h stop allocations ⊢
-      (b ^+ (- allocator_header_words))%a ↦ₐ WInt e ∗
-      ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt o ∗
-      ((b ^+ (- allocator_header_words))%a ↦ₐ WInt e -∗
-       ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt o -∗
+      (b ^+ (- allocator_header_words)) ↦ₐ WInt e ∗
+      ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt o ∗
+      ((b ^+ (- allocator_header_words)) ↦ₐ WInt e -∗
+       ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt o -∗
        allocator_headers h stop allocations).
   Proof.
     intros h stop allocations. revert h.
@@ -40,7 +40,7 @@ Section AllocatorHeaderContracts.
     - rewrite elem_of_cons in Hin. destruct Hin as [Heq|Hin].
       + injection Heq as <- <- <- <-.
         iIntros "(%Hbounds & (%Hbase & Hend & Howner & Hreserved) & Htail)".
-        assert ((b ^+ (- allocator_header_words))%a = h) as ->
+        assert (b ^+ (- allocator_header_words) = h) as ->
           by (unfold allocator_header_words in *; solve_addr).
         iFrame "Hend Howner". iIntros "Hend Howner". iFrame. done.
       + iIntros "(%Hbounds & Hhead & Htail)".

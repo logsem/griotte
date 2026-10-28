@@ -33,9 +33,9 @@ Definition img_allocator_layout `{MP : MachineParameters} (c : img_cmpt) (ot : O
 
 (** The imports of the allocator, with the sealing type [ot]. *)
 Definition img_allocator_imports `{MP : MachineParameters} (ot : OType) : list Word :=
-  [WCap true RW Global shadow_b shadow_e shadow_b;
-   WSealRange true (false, true) Global ot (ot ^+ 1)%ot ot;
-   WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr].
+  [Cap RW Global shadow_b shadow_e shadow_b;
+   SealRange (false, true) Global ot (ot ^+ 1) ot;
+   Cap RW Global revoker_addr (revoker_addr ^+ 1) revoker_addr].
 
 (** A compartment of an image holding the allocator is a well-formed
     allocator layout, given the conditions on the machine of a firmware
@@ -114,9 +114,9 @@ Section allocator_init.
       (tb : fw_trusted) :
     let c := cmpt_of img (fc_name fc) in
     let alloclayout := img_allocator_layout c ot in
-    let a_alloc_exp_tbl_cgp := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a in
-    let a_alloc_entry_malloc := (cmpt_exp_tbl_pcc c ^+ allocator_malloc_exp_tbl_off)%a in
-    let a_alloc_entry_free := (cmpt_exp_tbl_pcc c ^+ allocator_free_exp_tbl_off)%a in
+    let a_alloc_exp_tbl_cgp := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp) in
+    let a_alloc_entry_malloc := (cmpt_exp_tbl_pcc c ^+ allocator_malloc_exp_tbl_off) in
+    let a_alloc_entry_free := (cmpt_exp_tbl_pcc c ^+ allocator_free_exp_tbl_off) in
     img_cmpt_layout c →
     @allocatorLayoutWf MP alloclayout →
     cmpt_imports c = img_allocator_imports ot →
@@ -135,8 +135,8 @@ Section allocator_init.
     ={E}=∗
     allocator_service_ctx (layout := alloclayout) ∗
     allocator_service_static (layout := alloclayout) ∗
-    cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
-    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    cmpt_exp_tbl_pcc c ↦ₐ□ Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
+    a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     no_handler (cmpt_exp_tbl_pcc c) ∗
     a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
@@ -163,11 +163,11 @@ Section allocator_init.
     { by rewrite dom_fmap_L /initial_heap_memory dom_gset_to_gmap. }
     { rewrite /allocator_service_initial_resources /codefrag /=.
       rewrite Himports Hcode Hdata.
-      replace (cmpt_a_code c ^+ length allocator_code)%a with (cmpt_e_pcc c)
+      replace (cmpt_a_code c ^+ length allocator_code) with (cmpt_e_pcc c)
         by solve_addr+Hcode_size.
       iFrame. }
     iModIntro. iFrame "Hpcc".
-    replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp)%a by solve_addr+Hpcc_size.
+    replace (cmpt_exp_tbl_cgp c) with (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_cgp) by solve_addr+Hpcc_size.
     rewrite /fw_handler_res Hbody Hnh Hnhs.
     iFrame "Hcgp Hh".
     rewrite Hexports /allocator_export_table_entries.

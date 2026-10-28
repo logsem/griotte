@@ -31,7 +31,7 @@ Section Switch_Entry_First_Spill.
     switcher_merge_pc;
     lazymatch goal with
     | |- context [ environments.Esnoc _ _
-                     (PC ↦ₚ (WCap _ _ _ _ _ (a_switcher_call ^+ ?o)%a) @@? _)%I ] =>
+                     (PC ↦ₚ (WCap _ _ _ _ _ (a_switcher_call ^+ ?o)) @@? _)%I ] =>
       iSpecialize ("Hfailed" $! k o with "[] []");
       [ iPureIntro; split; [solve_addr | lia]
       | iPureIntro; apply trap_no_resume_switcher_pc; by vm_compute
@@ -53,7 +53,7 @@ Section Switch_Entry_First_Spill.
     cs1 ↦ᵣ[th] wcs1 ∗
     cra ↦ᵣ[th] wcra ∗
     cgp ↦ᵣ[th] wcgp ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
     switcher_code ∗
     ( ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
@@ -61,22 +61,22 @@ Section Switch_Entry_First_Spill.
           cs1 ↦ᵣ[th] wcs1 ∗
           cra ↦ᵣ[th] wcra ∗
           cgp ↦ᵣ[th] wcgp ∗
-          csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
           switcher_stk_cells (stk_spill_a a_stk) wcs0 wcs1 wcgp wcra ∗
           [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
             [[ stk_mem_callee stk_mem ]] ∗
           ⌜ switcher_stk_bounds b_stk e_stk a_stk ⌝ -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
       ( ⌜ ¬ stk_spill_fits b_stk e_stk a_stk ⌝ -∗
         cs0 ↦ᵣ[th] wcs0 ∗
         cs1 ↦ᵣ[th] wcs1 ∗
         cra ↦ᵣ[th] wcra ∗
         cgp ↦ᵣ[th] wcgp ∗
-        csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+        csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
         [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] -∗
         trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
           (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hcursor)
       "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & #Hswitcher & Hpost)".
@@ -120,9 +120,9 @@ Section Switch_Entry_First_Spill.
     { rewrite /withinBounds. solve_addr. }
     (* Lea csp csp (- SpillSlot_size) *)
     iInstr "Hcode".
-    assert (((a_stk ^+ - (4)) + 1)%a = Some ((a_stk ^+ - (4)) ^+ 1)%a) as Ha1 by solve_addr.
-    assert (((a_stk ^+ - (4)) + 2)%a = Some ((a_stk ^+ - (4)) ^+ 2)%a) as Ha2 by solve_addr.
-    assert (((a_stk ^+ - (4)) + 3)%a = Some ((a_stk ^+ - (4)) ^+ 3)%a) as Ha3 by solve_addr.
+    assert (((a_stk ^+ - (4)) + 1)%a = Some ((a_stk ^+ - (4)) ^+ 1)) as Ha1 by solve_addr.
+    assert (((a_stk ^+ - (4)) + 2)%a = Some ((a_stk ^+ - (4)) ^+ 2)) as Ha2 by solve_addr.
+    assert (((a_stk ^+ - (4)) + 3)%a = Some ((a_stk ^+ - (4)) ^+ 3)) as Ha3 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
     iInstr "Hcode".
     { stk_not_shadow Hstk_mmio. }
@@ -149,7 +149,7 @@ Section Switch_Entry_First_Spill.
       pointer: nothing is written. *)
   Lemma switch_entry_first_spill_fail_spec (wcsp wcs0 : LWord) :
     switcher_csp_checked wcsp ->
-    (∀ b e a a4, wcsp.(lw) = WCap true RWL Local b e a ->
+    (∀ b e a a4, wcsp.(lw) = Cap RWL Local b e a ->
                  (a + (SpillSlot_cs0 - SpillSlot_size))%a = Some a4 ->
                  (a4 < b)%a ∨ (e <= a4)%a) ->
 
@@ -161,7 +161,7 @@ Section Switch_Entry_First_Spill.
       cs0 ↦ᵣ[th] wcs0 -∗
       trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
         (HO th) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & #Hswitcher & Hfailed)".
     switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode" a_spill Ha_spill.
@@ -202,11 +202,11 @@ Section Switch_Entry_First_Spill.
     (wcs0 wcs1 wcgp wcra : LWord) :
     disjoint_from_mmio b e ->
     (e < a)%a ->
-    (b <= stk_spill_a a < e)%a ->
+    stk_spill_a a ∈ₐ [b, e) ->
     stk_spill_ok a ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_entry_first_spill" ∗
-    csp ↦ᵣ[th] WCap true RWL Local b e a ∗
+    csp ↦ᵣ[th] Cap RWL Local b e a ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     cgp ↦ᵣ[th] wcgp ∗
@@ -216,14 +216,14 @@ Section Switch_Entry_First_Spill.
     ( ∀ (k : nat) (off : Z),
       ⌜ (stk_spill_a a + k)%a = Some e ∧ (1 <= k <= 3)%nat ⌝ -∗
       ⌜ trap_no_resume (switcher_pc off) ⌝ -∗
-      csp ↦ᵣ[th] WCap true RWL Local b e (stk_saved_a a) ∗
+      csp ↦ᵣ[th] Cap RWL Local b e (stk_saved_a a) ∗
       cs0 ↦ᵣ[th] wcs0 ∗
       cs1 ↦ᵣ[th] wcs1 ∗
       cgp ↦ᵣ[th] wcgp ∗
       cra ↦ᵣ[th] wcra ∗
       [[ stk_spill_a a , e ]] ↦ₐ [[ take k [wcs0; wcs1; wcgp] ]] -∗
       trap_safe (switcher_pc off) ⊤ (HO th) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hea Hspill Ha4)
       "(HPC & Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk & #Hswitcher & Hfailed)".
@@ -232,7 +232,7 @@ Section Switch_Entry_First_Spill.
     iDestruct (big_sepL2_length with "Hstk") as %Hlen.
     rewrite finz_seq_between_length /finz.dist in Hlen.
     destruct ws as [|w0 ws]; first (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 1)%a with "Hstk") as "[Ha0 Hstk]";
+    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 1) with "Hstk") as "[Ha0 Hstk]";
       [solve_addr..|].
     (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
     iInstr "Hcode".
@@ -251,9 +251,9 @@ Section Switch_Entry_First_Spill.
       iDestruct (region_pointsto_cons with "[$Ha0 $Hstk]") as "Hstk"; [solve_addr..|].
       spill_fault_trap 1%nat. }
     destruct ws as [|w1 ws]; first (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 2)%a with "Hstk") as "[Ha1 Hstk]";
+    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 2) with "Hstk") as "[Ha1 Hstk]";
       [solve_addr..|].
-    assert (((a ^+ - (4)) + 1)%a = Some ((a ^+ - (4)) ^+ 1)%a) as Ha1 by solve_addr.
+    assert (((a ^+ - (4)) + 1)%a = Some ((a ^+ - (4)) ^+ 1)) as Ha1 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
     iInstr "Hcode".
     { stk_not_shadow Hstk_mmio. }
@@ -271,9 +271,9 @@ Section Switch_Entry_First_Spill.
       spill_fault_trap 2%nat. }
     destruct ws as [|w2 ws]; first (exfalso; cbn in Hlen; solve_addr).
     destruct ws; last (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 3)%a with "Hstk") as "[Ha2 Hstk]";
+    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 3) with "Hstk") as "[Ha2 Hstk]";
       [solve_addr..|].
-    assert (((a ^+ - (4)) + 2)%a = Some ((a ^+ - (4)) ^+ 2)%a) as Ha2 by solve_addr.
+    assert (((a ^+ - (4)) + 2)%a = Some ((a ^+ - (4)) ^+ 2)) as Ha2 by solve_addr.
     assert (((a ^+ - (4)) + 3)%a = Some e) as Ha_e by solve_addr.
     (* Store csp cgp SpillSlot_cgp *)
     iInstr "Hcode".

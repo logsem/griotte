@@ -42,26 +42,26 @@ Section Lea_To_Base_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let lea_to_base := (lea_to_base_instrs r r1 r2) in
-    let a_last := (pc_a ^+ length lea_to_base)%a in
+    let a_last := (pc_a ^+ length lea_to_base) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     r ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ WCap t p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a lea_to_base
-    ∗ ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
          ∗ r ↦ᵣ WCap t p g b e b @@? π
          ∗ r1 ↦ᵣ WInt 0%Z
          ∗ r2 ↦ᵣ WInt 0%Z
          ∗ codefrag_pers pc_a lea_to_base
-         -∗ WP Seq (Instr Executable) {{ φ }}
+         -∗ WP Exec {{ φ }}
         )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros lea_to_base a_last ; subst lea_to_base a_last.
     iIntros (Hvpc Hcont Hrcnull Hr1cnull Hr2cnull)

@@ -25,7 +25,7 @@ Section AllocatorMallocWorld.
     (allocations : list allocator_header_entry) (live issued : gset AId)
     (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) :
     (heap_b < next)%a ->
-    allocator_chain (heap_b ^+ 1)%a next allocations ->
+    allocator_chain (heap_b ^+ 1) next allocations ->
     allocator_entries_wf allocations ->
     allocator_cells_wf next allocations live issued Cs ->
     (next + allocator_header_words)%a = Some b ->
@@ -33,8 +33,8 @@ Section AllocatorMallocWorld.
     ι ∉ issued ->
     allocator_cells
       (allocator_cells_update (finz.seq_between next finish) (allocator_malloc_cell b ι) Cs) -∗
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e finish -∗
-    allocator_headers (heap_b ^+ 1)%a next allocations -∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e finish -∗
+    allocator_headers (heap_b ^+ 1) next allocations -∗
     allocator_header next b finish (id, 0%Z) -∗
     allocator_entries_res live allocations -∗
     allocator_service_owners allocations -∗

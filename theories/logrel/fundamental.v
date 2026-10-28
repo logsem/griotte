@@ -20,10 +20,10 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -62,8 +62,8 @@ Section fundamental.
 
   (** A safe, correct PC has a valid PC permission. *)
   Lemma interp_validPCperm W C p g b e a :
-    isCorrectPC (WCap true p g b e a) →
-    interp W C (WCap true p g b e a) -∗
+    isCorrectPC (Cap p g b e a) →
+    interp W C (Cap p g b e a) -∗
     ⌜ validPCperm p g ⌝.
   Proof.
     iIntros (HcorrectPC) "Hinv_interp".
@@ -84,9 +84,9 @@ Section fundamental.
 
   (** The region resources of the address pointed to by a safe, correct PC. *)
   Lemma interp_pc_in_registers W C (regs : leibnizO LReg) p g b e a :
-    isCorrectPC (WCap true p g b e a) →
+    isCorrectPC (Cap p g b e a) →
     validPCperm p g →
-    interp W C (WCap true p g b e a) -∗
+    interp W C (Cap p g b e a) -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     ∃ (p' : Perm) (P : V),
       ⌜PermFlowsTo p p'⌝ ∗
@@ -124,8 +124,8 @@ Section fundamental.
     (p : Perm) (g : Locality)
     (b e a : Addr) (π : option AId) :
     ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      interp W C (WCap true p g b e a @@? π) →
-      interp_expression W C (WCap true p g b e a @@? π).
+      interp W C (Cap p g b e a @@? π) →
+      interp_expression W C (Cap p g b e a @@? π).
   Proof.
     iIntros "#Htrap #Hinv_interp".
     iIntros (cstk Ws Cs regs0) "[Hregs [#Htop [HPC [Hmreg [Hworld_interp [Hcont [Hown [Hframe %Hframe]]]]]]]]".
@@ -156,7 +156,7 @@ Section fundamental.
     iIntros "#Hinv_interp #Htop".
     iDestruct "Hfull" as %Hfull. iDestruct "Hreg" as "#Hreg".
     rewrite /registers_pointsto.
-    destruct (decide (isCorrectPC (WCap true p g b e a))) as [HcorrectPC|] ; cycle 1.
+    destruct (decide (isCorrectPC (Cap p g b e a))) as [HcorrectPC|] ; cycle 1.
     { (* Not correct PC *)
       iApply (wp_notCorrectPC_trap with "HPC"); first done.
       iApply (interp_trap_safe_untrusted with
@@ -251,12 +251,12 @@ Section fundamental.
   Lemma interp_exec_cond W C p g b e a π :
     executeAllowed p = true ->
     ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      interp W C (WCap true p g b e a @@? π) -∗
+      interp W C (Cap p g b e a @@? π) -∗
       exec_cond W C p g b e π interp.
   Proof.
     iIntros (Hp) "#Htrap #Hw".
     destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
-    { iIntros (a0 W' Hin). exfalso. rewrite /in_range in Hin. solve_addr. }
+    { iIntros (a0 W' Hin). exfalso. solve_addr. }
     iDestruct (interp_exec_noid with "Hw") as %->; [done|done|].
     iIntros (a0 W' Hin) "#Hfuture". iModIntro.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
@@ -276,16 +276,16 @@ Section fundamental.
 
   (* We can use the above fact to create a special "jump or fail pattern" when jumping to an unknown adversary *)
   Lemma exec_wp W C p g b e a π :
-    isCorrectPC (WCap true p g b e a) ->
+    isCorrectPC (Cap p g b e a) ->
     ⊢ exec_cond W C p g b e π interp -∗
     ∀ W', future_world g W W' →
-          ▷ (interp_expr interp (interp_cont interp) W' C (WCap true p g b e a @@? π)).
+          ▷ (interp_expr interp (interp_cont interp) W' C (Cap p g b e a @@? π)).
   Proof.
     iIntros (Hvpc) "Hexec".
     rewrite /exec_cond /enter_cond.
     iIntros (W'). rewrite /future_world.
-    assert (a ∈ₐ[[b,e]])%I as Hin.
-    { rewrite /in_range. inversion Hvpc; subst. auto. }
+    assert (a ∈ₐ [b, e)) as Hin.
+    { inversion Hvpc; subst. auto. }
     destruct g.
     - iIntros (Hrelated).
       iSpecialize ("Hexec" $! a W' Hin Hrelated).
@@ -314,11 +314,11 @@ Section fundamental.
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then
            (∃ p g b e a π,
-               (⌜w = WCap true p g b e a @@? π ∨ (∃ k, w = WSentry k true p g b e a @@? π)⌝
+               (⌜w = Cap p g b e a @@? π ∨ (∃ k, w = Sentry k p g b e a @@? π)⌝
                 ∗ □ ∀ W', future_world g W W'
                           → ▷ (interp_expr interp (interp_cont interp) W' C) (lupdatePcPerm w)))
          else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ[th] lupdatePcPerm w
-                          -∗ WP Seq (Instr Executable) @[th] {{ φ }} )).
+                          -∗ WP Exec @[th] {{ φ }} )).
   Proof.
     iIntros "#Htrap #Hw".
     destruct (decide (isCorrectPC (updatePcPerm w.(lw)))).

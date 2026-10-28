@@ -155,7 +155,7 @@ Section SO_World_Return.
       Hrest_partition Hlive0 Hquarantined0 Hlive5 Hobject_stack Hstack_heap
       Hfresh Hnext Hnext_end Hreturned_bounds Hl4_W5
       Hl0_live_W5 Hstack_W5 Hhead_W5 Hres_W5.
-    assert (stk_start_a csp_b csp_e = (a_stk1 ^+ 1)%a) as Hstart
+    assert (stk_start_a csp_b csp_e = a_stk1 ^+ 1) as Hstart
       by (unfold stk_start_a, StackEntry_reserved_space in *; solve_addr+Hfresh).
     rewrite Hstart in Hres_W5 |- *.
     stk_unfold.
@@ -167,11 +167,11 @@ Section SO_World_Return.
     subst W3.
     assert (finz.seq_between csp_b csp_e =
       finz.seq_between csp_b a_stk2 ++ [a_stk2; a_stk1] ++
-        finz.seq_between (a_stk1 ^+ 1)%a csp_e) as Hstack_seq.
+        finz.seq_between (a_stk1 ^+ 1) csp_e) as Hstack_seq.
     { rewrite (finz_seq_between_split csp_b a_stk2 csp_e);
         last solve_addr+Hfresh Hnext Hnext_end.
       rewrite (finz_seq_between_cons a_stk2 csp_e); last solve_addr+Hfresh Hnext.
-      replace (a_stk2 ^+ 1)%a with a_stk1 by solve_addr+Hnext.
+      replace (a_stk2 ^+ 1) with a_stk1 by solve_addr+Hnext.
       rewrite (finz_seq_between_cons a_stk1 csp_e); last solve_addr+Hfresh.
       reflexivity. }
 
@@ -518,7 +518,7 @@ Section SO_World_Return.
     { rewrite Forall_forall in Hstack_live4. apply Hstack_live4.
       apply elem_of_finz_seq_between. solve_addr+Hfresh Hnext Hnext_end. }
     assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
-      (finz.seq_between (a_stk1 ^+ 1)%a csp_e)) as Hres_live4.
+      (finz.seq_between (a_stk1 ^+ 1) csp_e)) as Hres_live4.
     { apply Forall_forall. intros x Hx. apply heap_key_live_nonheap. }
     assert (Forall (λ a, heap_key_live (heap_std W4) (LNonHeap a))
       (finz.seq_between csp_b a_stk2)) as Htail_live4.
@@ -618,7 +618,7 @@ Section SO_World_Return.
     (* Join the returned tail, the fresh address, the secret and the space
        reserved on top. *)
     iDestruct (big_sepL2_length with "Hres") as %Hres_len.
-    iDestruct (region_pointsto_cons a_stk1 (a_stk1 ^+ 1)%a csp_e
+    iDestruct (region_pointsto_cons a_stk1 (a_stk1 ^+ 1) csp_e
       with "[$Hhead0 $Hres]") as "Hstack";
       [solve_addr+Hfresh|solve_addr+Hfresh|].
     iDestruct (region_pointsto_cons a_stk2 a_stk1 csp_e

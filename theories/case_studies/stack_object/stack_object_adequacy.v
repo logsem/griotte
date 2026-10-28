@@ -55,7 +55,7 @@ Section so_obligations.
 
     (* 2 - The export entries of C and main, imported by each other *)
     set (C_f := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry so_C_entry_adv)%a).
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry so_C_entry_adv)).
     assert (cmpt_export_sb (cmpt_of img "C") so_C_entry_adv = C_f) as HsbC.
     { by rewrite /cmpt_export_sb /C_f /=. }
     assert (image.cmpt_imports (cmpt_of img "main") = @so_main_imports swl asl C_f)
@@ -95,8 +95,7 @@ Section so_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     pose proof (cmpt_exp_tbl_entries_size main_cmpt) as Hmain_exp_tbl_size.
     rewrite main_exp_tbl in Hmain_exp_tbl_size.
-    assert (cmpt_exp_tbl_pcc main_cmpt <= cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f
-            < cmpt_exp_tbl_entries_end main_cmpt)%a as Hmain_exp_tbl_bounds.
+    assert (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f ∈ₐ [cmpt_exp_tbl_pcc main_cmpt, cmpt_exp_tbl_entries_end main_cmpt)) as Hmain_exp_tbl_bounds.
     { pose proof (cmpt_exp_tbl_header_size main_cmpt) as Hheader.
       clear -Hmain_exp_tbl_size Hheader. rewrite /so_entry_f. cbn in *. solve_addr. }
     iEval (rewrite big_sepL_cons) in "Hmain_etbl_entries".
@@ -108,7 +107,7 @@ Section so_obligations.
        world of C *)
     set (main_f := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                      (cmpt_exp_tbl_entries_end main_cmpt)
-                       (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)%a) in *.
+                       (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)) in *.
     set (W0' := <o[ switcher.ot_switcher :=
                     {[ lword_of_word (WSealable main_f);
                        lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
@@ -158,8 +157,8 @@ Section so_obligations.
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts so_firmware
              fc_name fc_body tb_exports fe_name String.eqb Ascii.eqb Bool.eqb andb addr_off].
         fw_fold_cmpt main_cmpt.
-        change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)%a
-          with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)%a.
+        change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
+          with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f).
         fold main_f.
         iSplit.
         + iApply interp_to_in_mem.
@@ -241,7 +240,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem so_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   so_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

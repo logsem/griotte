@@ -43,30 +43,30 @@ Section img_state.
   Definition img_pc (fw : firmware) (img : fw_image) : Word :=
     let '(n, off) := thread0_entry fw img in
     let c := cmpt_of img n in
-    WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ off)%a.
+    Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ off).
 
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
     let c := cmpt_of img (thread0_entry fw img).1 in
     let t := thread_of img 0 in
     let sw := img_sw img in
-    <[cgp := WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
-      (<[cra := WSentry RetDisable true XSRW_ Local (b_switcher sw) (e_switcher sw)
+    <[cgp := Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
+      (<[cra := Sentry RetDisable XSRW_ Local (b_switcher sw) (e_switcher sw)
                   (a_switcher_return sw)]>
-         (<[csp := WCap true RWL Local (b_stack t) (e_stack t)
-                      (e_stack t ^+ (- StackEntry_reserved_space))%a]>
+         (<[csp := Cap RWL Local (b_stack t) (e_stack t)
+                      (e_stack t ^+ (- StackEntry_reserved_space))]>
             (gset_to_gmap (WInt 0) all_registers_s))).
 
   Definition img_sregs (img : fw_image) : SReg :=
     let t := thread_of img 0 in
     let sw := img_sw img in
-    <[MTDC := WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)]>
-      (<[MSTATUS := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
-         (<[MTCC := WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
+    <[mtdc := Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)]>
+      (<[mstatus := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
+         (<[mtcc := Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
                       (a_switcher_call sw ^+
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                            ".Lswitch_csp_check" "exception_entry_asm")%a]>
-            (<[MEPCC := WInt 0]>
-               (<[MCAUSE := WInt 0]> (<[MTVAL := WInt 0]> ∅))))).
+            (<[mepcc := WInt 0]>
+               (<[mcause := WInt 0]> (<[mtval := WInt 0]> ∅))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
       memory of every thread. *)

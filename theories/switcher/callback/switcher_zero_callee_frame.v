@@ -30,12 +30,12 @@ Section Switcher_Zero_Callee_Frame.
     ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
           cra ↦ᵣ[th] wret ∗
           £ 1 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
         cra ↦ᵣ[th] wret -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
           (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_just_return" "Hswitcher" as "Hcode" a_ret Ha_ret.
@@ -62,19 +62,19 @@ Section Switcher_Zero_Callee_Frame.
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
     cra ↦ᵣ[th] wcra ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
+    regs[th] rmap ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         cra ↦ᵣ[th] wcra ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm wcra ∗
           £ 1 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_ret"; first iFrame "Hswitcher".
@@ -116,10 +116,10 @@ Section Switcher_Zero_Callee_Frame.
     ct2 ↦ᵣ[th] wct2 ∗
     ca2 ↦ᵣ[th] wca2 ∗
     ctp ↦ᵣ[th] wctp ∗
-    csp ↦ᵣ[th] WCap true RWL Local b e a ∗
+    csp ↦ᵣ[th] Cap RWL Local b e a ∗
     switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
+    regs[th] rmap ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
@@ -127,19 +127,17 @@ Section Switcher_Zero_Callee_Frame.
         cgp ↦ᵣ[th] wcgp' ∗
         cs0 ↦ᵣ[th] wcs0' ∗
         cs1 ↦ᵣ[th] wcs1' ∗
-        csp ↦ᵣ[th] WCap true RWL Local b e a ∗
-        [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
-          [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-          [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        csp ↦ᵣ[th] Cap RWL Local b e a ∗
+        [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
+        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
+        regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm wcra' ∗
           £ 1 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hbounds Hstk_mmio Hdom)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
@@ -156,9 +154,9 @@ Section Switcher_Zero_Callee_Frame.
     iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
     iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode_zero]".
     rewrite length_take_le; last (cbn; lia).
-    iEval (rewrite (_ : (a_block ^+ 19)%a = (a_block ^+ 19%nat)%a); last done) in "HPC".
-    assert (SubBounds b_switcher e_switcher (a_block ^+ 19%nat)%a
-              ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1))%a) as Hsub_zero.
+    iEval (rewrite (_ : a_block ^+ 19 = a_block ^+ 19%nat); last done) in "HPC".
+    assert (SubBounds b_switcher e_switcher (a_block ^+ 19%nat)
+              ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1))) as Hsub_zero.
     { cbn [length clear_stack_instrs]. clear -H0. solve_addr. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
     iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode_zero $Hstk]");
@@ -177,8 +175,7 @@ Section Switcher_Zero_Callee_Frame.
     iApply (switch_callee_dead_zeros_spec with "[- $HPC $Hcra $Hrmap $Hswitcher_dz]").
     { rewrite !dom_insert_L Hdom. clear. set_solver. }
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
-    iAssert ([[ stk_free_b b a , stk_free_e e a ]] ↦ₐ
-               [[ region_addrs_zeroes (stk_free_b b a) (stk_free_e e a) ]])%I
+    iAssert ([[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ 0…0 ]])%I
       with "[Hstk]" as "Hstk"; first done.
     iEval (rewrite (stk_free_split_zeroes _ _ _ Hbounds)) in "Hstk".
     iDestruct (stk_free_split_join with "Hstk") as "[Hstk' Hstk]"; first done.

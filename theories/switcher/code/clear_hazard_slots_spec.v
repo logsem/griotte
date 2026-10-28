@@ -23,9 +23,9 @@ Section ClearHazardSlots.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (ts scratch : RegName) (g : Locality) (b e a : Addr) (b_hz e_hz : Addr)
     (wscratch : LWord) (ws : list LWord) φ :
-    let a_hz := (a ^+ TrustedStack_offset_hazardPointers)%a in
+    let a_hz := (a ^+ TrustedStack_offset_hazardPointers) in
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_hazard_slots_instrs ts scratch))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_hazard_slots_instrs ts scratch)) ->
     (a + TrustedStack_offset_hazardPointers)%a = Some a_hz ->
     withinBounds b e a_hz = true ->
     is_shadow_address a_hz = false ->
@@ -36,20 +36,20 @@ Section ClearHazardSlots.
     ts ≠ cnull ->
     scratch ≠ cnull ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-    ts ↦ᵣ WCap true RWL g b e a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
+    ts ↦ᵣ Cap RWL g b e a ∗
     scratch ↦ᵣ wscratch ∗
-    a_hz ↦ₐ WCap true WO Global b_hz e_hz b_hz ∗
+    a_hz ↦ₐ Cap WO Global b_hz e_hz b_hz ∗
     [[ b_hz, e_hz ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_a (clear_hazard_slots_instrs ts scratch) ∗
-    ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-            (pc_a ^+ length (clear_hazard_slots_instrs ts scratch))%a ∗
-        ts ↦ᵣ WCap true RWL g b e a ∗
-        scratch ↦ᵣ WCap true WO Global b_hz e_hz b_hz ∗
-        a_hz ↦ₐ WCap true WO Global b_hz e_hz b_hz ∗
-        [[ b_hz, e_hz ]] ↦ₐ [[ region_addrs_zeroes b_hz e_hz ]] -∗
-        WP Seq (Instr Executable) @ E {{ φ }} )
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+    ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+            (pc_a ^+ length (clear_hazard_slots_instrs ts scratch)) ∗
+        ts ↦ᵣ Cap RWL g b e a ∗
+        scratch ↦ᵣ Cap WO Global b_hz e_hz b_hz ∗
+        a_hz ↦ₐ Cap WO Global b_hz e_hz b_hz ∗
+        [[ b_hz , e_hz ]] ↦ₐ [[ 0…0 ]] -∗
+        WP Exec @ E {{ φ }} )
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros a_hz; subst a_hz.
     iIntros (Hx Hbounds Ha_hz Hhz_bounds Hhz_shadow Hhz_size Hhz_slots_shadow Hhz_heap
@@ -71,7 +71,7 @@ Section ClearHazardSlots.
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hhz_slots_shadow | rewrite /withinBounds; solve_addr]. }
     { rewrite /withinBounds; solve_addr. }
-    assert ((b_hz + 1)%a = Some (b_hz ^+ 1)%a) as Hhz_1 by solve_addr.
+    assert ((b_hz + 1)%a = Some (b_hz ^+ 1)) as Hhz_1 by solve_addr.
     (* Store scratch 0 1 *)
     iInstr "Hcode".
     { eapply disjoint_from_shadow_not_in; [exact Hhz_slots_shadow | rewrite /withinBounds; solve_addr]. }
@@ -87,7 +87,7 @@ Section ClearHazardSlots.
   Lemma codefrag_pers_clear_hazard_slots (a : Addr) (l : list Word) (i : nat) ts scratch :
     take 3 (drop i l) = clear_hazard_slots_instrs ts scratch →
     (i + 3 <= length l)%nat →
-    codefrag_pers a l -∗ codefrag_pers (a ^+ i)%a (clear_hazard_slots_instrs ts scratch).
+    codefrag_pers a l -∗ codefrag_pers (a ^+ i) (clear_hazard_slots_instrs ts scratch).
   Proof.
     iIntros (Hl Hlen) "Hcode".
     rewrite -{1}(take_drop i l) -{1}(take_drop 3 (drop i l)) Hl.

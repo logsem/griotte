@@ -43,7 +43,7 @@ Section HTS_Spec_Malloc.
   Lemma hts_spec_malloc (rmap : LReg) :
     cstk.(cstk_frames) = [] ->
     is_shadow_address owner_a = false ->
-    withinBounds owner_a (owner_a ^+ 1)%a owner_a = true ->
+    withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
     is_heap_address owner_a = false ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -54,24 +54,24 @@ Section HTS_Spec_Malloc.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     cra ↦ᵣ[th] thread_return_sentry ∗
-    ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+    regs[th] rmap ∗
     hts_static ∗
     allocator_owner_id hts_main_owner_id ∅ ∗
     world_interp W_init_C C ∗
-    interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
+    interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
     interp_continuation cstk Ws Cs ∗
     ◯(CSTK)[th] cstk ∗
     (malloc_ret -∗
-     WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+     safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
@@ -124,7 +124,7 @@ Section HTS_Spec_Malloc.
     iExtractList "Hrmap" [ctp] as ["Hctp"].
     iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch2
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
@@ -133,7 +133,7 @@ Section HTS_Spec_Malloc.
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
@@ -169,7 +169,7 @@ Section HTS_Spec_Malloc.
     (* Jalr cra ctp. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 2)%a = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
+    assert (a_call ^+ 2 = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
       by (offsets_compute; solve_addr).
     rewrite Ha_ret.
     clear Ha_fetch1 Ha_fetch2 Ha_fetch3.
@@ -194,13 +194,13 @@ Section HTS_Spec_Malloc.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
       done. }
     set (rmap_other :=
-      <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp:=lword_of_word switcher_entry_call]>
        (delete cs1 (delete ct0 (delete ca5 (delete ca4 (delete ca3
          (delete ca2 (delete cs0 (delete ct1
            (delete ca0 (delete ca1 rmap))))))))))).
     iPoseProof (hts_malloc_known_function
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk
       Global owner_a hts_main_owner_id ∅
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
@@ -225,13 +225,13 @@ Section HTS_Spec_Malloc.
       first (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *;
              solve_addr+Hstk_min).
     iApply (switcher_cc_specification_known_to_known_end_to_end
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e) stk_mem_free rmap_arg
       rmap_other cstk
       allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_exp_tbl_b
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a
+      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)
       allocator_exp_tbl_e allocator_pcc_b allocator_pcc_e
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
@@ -293,12 +293,12 @@ Section HTS_Spec_Malloc.
           "(%Hbounds & _ & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
         rewrite union_empty_l_L.
         destruct Hret as [-> ->].
-        assert (e = (b ^+ 1)%a) as -> by solve_addr.
-        assert ((b + 1)%a = Some (b ^+ 1)%a) as Hsucc by solve_addr.
-        assert (finz.dist b (b ^+ 1)%a = 1) as Hdist
-          by (destruct (proj1 (finz_incr_iff_dist b (b ^+ 1)%a 1)) as [_ ?]; [solve_addr|done]).
+        assert (e = b ^+ 1) as -> by solve_addr.
+        assert ((b + 1)%a = Some (b ^+ 1)) as Hsucc by solve_addr.
+        assert (finz.dist b (b ^+ 1) = 1) as Hdist
+          by (destruct (proj1 (finz_incr_iff_dist b (b ^+ 1) 1)) as [_ ?]; [solve_addr|done]).
         iEval (rewrite /heap_region_pointsto /region_addrs_zeroes
-          (finz_seq_between_singleton b (b ^+ 1)%a Hsucc) Hdist) in "Hzeroed".
+          (finz_seq_between_singleton b (b ^+ 1) Hsucc) Hdist) in "Hzeroed".
         iDestruct "Hzeroed" as "[Hb _]".
         iRight. iExists ι, b.
         iSplit; first (iPureIntro; rewrite /hts_buffer_bounds; solve_addr).

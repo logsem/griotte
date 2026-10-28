@@ -27,8 +27,8 @@ Section DLE_Overwrite_Blocks_3.
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -36,21 +36,21 @@ Section DLE_Overwrite_Blocks_3.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
     cgp_b ↦ₐ wcgp_b ∗
-    pc_b ↦ₐ□ dle_switcher_entry ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] WInt 0 ∗
-        ct0 ↦ᵣ[th] dle_switcher_entry ∗
+        ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
         cs0 ↦ᵣ[th] wcs0 ∗
         cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
-        pc_b ↦ₐ□ dle_switcher_entry ∗
+        pc_b ↦ₐ□ switcher_entry_call ∗
         codefrag_pers pc_a dle_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio)
@@ -62,7 +62,7 @@ Section DLE_Overwrite_Blocks_3.
     (* Block 3: return from the first call *)
     focus_block (dle_block ".Ldle_call_B") "Hcode_main" of dle_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    change_pc_to (a_callB ^+ 3)%a.
+    change_pc_to (a_callB ^+ 3).
     (* Store cgp 42%Z 0 *)
     iInstr "Hcode".
     { solve_not_shadow Hcgp_mmio. }
@@ -75,11 +75,11 @@ Section DLE_Overwrite_Blocks_3.
     focus_block (dle_block ".Ldle_refetch_switcher") "Hcode_main" of dle_main_blocks at pc_a
       as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec 0 _ _ _ _ _ _ _ dle_switcher_entry
+    iApply (fetch_spec 0 _ _ _ _ _ _ _ switcher_entry_call
               with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { offsets_compute; solve_addr. }
     { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -94,9 +94,9 @@ Section DLE_Overwrite_Blocks_3.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB2 ^+ 2)%a = (pc_a ^+ dle_label_offset ".Ldle_check")%a) as ->
+    assert (a_callB2 ^+ 2 = (pc_a ^+ dle_label_offset ".Ldle_check")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; rewrite /dle_switcher_entry; iFrame "∗ Hcode_main".
+    iApply "Hpost"; rewrite /switcher_entry_call; iFrame "∗ Hcode_main".
   Qed.
 
 End DLE_Overwrite_Blocks_3.

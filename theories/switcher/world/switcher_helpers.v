@@ -16,10 +16,10 @@ Section switcher_helper.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
   Implicit Types W : WORLD.
@@ -41,11 +41,11 @@ Section switcher_helper.
       related_sts_pub_world W0 Wfixed ->
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
-        (WCap true RWL Local b_stk
+        (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
       world_interp Wcur C -∗
-      [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]] -∗
-      [[b_stk,a_stk]]↦ₐ[[region_addrs_zeroes b_stk a_stk]] -∗
+      [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
+      [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
 
       CloseRes Wfixed C a_stk l ccrel -∗
 
@@ -54,7 +54,7 @@ Section switcher_helper.
             world_interp Wfixed C
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[a_stk,a_stk4]]↦ₐ[[region_addrs_zeroes a_stk a_stk4]]
+               else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
               )
     .
     Proof.
@@ -67,7 +67,7 @@ Section switcher_helper.
       iAssert (▷ close_list_resources C W0 (LNonHeap <$> finz.seq_between b_stk a_stk) false)%I
         with "[Hstk]" as "Hstk".
       {
-        iAssert (interp W0 C (WCap true RWL Local b_stk a_stk cur)) as "Hvalid".
+        iAssert (interp W0 C (Cap RWL Local b_stk a_stk cur)) as "Hvalid".
         {
           rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
           iApply (interp_weakening _ _ true _ _ _ _ b_stk b_stk e_stk a_stk
@@ -119,31 +119,31 @@ Section switcher_helper.
         iDestruct "Hrev2" as (p2 P2 Hpers2) "(Hdata2 & #Hrel2)".
         iDestruct "Hrev3" as (p3 P3 Hpers3) "(Hdata3 & #Hrel3)".
         iAssert (close_list_resources C Wfixed
-          (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) false)
+          (LNonHeap <$> [a_stk; (a_stk ^+ 1); (a_stk ^+ 2); (a_stk ^+ 3)]) false)
           with "[Hstk' Hdata0 Hdata1 Hdata2 Hdata3]" as "Hframe".
         {
         cbn in *.
-        replace a_stk4 with (a_stk ^+4)%a by solve_addr+Ha_stk4 He_a1.
+        replace a_stk4 with (a_stk ^+4) by solve_addr+Ha_stk4 He_a1.
         rewrite /region_addrs_zeroes.
-        replace (finz.dist a_stk (a_stk ^+ 4)%a) with 4; first cbn.
+        replace (finz.dist a_stk (a_stk ^+ 4)) with 4; first cbn.
         2: { do 4 (rewrite finz_dist_S; last (solve_addr+Ha_stk4)).
              rewrite finz_dist_0; last (solve_addr+Ha_stk4).
              done.
         }
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk0 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 1)%a ); solve_addr+Ha_stk4
+        ; [ transitivity ( Some (a_stk ^+ 1) ); solve_addr+Ha_stk4
           | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk1 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 2)%a ); solve_addr+Ha_stk4
+        ; [ transitivity ( Some (a_stk ^+ 2) ); solve_addr+Ha_stk4
           | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk2 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 3)%a ); solve_addr+Ha_stk4
+        ; [ transitivity ( Some (a_stk ^+ 3) ); solve_addr+Ha_stk4
           | solve_addr+Ha_stk4 He_a1
           |].
         iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk3 _]"
-        ; [ transitivity ( Some (a_stk ^+ 4)%a ); solve_addr+Ha_stk4
+        ; [ transitivity ( Some (a_stk ^+ 4) ); solve_addr+Ha_stk4
           | solve_addr+Ha_stk4 He_a1
           |].
         rewrite /close_list_resources /= /close_addr_resources.
@@ -159,7 +159,7 @@ Section switcher_helper.
         { iExists p1, P1. iFrame "Hrel1". iSplit; first done.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          iApply (temp_resources_mono_pub Wsrc Wfixed C P1 (a_stk ^+ 1)%a p1
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P1 (a_stk ^+ 1) p1
             Hrelated with "[Ha_stk1 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk1 Hmono Hφ %".
         }
@@ -167,7 +167,7 @@ Section switcher_helper.
         { iExists p2, P2. iFrame "Hrel2". iSplit; first done.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          iApply (temp_resources_mono_pub Wsrc Wfixed C P2 (a_stk ^+ 2)%a p2
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P2 (a_stk ^+ 2) p2
             Hrelated with "[Ha_stk2 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk2 Hmono Hφ %".
         }
@@ -175,7 +175,7 @@ Section switcher_helper.
         { iExists p3, P3. iFrame "Hrel3". iSplit; first done.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          iApply (temp_resources_mono_pub Wsrc Wfixed C P3 (a_stk ^+ 3)%a p3
+          iApply (temp_resources_mono_pub Wsrc Wfixed C P3 (a_stk ^+ 3) p3
             Hrelated with "[Ha_stk3 Hφ]").
           iExists (WInt 0). iFrame "Ha_stk3 Hmono Hφ %".
         }
@@ -185,14 +185,14 @@ Section switcher_helper.
           by apply related_sts_pub_refl_world.
         iDestruct (world_interp_close_resources_to_RevokedResources Wcur Wfixed C
           (l ++ closing_region)
-          (LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a])
+          (LNonHeap <$> [a_stk; (a_stk ^+ 1); (a_stk ^+ 2); (a_stk ^+ 3)])
           Hrelated_refl with "Hworld_interp Hframe") as "[Hworld_interp Hframe]".
         iMod (world_interp_restore Wcur C (l ++ closing_region)
           with "[$Hworld_interp Hclose_list_res Hframe Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app.
         iSplitR "Hstk"; last done.
         iApply (big_opL_permutation (o := bi_sep) _
-          ((LNonHeap <$> [a_stk; (a_stk ^+ 1)%a; (a_stk ^+ 2)%a; (a_stk ^+ 3)%a]) ++ l') l);
+          ((LNonHeap <$> [a_stk; (a_stk ^+ 1); (a_stk ^+ 2); (a_stk ^+ 3)]) ++ l') l);
           first (symmetry; exact Hl).
         rewrite big_sepL_app. iFrame.
       - iFrame "Hstk'".
@@ -216,14 +216,13 @@ Section switcher_helper.
       related_sts_pub_world W0 Wfixed ->
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
-        (WCap true RWL Local
+        (Cap RWL Local
            (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
            (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
            a_stk) -∗
       world_interp Wcur C -∗
-      [[s, (s ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes s (s ^+ SpillSlot_size)%a]] -∗
-      [[stk_callee_b b_stk a_stk, stk_callee_e e_stk a_stk]]↦ₐ
-        [[region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)]] -∗
+      [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] -∗
+      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] -∗
 
       CloseRes Wfixed C s l ccrel -∗
 
@@ -232,7 +231,7 @@ Section switcher_helper.
             world_interp Wfixed C
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[s, (s ^+ SpillSlot_size)%a]]↦ₐ[[region_addrs_zeroes s (s ^+ SpillSlot_size)%a]]
+               else [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]
               )
     .
     Proof.
@@ -308,13 +307,13 @@ Section switcher_helper.
       csp ↦ᵣ[th] wcsp -∗
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wca1 -∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝) -∗
+      regs₀[th] rmap -∗
       world_interp W C -∗
       interp_continuation cstk Ws Cs -∗
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
       £ 1 -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
     Proof.
       iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
@@ -390,7 +389,7 @@ Section switcher_helper.
       csp ↦ᵣ[th] wcsp -∗
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wca1 -∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝) -∗
+      regs₀[th] rmap -∗
       interp_continuation cstk Ws Cs -∗
       (|={⊤}=>
          world_interp W C ∗
@@ -398,7 +397,7 @@ Section switcher_helper.
          ◯(CSTK)[th] cstk) -∗
       ( PC ↦ₚ[th] lupdatePcPerm wret ∗
         £ 1 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+        safe[th] ) ∧
       ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ -∗
         trap_safe w ⊤ (HO th) ).
     Proof.

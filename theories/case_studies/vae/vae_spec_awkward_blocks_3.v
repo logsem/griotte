@@ -34,8 +34,8 @@ Section VAE_Awkward_Blocks_3.
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] wret ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -44,11 +44,11 @@ Section VAE_Awkward_Blocks_3.
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ca2 ↦ᵣ[th] wca2 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (world_interp W C ∗
         PC ↦ₚ[th] lupdatePcPerm wret ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ[th] wret ∗
         cs0 ↦ᵣ[th] wret ∗
         ca0 ↦ᵣ[th] WInt 0 ∗
@@ -57,10 +57,10 @@ Section VAE_Awkward_Blocks_3.
         ct1 ↦ᵣ[th] WInt 0 ∗
         ct2 ↦ᵣ[th] WInt 0 ∗
         ca2 ↦ᵣ[th] WInt 0 ∗
-        (pc_b ^+ 1)%a ↦ₐ□ vae_assert_entry ∗
+        (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hloc Htgt)
@@ -69,12 +69,12 @@ Section VAE_Awkward_Blocks_3.
       & Himport_assert & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
-    rewrite /vae_assert_entry.
+    rewrite /assert_entry.
 
     (* Block 9: load the flag, which is [1] *)
     focus_block (vae_block ".Lvae_awkward_call_2") "Hcode_main" of vae_main_blocks at pc_a as a_load Ha_load "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    change_pc_to (a_load ^+ 4)%a.
+    change_pc_to (a_load ^+ 4).
     (* CLoad ct0 cgp 0 *)
     iInstrStart "Hcode".
     iMod (inv_acc with "Hawk") as "(>(%b & Hst & Hflag) & Hclose)"; auto.

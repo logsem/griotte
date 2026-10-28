@@ -60,11 +60,11 @@ Definition nat_str (k : nat) : string :=
     predicate reads [a ^+ 2] rather than [a ^+ Z.of_nat 2]. *)
 Definition addr_off (a : Addr) (k : nat) : Addr :=
   match k with
-  | 0 => a | 1 => (a ^+ 1)%a | 2 => (a ^+ 2)%a | 3 => (a ^+ 3)%a
-  | 4 => (a ^+ 4)%a | 5 => (a ^+ 5)%a | 6 => (a ^+ 6)%a | 7 => (a ^+ 7)%a
-  | 8 => (a ^+ 8)%a | 9 => (a ^+ 9)%a | 10 => (a ^+ 10)%a | 11 => (a ^+ 11)%a
-  | 12 => (a ^+ 12)%a | 13 => (a ^+ 13)%a | 14 => (a ^+ 14)%a | 15 => (a ^+ 15)%a
-  | _ => (a ^+ Z.of_nat k)%a
+  | 0 => a | 1 => (a ^+ 1) | 2 => (a ^+ 2) | 3 => (a ^+ 3)
+  | 4 => (a ^+ 4) | 5 => (a ^+ 5) | 6 => (a ^+ 6) | 7 => (a ^+ 7)
+  | 8 => (a ^+ 8) | 9 => (a ^+ 9) | 10 => (a ^+ 10) | 11 => (a ^+ 11)
+  | 12 => (a ^+ 12) | 13 => (a ^+ 13) | 14 => (a ^+ 14) | 15 => (a ^+ 15)
+  | _ => (a ^+ Z.of_nat k)
   end.
 
 Definition default_export : fw_export := MkFwExport "" 0 0 0 InterruptDisabled.
@@ -102,25 +102,23 @@ Section translation.
     | FW w => w
     | ISwitcherCall =>
         note "switcher call"
-          (WSentry FwdDisable true XSRW_ Local
+          (Sentry FwdDisable XSRW_ Local
              (b_switcher (img_sw img)) (e_switcher (img_sw img))
              (a_switcher_call (img_sw img)))
     | IAssert =>
         note "assert"
-          (WSentry Inherit true RX Global
+          (Sentry Inherit RX Global
              (b_assert (img_asrt img)) (e_assert (img_asrt img)) (b_assert (img_asrt img)))
     | IExport n e =>
         let x := cmpt_of img n in
         let k := match fw_export_index fw n e with Some k => k | None => 0 end in
         note (n ++ ", export " ++ e)
-          (WSealed (ot_switcher (img_sw img))
-             (SCap true RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x)
-                (cmpt_exp_tbl_pcc x ^+ ExportTable_offset_entry k)%a))
+          (Sealed (ot_switcher (img_sw img)) RO Global (cmpt_exp_tbl_pcc x) (cmpt_exp_tbl_entries_end x) (cmpt_exp_tbl_pcc x ^+ ExportTable_offset_entry k))
     | ISealedStatic o s =>
         let k := match fw_index_of ss_name s ss with Some k => k | None => 0 end in
         let a := addr_off (cmpt_b_static_sealed c) k in
         note ("own static " ++ s)
-          (WSealed o (SCap true RO Global a (a ^+ 1)%a a))
+          (Sealed o RO Global a (a ^+ 1) a)
     end.
 
   (** The words of a list of chunks. *)
@@ -230,7 +228,7 @@ Section translation.
     let asrt := img_asrt img in
     mem_region (b_assert asrt)
       (assert_subroutine_instrs ++
-         [WCap true RW Global (flag_assert asrt) (flag_assert asrt ^+ 1)%a (flag_assert asrt)])%list.
+         [Cap RW Global (flag_assert asrt) (flag_assert asrt ^+ 1) (flag_assert asrt)])%list.
 
   Definition assert_flag_mem : Mem := mem_region (flag_assert (img_asrt img)) [WInt 0].
 
@@ -242,8 +240,8 @@ Section translation.
     note (n ++ ", static sealed") (mem_region (cmpt_b_static_sealed c) (cmpt_static_sealed c)) ∪
     note (n ++ ", export table")
       (mem_region (cmpt_exp_tbl_pcc c)
-         (WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ::
-          WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ::
+         (Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ::
+          Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ::
           cmpt_exp_tbl_handler c ::
           cmpt_exp_tbl_handler_stackless c ::
           cmpt_exp_tbl_entries c)).
@@ -262,11 +260,11 @@ Section translation.
     note ("thread " ++ nat_str i ++ ", trusted stack, entry frame in " ++ ft_cmpt ft)
       (mem_region (b_trusted_stack t)
          (initial_trusted_stack_content
-            (WCap true RWL Local (b_stack t) (e_stack t)
-               (e_stack t ^+ (- StackEntry_reserved_space))%a)
-            (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
+            (Cap RWL Local (b_stack t) (e_stack t)
+               (e_stack t ^+ (- StackEntry_reserved_space)))
+            (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
                (cmpt_exp_tbl_pcc c))
-            (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+            (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
             (S i) (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
       (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
@@ -301,7 +299,7 @@ Section translation.
         match fc_body fc with
         | TrustedBody b =>
             note (ft_cmpt ft ++ ", export " ++ ft_entry ft)
-              (pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+              (pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
                          (addr_off (cmpt_b_pcc m)
                             (fe_offset (fw_export_named (ft_entry ft) (tb_exports b)))))
         | UntrustedBody b =>
@@ -311,32 +309,32 @@ Section translation.
                 note (ft_cmpt ft ++ ", export " ++ ft_entry ft ++
                         ", at the offset its entry word encodes")
                   (∃ z : Z, cmpt_exp_tbl_entries m !! k = Some (WInt z) ∧
-                     pcc σ = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
-                               (cmpt_b_pcc m ^+ export_entry_offset z)%a)
+                     pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+                               (cmpt_b_pcc m ^+ export_entry_offset z))
             end
         end ∧
-        reg σ !! cgp = Some (WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
+        reg σ !! cgp = Some (Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
         reg σ !! csp =
-          Some (WCap true RWL Local (b_stack t) (e_stack t)
-                  (e_stack t ^+ (- StackEntry_reserved_space))%a) ∧
+          Some (Cap RWL Local (b_stack t) (e_stack t)
+                  (e_stack t ^+ (- StackEntry_reserved_space))) ∧
         note "the switcher's return sentry: a return from the entry exits the thread"
           (reg σ !! cra =
-             Some (WSentry RetDisable true XSRW_ Local (b_switcher (img_sw img))
+             Some (Sentry RetDisable XSRW_ Local (b_switcher (img_sw img))
                      (e_switcher (img_sw img)) (a_switcher_return (img_sw img)))) ∧
         note "every other register cleared"
           (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
-        sreg σ !! MTDC =
-          Some (WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
+        sreg σ !! mtdc =
+          Some (Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
         note "interrupts disabled (the posture of the export is not used yet)"
-          (sreg σ !! MSTATUS = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
-        sreg σ !! MTCC =
-          Some (WCap true XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
+          (sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
+        sreg σ !! mtcc =
+          Some (Cap XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
                   (a_switcher_call (img_sw img) ^+
                      assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                        ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
-        sreg σ !! MEPCC = Some (WInt 0) ∧
-        sreg σ !! MCAUSE = Some (WInt 0) ∧
-        sreg σ !! MTVAL = Some (WInt 0)
+        sreg σ !! mepcc = Some (WInt 0) ∧
+        sreg σ !! mcause = Some (WInt 0) ∧
+        sreg σ !! mtval = Some (WInt 0)
     end.
 
   (** *** Layout conditions *)
@@ -371,7 +369,7 @@ Section translation.
     fw_map (λ '(s, b, e), note s (b, e))
       (("switcher", b_switcher sw, e_switcher sw) ::
        ("assert", b_assert asrt, e_assert asrt) ::
-       ("assert flag", flag_assert asrt, (flag_assert asrt ^+ 1)%a) ::
+       ("assert flag", flag_assert asrt, flag_assert asrt ^+ 1) ::
        fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
          (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))).
 
@@ -433,7 +431,7 @@ Section translation.
        note "the flag is not the last address" (is_Some (flag_assert asrt + 1)%a) ∧
        range_ok (b_assert asrt) (e_assert asrt) ∧
        note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
-       note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1)%a)).
+       note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1))).
 
   (** The layout of the thread [i]: its stack, its trusted stack with room
       for the entry frame and [ft_tstack_frames] frames ([tstack_frame_offset]

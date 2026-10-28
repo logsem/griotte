@@ -41,7 +41,7 @@ Section AllocatorSwitcherSpec.
         ⌜(heap_b < b /\ b < e /\ e <= heap_e)%a ∧ (e - b = n)%Z⌝ ∗
         ⌜ι ∉ S⌝ ∗
         ⌜ι ∉ Ω⌝ ∗
-        ⌜w0 = WCap true RW Global b e b @@ ι ∧ w1 = WInt 0⌝ ∗
+        ⌜w0 = Cap RW Global b e b @@ ι ∧ w1 = WInt 0⌝ ∗
         alloc_obj ι b e ∗
         free_right ι ∗
         allocator_owner_id id (Ω ∪ {[ι]}) ∗
@@ -54,7 +54,7 @@ Section AllocatorSwitcherSpec.
     (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK) :
     (0 < n)%Z ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt n)) ->
     allocator_service_ctx ∗
@@ -66,8 +66,8 @@ Section AllocatorSwitcherSpec.
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off
-      (WCap true RO Global allocator_exp_tbl_b allocator_exp_tbl_e
-         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
+      (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
+         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)).
   Proof.
     iIntros (Hn Hshadow_owner Hbounds_owner Hcap Harg) "[#Hservice #Hstatic]".
     rewrite /switcher_cc_specification_known_to_known_function.
@@ -129,7 +129,7 @@ Section AllocatorSwitcherSpec.
       iFrame "Ha_owner". iLeft. iFrame "Hid". iPureIntro. auto.
     - iDestruct "Hres" as (ι b e)
         "(%Hbounds & %Hfresh & %Hfresh_Ω & Hca0 & Hca1 & #Hobj & Hheld & Hid & Hzero)".
-      iApply ("Hpost" $! 0%Z (WCap true RW Global b e b @@ ι) (lword_of_word (WInt 0))
+      iApply ("Hpost" $! 0%Z (Cap RW Global b e b @@ ι) (lword_of_word (WInt 0))
         rmap_ret (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
       iSplit; first (iPureIntro; exact Hdom_ret).
       iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk".
@@ -152,11 +152,11 @@ Section AllocatorSwitcherSpec.
     (b_stk e_stk a_stk b e a : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord) :
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
-    arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
+    arg_rmap !! ca1 = Some (Cap p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ⊢
@@ -171,8 +171,8 @@ Section AllocatorSwitcherSpec.
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off
-      (WCap true RO Global allocator_exp_tbl_b allocator_exp_tbl_e
-         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)%I.
+      (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
+         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off))%I.
   Proof.
     iIntros (Hshadow_owner Hbounds_owner Hbounds Hlen Hcap Harg)
       "(#Hservice & #Hstatic & #Hswitcher)".
@@ -214,12 +214,12 @@ Section AllocatorSwitcherSpec.
       [solve_ndisj|solve_ndisj|].
     iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
     iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
-      _ (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rframe with
+      _ (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
       | exact Hbounds | exact Hlen | | | intros _; reflexivity
-      | intros vm [Hprov _] _; exact Hprov | apply jalr_target_ok_switcher_return_sentry |].
+      | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry |].
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
     { intros r w Hr _. subst rframe.

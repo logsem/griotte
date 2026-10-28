@@ -26,28 +26,28 @@ Definition ls_insert_sh (ls : LSys) (sr : SRegName) (v : LWord) : LSys :=
   MkLSys (<[sr := v]> (ls_sh ls)) (ls_mtdc ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls).
 
 Lemma ls_join_mstatus ls :
-  ls_join ls !! MSTATUS = Some (lword_of_word (WInt (mstatus_enc (ls_mie ls) (ls_mpie ls)))).
+  ls_join ls !! mstatus = Some (lword_of_word (WInt (mstatus_enc (ls_mie ls) (ls_mpie ls)))).
 Proof. apply lsregs_join_mstatus. Qed.
 
-Lemma ls_join_mtdc ls : ls_join ls !! MTDC = Some (ls_vmtdc ls).
+Lemma ls_join_mtdc ls : ls_join ls !! mtdc = Some (ls_vmtdc ls).
 Proof. apply lsregs_join_mtdc. Qed.
 
 Lemma ls_join_set_mstatus ls mie mpie :
   ls_join (ls_set_mstatus ls mie mpie) =
-  <[MSTATUS := lword_of_word (WInt (mstatus_enc mie mpie))]> (ls_join ls).
+  <[mstatus := lword_of_word (WInt (mstatus_enc mie mpie))]> (ls_join ls).
 Proof. by rewrite /ls_join /lsregs_join /= insert_insert_eq. Qed.
 
 Lemma ls_join_set_mtdc ls m vm :
-  ls_join (ls_set_mtdc ls m vm) = <[MTDC := vm]> (ls_join ls).
+  ls_join (ls_set_mtdc ls m vm) = <[mtdc := vm]> (ls_join ls).
 Proof.
-  by rewrite /ls_join /lsregs_join /= (insert_insert_ne _ MTDC MSTATUS) // insert_insert_eq.
+  by rewrite /ls_join /lsregs_join /= (insert_insert_ne _ mtdc mstatus) // insert_insert_eq.
 Qed.
 
 Lemma ls_join_insert_sh ls sr v :
-  sr ≠ MTDC → sr ≠ MSTATUS → ls_join (ls_insert_sh ls sr v) = <[sr := v]> (ls_join ls).
+  sr ≠ mtdc → sr ≠ mstatus → ls_join (ls_insert_sh ls sr v) = <[sr := v]> (ls_join ls).
 Proof.
   intros H1 H2. rewrite /ls_join /lsregs_join /=.
-  rewrite (insert_insert_ne _ sr MSTATUS) // (insert_insert_ne _ sr MTDC) //.
+  rewrite (insert_insert_ne _ sr mstatus) // (insert_insert_ne _ sr mtdc) //.
 Qed.
 
 (** The state interpretation: a part shared by the threads and the part of
@@ -67,9 +67,9 @@ Section state_interp.
       and mcause are lent against the token without [Ntval], mtval, which
       holds an integer, against the token of [Ntval]. *)
   Definition trap_windows : iProp Σ :=
-    "Hwin" ∷ (((∃ v, MEPCC ↦ₓ v) ∗ (∃ v, MCAUSE ↦ₓ v)) ∨
+    "Hwin" ∷ (((∃ v, mepcc ↦ₓ v) ∗ (∃ v, mcause ↦ₓ v)) ∨
               na_own cerise_pool (↑Ntrap ∖ ↑Ntval)) ∗
-    "Hwin_tval" ∷ ((∃ z : Z, MTVAL ↦ₓ lword_of_word (WInt z)) ∨
+    "Hwin_tval" ∷ ((∃ z : Z, mtval ↦ₓ lword_of_word (WInt z)) ∨
                    na_own cerise_pool (↑Ntval)).
 
   (** The shared part: the shared system registers (MTCC, which holds the
@@ -79,7 +79,7 @@ Section state_interp.
   Definition SI_shared R C (σ : ExecConf) : iProp Σ :=
     ∃ (lsh : LSReg) (lmem : LMem) (mpie : InterruptStatus),
       "Hsr" ∷ gen_heap_interp lsh ∗
-      "Hmtcc" ∷ MTCC ↦ₓ lword_of_word mtcc_vec ∗
+      "Hmtcc" ∷ mtcc ↦ₓ lword_of_word mtcc_vec ∗
       "Hm" ∷ gen_heap_interp lmem ∗
       "Hst" ∷ gen_heap_interp (shadowtbl σ) ∗
       "HR" ∷ reg_auth R ∗
@@ -113,7 +113,7 @@ Section state_interp.
       MTCC, MPIE, the thread's mtdc and MIE and its trap-entry windows. *)
   Definition sys_interp (ls : LSys) : iProp Σ :=
     "Hsr" ∷ gen_heap_interp (ls_sh ls) ∗
-    "Hmtcc" ∷ MTCC ↦ₓ lword_of_word mtcc_vec ∗
+    "Hmtcc" ∷ mtcc ↦ₓ lword_of_word mtcc_vec ∗
     "Hmpie" ∷ MPIE_auth (ls_mpie ls) ∗
     "Hmpie_f" ∷ MPIE_frag (ls_mpie ls) ∗
     "Hmtdc" ∷ mtdc_auth (ls_mtdc ls) ∗
@@ -121,7 +121,7 @@ Section state_interp.
     "Hmie" ∷ MIE_auth (ls_mie ls) ∗
     "Hmie_f" ∷ MIE_frag (ls_mie ls) ∗
     "Hwins" ∷ trap_windows ∗
-    "%Hlsh" ∷ ⌜ls_sh ls !! MTDC = None ∧ ls_sh ls !! MSTATUS = None⌝.
+    "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
 End state_interp.
 
 (* invariants for memory, and a state interpretation for (mem,reg), with
@@ -171,6 +171,12 @@ Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
   (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
+
+(** A safe run of thread [th]: its WP with postcondition [HO th]. *)
+Notation "'safe[' th ]" :=
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤
+     Exec (HO th))
+  (at level 20, th custom thread, format "'safe[' th ]") : bi_scope.
 
 (** A fancy update stated with only a base in scope is at the base's
     [cb_invG]. Iris's [elim_modal_fupd_wp] states the update at the WP's

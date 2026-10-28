@@ -16,8 +16,8 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -29,7 +29,7 @@ Section fundamental.
             (p_ih : Perm) (g_ih : Locality) (b_ih e_ih a_ih : Addr) (π_ih : option AId),
             full_map r_ih
             -∗ (∀ (r : RegName) v, ⌜r_ih !! r = Some v⌝ → interp W_ih C_ih v)
-            -∗ PC ↦ₚ[th] WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih
+            -∗ PC ↦ₚ[th] Cap p_ih g_ih b_ih e_ih a_ih @@? π_ih
             -∗ registers_pointsto r_ih
             -∗ world_interp W_ih C_ih
             -∗ interp_continuation cstk Ws Cs
@@ -37,8 +37,8 @@ Section fundamental.
             -∗ top_cmpt_untrusted interp W_ih C_ih cstk
             -∗ na_own (tpool th) ⊤
             -∗ ◯(CSTK)[th] cstk
-            -∗ □ interp W_ih C_ih (WCap true p_ih g_ih b_ih e_ih a_ih @@? π_ih)
-            -∗ interp_conf W_ih C_ih))%I.
+            -∗ □ interp W_ih C_ih (Cap p_ih g_ih b_ih e_ih a_ih @@? π_ih)
+            -∗ safe[th]))%I.
 
   Definition ftlr_instr_base (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -47,7 +47,7 @@ Section fundamental.
     : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (WCap true p g b e a)
+    → isCorrectPC (Cap p g b e a)
     → (b <= a)%a ∧ (a < e)%a
     → PermFlowsTo p p'
     → (persistent_cond P)
@@ -57,7 +57,7 @@ Section fundamental.
     → Pinstr
     -> ("#IH" ∷ ftlr_IH ∗
         "#Htrap" ∷ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
-        "#Hinv_interp" ∷ interp W C (WCap true p g b e a) ∗
+        "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
         "#Hinva" ∷ rel C (LNonHeap a) p' (safeC P) ∗
         "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
@@ -75,8 +75,8 @@ Section fundamental.
         "Hown" ∷ na_own (tpool th) ⊤ ∗
         "Htframe" ∷ ◯(CSTK)[th] cstk ∗
         "Hstate" ∷ sts_state_std C (LNonHeap a) ρ ∗
-        "HPC" ∷ PC ↦ₚ[th] (WCap true p g b e a) ∗
-        "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ[th] y))
+        "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
+        "Hmap" ∷ regs[th] regs)
     -∗ WP Instr Executable @[th] {{ v, WP Seq (griotte_lang.of_val v) @[th] {{ HO th }} }}.
 
   (** A fault in a case of the fundamental theorem, once the case has closed
@@ -91,7 +91,7 @@ Section fundamental.
     (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
     top_cmpt_untrusted interp W C cstk -∗
     PC ↦ₚ[th] w -∗
-    ([∗ map] k↦y ∈ regs, k ↦ᵣ[th] y) -∗
+    regs[th] regs -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗

@@ -60,9 +60,9 @@ Section cmdc_obligations.
 
     (* 2 - The export entries of B and C, imported by main *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry cmdc_B_entry_f)%a).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry cmdc_B_entry_f)).
     set (C_g := SCap true RO Global (cmpt_exp_tbl_pcc C_cmpt) (cmpt_exp_tbl_entries_end C_cmpt)
-                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry cmdc_C_entry_g)%a).
+                  (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry cmdc_C_entry_g)).
     assert (cmpt_export_sb (cmpt_of img "B") cmdc_B_entry_f = B_f ∧
             cmpt_export_sb (cmpt_of img "C") cmdc_C_entry_g = C_g) as (HsbB & HsbC).
     { by rewrite /cmpt_export_sb /B_f /C_g /=. }
@@ -126,13 +126,13 @@ Section cmdc_obligations.
       apply withinBounds_true_iff.
       pose proof Hmain_data_size as Hsize.
       rewrite /cmdc_main_data /= in Hsize. split; solve_addr. }
-    assert (is_mmio_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_shadow.
+    assert (is_mmio_address (cmpt_b_cgp main_cmpt ^+ 1) = false) as Hmain1_shadow.
     { eapply disjoint_from_mmio_not_in;
         first exact (cmpt_cgp_disjoint_from_mmio main_cmpt).
       apply withinBounds_true_iff.
       pose proof Hmain_data_size as Hsize.
       rewrite /cmdc_main_data /= in Hsize. split; solve_addr. }
-    assert (is_heap_address (cmpt_b_cgp main_cmpt ^+ 1)%a = false) as Hmain1_heap.
+    assert (is_heap_address (cmpt_b_cgp main_cmpt ^+ 1) = false) as Hmain1_heap.
     { eapply disjoint_from_heap_not_in;
         first exact (cmpt_cgp_disjoint_from_heap main_cmpt).
       apply withinBounds_true_iff.
@@ -202,7 +202,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem cmdc_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   cmdc_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

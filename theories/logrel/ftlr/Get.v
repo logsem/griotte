@@ -20,8 +20,8 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation D := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation D := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
@@ -45,7 +45,7 @@ Section fundamental.
     (* GetTag may return 0 on a word whose tag may have been cleared: either
        way an integer is written. *)
     assert ((retv = FaultedV ∧ regs' = regs) ∨
-            ∃ z, retv = NextIV ∧ incrementPC (WCap true p g b e a) = Some lpc' ∧
+            ∃ z, retv = NextIV ∧ incrementPC (Cap p g b e a) = Some lpc' ∧
               regs' = <[dst := WInt z]ₗ> regs) as [(-> & ->) | (z & -> & Hinc & ->)].
     { destruct HSpec as [wsrc z Hsrc Hz Hinc -> | wsrc Hgt Hsrc Hstrip Hinc -> | Hfail Hlpc Hregs];
         [right; by exists z | right; by exists 0%Z | left; by split]. }

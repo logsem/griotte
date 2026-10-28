@@ -49,11 +49,7 @@ Section Switcher_Exception_States.
   .
 
   (** The end of the register save area of the trusted stack. *)
-  Definition tstack_save_end : Addr := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a.
-
-  (** The capability of mtdc, to the base of the trusted stack. *)
-  Definition tstack_cap : LWord :=
-    WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack.
+  Definition tstack_save_end : Addr := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ).
 
   (** The register save area after the spill of the exception entry, from
       the save area [save]: the PC [wmepcc] at word 0, the registers x1 to
@@ -102,8 +98,8 @@ Section Switcher_Exception_States.
   Lemma tstack_save_area_acc (save : list LWord) (k : nat) (wk : LWord) :
     save !! k = Some wk →
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
-    (b_trusted_stack ^+ k)%a ↦ₐ wk ∗
-    ((b_trusted_stack ^+ k)%a ↦ₐ wk -∗ [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]]).
+    (b_trusted_stack ^+ k) ↦ₐ wk ∗
+    ((b_trusted_stack ^+ k) ↦ₐ wk -∗ [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]]).
   Proof.
     iIntros (Hk) "Hsave".
     iDestruct (tstack_save_area_length with "Hsave") as %Hlen.
@@ -120,9 +116,9 @@ Section Switcher_Exception_States.
       stack, outside the shadow table. *)
   Lemma tstack_save_cell_ok (k : Z) :
     (0 <= k < 21)%Z →
-    (b_trusted_stack + k)%a = Some (b_trusted_stack ^+ k)%a ∧
-    withinBounds b_trusted_stack e_trusted_stack (b_trusted_stack ^+ k)%a = true ∧
-    is_shadow_address (b_trusted_stack ^+ k)%a = false.
+    (b_trusted_stack + k)%a = Some (b_trusted_stack ^+ k) ∧
+    withinBounds b_trusted_stack e_trusted_stack (b_trusted_stack ^+ k) = true ∧
+    is_shadow_address (b_trusted_stack ^+ k) = false.
   Proof.
     intros Hk.
     pose proof trusted_stack_frames_fit as [n Hfit].

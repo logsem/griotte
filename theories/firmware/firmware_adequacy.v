@@ -316,14 +316,14 @@ Section layout_bridges.
       finz.seq_between (b_trusted_stack t) (e_trusted_stack t) ##
         finz.seq_between (b_stack t) (e_stack t);
     isl_trusted_stack_mmio : disjoint_from_mmio (b_trusted_stack t) (e_trusted_stack t);
-    isl_switcher_key_not_shadow : is_shadow_address (b_switcher sw ^+ 1)%a = false;
+    isl_switcher_key_not_shadow : is_shadow_address (b_switcher sw ^+ 1) = false;
     isl_switcher_not_heap : not_heap_range (b_switcher sw) (e_switcher sw);
     isl_stack_mmio : disjoint_from_mmio (b_stack t) (e_stack t);
     isl_stack_not_heap : disjoint_from_heap (b_stack t) (e_stack t);
     isl_switcher_mmio : disjoint_from_mmio (b_switcher sw) (e_switcher sw);
     isl_switcher_end_not_heap : is_heap_address (e_switcher sw) = false;
     isl_trusted_stack_not_heap :
-      not_heap_range (b_trusted_stack t) (b_trusted_stack t ^+ TSTACK_REGFRAME_SZ)%a;
+      not_heap_range (b_trusted_stack t) (b_trusted_stack t ^+ TSTACK_REGFRAME_SZ);
     isl_trusted_stack_nonzero : (b_trusted_stack t : Z) ≠ 0;
     isl_hazard_size : (b_hazard t + 2)%a = Some (e_hazard t);
     isl_hazard_disjointness :
@@ -360,13 +360,13 @@ Section layout_bridges.
     ial_code_size :
       (b_assert asrt + length assert_subroutine_instrs)%a = Some (cap_assert asrt);
     ial_cap_size : (cap_assert asrt + 1)%a = Some (e_assert asrt);
-    ial_flag_size : (flag_assert asrt + 1)%a = Some (flag_assert asrt ^+ 1)%a;
+    ial_flag_size : (flag_assert asrt + 1)%a = Some (flag_assert asrt ^+ 1);
     ial_code_not_heap : is_heap_address (b_assert asrt) = false;
     ial_flag_disjoint :
       finz.seq_between (b_assert asrt) (e_assert asrt) ##
-        finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)%a;
+        finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1);
     ial_mmio : disjoint_from_mmio (b_assert asrt) (e_assert asrt);
-    ial_flag_mmio : disjoint_from_mmio (flag_assert asrt) (flag_assert asrt ^+ 1)%a;
+    ial_flag_mmio : disjoint_from_mmio (flag_assert asrt) (flag_assert asrt ^+ 1);
     ial_end_not_heap : is_heap_address (e_assert asrt) = false;
   }.
 
@@ -387,9 +387,9 @@ Section layout_memory.
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
     initial_trusted_stack_content
-      (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
-      (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
-      (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+      (Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
+      (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
+      (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
       (S i) (ft_tstack_frames ft).
 
   (** The stack pointer cell of the entry frame of the thread [i]. *)
@@ -397,7 +397,7 @@ Section layout_memory.
     let t := thread_of img i in
     fw_tstack_content img i ft
       !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp)
-    = Some (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))).
+    = Some (Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))).
   Proof. reflexivity. Qed.
 
   (** The export table cell of the entry frame of the thread [i]. *)
@@ -405,7 +405,7 @@ Section layout_memory.
     let c := cmpt_of img (ft_cmpt ft) in
     fw_tstack_content img i ft
       !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_calleeExportTable)
-    = Some (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
+    = Some (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
   Proof. reflexivity. Qed.
 
   Lemma mem_region_app (b a e : Addr) (ws1 ws2 : list Word) :
@@ -519,7 +519,7 @@ Section layout_memory.
     rewrite /assert_code_mem /assert_flag_mem.
     rewrite (mem_region_app (b_assert (img_asrt img)) (cap_assert (img_asrt img))
                (e_assert (img_asrt img))) //.
-    by rewrite (mem_region_mkregion _ (flag_assert (img_asrt img) ^+ 1)%a);
+    by rewrite (mem_region_mkregion _ (flag_assert (img_asrt img) ^+ 1));
       last exact (ial_flag_size _ Ha).
   Qed.
 End layout_memory.
@@ -534,7 +534,7 @@ Section layout_of_img_wf.
     let asrt := img_asrt img in
     ("switcher", b_switcher sw, e_switcher sw) ::
     ("assert", b_assert asrt, e_assert asrt) ::
-    ("assert flag", flag_assert asrt, (flag_assert asrt ^+ 1)%a) ::
+    ("assert flag", flag_assert asrt, flag_assert asrt ^+ 1) ::
     (fw_flat_map (cmpt_ranges img) (fw_cmpts fw) ++
      fw_flat_map (λ x, x) (fw_imap (thread_ranges img) (fw_threads fw))).
 
@@ -611,7 +611,7 @@ Section layout_of_img_wf.
   Qed.
 
   Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table thread_id n :
-    let w_hazard := WCap true WO Global b_hz e_hz b_hz in
+    let w_hazard := Cap WO Global b_hz e_hz b_hz in
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
@@ -707,7 +707,7 @@ Section layout_of_img_wf.
   Lemma thread_hazard_word fw img i ft :
     thread_wf fw img i ft →
     let t := thread_of img i in
-    trusted_stack_word (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t)).
+    trusted_stack_word (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t)).
   Proof.
     intros Hthread t.
     destruct (thread_wf_hazard _ _ _ _ Hthread) as (_ & [ [_ Hhz_heap] _]).
@@ -721,11 +721,11 @@ Section layout_of_img_wf.
     thread_wf fw img i ft →
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
-    trusted_stack_word (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))) ∧
+    trusted_stack_word (Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t))) ∧
     trusted_stack_word
-      (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)) ∧
+      (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)) ∧
     exp_tbl_cap (cmpt_exp_tbl_pcc c)
-      (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
+      (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c)).
   Proof.
     intros Hcmpts Hthread t c.
     destruct (thread_wf_inv _ _ _ _ Hthread) as (Hin & Hname & _ & _ & Hrange_stack & _).
@@ -1007,25 +1007,25 @@ Section entry.
       its entry word encodes for an untrusted one. *)
   Definition fw_entry_pc (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
-    WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+    Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
       (match fc_body (fw_entry_fc fw i) with
        | TrustedBody _ => addr_off (cmpt_b_pcc m) (fw_entry_offset fw i)
-       | UntrustedBody _ => (cmpt_b_pcc m ^+ export_entry_offset (fw_entry_word fw img i))%a
+       | UntrustedBody _ => (cmpt_b_pcc m ^+ export_entry_offset (fw_entry_word fw img i))
        end).
 
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
-    WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
+    Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
 
   Definition fw_thread_csp (img : fw_image) (i : nat) : Word :=
     let t := thread_of img i in
-    WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)).
+    Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)).
 
   (** The capability to the export table of the compartment the thread [i]
       starts in, as its entry frame holds it. *)
   Definition fw_entry_tbl (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let c := fw_entry_cmpt fw img i in
-    WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c).
+    Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c).
 
   (** The entry frame of the thread [i]: its stack pointer, the export table
       of the compartment it starts in, and no error handler invocation. *)
@@ -1037,12 +1037,18 @@ Section entry.
   (** The mtdc of the thread [i]: the capability to its trusted stack. *)
   Definition fw_thread_mtdc (img : fw_image) (i : nat) : Word :=
     let t := thread_of img i in
-    WCap true RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
+    Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
+
+  (** The mtdc ghost value of the thread [i]: its trusted stack, up to the
+      locality. *)
+  Definition fw_thread_tstack (img : fw_image) (i : nat) : mtdc_val :=
+    let t := thread_of img i in
+    Capₗ RWL _ (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
 
   (** The trap vector: the exception entry of the switcher. *)
   Definition fw_mtcc (img : fw_image) : Word :=
     let sw := img_sw img in
-    WCap true XSRW_ Local (b_switcher sw) (e_switcher sw)
+    Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
       (a_switcher_call sw ^+
          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
            ".Lswitch_csp_check" "exception_entry_asm")%a.
@@ -1051,17 +1057,17 @@ Section entry.
       switcher, at [switcher_after_compartment_call], interrupts disabled. *)
   Definition fw_thread_cra (img : fw_image) : Word :=
     let sw := img_sw img in
-    WSentry RetDisable true XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_return sw).
+    Sentry RetDisable XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_return sw).
 
   Definition fw_trap_vector (img : fw_image) : trapVector :=
     {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.
 
   Definition fw_initial_sreg (img : fw_image) (sr : SRegName) : Word :=
     match sr with
-    | MTDC => fw_thread_mtdc img 0
-    | MSTATUS => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
-    | MTCC => fw_mtcc img
-    | MEPCC | MCAUSE | MTVAL => WInt 0
+    | mtdc => fw_thread_mtdc img 0
+    | mstatus => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
+    | mtcc => fw_mtcc img
+    | mepcc | mcause | mtval => WInt 0
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1166,7 +1172,7 @@ Section initial_memory.
   Lemma assert_flag_mem_in img :
     assert_wf img →
     mem_in (assert_flag_mem img)
-      [("assert flag", flag_assert (img_asrt img), (flag_assert (img_asrt img) ^+ 1)%a)].
+      [("assert flag", flag_assert (img_asrt img), flag_assert (img_asrt img) ^+ 1)].
   Proof.
     intros (_ & _ & [flag' Hflag] & _). apply mem_in_mem_region.
     cbn. rewrite Hflag. f_equal. solve_addr.
@@ -1511,9 +1517,9 @@ Section ghost_init.
       (* MTCC is an unsealed executable capability *)
       destruct sr; try done; by apply pc_ok_untagged.
     - intros sr _. eexists. apply Hsreg.
-    - exact (Hsreg MTCC).
-    - exists 0%Z. exact (Hsreg MTVAL).
-    - exists InterruptDisabled, InterruptDisabled. exact (Hsreg MSTATUS).
+    - exact (Hsreg mtcc).
+    - exists 0%Z. exact (Hsreg mtval).
+    - exists InterruptDisabled, InterruptDisabled. exact (Hsreg mstatus).
   Qed.
 End ghost_init.
 
@@ -1532,13 +1538,13 @@ Section entries.
       ([IExport]). *)
   Definition cmpt_export_sb (c : img_cmpt) (k : nat) : Sealable :=
     SCap true RO Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
-      (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a.
+      (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k).
 End entries.
 
 Section entries_facts.
   Context `{MP : MachineParameters}.
 
-  Lemma addr_off_eq (a : Addr) (k : nat) : addr_off a k = (a ^+ Z.of_nat k)%a.
+  Lemma addr_off_eq (a : Addr) (k : nat) : addr_off a k = (a ^+ Z.of_nat k).
   Proof.
     rewrite /addr_off.
     destruct k as [|k]; first (symmetry; apply finz_add_0_default).
@@ -1717,7 +1723,7 @@ Section resources.
     "Hcgp" ∷ cgp ↦ᵣ[u i] fw_entry_cgp fw img i ∗
     "Hcsp" ∷ csp ↦ᵣ[u i] fw_thread_csp img i ∗
     "Hcra" ∷ cra ↦ᵣ[u i] fw_thread_cra img ∗
-    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ[u i] w) ∗
+    "Hregs" ∷ regs[u i] fw_cleared_regs ∗
     "Hstack" ∷
       region_pointsto (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
         (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
@@ -1875,7 +1881,7 @@ Section thread_trusted_stack_inv.
     fw_threads fw !! i = Some ft →
     ([∗ map] a↦w ∈ thread_mem img i ft, a ↦ₐ lword_of_word w) -∗
     ●(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
-    mtdc ↦ₜ[u i] TStack (lword_of_word (fw_thread_mtdc img i))
+    mtdc ↦ₜ[u i] fw_thread_tstack img i
     ={E}=∗
     na_inv (tpool (UserThread i)) Ntstack
       (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
@@ -1927,7 +1933,7 @@ Section thread_trusted_stack_inv.
     ([∗ list] k ↦ ft ∈ fts,
        ([∗ map] a↦w ∈ thread_mem img (S k) ft, a ↦ₐ lword_of_word w) ∗
        ●(CSTK)[u (S k)] (entry_cstack (fw_entry_frame fw img (S k))) ∗
-       mtdc ↦ₜ[u (S k)] TStack (lword_of_word (fw_thread_mtdc img (S k))))
+       mtdc ↦ₜ[u (S k)] fw_thread_tstack img (S k))
     ={E}=∗
     True.
   Proof.
@@ -1960,7 +1966,7 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
     ⊢ fw_shared_res fw img -∗
       fw_thread_res fw img 0
       ={⊤}=∗
-      WP Seq (Instr Executable) @[u 0] {{ _, True }}.
+      WP Exec @[u 0] {{ _, True }}.
 
 Section adequacy.
   (* The user threads [0] and [S k] meet here: every form names its thread. *)
@@ -1979,7 +1985,7 @@ Theorem firmware_adequacy (Σ : gFunctors)
     (fw : firmware) (img : fw_image) (σ σ' : ExecConf) (es : list griotte_lang.expr) :
   fw_obligations Σ fw →
   firmware_ok fw img σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
 Proof.
   intros Hobl Hok Hstep.
@@ -2001,9 +2007,9 @@ Proof.
      thread [S k] holds its trusted stack. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw))
-            _ _ _ _ _ _ _ _ _ _ _
-            (fw_imap_from (λ i _, TStack (lword_of_word (fw_thread_mtdc img i))) 1 fts));
-    [exact Hinit | exact Hnull | exact (Hsreg MTDC) | | exact Hstep].
+            _ _ _ _ _ _ _ _ _ _ _ (fw_thread_tstack img 0)
+            (fw_imap_from (λ i _, fw_thread_tstack img i) 1 fts));
+    [exact Hinit | exact Hnull | exact (Hsreg mtdc) | by exists Global | | exact Hstep].
   iIntros (ceriseb Hmtcc) "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna Hothers".
   iEval (rewrite big_sepL_fw_imap_from) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
@@ -2069,7 +2075,7 @@ Theorem firmware_adequacy_closed (Σcs : gFunctors) {Cname : CmptNameG}
     (fw : firmware) (img : fw_image) (σ σ' : ExecConf) (es : list griotte_lang.expr) :
   fw_obligations #[firmwarePreΣ; Σcs] fw →
   firmware_ok fw img σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
 Proof.
   intros Hobl Hok Hstep.

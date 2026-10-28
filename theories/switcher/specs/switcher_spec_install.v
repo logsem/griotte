@@ -59,12 +59,12 @@ Section Switcher_Spec_Install.
     (L : nat → list LWord → iProp Σ) : iProp Σ :=
     ∀ ls : list LWord,
       ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
-      PC ↦ₚ[th] llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
+      PC ↦ₚ[th] llegalise mepcc (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
       registers_pointsto (error_state_install rmap (drop 1 ls)) -∗
       ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
       L (Z.to_nat ErrorState_size) ls -∗
       na_own (tpool th) F -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   (** ** Auxiliary lemma *)
 
@@ -79,9 +79,7 @@ Section Switcher_Spec_Install.
     trap_no_resume (switcher_pc off) ->
     install_skipped cstk rmap ->
 
-    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
-       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) ∗
+    regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap)))))))))))))) ∗
     cra ↦ᵣ[th] wcra ∗
     csp ↦ᵣ[th] wcsp ∗
     cgp ↦ᵣ[th] wcgp ∗
@@ -141,12 +139,12 @@ Section Switcher_Spec_Install.
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
-       ⌜rmap !!! csp = WCap true p g b e a @@? π⌝ -∗
+       ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
     ▷ ( install_nested_k F cstk rmap L ∧
         install_resume_k F cstk rmap wpcc L )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (HF HFtrap Hfull Hnz Htbl_set)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
@@ -177,9 +175,9 @@ Section Switcher_Spec_Install.
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
                 = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
-               mtdc ↦ₜ TStack tstack_cap -∗
+               mtdc ↦ₜ Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
-               (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a
+               (b_trusted_stack ^+ TrustedStack_offset_frameoffset)
                  ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
                cstack_full (cstack_set_top_count cstk n') -∗
                cstack_interp (cstack_set_top_count cstk n') a_tstk -∗
@@ -189,7 +187,7 @@ Section Switcher_Spec_Install.
       with "[HthreadID Hhazard_slots Htstk Hclose]" as "Hclose".
     { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
       iApply ("Hclose" with "[- $Hna]").
-      iNext. rewrite /trusted_stack_inv /tstack_cap /tstack_save_end.
+      iNext. rewrite /trusted_stack_inv /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
       iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".

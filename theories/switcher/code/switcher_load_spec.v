@@ -14,17 +14,17 @@ Section Switcher_Restore.
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_post wit RWL raw actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ load_witness_res wit }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
@@ -33,7 +33,7 @@ Section Switcher_Restore.
     iDestruct (pointsto_ne with "Ha Hi") as %Hpc_a.
     iDestruct (memMap_resource_2ne_dq pc_a ea dq (DfracOwn 1) wi raw with "[$Hi $Ha]")
       as "Hmem"; first done.
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ{DfracDiscarded} revoked))%I
+    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ□ revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
     iApply (wp_load_general_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
@@ -88,16 +88,16 @@ Section Switcher_Restore.
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ WCap true RWL Local b e a ∗ ea ↦ₐ raw }}}
+    {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ actual ∗ src ↦ᵣ WCap true RWL Local b e a ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
         ea ↦ₐ raw }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
@@ -135,18 +135,18 @@ Section Switcher_Restore_Interp.
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
+    {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV;
         ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗
+        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
     iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
@@ -167,17 +167,17 @@ Section Switcher_Restore_Interp.
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
     withinBounds b e ea = true ->
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
-    {{{ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗ ea ↦ₐ raw ∗
+    {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
-        PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] WCap true RWL Local b e a ∗
+        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
     iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)

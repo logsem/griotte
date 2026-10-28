@@ -90,7 +90,7 @@ Qed.
     suffice; 3000 reaches [Halted]. *)
 Theorem droe_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], droe_demo_state)
+    rtc erased_step ([Exec], droe_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt droe_demo_image) = Some (WInt 0%Z).
 Proof.

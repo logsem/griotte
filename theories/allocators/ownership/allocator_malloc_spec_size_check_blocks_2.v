@@ -18,16 +18,16 @@ Section AllocatorMallocSizeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     allocator_positive_size wreq.(lw) ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1) ∗
     ca1 ↦ᵣ wreq ∗
     ca3 ↦ᵣ wtmp ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2) ∗
        ca1 ↦ᵣ wreq ∗
        ca3 ↦ᵣ - ∗
        codefrag_pers pc_a allocator_malloc_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & _ & _) (n & Hreq & Hpositive).
     destruct wreq as [wreq π]; cbn in Hreq; subst wreq.
@@ -52,7 +52,7 @@ Section AllocatorMallocSizeCheckBlocks2.
     (* Jne .malloc_size_ok ca3 0. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_malloc_block_offset 2)%a.
+    change_pc_to (pc_a ^+ allocator_malloc_block_offset 2).
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
@@ -62,7 +62,7 @@ Section AllocatorMallocSizeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset) ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -73,8 +73,8 @@ Section AllocatorMallocSizeCheckBlocks2.
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds Htgt.
     iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".
@@ -92,7 +92,7 @@ Section AllocatorMallocSizeCheckBlocks2.
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_positive_size wreq.(lw) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1) ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wreq ∗
@@ -105,8 +105,8 @@ Section AllocatorMallocSizeCheckBlocks2.
        ca3 ↦ᵣ - ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds Hinvalid Htgt. pose proof Hbounds as (Hpc & _ & _).
     destruct wreq as [wreq π]; cbn in Hinvalid.
@@ -136,10 +136,10 @@ Section AllocatorMallocSizeCheckBlocks2.
       iInstr "Hcode".
       (* Jmp .malloc_invalid. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset).
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");
         [done|done|].
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".
@@ -152,10 +152,10 @@ Section AllocatorMallocSizeCheckBlocks2.
         all: try (destruct sb; cbn in Hencode); contradiction. }
       (* Jne .malloc_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_malloc_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset)%a.
+      change_pc_to (pc_a ^+ allocator_malloc_invalid_offset).
       iApply (allocator_malloc_reject_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");
         [done|done|].
       iNext. iIntros "(HPC & Hcra & Hca0 & Hca1 & _ & Hlc)".

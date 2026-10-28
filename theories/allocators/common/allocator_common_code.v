@@ -199,7 +199,7 @@ Section AllocatorCommonCode.
     encodeInstrsW (default [] (assembled_allocator_free_tail !! n)).
 
   Definition allocator_data : list Word :=
-    [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a].
+    [Cap RW Global heap_b heap_e (heap_b ^+ 1)].
 
   Class allocatorLayout : Type := mkAllocatorLayout {
     AllocOtype : OType;
@@ -213,12 +213,12 @@ Section AllocatorCommonCode.
   }.
 
   Definition allocator_revoker_cap : Word :=
-    WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr.
+    Cap RW Global revoker_addr (revoker_addr ^+ 1) revoker_addr.
 
   Definition allocator_imports `{allocatorLayout} : list Word :=
-    [WCap true RW Global shadow_b shadow_e shadow_b;
-     WSealRange true (false, true) Global AllocOtype
-       (AllocOtype ^+ 1)%ot AllocOtype;
+    [Cap RW Global shadow_b shadow_e shadow_b;
+     SealRange (false, true) Global AllocOtype
+       (AllocOtype ^+ 1) AllocOtype;
      allocator_revoker_cap].
 
   Lemma allocator_imports_length `{allocatorLayout} : length allocator_imports = 3.
@@ -258,17 +258,17 @@ Section AllocatorCommonCode.
   }.
 
   Definition allocator_malloc_pcc_addr `{allocatorLayout} : Addr :=
-    (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a.
+    (allocator_pcc_b ^+ allocator_malloc_pcc_off).
 
   (** These export descriptors can be sealed with the switcher's ordinary
       entry key. There is no allocator-specific seal or authorization token. *)
 
   Definition allocator_malloc `{allocatorLayout} (g : Locality) : Sealable :=
     SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a.
+      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off).
 
   Definition allocator_free `{allocatorLayout} (g : Locality) : Sealable :=
     SCap true RO g allocator_exp_tbl_b allocator_exp_tbl_e
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a.
+      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off).
 
 End AllocatorCommonCode.

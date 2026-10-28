@@ -77,45 +77,44 @@ Section KVS_Main_Blocks.
       [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊣⊢
-      pc_b ↦ₐ WSentry FwdDisable true XSRW_ Local
-        b_switcher e_switcher a_switcher_call
-      ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ
-        WSentry Inherit true RX Global b_assert e_assert b_assert
-      ∗ (pc_b ^+ ADV_F_OFFSET)%a ↦ₐ WSealed ot_switcher B_f
-      ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ
+      pc_b ↦ₐ switcher_entry_call
+      ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ
+        Sentry Inherit RX Global b_assert e_assert b_assert
+      ∗ (pc_b ^+ ADV_F_OFFSET) ↦ₐ WSealed ot_switcher B_f
+      ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ
         WSealed ot_switcher (KVS_addOrUpdate Global)
-      ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ
+      ∗ (pc_b ^+ KVS_READ_OFFSET) ↦ₐ
         WSealed ot_switcher (KVS_read Global)
-      ∗ (pc_b ^+ KVS_ERASE_OFFSET)%a ↦ₐ
+      ∗ (pc_b ^+ KVS_ERASE_OFFSET) ↦ₐ
         WSealed ot_switcher (KVS_erase Global)
-      ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ
+      ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ
         kvs_user_seal_key Global static_sealed_b
-      ∗ region_pointsto (pc_b ^+ 7)%a pc_a [].
+      ∗ region_pointsto (pc_b ^+ 7) pc_a [].
   Proof.
     intros Himports.
-    rewrite /kvs_main_imports.
+    rewrite /kvs_main_imports /switcher_entry_call.
     iSplit.
     - iIntros "Himports".
       iDestruct (region_pointsto_cons with "Himports") as "[Hsw Himports]".
-      { transitivity (Some (pc_b ^+ 1)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 1)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[Hassert Himports]".
-      { transitivity (Some (pc_b ^+ 2)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 2)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[HB Himports]".
-      { transitivity (Some (pc_b ^+ 3)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 3)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[Hadd Himports]".
-      { transitivity (Some (pc_b ^+ 4)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 4)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[Hread Himports]".
-      { transitivity (Some (pc_b ^+ 5)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 5)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[Herase Himports]".
-      { transitivity (Some (pc_b ^+ 6)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 6)); auto; solve_addr. }
       { solve_addr. }
       iDestruct (region_pointsto_cons with "Himports") as "[Hkey Himports]".
-      { transitivity (Some (pc_b ^+ 7)%a); auto; solve_addr. }
+      { transitivity (Some (pc_b ^+ 7)); auto; solve_addr. }
       { solve_addr. }
       rewrite /ASSERT_OFFSET /ADV_F_OFFSET /KVS_INSERT_OFFSET
         /KVS_READ_OFFSET /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET.
@@ -123,19 +122,19 @@ Section KVS_Main_Blocks.
     - iIntros "(Hsw & Hassert & HB & Hadd & Hread & Herase & Hkey & Himports)".
       rewrite /ASSERT_OFFSET /ADV_F_OFFSET /KVS_INSERT_OFFSET
         /KVS_READ_OFFSET /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET.
-      iApply (region_pointsto_cons _ (pc_b ^+ 1)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 1)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 2)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 2)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 3)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 3)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 4)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 4)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 5)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 5)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 6)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 6)); [solve_addr|solve_addr|].
       iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 7)%a); [solve_addr|solve_addr|].
+      iApply (region_pointsto_cons _ (pc_b ^+ 7)); [solve_addr|solve_addr|].
       iFrame.
   Qed.
 
@@ -151,37 +150,36 @@ Section KVS_Main_Blocks.
       [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
           a_switcher_call ot_switcher b_assert e_assert B_f]]
     ⊢
-      pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local
-        b_switcher e_switcher a_switcher_call
-      ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ□
-        WSentry Inherit true RX Global b_assert e_assert b_assert
-      ∗ (pc_b ^+ ADV_F_OFFSET)%a ↦ₐ□ WSealed ot_switcher B_f
-      ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
+      pc_b ↦ₐ□ switcher_entry_call
+      ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ□
+        Sentry Inherit RX Global b_assert e_assert b_assert
+      ∗ (pc_b ^+ ADV_F_OFFSET) ↦ₐ□ WSealed ot_switcher B_f
+      ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_addOrUpdate Global)
-      ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ□
+      ∗ (pc_b ^+ KVS_READ_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_read Global)
-      ∗ (pc_b ^+ KVS_ERASE_OFFSET)%a ↦ₐ□
+      ∗ (pc_b ^+ KVS_ERASE_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_erase Global)
-      ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
+      ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ□
         kvs_user_seal_key Global static_sealed_b.
   Proof.
     intros Himports.
     rewrite /kvs_main_imports /= in Himports.
-    rewrite /region_pointsto_pers /kvs_main_imports !fmap_cons fmap_nil.
+    rewrite /region_pointsto_pers /kvs_main_imports /switcher_entry_call !fmap_cons fmap_nil.
     rewrite (finz_seq_between_cons pc_b); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (pc_b ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
     rewrite /ASSERT_OFFSET /ADV_F_OFFSET /KVS_INSERT_OFFSET
       /KVS_READ_OFFSET /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET.
-    assert ((pc_b ^+ 1 ^+ 1)%a = (pc_b ^+ 2)%a) as -> by solve_addr.
-    assert ((pc_b ^+ 2 ^+ 1)%a = (pc_b ^+ 3)%a) as -> by solve_addr.
-    assert ((pc_b ^+ 3 ^+ 1)%a = (pc_b ^+ 4)%a) as -> by solve_addr.
-    assert ((pc_b ^+ 4 ^+ 1)%a = (pc_b ^+ 5)%a) as -> by solve_addr.
-    assert ((pc_b ^+ 5 ^+ 1)%a = (pc_b ^+ 6)%a) as -> by solve_addr.
+    assert (pc_b ^+ 1 ^+ 1 = pc_b ^+ 2) as -> by solve_addr.
+    assert (pc_b ^+ 2 ^+ 1 = pc_b ^+ 3) as -> by solve_addr.
+    assert (pc_b ^+ 3 ^+ 1 = pc_b ^+ 4) as -> by solve_addr.
+    assert (pc_b ^+ 4 ^+ 1 = pc_b ^+ 5) as -> by solve_addr.
+    assert (pc_b ^+ 5 ^+ 1 = pc_b ^+ 6) as -> by solve_addr.
     iIntros "($ & $ & $ & $ & $ & $ & $ & _)".
   Qed.
 
@@ -258,9 +256,9 @@ Section KVS_Main_Blocks.
     na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ na_own (tpool th) ⊤
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp ∗ cra ↦ᵣ[th] wcra
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     ∗ ct1 ↦ᵣ[th] WSealed ot_switcher target
     ∗ interp W C (WSealed ot_switcher target)
     ∗ target ↦ₑ□{nargs} 0
@@ -268,7 +266,7 @@ Section KVS_Main_Blocks.
     ∗ ca0 ↦ᵣ[th] WInt 0 ∗ ca1 ↦ᵣ[th] WInt 0 ∗ ca2 ↦ᵣ[th] WInt 0
     ∗ ca3 ↦ᵣ[th] WInt 0 ∗ ca4 ↦ᵣ[th] WInt 0 ∗ ca5 ↦ᵣ[th] WInt 0
     ∗ ct0 ↦ᵣ[th] WInt 0
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w)
+    ∗ regs[th] rmap
     ∗ [[stk_free_b b_stk a_stk, stk_free_e e_stk a_stk]] ↦ₐ [[stk_mem]]
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
@@ -297,16 +295,16 @@ Section KVS_Main_Blocks.
         ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra
         ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
-        ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+        ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
         ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
         ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
-        ∗ ([∗ map] r ↦ w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
+        ∗ regs₀[th] rmap'
         ∗ [[stk_free_b b_stk a_stk, stk_free_e e_stk a_stk]] ↦ₐ [[stk_mem']]
         ∗ interp_continuation cstk Ws Cs
         ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
              load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
@@ -339,12 +337,12 @@ Section KVS_Main_Blocks.
       [cs0]: the thread exits. *)
   Lemma kvs_return_spec
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
     cstk.(cstk_frames) = [] ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cra ↦ᵣ[th] wcra ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -352,7 +350,7 @@ Section KVS_Main_Blocks.
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a kvs_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (HsubBounds Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
@@ -374,7 +372,7 @@ Section KVS_Main_Blocks.
       (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
       (stk_mem : list LWord) (cstk : CSTK) :
-    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -386,30 +384,30 @@ Section KVS_Main_Blocks.
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp]} ->
     (forall r, r ∈ dom rmap -> is_Some (rmap !! r)) ->
     cstk.(cstk_frames) = [] ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
-    withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
+    withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
     na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
     ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
     ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
-    ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
+    ∗ b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
-        WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
+        Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_addOrUpdate_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_addOrUpdate
     ∗ na_own (tpool th) ⊤
-    ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-    ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-    ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+    ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+    ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+    ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
     ∗ cra ↦ᵣ[th] thread_return_sentry
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w)
+    ∗ regs[th] rmap
     ∗ pc_b ↦ₐ□
-        WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
+        switcher_entry_call
+    ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_addOrUpdate Global)
-    ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
+    ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ□
         kvs_user_seal_key Global static_sealed_b
     ∗ codefrag_pers pc_a kvs_main_code
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
@@ -421,30 +419,29 @@ Section KVS_Main_Blocks.
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
         ∗ na_own (tpool th) ⊤
-        ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e
-            (pc_a ^+ length kvs_main_add_phase_instrs)%a
-        ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+        ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e
+            (pc_a ^+ length kvs_main_add_phase_instrs)
+        ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
         ∗ (∃ wcra, cra ↦ᵣ[th] wcra)
         ∗ cs0 ↦ᵣ[th] thread_return_sentry
         ∗ cs1 ↦ᵣ[th] kvs_user_seal_key Global static_sealed_b
-        ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+        ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
         ∗ ca0 ↦ᵣ[th] WInt 0 ∗ ca1 ↦ᵣ[th] WInt 0
-        ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
-        ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
-            [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]]
+        ∗ regs₀[th] rmap_ret
+        ∗ [[ csp_b , stk_start_a csp_b csp_e ]] ↦ₐ [[ 0…0 ]]
         ∗ ◯(CSTK)[th] cstk
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
         ∗ pc_b ↦ₐ□
-            WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
-        ∗ (pc_b ^+ KVS_INSERT_OFFSET)%a ↦ₐ□
+            switcher_entry_call
+        ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ□
             WSealed ot_switcher (KVS_addOrUpdate Global)
-        ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET)%a ↦ₐ□
+        ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ□
             kvs_user_seal_key Global static_sealed_b
         ∗ codefrag_pers pc_a kvs_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     intros a_kvs_exp_tbl_cgp.
     subst a_kvs_exp_tbl_cgp.
@@ -496,11 +493,11 @@ Section KVS_Main_Blocks.
     focus_block 2 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_main1.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
-    replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
+    replace (pc_b ^+ SWITCHER_CALL_OFFSET) with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hctp & _ & _)".
     iEval (cbn) in "Hctp".
@@ -529,7 +526,7 @@ Section KVS_Main_Blocks.
 
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
-    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false)
       as Hunsealing_shadow.
     { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
       apply withinBounds_true_iff.
@@ -538,7 +535,7 @@ Section KVS_Main_Blocks.
       rewrite /length_kvs_imports in Himports.
       rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr.
     }
-    assert (forall a, (b_kvs_exp_tbl <= a < e_kvs_exp_tbl)%a ->
+    assert (forall a, a ∈ₐ [b_kvs_exp_tbl, e_kvs_exp_tbl) ->
       is_shadow_address a = false) as Hexport_shadow.
     { intros a Ha. eapply disjoint_from_shadow_not_in;
         [exact kvs_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
@@ -559,8 +556,8 @@ Section KVS_Main_Blocks.
     set (rmap' := <[ctp := _]> _ ).
 
     iPoseProof (KVS_add_spec_known_to_known
-                  (WCap true RW Global cgp_b cgp_e cgp_b)
-                  (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+                  (Cap RW Global cgp_b cgp_e cgp_b)
+                  (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
                   thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
                   csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -568,8 +565,8 @@ Section KVS_Main_Blocks.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
-              (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (Cap RW Global cgp_b cgp_e cgp_b)
+              (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
               thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e (stk_start_a csp_b csp_e) stk_mem rmap_arg rmap' cstk
               kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack ⊤
@@ -686,8 +683,8 @@ Section KVS_Main_Blocks.
     iFrame "Hna Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk
       Hstatic_sealed_b HLUKVS Hkvs_1 Himport_switcher
       Himport_kvs_addOrUpdate Himport_sealed_user_key Hcode_main".
-    replace (pc_a ^+ length kvs_main_add_phase_instrs)%a
-      with (a_blk_4 ^+ 5)%a.
+    replace (pc_a ^+ length kvs_main_add_phase_instrs)
+      with (a_blk_4 ^+ 5).
     2: { rewrite /kvs_main_add_phase_instrs. solve_addr. }
     iFrame "HPC".
     iSplit; first done.
@@ -700,7 +697,7 @@ Section KVS_Main_Blocks.
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr)
       (stk_mem : list LWord) (cstk : CSTK) :
-    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
     disjoint_from_mmio csp_b csp_e ->
@@ -712,9 +709,9 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1]} ->
     cstk.(cstk_frames) = [] ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
-    withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
+    withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -722,34 +719,34 @@ Section KVS_Main_Blocks.
     ∗ kvs_static
     ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
     ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
-    ∗ b_kvs_exp_tbl ↦ₐ□ WCap true RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
+    ∗ b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
-        WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
+        Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
     ∗ kvs_read_exp_tbl_addr ↦ₐ□ kvs_exp_tbl_entry_read
     ∗ na_own (tpool th) ⊤
-    ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e
+    ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e
         (pc_a ^+ length
           (kvs_main_add_phase_instrs ++
-           kvs_main_adversary_phase_instrs))%a
-    ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
+           kvs_main_adversary_phase_instrs))
+    ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
     ∗ cra ↦ᵣ[th] wcra ∗ cs0 ↦ᵣ[th] thread_return_sentry
     ∗ cs1 ↦ᵣ[th] kvs_user_seal_key Global static_sealed_b
-    ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+    ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
     ∗ ca0 ↦ᵣ[th] wca0 ∗ ca1 ↦ᵣ[th] wca1
-    ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
+    ∗ regs₀[th] rmap
     ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
     ∗ ◯(CSTK)[th] cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
     ∗ pc_b ↦ₐ□
-        WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call
-    ∗ (pc_b ^+ KVS_READ_OFFSET)%a ↦ₐ□
+        switcher_entry_call
+    ∗ (pc_b ^+ KVS_READ_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_read Global)
-    ∗ (pc_b ^+ ASSERT_OFFSET)%a ↦ₐ□
-        WSentry Inherit true RX Global b_assert e_assert b_assert
+    ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ□
+        Sentry Inherit RX Global b_assert e_assert b_assert
     ∗ codefrag_pers pc_a kvs_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     intros a_kvs_exp_tbl_cgp.
     subst a_kvs_exp_tbl_cgp.
@@ -767,7 +764,7 @@ Section KVS_Main_Blocks.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
-    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false)
+    assert (is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false)
       as Hunsealing_shadow.
     { eapply disjoint_from_shadow_not_in; first exact KVS_pcc_disjoint_from_shadow.
       apply withinBounds_true_iff.
@@ -776,7 +773,7 @@ Section KVS_Main_Blocks.
       rewrite /length_kvs_imports in Himports.
       rewrite /UNSEALING_USER_KEY_OFFSET; solve_addr.
     }
-    assert (forall a, (b_kvs_exp_tbl <= a < e_kvs_exp_tbl)%a ->
+    assert (forall a, a ∈ₐ [b_kvs_exp_tbl, e_kvs_exp_tbl) ->
       is_shadow_address a = false) as Hexport_shadow.
     { intros a Ha. eapply disjoint_from_shadow_not_in;
         [exact kvs_exp_tbl_disjoint_from_shadow | by apply withinBounds_true_iff]. }
@@ -808,11 +805,11 @@ Section KVS_Main_Blocks.
     focus_block 10 "Hcode_main" as a_fetch1 Ha_fetch1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent Ha_blk.
     iApply (fetch_spec SWITCHER_CALL_OFFSET _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
-    replace (pc_b ^+ SWITCHER_CALL_OFFSET)%a with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
+    replace (pc_b ^+ SWITCHER_CALL_OFFSET) with pc_b by (rewrite /SWITCHER_CALL_OFFSET; solve_addr).
     iFrame "Himport_switcher".
     iNext ; iIntros "(HPC & Hctp & _ & _)".
     iEval (cbn) in "Hctp".
@@ -854,8 +851,8 @@ Section KVS_Main_Blocks.
     set (rmap_read_call := <[ctp := _]> _ ).
 
     iPoseProof (KVS_read_spec_known_to_known
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
       thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
       csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
@@ -863,8 +860,8 @@ Section KVS_Main_Blocks.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
-              (WCap true RW Global cgp_b cgp_e cgp_b)
-              (WSentry (ret_kind mie) true RX Global pc_b pc_e (a_insert_kvs ^+ 1)%a)
+              (Cap RW Global cgp_b cgp_e cgp_b)
+              (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
               thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
               csp_b csp_e (stk_start_a csp_b csp_e) stk_mem rmap_arg_read rmap_read_call cstk
               kvs_read_nargs kvs_read_min_stack ⊤
@@ -981,7 +978,7 @@ Section KVS_Main_Blocks.
     (* ---------------------------------------------------- *)
     (* ----------------- BLOCK 15: RETURN ----------------- *)
     (* ---------------------------------------------------- *)
-    replace (a_assert2 ^+ length (assert_instrs ASSERT_OFFSET ct2 ca2))%a
+    replace (a_assert2 ^+ length (assert_instrs ASSERT_OFFSET ct2 ca2))
       with (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a.
     2: { kvs_main_fetch_offset. }
     iApply (kvs_return_spec with

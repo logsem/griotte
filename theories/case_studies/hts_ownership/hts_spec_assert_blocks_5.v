@@ -27,12 +27,12 @@ Section HTS_Return.
       [cs0]: the thread exits. *)
   Lemma hts_return_spec
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     cstk.(cstk_frames) = [] ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_return")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_return")%a ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cra ↦ᵣ[th] wcra ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -40,7 +40,7 @@ Section HTS_Return.
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a hts_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (HsubBounds Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
@@ -84,11 +84,11 @@ Section HTS_Spec_Assert.
     disjoint_from_shadow pc_b pc_e ->
     disjoint_from_shadow cgp_b cgp_e ->
     (cgp_b + length hts_main_data)%a = Some cgp_e ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     hts_ctx ∗
     adv2_ret
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hframes Hpc_shadow Hcgp_shadow Hcgp_contiguous HsubBounds Himports_contiguous)
       "(#Hctx & Hret)".
@@ -131,7 +131,7 @@ Section HTS_Spec_Assert.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 23: return, the thread exits *)
-    assert ((a_assert ^+ length (assert_instrs (-47) ct2 ca2))%a =
+    assert (a_assert ^+ length (assert_instrs (-47) ct2 ca2) =
               (pc_a ^+ hts_label_offset ".Lhts_return")%a) as ->
       by (offsets_compute; solve_addr).
     iApply (hts_return_spec with

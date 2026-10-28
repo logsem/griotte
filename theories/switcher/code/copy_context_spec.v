@@ -26,7 +26,7 @@ Section CopyContextMacro.
     (p_d : Perm) (g_d : Locality) (b_d e_d a_d : Addr) (π_d : option AId)
     (ws : list LWord) (D : nat → iProp Σ) (i : nat) (wscratch : LWord) φ :
     executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter)) →
     length ws = 15%nat →
     (i < 15)%nat →
     readAllowed p_s = true →
@@ -34,43 +34,43 @@ Section CopyContextMacro.
     isDRO p_s = false →
     (b_s <= a_s)%a →
     (a_s + 15 <= e_s)%Z →
-    disjoint_from_shadow a_s (a_s ^+ 15)%a →
+    disjoint_from_shadow a_s (a_s ^+ 15) →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     cnull ∉ [dst; src; scratch; counter] →
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 1) ∗
     codefrag_pers pc_a (copy_context_instrs dst src scratch counter) ∗
-    src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ i)%a ∗
-    dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ i)%a @@? π_d) ∗
+    src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ i) ∗
+    dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ i) @@? π_d) ∗
     scratch ↦ᵣ wscratch ∗
     counter ↦ᵣ WInt (15 - i) ∗
-    ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) ∗
+    ([∗ list] k ↦ w ∈ ws, (a_s ^+ k) ↦ₐ w) ∗
     D i ∗
     cells_store_acc D p_d e_d a_d π_d ws ∗
     ▷ ( ( ∀ j : nat,
           ⌜(j < 15)%nat⌝ -∗
           ⌜(e_d <= a_d + j)%Z⌝ -∗
-          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ j)%a -∗
-          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ j)%a @@? π_d) -∗
+          src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ j) -∗
+          dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ j) @@? π_d) -∗
           scratch ↦ᵣ - -∗
           counter ↦ᵣ WInt (15 - j) -∗
-          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) -∗
+          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k) ↦ₐ w) -∗
           D j -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
           WP Seq (Instr Faulted) {{ φ }} ) ∧
         ( ∀ wscratch' : LWord,
           ⌜(a_d + 15 <= e_d)%Z⌝ -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
-          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a -∗
-          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter)) -∗
+          src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ 15) -∗
+          dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ 15) @@? π_d) -∗
           scratch ↦ᵣ wscratch' -∗
           counter ↦ᵣ WInt 0 -∗
-          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k)%a ↦ₐ w) -∗
+          ([∗ list] k ↦ w ∈ ws, (a_s ^+ k) ↦ₐ w) -∗
           D 15 -∗
-          WP Seq (Instr Executable) {{ φ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          WP Exec {{ φ }} ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hexec Hsub Hlen Hi Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD & #Hacc & Hpost)".
@@ -92,14 +92,14 @@ Section CopyContextMacro.
     destruct (decide (a_d + i < e_d)%Z) as [Hin | Hout]; cycle 1.
     { (* Store dst scratch 0 *)
       iInstrApply "Hcode" (wp_store_fail_reg_imm _ 0 _ _ _ _ _ _ _ _ dst scratch _ _ _ _ _
-                             (a_d ^+ i)%a)
+                             (a_d ^+ i))
         with "[$HPC $Hscratch $Hdst]" as "(HPC & Hscratch & Hdst)".
       { solve_addr. }
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
       iApply ("Hfailed" $! i with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD [HPC]").
       { solve_addr. }
-      by rewrite (_ : (pc_a ^+ Z.to_nat 2)%a = (pc_a ^+ 2)%a); last solve_addr. }
+      by rewrite (_ : pc_a ^+ Z.to_nat 2 = pc_a ^+ 2); last solve_addr. }
     iMod ("Hacc" $! i with "[%] [%] HD") as (v q) "(%Hsh_d & Hcell & Hderef & Hclose)".
     { lia. }
     { done. }
@@ -116,10 +116,10 @@ Section CopyContextMacro.
     iInstr "Hcode".
     (* Lea dst dst 1 *)
     iInstr "Hcode".
-    { transitivity (Some (a_d ^+ S i)%a); solve_addr. }
+    { transitivity (Some (a_d ^+ S i)); solve_addr. }
     (* Lea src src 1 *)
     iInstr "Hcode".
-    { transitivity (Some (a_s ^+ S i)%a); solve_addr. }
+    { transitivity (Some (a_s ^+ S i)); solve_addr. }
     destruct (decide (i = 14)) as [-> | Hi14].
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
@@ -129,7 +129,7 @@ Section CopyContextMacro.
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-      { transitivity (Some (pc_a ^+ 1)%a); solve_addr. }
+      { transitivity (Some (pc_a ^+ 1)); solve_addr. }
       replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
       iApply ("IH" $! (S i) with "[] HPC Hsrc Hdst Hscratch Hcounter Hws HD Hpost").
       iPureIntro; lia.
@@ -147,50 +147,50 @@ Section CopyContextMacro.
     (p_d : Perm) (g_d : Locality) (b_d e_d a_d : Addr) (π_d : option AId)
     (ws : list LWord) (wscratch wcounter : LWord) (D : nat → iProp Σ) φ :
     executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter)) →
     length ws = 15%nat →
     readAllowed p_s = true →
     isDL p_s = false →
     isDRO p_s = false →
     (b_s <= a_s)%a →
     (a_s + 15 <= e_s)%Z →
-    disjoint_from_shadow a_s (a_s ^+ 15)%a →
+    disjoint_from_shadow a_s (a_s ^+ 15) →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     cnull ∉ [dst; src; scratch; counter] →
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
     codefrag_pers pc_a (copy_context_instrs dst src scratch counter) ∗
-    src ↦ᵣ WCap true p_s g_s b_s e_s a_s ∗
-    dst ↦ᵣ (WCap true p_d g_d b_d e_d a_d @@? π_d) ∗
+    src ↦ᵣ Cap p_s g_s b_s e_s a_s ∗
+    dst ↦ᵣ (Cap p_d g_d b_d e_d a_d @@? π_d) ∗
     scratch ↦ᵣ wscratch ∗
     counter ↦ᵣ wcounter ∗
-    [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] ∗
+    [[ a_s , a_s ^+ 15 ]] ↦ₐ [[ ws ]] ∗
     D 0 ∗
     cells_store_acc D p_d e_d a_d π_d ws ∗
     ▷ ( ( ∀ j : nat,
           ⌜(j < 15)%nat⌝ -∗
           ⌜(e_d <= a_d + j)%Z⌝ -∗
-          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ j)%a -∗
-          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ j)%a @@? π_d) -∗
+          src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ j) -∗
+          dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ j) @@? π_d) -∗
           scratch ↦ᵣ - -∗
           counter ↦ᵣ WInt (15 - j) -∗
-          [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] -∗
+          [[ a_s , a_s ^+ 15 ]] ↦ₐ [[ ws ]] -∗
           D j -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 2)%a -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
           WP Seq (Instr Faulted) {{ φ }} ) ∧
         ( ∀ wscratch' : LWord,
           ⌜(a_d + 15 <= e_d)%Z⌝ -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
-          src ↦ᵣ WCap true p_s g_s b_s e_s (a_s ^+ 15)%a -∗
-          dst ↦ᵣ (WCap true p_d g_d b_d e_d (a_d ^+ 15)%a @@? π_d) -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter)) -∗
+          src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ 15) -∗
+          dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ 15) @@? π_d) -∗
           scratch ↦ᵣ wscratch' -∗
           counter ↦ᵣ WInt 0 -∗
-          [[ a_s , (a_s ^+ 15)%a ]] ↦ₐ [[ ws ]] -∗
+          [[ a_s , a_s ^+ 15 ]] ↦ₐ [[ ws ]] -∗
           D 15 -∗
-          WP Seq (Instr Executable) {{ φ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          WP Exec {{ φ }} ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hexec Hsub Hlen Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD & #Hacc & Hpost)".
@@ -199,8 +199,8 @@ Section CopyContextMacro.
     (* Mov counter 15 *)
     iInstr "Hcode".
     iEval (rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr)) in "Hws".
-    assert ((a_s ^+ 0%nat)%a = a_s) as Ha_s0 by solve_addr.
-    assert ((a_d ^+ 0%nat)%a = a_d) as Ha_d0 by solve_addr.
+    assert (a_s ^+ 0%nat = a_s) as Ha_s0 by solve_addr.
+    assert (a_d ^+ 0%nat = a_d) as Ha_d0 by solve_addr.
     iApply (copy_context_loop_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ D 0
              with "[$HPC $Hcode $Hscratch $Hcounter $Hws $HD $Hacc Hsrc Hdst Hpost]").
     all: try (lia || done).
@@ -228,7 +228,7 @@ Section CopyContextMacro.
     (p_d : Perm) (g_d : Locality) (b_d e_d a_d : Addr)
     (wd ls : list LWord) (L : nat → list LWord → iProp Σ) (i : nat) (wscratch : LWord) φ :
     executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter)) →
     length wd = 15%nat →
     length ls = i →
     take i wd = lstore_word p_d <$> ls →
@@ -238,16 +238,16 @@ Section CopyContextMacro.
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     (a_d + 15 <= e_d)%Z →
-    disjoint_from_shadow a_d (a_d ^+ 15)%a →
+    disjoint_from_shadow a_d (a_d ^+ 15) →
     cnull ∉ [dst; src; scratch; counter] →
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 1) ∗
     codefrag_pers pc_a (copy_context_instrs dst src scratch counter) ∗
-    src ↦ᵣ (WCap true p_s g_s b_s e_s (a_s ^+ i)%a @@? π_s) ∗
-    dst ↦ᵣ WCap true p_d g_d b_d e_d (a_d ^+ i)%a ∗
+    src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ i) @@? π_s) ∗
+    dst ↦ᵣ Cap p_d g_d b_d e_d (a_d ^+ i) ∗
     scratch ↦ᵣ wscratch ∗
     counter ↦ᵣ WInt (15 - i) ∗
-    ([∗ list] k ↦ w ∈ wd, (a_d ^+ k)%a ↦ₐ w) ∗
+    ([∗ list] k ↦ w ∈ wd, (a_d ^+ k) ↦ₐ w) ∗
     L i ls ∗
     cells_load_acc L p_s e_s a_s π_s 15 ∗
     ▷ ( ( ∀ (j : nat) (ls' wd' : list LWord),
@@ -255,25 +255,25 @@ Section CopyContextMacro.
           ⌜length ls' = j⌝ -∗
           ⌜length wd' = 15%nat⌝ -∗
           ⌜(e_s <= a_s + j)%Z⌝ -∗
-          src ↦ᵣ (WCap true p_s g_s b_s e_s (a_s ^+ j)%a @@? π_s) -∗
-          dst ↦ᵣ WCap true p_d g_d b_d e_d (a_d ^+ j)%a -∗
+          src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ j) @@? π_s) -∗
+          dst ↦ᵣ Cap p_d g_d b_d e_d (a_d ^+ j) -∗
           scratch ↦ᵣ - -∗
           counter ↦ᵣ WInt (15 - j) -∗
-          ([∗ list] k ↦ w ∈ wd', (a_d ^+ k)%a ↦ₐ w) -∗
+          ([∗ list] k ↦ w ∈ wd', (a_d ^+ k) ↦ₐ w) -∗
           L j ls' -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a) ⊤ φ ) ∧
+          trap_safe (Cap pc_p pc_g pc_b pc_e (pc_a ^+ 1)) ⊤ φ ) ∧
         ( ∀ (ls' : list LWord) (wscratch' : LWord),
           ⌜length ls' = 15%nat⌝ -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
-          src ↦ᵣ (WCap true p_s g_s b_s e_s (a_s ^+ 15)%a @@? π_s) -∗
-          dst ↦ᵣ WCap true p_d g_d b_d e_d (a_d ^+ 15)%a -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter)) -∗
+          src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ 15) @@? π_s) -∗
+          dst ↦ᵣ Cap p_d g_d b_d e_d (a_d ^+ 15) -∗
           scratch ↦ᵣ wscratch' -∗
           counter ↦ᵣ WInt 0 -∗
-          ([∗ list] k ↦ w ∈ lstore_word p_d <$> ls', (a_d ^+ k)%a ↦ₐ w) -∗
+          ([∗ list] k ↦ w ∈ lstore_word p_d <$> ls', (a_d ^+ k) ↦ₐ w) -∗
           L 15 ls' -∗
-          WP Seq (Instr Executable) {{ φ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          WP Exec {{ φ }} ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hexec Hsub Hlen_wd Hlen_ls Htake Hi Hread Hb_s Hwrite Hb_d He_d Hshadow_d
                Hnull)
@@ -287,7 +287,7 @@ Section CopyContextMacro.
     { (* CLoad scratch src 0 *)
       iInstrApply "Hcode" (wp_load_fail_not_withinbounds_imm _ scratch src)
         with "[$HPC $Hscratch $Hsrc]" as "(HPC & Hscratch & Hsrc)".
-      { instantiate (1 := (a_s ^+ i)%a). rewrite /withinBounds; solve_addr. }
+      { instantiate (1 := a_s ^+ i). rewrite /withinBounds; solve_addr. }
       { solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
       iTrap with ("Hfailed" $! i ls wd with
@@ -320,10 +320,10 @@ Section CopyContextMacro.
     iInstr "Hcode".
     (* Lea dst dst 1 *)
     iInstr "Hcode".
-    { transitivity (Some (a_d ^+ S i)%a); solve_addr. }
+    { transitivity (Some (a_d ^+ S i)); solve_addr. }
     (* Lea src src 1 *)
     iInstr "Hcode".
-    { transitivity (Some (a_s ^+ S i)%a); solve_addr. }
+    { transitivity (Some (a_s ^+ S i)); solve_addr. }
     assert (take (S i) (<[i:=lstore_word p_d v']> wd) = lstore_word p_d <$> ls ++ [v'])
       as Htake'.
     { rewrite (take_S_r _ _ (lstore_word p_d v')); last (apply list_lookup_insert_eq; lia).
@@ -342,7 +342,7 @@ Section CopyContextMacro.
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-      { transitivity (Some (pc_a ^+ 1)%a); solve_addr. }
+      { transitivity (Some (pc_a ^+ 1)); solve_addr. }
       replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
       iApply ("IH" $! (<[i:=lstore_word p_d v']> wd) (ls ++ [v']) (S i)
                with "[%] [%] [%] [%] HPC Hsrc Hdst Hscratch Hcounter Hwd HL Hpost").
@@ -363,23 +363,23 @@ Section CopyContextMacro.
     (p_d : Perm) (g_d : Locality) (b_d e_d a_d : Addr)
     (wd : list LWord) (wscratch wcounter : LWord) (L : nat → list LWord → iProp Σ) φ :
     executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter)) →
     readAllowed p_s = true →
     (b_s <= a_s)%a →
     writeAllowed p_d = true →
     (b_d <= a_d)%a →
     (a_d + 15 <= e_d)%Z →
-    disjoint_from_shadow a_d (a_d ^+ 15)%a →
+    disjoint_from_shadow a_d (a_d ^+ 15) →
     length wd = 15%nat →
     cnull ∉ [dst; src; scratch; counter] →
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
     codefrag_pers pc_a (copy_context_instrs dst src scratch counter) ∗
-    src ↦ᵣ (WCap true p_s g_s b_s e_s a_s @@? π_s) ∗
-    dst ↦ᵣ WCap true p_d g_d b_d e_d a_d ∗
+    src ↦ᵣ (Cap p_s g_s b_s e_s a_s @@? π_s) ∗
+    dst ↦ᵣ Cap p_d g_d b_d e_d a_d ∗
     scratch ↦ᵣ wscratch ∗
     counter ↦ᵣ wcounter ∗
-    [[ a_d , (a_d ^+ 15)%a ]] ↦ₐ [[ wd ]] ∗
+    [[ a_d , a_d ^+ 15 ]] ↦ₐ [[ wd ]] ∗
     L 0 [] ∗
     cells_load_acc L p_s e_s a_s π_s 15 ∗
     ▷ ( ( ∀ (j : nat) (ls wd' : list LWord),
@@ -387,25 +387,25 @@ Section CopyContextMacro.
           ⌜length ls = j⌝ -∗
           ⌜length wd' = 15%nat⌝ -∗
           ⌜(e_s <= a_s + j)%Z⌝ -∗
-          src ↦ᵣ (WCap true p_s g_s b_s e_s (a_s ^+ j)%a @@? π_s) -∗
-          dst ↦ᵣ WCap true p_d g_d b_d e_d (a_d ^+ j)%a -∗
+          src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ j) @@? π_s) -∗
+          dst ↦ᵣ Cap p_d g_d b_d e_d (a_d ^+ j) -∗
           scratch ↦ᵣ - -∗
           counter ↦ᵣ WInt (15 - j) -∗
-          [[ a_d , (a_d ^+ 15)%a ]] ↦ₐ [[ wd' ]] -∗
+          [[ a_d , a_d ^+ 15 ]] ↦ₐ [[ wd' ]] -∗
           L j ls -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ 1)%a) ⊤ φ ) ∧
+          trap_safe (Cap pc_p pc_g pc_b pc_e (pc_a ^+ 1)) ⊤ φ ) ∧
         ( ∀ (ls : list LWord) (wscratch' : LWord),
           ⌜length ls = 15%nat⌝ -∗
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e
-                  (pc_a ^+ length (copy_context_instrs dst src scratch counter))%a -∗
-          src ↦ᵣ (WCap true p_s g_s b_s e_s (a_s ^+ 15)%a @@? π_s) -∗
-          dst ↦ᵣ WCap true p_d g_d b_d e_d (a_d ^+ 15)%a -∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e
+                  (pc_a ^+ length (copy_context_instrs dst src scratch counter)) -∗
+          src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ 15) @@? π_s) -∗
+          dst ↦ᵣ Cap p_d g_d b_d e_d (a_d ^+ 15) -∗
           scratch ↦ᵣ wscratch' -∗
           counter ↦ᵣ WInt 0 -∗
-          [[ a_d , (a_d ^+ 15)%a ]] ↦ₐ [[ lstore_word p_d <$> ls ]] -∗
+          [[ a_d , a_d ^+ 15 ]] ↦ₐ [[ lstore_word p_d <$> ls ]] -∗
           L 15 ls -∗
-          WP Seq (Instr Executable) {{ φ }} ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          WP Exec {{ φ }} ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hexec Hsub Hread Hb_s Hwrite Hb_d He_d Hshadow_d Hlen Hnull)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hwd & HL & #Hacc & Hpost)".
@@ -414,8 +414,8 @@ Section CopyContextMacro.
     (* Mov counter 15 *)
     iInstr "Hcode".
     iEval (rewrite (region_pointsto_cells a_d); last (rewrite Hlen; solve_addr)) in "Hwd".
-    assert ((a_s ^+ 0%nat)%a = a_s) as Ha_s0 by solve_addr.
-    assert ((a_d ^+ 0%nat)%a = a_d) as Ha_d0 by solve_addr.
+    assert (a_s ^+ 0%nat = a_s) as Ha_s0 by solve_addr.
+    assert (a_d ^+ 0%nat = a_d) as Ha_d0 by solve_addr.
     iApply (copy_context_load_loop_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ wd [] L 0
              with "[$HPC $Hcode $Hscratch $Hwd $HL $Hacc Hcounter Hsrc Hdst Hpost]").
     all: try (lia || done).
