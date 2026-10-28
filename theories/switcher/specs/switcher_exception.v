@@ -70,7 +70,7 @@ Section Switcher_Exception.
     interp_cont interp cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hfull Hframe) "#Htrap #Hregs #Htop #Hstatic HPC Hrmap Hworld_interp Hcont Hna Hcstk".
     iPoseProof "Hstatic" as "[#Hswitcher _]".
@@ -126,7 +126,7 @@ Section Switcher_Exception.
     iApply (world_interp_cells_store_acc _ _ _ g b e).
     - done.
     - rewrite /ErrorState_size in Hb |- *. solve_addr.
-    - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size))%a a π).
+    - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size)) a π).
       rewrite -Hcsp. iApply "Hregs". iPureIntro.
       destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
     - by iApply interp_error_state_src.
@@ -136,8 +136,8 @@ Section Switcher_Exception.
       [interp] does not read the cursor. *)
   Lemma interp_lea_result_cap (W : WORLD) (C : CmptName) (w : LWord) (z : Z)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) :
-    lea_result w z = Some (WCap true p g b e a @@? π) →
-    interp W C w -∗ interp W C (WCap true p g b e a @@? π).
+    lea_result w z = Some (Cap p g b e a @@? π) →
+    interp W C w -∗ interp W C (Cap p g b e a @@? π).
   Proof.
     destruct w as [w π0]. rewrite /lea_result /=.
     destruct w as [n | [t p0 g0 b0 e0 a0 | t p0 g0 b0 e0 a0] | k t p0 g0 b0 e0 a0 | ot sb];
@@ -175,7 +175,7 @@ Section Switcher_Exception.
       holds the part of the slot below the end of the faulting [csp] when
       the table declares the stackful handler [eh]. *)
   Lemma trusted_error_state_acc (cstk : CSTK) (w : LWord) (rmap : LReg) (eh : Z) :
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
     path_es_acc cstk w rmap (trusted_error_state eh w rmap).
   Proof.
     iIntros "#Heh !>" (eh' p g b e a π _ _) "#Heh' %Hsome %Hcsp %Hok".
@@ -218,7 +218,7 @@ Section Switcher_Exception.
     top_cmpt_untrusted interp W C cstk -∗
     ∃ wpcc wcgp : LWord,
       top_export_tbl cstk ↦ₐ□ wpcc ∗
-      (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
+      (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp ∗
       interp W C wpcc ∗ interp W C wcgp.
   Proof.
     iIntros "[(%pcc & %cgp & %eh & %ehs & #Hpcc & #Hcgp & _ & _ & #Hsafe & _) _]".
@@ -294,10 +294,10 @@ Section Switcher_Exception.
        ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
        ⌜rmap' !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
        ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-       PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+       PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return -∗
        registers_pointsto rmap' -∗
-       WP Seq (Instr Executable) @[th] {{ HO th }}) -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+       safe[th]) -∗
+    safe[th].
   Proof.
     iIntros (Hfull Hnz) "#Hstatic HPC Hrmap Hpost".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -333,7 +333,7 @@ Section Switcher_Exception.
     unwind_cont F cstk R_unwind_stk -∗
     R_unwind_stk -∗
     na_own (tpool th) F -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hfull Hnz) "#Hstatic HPC Hrmap Hcstk HU HS Hna".
     iApply (switcher_handler_return_force_unwind with "Hstatic HPC Hrmap"); [done | done |].
@@ -365,7 +365,7 @@ Section Switcher_Exception.
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hfull Hnz Hframe)
       "#Hinv_switcher #Hstatic #Htrap #Hregs #Htop HPC Hrmap Hworld_interp Hcont Hna Hcstk".
@@ -394,7 +394,7 @@ Section Switcher_Exception.
       by iApply (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont").
     - (* The installed context runs through the FTLR *)
       iIntros (ls Hls) "HPC Hrmap Hcstk [Hworld_interp #Hls_interp] Hna".
-      iAssert (interp W C (llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)))))
+      iAssert (interp W C (llegalise mepcc (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)))))
         as "#Hwpc".
       { iApply interp_llegalise_mepcc. by iApply interp_resumed_pc. }
       iDestruct (fundamental (trap_handler_ok ⊤) with "Htrap Hwpc") as "Hexpr".
@@ -481,7 +481,7 @@ Section Switcher_Exception.
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     top_cmpt_untrusted interp W C cstk -∗
     top_export_tbl cstk ↦ₐ□ wpcc -∗
-    (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp -∗
+    (top_export_tbl cstk ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp -∗
     interp W C (rmap !!! csp) -∗
     PC ↦ₚ[th] wpc -∗
     registers_pointsto regs -∗
@@ -489,7 +489,7 @@ Section Switcher_Exception.
     interp_continuation cstk Ws Cs -∗
     ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
     na_own (tpool th) ⊤ -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hframe Hstack Hentry Hinv_regs)
       "#Hinv_switcher #Hstatic #Htrap #Htop #Hpcc #Hcgp #Hcsp_fault HPC Hregs Hworld_interp
@@ -618,7 +618,7 @@ Section Switcher_Exception.
     registers_pointsto rmap -∗
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (HP_mcause Hfull_rmap)
       "#Hinv_switcher #Hstatic #Hsafe Huntrusted HPC Hout Hrmap Hna Hcstk".
@@ -687,14 +687,14 @@ Section Switcher_Exception.
      no_handler (top_export_tbl cstk) ∨
      (⌜Z.odd (top_error_count cstk) = true⌝ ∗
       ∃ eh ehs : Z,
-        top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-        top_export_tbl cstk ↦ₕ□{stackless} ehs)) -∗
+        top_export_tbl cstk ↦ₑ□{stackful} eh ∗
+        top_export_tbl cstk ↦ₑ□{stackless} ehs)) -∗
     PC ↦ₚ[th] lword_of_word mtcc_vec -∗
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe HU #Hcase HPC Hout Hrmap Hna Hcstk".
@@ -758,7 +758,7 @@ Section Switcher_Exception.
     switcher_static -∗
     ▷ exception_entry_safe -∗
     trusted_handler (top_export_tbl cstk) P_fault -∗
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
     error_state_slot eh rmap -∗
     (unwind_or_runs F cstk w rmap (error_state_slot eh rmap) ∧
      ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w rmap c v) -∗
@@ -767,7 +767,7 @@ Section Switcher_Exception.
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
     ◯(CSTK)[th] cstk -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
       "#Hinv_switcher #Hstatic #Hsafe #Hhandler #Heh_site Hslot HUP HPC Hout Hrmap Hna Hcstk".
@@ -792,7 +792,7 @@ Section Switcher_Exception.
                     P_fault F cstk w rmap mcause mtval) -∗
                    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
                    na_own (tpool th) F -∗
-                   WP Seq (Instr Executable) {{ HO th }} ))%I
+                   WP Exec {{ HO th }} ))%I
       as "#Hrun".
     { iIntros "!>" (kind off mcause mtval wpc regs).
       destruct kind; cbn [handler_offset].
@@ -1045,7 +1045,7 @@ Section Switcher_Exception.
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
       "(HPC & Hrmap & #Hinv_switcher & #Hstatic & Hworld_interp & Hcont & Hna & Hcstk)".
@@ -1108,7 +1108,7 @@ Section Switcher_Exception.
             PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
             registers_pointsto rmap' -∗
             na_own (tpool th) F -∗
-            WP Seq (Instr Executable) @[th] {{ HO th }})) -∗
+            safe[th])) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (HF HFtrap Hresume) "#Hinv_switcher #Hstatic Hres".
@@ -1185,9 +1185,9 @@ Section Switcher_Exception.
     (∀ r, is_Some (rmap !! r)) →
     nonZero (rmap !!! ca0).(lw) = false →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
-    rmap !!! csp = lword_of_word (WCap true p g b e a) →
+    rmap !!! csp = lword_of_word (Cap p g b e a) →
     is_Some (a + ErrorState_size)%a →
-    disjoint_from_shadow a (a ^+ ErrorState_size)%a →
+    disjoint_from_shadow a (a ^+ ErrorState_size) →
     length ws = Z.to_nat ErrorState_size →
 
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -1203,14 +1203,14 @@ Section Switcher_Exception.
           unwind_cont F cstk True ) ∧
         ( install_region a ws -∗
           context_resume F (cstack_set_top_count cstk (top_error_count cstk + 1))
-            (llegalise MEPCC (resumed_pc wpcc (get_a (ws !!! 0%nat).(lw))))
+            (llegalise mepcc (resumed_pc wpcc (get_a (ws !!! 0%nat).(lw))))
             (error_state_install rmap (lload_word p <$> drop 1 ws)) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (HF HFtrap Hfull Hnz Htbl_set Hcsp [a_es Ha_es] Hshadow Hws)
       "(#Hinv_switcher & #Hstatic & #Hpcc & HPC & Hrmap & Hws & Hcstk & Hna & Hpost)".
     rewrite /install_region.
-    assert ((a ^+ ErrorState_size)%a = a_es) as Ha_es' by solve_addr.
+    assert (a ^+ ErrorState_size = a_es) as Ha_es' by solve_addr.
     rewrite Ha_es' in Hshadow.
     iRevert "Hws Hpost". rewrite Ha_es'. iIntros "Hws Hpost".
     assert ((a + length ws)%a = Some a_es) as Ha_end.
@@ -1254,7 +1254,7 @@ Section Switcher_Exception.
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp_expr interp (interp_cont interp) W C (Cap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %rmap0
              (Hregs & _ & HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)".
@@ -1274,7 +1274,7 @@ Section Switcher_Exception.
     (mie : InterruptStatus) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp W C (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    ⊢ interp W C (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
     iIntros "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.

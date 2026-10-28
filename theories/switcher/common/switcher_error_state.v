@@ -19,7 +19,7 @@ Section Switcher_error_state.
       [.Lhandle_error_handler_return]. Its kind follows the interrupt status
       [mie] at the [cjalr], which the logic does not track. *)
   Definition handler_return_sentry (mie : InterruptStatus) : LWord :=
-    WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher
+    Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher
       (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_return")%a.
 
   (** The return label follows the [cjalr] (both labels exist: an undefined
@@ -85,8 +85,8 @@ Section Switcher_error_state.
       words below [e], and the first store at [e] faults. *)
   Definition error_state_fits (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true _ _ b _ a => (b + ErrorState_size <= a)%Z
-    | WSealRange true _ _ b _ a => (b + ErrorState_size <= a)%Z
+    | Cap _ _ b _ a => (b + ErrorState_size <= a)%Z
+    | SealRange _ _ b _ a => (b + ErrorState_size <= a)%Z
     | _ => False
     end.
 
@@ -130,7 +130,7 @@ Section Switcher_error_state.
       through the faulting [csp] succeed. *)
   Definition error_state_stores_ok (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true p _ b e a => writeAllowed p = true ∧ (b + ErrorState_size <= a)%Z ∧ (a <= e)%a
+    | Cap p _ b e a => writeAllowed p = true ∧ (b + ErrorState_size <= a)%Z ∧ (a <= e)%a
     | _ => False
     end.
 
@@ -141,7 +141,7 @@ Section Switcher_error_state.
       base, through the faulting [csp] succeeds. *)
   Definition error_state_first_store_ok (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true p _ b e a =>
+    | Cap p _ b e a =>
         writeAllowed p = true ∧ (b + ErrorState_size <= a)%Z ∧ (a - ErrorState_size < e)%Z
     | _ => False
     end.
@@ -171,12 +171,12 @@ Section Switcher_error_state.
     (¬ error_state_first_store_ok wcsp ∧
      (is_cap wct0.(lw) = false ∨
       ∃ (p : Perm) (g : Locality) (b e a ea : Addr),
-        wct0.(lw) = WCap true p g b e a ∧
+        wct0.(lw) = Cap p g b e a ∧
         (a + TrustedStack_offset_mepcc)%a = Some ea ∧
         (writeAllowed p = false ∨ withinBounds b e ea = false))) ∨
     (error_state_first_store_ok wcsp ∧
      ∃ (p : Perm) (g : Locality) (b e a : Addr),
-       wct0.(lw) = WCap true p g b e a ∧
+       wct0.(lw) = Cap p g b e a ∧
        (a < e)%a ∧ (e < a + ErrorState_size)%Z).
   Proof.
     destruct wcsp as [w π].
@@ -225,7 +225,7 @@ Section Switcher_error_state.
       succeed. *)
   Definition error_state_loads_ok (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap true p _ b e a =>
+    | Cap p _ b e a =>
         readAllowed p = true ∧ (b <= a)%a ∧ (a + ErrorState_size <= e)%Z
     | _ => False
     end.

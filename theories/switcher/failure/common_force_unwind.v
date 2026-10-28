@@ -28,8 +28,8 @@ Section Common_Force_Unwind.
     ▷ ( PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
         ca0 ↦ᵣ[th] WInt ECOMPARTMENTFAIL ∗
         ca1 ↦ᵣ[th] WInt 0 -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hca0 & Hca1 & #Hswitcher & Hpost)".
     switcher_open_label ".Lcommon_force_unwind" "Hswitcher" as "Hcode".

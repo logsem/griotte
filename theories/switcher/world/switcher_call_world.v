@@ -85,7 +85,7 @@ Section Switcher_Call_World.
   Lemma switcher_call_stk_open W C (b e a x y : Addr) :
     (b <= x)%a ->
     (y <= e)%a ->
-    interp W C (WCap true RWL Local b e a) -∗
+    interp W C (Cap RWL Local b e a) -∗
     world_interp W C -∗
     ∃ lv,
       [[ x , y ]] ↦ₐ [[ lv ]] ∗
@@ -127,7 +127,7 @@ Section Switcher_Call_World.
       identifier: heap authority is never write-local. *)
   Lemma interp_wl_noid W C p g b e a π :
     isWL p = true → (b < e)%a →
-    interp W C (WCap true p g b e a @@? π) -∗ ⌜π = None⌝.
+    interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hwl Hbe) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
@@ -202,7 +202,7 @@ Section Switcher_Call_World.
       rewrite /lforce_global /lift_word /lword_of_word /= in Hw; discriminate. }
     cbn in Htag; subst t.
     destruct g; first done.
-    iDestruct (ot_switcher_prop_borrow _ _ (WCap true p Global b e a @@? π) with "HP") as "HP'".
+    iDestruct (ot_switcher_prop_borrow _ _ (Cap p Global b e a @@? π) with "HP") as "HP'".
     done.
   Qed.
 
@@ -215,12 +215,12 @@ Section Switcher_Call_World.
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
     cgp ↦ᵣ[th] wcgp ∗
-    cra ↦ᵣ[th] WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    cra ↦ᵣ[th] Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     csp ↦ᵣ[th] wstk ∗
     interp W' C wstk ∗
     ( [∗ map] r↦w ∈ arg_rmap',
         r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
-    ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+    regs₀[th] rmap'
     -∗
     ∃ regs,
       registers_pointsto regs ∗
@@ -297,18 +297,18 @@ Section Switcher_Call_World.
   Lemma trusted_stack_inv_push_frame
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord)
     (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
+    frm.(cf_tframe).(tf_csp) = lword_of_word (Cap RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
@@ -321,12 +321,12 @@ Section Switcher_Call_World.
 
     ●(CSTK)[th] cstk' -∗
     ◯(CSTK)[th] cstk -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
-    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
+    a_csp ↦ₐ Cap RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_export_table ↦ₐ wtbl -∗
     a_error_count ↦ₐ WInt frm.(cf_tframe).(tf_error_count) -∗
     [[ a_free , e_trusted_stack ]]
@@ -345,11 +345,11 @@ Section Switcher_Call_World.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     iMod (cstack_update _ _ (cstack_push frm cstk) with "Hcstk_full Hcstk") as "[Hcstk_full $]".
     iModIntro.
-    iExists (a_tstk ^+ TrustedStackFrame_size)%a, (cstack_push frm cstk), save_area, tstk_next.
+    iExists (a_tstk ^+ TrustedStackFrame_size), (cstack_push frm cstk), save_area, tstk_next.
     iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full".
     rewrite /cstack_interp.
     cbn.
-    replace ((a_tstk ^+ TrustedStackFrame_size) ^+ - TrustedStackFrame_size)%a with a_tstk
+    replace ((a_tstk ^+ TrustedStackFrame_size) ^+ - TrustedStackFrame_size) with a_tstk
       by (tstack_unfold; solve_addr).
     rewrite /cframe_interp /trusted_frame_interp Hcsp.
     iFrame "Hstk_interp Hframe_csp Hframe_cnt".
@@ -367,8 +367,8 @@ Section Switcher_Call_World.
       the invariant. The trusted stack pointer, the frame offset and the
       unused part of the trusted stack go through the call path. *)
   Definition trusted_stack_inv_opened (cstk' : CSTK) (a_tstk : Addr) : iProp Σ :=
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     "Hclose_switcher_inv" ∷
       (▷ trusted_stack_inv ∗ na_own (tpool th) (⊤ ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) ⊤) ∗
     "Hna" ∷ na_own (tpool th) (⊤ ∖ ↑Ntstack) ∗
@@ -388,16 +388,16 @@ Section Switcher_Call_World.
   (** Open the trusted-stack invariant for the call routine. The resources come
       under a later, which the first instruction removes. *)
   Lemma trusted_stack_inv_open_call :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     na_own (tpool th) ⊤
     ={⊤}=∗
     ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
-      let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+      let a_next := (a_tstk ^+ TrustedStackFrame_size) in
       ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ⌝ ∗
       ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
       ▷ trusted_stack_inv_opened cstk' a_tstk ∗
-      mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+      mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
       [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]].
@@ -424,10 +424,10 @@ Section Switcher_Call_World.
 
   (** Close the trusted-stack invariant, with the trusted stack unchanged. *)
   Lemma trusted_stack_inv_opened_close (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     trusted_stack_inv_opened cstk' a_tstk -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]]
@@ -451,15 +451,15 @@ Section Switcher_Call_World.
   Lemma trusted_stack_inv_opened_push
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord)
     (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_free := (a_next ^+ TrustedStackFrame_size)%a in
-    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_free := (a_next ^+ TrustedStackFrame_size) in
+    let a_csp := (a_next ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_next ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_next ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ->
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    frm.(cf_tframe).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
+    frm.(cf_tframe).(tf_csp) = lword_of_word (Cap RWL Local b_stk e_stk (stk_saved_a a_stk)) ->
     switcher_stk_bounds b_stk e_stk a_stk ->
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
@@ -471,10 +471,10 @@ Section Switcher_Call_World.
 
     trusted_stack_inv_opened cstk' a_tstk -∗
     ◯(CSTK)[th] cstk -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
-    a_csp ↦ₐ WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
+    a_csp ↦ₐ Cap RWL Local b_stk e_stk (stk_saved_a a_stk) -∗
     a_export_table ↦ₐ wtbl -∗
     a_error_count ↦ₐ WInt frm.(cf_tframe).(tf_error_count) -∗
     [[ a_free , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
@@ -505,7 +505,7 @@ Section Switcher_Call_World.
     callee_stk_bounds b e a →
     stk_free b e a =
       callee_stk_region b e a ++
-        finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a.
+        finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size).
   Proof.
     intros (_ & He & Hbe & Ha).
     rewrite stk_spill_a_end //. stk_unfold.
@@ -516,7 +516,7 @@ Section Switcher_Call_World.
   #[local] Lemma stk_free_join_callee (b e a : Addr) (ls lc : list LWord) :
     callee_stk_bounds b e a →
     length ls = Z.to_nat SpillSlot_size →
-    [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ [[ ls ]] ∗
+    [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ ls ]] ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ lc ]] ⊢
     [[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ stk_mem_join ls lc ]].
   Proof.
@@ -535,8 +535,7 @@ Section Switcher_Call_World.
     let W' := std_update_multiple W (callee_stk_region b e a) Temporary in
     world_interp W C -∗
     StackRevokedResources W C (stk_free b e a) -∗
-    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-      [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]]
+    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]]
     ={E}=∗
     world_interp W' C ∗
     interp W' C (callee_csp b e a) ∗
@@ -554,7 +553,7 @@ Section Switcher_Call_World.
     iFrame "Hworld_interp".
     iSplit; last (iPureIntro; split; [apply related_sts_pub_update_multiple_temp|]; done).
     revert Hbounds Hstk_mmio Hstk_heap; stk_unfold; intros (_ & He & Hbe & Ha) Hstk_mmio Hstk_heap.
-    assert (disjoint_from_mmio b (a ^+ - (4))%a ∧ disjoint_from_heap b (a ^+ - (4))%a)
+    assert (disjoint_from_mmio b (a ^+ - (4)) ∧ disjoint_from_heap b (a ^+ - (4)))
       as [Hshadow Hheap].
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption]. solve_addr. }
     iApply interp_unfold. iSimpl.
@@ -589,8 +588,8 @@ Section Switcher_Call_World.
   Lemma switcher_cc_exhausted_regs (arg_rmap rmap : LReg) (wct1 wct2 wctp : LWord) :
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
-    ( [∗ map] r↦w ∈ arg_rmap, r ↦ᵣ[th] w ) -∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
+    regs[th] arg_rmap -∗
+    regs[th] delete ctp (delete ct2 rmap) -∗
     ct1 ↦ᵣ[th] wct1 -∗
     ct2 ↦ᵣ[th] wct2 -∗
     ctp ↦ᵣ[th] wctp -∗
@@ -598,7 +597,7 @@ Section Switcher_Call_World.
       ca0 ↦ᵣ[th] wca0 ∗
       ca1 ↦ᵣ[th] wca1 ∗
       ⌜ dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-      ( [∗ map] r↦w ∈ rmap0, r ↦ᵣ[th] w ).
+      regs[th] rmap0.
   Proof.
     iIntros (Hrdom Hdom) "Hargs Hregs Hct1 Hct2 Hctp".
     iExtractList "Hargs" [ca0; ca1] as ["Hca0"; "Hca1"].
@@ -639,7 +638,7 @@ Section Switcher_Call_World.
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk) -∗
     StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h -∗
-    [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
+    [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]] -∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
     £ 2
     ={E}=∗
@@ -727,7 +726,7 @@ Section Switcher_Call_World.
 
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    [[ stk_spill_a a_stk , (stk_spill_a a_stk ^+ SpillSlot_size)%a ]] ↦ₐ [[ stk_mem_l ]] -∗
+    [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]] -∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
     £ 2
     ={E}=∗

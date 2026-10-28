@@ -24,7 +24,7 @@ Section Common_Thread_Exit.
     ▷ ( PC ↦ₚ switcher_label_pc ".Lcommon_thread_exit"
         ={E}=∗
         Φ HaltedV )
-    ⊢ WP Seq (Instr Executable) @ E {{ Φ }}.
+    ⊢ WP Exec @ E {{ Φ }}.
   Proof.
     iIntros "(HPC & #Hswitcher & Hpost)".
     switcher_open_label ".Lcommon_defer_irqs_and_thread_exit" "Hswitcher" as "Hcode".

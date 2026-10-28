@@ -35,12 +35,12 @@ Section Switcher_error_handler.
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ⌜rmap !! ca0 = Some (WInt ECOMPARTMENTFAIL : LWord)⌝ -∗
       ⌜rmap !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-      PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
+      PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap -∗
       ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       R_unwind_stk -∗
       na_own (tpool th) F -∗
-      WP Seq (Instr Executable) @[th] {{ HO th }}.
+      safe[th].
 
   Lemma unwind_cont_give (F : coPset) (cstk : CSTK) (R_unwind_stk : iProp Σ) :
     R_unwind_stk -∗ unwind_cont F cstk R_unwind_stk -∗ unwind_cont F cstk True.
@@ -115,7 +115,7 @@ Section Switcher_error_handler.
   Definition error_state_pointsto (w : LWord) (rfault : LReg) : iProp Σ :=
     match (rfault !!! csp).(lw) with
     | WCap _ p _ _ _ a =>
-        [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ error_state_words p w rfault ]]
+        [[ a ^+ (- ErrorState_size) , a ]] ↦ₐ [[ error_state_words p w rfault ]]
     | _ => True
     end.
 
@@ -124,7 +124,7 @@ Section Switcher_error_handler.
     match (rfault !!! csp).(lw) with
     | WCap _ _ _ _ _ a =>
         ∃ ws, ⌜length ws = Z.to_nat ErrorState_size⌝ ∗
-              [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ ws ]]
+              [[ a ^+ (- ErrorState_size) , a ]] ↦ₐ [[ ws ]]
     | _ => True
     end.
 
@@ -149,19 +149,19 @@ Section Switcher_error_handler.
   (** The end of that part of the slot. *)
   Definition error_state_lent_e (wcsp : LWord) : Addr :=
     match wcsp.(lw) with
-    | WCap _ _ _ _ _ a => ((a ^+ (- ErrorState_size)) ^+ error_state_room wcsp)%a
+    | WCap _ _ _ _ _ a => ((a ^+ (- ErrorState_size)) ^+ error_state_room wcsp)
     | _ => 0%a
     end.
 
   Lemma error_state_lent_e_eq (wcsp : LWord) (t : bool) (p : Perm) (g : Locality) (b e a : Addr) :
     wcsp.(lw) = WCap t p g b e a →
-    error_state_lent_e wcsp = ((a ^+ (- ErrorState_size)) ^+ error_state_room wcsp)%a.
+    error_state_lent_e wcsp = ((a ^+ (- ErrorState_size)) ^+ error_state_room wcsp).
   Proof. intros Hw. by rewrite /error_state_lent_e Hw. Qed.
 
   (** When the stores of the [ErrorState] succeed, the part of the slot
       below the end is the whole slot. *)
   Lemma error_state_lent_e_stores_ok (wcsp : LWord) (p : Perm) (g : Locality) (b e a : Addr) :
-    wcsp.(lw) = WCap true p g b e a →
+    wcsp.(lw) = Cap p g b e a →
     error_state_stores_ok wcsp →
     error_state_room wcsp = Z.to_nat ErrorState_size ∧ error_state_lent_e wcsp = a.
   Proof.
@@ -180,14 +180,14 @@ Section Switcher_error_handler.
     match (rfault !!! csp).(lw) with
     | WCap _ _ _ _ _ a =>
         ∃ ws, ⌜length ws = error_state_room (rfault !!! csp)⌝ ∗
-              [[ (a ^+ (- ErrorState_size))%a , error_state_lent_e (rfault !!! csp) ]] ↦ₐ [[ ws ]]
+              [[ a ^+ (- ErrorState_size) , error_state_lent_e (rfault !!! csp) ]] ↦ₐ [[ ws ]]
     | _ => True
     end.
 
   (** That part of the slot does not overlap the shadow table. *)
   Definition error_state_lent_shadow_free (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap _ _ _ _ _ a => disjoint_from_shadow (a ^+ (- ErrorState_size))%a (error_state_lent_e wcsp)
+    | WCap _ _ _ _ _ a => disjoint_from_shadow (a ^+ (- ErrorState_size)) (error_state_lent_e wcsp)
     | _ => True
     end.
 
@@ -199,7 +199,7 @@ Section Switcher_error_handler.
     | WCap _ p _ _ _ a =>
         ∃ ws, ⌜(i <= error_state_room (rfault !!! csp))%nat ∧
                length ws = (error_state_room (rfault !!! csp) - i)%nat⌝ ∗
-              [[ (a ^+ (- ErrorState_size))%a , error_state_lent_e (rfault !!! csp) ]] ↦ₐ
+              [[ a ^+ (- ErrorState_size) , error_state_lent_e (rfault !!! csp) ]] ↦ₐ
                 [[ take i (error_state_words p w rfault) ++ ws ]]
     | _ => True
     end.
@@ -271,17 +271,17 @@ Section Switcher_error_handler.
       faulting [csp], while the switcher writes it. *)
   Lemma error_state_cells_acc (w : LWord) (rmap : LReg)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (i : nat) :
-    rmap !!! csp = WCap true p g b e a @@? π →
+    rmap !!! csp = Cap p g b e a @@? π →
     (b + ErrorState_size <= a)%Z →
     (i < Z.to_nat ErrorState_size)%nat →
-    ((a ^+ (- ErrorState_size))%a + i < e)%Z →
+    ((a ^+ (- ErrorState_size)) + i < e)%Z →
     error_state_cells w rmap i -∗
-    ∃ v, ((a ^+ (- ErrorState_size)) ^+ i)%a ↦ₐ v ∗
-      (((a ^+ (- ErrorState_size)) ^+ i)%a ↦ₐ lstore_word p (error_state_src w rmap !!! i) -∗
+    ∃ v, ((a ^+ (- ErrorState_size)) ^+ i) ↦ₐ v ∗
+      (((a ^+ (- ErrorState_size)) ^+ i) ↦ₐ lstore_word p (error_state_src w rmap !!! i) -∗
        error_state_cells w rmap (S i)).
   Proof.
     intros Hcsp Hb Hi Hie.
-    assert (lw (rmap !!! csp) = WCap true p g b e a) as Hw by (by rewrite Hcsp).
+    assert (lw (rmap !!! csp) = Cap p g b e a) as Hw by (by rewrite Hcsp).
     pose proof (error_state_room_eq (rmap !!! csp) true p g b e a Hw) as Hroom.
     pose proof (error_state_lent_e_eq (rmap !!! csp) true p g b e a Hw) as Hend.
     rewrite /error_state_cells Hw.
@@ -320,12 +320,12 @@ Section Switcher_error_handler.
   (** Cell [i] of that part is outside the shadow table. *)
   Lemma error_state_lent_not_shadow (wcsp : LWord)
     (p : Perm) (g : Locality) (b e a : Addr) (i : nat) :
-    wcsp.(lw) = WCap true p g b e a →
+    wcsp.(lw) = Cap p g b e a →
     (b + ErrorState_size <= a)%Z →
     (i < Z.to_nat ErrorState_size)%nat →
-    ((a ^+ (- ErrorState_size))%a + i < e)%Z →
+    ((a ^+ (- ErrorState_size)) + i < e)%Z →
     error_state_lent_shadow_free wcsp →
-    is_shadow_address ((a ^+ (- ErrorState_size)) ^+ i)%a = false.
+    is_shadow_address ((a ^+ (- ErrorState_size)) ^+ i) = false.
   Proof.
     intros Hw Hb Hi Hie Hshadow.
     pose proof (error_state_room_eq wcsp true p g b e a Hw) as Hroom.
@@ -333,7 +333,7 @@ Section Switcher_error_handler.
     rewrite /error_state_lent_shadow_free Hw in Hshadow.
     eapply disjoint_from_shadow_not_in; first exact Hshadow.
     rewrite Hend /withinBounds.
-    set (a0 := (a ^+ (- ErrorState_size))%a) in *.
+    set (a0 := a ^+ (- ErrorState_size)) in *.
     assert ((a0 : Z) = a - ErrorState_size)%Z as Ha0.
     { subst a0. rewrite /ErrorState_size in Hb |- *. solve_addr. }
     clearbody a0.
@@ -353,7 +353,7 @@ Section Switcher_error_handler.
   (** The [ErrorState] slot does not overlap the shadow table. *)
   Definition error_state_shadow_free (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
-    | WCap _ _ _ _ _ a => disjoint_from_shadow (a ^+ (- ErrorState_size))%a a
+    | WCap _ _ _ _ _ a => disjoint_from_shadow (a ^+ (- ErrorState_size)) a
     | _ => True
     end.
 
@@ -448,7 +448,7 @@ Section Switcher_error_handler.
 
   (** The handler offset of kind [kind] declared by the table at [b]. *)
   Definition handler_offset (kind : handler_kind) (b : Addr) (z : Z) : iProp Σ :=
-    match kind with Stackful => b ↦ₕ□{stackful} z | Stackless => b ↦ₕ□{stackless} z end.
+    match kind with Stackful => b ↦ₑ□{stackful} z | Stackless => b ↦ₑ□{stackless} z end.
 
   #[global] Instance handler_offset_persistent kind b z :
     Persistent (handler_offset kind b z).
@@ -506,7 +506,7 @@ Section Switcher_error_handler.
   (** The same, with the handler words of the table named. *)
   Definition handler_runs (cstk : CSTK) (w : LWord) (rmap : LReg) : iProp Σ :=
     ∃ (eh : Z) (wpcc : LWord),
-      top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+      top_export_tbl cstk ↦ₑ□{stackful} eh ∗
       top_export_tbl cstk ↦ₐ□ wpcc ∗
       ⌜stackful_handler_runs cstk w rmap eh wpcc⌝.
 
@@ -572,7 +572,7 @@ Section Switcher_error_handler.
            P_fault F cstk w rfault mcause mtval) -∗
           ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own (tpool th) F -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ).
+          safe[th] ).
 
   #[global] Instance execute_error_handler_persistent b_tbl wpcc wcgp off kind P_fault :
     Persistent (execute_error_handler b_tbl wpcc wcgp off kind P_fault).
@@ -584,9 +584,9 @@ Section Switcher_error_handler.
     (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) : iProp Σ :=
     ∃ (wpcc wcgp : LWord) (eh ehs : Z),
       b_tbl ↦ₐ□ wpcc ∗
-      (b_tbl ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
-      b_tbl ↦ₕ□{stackful} eh ∗
-      b_tbl ↦ₕ□{stackless} ehs ∗
+      (b_tbl ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp ∗
+      b_tbl ↦ₑ□{stackful} eh ∗
+      b_tbl ↦ₑ□{stackless} ehs ∗
       (⌜eh ≠ ExportTable_no_handler⌝ →
          execute_error_handler b_tbl wpcc wcgp eh Stackful P_fault) ∗
       (⌜ehs ≠ ExportTable_no_handler⌝ →
@@ -617,7 +617,7 @@ Section Switcher_error_handler.
      registers_pointsto regs -∗
      ◯(CSTK)[th] cstk -∗
      na_own (tpool th) F -∗
-     WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+     safe[th])%I.
 
   (** Why the install faults: the [ErrorState] cannot be loaded. *)
   Definition install_skipped (cstk : CSTK) (rmap : LReg) : Prop :=
@@ -626,13 +626,13 @@ Section Switcher_error_handler.
   (** The [ErrorState] that the install loads, at the handler's cursor
       [a]. *)
   Definition install_region (a : Addr) (ws : list LWord) : iProp Σ :=
-    [[ a , (a ^+ ErrorState_size)%a ]] ↦ₐ [[ ws ]].
+    [[ a , a ^+ ErrorState_size ]] ↦ₐ [[ ws ]].
 
   (** The [ErrorState] that the switcher writes, below the faulting cursor
       of [rfault]'s [csp]. *)
   Definition error_state_region (rfault : LReg) (ws : list LWord) : iProp Σ :=
     match (rfault !!! csp).(lw) with
-    | WCap _ _ _ _ _ a => [[ (a ^+ (- ErrorState_size))%a , a ]] ↦ₐ [[ ws ]]
+    | WCap _ _ _ _ _ a => [[ a ^+ (- ErrorState_size) , a ]] ↦ₐ [[ ws ]]
     | _ => True
     end.
 
@@ -650,8 +650,8 @@ Section Switcher_error_handler.
     destruct (a' + (- ErrorState_size))%a as [a16|] eqn:Ha16; cbn; last done.
     intros Hregs; simplify_eq.
     rewrite /ErrorState_size in Ha16 |- *.
-    rewrite (_ : (a' ^+ - (16))%a = a); last solve_addr.
-    by rewrite (_ : (a ^+ 16)%a = a'); last solve_addr.
+    rewrite (_ : a' ^+ - (16) = a); last solve_addr.
+    by rewrite (_ : a ^+ 16 = a'); last solve_addr.
   Qed.
 
   (** The install faults only if the handler's [csp] does not allow the
@@ -688,7 +688,7 @@ Section Switcher_error_handler.
   (** Writing a safe word to MEPCC keeps it safe: the same word, or the
       word untagged. *)
   Lemma interp_llegalise_mepcc (W : WORLD) (C : CmptName) (w : LWord) :
-    interp W C w -∗ interp W C (llegalise MEPCC w).
+    interp W C w -∗ interp W C (llegalise mepcc w).
   Proof.
     iIntros "#H". destruct w as [w π].
     rewrite /llegalise /lift_word /legalise /legalise_pc /=.
@@ -709,9 +709,7 @@ Section Switcher_error_handler.
       [rmap] and the 15 registers of the [ErrorState]. *)
   Lemma error_state_install_pointsto (rmap : LReg)
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
-    ([∗ map] k↦y ∈ delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0
-       (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp
-       (delete csp (delete cra rmap)))))))))))))), k ↦ᵣ[th] y) -∗
+    (regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap))))))))))))))) -∗
     cra ↦ᵣ[th] wcra -∗
     csp ↦ᵣ[th] wcsp -∗
     cgp ↦ᵣ[th] wcgp -∗
@@ -744,7 +742,7 @@ Section Switcher_error_handler.
   Definition top_frame_stack_ok (cstk : CSTK) : Prop :=
     cstk.(cstk_frames) ≠ [] →
     ∃ b_stk e_stk a_stk : Addr,
-      (top_tframe cstk).(tf_csp) = lword_of_word (WCap true RWL Local b_stk e_stk (stk_saved_a a_stk)) ∧
+      (top_tframe cstk).(tf_csp) = lword_of_word (Cap RWL Local b_stk e_stk (stk_saved_a a_stk)) ∧
       stk_cursor_ok b_stk e_stk a_stk ∧
       stk_spill_ok a_stk.
 
@@ -754,7 +752,7 @@ Section Switcher_error_handler.
     cstack_interp cstk a_tstk -∗
     ⌜cstk.(cstk_frames) ≠ [] →
      ∃ (p : Perm) (g : Locality) (b e a : Addr),
-       (top_tframe cstk).(tf_csp) = lword_of_word (WCap true p g b e a) ∧
+       (top_tframe cstk).(tf_csp) = lword_of_word (Cap p g b e a) ∧
        (b <= a)%a ∧ (a <= e)%a ∧
        disjoint_from_heap b e⌝.
   Proof.
@@ -789,17 +787,17 @@ Section Switcher_error_handler.
   Lemma trusted_frame_interp_open (entry : bool) (tf : trusted_frame) (a_tstk : Addr) :
     trusted_frame_interp entry tf a_tstk -∗
     ∃ (dq : dfrac) (w : LWord),
-      (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) ∗
-      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} w ∗
-      (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt tf.(tf_error_count) ∗
+      (a_tstk ^+ TrustedStackFrame_offset_csp) ↦ₐ tf.(tf_csp) ∗
+      (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) ↦ₐ{dq} w ∗
+      (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) ↦ₐ WInt tf.(tf_error_count) ∗
       ⌜tf.(tf_export_tbl) = lword_of_word (WInt 0) ∨
        (w = tf.(tf_export_tbl) ∧
         exp_tbl_cap (tf_export_tbl_b tf) tf.(tf_export_tbl).(lw) ∧
         tf.(tf_export_tbl).(lprov) = None)⌝ ∗
       (∀ n : Z,
-         (a_tstk ^+ TrustedStackFrame_offset_csp)%a ↦ₐ tf.(tf_csp) -∗
-         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a ↦ₐ{dq} w -∗
-         (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a ↦ₐ WInt n -∗
+         (a_tstk ^+ TrustedStackFrame_offset_csp) ↦ₐ tf.(tf_csp) -∗
+         (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) ↦ₐ{dq} w -∗
+         (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) ↦ₐ WInt n -∗
          trusted_frame_interp entry (tf_set_count tf n) a_tstk).
   Proof.
     rewrite /trusted_frame_interp.
@@ -841,15 +839,15 @@ Section Switcher_error_handler.
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
-         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₑ□{stackful} eh ∗
          error_state_slot eh regs ∗
          (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
           ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,
-         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-         top_export_tbl cstk ↦ₕ□{stackless} ehs) ).
+         top_export_tbl cstk ↦ₑ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₑ□{stackless} ehs) ).
   #[local] Definition trap_handler_ok_aux : seal (@trap_handler_ok_def). Proof. by eexists. Qed.
   Definition trap_handler_ok_cause := trap_handler_ok_aux.(unseal).
   #[local] Definition trap_handler_ok_unseal :
@@ -884,7 +882,7 @@ Section Switcher_error_handler.
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     trusted_handler (top_export_tbl cstk) P_fault -∗
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
     error_state_slot eh regs -∗
     (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
      ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v) -∗
@@ -900,8 +898,8 @@ Section Switcher_error_handler.
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     Z.odd (top_error_count cstk) = true →
-    top_export_tbl cstk ↦ₕ□{stackful} eh -∗
-    top_export_tbl cstk ↦ₕ□{stackless} ehs -∗
+    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
+    top_export_tbl cstk ↦ₑ□{stackless} ehs -∗
     unwind_cont F cstk True -∗
     trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
   Proof.
@@ -918,15 +916,15 @@ Section Switcher_error_handler.
        (⌜switcher_fault_pc w⌝ ∨ no_handler (top_export_tbl cstk)))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
-         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₑ□{stackful} eh ∗
          error_state_slot eh regs ∗
          (unwind_or_runs F cstk w regs (error_state_slot eh regs) ∧
           ∀ c v : Z, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ P_fault F cstk w regs c v))
     ∨ (unwind_cont F cstk True ∗
        ⌜Z.odd (top_error_count cstk) = true⌝ ∗
        ∃ eh ehs : Z,
-         top_export_tbl cstk ↦ₕ□{stackful} eh ∗
-         top_export_tbl cstk ↦ₕ□{stackless} ehs) ).
+         top_export_tbl cstk ↦ₑ□{stackful} eh ∗
+         top_export_tbl cstk ↦ₑ□{stackless} ehs) ).
   Proof. rewrite trap_handler_ok_unseal. iIntros "H". iExact "H". Qed.
 
 End Switcher_error_handler.

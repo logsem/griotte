@@ -29,33 +29,33 @@ Section Switch_Unseal_Entry.
       [.Lswitcher_decode_entry] faults. *)
   Lemma switch_unseal_entry_spec (wct1 : LWord) :
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_unseal_entry" ∗
-    cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+    cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
     ct1 ↦ᵣ[th] wct1 ∗
     switcher_code ∗
     ( ▷ ( ∀ wsb π,
           ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
           ⌜ get_tag_sealable wsb = true ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitcher_decode_entry" ∗
-          cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+          cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
           ct1 ↦ᵣ[th] WSealable wsb @@? π -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
       ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
-        cs0 ↦ᵣ[th] WSealRange true (true, true) Global ot_switcher (ot_switcher ^+ 1)%ot ot_switcher ∗
+        cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
         ct1 ↦ᵣ[th] - -∗
         trap_safe (switcher_label_pc ".Lswitcher_decode_entry") ⊤
           (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros "(HPC & Hcs0 & Hct1 & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode" a_unseal Ha_unseal.
-    assert ((a_unseal ^+ 1)%a =
+    assert (a_unseal ^+ 1 =
             (a_switcher_call ^+ switcher_label_offset ".Lswitcher_decode_entry")%a)
       as Hpc_decode by switcher_addr_eq.
     (* UnSeal ct1 cs0 ct1 *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".
     wp_instr.
     iApply (wp_unseal_unknown_sealed _ _ _ _ _ _
-              (a_unseal ^+ 1)%a
+              (a_unseal ^+ 1)
              with "[$HPC $Hi $Hcs0 $Hct1]"); try done; try solve_pure.
     { pose proof ot_switcher_size; solve_addr. }
     iIntros "!>" (ret)
@@ -117,9 +117,9 @@ Section Switch_Unseal_Entry.
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (b_stk e_stk a_stk : Addr)
     (posture : InterruptStatus) (nargs minstk : nat) (off : Z) :
-    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
-    (b_tbl <= a_tbl < e_tbl)%a ->
+    let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
+    (a_tbl ∈ₐ [b_tbl, e_tbl)) ->
     (a_tbl_cgp < a_tbl)%a ->
     is_Some (bpcc + off)%a ->
     (nargs <= 7) ->
@@ -133,31 +133,31 @@ Section Switch_Unseal_Entry.
     (a_export_table < e_trusted_stack)%a ->
     a_stk = e_stk ->
 
-    b_tbl ↦ₐ□ WCap true RX Global bpcc epcc bpcc ∗
+    b_tbl ↦ₐ□ Cap RX Global bpcc epcc bpcc ∗
     a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
     a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
     PC ↦ₚ[th] switcher_label_pc ".Lswitcher_decode_entry" ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+    ct1 ↦ᵣ[th] Cap RO g_tbl b_tbl e_tbl a_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_frame ∗
+    ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_frame ∗
     a_export_table ↦ₐ wtbl ∗
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_code ∗
     ▷ ( ( ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
           cs0 ↦ᵣ[th] WInt off ∗
           cs1 ↦ᵣ[th] WInt b_tbl ∗
-          ct1 ↦ᵣ[th] WCap true RO g_tbl b_tbl e_tbl b_tbl ∗
+          ct1 ↦ᵣ[th] Cap RO g_tbl b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] WInt (e_stk - b_stk) ∗
           ctp ↦ᵣ[th] WInt (entry_point_flags posture (Z.of_nat nargs)) ∗
-          a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+          a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
           cgp ↦ᵣ[th] wcgp_tgt ∗
-          cra ↦ᵣ[th] WCap true RX Global bpcc epcc (bpcc ^+ off)%a ∗
-          csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space))%a )
+          cra ↦ᵣ[th] Cap RX Global bpcc epcc (bpcc ^+ off) ∗
+          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space)) )
         ∨
         ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
@@ -166,13 +166,13 @@ Section Switch_Unseal_Entry.
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
-          a_export_table ↦ₐ WCap true RO g_tbl b_tbl e_tbl a_tbl ∗
+          a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
-          csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk )
+          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk )
         -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
@@ -182,7 +182,7 @@ Section Switch_Unseal_Entry.
     iAssert switcher_code as "Hswitcher_load"; first iFrame "Hswitcher".
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((a_frame + TrustedStackFrame_offset_calleeExportTable)%a
-            = Some (a_frame ^+ TrustedStackFrame_offset_calleeExportTable)%a)
+            = Some (a_frame ^+ TrustedStackFrame_offset_calleeExportTable))
       as Ha_export_table by (tstack_unfold; solve_addr).
 
     (* [.Lswitcher_decode_entry] *)
@@ -234,7 +234,7 @@ Section Switch_Unseal_Entry.
     { cbn [jcond_test get_a lw]; apply Z.ltb_ge; lia. }
     (* Lea csp csp (- StackEntry_reserved_space) *)
     iInstr "Hcode".
-    { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))%a); last reflexivity.
+    { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))); last reflexivity.
       clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
@@ -250,10 +250,10 @@ Section Switch_Unseal_Entry.
 
     (* [.Lswitch_callee_load] *)
     switcher_open_label ".Lswitch_callee_load" "Hswitcher_load" as "Hcode_load".
-    assert (is_heap_cap (WCap true RX Global bpcc epcc bpcc) = false) as Hpcc_not_heap.
+    assert (is_heap_cap (Cap RX Global bpcc epcc bpcc) = false) as Hpcc_not_heap.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbpcc_heap /=.
       reflexivity. }
-    assert ((b_tbl + ExportTable_offset_cgp)%a = Some (b_tbl ^+ ExportTable_offset_cgp)%a)
+    assert ((b_tbl + ExportTable_offset_cgp)%a = Some (b_tbl ^+ ExportTable_offset_cgp))
       as Htbl_cgp_addr by solve_addr.
     assert ((b_tbl + ExportTable_offset_pcc)%a = Some b_tbl) as Htbl_pcc_addr by solve_addr.
     (* CLoad cgp ct1 ExportTable_offset_cgp *)
@@ -265,7 +265,7 @@ Section Switch_Unseal_Entry.
     destruct Hentry as [a_entry Hentry].
     (* Lea cra cra cs0 *)
     iInstr "Hcode_load".
-    replace a_entry with (bpcc ^+ off)%a by solve_addr.
+    replace a_entry with (bpcc ^+ off) by solve_addr.
     switcher_change_pc_label ".Lswitch_load_zero_arguments_start".
     subst hpost.
     iApply "Hpost"; iLeft.

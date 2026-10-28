@@ -16,25 +16,25 @@ Section ClearStackMacro.
     (rbase rtop : RegName) (ws : list LWord)
     φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs rbase rtop))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (clear_stack_instrs rbase rtop)) ->
     (b <= a_lo)%a -> (a_lo <= a_hi)%a -> (a_hi <= e)%a ->
     disjoint_from_shadow b e →
     rbase ≠ cnull ->
     rtop ≠ cnull ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
-      ∗ rbase ↦ᵣ WCap true RWL g b e a_lo
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
+      ∗ rbase ↦ᵣ Cap RWL g b e a_lo
       ∗ rtop ↦ᵣ WInt a_hi
       ∗ codefrag_pers pc_a (clear_stack_instrs rbase rtop)
       ∗ ([[ a_lo , a_hi ]] ↦ₐ [[ ws ]])
-      ∗ ▷ ( (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs rbase rtop))%a
-             ∗ rbase ↦ᵣ WCap true RWL g b e a_hi
+      ∗ ▷ ( (PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length (clear_stack_instrs rbase rtop))
+             ∗ rbase ↦ᵣ Cap RWL g b e a_hi
              ∗ rtop ↦ᵣ WInt a_hi
              ∗ codefrag_pers pc_a (clear_stack_instrs rbase rtop)
-             ∗ ([[ a_lo , a_hi ]] ↦ₐ [[region_addrs_zeroes a_lo a_hi]]))
-        -∗ WP Seq (Instr Executable) {{ φ }})
+             ∗ ([[ a_lo , a_hi ]] ↦ₐ [[ 0…0 ]]))
+        -∗ WP Exec {{ φ }})
     )
-      ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+      ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hpc_exec Hbounds Hb Hlo Hhi Hdisjoint Hrbase_cnull Hrtop_cnull)
       "(HPC & Hrbase & Hrtop & #Hcode & Hstack & Hφ)".
@@ -61,7 +61,7 @@ Section ClearStackMacro.
     iDestruct (big_sepL2_length with "Hstack") as "%Hlen_stk".
     rewrite finz_seq_between_cons in Hlen_stk; last solve_addr.
     destruct ws as [|wa ws]; simplify_eq.
-    rewrite (region_pointsto_cons _ (a_lo ^+ 1)%a); [| solve_addr | solve_addr].
+    rewrite (region_pointsto_cons _ (a_lo ^+ 1)); [| solve_addr | solve_addr].
     iDestruct "Hstack" as "[Ha Hstack]".
     (* Store rbase 0 0 *)
     iInstr "Hcode".
@@ -70,8 +70,8 @@ Section ClearStackMacro.
     { apply withinBounds_true_iff; solve_addr. }
     (* Lea rbase rbase 1 *)
     iInstr "Hcode".
-    { instantiate (1 := (a_lo ^+ 1)%a); solve_addr. }
-    destruct (decide ((a_lo ^+ 1)%a = a_hi)) as [Hend | Hne].
+    { instantiate (1 := a_lo ^+ 1); solve_addr. }
+    destruct (decide (a_lo ^+ 1 = a_hi)) as [Hend | Hne].
     - (* Jlt -2 rbase rtop *)
       iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hrbase $Hrtop]"
         as "(HPC & Hrbase & Hrtop)".
@@ -89,8 +89,8 @@ Section ClearStackMacro.
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hrbase $Hrtop]"
         as "(HPC & Hrbase & Hrtop)".
       { cbn; apply Z.ltb_lt; solve_addr. }
-      { instantiate (1 := (pc_a ^+ 1)%a). solve_addr. }
-      iApply ("IH" $! (a_lo ^+ 1)%a ws with
+      { instantiate (1 := pc_a ^+ 1). solve_addr. }
+      iApply ("IH" $! (a_lo ^+ 1) ws with
                "[$Hstack] [Ha Hφ] [$HPC] [$Hrtop] [$Hrbase] [] []").
       { iIntros "(HPC & Hrbase & Hrtop & _ & Hstk)".
         iApply "Hφ"; iFrame "∗ #".

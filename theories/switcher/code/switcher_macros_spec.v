@@ -21,9 +21,9 @@ Section switcher_macros.
   Implicit Types C : CmptName.
 
   Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -73,12 +73,12 @@ Section switcher_macros.
     (arg_rmap : LReg) (nargs : nat)
     (W : WORLD) (C : CmptName) φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs) ->
 
     is_arg_rmap arg_rmap 8 ->
     (nargs <= 7)%nat ->
 
-    ( PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
+    ( PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e (pc_a ^+ nargs)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg
                                         ∗ if decide (rarg ∈ dom_arg_rmap nargs)
                                           then interp W C warg
@@ -87,7 +87,7 @@ Section switcher_macros.
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ PC ↦ₚ[th] WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
                      rarg ↦ᵣ[th] warg
                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
@@ -95,9 +95,9 @@ Section switcher_macros.
                        else ⌜ warg = WInt 0⌝
                 )
               ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
-               -∗ WP Seq (Instr Executable) @[th] {{ φ }})
+               -∗ WP Exec @[th] {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) @[th] {{ φ }}%I.
+    ⊢ WP Exec @[th] {{ φ }}%I.
   Proof.
     iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hargs & #Hcode & Hcont)".
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs Hargs_valid]".

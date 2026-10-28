@@ -38,21 +38,21 @@ Section Callback_Path.
       entry frame: the thread exits. *)
   Lemma switcher_return_exit_path_spec
     (E : coPset) (Φ : griotte_lang.val → iProp Σ) (rmap : LReg) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    regs[th] rmap ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard
         ={E}=∗
         Φ HaltedV )
-    ⊢ WP Seq (Instr Executable) @[th] E {{ Φ }}.
+    ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
     iIntros (Hdom) "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
@@ -79,8 +79,8 @@ Section Callback_Path.
     (d : nat) (a_tstk b e a : Addr) (stk_mem : list LWord)
     (wcs0' wcs1' wcgp' wcra' : LWord)
     (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     switcher_stk_bounds b e a ->
@@ -94,11 +94,11 @@ Section Callback_Path.
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    regs[th] rmap ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
-    a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+    a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
     ▷ switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     switcher_code ∗
@@ -106,27 +106,25 @@ Section Callback_Path.
         ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
           load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
-        a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+        a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
         cra ↦ᵣ[th] rcra ∗
         cgp ↦ᵣ[th] rcgp ∗
         cs0 ↦ᵣ[th] rcs0 ∗
         cs1 ↦ᵣ[th] rcs1 ∗
-        csp ↦ᵣ[th] WCap true RWL Local b e a ∗
-        [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
-          [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-          [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-        ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) -∗
+        csp ↦ᵣ[th] Cap RWL Local b e a ∗
+        [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
+        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
+        regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
           £ 1 -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
@@ -137,9 +135,9 @@ Section Callback_Path.
     assert (is_heap_address b = false) as Hb_heap.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       clear -Hba3; rewrite /withinBounds; solve_addr. }
-    assert ((stk_spill_a a ^+ SpillSlot_size)%a = a) as Hspill_top
+    assert (stk_spill_a a ^+ SpillSlot_size = a) as Hspill_top
       by (clear -Ha4; stk_unfold; solve_addr).
-    assert ((stk_spill_a a + SpillSlot_size)%a = Some (stk_spill_a a ^+ SpillSlot_size)%a)
+    assert ((stk_spill_a a + SpillSlot_size)%a = Some (stk_spill_a a ^+ SpillSlot_size))
       as Hspill4 by (clear -Ha4; stk_unfold; solve_addr).
     iDestruct (ret_regs_extract with "Hrmap")
       as "([%wctp Hctp] & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & [%wca2 Hca2]
@@ -179,8 +177,8 @@ Section Callback_Path.
     Wworld Wval C (ccrel : caller_callee_relation)
     (d : nat) (a_tstk b e a : Addr)
     (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     heap_std Wworld = heap_std Wval ->
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
@@ -195,16 +193,16 @@ Section Callback_Path.
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ) ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    regs[th] rmap ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
-    a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+    a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
-    ▷ ( mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
-        a_csp ↦ₐ WCap true RWL Local b e (stk_saved_a a) ∗
+        a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
         £ 1
         ={⊤}=∗
         ∃ opened (wcs0' wcs1' wcgp' wcra' : LWord) (stk_mem : list LWord),
@@ -232,20 +230,18 @@ Section Callback_Path.
           cgp ↦ᵣ[th] rcgp ∗
           cs0 ↦ᵣ[th] rcs0 ∗
           cs1 ↦ᵣ[th] rcs1 ∗
-          csp ↦ᵣ[th] WCap true RWL Local b e a ∗
-          [[ stk_spill_a a , (stk_spill_a a ^+ SpillSlot_size)%a ]] ↦ₐ
-            [[ region_addrs_zeroes (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)%a ]] ∗
-          [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ
-            [[ region_addrs_zeroes (stk_callee_b b a) (stk_callee_e e a) ]] ∗
-          ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) ∗
+          csp ↦ᵣ[th] Cap RWL Local b e a ∗
+          [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
+          [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
+          regs₀[th] rmap' ∗
           £ 2 -∗
           ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
             £ 1 -∗
-            WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+            safe[th] ) ∧
           ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
             trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
               (HO th) ) ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
     iIntros (Hheap Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
@@ -256,9 +252,9 @@ Section Callback_Path.
     assert (is_heap_address b = false) as Hb_heap.
     { eapply disjoint_from_heap_not_in; first exact Hstk_heap.
       clear -Hba3; rewrite /withinBounds; solve_addr. }
-    assert ((stk_spill_a a ^+ SpillSlot_size)%a = a) as Hspill_top
+    assert (stk_spill_a a ^+ SpillSlot_size = a) as Hspill_top
       by (clear -Ha4; stk_unfold; solve_addr).
-    assert ((stk_spill_a a + SpillSlot_size)%a = Some (stk_spill_a a ^+ SpillSlot_size)%a)
+    assert ((stk_spill_a a + SpillSlot_size)%a = Some (stk_spill_a a ^+ SpillSlot_size))
       as Hspill4 by (clear -Ha4; stk_unfold; solve_addr).
     iDestruct (ret_regs_extract with "Hrmap")
       as "([%wctp Hctp] & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & [%wca2 Hca2]

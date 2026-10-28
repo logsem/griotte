@@ -35,21 +35,21 @@ Section ClearRegistersMacro.
     (rmap : LReg) φ :
     l ≠ [] ->
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l )) ->
 
     dom rmap = list_to_set l  ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag_pers pc_a (rclear_instrs' l)
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = list_to_set l ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag_pers pc_a (rclear_instrs' l))
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iRevert (Hbounds Hdom).
@@ -66,7 +66,7 @@ Section ClearRegistersMacro.
     iIntros (Hrv) "Hr".
     (* Mov r 0. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ 1)%a); auto; solve_addr. }
+    { transitivity (Some (pc_a ^+ 1)); auto; solve_addr. }
     iAssert (r ↦ᵣ WInt 0)%I with "[Hr]" as "Hr".
     { case_decide as Hr_cnull; last done. by rewrite (Hrv Hr_cnull). }
     destruct (decide (l = [])).
@@ -87,12 +87,12 @@ Section ClearRegistersMacro.
       + iPureIntro ; set_solver.
     }
 
-    iAssert (codefrag_pers (pc_a ^+ 1)%a (rclear_instrs' l))%I as "#Hcode'".
+    iAssert (codefrag_pers (pc_a ^+ 1) (rclear_instrs' l))%I as "#Hcode'".
     { iDestruct (codefrag_app_pers _ [_] with "Hcode") as "[_ $]". }
 
     match goal with H : SubBounds _ _ _ _ |- _ =>
-      rewrite (_: (pc_a ^+ (length (rclear_instrs' (r :: l))))%a =
-                  ((pc_a ^+ 1)%a ^+ length (rclear_instrs' l))%a) in H |- *
+      rewrite (_: pc_a ^+ (length (rclear_instrs' (r :: l))) =
+                  (pc_a ^+ 1) ^+ length (rclear_instrs' l)) in H |- *
     end.
     2: { unfold rclear_instrs'; cbn; solve_addr. }
 
@@ -129,21 +129,21 @@ Section ClearRegistersMacro.
     (rmap : LReg) φ :
     l ≠ [] ->
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l )) ->
     D ∖ {[ cnull ]} = list_to_set l ->
     dom rmap = D ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag_pers pc_a (rclear_instrs' l)
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = D ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag_pers pc_a (rclear_instrs' l))
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hne Hx Hbounds HD Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     assert (cnull ∉ (list_to_set l : gset RegName)) as Hl by (rewrite -HD; apply not_elem_of_difference; right; by apply elem_of_singleton).
@@ -192,19 +192,19 @@ Section ClearRegistersMacro.
     let l := registers_except keep in
     l ≠ [] ->
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l)) ->
     dom rmap = all_registers_s ∖ list_to_set keep ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     codefrag_pers pc_a (rclear_instrs' l) ∗
     ▷ ( (∃ rmap' : LReg,
            ⌜dom rmap' = all_registers_s ∖ list_to_set keep⌝ ∗
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l))%a ∗
+           PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l)) ∗
            ([∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜w = WInt 0⌝) ∗
            codefrag_pers pc_a (rclear_instrs' l))
-        -∗ WP Seq (Instr Executable) {{ φ }})
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+        -∗ WP Exec {{ φ }})
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros l. iIntros (Hne Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iApply (rclear_spec_cnull _ _ _ _ _ l (all_registers_s ∖ list_to_set keep)); eauto.
@@ -216,21 +216,21 @@ Section ClearRegistersMacro.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (rmap : LReg) φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_post_call_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_post_call_instrs) ->
 
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag_pers pc_a clear_registers_post_call_instrs
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_post_call_instrs)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag_pers pc_a clear_registers_post_call_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iApply (rclear_spec_cnull _ _ _ _ _ registers_post_call
@@ -242,21 +242,21 @@ Section ClearRegistersMacro.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (rmap : LReg) φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_instrs) ->
 
     dom rmap = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag_pers pc_a clear_registers_pre_call_instrs
       ∗ ▷ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_instrs)
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag_pers pc_a clear_registers_pre_call_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hx Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     iApply (rclear_spec_cnull _ _ _ _ _ registers_pre_call
@@ -271,25 +271,25 @@ Section ClearRegistersMacro.
     (l : list RegName)
     (rmap : LReg) φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l ))%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (rclear_instrs' l )) ->
     dom rmap = list_to_set l  ->
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
       ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ w )
       ∗ codefrag_pers pc_a (rclear_instrs' l)
       ∗ ( (∃ (rmap' : LReg),
               ⌜ dom rmap' = list_to_set l ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length (rclear_instrs' l ))
               ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝ )
               ∗ codefrag_pers pc_a (rclear_instrs' l))
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hexec Hbounds Hdom) "(HPC & Hregs & #Hcode & Hcont)".
     destruct (decide (l = [])) as [-> | Hne]; last first.
     { iApply rclear_spec; eauto. iFrame "∗ #". }
     apply dom_empty_inv_L in Hdom as ->.
-    rewrite /= (_ : (pc_a ^+ 0)%a = pc_a); last solve_addr.
+    rewrite /= (_ : pc_a ^+ 0 = pc_a); last solve_addr.
     iApply "Hcont". iExists ∅.
     rewrite dom_empty_L !big_sepM_empty.
     by iFrame "∗ #".
@@ -351,7 +351,7 @@ Section ClearRegistersMacro.
   Lemma clear_registers_pre_call_skip_codefrag_drop (pc_a : Addr) (k : nat) :
     k <= 7 ->
     codefrag_pers pc_a clear_registers_pre_call_skip_instrs -∗
-    codefrag_pers (pc_a ^+ k)%a (rclear_instrs' (drop k registers_pre_call_skip)).
+    codefrag_pers (pc_a ^+ k) (rclear_instrs' (drop k registers_pre_call_skip)).
   Proof.
     iIntros (Hk) "Hcode".
     rewrite clear_registers_pre_call_skip_instrs_eq -{1}(take_drop k registers_pre_call_skip).
@@ -411,17 +411,17 @@ Section ClearRegistersMacro.
     (arg_rmap : LReg) (nargs : nat)
     φ :
     executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length clear_registers_pre_call_skip_instrs) ->
 
     is_arg_rmap arg_rmap 8 ->
     (nargs <= 7)%nat ->
 
-    ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ nargs)%a
+    ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ nargs)
       ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ warg )
       ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs
       ∗ ( (∃ arg_rmap',
               ⌜ is_arg_rmap arg_rmap' 8 ⌝
-              ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)%a
+              ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ length clear_registers_pre_call_skip_instrs)
               ∗ (  [∗ map] rarg↦warg ∈ arg_rmap',
                      rarg ↦ᵣ warg
                      ∗ if decide (rarg ∈ dom_arg_rmap nargs)
@@ -429,9 +429,9 @@ Section ClearRegistersMacro.
                        else ⌜ warg = WInt 0 ⌝
                 )
               ∗ codefrag_pers pc_a clear_registers_pre_call_skip_instrs)
-               -∗ WP Seq (Instr Executable) {{ φ }})
+               -∗ WP Exec {{ φ }})
     )
-    ⊢ WP Seq (Instr Executable) {{ φ }}%I.
+    ⊢ WP Exec {{ φ }}%I.
   Proof.
     iIntros (Hexec Hbounds Hargmap Hnargs) "(HPC & Hargs & #Hcode & Hcont)".
     rewrite length_clear_registers_pre_call_skip_instrs in Hbounds |- *.
@@ -454,9 +454,9 @@ Section ClearRegistersMacro.
       as (arg_rmap') "[%Hargmap' Hargs]"; [done | done |].
     iApply "Hcont".
     iExists arg_rmap'.
-    rewrite (_ : ((pc_a ^+ nargs)
-                  ^+ length (rclear_instrs' (drop nargs registers_pre_call_skip)))%a
-                 = (pc_a ^+ 7%nat)%a).
+    rewrite (_ : (pc_a ^+ nargs)
+                  ^+ length (rclear_instrs' (drop nargs registers_pre_call_skip))
+                 = pc_a ^+ 7%nat).
     2: { rewrite /rclear_instrs' length_fmap length_drop length_registers_pre_call_skip.
          solve_addr. }
     by iFrame "∗ #".

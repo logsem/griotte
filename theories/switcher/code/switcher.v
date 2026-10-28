@@ -29,6 +29,10 @@ Class switcherLayout : Type :=
       swl_thread : nat → threadLayout;
     }.
 
+(** The sentry of the switcher's call entry point. *)
+Definition switcher_entry_call `{switcherLayout} : Word :=
+  Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_switcher_call.
+
 Section Switcher.
   Import Asm_Griotte.
   Context `{MP: MachineParameters}.
@@ -115,7 +119,7 @@ Section Switcher.
       reads the header through it, from its base. It is neither deep-local
       nor deep-read-only: a load through it gives the word in memory. *)
   Definition exp_tbl_cap (b : Addr) (w : Word) : Prop :=
-    ∃ p g e a, w = WCap true p g b e a ∧ readAllowed p = true ∧
+    ∃ p g e a, w = Cap p g b e a ∧ readAllowed p = true ∧
                (b ^+ ExportTable_offset_errorHandlerStackless < e)%a ∧
                disjoint_from_shadow b e ∧
                isDL p = false ∧ isDRO p = false.
@@ -125,7 +129,7 @@ Section Switcher.
     (b ^+ ExportTable_offset_errorHandlerStackless < a)%a →
     (a < e)%a →
     disjoint_from_shadow b e →
-    exp_tbl_cap b (WCap true RO g b e a).
+    exp_tbl_cap b (Cap RO g b e a).
   Proof.
     intros Hb Ha Hshadow. eexists _, _, _, _.
     split_and!; [done | done | | done | done | done].
@@ -756,7 +760,7 @@ Section Switcher.
   (** The data words of the switcher, before its code: Griotte's key at
       [.unsealing_key_import_tables], zeroes elsewhere. *)
   Definition switcher_data_words (ot : OType) : list Word :=
-    [WInt 0; WSealRange true (true, true) Global ot (ot ^+ 1)%ot ot; WInt 0; WInt 0; WInt 0].
+    [WInt 0; SealRange (true, true) Global ot (ot ^+ 1) ot; WInt 0; WInt 0; WInt 0].
 
   (** The well-formedness of the layout of a user thread. *)
   Class threadLayoutWf {tlayout : threadLayout} : Type :=
@@ -765,7 +769,7 @@ Section Switcher.
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
         (* The register save area of the trusted stack is not in the heap. *)
         trusted_stack_not_heap :
-        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a;
+        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ);
         (* The trusted stack holds its header, the entry frame and a whole
            number of frames. *)
         trusted_stack_frames_fit :
@@ -795,7 +799,7 @@ Section Switcher.
         ot_switcher_size :
         (ot_switcher < ot_switcher ^+ 1)%ot;
 
-        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1)%a = false;
+        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1) = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
         (* The layout of every user thread is well formed. *)
         swl_thread_wf : ∀ i, threadLayoutWf (tlayout := swl_thread i)
@@ -813,9 +817,9 @@ Section Switcher.
 
   Lemma switcher_call_sentry_not_heap
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
-    is_heap_cap (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call) = false.
+    is_heap_cap switcher_entry_call = false.
   Proof.
-    rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
+    rewrite /switcher_entry_call /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=.
     reflexivity.
   Qed.
 

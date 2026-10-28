@@ -35,14 +35,14 @@ Section Handle_Error_Found.
   Lemma handle_error_found_spec (g_tstk : Locality)
     (d : nat) (a_tstk b_tbl e_tbl : Addr) (p : Perm) (g : Locality) (n off z0 : Z)
     (wpcc wcgp wcra wcgp0 wct2 wcs1 : LWord) :
-    let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    exp_tbl_cap b_tbl (WCap true p g b_tbl e_tbl b_tbl) ->
+    exp_tbl_cap b_tbl (Cap p g b_tbl e_tbl b_tbl) ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_found" ∗
-    ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
-    ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+    ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+    ct1 ↦ᵣ[th] Cap p g b_tbl e_tbl b_tbl ∗
     ct2 ↦ᵣ[th] wct2 ∗
     cs0 ↦ᵣ[th] WInt off ∗
     cs1 ↦ᵣ[th] wcs1 ∗
@@ -50,13 +50,13 @@ Section Handle_Error_Found.
     cgp ↦ᵣ[th] wcgp0 ∗
     ca0 ↦ᵣ[th] WInt z0 ∗
     a_cnt_cell ↦ₐ WInt n ∗
-    (⌜Z.even n = true⌝ → b_tbl ↦ₐ□ wpcc ∗ (b_tbl ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp) ∗
+    (⌜Z.even n = true⌝ → b_tbl ↦ₐ□ wpcc ∗ (b_tbl ^+ ExportTable_offset_cgp) ↦ₐ□ wcgp) ∗
     switcher_code ∗
     ▷ ( ( ⌜Z.even n = false ∨ (MAX_FAULTS_PER_COMPARTMENT_CALL < n + 1)%Z⌝ -∗
           ∀ wcra' : LWord,
           PC ↦ₚ[th] switcher_label_pc ".Lcommon_force_unwind" ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] Cap p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2 ∗
           cs0 ↦ᵣ[th] WInt off ∗
           cs1 ↦ᵣ[th] WInt (n + 1) ∗
@@ -64,13 +64,13 @@ Section Handle_Error_Found.
           cgp ↦ᵣ[th] wcgp0 ∗
           ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜Z.even n = true ∧ (n + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z⌝ -∗
           ⌜z0 ≠ 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] Cap p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt off ∗
           cs1 ↦ᵣ[th] wcs1' ∗
@@ -78,13 +78,13 @@ Section Handle_Error_Found.
           cgp ↦ᵣ[th] lload_word p wcgp ∗
           ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) ∧
+          safe[th] ) ∧
         ( ⌜Z.even n = true ∧ (n + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z⌝ -∗
           ⌜z0 = 0⌝ -∗
           ∀ (wct2' wcs1' : LWord),
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
-          ctp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
-          ct1 ↦ᵣ[th] WCap true p g b_tbl e_tbl b_tbl ∗
+          ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
+          ct1 ↦ᵣ[th] Cap p g b_tbl e_tbl b_tbl ∗
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt off ∗
           cs1 ↦ᵣ[th] wcs1' ∗
@@ -92,8 +92,8 @@ Section Handle_Error_Found.
           cgp ↦ᵣ[th] lload_word p wcgp ∗
           ca0 ↦ᵣ[th] WInt z0 ∗
           a_cnt_cell ↦ₐ WInt (n + 1) -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }} ) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+          safe[th] ) )
+    ⊢ safe[th].
   Proof.
     intros a_cnt_cell.
     iIntros (Ha_tstk Ha_tstk_end Htbl)
@@ -213,29 +213,29 @@ Section Handle_Error_Found.
       trap, from the lent mtval, which then goes back to the state
       interpretation, [ca2] 0 and [csp] the handler's stack, from [ct0]. *)
   Lemma handle_error_stackless_setup_spec (g_tstk : Locality)
-    (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (mtval : Z) :
+    (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (tval : Z) :
     length save_area = 21%nat ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stackless_setup" ∗
-    csp ↦ᵣ[th] WCap true RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ca2 ↦ᵣ[th] wca2 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
     trap_vcsr_res ∗
-    vcsr_frag MTVAL (lword_of_word (WInt mtval)) ∗
+    vcsr_frag mtval (lword_of_word (WInt tval)) ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
         csp ↦ᵣ[th] wct0 ∗
         ct0 ↦ᵣ[th] wct0 ∗
         ca0 ↦ᵣ[th] (save_area !!! 18%nat) ∗
-        ca1 ↦ᵣ[th] WInt mtval ∗
+        ca1 ↦ᵣ[th] WInt tval ∗
         ca2 ↦ᵣ[th] WInt 0 ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
         trap_entry_res -∗
-        WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        safe[th] )
+    ⊢ safe[th].
   Proof.
     iIntros (Hlen)
       "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & Htok & Hmtval & #Hswitcher & Hpost)".
@@ -244,7 +244,6 @@ Section Handle_Error_Found.
     iDestruct (tstack_save_area_acc _ _ _ Hw18 with "Hsave") as "[Hs18 Hsave]".
     pose proof (tstack_save_cell_ok 18 ltac:(lia)) as (Hts_18 & Hts_18_bounds & Hts_18_shadow).
     switcher_open_label ".Lhandle_error_stackless_setup" "Hswitcher" as "Hcode".
-    rewrite /tstack_cap.
     (* CLoad ca0 csp TrustedStack_offset_mcause *)
     iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds_dq _ _ _ _ _ _ _ ca0 csp 18)
       with "[$HPC $Hca0 $Hcsp $Hs18]" as "(HPC & Hca0 & Hcsp & Hs18)".

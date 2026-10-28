@@ -26,7 +26,7 @@ Section Switcher_KtK_Call.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
@@ -38,10 +38,10 @@ Section Switcher_KtK_Call.
     (arg_rmap rmap : LReg)
     (cstk cstk' : CSTK)
     (a_tstk : Addr) (save_area tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     disjoint_from_mmio b_stk e_stk ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
@@ -54,7 +54,7 @@ Section Switcher_KtK_Call.
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) ∗
     na_own (tpool th) (F ∖ ↑Ntstack) ∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
@@ -71,11 +71,11 @@ Section Switcher_KtK_Call.
     ctp ↦ᵣ[th] wctp ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ct1 ↦ᵣ[th] wct1_caller ∗
-    csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
+    csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
-    ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ) ∗
-    ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) ∗
+    regs[th] arg_rmap ∗
+    regs[th] delete ctp (delete ct2 rmap) ∗
     ◯(CSTK)[th] cstk ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
             ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
@@ -83,18 +83,18 @@ Section Switcher_KtK_Call.
             PC ↦ₚ[th] lupdatePcPerm rcra ∗
             cgp ↦ᵣ[th] rcgp ∗
             cra ↦ᵣ[th] rcra ∗
-            csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk ∗
+            csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
             cs0 ↦ᵣ[th] rcs0 ∗
             cs1 ↦ᵣ[th] rcs1 ∗
             ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
             ca1 ↦ᵣ[th] WInt 0 ∗
-            ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) ∗
+            regs₀[th] rmap' ∗
             [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
             ◯(CSTK)[th] cstk ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }} )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th] )
+    ⊢ safe[th].
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
@@ -149,13 +149,13 @@ Section Switcher_KtK_Call.
     (off_tgt : Z) (posture_tgt : InterruptStatus)
 
     :
-    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp)%a in
-    let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless)%a in
-    let wct1_caller := WSealed ot_switcher (SCap true RO Global btbl_tgt etbl_tgt atbl_tgt) in
+    let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp) in
+    let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless) in
+    let wct1_caller := Sealed ot_switcher RO Global btbl_tgt etbl_tgt atbl_tgt in
     let frame :=
            {| cf_tframe :=
-                {| tf_csp := WCap true RWL Local b_stk e_stk (stk_saved_a a_stk);
-                   tf_export_tbl := WCap true RO Global btbl_tgt etbl_tgt atbl_tgt;
+                {| tf_csp := Cap RWL Local b_stk e_stk (stk_saved_a a_stk);
+                   tf_export_tbl := Cap RO Global btbl_tgt etbl_tgt atbl_tgt;
                    tf_error_count := 0 |};
               cf_saved :=
                 {| cs_cra := wcra_caller;
@@ -181,7 +181,7 @@ Section Switcher_KtK_Call.
     ↑Ntstack ⊆ F ->
 
     (* Well formed entry point *)
-    (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
+    (atbl_tgt ∈ₐ [btbl_tgt, etbl_tgt)) →
     (btbl_tgt < a_tbl_cgp)%a →
     (a_tbl_ehs < atbl_tgt)%a  →
     (0 <= nargs <= 7 )%nat →
@@ -202,26 +202,26 @@ Section Switcher_KtK_Call.
     ∗ switcher_static
 
     (* Export table of the target compartment *)
-    ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
-    ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+    ∗ btbl_tgt ↦ₐ□ Cap RX Global bpcc_tgt epcc_tgt bpcc_tgt
+    ∗ a_tbl_cgp ↦ₐ□ Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
     ∗ atbl_tgt ↦ₐ□ WInt (encode_entry_point posture_tgt (Z.of_nat nargs) (Z.of_nat minstk_tgt) off_tgt)
 
 
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) F
     (* Registers *)
-    ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call
     ∗ cgp ↦ᵣ[th] wcgp_caller
     ∗ cra ↦ᵣ[th] wcra_caller
     (* Stack register *)
-    ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+    ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
     (* Entry point of the target compartment *)
     ∗ ct1 ↦ᵣ[th] wct1_caller
     ∗ cs0 ↦ᵣ[th] wcs0_caller
     ∗ cs1 ↦ᵣ[th] wcs1_caller
     (* All the other registers *)
-    ∗ ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg )
-    ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+    ∗ regs[th] arg_rmap
+    ∗ regs[th] rmap
 
     (* Stack frame *)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
@@ -235,9 +235,9 @@ Section Switcher_KtK_Call.
             ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
             ∗ na_own (tpool th) F
             (* Registers *)
-            ∗ PC ↦ₚ[th] WCap true RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)%a
-            ∗ cgp ↦ᵣ[th] WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-            ∗ cra ↦ᵣ[th] (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+            ∗ PC ↦ₚ[th] Cap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)
+            ∗ cgp ↦ᵣ[th] Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
+            ∗ cra ↦ᵣ[th] (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
             (* Stack register *)
             ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
             (* All the other registers *)
@@ -247,11 +247,10 @@ Section Switcher_KtK_Call.
                                                   then ⌜ arg_rmap !! rarg = Some warg ⌝
                                                   else ⌜warg = WInt 0⌝)
               )
-            ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+            ∗ regs₀[th] rmap'
 
             (* Stack frame *)
-            ∗ ([[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
-                 [[region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)]])
+            ∗ ([[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]])
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
             ∗ ◯(CSTK)[th] (cstack_push frame cstk)
@@ -265,13 +264,13 @@ Section Switcher_KtK_Call.
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               ∗ cgp ↦ᵣ[th] rcgp
               ∗ cra ↦ᵣ[th] rcra
-              ∗ csp ↦ᵣ[th] WCap true RWL Local b_stk e_stk a_stk
+              ∗ csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk
               ∗ cs0 ↦ᵣ[th] rcs0
               ∗ cs1 ↦ᵣ[th] rcs1
               ∗ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
               ∗ ca1 ↦ᵣ[th] WInt 0
               (* All the other registers *)
-              ∗ ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ )
+              ∗ regs₀[th] rmap'
 
               (* Stack frame *)
               ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[stk_mem']]
@@ -281,9 +280,9 @@ Section Switcher_KtK_Call.
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                   load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
           )
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant;

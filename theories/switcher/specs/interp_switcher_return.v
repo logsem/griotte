@@ -22,10 +22,10 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation E := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
-  Notation K := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
-  Notation R := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
@@ -104,7 +104,7 @@ Section fundamental.
     rmap !! ca1 = Some wca1 ->
     frame_match Ws Cs cstk W C ->
 
-    PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+    PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return ∗
     registers_pointsto rmap ∗
     interp W C wca0 ∗
     interp W C wca1 ∗
@@ -115,7 +115,7 @@ Section fundamental.
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk
-    ⊢ interp_conf W C.
+    ⊢ safe[th].
   Proof.
     (* Outline of the proof:
        - open the trusted-stack invariant;
@@ -177,7 +177,7 @@ Section fundamental.
     iDestruct "Hcframe_interp" as "(%b_stk & %e_stk & %a_stk & >%HWF & Hcframe_interp)".
     cbn in HWF.
     destruct HWF as (-> & Hstk_bounds & Hstk_mmio & Hstk_heap & Hret_ok).
-    assert (∀ tf, tf.(tf_csp).(lw) = WCap true RWL Local b_stk e_stk (stk_saved_a a_stk) →
+    assert (∀ tf, tf.(tf_csp).(lw) = Cap RWL Local b_stk e_stk (stk_saved_a a_stk) →
                   tf_caller_a tf = a_stk) as Hspill.
     { intros tf Htf. eapply tf_caller_a_saved; [apply Hstk_bounds | exact Htf]. }
     simpl in Hfreq. destruct Hfreq as (Hfrelated & <- & Hccrel_known_to_known & Hfreq).
@@ -210,7 +210,7 @@ Section fundamental.
     iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
     iDestruct "Hclose_res" as "[#Hsave Hstates]".
     iCombine "Hsave Hstates" as "Hclose_res".
-    set (s := (a_stk ^+ - (4))%a).
+    set (s := a_stk ^+ - (4)).
     assert ((s + 4)%a = Some a_stk) as Hs4 by (subst s; solve_addr+Ha4).
     iAssert (if is_untrusted_caller ccrel then
         interp_in_mem RWL W C wastk2 ∗
@@ -221,10 +221,10 @@ Section fundamental.
     { destruct (is_untrusted_caller ccrel) eqn:Huntrusted; simpl; last done.
       rewrite /StackWorldResources.
       stk_unfold.
-      do 4 (rewrite (finz_seq_between_cons _ (s ^+ 4)%a); last solve_addr+Hs4).
-      rewrite (finz_seq_between_empty _ (s ^+ 4)%a); last solve_addr+Hs4.
-      replace ((s ^+ 1) ^+ 1)%a with (s ^+ 2)%a by solve_addr+Hs4.
-      replace ((s ^+ 2) ^+ 1)%a with (s ^+ 3)%a by solve_addr+Hs4.
+      do 4 (rewrite (finz_seq_between_cons _ (s ^+ 4)); last solve_addr+Hs4).
+      rewrite (finz_seq_between_empty _ (s ^+ 4)); last solve_addr+Hs4.
+      replace ((s ^+ 1) ^+ 1) with (s ^+ 2) by solve_addr+Hs4.
+      replace ((s ^+ 2) ^+ 1) with (s ^+ 3) by solve_addr+Hs4.
       iDestruct (big_sepL2_cons with "Hsave") as "[Hsave0 Hsave_tail1]".
       iDestruct (big_sepL2_cons with "Hsave_tail1") as "[Hsave1 Hsave_tail2]".
       iDestruct (big_sepL2_cons with "Hsave_tail2") as "[Hsave2 Hsave_tail3]".
@@ -308,13 +308,13 @@ Section fundamental.
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
 
       clear Hlen_lv' Hlv' lv'.
-      set (lv' := region_addrs_zeroes s (s ^+ 4)%a).
+      set (lv' := region_addrs_zeroes s (s ^+ 4)).
       assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
-      iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)%a))) in "Hworld_interp".
+      iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)))) in "Hworld_interp".
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { set_solver. }

@@ -24,14 +24,14 @@ Section fundamental.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp_expr interp (interp_cont interp) W C (WCap true XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr interp (interp_cont interp) W C (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "Hres".
     iApply interp_expr_switcher_call_gen.
@@ -41,7 +41,7 @@ Section fundamental.
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp W C (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp W C switcher_entry_call.
   Proof.
     iIntros "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.

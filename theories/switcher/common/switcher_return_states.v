@@ -42,17 +42,17 @@ Section Switcher_Return_States.
       with the trusted stack unchanged: after the thread exit. *)
   Lemma switcher_return_exit_close
     (F : coPset) (cstk : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     (b_trusted_stack + tstack_frame_offset (length cstk.(cstk_frames)))%a = Some a_tstk ∧
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
     na_own (tpool th) (F ∖ ↑Ntstack) -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     switcher_hazard -∗
@@ -80,21 +80,21 @@ Section Switcher_Return_States.
   Lemma switcher_return_pop_close
     (F : coPset) (frm : cframe) (cstk : CSTK) (a_tstk : Addr)
     (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    let a_prev := (a_tstk ^+ - TrustedStackFrame_size)%a in
-    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp)%a in
-    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable)%a in
-    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount)%a in
+    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
+    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
+    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
+    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+    let a_prev := (a_tstk ^+ - TrustedStackFrame_size) in
+    let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
+    let a_export_table := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) in
+    let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
     na_own (tpool th) (F ∖ ↑Ntstack) -∗
-    mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
+    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     switcher_hazard -∗
