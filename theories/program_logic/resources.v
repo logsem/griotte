@@ -251,6 +251,16 @@ Notation "'u' n" := (UserThread n) (in custom thread at level 0, n constr at lev
 Notation "'s'" := CtxSwitch (in custom thread at level 0).
 Notation "x" := x (in custom thread at level 0, x constr at level 0).
 
+(** A map from threads with finitely many distinct values: [x0] for the user
+    thread 0, the [k]-th element of [xs] for the user thread [S k], [xc] for
+    the context-switch thread, [d] for the other user threads. *)
+Definition thread_map {A} (x0 : A) (xs : list A) (xc d : A) (th : Thread) : A :=
+  match th with
+  | UserThread 0 => x0
+  | UserThread (S k) => nth k xs d
+  | CtxSwitch => xc
+  end.
+
 (** The resources shared by the threads, and the per-thread ones as maps
     from threads: the PC, the general registers, the ghost state of mtdc and
     MIE, and the non-atomic pool [tpool th]. The other system registers and
