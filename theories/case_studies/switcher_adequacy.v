@@ -131,7 +131,7 @@ Section helpers_switcher_adequacy.
     registers_pointsto regs -∗
     world_interp W C -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag (entry_cstack ef) -∗
+    ◯(CSTK)[th] (entry_cstack ef) -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.

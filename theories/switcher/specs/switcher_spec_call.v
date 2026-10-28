@@ -77,7 +77,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
@@ -98,7 +98,7 @@ Section Switcher.
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
-            ∗ cstack_frag cstk
+            ∗ ◯(CSTK)[th] cstk
             ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ[th] rcgp
@@ -203,7 +203,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
     (* POST-CONDITION *)
@@ -224,7 +224,7 @@ Section Switcher.
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
-            ∗ cstack_frag cstk
+            ∗ ◯(CSTK)[th] cstk
             ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ[th] rcgp

@@ -422,7 +422,7 @@ Section prepared.
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space
          <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
-      cstack_frag
+      ◯(CSTK)[th]
         (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
                          tf_export_tbl :=
                            WCap true RW Global (cmpt_exp_tbl_pcc m)

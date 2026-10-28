@@ -442,7 +442,7 @@ Section Switcher_preamble.
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-      "Hcstk_full" ∷ cstack_full cstk' ∗
+      "Hcstk_full" ∷ ●(CSTK)[th] cstk' ∗
       "%Hlen_cstk" ∷
         ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
          ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
@@ -469,7 +469,7 @@ Section Switcher_preamble.
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
       "Htstk" ∷ [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
-      "Hcstk_full" ∷ cstack_full cstk' ∗
+      "Hcstk_full" ∷ ●(CSTK)[th] cstk' ∗
       "%Hlen_cstk" ∷
         ⌜(b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk
          ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
@@ -510,7 +510,7 @@ Section Switcher_preamble.
     a_export_table ↦ₐ w1 -∗
     a_error_count ↦ₐ w2 -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    cstack_full cstk -∗
+    ●(CSTK)[th] cstk -∗
     cstack_interp cstk a_prev -∗
     seal_pred ot_switcher ot_switcher_propC -∗
     switcher_inv.

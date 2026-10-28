@@ -62,7 +62,7 @@ Section Switcher_KtK_Call.
     (∃ w, a_threadID ↦ₐ w) ∗
     [[ a_next , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] ∗
     switcher_static ∗
-    cstack_full cstk' ∗
+    ●(CSTK)[th] cstk' ∗
     cstack_interp cstk' a_tstk ∗
     seal_pred ot_switcher ot_switcher_propC ∗
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
@@ -78,7 +78,7 @@ Section Switcher_KtK_Call.
     [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
     ( [∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ) ∗
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
             ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
             na_own (tpool th) F ∗
@@ -92,7 +92,7 @@ Section Switcher_KtK_Call.
             ca1 ↦ᵣ[th] WInt 0 ∗
             ( [∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝ ) ∗
             [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
-            cstack_frag cstk ∗
+            ◯(CSTK)[th] cstk ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }} )
@@ -230,7 +230,7 @@ Section Switcher_KtK_Call.
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
 
 
     ∗ ▷ ( (∃ mie arg_rmap' rmap',
@@ -257,7 +257,7 @@ Section Switcher_KtK_Call.
                  [[region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)]])
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
-            ∗ cstack_frag (cstack_push frame cstk)
+            ∗ ◯(CSTK)[th] (cstack_push frame cstk)
           )
           ∨
           (
@@ -280,7 +280,7 @@ Section Switcher_KtK_Call.
               ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[stk_mem']]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                   load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
           )

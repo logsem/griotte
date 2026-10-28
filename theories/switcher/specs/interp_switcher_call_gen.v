@@ -188,7 +188,7 @@ Section fundamental.
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
@@ -248,7 +248,7 @@ Section fundamental.
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ switcher_stk_bounds b e a ⌝ ∗
       PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
       cs0 ↦ᵣ[th] WInt (e_trusted_stack - b_trusted_stack) ∗
@@ -347,7 +347,7 @@ Section fundamental.
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
       csp ↦ᵣ[th] WCap true RWL Local b e a ∗
       ct2 ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
@@ -418,7 +418,7 @@ Section fundamental.
     switcher_stk_opened W C (stk_free_b b a) (stk_free_e e a) lv -∗
     ( [∗ map] r↦w ∈ call_regs_without regs, r ↦ᵣ[th] w ) -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
       ⌜ switcher_stk_bounds b e a ⌝ ∗
       ⌜ (b_trusted_stack + tstack_frame_offset (S (length cstk'.(cstk_frames))))%a = Some a_next ⌝ ∗
@@ -522,7 +522,7 @@ Section fundamental.
     switcher_inv_opened cstk' a_tstk -∗
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗

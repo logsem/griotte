@@ -69,7 +69,7 @@ Section Switcher_Exception.
     world_interp W C -∗
     interp_cont interp cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hframe) "#Htrap #Hregs #Htop #Hstatic HPC Hrmap Hworld_interp Hcont Hna Hcstk".
@@ -329,7 +329,7 @@ Section Switcher_Exception.
     switcher_static -∗
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" -∗
     registers_pointsto rmap -∗
-    cstack_frag (cstack_set_top_count cstk n) -∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
     unwind_cont F cstk R_unwind_stk -∗
     R_unwind_stk -∗
     na_own (tpool th) F -∗
@@ -364,7 +364,7 @@ Section Switcher_Exception.
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull Hnz Hframe)
@@ -487,7 +487,7 @@ Section Switcher_Exception.
     registers_pointsto regs -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
-    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
     na_own (tpool th) ⊤ -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
@@ -617,7 +617,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause Hfull_rmap)
@@ -693,7 +693,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
@@ -766,7 +766,7 @@ Section Switcher_Exception.
     trap_entry_out_cause P_mcause P_mtval w -∗
     registers_pointsto rmap -∗
     na_own (tpool th) (F ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (HP_mcause HF HFtrap Hfull_rmap Hno_resume Htbl_set)
@@ -1044,7 +1044,7 @@ Section Switcher_Exception.
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull_rmap Hframe)
@@ -1072,7 +1072,7 @@ Section Switcher_Exception.
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
-         cstack_frag cstk ∗
+         ◯(CSTK)[th] cstk ∗
          trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
     trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
@@ -1128,7 +1128,7 @@ Section Switcher_Exception.
     (|={⊤}=>
        registers_pointsto rmap ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
@@ -1159,7 +1159,7 @@ Section Switcher_Exception.
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk) -∗
+       ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hinv_switcher #Hstatic Hcase Hres".
@@ -1196,7 +1196,7 @@ Section Switcher_Exception.
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
     install_region a ws ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     na_own (tpool th) F ∗
     ▷ ( ( ⌜install_skipped cstk rmap⌝ -∗
           install_region a ws -∗

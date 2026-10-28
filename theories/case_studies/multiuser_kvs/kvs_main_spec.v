@@ -113,7 +113,7 @@ Section KVS_main_spec.
 
       world_interp W0 B ∗
       interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs ∗
-      cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl) ∗
+      ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗

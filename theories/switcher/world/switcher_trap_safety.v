@@ -43,7 +43,7 @@ Section Switcher_trap_safety.
       trap_entry_out_cause P_mcause P_mtval w -∗
       registers_pointsto rmap -∗
       na_own (tpool th) (F ∖ ↑Ntrap) -∗
-      cstack_frag cstk -∗
+      ◯(CSTK)[th] cstk -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   #[global] Instance exception_entry_safe_persistent :
@@ -155,7 +155,7 @@ Section Switcher_trap_safety.
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
-         cstack_frag cstk ∗
+         ◯(CSTK)[th] cstk ∗
          trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
     trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
@@ -209,7 +209,7 @@ Section Switcher_trap_safety.
     (|={⊤}=>
        registers_pointsto rmap ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
@@ -239,7 +239,7 @@ Section Switcher_trap_safety.
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk) -∗
+       ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hsafety Hcase Hres".

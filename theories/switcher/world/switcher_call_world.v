@@ -320,8 +320,8 @@ Section Switcher_Call_World.
       (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
-    cstack_full cstk' -∗
-    cstack_frag cstk -∗
+    ●(CSTK)[th] cstk' -∗
+    ◯(CSTK)[th] cstk -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
@@ -336,7 +336,7 @@ Section Switcher_Call_World.
     cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel) -∗
     seal_pred ot_switcher ot_switcher_propC
     ==∗
-    switcher_inv ∗ cstack_frag (cstack_push frm cstk).
+    switcher_inv ∗ ◯(CSTK)[th] (cstack_push frm cstk).
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
@@ -382,7 +382,7 @@ Section Switcher_Call_World.
         (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗
          [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]])) ∗
     "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
-    "Hcstk_full" ∷ cstack_full cstk' ∗
+    "Hcstk_full" ∷ ●(CSTK)[th] cstk' ∗
     "Hstk_interp" ∷ cstack_interp cstk' a_tstk ∗
     "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC ∗
     "%Hlen_cstk" ∷ ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a
@@ -476,7 +476,7 @@ Section Switcher_Call_World.
       (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
 
     switcher_inv_opened cstk' a_tstk -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
     switcher_hazard -∗
@@ -486,7 +486,7 @@ Section Switcher_Call_World.
     [[ a_free , e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel)
     ={⊤}=∗
-    na_own (tpool th) ⊤ ∗ cstack_frag (cstack_push frm cstk).
+    na_own (tpool th) ⊤ ∗ ◯(CSTK)[th] (cstack_push frm cstk).
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.

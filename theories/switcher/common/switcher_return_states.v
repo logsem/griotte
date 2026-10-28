@@ -59,7 +59,7 @@ Section Switcher_Return_States.
     switcher_hazard -∗
     (∃ w, a_threadID ↦ₐ w) -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    cstack_full cstk -∗
+    ●(CSTK)[th] cstk -∗
     ▷ cstack_interp cstk a_tstk -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
@@ -107,12 +107,12 @@ Section Switcher_Return_States.
     a_export_table ↦ₐ w1 -∗
     a_error_count ↦ₐ w2 -∗
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    cstack_full (cstack_push frm cstk) -∗
-    cstack_frag (cstack_push frm cstk) -∗
+    ●(CSTK)[th] (cstack_push frm cstk) -∗
+    ◯(CSTK)[th] (cstack_push frm cstk) -∗
     ▷ cstack_interp cstk a_prev -∗
     ▷ seal_pred ot_switcher ot_switcher_propC
     ={⊤}=∗
-    na_own (tpool th) F ∗ cstack_frag cstk.
+    na_own (tpool th) F ∗ ◯(CSTK)[th] cstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.

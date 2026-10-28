@@ -90,7 +90,7 @@ Section Switcher_KtK_Return.
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ cstack_frag (cstack_push frame cstk)
+    ∗ ◯(CSTK)[th] (cstack_push frame cstk)
 
 
     (* POST-CONDITION *)
@@ -117,7 +117,7 @@ Section Switcher_KtK_Return.
                    [[region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)]])
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
 
                 -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
             )
@@ -257,7 +257,7 @@ Section Switcher_KtK_Return.
     ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ cstack_frag (cstack_push frame cstk)
+    ∗ ◯(CSTK)[th] (cstack_push frame cstk)
 
 
     (* POST-CONDITION *)
@@ -284,7 +284,7 @@ Section Switcher_KtK_Return.
                    [[region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)]])
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
 
                 -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
             )

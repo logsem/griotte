@@ -128,7 +128,7 @@ Section Switcher_sealing.
             stack size of the entry point plus the space reserved at its
             top. *)
          ∗ ⌜(Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z⌝
-         ∗ cstack_frag cstk
+         ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
            -∗ interp_conf W C)
     )%I.

@@ -88,7 +88,7 @@ Section adequacy_helpers.
       exp_tbl_cap b_tbl w_tbl ->
       ([∗ map] k↦y ∈ mk_initial_switcher switcher_cmpt, k ↦ₐ lword_of_word y) -∗
       can_alloc_pred (ot_switcher switcher_cmpt) -∗
-      cstack_full (entry_cstack ef) -∗
+      ●(CSTK)[th] (entry_cstack ef) -∗
       mtdc ↦ₜ[th] TStack (WCap true RWL Global (b_trusted_stack switcher_cmpt) (e_trusted_stack switcher_cmpt) (b_trusted_stack switcher_cmpt))
       ={E}=∗
       seal_pred (ot_switcher switcher_cmpt) ot_switcher_propC ∗

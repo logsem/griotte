@@ -33,7 +33,7 @@ Section SO_Run_Blocks_2.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a so_main_code
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.

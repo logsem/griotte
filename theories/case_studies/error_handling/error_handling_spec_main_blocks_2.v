@@ -46,7 +46,7 @@ Section Error_Handling_Main_Blocks_2.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own (tpool th) ⊤ ∗
@@ -59,7 +59,7 @@ Section Error_Handling_Main_Blocks_2.
         cra ↦ᵣ[th] wcra ∗
         ctp ↦ᵣ[th] wctp ∗
         cs0 ↦ᵣ[th] thread_return_sentry ∗
-        cstack_frag cstk ∗
+        ◯(CSTK)[th] cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -212,7 +212,7 @@ Section Error_Handling_Main_Blocks_2.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
     ▷ (na_own (tpool th) ⊤ ∗
@@ -225,7 +225,7 @@ Section Error_Handling_Main_Blocks_2.
         cra ↦ᵣ[th] wcra ∗
         ctp ↦ᵣ[th] wctp ∗
         cs0 ↦ᵣ[th] thread_return_sentry ∗
-        cstack_frag cstk ∗
+        ◯(CSTK)[th] cstk ∗
         codefrag_pers pc_a error_handling_main_code
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.

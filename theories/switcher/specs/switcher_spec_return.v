@@ -80,7 +80,7 @@ Section Switcher.
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
     ∗ na_own (tpool th) ⊤
@@ -114,7 +114,7 @@ Section Switcher.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     destruct cstk as [ef frms]; cbn; intros ->.
@@ -173,7 +173,7 @@ Section Switcher.
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
     (|={⊤}=>
        [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs ∗
        world_interp Wcur C ∗
        na_own (tpool th) ⊤ ∗

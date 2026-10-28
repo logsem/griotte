@@ -46,7 +46,7 @@ Section Switcher.
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk))
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ (callee_stk_region b_stk e_stk a_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
               (* cgp is restored, cra points to the next  *)
@@ -87,7 +87,7 @@ Section Switcher.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
                 load_heap_in_world W wcra_caller rcra ∧
@@ -133,7 +133,7 @@ Section Switcher.
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
       world_interp W C ∗
       StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
-      cstack_frag cstk ∗
+      ◯(CSTK)[th] cstk ∗
       interp_continuation cstk Ws Cs -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
@@ -167,7 +167,7 @@ Section Switcher.
        [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
        world_interp W C ∗
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs) -∗
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
@@ -427,7 +427,7 @@ Section Switcher.
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
@@ -487,7 +487,7 @@ Section Switcher.
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_post W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
@@ -583,7 +583,7 @@ Section Switcher.
     ( [∗ map] r↦w ∈ delete ctp (delete ct2 rmap), r ↦ᵣ[th] w ) -∗
     world_interp W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     switcher_cc_post W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
@@ -690,7 +690,7 @@ Section Switcher.
     switcher_trap_safety -∗
     switcher_inv_opened cstk' a_tstk -∗
     world_interp W' C -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs) -∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
@@ -799,7 +799,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
 
@@ -818,7 +818,7 @@ Section Switcher.
               (* Interpretation of the world *)
               ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
                    ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
               ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
@@ -860,7 +860,7 @@ Section Switcher.
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ world_interp W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
-              ∗ cstack_frag cstk
+              ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
                 load_heap_in_world W wcra_caller rcra ∧
@@ -1076,7 +1076,7 @@ Section Switcher.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
 
 
@@ -1098,7 +1098,7 @@ Section Switcher.
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
             ∗ world_interp (revoke W2) C
-            ∗ cstack_frag cstk
+            ∗ ◯(CSTK)[th] cstk
             ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
             ∗ cgp ↦ᵣ[th] rcgp

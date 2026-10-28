@@ -273,7 +273,7 @@ Section KVS_Main_Blocks.
     ∗ world_interp W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜revoked_addresses W (stk_free b_stk e_stk a_stk)⌝
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1,
         ⌜extract_temporaries_condition
@@ -293,7 +293,7 @@ Section KVS_Main_Blocks.
         ∗ na_own (tpool th) ⊤
         ∗ ⌜callee_stk_bounds b_stk e_stk a_stk⌝
         ∗ world_interp (revoke W2) C
-        ∗ cstack_frag cstk
+        ∗ ◯(CSTK)[th] cstk
         ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra
         ∗ cs0 ↦ᵣ[th] rcs0 ∗ cs1 ↦ᵣ[th] rcs1
@@ -350,7 +350,7 @@ Section KVS_Main_Blocks.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a kvs_main_code
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
@@ -416,7 +416,7 @@ Section KVS_Main_Blocks.
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
     ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
@@ -432,7 +432,7 @@ Section KVS_Main_Blocks.
         ∗ ([∗ map] r ↦ w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
         ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
             [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]]
-        ∗ cstack_frag cstk
+        ∗ ◯(CSTK)[th] cstk
         ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
         ∗ user_kvs_inv KVS_USER_KEY_MAIN
         ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)
@@ -738,7 +738,7 @@ Section KVS_Main_Blocks.
     ∗ ca0 ↦ᵣ[th] wca0 ∗ ca1 ↦ᵣ[th] wca1
     ∗ ([∗ map] r ↦ w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝)
     ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ static_sealed_b ↦ₐ WInt KVS_USER_KEY_MAIN
     ∗ user_kvs_inv KVS_USER_KEY_MAIN
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) lword_of_word (WInt 12)

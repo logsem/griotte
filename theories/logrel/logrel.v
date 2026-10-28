@@ -254,7 +254,7 @@ Section logrel.
         ∗ world_interp W C
         ∗ interp_cont cstk Ws Cs
         ∗ na_own (tpool th) ⊤
-        ∗ cstack_frag cstk
+        ∗ ◯(CSTK)[th] cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
           -∗ interp_conf W C)
     )%I.
@@ -552,7 +552,7 @@ Section logrel.
          ∗ StackOpenWorldResources interp W C shared_stk_region callee_stk_mem
          (* Continuation *)
          ∗ interp_cont
-         ∗ cstack_frag cstk
+         ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
            -∗ interp_conf W C)
     )%I.
@@ -1201,7 +1201,7 @@ Section logrel.
       trap_entry_out w -∗
       registers_pointsto regs -∗
       na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
-      cstack_frag cstk -∗
+      ◯(CSTK)[th] cstk -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
@@ -1218,7 +1218,7 @@ Section logrel.
     (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     trap_entry_out w -∗
     (PC ↦ₚ[th] wvec -∗ WP Seq (Instr Executable) @[th] {{ HO th }}).
   Proof.
@@ -1238,7 +1238,7 @@ Section logrel.
     (|={⊤}=>
        registers_pointsto regs ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk ∗
+       ◯(CSTK)[th] cstk ∗
        (untrusted_fault cstk regs ∨ trusted_fault cstk w regs)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
@@ -1266,7 +1266,7 @@ Section logrel.
        world_interp W C ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       cstack_frag cstk) -∗
+       ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hreg Htop Hres".

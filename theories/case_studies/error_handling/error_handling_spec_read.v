@@ -136,7 +136,7 @@ Section Error_Handling_Read.
     switcher_static -∗
     stats_static -∗
     registers_pointsto rfault -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
     STATS_cgp_b ↦ₐ WInt 1 -∗
     error_state_area rfault -∗

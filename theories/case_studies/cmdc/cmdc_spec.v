@@ -108,7 +108,7 @@ Section CMDC.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -416,7 +416,7 @@ Section CMDC.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)

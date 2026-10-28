@@ -135,7 +135,7 @@ Section Error_Handling_Main_Spec.
     ca1 ↦ᵣ[th] wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     stats_arg_pre wptr v ∗
     ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs1 : LWord),
         ⌜dom rmap_ret = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝ ∗
@@ -150,7 +150,7 @@ Section Error_Handling_Main_Spec.
         ca1 ↦ᵣ[th] WInt 0 ∗
         ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝) ∗
         [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem' ]] ∗
-        cstack_frag cstk ∗
+        ◯(CSTK)[th] cstk ∗
         (stats_arg_post wptr v wca0 ∨
          ⌜wca0 = WInt ENOTENOUGHTRUSTEDSTACK⌝ ∗ stats_arg_pre wptr v)
         -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
@@ -301,7 +301,7 @@ Section Error_Handling_Main_Spec.
     ca1 ↦ᵣ[th] wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
@@ -390,7 +390,7 @@ Section Error_Handling_Main_Spec.
     ca1 ↦ᵣ[th] wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
@@ -490,7 +490,7 @@ Section Error_Handling_Main_Spec.
     ca1 ↦ᵣ[th] wca1 ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt X_INIT ∗
     pc_b ↦ₐ□ main_switcher_entry ∗
     (pc_b ^+ 1)%a ↦ₐ□ main_assert_entry ∗
@@ -610,7 +610,7 @@ Section Error_Handling_Main_Spec.
     (* The world of the adversary *)
     world_interp W0 C ∗
     interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs ∗
-    cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl) ∗
+    ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
     interp W0 C (WSealed ot_switcher adv_f) ∗
     adv_f ↦ₑ□{nargs} 0 ∗
     interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))

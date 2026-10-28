@@ -237,8 +237,8 @@ Section world_init.
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
             (stsg : STSG LAddr region_type OType LWord Σ) (cstackg : CSTACKG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
-      cstack_full (entry_cstack ef) ∗
-      cstack_frag (entry_cstack ef) ∗
+      ●(CSTK)[u 0] (entry_cstack ef) ∗
+      ◯(CSTK)[u 0] (entry_cstack ef) ∗
       [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅, ∅) C.
   Proof.
     intros HCNames HNoDup.

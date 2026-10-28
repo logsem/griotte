@@ -1550,7 +1550,7 @@ Section resources.
     "Hstack" ∷
       region_pointsto (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
         (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
-    "Hcstk" ∷ cstack_frag (entry_cstack (fw_entry_frame fw img i)) ∗
+    "Hcstk" ∷ ◯(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) ∗
     "Hna" ∷ na_own (tpool (UserThread i)) ⊤.
 End resources.
 

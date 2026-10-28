@@ -113,7 +113,7 @@ Section Switcher_Spec_Exception.
       ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
       PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
       registers_pointsto rmap' -∗
-      cstack_frag (cstack_set_top_count cstk n) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       error_state_written 0 -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -147,7 +147,7 @@ Section Switcher_Spec_Exception.
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
-      cstack_frag (cstack_set_top_count cstk n) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) -∗
       na_own (tpool th) F -∗
       trap_safe (switcher_pc off) ⊤ (HO th).
@@ -183,7 +183,7 @@ Section Switcher_Spec_Exception.
       handler_offset kind (top_export_tbl cstk) off -∗
       PC ↦ₚ[th] wpc -∗
       registers_pointsto regs -∗
-      cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) -∗
       error_state_written (error_state_size kind) -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -342,7 +342,7 @@ Section Switcher_Spec_Exception.
     ca5 ↦ᵣ[th] wca5 ∗
     switcher_code ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag (cstack_set_top_count cstk n) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) ∗
     error_state_written 0 ∗
     handler_skipped cstk w rmap ∗
     path_unwind_k F cstk w rmap error_state_written
@@ -393,7 +393,7 @@ Section Switcher_Spec_Exception.
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag (cstack_set_top_count cstk n) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk n) ∗
     (∃ k : nat, ⌜(k <= Z.to_nat ErrorState_size)%nat⌝ ∗ error_state_written k) ∗
     handler_skipped cstk w rmap ∗
     path_nested_fault F cstk w rmap error_state_written
@@ -482,7 +482,7 @@ Section Switcher_Spec_Exception.
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     (top_export_tbl cstk ^+ ExportTable_offset_cgp)%a ↦ₐ□ wcgp ∗
     handler_offset kind (top_export_tbl cstk) off ∗
-    cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
+    ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) ∗
     error_state_written (error_state_size kind) ∗
     na_own (tpool th) F ∗
     (⌜kind = Stackless⌝ → handler_skipped cstk w rmap) ∗
@@ -616,7 +616,7 @@ Section Switcher_Spec_Exception.
     registers_pointsto rmap ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     na_own (tpool th) (F ∖ ↑Ntrap) ∗
-    (if decide (trap_no_resume w) then cstack_frag cstk else R_resume) ∗
+    (if decide (trap_no_resume w) then ◯(CSTK)[th] cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
     path_es_acc cstk w rmap error_state_written ∗

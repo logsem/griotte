@@ -46,7 +46,7 @@ Section Switcher_Spec_Install.
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
-      cstack_frag cstk -∗
+      ◯(CSTK)[th] cstk -∗
       L i ls -∗
       na_own (tpool th) F -∗
       trap_safe (switcher_pc off) ⊤ (HO th).
@@ -61,7 +61,7 @@ Section Switcher_Spec_Install.
       ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
       PC ↦ₚ[th] llegalise MEPCC (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
       registers_pointsto (error_state_install rmap (drop 1 ls)) -∗
-      cstack_frag (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
+      ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
       L (Z.to_nat ErrorState_size) ls -∗
       na_own (tpool th) F -∗
       WP Seq (Instr Executable) @[th] {{ HO th }}.
@@ -98,7 +98,7 @@ Section Switcher_Spec_Install.
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
     (|={⊤}=> na_own (tpool th) F) ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     L i ls ∗
     install_nested_k F cstk rmap L
     ⊢ trap_safe (switcher_pc off) ⊤ (HO th).
@@ -137,7 +137,7 @@ Section Switcher_Spec_Install.
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
     registers_pointsto rmap ∗
     na_own (tpool th) F ∗
-    cstack_frag cstk ∗
+    ◯(CSTK)[th] cstk ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),

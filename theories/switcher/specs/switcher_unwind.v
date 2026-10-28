@@ -59,7 +59,7 @@ Section Switcher_unwind.
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     iIntros (Hfull_rmap Hframe)

@@ -94,7 +94,7 @@ Section DROE.
 
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
-      ∗ cstack_frag (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1

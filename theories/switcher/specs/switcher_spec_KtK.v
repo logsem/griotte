@@ -86,7 +86,7 @@ Section Switcher_KtK.
              ∗ ca1 ↦ᵣ[th] wca1
              ∗ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w)
              ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_ret ]]
-             ∗ cstack_frag (cstack_set_top_count (cstack_push frame cstk) n)
+             ∗ ◯(CSTK)[th] (cstack_set_top_count (cstack_push frame cstk) n)
              ∗ Q wca0 wca1
                -∗ WP Seq (Instr Executable) @[th] {{ HO th }}))%I
     in
@@ -114,7 +114,7 @@ Section Switcher_KtK.
        ∗ ([∗ map] r↦w ∈ rmap', r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
        ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
            [[ region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) ]]
-       ∗ cstack_frag (cstack_push frame cstk)
+       ∗ ◯(CSTK)[th] (cstack_push frame cstk)
        ∗ P
        ∗ (if may_fault then (return_cont ∧ fault_cont) ∗ switcher_res F else return_cont)
        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
@@ -169,7 +169,7 @@ Section Switcher_KtK.
          ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
              [[ region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ]]
-         ∗ "Hcstk" ∷ cstack_frag cstk
+         ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
              load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
          ∗ "HQ" ∷ Q wca0_ret wca1_ret)%I
@@ -191,7 +191,7 @@ Section Switcher_KtK.
          ∗ "Hca1" ∷ ca1 ↦ᵣ[th] WInt 0
          ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]]
-         ∗ "Hcstk" ∷ cstack_frag cstk
+         ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
              load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
          ∗ "HP" ∷ P)%I
@@ -215,7 +215,7 @@ Section Switcher_KtK.
          ∗ "Hrmap" ∷ ([∗ map] r↦w ∈ rmap_ret, r ↦ᵣ[th] w ∗ ⌜ w = WInt 0 ⌝)
          ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
              [[ region_addrs_zeroes (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ]]
-         ∗ "Hcstk" ∷ cstack_frag cstk
+         ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
              load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝)%I
     in
@@ -263,7 +263,7 @@ Section Switcher_KtK.
     ∗ ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg)
     ∗ ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w)
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
-    ∗ cstack_frag cstk
+    ∗ ◯(CSTK)[th] cstk
     ∗ P
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller

@@ -114,7 +114,7 @@ Section fundamental.
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    cstack_frag cstk
+    ◯(CSTK)[th] cstk
     ⊢ interp_conf W C.
   Proof.
     (* Outline of the proof:

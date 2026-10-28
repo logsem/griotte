@@ -380,7 +380,7 @@ Section Error_Handling_Read_Safe.
     PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_return -∗
     registers_pointsto rmap -∗
     [[ b_stk , e_stk ]] ↦ₐ [[ stk_mem ]] -∗
-    cstack_frag cstk -∗
+    ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
     world_interp (revoke W0) C -∗
     ▷ RevokedResources W0 C l -∗
