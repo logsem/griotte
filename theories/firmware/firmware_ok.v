@@ -27,6 +27,9 @@ Fixpoint fw_imap_from {A B} (f : nat → A → B) (k : nat) (l : list A) : list 
 
 Definition fw_imap {A B} (f : nat → A → B) (l : list A) : list B := fw_imap_from f 0 l.
 
+Fixpoint fw_length {A} (l : list A) : nat :=
+  match l with [] => 0 | _ :: l => S (fw_length l) end.
+
 Fixpoint fw_app {A} (l1 l2 : list A) : list A :=
   match l1 with [] => l2 | x :: l1 => x :: fw_app l1 l2 end.
 
@@ -501,12 +504,17 @@ Section translation.
            note "sealing types valid"
              (Forall otype_valid (ot_switcher (img_sw img) :: fw_otypes fw))]
           (fw_app
-             (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
-                (fw_heap_roots fw))
-             (match fw_heap_roots fw with
-              | [] => []
-              | _ => [section "Machine (heap and revoker)" heap_machine_ok]
-              end)))).
+             (match Nat.eqb (fw_length (img_threads img)) (fw_length (fw_threads fw)) with
+              | true => []
+              | false => [note "one image thread per firmware thread" False]
+              end)
+             (fw_app
+                (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
+                   (fw_heap_roots fw))
+                (match fw_heap_roots fw with
+                 | [] => []
+                 | _ => [section "Machine (heap and revoker)" heap_machine_ok]
+                 end))))).
 End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
@@ -541,7 +549,7 @@ Ltac reduce_firmware_ok t :=
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
     export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf thread_layout_ok heap_machine_ok
-    fw_map fw_imap fw_imap_from fw_app fw_flat_map big_and big_union nat_str
+    fw_map fw_imap fw_imap_from fw_length fw_app fw_flat_map big_and big_union nat_str
     addr_off default_export fw_export_named body_str fw_set handler_word
     fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export
     fw_index_of fw_body_export_index fw_export_index fw_find_export
@@ -553,5 +561,5 @@ Ltac reduce_firmware_ok t :=
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads
-    String.append String.eqb Ascii.eqb Bool.eqb andb]
+    String.append String.eqb Ascii.eqb Bool.eqb Nat.eqb andb]
   in t.

@@ -39,6 +39,9 @@ Proof. induction l1 as [|x l1 IH]; cbn; [done | by rewrite IH]. Qed.
 Lemma fw_map_eq {A B} (f : A → B) (l : list A) : fw_map f l = f <$> l.
 Proof. induction l as [|x l IH]; cbn; [done | by rewrite IH]. Qed.
 
+Lemma fw_length_eq {A} (l : list A) : fw_length l = length l.
+Proof. induction l as [|x l IH]; cbn; [done | by rewrite IH]. Qed.
+
 Lemma fw_flat_map_cons {A B} (f : A → list B) (x : A) (l : list A) :
   fw_flat_map f (x :: l) = f x ++ fw_flat_map f l.
 Proof. by rewrite /= fw_app_eq. Qed.
@@ -686,11 +689,24 @@ Section layout_of_img_wf.
     split; [exact Hnodup | exact Hvalid].
   Qed.
 
+  (** The image has one thread per thread of the firmware. *)
+  Lemma img_wf_threads_length fw img :
+    img_wf fw img → length (img_threads img) = length (fw_threads fw).
+  Proof.
+    intros (_ & _ & _ & _ & Himg).
+    rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Himg].
+    apply big_and_fw_app in Himg as [Himg _].
+    destruct (Nat.eqb (fw_length (img_threads img)) (fw_length (fw_threads fw))) eqn:Hlen;
+      last (cbn in Himg; rewrite /note in Himg; contradiction).
+    by rewrite -!fw_length_eq -Nat.eqb_eq.
+  Qed.
+
   Lemma img_wf_heap_roots fw img :
     img_wf fw img → ∀ a, a ∈ fw_set (fw_heap_roots fw) → is_heap_address a = true.
   Proof.
     intros (_ & _ & _ & _ & Himg) a Ha.
     rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Hroots].
+    apply big_and_fw_app in Hroots as [_ Hroots].
     apply big_and_fw_app in Hroots as [Hroots _].
     apply big_and_fw_map in Hroots. rewrite Forall_forall in Hroots. apply Hroots.
     assert (∀ l : list Addr, fw_set l = list_to_set l) as Hset.
@@ -709,6 +725,7 @@ Section layout_of_img_wf.
   Proof.
     intros (_ & _ & _ & _ & Himg) Hroots.
     rewrite /section in Himg. apply big_and_fw_app in Himg as [_ Hm].
+    apply big_and_fw_app in Hm as [_ Hm].
     apply big_and_fw_app in Hm as [_ Hm].
     destruct (fw_heap_roots fw) as [|r rs]; first done.
     exact Hm.
