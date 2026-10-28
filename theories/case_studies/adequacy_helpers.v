@@ -9,6 +9,26 @@ From griotte Require Import allocator_resources.
 (** The namespace of the invariant on the flag of the assert library. *)
 Definition Nassert_flag : namespace := nroot .@ "assert_flag".
 
+(** The layout of a trusted stack [ [b, e)] with contents [ts] and hazard
+    slots [ [b_hz, e_hz)]. *)
+Section trusted_stack_layout.
+  Context `{MP : MachineParameters}.
+
+  Record trusted_stack_layout (b e b_hz e_hz : Addr) (ts : list Word) : Prop :=
+    MkTrustedStackLayout {
+    tsl_size : (b + length ts)%a = Some e;
+    tsl_frameoffset :
+      ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
+    tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
+    tsl_error_count :
+      ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
+      = Some (WInt 0);
+    tsl_words : Forall trusted_stack_word ts;
+    tsl_hazard :
+      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (WCap true WO Global b_hz e_hz b_hz);
+  }.
+End trusted_stack_layout.
+
 Section adequacy_helpers.
   Context
     {Σ:gFunctors}

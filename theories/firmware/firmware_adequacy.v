@@ -250,22 +250,9 @@ Section layout_bridges.
 
   (** *** The switcher and the thread's stacks
 
-      The conditions on the contents of the trusted stack are kept apart:
-      they change with the contents the loader writes there. *)
-
-  Record trusted_stack_layout (b e b_hz e_hz : Addr) (ts : list Word) : Prop :=
-    MkTrustedStackLayout {
-    tsl_size : (b + length ts)%a = Some e;
-    tsl_frameoffset :
-      ts !! Z.to_nat TrustedStack_offset_frameoffset = Some (WInt (tstack_frameoffset 0));
-    tsl_frames_fit : ∃ n : nat, (b + tstack_frame_offset (S n))%a = Some e;
-    tsl_error_count :
-      ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_errorHandlerCount)
-      = Some (WInt 0);
-    tsl_words : Forall trusted_stack_word ts;
-    tsl_hazard :
-      ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (WCap true WO Global b_hz e_hz b_hz);
-  }.
+      The conditions on the contents of the trusted stack are kept apart
+      ([trusted_stack_layout]): they change with the contents the loader
+      writes there. *)
 
   Record img_switcher_layout (sw : img_switcher) (t : img_thread) (ss : list Word) : Prop :=
     MkImgSwitcherLayout {
