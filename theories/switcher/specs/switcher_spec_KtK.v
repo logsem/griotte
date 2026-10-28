@@ -33,9 +33,9 @@ Section Switcher_KtK.
       and [Q] is the postcondition, parameterised by the returned values.
       When [may_fault] holds, the callee may fault: it also receives the
       unwind continuation of its frame ([ktk_fault_cont]), and the
-      switcher's invariant and static resources, to close its faults with
-      [trap_safe_exception_entry]; the switcher returns ECOMPARTMENTFAIL to
-      the caller.
+      trusted-stack invariant and the switcher's static resources, to close
+      its faults with [trap_safe_exception_entry]; the switcher returns
+      ECOMPARTMENTFAIL to the caller.
       The callee's stack is at least its minimum stack size [minstk] plus
       the space reserved at its top.
       The callee returns through [return_cont] at any error handler count
@@ -229,7 +229,7 @@ Section Switcher_KtK.
     disjoint_from_shadow btbl_tgt etbl_tgt ->
     is_heap_address bpcc_tgt = false ->
     is_heap_address bcgp_tgt = false ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a ->
     (btbl_tgt < a_tbl_cgp)%a ->
@@ -247,7 +247,7 @@ Section Switcher_KtK.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    na_inv (tpool th) Nswitcher switcher_inv
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ btbl_tgt ↦ₐ□ WCap true RX Global bpcc_tgt epcc_tgt bpcc_tgt
     ∗ a_tbl_cgp ↦ₐ□ WCap true RW Global bcgp_tgt ecgp_tgt bcgp_tgt

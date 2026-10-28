@@ -45,7 +45,7 @@ Section fundamental.
       Only the return values [ca0] and [ca1] must be safe-to-share: this is all
       [switcher_return_unwind] asks of the register file, and safe-to-exec
       provides it, since all registers are then safe-to-share.
-      We open the switcher's invariant, giving the points-to of the code region,
+      We open the trusted-stack invariant, giving the points-to of the code region,
       allowing us to execute through the code.
       We obtain the authoritative view of the call-stack [cstack_full cstk'],
       which we can unify with [cstk].
@@ -60,7 +60,7 @@ Section fundamental.
       We can distinguish 2 cases.
       1) The call-stack is empty: the frame to pop is the entry frame of
          the thread. The switcher exits the thread, and we close the
-         invariant of the switcher, which gives back [na_own (tpool th) ⊤].
+         trusted-stack invariant, which gives back [na_own (tpool th) ⊤].
       2) The call-stack is not empty,
          in which case we can derive information about the top-most frame
          with [cframe_interp].
@@ -80,7 +80,7 @@ Section fundamental.
       From that point, the proof consists on executing the code,
       up-to the final jump.
       We update the call-stack (depop the topmost stack frame),
-      and we can close the switcher invariant.
+      and we can close the trusted-stack invariant.
       To finish the proof, we have to use a form of continuation.
 
       In the case of a trusted caller, we can finish the proof by using
@@ -108,7 +108,7 @@ Section fundamental.
     registers_pointsto rmap ∗
     interp W C wca0 ∗
     interp W C wca1 ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
     world_interp W C ∗
@@ -118,7 +118,7 @@ Section fundamental.
     ⊢ interp_conf W C.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant;
+       - open the trusted-stack invariant;
        - when the frame to pop is the entry frame, the thread exits:
          [switcher_return_exit_path_spec], [switcher_return_exit_close];
        - otherwise, [switcher_return_path_world_spec]: pop the trusted
@@ -126,7 +126,7 @@ Section fundamental.
          [open_world_interp_callee_stack]); restore the callee-save
          registers, clear the stack frame and the registers, and jump to the
          caller;
-       - close the switcher invariant ([switcher_return_pop_close]);
+       - close the trusted-stack invariant ([switcher_return_pop_close]);
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_cases_spec]. *)
@@ -137,10 +137,10 @@ Section fundamental.
       as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
           & %rmap0 & %Hrmap0 & Hrmap)"; [done|done|done|].
 
-    (* Open the switcher invariant *)
+    (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.

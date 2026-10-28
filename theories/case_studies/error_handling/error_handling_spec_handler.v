@@ -26,8 +26,8 @@ From griotte Require Import
 (** The namespace of the invariant of [stats]. *)
 Definition Nstats : namespace := nroot .@ "stats".
 
-Lemma Nswitcher_Nstats : Nswitcher ## Nstats.
-Proof. rewrite /Nswitcher /Nstats. solve_ndisj. Qed.
+Lemma Ntstack_Nstats : Ntstack ## Nstats.
+Proof. rewrite /Ntstack /Nstats. solve_ndisj. Qed.
 
 Section Error_Handling_Handler.
   Context

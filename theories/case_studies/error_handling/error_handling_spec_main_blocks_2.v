@@ -34,7 +34,7 @@ Section Error_Handling_Main_Blocks_2.
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
@@ -200,7 +200,7 @@ Section Error_Handling_Main_Blocks_2.
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = ECOMPARTMENTFAIL ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_2")%a ∗

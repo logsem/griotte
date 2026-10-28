@@ -64,7 +64,7 @@ Section Switcher.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant;
+       - open the trusted-stack invariant;
        - when the frame to pop is the entry frame, the thread exits:
          [switcher_return_exit_path_spec], [switcher_return_exit_close];
        - otherwise, [switcher_return_path_world_spec]: pop the trusted
@@ -72,7 +72,7 @@ Section Switcher.
          ([open_world_interp_cframe_gen]); restore the callee-save
          registers, clear the stack frame and the registers, and jump to
          the caller;
-       - close the switcher invariant ([switcher_return_pop_close]) and fix
+       - close the trusted-stack invariant ([switcher_return_pop_close]) and fix
          the world ([world_interp_stack_fixing]);
        - when the caller is trusted, use the continuation;
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
@@ -84,10 +84,10 @@ Section Switcher.
     iPoseProof "Hstatic" as "[#Hcode _]".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
 
-    (* Open the switcher invariant *)
+    (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.

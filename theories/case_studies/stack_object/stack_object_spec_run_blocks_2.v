@@ -24,7 +24,7 @@ Section SO_Run_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     cstk.(cstk_frames) = [] ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_run_return")%a ∗

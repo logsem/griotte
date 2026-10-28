@@ -255,7 +255,7 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖
         ({[ cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
-    na_inv (tpool th) Nswitcher switcher_inv
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ na_own (tpool th) ⊤
     ∗ PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call
@@ -341,7 +341,7 @@ Section KVS_Main_Blocks.
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code)%a ->
     cstk.(cstk_frames) = [] ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a ∗
@@ -390,7 +390,7 @@ Section KVS_Main_Blocks.
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
-    na_inv (tpool th) Nswitcher switcher_inv
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
     ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
@@ -717,7 +717,7 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)%a
       static_sealed_b = true ->
     assert_static b_assert e_assert a_flag
-    ∗ na_inv (tpool th) Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
     ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv

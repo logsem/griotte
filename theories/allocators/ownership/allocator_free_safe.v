@@ -71,7 +71,7 @@ Section Heap_Temporal_Safety_Interp.
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
     execute_entry_point allocator_exp_tbl_b
@@ -328,11 +328,11 @@ Section Heap_Temporal_Safety_Interp.
       set (rmap := delete cnull (delete ctp (delete ca4 (delete ca3 (delete ct2
         (delete ct1 (delete ct0 (delete ca2 (delete ca1 (delete ca0
         (delete cra (delete cgp regs)))))))))))).
-      (* MTDC, for the quarantine, from the switcher invariant. *)
+      (* MTDC, for the quarantine, from the trusted-stack invariant. *)
       iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
         [solve_ndisj|solve_ndisj|].
       iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
-      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
+      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
         (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
         (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rmap
         (HO th) with "[-]");
@@ -520,7 +520,7 @@ Section Heap_Temporal_Safety_Interp.
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗

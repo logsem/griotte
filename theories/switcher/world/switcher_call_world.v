@@ -290,11 +290,11 @@ Section Switcher_Call_World.
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
   Qed.
 
-  (** ** Switcher invariant *)
+  (** ** Trusted-stack invariant *)
 
-  (** Close the switcher invariant after pushing the frame [frm] on the
+  (** Close the trusted-stack invariant after pushing the frame [frm] on the
       trusted stack, above the topmost frame at [a_tstk]. *)
-  Lemma switcher_inv_push_frame
+  Lemma trusted_stack_inv_push_frame
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (save_area tstk_next : list LWord)
     (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
@@ -335,7 +335,7 @@ Section Switcher_Call_World.
     cstack_interp cstk' a_tstk -∗
     cframe_stk_own (stk_spill_a a_stk) frm.(cf_saved) frm.(ccrel)
     ==∗
-    switcher_inv ∗ ◯(CSTK)[th] (cstack_push frm cstk).
+    trusted_stack_inv ∗ ◯(CSTK)[th] (cstack_push frm cstk).
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_free a_csp a_export_table a_error_count.
@@ -363,16 +363,16 @@ Section Switcher_Call_World.
     repeat split; try done; try solve_addr; try (by destruct Hstk_mmio); naive_solver.
   Qed.
 
-  (** The switcher invariant, open during the call routine: the resources
+  (** The trusted-stack invariant, open during the call routine: the resources
       of the invariant that the call path does not use, and what closes
       the invariant. The trusted stack pointer, the frame offset and the
       unused part of the trusted stack go through the call path. *)
-  Definition switcher_inv_opened (cstk' : CSTK) (a_tstk : Addr) : iProp Σ :=
+  Definition trusted_stack_inv_opened (cstk' : CSTK) (a_tstk : Addr) : iProp Σ :=
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
     "Hclose_switcher_inv" ∷
-      (▷ switcher_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) ⊤) ∗
-    "Hna" ∷ na_own (tpool th) (⊤ ∖ ↑Nswitcher) ∗
+      (▷ trusted_stack_inv ∗ na_own (tpool th) (⊤ ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) ⊤) ∗
+    "Hna" ∷ na_own (tpool th) (⊤ ∖ ↑Ntstack) ∗
     "Hsave_area" ∷
       (∃ save_area,
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
@@ -386,18 +386,18 @@ Section Switcher_Call_World.
                      = Some a_tstk ⌝ ∗
     "%Ha_tstk_e" ∷ ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝.
 
-  (** Open the switcher invariant for the call routine. The resources come
+  (** Open the trusted-stack invariant for the call routine. The resources come
       under a later, which the first instruction removes. *)
-  Lemma switcher_inv_open_call :
+  Lemma trusted_stack_inv_open_call :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     na_own (tpool th) ⊤
     ={⊤}=∗
     ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
       ⌜ (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ⌝ ∗
       ⌜ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ⌝ ∗
-      ▷ switcher_inv_opened cstk' a_tstk ∗
+      ▷ trusted_stack_inv_opened cstk' a_tstk ∗
       mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
       a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       switcher_hazard ∗
@@ -406,7 +406,7 @@ Section Switcher_Call_World.
     intros a_frameoffset; subst a_frameoffset.
     iIntros "#Hinv Hna".
     iMod (na_inv_acc with "Hinv Hna") as "(Hswitcher_inv & Hna & Hclose)"; [done|done|].
-    iMod (switcher_inv_open with "Hswitcher_inv") as
+    iMod (trusted_stack_inv_open with "Hswitcher_inv") as
       (a_tstk cstk' save_area tstk_next)
       "(Hmtdc & Hsave_area & %Hsave_hazard & Hhazard_slots & Hframeoffset & HthreadID
        & Htstk & Hcstk_full & %Hlen & Hstk_interp)".
@@ -423,11 +423,11 @@ Section Switcher_Call_World.
     done.
   Qed.
 
-  (** Close the switcher invariant, with the trusted stack unchanged. *)
-  Lemma switcher_inv_opened_close (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
+  (** Close the trusted-stack invariant, with the trusted stack unchanged. *)
+  Lemma trusted_stack_inv_opened_close (cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) -∗
     switcher_hazard -∗
@@ -447,9 +447,9 @@ Section Switcher_Call_World.
     iPureIntro; done.
   Qed.
 
-  (** Close the switcher invariant after pushing the frame [frm] on the
+  (** Close the trusted-stack invariant after pushing the frame [frm] on the
       trusted stack. *)
-  Lemma switcher_inv_opened_push
+  Lemma trusted_stack_inv_opened_push
     (frm : cframe) (cstk cstk' : CSTK) (a_tstk : Addr) (tstk_next : list LWord)
     (wtbl : LWord) (b_stk e_stk a_stk : Addr) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
@@ -470,7 +470,7 @@ Section Switcher_Call_World.
     frm.(cf_tframe).(tf_export_tbl) = lword_of_word (WInt 0) ∨
       (wtbl = frm.(cf_tframe).(tf_export_tbl) ∧ tf_export_tbl_ok frm.(cf_tframe)) ->
 
-    switcher_inv_opened cstk' a_tstk -∗
+    trusted_stack_inv_opened cstk' a_tstk -∗
     ◯(CSTK)[th] cstk -∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S (length cstk'.(cstk_frames)))) -∗
@@ -491,7 +491,7 @@ Section Switcher_Call_World.
     iDestruct "Hsave_area" as (save_area Hsave_hazard) "Hsave_area".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
-    iMod (switcher_inv_push_frame frm cstk with
+    iMod (trusted_stack_inv_push_frame frm cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp Hframe")
       as "[Hinv $]"; [done|done|done|apply ot_switcher_size|done..|].

@@ -61,13 +61,13 @@ Section Switcher_KtK_Return.
     stk_spill_ok a_stk ->
 
     (* NA mask *)
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
@@ -125,23 +125,23 @@ Section Switcher_KtK_Return.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant, and read the topmost frame of the call
+       - open the trusted-stack invariant, and read the topmost frame of the call
          stack;
        - [switcher_return_path_spec]: pop the trusted stack, restore the
          callee-save registers, clear the stack frame and the registers,
          and jump back to the caller; the frame records that the return
          address is a valid target, so the jump does not fault;
-       - pop the frame and close the switcher invariant
+       - pop the frame and close the trusted-stack invariant
          ([switcher_return_pop_close]). *)
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
       & [%wcsp Hcsp] & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
 
-    (* Open the switcher invariant *)
+    (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -186,7 +186,7 @@ Section Switcher_KtK_Return.
       rewrite /finz.dist. solve_addr. }
     iEval (rewrite -(stk_free_split_zeroes _ _ _ Hstk_bounds)) in "Hstk".
 
-    (* Pop the frame and close the switcher invariant *)
+    (* Pop the frame and close the trusted-stack invariant *)
     subst hclose_switcher_inv.
     iMod (switcher_return_pop_close F _ cstk with
            "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
@@ -228,13 +228,13 @@ Section Switcher_KtK_Return.
     stk_spill_ok a_stk ->
 
     (* NA mask *)
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
 
     (* Well formed register map *)
     dom rmap = all_registers_s ∖ ({[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]}) ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)

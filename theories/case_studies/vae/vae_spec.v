@@ -80,7 +80,7 @@ Section VAE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv (tpool th) Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a vae_main_code

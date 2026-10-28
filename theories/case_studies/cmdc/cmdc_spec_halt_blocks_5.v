@@ -24,7 +24,7 @@ Section CMDC_Halt_Blocks_5.
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
     cstk.(cstk_frames) = [] ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_return")%a ∗

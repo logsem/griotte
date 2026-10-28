@@ -86,7 +86,7 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv (tpool th) Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
 
@@ -394,7 +394,7 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
-      ∗ na_inv (tpool th) Nswitcher switcher_inv
+      ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
 

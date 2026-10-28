@@ -119,7 +119,7 @@ Section Error_Handling_Main_Spec.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ct1; ca0; ca1; cs0; cs1 ]} ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
@@ -286,7 +286,7 @@ Section Error_Handling_Main_Spec.
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
@@ -375,7 +375,7 @@ Section Error_Handling_Main_Spec.
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
@@ -475,7 +475,7 @@ Section Error_Handling_Main_Spec.
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗
@@ -592,7 +592,7 @@ Section Error_Handling_Main_Spec.
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv ∗

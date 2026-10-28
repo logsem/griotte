@@ -53,8 +53,8 @@ Section Switcher_KtK_Call.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (▷ switcher_inv ∗ na_own (tpool th) (F ∖ ↑Nswitcher) ={⊤}=∗ na_own (tpool th) F) ∗
-    na_own (tpool th) (F ∖ ↑Nswitcher) ∗
+    (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) ∗
+    na_own (tpool th) (F ∖ ↑Ntstack) ∗
     mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
@@ -102,7 +102,7 @@ Section Switcher_KtK_Call.
     subst a_frameoffset a_save_end a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
        registers, [switch_trusted_stack_exhausted_path_spec] restores the
-       registers, clears the others and returns, then close the switcher
+       registers, clears the others and returns, then close the trusted-stack
        invariant. The return address is a valid
        target, so the jump back does not fault. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hot_bounds Hsave_hazard Hret_jalr
@@ -181,7 +181,7 @@ Section Switcher_KtK_Call.
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
 
     (* Well formed entry point *)
     (btbl_tgt <= atbl_tgt < etbl_tgt)%a →
@@ -200,8 +200,8 @@ Section Switcher_KtK_Call.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* Export table of the target compartment *)
@@ -289,7 +289,7 @@ Section Switcher_KtK_Call.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant;
+       - open the trusted-stack invariant;
        - [switcher_call_path_spec]: check the stack pointer, spill the
          callee-save registers, push the frame, clear the callee's stack and
          unseal the entry point; the spill fits on the caller's stack, which
@@ -299,7 +299,7 @@ Section Switcher_KtK_Call.
        - [switcher_decode_entry_path_known_spec]: load the callee and jump to it;
          its stack is at least its minimum stack size plus the reserved space,
          so the check passes;
-       - [switcher_inv_push_frame]: push the frame and close the switcher
+       - [trusted_stack_inv_push_frame]: push the frame and close the trusted-stack
          invariant. *)
     intros a_tbl_cgp a_tbl_ehs wct1_caller frame.
     subst a_tbl_cgp a_tbl_ehs.
@@ -323,12 +323,12 @@ Section Switcher_KtK_Call.
     }
     iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first by simplify_map_eq.
 
-    (* Open the switcher invariant *)
+    (* Open the trusted-stack invariant *)
     iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _ & Hswitcher_global)".
     iNamed "Hswitcher_global".
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
       first done.
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
@@ -399,13 +399,13 @@ Section Switcher_KtK_Call.
     iIntros (mie arg_rmap' rmap')
       "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
 
-    (* Push the frame and close the switcher invariant *)
+    (* Push the frame and close the trusted-stack invariant *)
     (* The table cell holds the unsealed entry *)
     pose proof (tf_export_tbl_cell_entry (cf_tframe frame) Global btbl_tgt etbl_tgt atbl_tgt
                eq_refl Hbtbl_ehs ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
-    iMod (switcher_inv_push_frame frame cstk with
+    iMod (trusted_stack_inv_push_frame frame cstk with
            "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells]")
       as "[Hinv Hcstk]";

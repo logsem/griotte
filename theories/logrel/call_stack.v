@@ -211,7 +211,7 @@ Ltac stk_unfold :=
     the callee-saved registers values are stored in the compartment's stack,
     and the way to handle the points-to predicates
     depend on whether the region is shared.
-    More explanation in the switcher's invariant.
+    More explanation in [trusted_stack_inv].
  **)
 Record cframe := MkCFrame {
       cf_tframe : trusted_frame;

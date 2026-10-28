@@ -76,7 +76,7 @@ Section VAE.
     Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     assert_static b_assert e_assert a_flag
-    ∗ na_inv (tpool th) Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a vae_main_code

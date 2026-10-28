@@ -641,7 +641,7 @@ Section AllocatorFree.
   Lemma allocator_free_invalid_capability_spec
     (E F : coPset) (wsealed : LWord) (P : iProp Σ) :
 
-    ↑Nswitcher ⊆ E ->
+    ↑Ntstack ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
 
     allocator_service_static ∗

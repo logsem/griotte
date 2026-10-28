@@ -12,7 +12,7 @@ From griotte.allocators.ownership Require Export allocator_malloc_spec allocator
     register condition: the switcher-entry facts (the non-argument registers
     are zero, the stack and return capabilities carry no identifier)
     discharge the allocator-entry condition of the functional [free]. The
-    switcher invariant supplies MTDC, which [free] reads for its quarantine. *)
+    trusted-stack invariant supplies MTDC, which [free] reads for its quarantine. *)
 
 Section AllocatorSwitcherSpec.
   Context
@@ -159,7 +159,7 @@ Section AllocatorSwitcherSpec.
     arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ∗
-    na_inv (tpool th) Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_cc_specification_known_to_known_function false
       (allocator_owner_id id Ω ∗
        ⌜ι ∈ Ω⌝ ∗
@@ -209,11 +209,11 @@ Section AllocatorSwitcherSpec.
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hcsp").
       iApply (big_sepM_insert_2 (λ r w, r ↦ᵣ w)%I with "Hca5").
       iExact "Hrmap". }
-    (* MTDC, for the quarantine, from the switcher invariant. *)
+    (* MTDC, for the quarantine, from the trusted-stack invariant. *)
     iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
       [solve_ndisj|solve_ndisj|].
     iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
-    iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nswitcher) g_owner a_owner id Ω p g ι b e a ws
+    iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
       _ (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rframe with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");

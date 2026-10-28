@@ -536,8 +536,8 @@ Section Switcher_error_handler.
 
   (** The switcher's resources at a token [F]. *)
   Definition switcher_res (F : coPset) : iProp Σ :=
-    ⌜↑Nswitcher ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    ⌜↑Ntstack ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static.
 
   (** ** Trusted handlers *)

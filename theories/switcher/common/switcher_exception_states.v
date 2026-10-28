@@ -37,7 +37,7 @@ From griotte Require Import trusted_spill_registers_spec.
     [exception_path] composes them.
 
     The specifications are thread-generic: they take the points-to of the
-    register save area, not the invariant of the switcher. *)
+    register save area, not the trusted-stack invariant. *)
 
 Section Switcher_Exception_States.
   Context

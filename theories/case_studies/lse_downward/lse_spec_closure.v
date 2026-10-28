@@ -54,7 +54,7 @@ Section LSE.
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
 
     assert_static b_assert e_assert a_flag
-    ∗ na_inv (tpool th) Nswitcher switcher_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a lse_main_code

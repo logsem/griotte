@@ -82,7 +82,7 @@ Section KVS_main_spec.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     (
       assert_static b_assert e_assert a_flag ∗
-      na_inv (tpool th) Nswitcher switcher_inv ∗
+      na_inv (tpool th) Ntstack trusted_stack_inv ∗
       switcher_static ∗
       kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗

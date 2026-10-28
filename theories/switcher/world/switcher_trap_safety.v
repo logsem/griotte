@@ -5,8 +5,8 @@ From griotte Require Export switcher_error_handler.
 
 (** * Trap safety of the switcher
 
-    [switcher_trap_safety] bundles the switcher's invariant and static
-    resources with the two facts that its exception path provides: the
+    [switcher_trap_safety] bundles the trusted-stack invariant and the switcher's
+    static resources with the two facts that its exception path provides: the
     safety of the exception entry ([exception_entry_safe]) and the resume of
     a fault of the first spill of the call path at [.Lswitch_just_return]
     ([switcher_resume_safe]). It is persistent; [switcher_exception] proves
@@ -34,7 +34,7 @@ Section Switcher_trap_safety.
     □ ∀ (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
         (w : LWord),
       ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
-      ⌜↑Nswitcher ⊆ F⌝ -∗
+      ⌜↑Ntstack ⊆ F⌝ -∗
       ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
@@ -56,7 +56,7 @@ Section Switcher_trap_safety.
       context again, at [.Lswitch_just_return]. *)
   Definition switcher_resume_safe : iProp Σ :=
     □ ∀ (F : coPset) (w : LWord),
-      ⌜↑Nswitcher ⊆ F⌝ -∗
+      ⌜↑Ntstack ⊆ F⌝ -∗
       ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜¬ trap_no_resume w⌝ -∗
       (|={⊤}=>
@@ -81,7 +81,7 @@ Section Switcher_trap_safety.
 
   (** The trap safety of the switcher. *)
   Definition switcher_trap_safety : iProp Σ :=
-    "Hinv_switcher" ∷ na_inv (tpool th) Nswitcher switcher_inv ∗
+    "Hinv_switcher" ∷ na_inv (tpool th) Ntstack trusted_stack_inv ∗
     "Hstatic" ∷ switcher_static ∗
     "Hentry_safe" ∷ exception_entry_safe ∗
     "Hresume_safe" ∷ switcher_resume_safe.
@@ -93,7 +93,7 @@ Section Switcher_trap_safety.
   (** The invariant and the static resources of the switcher. *)
   Lemma switcher_trap_safety_res :
     switcher_trap_safety ⊢
-    na_inv (tpool th) Nswitcher switcher_inv ∗ switcher_static.
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗ switcher_static.
   Proof. iIntros "#Hsafety". iNamed "Hsafety". iFrame "#". Qed.
 
   Lemma exception_entry_safe_vector :
@@ -113,7 +113,7 @@ Section Switcher_trap_safety.
   Lemma logrel_unwind_cont_gen (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     world_interp W C -∗
@@ -147,7 +147,7 @@ Section Switcher_trap_safety.
   Lemma trap_safe_exception_entry_of_safety (P_mcause P_mtval : Z → Prop) (F : coPset)
     (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
     switcher_trap_safety -∗
     (|={⊤}=>
@@ -175,7 +175,7 @@ Section Switcher_trap_safety.
       of the call path) closes through the exception path of the switcher,
       which returns at [.Lswitch_just_return]. *)
   Lemma trap_safe_resume_of_safety (F : coPset) (w : LWord) :
-    ↑Nswitcher ⊆ F →
+    ↑Ntstack ⊆ F →
     ↑Ntrap ⊆ F →
     ¬ trap_no_resume w →
     switcher_trap_safety -∗

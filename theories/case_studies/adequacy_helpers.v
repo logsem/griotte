@@ -137,12 +137,12 @@ Section adequacy_helpers.
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
       iModIntro. iFrame "Hsealed_pred_ot_switcher".
-      rewrite /switcher_static /switcher_inv_global.
+      rewrite /switcher_static /switcher_sealing_inv.
       iFrame "Hswitcher_code Hswitcher_sealing".
       iPureIntro. split; [done | apply switcher.ot_switcher_size].
     Qed.
 
-    (** The invariant of the switcher for the thread [th], from its trusted
+    (** The trusted-stack invariant for the thread [th], from its trusted
         stack with contents [ts], its hazard slots and its call stack. The
         entry frame of the thread holds the words [w_csp] and [w_tbl], a
         capability to the export table at [b_tbl], and no error handler
@@ -166,7 +166,7 @@ Section adequacy_helpers.
       mtdc ↦ₜ[th] TStack (WCap true RWL Global switcher.b_trusted_stack
                            switcher.e_trusted_stack switcher.b_trusted_stack)
       ={E}=∗
-      na_inv (tpool th) Nswitcher switcher_inv.
+      na_inv (tpool th) Ntstack trusted_stack_inv.
     Proof.
       intros ef Hts Hw_csp Hw_tbl Htbl_cap.
       iIntros "Htrusted_stack Hhazard_slots Hcstk_full Hmtdc".
@@ -175,7 +175,7 @@ Section adequacy_helpers.
       { exact Htstk_size. }
       iDestruct (mkregion_prepare with "[Hhazard_slots]") as ">Hhazard_slots"; auto.
       { apply switcher.hazard_slots_size. }
-      iAssert (|==> switcher_preamble.switcher_inv)%I
+      iAssert (|==> switcher_preamble.trusted_stack_inv)%I
         with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">Hswitcher".
       {
         iAssert ([[ switcher.b_trusted_stack, switcher.e_trusted_stack ]]
@@ -242,7 +242,7 @@ Section adequacy_helpers.
           [subst a_entry a_error_count a_next; tstack_unfold; solve_addr..|].
         iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
         iModIntro.
-        rewrite /switcher_inv.
+        rewrite /trusted_stack_inv.
         iExists a_entry, (entry_cstack ef), _, _.
         rewrite /cstack_interp.
         subst ef. cbn.
@@ -255,7 +255,7 @@ Section adequacy_helpers.
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
-      iMod (na_inv_alloc (tpool th) _ Nswitcher _ with "Hswitcher") as "#Hswitcher".
+      iMod (na_inv_alloc (tpool th) _ Ntstack _ with "Hswitcher") as "#Hswitcher".
       by iModIntro.
     Qed.
 

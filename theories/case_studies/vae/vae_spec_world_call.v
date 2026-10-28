@@ -256,7 +256,7 @@ Section VAE_World_Call.
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     ca0 ↦ᵣ[th] WInt 0 -∗
     ca1 ↦ᵣ[th] WInt 0 -∗

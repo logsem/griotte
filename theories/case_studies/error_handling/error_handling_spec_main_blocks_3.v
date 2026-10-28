@@ -34,7 +34,7 @@ Section Error_Handling_Main_Blocks_3.
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_return")%a ∗
@@ -152,7 +152,7 @@ Section Error_Handling_Main_Blocks_3.
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_read_3")%a ∗

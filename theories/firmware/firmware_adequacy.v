@@ -1709,14 +1709,14 @@ Section resources.
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
 
-  (** The resources of the thread [i], the user thread [i]: the invariant of
-      the switcher for its trusted stack, in its pool, its registers, its
-      stack, its call stack and the non-atomic token of its pool. *)
+  (** The resources of the thread [i], the user thread [i]: its
+      trusted-stack invariant, in its pool, its registers, its stack, its
+      call stack and the non-atomic token of its pool. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
     let t := thread_of img i in
     "Hswitcher" ∷
-      na_inv (tpool (UserThread i)) Nswitcher
-        (switcher_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool (UserThread i)) Ntstack
+        (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
     "HPC" ∷ PC ↦ₚ[u i] fw_entry_pc fw img i ∗
     "Hcgp" ∷ cgp ↦ᵣ[u i] fw_entry_cgp fw img i ∗
     "Hcsp" ∷ csp ↦ᵣ[u i] fw_thread_csp img i ∗
@@ -1860,8 +1860,8 @@ Section memory_split.
   Qed.
 End memory_split.
 
-(** ** The switcher invariant of each thread *)
-Section thread_switcher_inv.
+(** ** The trusted-stack invariant of each thread *)
+Section thread_trusted_stack_inv.
   Context
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
@@ -1872,17 +1872,17 @@ Section thread_switcher_inv.
   (* The user threads [0] and [S k] meet here: every form names its thread. *)
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
-  (** The switcher invariant of the thread [i] of a firmware, from its
+  (** The trusted-stack invariant of the thread [i] of a firmware, from its
       memory, its call stack and its mtdc. Its stack is left over. *)
-  Lemma fw_thread_switcher_inv_alloc fw img i ft (E : coPset)
+  Lemma fw_thread_trusted_stack_inv_alloc fw img i ft (E : coPset)
       (Hwf : img_wf fw img) (H0 : fw_threads fw !! 0 = Some (fw_thread0 fw)) :
     fw_threads fw !! i = Some ft →
     ([∗ map] a↦w ∈ thread_mem img i ft, a ↦ₐ lword_of_word w) -∗
     ●(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
     mtdc ↦ₜ[u i] TStack (lword_of_word (fw_thread_mtdc img i))
     ={E}=∗
-    na_inv (tpool (UserThread i)) Nswitcher
-      (switcher_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
+    na_inv (tpool (UserThread i)) Ntstack
+      (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
     region_pointsto (ceriseg := ceriseG_of (UserThread i))
       (b_stack (thread_of img i)) (e_stack (thread_of img i))
       (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)).
@@ -1923,9 +1923,9 @@ Section thread_switcher_inv.
     rewrite Hft /region_pointsto big_sepL2_fmap_r. iFrame.
   Qed.
 
-  (** The switcher invariants of the threads [S k] of a firmware whose other
+  (** The trusted-stack invariants of the threads [S k] of a firmware whose other
       threads are [fts], dropped until the threads are scheduled. *)
-  Lemma fw_threads_switcher_inv_alloc fw img (fts : list fw_thread) (E : coPset)
+  Lemma fw_threads_trusted_stack_inv_alloc fw img (fts : list fw_thread) (E : coPset)
       (Hwf : img_wf fw img) (H0 : fw_threads fw !! 0 = Some (fw_thread0 fw)) :
     fw_threads fw = fw_thread0 fw :: fts →
     ([∗ list] k ↦ ft ∈ fts,
@@ -1940,13 +1940,13 @@ Section thread_switcher_inv.
     { iApply (big_sepL_impl with "Hthreads").
       iIntros "!>" (k ft Hk) "(Hmem & Hcstk_full & Hmtdc)".
       assert (fw_threads fw !! S k = Some ft) as Hi by by rewrite Hthreads.
-      iMod (fw_thread_switcher_inv_alloc fw img (S k) ft E Hwf H0 Hi
+      iMod (fw_thread_trusted_stack_inv_alloc fw img (S k) ft E Hwf H0 Hi
              with "Hmem Hcstk_full Hmtdc") as "_".
       by iModIntro. }
     iMod (big_sepL_fupd with "Hthreads") as "_".
     by iModIntro.
   Qed.
-End thread_switcher_inv.
+End thread_trusted_stack_inv.
 
 (** The obligations of the trusted code of a firmware, for the ghost state
     [Σ]: for every image and initial state satisfying [firmware_ok], the
@@ -2041,13 +2041,13 @@ Proof.
   iMod (initialise_switcher_shared (th := UserThread 0) (swlayout := fw_switcher_layout img)
           (swlayoutwf := fw_switcher_layout_wf fw img Hwf H0) Hmtcc
          with "Hsw_code Hseal_switcher") as "[#Hseal_switcher #Hswitcher_static]".
-  (* The switcher invariant of each thread, and the stack of the user thread
+  (* The trusted-stack invariant of each thread, and the stack of the user thread
      [0]. *)
-  iMod (fw_thread_switcher_inv_alloc fw img 0 (fw_thread0 fw) ⊤ Hwf H0 H0
+  iMod (fw_thread_trusted_stack_inv_alloc fw img 0 (fw_thread0 fw) ⊤ Hwf H0 H0
          with "Hthread0 Hcstk_full Hmtdc") as "[#Hswitcher Hstack]".
   iDestruct (big_sepL_sep_2 with "Hcstks Hmtdcs") as "Hothers".
   iDestruct (big_sepL_sep_2 with "Hthreads_mem Hothers") as "Hothers".
-  iMod (fw_threads_switcher_inv_alloc fw img fts ⊤ Hwf H0 Hthreads with "Hothers") as "_".
+  iMod (fw_threads_trusted_stack_inv_alloc fw img fts ⊤ Hwf H0 Hthreads with "Hothers") as "_".
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseb sealsg stsg relg cstackg Hok) as "Hobl".
   iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]

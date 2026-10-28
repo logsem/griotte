@@ -399,7 +399,7 @@ Section prepared.
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "#Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -441,7 +441,7 @@ Section prepared.
     let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
-      na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) ∗
+      na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
     "#Hseal_switcher" ∷
       seal_pred (ot_switcher sw) (ot_switcher_propC (swlayout := fw_switcher_layout img)) ∗
@@ -599,7 +599,7 @@ Section adversary.
   (** The switcher call sentry is safe to import. *)
   Lemma fw_switcher_call_safe fw img σ c W C :
     firmware_ok fw img σ →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := fw_switcher_layout img)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
@@ -628,7 +628,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
-    (na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    (na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
      switcher_static (swlayout := swl) -∗
      fw_cmpt_pers_res img fc -∗
      □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
@@ -716,7 +716,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -773,7 +773,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗
@@ -814,7 +814,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    na_inv (tpool th) Nswitcher (switcher_inv (swlayout := swl)) -∗
+    na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := swl)) -∗
     switcher_static (swlayout := swl) -∗
     seal_pred (ot_switcher (img_sw img)) (ot_switcher_propC (swlayout := swl)) -∗
     fw_cmpt_mem_res c -∗

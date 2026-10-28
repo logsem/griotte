@@ -784,7 +784,7 @@ Section adversary_exports.
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i)%a = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
-    na_inv (tpool th) Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -839,7 +839,7 @@ Section adversary_exports.
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
-    na_inv (tpool th) Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -886,7 +886,7 @@ Section adversary_imports.
   Lemma switcher_call_import_safe (W : WORLD) (C : CmptName) :
     let w := lword_of_word (WSentry FwdDisable true XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
-    na_inv (tpool th) Nswitcher switcher_inv ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
     switcher_static -∗
     interp_in_memC (W, C, w) ∗ future_priv_mono C interp_in_memC w.
   Proof.

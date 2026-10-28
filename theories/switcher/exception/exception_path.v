@@ -34,7 +34,7 @@ From griotte Require Import map_simpl register_tactics.
     [ErrorState] (the first one, or the one at the end of the faulting
     [csp]), and the [cjalr] to a word that is not a valid target.
 
-    The path opens the invariant of the switcher: it needs the non-atomic
+    The path opens the trusted-stack invariant: it needs the non-atomic
     token without [Ntrap], which trap entry holds, and gives back the whole
     token, before the [cjalr]. *)
 
@@ -137,7 +137,7 @@ Section Switcher_Spec_Exception.
       WP Seq (Instr Executable) @[th] {{ HO th }}.
 
   (** A fault of the path itself, at the switcher's PC of offset [off],
-      with the invariant of the switcher closed, after [k] stores of the
+      with the trusted-stack invariant closed, after [k] stores of the
       [ErrorState], and the stackful handler not invoked for the fault at
       [w] with the registers [rmap]... *)
   Definition path_nested_fault (F : coPset) (cstk : CSTK) (w : LWord) (rmap : LReg)
@@ -313,7 +313,7 @@ Section Switcher_Spec_Exception.
   Qed.
 
   (** The forced unwind, from [.Lcommon_force_unwind], once the closing of
-      the invariant of the switcher is ready. *)
+      the trusted-stack invariant is ready. *)
   #[local] Lemma switcher_exception_unwind_finish
     (F : coPset) (cstk : CSTK) (n : Z) (rmap : LReg) (w : LWord)
     (error_state_written : nat → iProp Σ)
@@ -366,7 +366,7 @@ Section Switcher_Spec_Exception.
   Qed.
 
   (** A fault of the path, at the switcher's PC of offset [off], once the
-      closing of the invariant of the switcher is ready. *)
+      closing of the trusted-stack invariant is ready. *)
   #[local] Lemma switcher_exception_nested_finish
     (F : coPset) (cstk : CSTK) (off n : Z) (rmap : LReg) (w : LWord)
     (error_state_written : nat → iProp Σ)
@@ -442,7 +442,7 @@ Section Switcher_Spec_Exception.
     end.
 
   (** From [.Lhandle_error_handler_invoke], for a handler of kind
-      [kind] at offset [off], once the invariant of the switcher is closed:
+      [kind] at offset [off], once the trusted-stack invariant is closed:
       the registers are cleared but the handler's, and the [cjalr] invokes
       the handler or faults. *)
   #[local] Lemma switcher_exception_invoke (P_mcause P_mtval : Z → Prop)
@@ -606,11 +606,11 @@ Section Switcher_Spec_Exception.
     (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
     (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) ->
-    ↑Nswitcher ⊆ F ->
+    ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
 
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     PC ↦ₚ[th] lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
@@ -627,7 +627,7 @@ Section Switcher_Spec_Exception.
     ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
   Proof.
     (* Outline of the proof:
-       - open the switcher invariant, with the token without [Ntrap];
+       - open the trusted-stack invariant, with the token without [Ntrap];
        - [exception_entry_asm_spec]: spill the registers, MEPCC, mstatus and
          mcause, and give MEPCC and mcause back; mtval stays lent until the
          setup of a handler reads it, and goes back before any other
@@ -644,7 +644,7 @@ Section Switcher_Spec_Exception.
          stack, compute the handler's PC and CGP; then the setup of a
          stackless handler, or the setup of a stackful handler with the
          stores of the [ErrorState]; then the invocation;
-       - close the switcher invariant, and recombine the token. *)
+       - close the trusted-stack invariant, and recombine the token. *)
     iIntros (HP_mcause HF HFtrap Hfull)
       "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hout & Hna & Hcstk & #Hheader & Hwritten
        & #Hes_acc & Hpost)".
@@ -652,7 +652,7 @@ Section Switcher_Spec_Exception.
     rewrite Hmtcc.
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | solve_ndisj |].
-    iModNamed switcher_inv_open "Hswitcher_inv".
+    iModNamed trusted_stack_inv_open "Hswitcher_inv".
     (* The call stack of the invariant is [cstk], unless the fault is
        resumed *)
     iAssert ⌜trap_no_resume w → cstk' = cstk⌝%I as %Hcstk_eq.
@@ -676,7 +676,7 @@ Section Switcher_Spec_Exception.
 
     (* [.Lhandle_error] *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    (* The close of the switcher invariant, and the recombination of the
+    (* The close of the trusted-stack invariant, and the recombination of the
        token, for any content of the register save area and any error
        handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
@@ -697,7 +697,7 @@ Section Switcher_Spec_Exception.
              "[Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp
                $Hna]")
         as "Hna".
-      { iNext. rewrite /switcher_inv /tstack_cap /tstack_save_end.
+      { iNext. rewrite /trusted_stack_inv /tstack_cap /tstack_save_end.
         iExists a_tstk, (cstack_set_top_count cstk' n'), _, tstk_next.
         rewrite cstack_set_top_count_frames_length.
         iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".

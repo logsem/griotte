@@ -413,8 +413,8 @@ Section Switcher_preamble.
     tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]).
 
-  (** [switcher_inv] describes the invariant of the switcher,
-      and describe the private state of the switcher.
+  (** [trusted_stack_inv] is the part of the switcher's invariant for the
+      thread [th]: the private state of the switcher for that thread.
 
       [mtdc] is the a privileged register, than only the switcher can access.
       It contains a capability to the base of the _trusted stack_
@@ -425,14 +425,14 @@ Section Switcher_preamble.
       export table of the callee and the number of error handlers invoked.
 
       The _trusted stack_ must be in sync with the logical call stack [cstk],
-      for which the switcher's invariant holds the authoritative view [cstack_full].
+      for which [trusted_stack_inv] holds the authoritative view [cstack_full].
       As a reminder, the fragmental view [cstack_frag] is given by the expression relation
       (or any of its variants).
 
       The code of the switcher and the unsealing capability of the switcher's
       otype are read-only: they are not in the invariant, but in the persistent
-      resource [switcher_static], with the global part [switcher_inv_global].
-      [switcher_inv] is the part of the section's thread.
+      resource [switcher_static], with the global part [switcher_sealing_inv].
+      [trusted_stack_inv] is the part of the section's thread.
 
       Finally, the invariant holds the points-to predicates of the trusted stack.
       The topmost frame is at [a_tstk]; the unused part, from the next frame
@@ -442,7 +442,7 @@ Section Switcher_preamble.
       two hazard slots, which hold unknown values: no compartment reaches
       them. The used part is contained in the definition of [cstack_interp].
    *)
-  Definition switcher_inv : iProp Σ :=
+  Definition trusted_stack_inv : iProp Σ :=
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
@@ -464,13 +464,13 @@ Section Switcher_preamble.
       (* link the topmost frame of cstk' to the state *)
       "Hstk_interp" ∷ cstack_interp cstk' a_tstk.
 
-  (** Opens [switcher_inv] under the later of [na_inv_acc]: the timeless
+  (** Opens [trusted_stack_inv] under the later of [na_inv_acc]: the timeless
       conjuncts lose their later, so that [iNamed] can name them. *)
-  Lemma switcher_inv_open :
+  Lemma trusted_stack_inv_open :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID)%a in
-    ▷ switcher_inv -∗
+    ▷ trusted_stack_inv -∗
     ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size)%a in
       "Hmtdc" ∷ mtdc ↦ₜ[th] TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack) ∗
@@ -489,16 +489,16 @@ Section Switcher_preamble.
       "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk.
   Proof.
     intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
-    iIntros "Hinv". rewrite /switcher_inv /=.
+    iIntros "Hinv". rewrite /trusted_stack_inv /=.
     iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
       "(>Hmtdc & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
        & >Hcstk_full & >% & Hstk_interp)".
     iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ %".
   Qed.
 
-  (** Close [switcher_inv] after popping the topmost frame, at [a_tstk],
+  (** Close [trusted_stack_inv] after popping the topmost frame, at [a_tstk],
       of the trusted stack: its cells go back to the unused part. *)
-  Lemma switcher_inv_pop_frame
+  Lemma trusted_stack_inv_pop_frame
     (a_tstk : Addr) (cstk : CSTK) (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset)%a in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)%a in
@@ -523,7 +523,7 @@ Section Switcher_preamble.
     [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
     ●(CSTK)[th] cstk -∗
     cstack_interp cstk a_prev -∗
-    switcher_inv.
+    trusted_stack_inv.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
@@ -550,11 +550,11 @@ Section Switcher_preamble.
   (** The part of the switcher's invariant shared by the threads: the bounds
       of the switcher's otype, and the predicate of the sealed export
       entries, at the section's thread. *)
-  Definition switcher_inv_global : iProp Σ :=
+  Definition switcher_sealing_inv : iProp Σ :=
     "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
     "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
 
-  #[global] Instance switcher_inv_global_persistent : Persistent switcher_inv_global.
+  #[global] Instance switcher_sealing_inv_persistent : Persistent switcher_sealing_inv.
   Proof. apply _. Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
@@ -568,7 +568,7 @@ Section Switcher_preamble.
        WCap true XSRW_ Local b_switcher e_switcher
          (a_switcher_call ^+
             asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝ ∗
-    switcher_inv_global.
+    switcher_sealing_inv.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.

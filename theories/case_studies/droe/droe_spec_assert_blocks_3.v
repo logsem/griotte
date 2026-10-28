@@ -29,7 +29,7 @@ Section DROE_Assert_Blocks_3.
     disjoint_from_mmio cgp_b cgp_e ->
     cstk.(cstk_frames) = [] ->
     assert_static b_assert e_assert a_flag ∗
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗

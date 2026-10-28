@@ -132,7 +132,7 @@ Section Error_Handling_Read.
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     (∀ c v, P_mcause c → P_mtval v → stats_repairable c v →
        ∃ r p g b e a π, stats_saved_cap rfault v r p g b e a π) →
-    na_inv (tpool th) Nswitcher switcher_inv -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     stats_static -∗
     registers_pointsto rfault -∗
@@ -147,7 +147,7 @@ Section Error_Handling_Read.
     iIntros (HP_mcause Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
                Htbl Heven Hmax Htbl_set Hsaved)
       "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hlock Harea Hcont".
-    pose proof Nswitcher_Nstats as Hdisj_stats.
+    pose proof Ntstack_Nstats as Hdisj_stats.
     iApply (trap_safe_exception_entry P_mcause P_mtval (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
       [done | solve_ndisj | rewrite /Ntrap /Nstats; solve_ndisj |].
@@ -484,7 +484,7 @@ Section Error_Handling_Read.
     STATS_pcc_b ≠ b_switcher →
     disjoint_from_shadow (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) →
     arg_rmap !! ca0 = Some wptr →
-    na_inv (tpool th) Nswitcher switcher_inv ∗
+    na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
     na_inv (tpool th) Nstats stats_inv

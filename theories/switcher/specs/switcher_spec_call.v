@@ -45,8 +45,8 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
@@ -175,8 +175,8 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
-    (* Switcher Invariant *)
-    na_inv (tpool th) Nswitcher switcher_inv
+    (* Trusted-stack invariant *)
+    na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
