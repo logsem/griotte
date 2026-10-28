@@ -182,7 +182,7 @@ Qed.
     the results of [adv]'s last two calls. *)
 Theorem error_handling_runs_and_gracefully_halts :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
+    rtc erased_step ([Exec], error_handling_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
 Proof.
@@ -204,18 +204,18 @@ Definition error_handling_demo_adv_cgp : Addr :=
     stored in its third. *)
 Remark error_handling_demo_adv_results :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], error_handling_demo_state)
+    rtc erased_step ([Exec], error_handling_demo_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 1)%a = Some (WInt ADV_OBJ)
-    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 2)%a = Some (WInt ECOMPARTMENTFAIL).
+    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ)
+    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL).
 Proof.
   pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
                 error_handling_demo_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state)
           with
           | Some (Halted, (_, _, _, mem', _)) =>
-              mem' !! (error_handling_demo_adv_cgp ^+ 1)%a = Some (WInt ADV_OBJ) ∧
-              mem' !! (error_handling_demo_adv_cgp ^+ 2)%a = Some (WInt ECOMPARTMENTFAIL)
+              mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ) ∧
+              mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL)
           | _ => False
           end) as Hres by (vm_compute; split; reflexivity).
   destruct (machine_run_conf _ _) as [ [ [] [ [ [ [pc' reg'] sreg'] mem'] sh'] ] | ];
@@ -261,7 +261,7 @@ Definition error_handling_no_handler_state : ExecConf :=
 
 Remark error_handling_no_handler_assert_fails :
   ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Seq (Instr Executable)], error_handling_no_handler_state)
+    rtc erased_step ([Exec], error_handling_no_handler_state)
       ([Instr Halted], (pc', reg', sreg', mem', sh'))
     ∧ mem' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
 Proof.

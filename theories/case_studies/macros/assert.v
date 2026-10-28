@@ -78,3 +78,8 @@ Section Assert_Assembled.
   Definition assert_instrs (off : Z) (rdst rscratch : RegName) : list Word :=
     encodeInstrsW (assembled_assert off rdst rscratch).
 End Assert_Assembled.
+
+(** The sentry of the entry point of the assert routine, which the assert
+    macro fetches and jumps to. *)
+Definition assert_entry `{assertLayout} : Word :=
+  Sentry Inherit RX Global b_assert e_assert b_assert.

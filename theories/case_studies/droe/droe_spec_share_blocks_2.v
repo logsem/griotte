@@ -24,21 +24,21 @@ Section DROE_Share_Blocks_2.
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (wct0 wct1 wcs0 wcra : LWord) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cra ↦ᵣ[th] wcra ∗
     droe_static_mem pc_b pc_a C_f ∗
-    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
+    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
           (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
-        ct0 ↦ᵣ[th] droe_switcher_entry ∗
+        ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ[th] wcra ∗
         droe_static_mem pc_b pc_a C_f
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & Hmem & Hpost)".
@@ -49,11 +49,11 @@ Section DROE_Share_Blocks_2.
     (* Block 1: fetch the entry point of the switcher *)
     focus_block (droe_block ".Ldroe_fetch_switcher") "Hcode_main" of droe_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    iApply (fetch_spec 0 _ _ _ _ _ _ _ droe_switcher_entry
+    iApply (fetch_spec 0 _ _ _ _ _ _ _ switcher_entry_call
               with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { offsets_compute; solve_addr. }
     { solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -77,9 +77,9 @@ Section DROE_Share_Blocks_2.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_callB ^+ 2)%a = (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a) as ->
+    assert (a_callB ^+ 2 = (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply "Hpost"; rewrite /droe_static_mem /droe_switcher_entry; iFrame "∗ Hcode_main".
+    iApply "Hpost"; rewrite /droe_static_mem /switcher_entry_call; iFrame "∗ Hcode_main".
   Qed.
 
 End DROE_Share_Blocks_2.

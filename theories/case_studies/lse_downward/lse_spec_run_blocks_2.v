@@ -27,7 +27,7 @@ Section LSE_Run_Blocks_2.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cra ↦ᵣ[th] wcra ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -35,7 +35,7 @@ Section LSE_Run_Blocks_2.
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a lse_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
@@ -46,7 +46,7 @@ Section LSE_Run_Blocks_2.
     (* Block 3: return *)
     focus_block (lse_block ".Llse_run_call") "Hcode_main" of lse_main_blocks at pc_a
       as a_call Ha_call "Hcode" "Hcont".
-    change_pc_to (a_call ^+ 2)%a.
+    change_pc_to (a_call ^+ 2).
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)

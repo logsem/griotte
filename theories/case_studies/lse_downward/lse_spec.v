@@ -22,12 +22,12 @@ Section LSE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -52,19 +52,19 @@ Section LSE.
     :
 
     let imports := lse_main_imports C_f in
-    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp)%a in
-    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a in
+    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp) in
+    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f) in
 
     disjoint_from_shadow pc_b pc_e ->
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
-    (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
+    a_lse_entry_f ∈ₐ [b_lse_exp_tbl, e_lse_exp_tbl) ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code) ->
 
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
@@ -80,17 +80,17 @@ Section LSE.
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a lse_main_code
       ∗ na_inv (tpool th) Nlse (cgp_b ↦ₐ WInt 2)
-      ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-      ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+      ∗ b_lse_exp_tbl ↦ₐ□ Cap RX Global pc_b pc_e pc_b
+      ∗ a_lse_exp_tbl_cgp ↦ₐ□ Cap RW Global cgp_b cgp_e cgp_b
       ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
       ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ cra ↦ᵣ[th] thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+      ∗ regs[th] rmap
 
       (* initial memory layout *)
       ∗ world_interp W0 C
@@ -101,9 +101,9 @@ Section LSE.
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0
-      ∗ interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     (* Outline of the proof:
        - [lse_world_call]: revoke the world, to get the stack frame;

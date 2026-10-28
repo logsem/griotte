@@ -22,12 +22,12 @@ Section CMDC_Halt_Blocks_5.
 
   Lemma cmdc_return_spec
     (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code) ->
     cstk.(cstk_frames) = [] ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_return")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_return")%a ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cra ↦ᵣ[th] wcra ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -35,7 +35,7 @@ Section CMDC_Halt_Blocks_5.
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a cmdc_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (HsubBounds Hframes)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2

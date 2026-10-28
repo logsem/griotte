@@ -59,7 +59,7 @@ Section HTS_Layout.
     {allocwf : allocatorLayoutWf}.
 
   Lemma hts_export_tbl_not_shadow a :
-    (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a ->
+    a ∈ₐ [allocator_exp_tbl_b, allocator_exp_tbl_e) ->
     is_shadow_address a = false.
   Proof.
     intros Ha. apply not_true_is_false; intros Hshadow.
@@ -141,7 +141,7 @@ Section HTS_Layout.
 
   (** Heap addresses are not shadow addresses. *)
   Lemma hts_heap_not_shadow b :
-    (heap_b <= b < heap_e)%a ->
+    b ∈ₐ [heap_b, heap_e) ->
     is_shadow_address b = false.
   Proof.
     intros Hb. apply not_true_is_false; intros Hshadow.
@@ -182,17 +182,17 @@ Section HTS_States.
 
   (** The persistent invariants and facts used by every segment. *)
   Definition hts_main_ctx : iProp Σ :=
-    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
-    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
-    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
+    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off) in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off) in
     assert_static b_assert e_assert a_flag ∗
     allocator_service_ctx ∗
     allocator_service_static ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
-    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+    allocator_exp_tbl_b ↦ₐ□ Cap RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
+    a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
@@ -208,12 +208,12 @@ Section HTS_States.
 
   (** The imported words, in the order of [hts_main_imports]. *)
   Definition hts_imports : iProp Σ :=
-    pc_b ↦ₐ□ WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
-    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher C_f ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (allocator_malloc Global) ∗
-    (pc_b ^+ 4)%a ↦ₐ□ WSealed ot_switcher (allocator_free Global) ∗
-    (pc_b ^+ 5)%a ↦ₐ□ allocator_capability Global owner_a.
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
+    (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (allocator_malloc Global) ∗
+    (pc_b ^+ 4) ↦ₐ□ WSealed ot_switcher (allocator_free Global) ∗
+    (pc_b ^+ 5) ↦ₐ□ allocator_capability Global owner_a.
 
   (** The memory that every segment returns unchanged: the imports, the
       code, [p] and the owner word of the allocator capability. *)
@@ -230,10 +230,10 @@ Section HTS_States.
       resources that are threaded through every call. *)
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e a_ret ∗
-    (∃ mie, cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e a_ret) ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e a_ret ∗
+    (∃ mie, cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e a_ret) ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e a_stk ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     (∃ w, cs1 ↦ᵣ[th] w) ∗
     ◯(CSTK)[th] cstk ∗
@@ -243,14 +243,14 @@ Section HTS_States.
   Definition hts_zero_regs : iProp Σ :=
     ∃ rmap : LReg,
       ⌜dom rmap = all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝ ∗
-      ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = WInt 0⌝).
+      regs₀[th] rmap.
 
   (** Enough to run a failing result check at [a], and to return through the
       switcher's return sentry saved in [cs0], at the thread's entry call
       stack: [ca0] holds the integer error code [z]. *)
   Definition hts_halt_ready (a : Addr) (z : Z) : iProp Σ :=
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e a ∗
     ca0 ↦ᵣ[th] WInt z ∗
     (∃ w, ct0 ↦ᵣ[th] w) ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
@@ -265,7 +265,7 @@ Section HTS_States.
       and the buffer [b] of [ι] is allocated and [Permanent]. *)
   Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
     <s[LHeap b ι := Permanent]s>
-      (heap_std_update (revoke W_init_C) (heap_allocate ∅ ι b (b ^+ 1)%a)).
+      (heap_std_update (revoke W_init_C) (heap_allocate ∅ ι b (b ^+ 1))).
 
   (** The world after freeing [ι] in the revoked world [Wret]. *)
   Definition hts_Wfree (Wret : WORLD) (ι : AId) : WORLD :=
@@ -279,14 +279,13 @@ Section HTS_States.
       ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
-      [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ
-        [[region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)]] ∗
+      [[ csp_b , stk_start_a csp_b csp_e ]] ↦ₐ [[ 0…0 ]] ∗
       world_interp (revoke W_init_C) C ∗
       StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W_init_C) (finz.seq_between csp_b csp_e)⌝ ∗
       interp_continuation cstk Ws Cs ∗
       allocator_owner_id hts_main_owner_id {[ι]} ∗
-      alloc_obj ι b (b ^+ 1)%a ∗
+      alloc_obj ι b (b ^+ 1) ∗
       free_right ι ∗
       b ↦ₕ[ι] WInt 0.
 
@@ -308,21 +307,21 @@ Section HTS_States.
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
-          (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) Temporary) Wret⌝ ∗
+          (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1)%a ∗
+      hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
       (∃ w, ca0 ↦ᵣ[th] w) ∗
       (∃ w, ca1 ↦ᵣ[th] w) ∗
       hts_zero_regs ∗
-      (stk_start_a csp_b csp_e ^+ -1)%a ↦ₐ hts_buffer b @@ ι ∗
-      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1)%a,
-                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)%a]] ↦ₐ [[stk]]) ∗
+      (stk_start_a csp_b csp_e ^+ -1) ↦ₐ hts_buffer b @@ ι ∗
+      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
+                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
       world_interp (revoke Wret) C ∗
-      StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) ∗
-      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗
       interp_continuation cstk Ws Cs ∗
       allocator_owner_id hts_main_owner_id {[ι]} ∗
-      alloc_obj ι b (b ^+ 1)%a ∗
+      alloc_obj ι b (b ^+ 1) ∗
       free_right ι.
 
   (** Successful free: [ι] is quarantined, its world entry is still open. *)
@@ -330,19 +329,19 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
-      ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1)%a AllocObjectLive)⌝ ∗
+      ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1) AllocObjectLive)⌝ ∗
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
-      hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1)%a ∗
+      hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
-      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1)%a,
-                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)%a]] ↦ₐ [[stk]]) ∗
+      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
+                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
       sts_state_std C (LHeap b ι) Permanent ∗
-      StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a) ∗
-      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a)⌝ ∗
+      StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
+      ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗
       interp_continuation cstk Ws Cs ∗
       ι ⊒ AQuar.
 
@@ -355,7 +354,7 @@ Section HTS_States.
   (** Return from the second adversary call: only [p] and the code are
       needed for the assertion. *)
   Definition hts_adv2_ret : iProp Σ :=
-    hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (stk_start_a csp_b csp_e ^+ -1)%a ∗
+    hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (stk_start_a csp_b csp_e ^+ -1) ∗
     hts_zero_regs.
 
 End HTS_States.

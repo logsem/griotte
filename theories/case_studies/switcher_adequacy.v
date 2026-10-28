@@ -19,20 +19,20 @@ Section helpers_switcher_adequacy.
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) (b_tbl b_pcc e_pcc b_cgp e_cgp : Addr) (eh ehs : Z)
     (args minstk off : nat) :
-    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_heap b_cgp e_cgp ->
     na_inv (tpool th) Ntstack trusted_stack_inv
     ⊢ switcher_static -∗
-    b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
-    a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
-    b_tbl ↦ₕ□{stackful} eh -∗
-    b_tbl ↦ₕ□{stackless} ehs -∗
-    interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
-    interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
+    b_tbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₑ□{stackful} eh -∗
+    b_tbl ↦ₑ□{stackless} ehs -∗
+    interp W C (Cap RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (Cap RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
     ⌜related_sts_priv_world W W'⌝
     → ▷ execute_entry_point b_tbl
-        (WCap true RX Global b_pcc e_pcc (b_pcc ^+ off)%a) (WCap true RW Global b_cgp e_cgp b_cgp)
+        (Cap RX Global b_pcc e_pcc (b_pcc ^+ off)) (Cap RW Global b_cgp e_cgp b_cgp)
         args minstk W' C.
   Proof.
     intros a_tbl_cgp Hcgp_heap.
@@ -43,8 +43,8 @@ Section helpers_switcher_adequacy.
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The PCC and the CGP of the table are safe in every private future world *)
     iAssert (□ ∀ W', ⌜related_sts_priv_world W W'⌝ →
-               interp W' C (WCap true RX Global b_pcc e_pcc b_pcc) ∗
-               interp W' C (WCap true RW Global b_cgp e_cgp b_cgp))%I
+               interp W' C (Cap RX Global b_pcc e_pcc b_pcc) ∗
+               interp W' C (Cap RW Global b_cgp e_cgp b_cgp))%I
       as "#Hinterp_tbl".
     { iIntros "!>" (W' Hrelated).
       iSplit.
@@ -110,29 +110,29 @@ Section helpers_switcher_adequacy.
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
     (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) :
     let b_tbl := tf_export_tbl_b ef in
-    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp)%a in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_heap b_cgp e_cgp →
     ef.(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     (∀ r, is_Some (regs !! r)) →
-    regs !! cgp = Some (lword_of_word (WCap true RW Global b_cgp e_cgp b_cgp)) →
+    regs !! cgp = Some (lword_of_word (Cap RW Global b_cgp e_cgp b_cgp)) →
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
-    b_tbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc -∗
-    a_tbl_cgp ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp -∗
-    b_tbl ↦ₕ□{stackful} eh -∗
-    b_tbl ↦ₕ□{stackless} ehs -∗
-    interp W C (WCap true RX Global b_pcc e_pcc b_pcc) -∗
-    interp W C (WCap true RW Global b_cgp e_cgp b_cgp) -∗
+    b_tbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₑ□{stackful} eh -∗
+    b_tbl ↦ₑ□{stackless} ehs -∗
+    interp W C (Cap RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (Cap RW Global b_cgp e_cgp b_cgp) -∗
     entry_stack_interp interp W C ef -∗
-    PC ↦ₚ[th] WCap true RX Global b_pcc e_pcc a_pc -∗
+    PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
     registers_pointsto regs -∗
     world_interp W C -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] (entry_cstack ef) -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
     iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
@@ -189,19 +189,19 @@ Section helpers_switcher_adequacy.
     let e_pcc := (cmpt_e_pcc C_cmpt) in
     let b_cgp := (cmpt_b_cgp C_cmpt) in
     let e_cgp := (cmpt_e_cgp C_cmpt) in
-    (entries_etbl <= a_etbl < e_etbl)%a
+    (a_etbl ∈ₐ [entries_etbl, e_etbl))
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
     → na_inv (tpool th) Ntstack trusted_stack_inv
     ⊢ switcher_static
-    -∗ b_etbl ↦ₐ□ WCap true RX Global b_pcc e_pcc b_pcc
-    -∗ b_etbl1 ↦ₐ□ WCap true RW Global b_cgp e_cgp b_cgp
-    -∗ b_etbl ↦ₕ□{stackful} eh
-    -∗ b_etbl ↦ₕ□{stackless} ehs
+    -∗ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
+    -∗ b_etbl1 ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp
+    -∗ b_etbl ↦ₑ□{stackful} eh
+    -∗ b_etbl ↦ₑ□{stackless} ehs
     -∗ a_etbl ↦ₐ□ WInt (encode_entry_point posture args minstk off)
-    -∗ interp W C (WCap true RX Global b_pcc e_pcc b_pcc)
-    -∗ interp W C (WCap true RW Global b_cgp e_cgp b_cgp)
-    -∗ ot_switcher_prop W C (WCap true RO g_etbl b_etbl e_etbl a_etbl).
+    -∗ interp W C (Cap RX Global b_pcc e_pcc b_pcc)
+    -∗ interp W C (Cap RW Global b_cgp e_cgp b_cgp)
+    -∗ ot_switcher_prop W C (Cap RO g_etbl b_etbl e_etbl a_etbl).
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
@@ -215,7 +215,7 @@ Section helpers_switcher_adequacy.
     assert (Z.of_nat minstk8 < 256)%Z as Hminstk8_lt.
     { subst minstk8. rewrite Z2Nat.id; [apply Z.mod_pos_bound; lia|]. apply Z.mod_pos_bound; lia. }
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hetbl_entry".
-    assert ((cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp)%a = cmpt_exp_tbl_cgp C_cmpt)
+    assert (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp = cmpt_exp_tbl_cgp C_cmpt)
       as Hcgp_addr.
     { pose proof (cmpt_exp_tbl_pcc_size C_cmpt) as Hsize. solve_addr+Hsize. }
     iExists _,_,_,_, b_pcc, e_pcc, b_cgp, e_cgp, args, minstk8, off, posture, eh, ehs.

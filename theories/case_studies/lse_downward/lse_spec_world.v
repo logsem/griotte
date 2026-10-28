@@ -32,7 +32,7 @@ Section LSE_World.
   Implicit Types C : CmptName.
 
   Lemma lse_world_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
     ={⊤}=∗
@@ -60,7 +60,7 @@ Section LSE_World.
   Qed.
 
   Lemma lse_world_f W0 C (csp_b csp_e : Addr) :
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     world_interp W0 C
     ={⊤}=∗
     ∃ (l : list LAddr) stk_mem,

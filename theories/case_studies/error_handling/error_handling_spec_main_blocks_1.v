@@ -31,40 +31,40 @@ Section Error_Handling_Main_Blocks_1.
     (wctp wct1 wcra wcs0 : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] wcs0 ∗
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 2)%a ↦ₐ□ WSealed ot_switcher adv_f ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher adv_f ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        ctp ↦ᵣ[th] main_switcher_entry ∗
+    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher adv_f ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
         cs0 ↦ᵣ[th] wcra ∗
         codefrag_pers pc_a error_handling_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
       "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
-    rewrite /main_switcher_entry.
+    rewrite /switcher_entry_call.
 
     (* Block 0: fetch the entry point of the switcher *)
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-              (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+              switcher_entry_call
               with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; offsets_compute; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hctp & _ & _)".
     iEval (cbn) in "Hctp".
@@ -90,7 +90,7 @@ Section Error_Handling_Main_Blocks_1.
     (* Jalr cra ctp *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 2)%a = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
+    assert (a_call ^+ 2 = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.
@@ -101,25 +101,25 @@ Section Error_Handling_Main_Blocks_1.
     (wca0 wctp wct1 wcra : LWord) :
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cra ↦ᵣ[th] wcra ∗
-    pc_b ↦ₐ□ main_switcher_entry ∗
-    (pc_b ^+ 3)%a ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_e ∗
-        ctp ↦ᵣ[th] main_switcher_entry ∗
+    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_e ∗
+        ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher (STATS_read Global) ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
         codefrag_pers pc_a error_handling_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
@@ -129,7 +129,7 @@ Section Error_Handling_Main_Blocks_1.
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
-    rewrite /main_switcher_entry.
+    rewrite /switcher_entry_call.
 
     (* Block 3: the capability of [x], one past its end *)
     focus_block (main_block ".Lmain_ret_adv") "Hcode_main" of error_handling_main_blocks
@@ -144,11 +144,11 @@ Section Error_Handling_Main_Blocks_1.
       at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-              (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+              switcher_entry_call
               with "[- $HPC $Hctp $Hcode]"); eauto using switcher_call_sentry_not_heap.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; offsets_compute; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hctp & _ & _)".
     iEval (cbn) in "Hctp".
@@ -172,7 +172,7 @@ Section Error_Handling_Main_Blocks_1.
     (* Jalr cra ctp *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 1)%a = (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a) as ->
+    assert (a_call ^+ 1 = (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

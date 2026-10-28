@@ -651,7 +651,7 @@ Section SO_World_Object.
     }
     set (W2 := close_list (addr_key π <$> temps) W1).
 
-    iAssert (interp W2 C (WCap true p g b e (finz.max b e) @@? π))%I
+    iAssert (interp W2 C (Cap p g b e (finz.max b e) @@? π))%I
       as "#Hinterp_wca0_W2".
     { iEval (rewrite interp_unfold interp1_eq).
       iEval (rewrite interp_unfold interp1_eq) in "Hinterp_wca0_W0".
@@ -730,7 +730,7 @@ Section SO_World_Object.
     readAllowed p = true ->
     (t = true ∨ (e <= b)%a) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
-    interp W0 C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WCap t p g b e a @@? π) -∗
     world_interp W0 C -∗
     £ 1

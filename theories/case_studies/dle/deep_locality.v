@@ -23,8 +23,8 @@ Section DLE_Main.
      pc  := (RX, Global, b_main, e_main, b_main_code)
      cgp := (RW, Global, b, e, b)
 
-     b_main + 0 : WSentry FwdDisable true XSRW_ b_switcher e_switcher a_cc_switcher
-     b_main + 1 : WSentry Inherit true RX b_assert e_assert a_assert
+     b_main + 0 : Sentry FwdDisable XSRW_ b_switcher e_switcher a_cc_switcher
+     b_main + 1 : Sentry Inherit RX b_assert e_assert a_assert
      b_main + 2 : WSealed ot_switcher B.f
 
    *)
@@ -113,8 +113,8 @@ Section DLE_Main.
   Definition dle_main_imports `{!switcherLayout} `{!assertLayout}
     (B_f : Sealable) : list Word :=
     [
-      WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call;
-      WSentry Inherit true RX Global b_assert e_assert b_assert;
+      switcher_entry_call;
+      assert_entry;
       WSealed ot_switcher B_f
     ].
 

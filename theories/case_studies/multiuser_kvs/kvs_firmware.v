@@ -44,7 +44,7 @@ Definition kvs_firmware `{MP : MachineParameters}
     {| fc_name          := "kvs";
        fc_imports       := [
          ISwitcherCall;
-         FW (WSealRange true (false, true) Global ot_kvs (ot_kvs ^+ 1)%ot ot_kvs)  (* unseal-only key of [ot_kvs] *)
+         FW (SealRange (false, true) Global ot_kvs (ot_kvs ^+ 1) ot_kvs)  (* unseal-only key of [ot_kvs] *)
        ];
        fc_static_sealed := [];
        fc_body          := TrustedBody {|

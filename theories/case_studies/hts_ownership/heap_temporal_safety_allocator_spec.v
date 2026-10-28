@@ -35,7 +35,7 @@ Section Heap_Temporal_Safety_Allocator.
     (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId) :
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt 1)) ->
     allocator_service_ctx ∗
@@ -47,8 +47,8 @@ Section Heap_Temporal_Safety_Allocator.
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_malloc_pcc_off
-      (WCap true RO Global allocator_exp_tbl_b allocator_exp_tbl_e
-         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a).
+      (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
+         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)).
   Proof.
     intros.
     by apply (allocator_malloc_switcher_spec ∅ g_owner); [lia|..].
@@ -64,11 +64,11 @@ Section Heap_Temporal_Safety_Allocator.
     (p : Perm) (g : Locality) (ι : AId) (ws : list LWord)
     (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId) :
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
     arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
-    arg_rmap !! ca1 = Some (WCap true p g b e a @@ ι) ->
+    arg_rmap !! ca1 = Some (Cap p g b e a @@ ι) ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ⊢
@@ -83,8 +83,8 @@ Section Heap_Temporal_Safety_Allocator.
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
       allocator_free_pcc_off
-      (WCap true RO Global allocator_exp_tbl_b allocator_exp_tbl_e
-         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a)%I.
+      (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
+         (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off))%I.
   Proof. apply allocator_free_switcher_spec. Qed.
 
 End Heap_Temporal_Safety_Allocator.

@@ -37,11 +37,11 @@ Section CMDC_Call_Blocks_2.
     focus_block (cmdc_block l_call) "Hcode_main" of cmdc_main_blocks at pc_a as a_fetch1 Ha_fetch1 "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hctp $Hcode]");
     eauto using switcher_call_sentry_not_heap; try done;
     [offsets_compute; solve_addr|solve_addr|];
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr;
+    replace (pc_b ^+ 0) with pc_b by solve_addr;
     iFrame "Himport_switcher";
     iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)";
     iEval (cbn) in "Hctp";
@@ -62,7 +62,7 @@ Section CMDC_Call_Blocks_2.
     (* Jalr cra ctp *)
     iInstr "Hcode";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
-    assert ((a_call ^+ 1)%a = (pc_a ^+ cmdc_label_offset l_ret)%a) as ->
+    assert (a_call ^+ 1 = pc_a ^+ cmdc_label_offset l_ret) as ->
       by (offsets_compute; solve_addr);
     iApply "Hpost"; iFrame "∗ Hcode_main".
 
@@ -70,23 +70,23 @@ Section CMDC_Call_Blocks_2.
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
     (wctp wct1 wcra : LWord) :
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c))%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c)) ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cra ↦ᵣ[th] wcra ∗
-    pc_b ↦ₐ□ cmdc_switcher_entry ∗
-    (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
+    (pc_b ^+ cmdc_call_import c) ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        ctp ↦ᵣ[th] cmdc_switcher_entry ∗
+    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e
-          (pc_a ^+ cmdc_label_offset (cmdc_return_label c))%a ∗
-        pc_b ↦ₐ□ cmdc_switcher_entry ∗
-        (pc_b ^+ cmdc_call_import c)%a ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+          (pc_a ^+ cmdc_label_offset (cmdc_return_label c)) ∗
+        pc_b ↦ₐ□ switcher_entry_call ∗
+        (pc_b ^+ cmdc_call_import c) ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         codefrag_pers pc_a cmdc_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     destruct c; cbn [cmdc_call_label cmdc_return_label cmdc_call_import cmdc_call_target].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
@@ -95,7 +95,7 @@ Section CMDC_Call_Blocks_2.
       & Hcode_main & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     all: unfold_code cmdc_main_code "Hcode_main".
-    all: rewrite /cmdc_switcher_entry.
+    all: rewrite /switcher_entry_call.
     - (* Call to [B.f], blocks 1-3 *)
       cmdc_call_blocks_proof
         ".Lcmdc_call_B"%string ".Lcmdc_fetch_B_f"%string

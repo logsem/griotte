@@ -47,12 +47,12 @@ Section Error_Handling_Handler.
 
   (** The PCC of [stats], with its cursor at [a]. *)
   Definition stats_pcc (a : Addr) : LWord :=
-    lword_of_word (WCap true RX Global STATS_pcc_b STATS_pcc_e a).
+    lword_of_word (Cap RX Global STATS_pcc_b STATS_pcc_e a).
 
   (** The PCC and CGP of the export table of [stats]. *)
   Definition stats_wpcc : LWord := stats_pcc STATS_pcc_b.
   Definition stats_wcgp : LWord :=
-    lword_of_word (WCap true RW Global STATS_cgp_b STATS_cgp_e STATS_cgp_b).
+    lword_of_word (Cap RW Global STATS_cgp_b STATS_cgp_e STATS_cgp_b).
 
   (** The fault site, [.Lread_load], and the instruction after it,
       [.Lread_release]. *)
@@ -66,7 +66,7 @@ Section Error_Handling_Handler.
     F = ⊤ ∖ ↑Nstats ∧
     w = stats_pcc stats_load_addr ∧
     (∀ r, is_Some (rfault !! r)) ∧
-    (∃ (g : Locality) (b e a : Addr), rfault !!! csp = lword_of_word (WCap true RWL g b e a)) ∧
+    (∃ (g : Locality) (b e a : Addr), rfault !!! csp = lword_of_word (Cap RWL g b e a)) ∧
     rfault !!! cgp = stats_wcgp ∧
     jalr_target_ok cnull cra (rfault !!! cra).(lw) = true.
 
@@ -75,7 +75,7 @@ Section Error_Handling_Handler.
   Definition stats_saved_cap (rfault : LReg) (v : Z) (r : RegName)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) : Prop :=
     reg_index r = mtval_reg_field v ∧
-    rfault !! r = Some (MkLWord (WCap true p g b e a) π).
+    rfault !! r = Some (MkLWord (Cap p g b e a) π).
 
   (** The base [b] lies outside the [ErrorState] slot, the
       [ErrorState_size] words below the cursor of the faulting [csp]. *)
@@ -108,7 +108,7 @@ Section Error_Handling_Handler.
       ⌜stats_saved_cap rfault v r p g b e a π⌝ -∗
       ⌜(b < e)%a⌝ -∗
       ⌜stats_outside_slot rfault b⌝ -∗
-      ⌜lload_heap (MkLWord (WCap true p g b e a) π) w⌝ -∗
+      ⌜lload_heap (MkLWord (Cap p g b e a) π) w⌝ -∗
       STATS_cgp_b ↦ₐ WInt 1 -∗
       error_state_area rfault -∗
       context_resume F (cstack_set_top_count cstk (top_error_count cstk + 2))
@@ -284,7 +284,7 @@ Section Error_Handling_Handler.
   (** The resumed PC, from the untouched word 0 of the [ErrorState]: the
       faulting load. *)
   Lemma stats_resumed_pc_load :
-    llegalise MEPCC
+    llegalise mepcc
       (resumed_pc stats_wpcc (get_a (lclear_tag (lmepcc_of_pc (stats_pcc stats_load_addr))).(lw))) =
     stats_pcc stats_load_addr.
   Proof.
@@ -303,13 +303,13 @@ Section Error_Handling_Handler.
   (** The slot test of block 6, from the faulting [csp]: the slot starts at
       [a16], [ErrorState_size] below its cursor. *)
   Lemma stats_outside_slot_base (rfault : LReg) (g : Locality) (b e a a16 b' : Addr) :
-    rfault !!! csp = lword_of_word (WCap true RWL g b e a) →
+    rfault !!! csp = lword_of_word (Cap RWL g b e a) →
     (a + - ErrorState_size)%a = Some a16 →
     stats_outside_slot rfault b' ↔ stats_base_outside a16 b'.
   Proof.
     intros Hcsp Ha16. rewrite /stats_outside_slot Hcsp /= /stats_base_outside.
     rewrite /ErrorState_size in Ha16 |- *.
-    assert ((a ^- 16)%f = a16) as -> by solve_addr.
+    assert (a ^- 16 = a16) as -> by solve_addr.
     split; (intros [Hb' | Hb']; [left | right]); solve_addr.
   Qed.
 
@@ -333,7 +333,7 @@ Section Error_Handling_Handler.
     ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
     na_own (tpool th) F -∗
     ▷ unwind_cont F cstk (error_state_area rfault ∗ stats_inv) -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+    safe[th].
   Proof.
     iIntros (Hfull Hcra Hcgp) "#Hstatic #Hcode_stats HPC Hregs Hlock Harea Hcstk Hna HU".
     destruct (Hfull ca0) as [wca0 Hca0].
@@ -387,9 +387,9 @@ Section Error_Handling_Handler.
     destruct (a + - ErrorState_size)%a as [a16|] eqn:Ha16; last done.
     cbn in Hsr. injection Hsr as <- <-.
     rewrite /error_state_stores_ok Hcsp_f /= in Hstores. destruct Hstores as (_ & Hb_a & Ha_e).
-    assert ((a ^+ (- ErrorState_size))%a = a16) as Ha_a16.
+    assert (a ^+ (- ErrorState_size) = a16) as Ha_a16.
     { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
-    assert ((a16 ^+ ErrorState_size)%a = a) as Ha16_a.
+    assert (a16 ^+ ErrorState_size = a) as Ha16_a.
     { rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
     rewrite /error_state_shadow_free Hcsp_f /= Ha_a16 -Ha16_a in Hshadow.
     iEval (rewrite /error_state_pointsto Hcsp_f /= Ha_a16 -Ha16_a) in "Hes".
@@ -412,7 +412,7 @@ Section Error_Handling_Handler.
     set (ws := error_state_words RWL (stats_pcc stats_load_addr) rfault).
     (* The [ErrorState] slot, for the unwind *)
     iAssert (∀ ws', ⌜length ws' = Z.to_nat ErrorState_size⌝ -∗
-                    [[ a16 , (a16 ^+ ErrorState_size)%a ]] ↦ₐ [[ ws' ]] -∗
+                    [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws' ]] -∗
                     error_state_area rfault)%I as "Harea_of".
     { iIntros (ws' Hws') "Hws'". rewrite /error_state_area Hcsp_f /= Ha_a16 -Ha16_a.
       iExists ws'. by iFrame. }
@@ -445,7 +445,7 @@ Section Error_Handling_Handler.
     pose proof Hrep as (_ & _ & Hrange).
     assert (r ≠ cnull) as Hr_cnull.
     { intros ->. rewrite reg_index_cnull in Hidx. rewrite /TrustedStack_offset_cra in Hrange. lia. }
-    assert (ws !! Z.to_nat (mtval_reg_field mtval) = Some (MkLWord (WCap true p g' b' e' a') π))
+    assert (ws !! Z.to_nat (mtval_reg_field mtval) = Some (MkLWord (Cap p g' b' e' a') π))
       as Hws_r.
     { rewrite -Hidx /ws error_state_words_index // lstore_word_isWL //.
       by rewrite (lookup_total_correct _ _ _ Hr). }
@@ -501,7 +501,7 @@ Section Error_Handling_Handler.
     assert (∀ r', is_Some (rmap !! r')) as Hfull_rmap.
     { intros r'. apply elem_of_dom. rewrite /rmap !dom_insert_L ?dom_delete_L Hdom_regs.
       pose proof (all_registers_s_correct r'). set_solver. }
-    assert (rmap !!! csp = lword_of_word (WCap true RWL g b e a16)) as Hcsp_rmap.
+    assert (rmap !!! csp = lword_of_word (Cap RWL g b e a16)) as Hcsp_rmap.
     { rewrite /rmap lookup_total_alt. by simplify_map_eq. }
     set (ws' := <[Z.to_nat (mtval_reg_field mtval) := stats_repair_word wrep]> ws).
 

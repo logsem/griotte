@@ -51,7 +51,7 @@ Section CMDC_World.
     ={⊤}=∗
     world_interp W' C ∗
     rel C (LNonHeap a) RW interp_in_memC ∗
-    interp W' C (WCap true RW Global a a_e a) ∗
+    interp W' C (Cap RW Global a a_e a) ∗
     interp W' C (WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
     ⌜ revoked_addresses W' stk ⌝ ∗
@@ -99,7 +99,7 @@ Section CMDC_World.
           change (is_heap_address a = true) in Hr; congruence. }
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons a); last solve_addr.
-      rewrite (finz_seq_between_empty (a ^+ 1)%a); last solve_addr+Ha_e.
+      rewrite (finz_seq_between_empty (a ^+ 1)); last solve_addr+Ha_e.
       iApply big_sepL_singleton.
       rewrite addr_key_None.
       iExists RW, (interp_in_mem RWL).

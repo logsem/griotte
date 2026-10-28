@@ -111,43 +111,43 @@ Section Checkints_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
-    let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2))%a in
+    let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2)) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
-    (b <= a < e)%a ->
+    a ∈ₐ [b, e) ->
     readAllowed p = true ->
     disjoint_from_shadow b e →
     Forall (λ w,
-              (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ (b <= a' < a)%a ))
+              (∃ k, ws !! k = Some w ∧ (∃ a', l !! k = Some a' ∧ a' ∈ₐ [b, a) ))
               ->
               ∃ z, w.(lw) = WInt z) ws ->
     r ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ (WCap true p g b e a @@? π)
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ (Cap p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints_loop
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
-           ∗ r ↦ᵣ WCap true p g b e (finz.max b e) @@? π
+    ∗ ( ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
+           ∗ r ↦ᵣ Cap p g b e (finz.max b e) @@? π
            ∗ r1 ↦ᵣ WInt 0%Z
            ∗ r2 ↦ᵣ WInt e%Z
            ∗ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
            ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
            ∗ codefrag_pers pc_a checkints_loop
-           -∗ WP Seq (Instr Executable) {{ φ }}
+           -∗ WP Exec {{ φ }}
           ) ∧
-        ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
-          (∃ a_r, r ↦ᵣ WCap true p g b e a_r @@? π) ∗
+        ( ∀ a_f, ⌜a_f ∈ₐ [pc_a, a_last)⌝ -∗
+          (∃ a_r, r ↦ᵣ Cap p g b e a_r @@? π) ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - ∗
           ( [∗ list] a;v ∈ l;ws, a ↦ₐ v ) -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
-    ⊢ WP Seq (Instr Executable) {{ v, φ v }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
+    ⊢ WP Exec {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
@@ -201,7 +201,7 @@ Section Checkints_spec.
     (* A heap load may clear a tag or fail. Neither outcome can turn a
        noninteger into an integer accepted by the check below. *)
     (* CLoad r1 r 0 *)
-    iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1)%a)
+    iInstrApply "Hcode" (wp_load_preserve_or_clear _ _ _ _ _ _ _ (pc_a ^+ 1))
       with "[$HPC $Hr1 $Hr $Ha]"
       as (ret) "[(-> & HPC & Hr1 & Hr & Ha) | (%actualv & -> & %Hactual & HPC & Hr1 & Hr & Ha)]".
     { solve_addr. }
@@ -234,17 +234,17 @@ Section Checkints_spec.
 
     focus_block 2 "Hcode_main" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear Ha_checkint a_checkint.
     iInstr "Hcode".
-    { transitivity (Some (a^+1)%a); auto; solve_addr. }
+    { transitivity (Some (a^+1)); auto; solve_addr. }
     iInstr "Hcode".
     iInstr "Hcode".
     iInstr "Hcode".
     destruct (decide ((a + 1%nat)%Z < e)%Z) as [Hae' | Hae']; cycle 1.
-    - replace (a ^+ 1)%a with e by solve_addr.
+    - replace (a ^+ 1) with e by solve_addr.
       replace (e <? e)%Z with false by solve_addr.
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       replace (finz.max b e) with e by solve_addr.
-      replace (a_cond ^+ 5)%a with (pc_a ^+ length (checkints_loop_instrs r r1 r2))%a by solve_addr.
+      replace (a_cond ^+ 5) with (pc_a ^+ length (checkints_loop_instrs r r1 r2)) by solve_addr.
       iDestruct "Hk" as "[Hφ _]".
       iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
       iPureIntro.
@@ -272,7 +272,7 @@ Section Checkints_spec.
         exists f; split; auto.
         apply list_elem_of_lookup_2 in Hk.
         setoid_rewrite Hl in Hk.
-        replace e with (a ^+1)%a in Hk; last solve_addr.
+        replace e with (a ^+1) in Hk; last solve_addr.
         apply elem_of_finz_seq_between in Hk.
         solve_addr.
       + destruct Hraw_int as (z & Hzraw).
@@ -280,7 +280,7 @@ Section Checkints_spec.
         rewrite Hlw1; subst la1.
         rewrite length_take_le; last (eapply Nat.lt_le_incl, lookup_lt_Some; eauto).
         done.
-    - replace ((a ^+ 1)%a <? e)%Z with true by solve_addr.
+    - replace ((a ^+ 1) <? e)%Z with true by solve_addr.
       iInstr "Hcode".
       { transitivity (Some pc_a); auto; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -321,18 +321,18 @@ Section Checkints_spec.
     (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : language.val griotte_lang → iPropI Σ) :
     executeAllowed pc_p = true →
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2))%a →
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2)) →
     (b < e)%a →
     r ≠ cnull → r1 ≠ cnull → r2 ≠ cnull →
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
-    ∗ ▷ r ↦ᵣ WCap false p g b e a @@? π
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ Cap⁻ p g b e a @@? π
     ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a (checkints_instrs r r1 r2)
-    ∗ ▷ ( r ↦ᵣ WCap false p g b e b @@? π ∗
+    ∗ ▷ ( r ↦ᵣ Cap⁻ p g b e b @@? π ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)%a) ⊤ φ )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)) ⊤ φ )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & Hfailed)".
@@ -359,7 +359,7 @@ Section Checkints_spec.
     focus_block_0 "Hcode" as "Hcode_loop" "Hcont_loop".
     (* CLoad r1 r 0. *)
     iInstr_fail "Hcode_loop".
-    replace a_loop with (pc_a ^+ checkints_loop_offset)%a
+    replace a_loop with (pc_a ^+ checkints_loop_offset)
       by (rewrite /checkints_loop_offset; cbn in Ha_loop; solve_addr).
     iTrap with "Hfailed".
   Qed.
@@ -372,7 +372,7 @@ Section Checkints_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
-    let a_last := (pc_a ^+ length checkints)%a in
+    let a_last := (pc_a ^+ length checkints) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
@@ -382,13 +382,13 @@ Section Checkints_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ r ↦ᵣ (WCap t p g b e a @@? π)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkints
     ∗ ▷ ( [∗ list] a;v ∈ l;ws, a ↦ₐ v )
-    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ( ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
            ∗ r ↦ᵣ WCap t p g b e (finz.max b e) @@? π
            ∗ r1 ↦ᵣ WInt 0%Z
            ∗ r2 ↦ᵣ WInt 0%Z
@@ -396,15 +396,15 @@ Section Checkints_spec.
            ∗ ⌜ Forall (λ w, ∃ z, w.(lw) = WInt z) ws ⌝
            ∗ codefrag_pers pc_a checkints
            ∗ £ 2
-           -∗ WP Seq (Instr Executable) {{ φ }}
+           -∗ WP Exec {{ φ }}
           ) ∧
-        ▷ ( ∀ a_f, ⌜(pc_a <= a_f < a_last)%a⌝ -∗
+        ▷ ( ∀ a_f, ⌜a_f ∈ₐ [pc_a, a_last)⌝ -∗
           (∃ a_r, r ↦ᵣ WCap t p g b e a_r @@? π) ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - ∗
           ( [∗ list] a;v ∈ l;ws, a ↦ₐ v ) -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e a_f) ⊤ φ ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
     iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
@@ -439,13 +439,13 @@ Section Checkints_spec.
       apply Z.ltb_nlt in Hbe; rewrite Hbe ; cbn.
       replace (0 - 1%nat)%Z with (-1)%Z by lia.
       iInstr "Hcode".
-      { transitivity (Some (a_init ^+ 16)%a); auto; solve_addr. }
+      { transitivity (Some (a_init ^+ 16)); auto; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       focus_block 3 "Hcode_main" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear Ha_init a_init.
       iInstr "Hcode".
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-      replace (a_end ^+ 2)%a with (pc_a ^+ 24%nat)%a by solve_addr.
+      replace (a_end ^+ 2) with (pc_a ^+ 24%nat) by solve_addr.
       replace (finz.max b e) with b by solve_addr.
       iDestruct "Hk" as "[Hφ _]".
       iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
@@ -480,7 +480,7 @@ Section Checkints_spec.
     iInstr "Hcode".
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    replace (a_end ^+ 2)%a with (pc_a ^+ 24%nat)%a by solve_addr.
+    replace (a_end ^+ 2) with (pc_a ^+ 24%nat) by solve_addr.
     iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
   Qed.
 

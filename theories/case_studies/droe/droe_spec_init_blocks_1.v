@@ -21,30 +21,30 @@ Section DROE_Init_Blocks_1.
   Lemma droe_init_blocks_1_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (wca0 wct0 wct1 wct2 : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code) ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     cgp_b ↦ₐ WInt 0 ∗
-    (cgp_b ^+ 1)%a ↦ₐ WInt 0 ∗
+    (cgp_b ^+ 1) ↦ₐ WInt 0 ∗
     codefrag_pers pc_a droe_main_code ∗
-    ▷ ( PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ[th] WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
+    ▷ ( PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_fetch_switcher")%a ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1) ∗
         (∃ w, ct0 ↦ᵣ[th] w) ∗
         (∃ w, ct1 ↦ᵣ[th] w) ∗
         (∃ w, ct2 ↦ᵣ[th] w) ∗
         cgp_b ↦ₐ WInt 42 ∗
-        (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b ∗
+        (cgp_b ^+ 1) ↦ₐ Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b ∗
         codefrag_pers pc_a droe_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio [Hcgp_nonheap Hcgp_heap])
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hct2 & Hcgp_b & Hcgp_a & Hcode_main & Hpost)".
@@ -64,12 +64,12 @@ Section DROE_Init_Blocks_1.
     iInstr "Hcode".
     (* Subseg ct0 ct0 ct1 ct2 *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+    { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
     { solve_addr. }
     { solve_addr. }
     (* Lea cgp cgp 1%Z *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
+    { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
     (* [iInstr] does not find the resources of this store *)
     (* Store cgp ct0 0 *)
@@ -85,13 +85,13 @@ Section DROE_Init_Blocks_1.
     { transitivity (Some cgp_b); auto; solve_addr. }
     (* Add ct1 ct2 1%Z *)
     iInstr "Hcode".
-    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap
+    assert (is_heap_address (cgp_b ^+ 1) = false) as Hcgp1_nonheap
       by solve_not_heap Hcgp_heap.
     clear Hcgp_nonheap.
     (* Subseg ca0 ca0 ct2 ct1 *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1)%a); auto; solve_addr. }
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
+    { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
+    { transitivity (Some (cgp_b ^+ 2)); auto; solve_addr. }
     { solve_addr. }
     { solve_addr. }
     (* Restrict ca0 ca0 (encodePermPair (RO_DRO, Global)) *)

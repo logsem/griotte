@@ -31,9 +31,9 @@ Section LSE_F_Blocks_1.
     (* The stack frame holds the pushed capability, below the space reserved
        at the top of the stack *)
     (csp_b + 1 + StackEntry_reserved_space <= csp_e)%Z ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -42,9 +42,9 @@ Section LSE_F_Blocks_1.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     codefrag_pers pc_a lse_main_code ∗
     ▷ (∀ stk_mem' wcs0' wcs1',
-        PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
+        PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
         cgp ↦ᵣ[th] lse_a_cap cgp_b ∗
-        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+        csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ct0 ↦ᵣ[th] WInt 2 ∗
         ct1 ↦ᵣ[th] WInt 2 ∗
         cs0 ↦ᵣ[th] wcs0' ∗
@@ -52,8 +52,8 @@ Section LSE_F_Blocks_1.
         cgp_b ↦ₐ WInt 2 ∗
         [[csp_b, csp_e]] ↦ₐ [[stk_mem']] ∗
         codefrag_pers pc_a lse_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hcgp_nonheap Hstk_mmio Hcsp_size)
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1
@@ -71,7 +71,7 @@ Section LSE_F_Blocks_1.
     iInstr "Hcode".
     (* Subseg cgp cgp cs0 cs1 *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 1%nat)%a); [solve_addr+Hcgp_bounds|reflexivity]. }
+    { transitivity (Some (cgp_b ^+ 1%nat)); [solve_addr+Hcgp_bounds|reflexivity]. }
     { solve_addr+Hcgp_bounds. }
     { solve_addr+Hcgp_bounds. }
     unfold StackEntry_reserved_space in Hcsp_size.
@@ -84,10 +84,10 @@ Section LSE_F_Blocks_1.
       first solve_addr+Hcsp_size Hstart.
     iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem2 w_res2 ->) "[Hstk Hres2]";
       first solve_addr+Hcsp_size Hstart.
-    replace ((csp_e ^+ -1) ^+ -1)%a with a_start by solve_addr+Hcsp_size Hstart.
+    replace ((csp_e ^+ -1) ^+ -1) with a_start by solve_addr+Hcsp_size Hstart.
     iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem' w_top ->) "[Hstk Ha_stk]";
       first exact Hcsp_lt.
-    assert ((a_start + -1)%a = Some (a_start ^+ -1)%a) as Hcsp_top
+    assert ((a_start + -1)%a = Some (a_start ^+ -1)) as Hcsp_top
       by solve_addr+Hcsp_lt.
     (* Store csp cgp (-1) *)
     iInstr "Hcode".
@@ -102,23 +102,23 @@ Section LSE_F_Blocks_1.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iAssert ([[csp_e, csp_e]] ↦ₐ [[ [] ]])%I as "Hstk_nil".
     { rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr]. }
-    iDestruct (region_pointsto_cons (csp_e ^+ -1)%a csp_e csp_e
+    iDestruct (region_pointsto_cons (csp_e ^+ -1) csp_e csp_e
       with "[$Hres1 $Hstk_nil]") as "Hres_top".
     { solve_addr+Hcsp_size Hstart. }
     { solve_addr. }
-    iDestruct (region_pointsto_cons a_start (csp_e ^+ -1)%a csp_e
+    iDestruct (region_pointsto_cons a_start (csp_e ^+ -1) csp_e
       with "[$Hres2 $Hres_top]") as "Hres".
     { solve_addr+Hcsp_size Hstart. }
     { solve_addr+Hcsp_size Hstart. }
-    iDestruct (region_pointsto_cons (a_start ^+ -1)%a a_start csp_e
+    iDestruct (region_pointsto_cons (a_start ^+ -1) a_start csp_e
       with "[$Ha_stk $Hres]") as "Ha_stk".
     { solve_addr+Hcsp_size Hstart. }
     { solve_addr+Hcsp_size Hstart. }
-    iDestruct (region_pointsto_split_r csp_b csp_e (a_start ^+ -1)%a
+    iDestruct (region_pointsto_split_r csp_b csp_e (a_start ^+ -1)
       with "[$Hstk $Ha_stk]") as "Hstk".
     { solve_addr+Hcsp_size Hstart. }
     { rewrite /finz.dist. cbn. solve_addr+Hcsp_size Hstart. }
-    assert ((a_f ^+ 6)%a = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
+    assert (a_f ^+ 6 = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
       by (offsets_compute; solve_addr).
     subst a_start.
     iApply "Hpost"; iFrame "∗ Hcode_main".

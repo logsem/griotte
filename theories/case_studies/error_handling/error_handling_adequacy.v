@@ -105,7 +105,7 @@ Section error_handling_obligations.
     set (adv_f := SCap true RO Global (cmpt_exp_tbl_pcc adv_cmpt)
                     (cmpt_exp_tbl_entries_end adv_cmpt)
                     (cmpt_exp_tbl_pcc adv_cmpt
-                       ^+ ExportTable_offset_entry error_handling_adv_entry)%a).
+                       ^+ ExportTable_offset_entry error_handling_adv_entry)).
     assert (cmpt_export_sb (cmpt_of img "adv") error_handling_adv_entry = adv_f) as Hsb_adv.
     { by rewrite /cmpt_export_sb /adv_f /=. }
     assert (cmpt_imports main_cmpt = error_handling_main_imports adv_f) as main_imports'.
@@ -280,7 +280,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem error_handling_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   error_handling_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

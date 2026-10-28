@@ -29,12 +29,12 @@ Section KVS_spec_addOrUpdate.
 
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
-    SubBounds KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr (kvs_addOrUpdate_pcc_addr ^+ length kvs_addOrUpdate_instrs)%a ->
+    SubBounds KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr (kvs_addOrUpdate_pcc_addr ^+ length kvs_addOrUpdate_instrs) ->
     (KVS_cgp_b + length kvs_data)%a = Some KVS_cgp_e ->
 
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
     is_uint16 nkey ->
 
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, wnkey)) ->
@@ -43,8 +43,8 @@ Section KVS_spec_addOrUpdate.
 
     ((* initial register file *)
 
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -55,7 +55,7 @@ Section KVS_spec_addOrUpdate.
 
       (* initial memory layout *)
       codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
-      (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+      (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
@@ -72,14 +72,14 @@ Section KVS_spec_addOrUpdate.
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
-          (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+          (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
           is_physical_kvs KVS_cgp_b (<[idx := Some (fkey, lstore_word RW wca2)]> pkvs)
 
-          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+          -∗ safe[th]
         ) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -139,7 +139,7 @@ Section KVS_spec_addOrUpdate.
     { apply nonZero_WInt; injection; intros; lia. }
     (* Lea cgp cgp 2 *)
     iInstr "Hcode".
-    { transitivity ( Some ((KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2))%a) ); last done; solve_addr+Hcgp_idx. }
+    { transitivity ( Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2)) ); last done; solve_addr+Hcgp_idx. }
     iPoseProof deref_res_none as "-#Hdw".
     (* Store cgp (inr ca2) 0 *)
     iInstrApply "Hcode" rules_Store.wp_store_success_reg_store_word
@@ -172,11 +172,11 @@ Section KVS_spec_addOrUpdate.
 
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
 
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
     is_uint16 nkey ->
 
     is_Some (m !! nkey) ->
@@ -189,8 +189,8 @@ Section KVS_spec_addOrUpdate.
 
       (* initial register file *)
 
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -225,9 +225,9 @@ Section KVS_spec_addOrUpdate.
           is_logical_kvs (<<[ (user_key, nkey):= lstore_word RW wca2 ]>> lkvs) ∗
           user_key ↦(LKVS) (<[ nkey := lstore_word RW wca2 ]> m)
 
-          -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+          -∗ safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -248,10 +248,10 @@ Section KVS_spec_addOrUpdate.
     { by rewrite /length_kvs_data in Hcgp_continuous. }
 
     rewrite /kvs_imports /kvs.kvs_imports_pre.
-    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
-    assert ((KVS_pcc_b ^+ 1)%a <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1) <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
     assert ((KVS_pcc_b ^+ 1 + 1)%a = Some (KVS_pcc_b')%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
-    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)) as HSubBounds.
     { solve_addr. }
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
@@ -301,13 +301,13 @@ Section KVS_spec_addOrUpdate.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     is_Some (m !! nkey) ->
 
@@ -319,8 +319,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -347,9 +347,9 @@ Section KVS_spec_addOrUpdate.
 
           user_key ↦(LKVS) (<[nkey := lstore_word RW wca2]> m)
 
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -384,13 +384,13 @@ Section KVS_spec_addOrUpdate.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
@@ -400,8 +400,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -430,9 +430,9 @@ Section KVS_spec_addOrUpdate.
           user_kvs_inv user_key ∗
           (user_key, nkey) ↦(KVS) (lstore_word RW wca2)
 
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -469,12 +469,12 @@ Section KVS_spec_addOrUpdate.
 
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
-    SubBounds KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr (kvs_addOrUpdate_pcc_addr ^+ length kvs_addOrUpdate_instrs)%a ->
+    SubBounds KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr (kvs_addOrUpdate_pcc_addr ^+ length kvs_addOrUpdate_instrs) ->
     (KVS_cgp_b + length kvs_data)%a = Some KVS_cgp_e ->
 
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
     is_uint16 nkey ->
 
     fkey ∉ kvs_keys pkvs ->
@@ -483,8 +483,8 @@ Section KVS_spec_addOrUpdate.
 
     ((* initial register file *)
 
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -495,7 +495,7 @@ Section KVS_spec_addOrUpdate.
 
       (* initial memory layout *)
       codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
-      (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+      (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
@@ -511,7 +511,7 @@ Section KVS_spec_addOrUpdate.
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
 
           codefrag_pers kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_instrs ∗
-          (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+          (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
 
           (
@@ -531,9 +531,9 @@ Section KVS_spec_addOrUpdate.
               )
           )
            -∗
-           WP Seq (Instr Executable) @[th] {{ HO th }}
+           safe[th]
         ) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -612,7 +612,7 @@ Section KVS_spec_addOrUpdate.
       { solve_addr+Hcgp_bounds. }
       (* lea cgp cgp 1; *)
       iInstr "Hcode".
-      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
+      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".
       (* store cgp ca0; *)
       iInstrApply "Hcode" rules_Store.wp_store_success_reg
@@ -623,7 +623,7 @@ Section KVS_spec_addOrUpdate.
       { solve_addr+Hcgp_bounds. }
       (* lea cgp cgp 1; *)
       iInstr "Hcode".
-      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))%a); solve_addr+ Hidx_empty Hcgp_bounds. }
+      { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))); solve_addr+ Hidx_empty Hcgp_bounds. }
       iPoseProof deref_res_none as "-#Hdw".
       (* store cgp ca2; *)
       iInstrApply "Hcode" rules_Store.wp_store_success_reg_store_word
@@ -682,11 +682,11 @@ Section KVS_spec_addOrUpdate.
 
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
 
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
     is_uint16 nkey ->
 
     m !! nkey = None ->
@@ -698,8 +698,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -745,9 +745,9 @@ Section KVS_spec_addOrUpdate.
               )
           )
           -∗
-          WP Seq (Instr Executable) @[th] {{ HO th }}
+          safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -768,10 +768,10 @@ Section KVS_spec_addOrUpdate.
     { by rewrite /length_kvs_data in Hcgp_continuous. }
 
     rewrite /kvs_imports /kvs.kvs_imports_pre.
-    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
-    assert ((KVS_pcc_b ^+ 1)%a <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1) <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
     assert ((KVS_pcc_b ^+ 1 + 1)%a = Some (KVS_pcc_b')%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
-    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)) as HSubBounds.
     { solve_addr. }
 
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
@@ -824,13 +824,13 @@ Section KVS_spec_addOrUpdate.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     m !! nkey = None ->
 
@@ -842,8 +842,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -879,9 +879,9 @@ Section KVS_spec_addOrUpdate.
                user_key ↦(LKVS) m
              )
          )
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -919,13 +919,13 @@ Section KVS_spec_addOrUpdate.
     :
     let fkey := (kvs_full_key user_key nkey) in
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
 
     is_uint16 nkey ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
@@ -935,8 +935,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
@@ -974,9 +974,9 @@ Section KVS_spec_addOrUpdate.
                (user_key, nkey) ↦(KVS) ⊥
              )
          )
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
@@ -1015,14 +1015,14 @@ Section KVS_spec_addOrUpdate.
     (wca1 : LWord)
     :
 
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs) ->
     ¬ word_is_uint16 wca1.(lw) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     (
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] - ∗
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to addOrUpdate *)
@@ -1037,9 +1037,9 @@ Section KVS_spec_addOrUpdate.
          ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
          codefrag_pers pc_a kvs_addOrUpdate_instrs
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         ) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HsubBounds Hnkey_is_uint16 Htgt)
@@ -1091,7 +1091,7 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] - ∗
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to addOrUpdate *)
@@ -1103,9 +1103,9 @@ Section KVS_spec_addOrUpdate.
          ca0 ↦ᵣ[th] WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ[th] - (* scratch *)
-         -∗ WP Seq (Instr Executable) @[th] {{ HO th }}
+         -∗ safe[th]
         ) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (HE Hnkey_is_uint16 Htgt)
@@ -1115,7 +1115,7 @@ Section KVS_spec_addOrUpdate.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
-    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)) as HSubBounds.
     { solve_addr. }
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
@@ -1137,8 +1137,8 @@ Section KVS_spec_addOrUpdate.
     (nkey : Z) (πnkey : option AId)
     :
 
-    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs)%a ->
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs) ->
     (pc_b + kvs_addOrUpdate_pcc_off)%a = Some pc_a ->
     is_uint16 nkey ->
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
@@ -1146,8 +1146,8 @@ Section KVS_spec_addOrUpdate.
     (cgp_b + length kvs_data)%a = Some cgp_e ->
 
     ((* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
-      cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+      cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to addOrUpdate *)
@@ -1157,7 +1157,7 @@ Section KVS_spec_addOrUpdate.
 
       (* initial memory layout *)
       codefrag_pers pc_a kvs_addOrUpdate_instrs ∗
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
 
       (* The load after the failed unsealing of the user key faults *)
       ▷ ( ∀ a,
@@ -1168,10 +1168,10 @@ Section KVS_spec_addOrUpdate.
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - -∗
-          trap_safe (WCap true RX Global pc_b pc_e a) ⊤
+          trap_safe (Cap RX Global pc_b pc_e a) ⊤
             (HO th) )
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow HsubBounds Hpc_a Hnkey_is_uint16 Hwca0 Hcgp_contiguous)
@@ -1216,7 +1216,7 @@ Section KVS_spec_addOrUpdate.
     (F : coPset)
     :
 
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
 
     is_uint16 nkey ->
     (is_sealed_with_o wca0.(lw) KVS_OTYPE = false \/ get_tag wca0.(lw) = false) ->
@@ -1225,8 +1225,8 @@ Section KVS_spec_addOrUpdate.
       na_own (tpool th) F ∗
 
       (* initial register file *)
-      PC ↦ₚ[th] WCap true RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
-      cgp ↦ᵣ[th] WCap true RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
+      PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
+      cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
       ca0 ↦ᵣ[th] wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to addOrUpdate *)
@@ -1244,10 +1244,10 @@ Section KVS_spec_addOrUpdate.
           ct1 ↦ᵣ[th] - ∗
           ct2 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - -∗
-          trap_safe (WCap true RX Global KVS_pcc_b KVS_pcc_e a) ⊤
+          trap_safe (Cap RX Global KVS_pcc_b KVS_pcc_e a) ⊤
             (HO th) )
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Hnkey_is_uint16 Hwca0)
@@ -1257,13 +1257,13 @@ Section KVS_spec_addOrUpdate.
     pose proof (Hcgp_continuous := KVS_size_data).
     pose proof (HKVS_pcc_b' := KVS_size_imports).
     pose proof (Hcode_continuous := KVS_size_code).
-    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)%a) as HSubBounds.
+    assert (SubBounds KVS_pcc_b KVS_pcc_e KVS_pcc_b' (KVS_pcc_b' ^+ length kvs_service_instrs)) as HSubBounds.
     { solve_addr. }
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     rewrite /kvs_imports /kvs.kvs_imports_pre.
-    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
-    assert ((KVS_pcc_b ^+ 1)%a <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b + 1)%a = Some (KVS_pcc_b ^+ 1)) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
+    assert ((KVS_pcc_b ^+ 1) <= KVS_pcc_b')%a  by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
     assert ((KVS_pcc_b ^+ 1 + 1)%a = Some (KVS_pcc_b')%a) by ( rewrite /length_kvs_imports in HKVS_pcc_b'; solve_addr+ HKVS_pcc_b').
 
     rewrite /kvs_service_instrs.
@@ -1283,12 +1283,12 @@ Section KVS_spec_addOrUpdate.
     (arg_rmap : LReg) (cstk : CSTK) (F : coPset)
     (user_key : user_key_t) (nkey : map_key_t)
     (l_user_key : Locality) (user_key_addr : Addr) (wnew : LWord) :
-    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
     ↑(Nkvs.@"physical") ⊆ F ->
     ↑(Nkvs.@"logical") ⊆ F ->
     is_uint16 nkey ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
     arg_rmap !! ca0 = Some (lword_of_word (kvs_user_seal_key l_user_key user_key_addr)) ->
     arg_rmap !! ca1 = Some (lword_of_word (WInt nkey)) ->
     arg_rmap !! ca2 = Some wnew ->
@@ -1312,7 +1312,7 @@ Section KVS_spec_addOrUpdate.
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack F
       KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off
-      (WCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
+      (Cap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).

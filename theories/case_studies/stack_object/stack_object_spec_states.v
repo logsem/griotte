@@ -248,17 +248,11 @@ Section SO_States.
   (** The bounds of the code and of the imports, as given to [so_init_spec]
       and [stack_object_f_spec]. *)
   Definition so_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length so_main_code) ∧
     (pc_b + so_label ".Lso_run")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition so_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
-  (** The capability of the entry point of the assert routine. *)
-  Definition so_assert_entry : Word :=
-    WSentry Inherit true RX Global b_assert e_assert b_assert.
 
 End SO_States.

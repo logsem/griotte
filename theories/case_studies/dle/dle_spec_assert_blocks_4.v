@@ -31,8 +31,8 @@ Section DLE_Assert_Blocks_4.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -42,9 +42,9 @@ Section DLE_Assert_Blocks_4.
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a dle_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio Hframes)
@@ -52,12 +52,13 @@ Section DLE_Assert_Blocks_4.
       & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & Hcgp_b & Himport_assert & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code dle_main_code "Hcode_main".
+    rewrite /assert_entry.
 
     (* Block 5: return from the second call *)
     focus_block (dle_block ".Ldle_call_B_2") "Hcode_main" of dle_main_blocks at pc_a
       as a_callB2 Ha_callB2 "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    change_pc_to (a_callB2 ^+ 2)%a.
+    change_pc_to (a_callB2 ^+ 2).
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
     { solve_not_shadow Hcgp_mmio. }

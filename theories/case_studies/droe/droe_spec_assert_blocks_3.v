@@ -32,8 +32,8 @@ Section DROE_Assert_Blocks_3.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ droe_label_offset ".Ldroe_ret_B")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ctp ↦ᵣ[th] wctp ∗
@@ -45,9 +45,9 @@ Section DROE_Assert_Blocks_3.
     cra ↦ᵣ[th] wcra ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
-    (pc_b ^+ 1)%a ↦ₐ□ WSentry Inherit true RX Global b_assert e_assert b_assert ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a droe_main_code
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
              Hcgp_contiguous Hcgp_mmio Hframes)
@@ -56,11 +56,12 @@ Section DROE_Assert_Blocks_3.
         & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
+    rewrite /assert_entry.
 
     (* Block 3: return from the call *)
     focus_block (droe_block ".Ldroe_call_B") "Hcode_main" of droe_main_blocks at pc_a as a_callB Ha_callB "Hcode" "Hcont".
     iHide "Hcont" as hcont.
-    change_pc_to (a_callB ^+ 2)%a.
+    change_pc_to (a_callB ^+ 2).
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* CLoad ct0 cgp 0 *)

@@ -22,7 +22,7 @@ Section LSE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   Lemma lse_f_spec
 
@@ -39,16 +39,16 @@ Section LSE.
     :
 
     let imports := lse_main_imports C_f in
-    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp)%a in
-    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a in
+    let a_lse_exp_tbl_cgp := (b_lse_exp_tbl ^+ ExportTable_offset_cgp) in
+    let a_lse_entry_f := (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f) in
 
     disjoint_from_shadow pc_b pc_e ->
     is_shadow_address cgp_b = false ->
     is_heap_address cgp_b = false ->
     disjoint_from_shadow b_lse_exp_tbl e_lse_exp_tbl ->
     is_heap_address pc_b = false ->
-    (b_lse_exp_tbl <= a_lse_entry_f < e_lse_exp_tbl)%a ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code)%a ->
+    a_lse_entry_f ∈ₐ [b_lse_exp_tbl, e_lse_exp_tbl) ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length lse_main_code) ->
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
@@ -59,12 +59,12 @@ Section LSE.
     ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
     ∗ codefrag_pers pc_a lse_main_code
     ∗ na_inv (tpool th) Nlse (cgp_b ↦ₐ WInt 2)
-    ∗ b_lse_exp_tbl ↦ₐ□ WCap true RX Global pc_b pc_e pc_b
-    ∗ a_lse_exp_tbl_cgp ↦ₐ□ WCap true RW Global cgp_b cgp_e cgp_b
+    ∗ b_lse_exp_tbl ↦ₐ□ Cap RX Global pc_b pc_e pc_b
+    ∗ a_lse_exp_tbl_cgp ↦ₐ□ Cap RW Global cgp_b cgp_e cgp_b
     ∗ no_handler b_lse_exp_tbl
     ∗ a_lse_entry_f ↦ₐ□ lse_exp_tbl_entry_f
       -∗
-    ot_switcher_prop W C (WCap true RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl a_lse_entry_f).
+    ot_switcher_prop W C (Cap RO g_lse_exp_tbl b_lse_exp_tbl e_lse_exp_tbl a_lse_entry_f).
   Proof.
     (* Outline of the proof:
        - unfold [ot_switcher_prop] and introduce the state of the machine at
@@ -87,7 +87,7 @@ Section LSE.
       & [#Hlse_exp_eh #Hlse_exp_ehs]
       & #Hlse_exp_f)".
     iExists g_lse_exp_tbl, b_lse_exp_tbl, e_lse_exp_tbl,
-      (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f)%a,
+      (b_lse_exp_tbl ^+ ExportTable_offset_entry lse_entry_f),
     pc_b, pc_e, cgp_b, cgp_e, 0, 1, _.
     iFrame "#".
     iSplit; first done.
@@ -110,7 +110,7 @@ Section LSE.
     iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
-    rewrite /interp_conf /registers_pointsto.
+    rewrite /registers_pointsto.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
     pose proof (lregmap_full_dom _ Hrmap_init) as Hrmap_dom.

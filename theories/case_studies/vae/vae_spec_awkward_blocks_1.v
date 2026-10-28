@@ -33,29 +33,29 @@ Section VAE_Awkward_Blocks_1.
     related_sts_priv_world W (<l[i:=false]l>W) ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     cra ↦ᵣ[th] wcra ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
-    pc_b ↦ₐ□ vae_switcher_entry ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a vae_main_code ∗
     ▷ (∀ mie, world_interp (<l[i:=false]l>W) C ∗
-        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
+        PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
         ca0 ↦ᵣ[th] WInt 0 ∗
-        ct0 ↦ᵣ[th] vae_switcher_entry ∗
+        ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] wca0 ∗
         cs0 ↦ᵣ[th] wcra ∗
         cs1 ↦ᵣ[th] wca0 ∗
-        pc_b ↦ₐ□ vae_switcher_entry ∗
+        pc_b ↦ₐ□ switcher_entry_call ∗
         codefrag_pers pc_a vae_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
                Hcgp_shadow Hrevoke Hpriv)
@@ -63,7 +63,7 @@ Section VAE_Awkward_Blocks_1.
       & Himport_switcher & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
-    rewrite /vae_switcher_entry.
+    rewrite /switcher_entry_call.
 
     (* Block 4: set the flag to [0] *)
     focus_block (vae_block ".Lvae_awkward") "Hcode_main" of vae_main_blocks at pc_a as a_store Ha_store "Hcode" "Hcont".
@@ -87,11 +87,11 @@ Section VAE_Awkward_Blocks_1.
     focus_block (vae_block ".Lvae_awkward_fetch_switcher_1") "Hcode_main" of vae_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -112,7 +112,7 @@ Section VAE_Awkward_Blocks_1.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 5)%a = (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a) as ->
+    assert (a_call ^+ 5 = (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a) as ->
       by (offsets_compute; solve_addr).
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

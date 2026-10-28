@@ -50,15 +50,15 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
          tb_error_handler_stackless := None |} |};
     {| fc_name          := "allocator";
        fc_imports       := [
-         FW (WCap true RW Global shadow_b shadow_e shadow_b);                             (* the shadow table *)
-         FW (WSealRange true (false, true) Global ot_alloc (ot_alloc ^+ 1)%ot ot_alloc);  (* unseal-only key of [ot_alloc] *)
-         FW (WCap true RW Global revoker_addr (revoker_addr ^+ 1)%a revoker_addr)         (* the revoker *)
+         FW (Cap RW Global shadow_b shadow_e shadow_b);                             (* the shadow table *)
+         FW (SealRange (false, true) Global ot_alloc (ot_alloc ^+ 1) ot_alloc);  (* unseal-only key of [ot_alloc] *)
+         FW (Cap RW Global revoker_addr (revoker_addr ^+ 1) revoker_addr)         (* the revoker *)
        ];
        fc_static_sealed := [];
        fc_body          := TrustedBody {|
          tb_code    := allocator_code;
          tb_data    := [
-           FWs [WCap true RW Global heap_b heap_e (heap_b ^+ 1)%a]  (* the whole heap *)
+           FWs [Cap RW Global heap_b heap_e (heap_b ^+ 1)]  (* the whole heap *)
          ];
          tb_exports := [
            {| fe_name := "malloc"; fe_offset := allocator_malloc_pcc_off; fe_nargs := allocator_malloc_nargs; fe_min_stack := allocator_malloc_min_stack; fe_posture := InterruptEnabled |};

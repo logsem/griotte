@@ -126,33 +126,33 @@ Section Checkra_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let checkra_ := (checkra_instrs rsrc r1 r2) in
-    let a_last := (pc_a ^+ length checkra_)%a in
+    let a_last := (pc_a ^+ length checkra_) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     rsrc ≠ cnull ->
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc ↦ᵣ wsrc
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a checkra_
     ∗ ( ▷ ( (∃ t p g b e a π,
             ⌜ readAllowed p = true ∧ wsrc = WCap t p g b e a @@? π⌝
-            ∗ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+            ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
             ∗ rsrc ↦ᵣ WCap t p g b e a @@? π
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ r2 ↦ᵣ WInt 0%Z
             ∗ codefrag_pers pc_a checkra_ )
-              -∗ WP Seq (Instr Executable) {{ φ }}
+              -∗ WP Exec {{ φ }}
           ) ∧
-        ( ∀ a, ⌜(pc_a <= a < a_last)%a⌝ -∗
+        ( ∀ a, ⌜a ∈ₐ [pc_a, a_last)⌝ -∗
           rsrc ↦ᵣ wsrc ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e a) ⊤ φ ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e a) ⊤ φ ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
     iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hk)".

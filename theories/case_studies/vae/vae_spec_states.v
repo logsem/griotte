@@ -79,18 +79,12 @@ Section VAE_States.
   (** The bounds of the code, of the imports and of the data, as given to
       [vae_init_spec] and [vae_awkward_spec]. *)
   Definition vae_code_bounds (pc_b pc_e pc_a : Addr) (C_f : Sealable) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length vae_main_code) ∧
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition vae_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
-  (** The capability of the entry point of the assert routine. *)
-  Definition vae_assert_entry : Word :=
-    WSentry Inherit true RX Global b_assert e_assert b_assert.
 
   (** The arguments of both calls to the adversary: all the argument
       registers are cleared, and [ct0] is the entry point of the switcher. *)
@@ -101,7 +95,7 @@ Section VAE_States.
        ca3 := lword_of_word (WInt 0);
        ca4 := lword_of_word (WInt 0);
        ca5 := lword_of_word (WInt 0);
-       ct0 := lword_of_word vae_switcher_entry ]}.
+       ct0 := lword_of_word switcher_entry_call ]}.
 
   Lemma vae_call_adv_arg_rmap_is_arg :
     is_arg_rmap vae_call_adv_arg_rmap 8.

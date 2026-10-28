@@ -23,28 +23,28 @@ Section CMDC_Prep_Blocks_4.
   Lemma cmdc_prep_blocks_4_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr)
     (wcgp_b wca0 wca1 wct0 wct1 : LWord) :
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code) ->
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     is_mmio_address cgp_b = false ->
-    is_heap_address (cgp_b ^+ 1)%a = false ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_prep_C")%a ∗
-    cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e (cgp_b ^+ 1)%a ∗
+    is_heap_address (cgp_b ^+ 1) = false ->
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_prep_C")%a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e (cgp_b ^+ 1) ∗
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cgp_b ↦ₐ wcgp_b ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ ( PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_call_C")%a ∗
-        cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b ∗
-        ca0 ↦ᵣ[th] WCap true RW Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a ∗
+    ▷ ( PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset ".Lcmdc_call_C")%a ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] Cap RW Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1) ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
         (∃ w, ct0 ↦ᵣ[th] w) ∗
         (∃ w, ct1 ↦ᵣ[th] w) ∗
         cgp_b ↦ₐ WInt 42 ∗
         codefrag_pers pc_a cmdc_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio Hcgp1_heap)
       "(HPC & Hcgp & Hca0 & Hca1 & Hct0 & Hct1 & Hcgp_b & Hcode_main & Hpost)".
@@ -71,7 +71,7 @@ Section CMDC_Prep_Blocks_4.
     iInstr "Hcode".
     (* Subseg ca0 ca0 ct0 ct1 *)
     iInstr "Hcode".
-    { transitivity (Some (cgp_b ^+ 2)%a); auto; solve_addr. }
+    { transitivity (Some (cgp_b ^+ 2)); auto; solve_addr. }
     { solve_addr. }
     { solve_addr. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

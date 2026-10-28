@@ -47,14 +47,14 @@ Section HTS_Spec_Share.
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
     heap_std W_init_C = ∅ ->
     hts_ctx ∗
     malloc_ret ∗
     (adv1_ret -∗
-     WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+     safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
       HsubBounds Himports_contiguous Hheap_empty) "(#Hctx & Hret & Hcontinue)".
@@ -123,7 +123,7 @@ Section HTS_Spec_Share.
           split_and!; solve_addr+Hstk_min).
     assert (csp_b < csp_e)%a as Hstk_nonempty
       by (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min; solve_addr+Hstk_min).
-    remember (stk_start_a csp_b csp_e ^+ -1)%a as a_slot eqn:Ha_slot.
+    remember (stk_start_a csp_b csp_e ^+ -1) as a_slot eqn:Ha_slot.
     assert (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e) =
       region_addrs_zeroes csp_b a_slot ++ [lword_of_word (WInt 0)])
       as Hzeroes.
@@ -161,7 +161,7 @@ Section HTS_Spec_Share.
     iExtractList "Hrmap" [ctp] as ["[Hctp _]"].
     iApply (fetch_spec 0 _ ctp RX Global
       pc_b pc_e a_fetch7
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       _ _ _ with "[- $HPC $Hctp $Hcode]").
     { reflexivity. }
     { solve_addr. }
@@ -170,7 +170,7 @@ Section HTS_Spec_Share.
     { exact Hpc_shadow. }
     { apply switcher_call_sentry_not_heap. }
     { done. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hctp & _ & Himport_switcher)".
     iEval (cbn) in "Hctp".
@@ -201,7 +201,7 @@ Section HTS_Spec_Share.
     (* Jalr cra ctp. *)
     iInstr_success "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_advcall ^+ 1)%a = (pc_a ^+ hts_label_offset ".Lhts_reload")%a) as Ha_next
+    assert (a_advcall ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_reload")%a) as Ha_next
       by (offsets_compute; solve_addr).
     rewrite Ha_next.
     clear Ha_result Ha_store Ha_fetch7 Ha_fetch8.
@@ -244,7 +244,7 @@ Section HTS_Spec_Share.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iInsertList "Hrmap" [ctp].
     set (adv_other :=
-      <[ctp:=lword_of_word (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)]>
+      <[ctp:=lword_of_word switcher_entry_call]>
        (delete ca5 (delete ca4 (delete ca3 (delete ca2
          (delete ct1 (delete ct0 rmap))))))).
     assert (dom adv_other =
@@ -256,10 +256,10 @@ Section HTS_Spec_Share.
     assert (is_arg_rmap adv_arg 8) as Hargs_rmap.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
     iApply (switcher_cc_specification (hts_Wshare W_init_C ι b) C
-      (WCap true RW Global cgp_b cgp_e cgp_b)
-      (WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
-      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)%a C_f
-      (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e ^+ -1)%a)
+      (Cap RW Global cgp_b cgp_e cgp_b)
+      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
+      thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f
+      (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e ^+ -1))
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk

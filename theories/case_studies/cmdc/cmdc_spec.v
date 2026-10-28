@@ -26,7 +26,7 @@ Section CMDC.
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -57,14 +57,14 @@ Section CMDC.
     is_heap_address pc_b = false ->
     is_mmio_address cgp_b = false ->
     is_heap_address cgp_b = false ->
-    is_mmio_address (cgp_b ^+ 1)%a = false ->
-    is_heap_address (cgp_b ^+ 1)%a = false ->
+    is_mmio_address (cgp_b ^+ 1) = false ->
+    is_heap_address (cgp_b ^+ 1) = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code) ->
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
@@ -72,7 +72,7 @@ Section CMDC.
     (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
-    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b ^+ 1) ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->
@@ -91,11 +91,11 @@ Section CMDC.
       ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ cra ↦ᵣ[th] thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+      ∗ regs[th] rmap
 
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -119,7 +119,7 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     (* Outline of the proof:
        - [cmdc_init_blocks_1_spec]: block 0, initialise [b] and [c], and
@@ -182,7 +182,7 @@ Section CMDC.
                     & Himport_switcher & Himport_B_f & Hcode_main)".
 
     (* Share b in the world of B *)
-    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 1)%a with
+    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 1) with
            "Hworld_interp_B Hstack_revoked_B Hinterp_Winit_B_f Hcgp_b Hcsp_stk")
       as "(Hworld_interp_B & #Hrel_cgp_b & #Hinterp_ca0 & #Hinterp_B_f
            & Hstack_revoked_B & %Hrevoked_B & %Hcgp_b_stk & Hcsp_stk)";
@@ -274,7 +274,7 @@ Section CMDC.
       first exact Hstk_res_size.
 
     (* Share c in the world of C *)
-    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2)%a with
+    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2) with
            "Hworld_interp_C Hstack_revoked_C Hinterp_Winit_C_g Hcgp_c Hcsp_stk")
       as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
            & Hstack_revoked_C & %Hrevoked_C & _ & Hcsp_stk)";
@@ -369,14 +369,14 @@ Section CMDC.
     is_heap_address pc_b = false ->
     is_mmio_address cgp_b = false ->
     is_heap_address cgp_b = false ->
-    is_mmio_address (cgp_b ^+ 1)%a = false ->
-    is_heap_address (cgp_b ^+ 1)%a = false ->
+    is_mmio_address (cgp_b ^+ 1) = false ->
+    is_heap_address (cgp_b ^+ 1) = false ->
     disjoint_from_mmio csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ dom rmap -> rmap !! r = Some (lword_of_word (WInt 0)) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code) ->
 
     (cgp_b + length cmdc_main_data)%a = Some cgp_e ->
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ->
@@ -384,7 +384,7 @@ Section CMDC.
     (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap cgp_b ∉ dom (std W_init_B) ->
-    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b ^+ 1) ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     is_heap_cap (WSealed ot_switcher C_g) = false ->
@@ -399,11 +399,11 @@ Section CMDC.
       ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ cra ↦ᵣ[th] thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+      ∗ regs[th] rmap
 
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -427,7 +427,7 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
-      ⊢ WP Seq (Instr Executable) @[th] {{ λ v, True }})%I.
+      ⊢ WP Exec @[th] {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_heap Hcgp1_shadow Hcgp1_heap

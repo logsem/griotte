@@ -498,12 +498,12 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
 
   #[local] Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
-    WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    SealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1) KVS_OTYPE.
 
   #[local] Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
-      WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_cc_switcher;
       (kvs_service_unsealing_key_pre KVS_OTYPE)
     ].
 
@@ -569,14 +569,14 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     Eval vm_compute in label_offset (concat kvs_service_asm) ".LaddOrUpdate".
   Lemma kvs_addOrUpdate_pcc_off_eq : kvs_addOrUpdate_pcc_off = length_kvs_imports.
   Proof. reflexivity. Qed.
-  Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off)%a.
+  Definition kvs_addOrUpdate_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_addOrUpdate_pcc_off).
   Definition kvs_exp_tbl_entry_addOrUpdate :=
     WInt (encode_entry_point InterruptEnabled kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack
             kvs_addOrUpdate_pcc_off).
   (** The index of the export [addOrUpdate], in the order of the firmware. *)
   Definition kvs_entry_addOrUpdate : nat := 0.
   Definition kvs_addOrUpdate_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_addOrUpdate.
-  Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off)%a.
+  Definition kvs_addOrUpdate_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_addOrUpdate_exp_tbl_off).
   Definition KVS_addOrUpdate {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr.
 
@@ -589,13 +589,13 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     Eval vm_compute in label_offset (concat kvs_service_asm) ".Lread".
   Lemma kvs_read_pcc_off_eq : kvs_read_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs.
   Proof. reflexivity. Qed.
-  Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off)%a.
+  Definition kvs_read_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_read_pcc_off).
   Definition kvs_exp_tbl_entry_read :=
     WInt (encode_entry_point InterruptEnabled kvs_read_nargs kvs_read_min_stack
             kvs_read_pcc_off).
   Definition kvs_entry_read : nat := 1.
   Definition kvs_read_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_read.
-  Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off)%a.
+  Definition kvs_read_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_read_exp_tbl_off).
   Definition KVS_read {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr%a.
 
@@ -608,25 +608,25 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     Eval vm_compute in label_offset (concat kvs_service_asm) ".Lerase".
   Lemma kvs_erase_pcc_off_eq : kvs_erase_pcc_off = length_kvs_imports + length kvs_addOrUpdate_instrs + length kvs_read_instrs.
   Proof. reflexivity. Qed.
-  Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off)%a.
+  Definition kvs_erase_pcc_addr {KVS : kvsLayout} := (KVS_pcc_b ^+ kvs_erase_pcc_off).
   Definition kvs_exp_tbl_entry_erase :=
     WInt (encode_entry_point InterruptEnabled kvs_erase_nargs kvs_erase_min_stack
             kvs_erase_pcc_off).
   Definition kvs_entry_erase : nat := 2.
   Definition kvs_erase_exp_tbl_off : Z := ExportTable_offset_entry kvs_entry_erase.
-  Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off)%a.
+  Definition kvs_erase_exp_tbl_addr {KVS : kvsLayout} : Addr := (b_kvs_exp_tbl ^+ kvs_erase_exp_tbl_off).
   Definition KVS_erase {KVS : kvsLayout} (g : Locality) : Sealable :=
     SCap true RO g b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr%a.
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
-    WSealRange true (false, true) Global KVS_OTYPE (KVS_OTYPE^+1)%ot KVS_OTYPE.
+    SealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1) KVS_OTYPE.
   Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=
     kvs_imports_pre b_switcher e_switcher a_cc_switcher KVS_OTYPE ot_switcher.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 
   Definition kvs_user_seal_key_scap {KVS : kvsLayout} (g : Locality) (a : Addr) :=
-    (SCap true RO g a (a ^+ 1)%a a).
+    (SCap true RO g a (a ^+ 1) a).
 
   Definition kvs_user_seal_key {KVS : kvsLayout} (g : Locality) (a : Addr) :=
     WSealed KVS_OTYPE (kvs_user_seal_key_scap g a).

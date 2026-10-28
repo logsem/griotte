@@ -31,8 +31,8 @@ Section SO_Call_Blocks_3.
     (* The stack frame holds the secret and [z], below the space reserved at
        the top of the stack *)
     (csp_b + 2 + StackEntry_reserved_space <= csp_e)%Z ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca1 ↦ᵣ[th] wca1 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -40,35 +40,35 @@ Section SO_Call_Blocks_3.
     cs1 ↦ᵣ[th] wcs1 ∗
     cra ↦ᵣ[th] wcra ∗
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
-    pc_b ↦ₐ□ so_switcher_entry ∗
+    pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (∀ mie a_stk1 a_stk2 stk_mem' stk_res,
         ⌜(a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e⌝ ∗
         ⌜(a_stk2 + 1)%a = Some a_stk1⌝ ∗
         ⌜(csp_b <= a_stk2)%a⌝ ∗
-        PC ↦ₚ[th] WCap true XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk2 ∗
-        ca1 ↦ᵣ[th] WCap true RWL Local a_stk2 a_stk1 a_stk2 ∗
-        ct0 ↦ᵣ[th] so_switcher_entry ∗
+        PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        csp ↦ᵣ[th] Cap RWL Local csp_b csp_e a_stk2 ∗
+        ca1 ↦ᵣ[th] Cap RWL Local a_stk2 a_stk1 a_stk2 ∗
+        ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] wct1 ∗
         cs0 ↦ᵣ[th] wcra ∗
         cs1 ↦ᵣ[th] wct1 ∗
-        cra ↦ᵣ[th] WSentry (ret_kind mie) true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
         [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]] ∗
         a_stk1 ↦ₐ WInt so_secret ∗
         a_stk2 ↦ₐ WInt 0 ∗
         [[csp_b, a_stk2]] ↦ₐ [[stk_mem']] ∗
-        pc_b ↦ₐ□ so_switcher_entry ∗
+        pc_b ↦ₐ□ switcher_entry_call ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap Hstk_size)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Himport_switcher
       & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
-    rewrite /so_switcher_entry.
+    rewrite /switcher_entry_call.
 
     (* Block 7: push the secret and allocate the stack object [z] *)
     focus_block (so_block ".Lso_f_alloc") "Hcode_main" of so_main_blocks at pc_a as a_alloc Ha_alloc "Hcode" "Hcont".
@@ -82,12 +82,12 @@ Section SO_Call_Blocks_3.
       first solve_addr+Hstk_size.
     iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem3 w_res2 ->) "[Hstk Hres2]";
       first solve_addr+Hstk_size.
-    replace ((csp_e ^+ -1) ^+ -1)%a with a_start by solve_addr+Hstk_size Hstart.
+    replace ((csp_e ^+ -1) ^+ -1) with a_start by solve_addr+Hstk_size Hstart.
     iAssert ([[csp_e, csp_e]] ↦ₐ [[ [] ]])%I as "Hres_nil".
     { rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr]. }
-    iDestruct (region_pointsto_cons (csp_e ^+ -1)%a csp_e csp_e
+    iDestruct (region_pointsto_cons (csp_e ^+ -1) csp_e csp_e
       with "[$Hres1 $Hres_nil]") as "Hres_top"; [solve_addr+Hstk_size|solve_addr|].
-    iDestruct (region_pointsto_cons a_start (csp_e ^+ -1)%a csp_e
+    iDestruct (region_pointsto_cons a_start (csp_e ^+ -1) csp_e
       with "[$Hres2 $Hres_top]") as "Hres";
       [solve_addr+Hstk_size Hstart|solve_addr+Hstk_size Hstart|].
     assert (is_Some (a_start + -1)%a) as [a_stk1 Hastk1];
@@ -96,11 +96,11 @@ Section SO_Call_Blocks_3.
     assert (csp_b < a_start)%a as Hcsp_size by solve_addr+Hstk_size Hstart.
     iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem1 w0 ->) "[Hstk Hastk1]";
       first exact Hcsp_size.
-    replace (a_start ^+ -1)%a with a_stk1 by solve_addr+Hastk1.
+    replace (a_start ^+ -1) with a_stk1 by solve_addr+Hastk1.
     assert (csp_b < a_stk1)%a as Hcsp_size' by solve_addr+Hstk_size Hstart Hastk1.
     iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem' w1 ->) "[Hstk Hastk2]";
       first exact Hcsp_size'.
-    replace (a_stk1 ^+ -1)%a with a_stk2 by solve_addr+Hastk2.
+    replace (a_stk1 ^+ -1) with a_stk2 by solve_addr+Hastk2.
     assert (is_heap_address a_stk2 = false) as Hastk2_nonheap.
     { eapply disjoint_from_heap_not_in; [exact Hstk_heap|].
       rewrite /withinBounds; solve_addr+Hstk_size Hstart Hastk1 Hastk2. }
@@ -135,11 +135,11 @@ Section SO_Call_Blocks_3.
     focus_block (so_block ".Lso_f_fetch_switcher") "Hcode_main" of so_main_blocks at pc_a as a_fetch Ha_fetch "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (fetch_spec 0 _ _ _ _ _ _ _
-      (WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call)
+      switcher_entry_call
       with "[- $HPC $Hct0 $Hcode]"); eauto using switcher_call_sentry_not_heap; try done.
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
-    replace (pc_b ^+ 0)%a with pc_b by solve_addr.
+    replace (pc_b ^+ 0) with pc_b by solve_addr.
     iFrame "Himport_switcher".
     iNext; iIntros "(HPC & Hct0 & _ & Himport_switcher)".
     iEval (cbn) in "Hct0".
@@ -155,7 +155,7 @@ Section SO_Call_Blocks_3.
     (* Jalr cra ct0 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    assert ((a_call ^+ 3)%a = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
+    assert (a_call ^+ 3 = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
     iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem' [w_res2; w_res1]); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; unfold StackEntry_reserved_space;

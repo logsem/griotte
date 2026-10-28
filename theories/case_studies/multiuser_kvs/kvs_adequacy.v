@@ -106,7 +106,7 @@ Section kvs_obligations.
     (* 3 - The export entries of the KVS, at the addresses of the KVS layout,
        and the export entry of B *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry kvs_B_entry_f)%a).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry kvs_B_entry_f)).
     set (kvs_addOrUpdate := SCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
     set (kvs_addOrUpdate' := SCap true RO Local b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
     set (kvs_read := SCap true RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_read_exp_tbl_addr).
@@ -127,7 +127,7 @@ Section kvs_obligations.
         /kvs_user_seal_key /kvs_user_seal_key_scap.
       done. }
     assert (cmpt_imports B_cmpt =
-              [WSentry FwdDisable true XSRW_ Local
+              [Sentry FwdDisable XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call;
                WSealed switcher.ot_switcher kvs_addOrUpdate;
                WSealed switcher.ot_switcher kvs_read;
@@ -230,7 +230,7 @@ Section kvs_obligations.
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
-        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_addOrUpdate_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
@@ -241,7 +241,7 @@ Section kvs_obligations.
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
-        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_read_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
@@ -252,7 +252,7 @@ Section kvs_obligations.
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
-        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp)%a by solve_addr+H0.
+        with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_erase_entry_point_spec; [exact Hkvs_switcher |].
       iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
@@ -436,7 +436,7 @@ Section kvs_obligations.
     cbn [fc_name fw_nth fw_cmpts kvs_firmware]. rewrite HsbB.
     fw_fold_cmpt B_cmpt.
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry kvs_B_entry_f)%a).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry kvs_B_entry_f)).
 
     iDestruct (big_sepS_elem_of _ _ 1%Z with "HK_lukvs_frag") as "HK_lukvs_1".
     { eapply is_uint16_in_kvs_all_map_keys; split; rewrite /UINT16_MIN /UINT16_MAX; lia. }
@@ -444,7 +444,7 @@ Section kvs_obligations.
     (* 8 - We can apply the specification! *)
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
-    replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)%a
+    replace (cmpt_exp_tbl_cgp kvs_cmpt) with (b_kvs_exp_tbl ^+ ExportTable_offset_cgp)
       by (pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H; unfold kvsl; cbn in H |- *; solve_addr+H).
     pose proof (cmpt_static_sealed_base_not_heap main_cmpt) as Hstatic_key_nonheap.
     assert (is_heap_cap (WSealed switcher.ot_switcher B_f) = false) as HB_f_nonheap.
@@ -504,7 +504,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem kvs_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   kvs_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

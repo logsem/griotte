@@ -30,7 +30,7 @@ Section DROE_World.
       added to the revoked world as permanent addresses, with a read-only
       safety predicate that fixes their content. *)
   Definition droe_Wshare W (cgp_b : Addr) : WORLD :=
-    <s[(cgp_b ^+ 1)%a := Permanent ]s> (<s[cgp_b := Permanent ]s> (revoke W)).
+    <s[(cgp_b ^+ 1) := Permanent ]s> (<s[cgp_b := Permanent ]s> (revoke W)).
 
   (** The safety predicate of [cgp_b]: it always contains [42]. *)
   Definition droe_b_pred : WORLD * CmptName * LWord → iProp Σ :=
@@ -42,17 +42,17 @@ Section DROE_World.
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
     LNonHeap cgp_b ∉ dom (std W0) ->
-    LNonHeap (cgp_b ^+ 1)%a ∉ dom (std W0) ->
+    LNonHeap (cgp_b ^+ 1) ∉ dom (std W0) ->
     revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e) ->
     world_interp (revoke W0) C -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     cgp_b ↦ₐ WInt 42 -∗
-    (cgp_b ^+ 1)%a ↦ₐ WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b
+    (cgp_b ^+ 1) ↦ₐ Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
     rel C (LNonHeap cgp_b) RO_DRO droe_b_pred ∗
-    interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a) ∗
+    interp W3 C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1)) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
     ⌜ revoked_addresses W3 (finz.seq_between csp_b csp_e) ⌝.
@@ -85,16 +85,16 @@ Section DROE_World.
     | _ : _ |- context [ world_interp ?W' ] => set (W2 := W')
     end.
 
-    iAssert (interp W2 C (WCap true RO_DRO Global cgp_b (cgp_b ^+ 1)%a cgp_b)) as "#Hinterp_cgp_b".
+    iAssert (interp W2 C (Cap RO_DRO Global cgp_b (cgp_b ^+ 1) cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
       iSplit; last (iPureIntro;
-        pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)%a
+        pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
         split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
-      rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)%a); last solve_addr.
+      rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)); last solve_addr.
       iApply big_sepL_singleton.
       rewrite addr_key_None.
       iExists RO_DRO, (interp_in_mem_dro_eq _).
@@ -126,14 +126,14 @@ Section DROE_World.
         by rewrite lookup_insert_eq.
     }
 
-    assert (is_heap_address (cgp_b ^+ 1)%a = false) as Hcgp1_nonheap.
+    assert (is_heap_address (cgp_b ^+ 1) = false) as Hcgp1_nonheap.
     { apply not_true_is_false; intros Hheap.
       apply withinBounds_true_iff in Hheap.
       rewrite /disjoint_from_heap elem_of_disjoint in Hcgp_heap.
-      eapply (Hcgp_heap (cgp_b ^+ 1)%a); apply elem_of_finz_seq_between;
+      eapply (Hcgp_heap (cgp_b ^+ 1)); apply elem_of_finz_seq_between;
         [solve_addr+Hcgp_contiguous|exact Hheap]. }
 
-    iDestruct ( init_PermRes W2 C (cgp_b ^+1)%a RO_DRO  (safeC (interp_in_mem_dro_eq (WCap true RW Global cgp_b (cgp_b ^+ 1)%a cgp_b)))
+    iDestruct ( init_PermRes W2 C (cgp_b ^+1) RO_DRO  (safeC (interp_in_mem_dro_eq (Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b)))
                 with "[] [$Hcgp_a] []" ) as "PermRes_cgp_a"; auto.
     { rewrite /future_priv_mono.
       iIntros "!>" (W W' Hrelared) "[%Hval H]"; cbn.
@@ -161,16 +161,16 @@ Section DROE_World.
       eapply related_sts_priv_trans_world with (W' := W2) ; eauto; apply related_sts_priv_world_fresh_Permanent.
     }
 
-    iAssert (interp W3 C (WCap true RO_DRO Global (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a (cgp_b ^+ 1)%a)) as "#Hinterp_W3_C_a".
+    iAssert (interp W3 C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1))) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
       iSplit; last (iPureIntro;
-        pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1)%a (cgp_b ^+ 2)%a
+        pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1) (cgp_b ^+ 2)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
         split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
       rewrite /interp_cap_body.
-      rewrite (finz_seq_between_cons (cgp_b ^+ 1)%a); last solve_addr.
-      rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)%a); last solve_addr.
+      rewrite (finz_seq_between_cons (cgp_b ^+ 1)); last solve_addr.
+      rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)); last solve_addr.
       iApply big_sepL_singleton.
       rewrite addr_key_None.
       iExists RO_DRO, (interp_in_mem_dro_eq _).
@@ -213,7 +213,7 @@ Section DROE_World.
     pose proof (Hstack_revoked x Hx) as Hx_revoked.
     assert (LNonHeap x ≠ LNonHeap cgp_b).
     { intros Heq. apply Hcgp_b. rewrite -Heq revoke_dom_eq elem_of_dom; eauto. }
-    assert (LNonHeap x ≠ LNonHeap (cgp_b ^+ 1)%a).
+    assert (LNonHeap x ≠ LNonHeap (cgp_b ^+ 1)).
     { intros Heq. apply Hcgp_a. rewrite -Heq revoke_dom_eq elem_of_dom; eauto. }
     rewrite /droe_Wshare /=.
     rewrite !lookup_insert_ne //.

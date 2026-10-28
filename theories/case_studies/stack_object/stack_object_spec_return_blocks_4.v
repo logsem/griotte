@@ -30,8 +30,8 @@ Section SO_Return_Blocks_4.
     (csp_b <= a_stk2)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     assert_static b_assert e_assert a_flag ∗
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
-    csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e a_stk2 ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
+    csp ↦ᵣ[th] Cap RWL Local csp_b csp_e a_stk2 ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
     ct2 ↦ᵣ[th] wct2 ∗
@@ -41,10 +41,10 @@ Section SO_Return_Blocks_4.
     ca0 ↦ᵣ[th] wca0 ∗
     ca1 ↦ᵣ[th] wca1 ∗
     a_stk1 ↦ₐ WInt so_secret ∗
-    (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
+    (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
-        csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
+        csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ct0 ↦ᵣ[th] WInt 0 ∗
         ct1 ↦ᵣ[th] WInt 0 ∗
         ct2 ↦ᵣ[th] WInt 0 ∗
@@ -54,10 +54,10 @@ Section SO_Return_Blocks_4.
         ca0 ↦ᵣ[th] WInt 0 ∗
         ca1 ↦ᵣ[th] WInt 0 ∗
         a_stk1 ↦ₐ WInt so_secret ∗
-        (pc_b ^+ 1)%a ↦ₐ□ so_assert_entry ∗
+        (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
         codefrag_pers pc_a so_main_code
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }})
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+        -∗ safe[th])
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
                Hastk2 Hastk1 Hcsp_b Htgt)
@@ -66,7 +66,7 @@ Section SO_Return_Blocks_4.
     unfold StackEntry_reserved_space in Hastk1.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
-    rewrite /so_assert_entry.
+    rewrite /assert_entry.
 
     (* Block 10: read back the secret *)
     focus_block (so_block ".Lso_f_after_call") "Hcode_main" of so_main_blocks at pc_a as a_prep Ha_prep "Hcode" "Hcont".

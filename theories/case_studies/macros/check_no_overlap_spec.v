@@ -18,7 +18,7 @@ Section Check_No_Overlap_spec.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let check_no_overlap := (check_no_overlap_instrs rsrc1 rsrc2 r1 r2) in
-    let a_last := (pc_a ^+ length check_no_overlap)%a in
+    let a_last := (pc_a ^+ length check_no_overlap) in
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a a_last →
     rsrc1 ≠ cnull ->
@@ -26,28 +26,28 @@ Section Check_No_Overlap_spec.
     r1 ≠ cnull ->
     r2 ≠ cnull ->
 
-    ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
     ∗ ▷ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
     ∗ ▷ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
     ∗ ▷ r1 ↦ᵣ w1
     ∗ ▷ r2 ↦ᵣ w2
     ∗ ▷ codefrag_pers pc_a check_no_overlap
-    ∗ ( ▷ ( PC ↦ₚ WCap true pc_p pc_g pc_b pc_e a_last
+    ∗ ( ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
             ∗ rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1)
             ∗ rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2)
             ∗ r1 ↦ᵣ WInt 0%Z
             ∗ r2 ↦ᵣ WInt 0%Z
             ∗ ⌜ (finz.seq_between b1 e1) ## (finz.seq_between b2 e2) ⌝
             ∗ codefrag_pers pc_a check_no_overlap
-              -∗ WP Seq (Instr Executable) {{ φ }}
+              -∗ WP Exec {{ φ }}
           ) ∧
-        ( ∀ a, ⌜(pc_a <= a < a_last)%a⌝ -∗
+        ( ∀ a, ⌜a ∈ₐ [pc_a, a_last)⌝ -∗
           rsrc1 ↦ᵣ (WCap t1 p1 g1 b1 e1 a1 @@? π1) ∗
           rsrc2 ↦ᵣ (WCap t2 p2 g2 b2 e2 a2 @@? π2) ∗
           r1 ↦ᵣ - ∗
           r2 ↦ᵣ - -∗
-          trap_safe (WCap true pc_p pc_g pc_b pc_e a) ⊤ φ ) )
-    ⊢ WP Seq (Instr Executable) {{ φ }}.
+          trap_safe (Cap pc_p pc_g pc_b pc_e a) ⊤ φ ) )
+    ⊢ WP Exec {{ φ }}.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.
     iIntros (Hvpc Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)

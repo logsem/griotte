@@ -28,30 +28,30 @@ Section SO_Checkints_Blocks_2.
     readAllowed p = true ->
     disjoint_from_shadow b e ->
     l ≡ₚ finz.seq_between b e ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
     ca0 ↦ᵣ[th] WCap t p g b e a @@? π ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
     codefrag_pers pc_a so_main_code ∗
     ( ▷ (⌜Forall (λ w, ∃ z, w.(lw) = WInt z) ws⌝ ∗
-        PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
+        PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
         ca0 ↦ᵣ[th] WCap t p g b e (finz.max b e) @@? π ∗
         cs0 ↦ᵣ[th] WInt 0 ∗
         cs1 ↦ᵣ[th] WInt 0 ∗
         ([∗ list] a;v ∈ l;ws, a ↦ₐ v) ∗
         codefrag_pers pc_a so_main_code ∗
         £ 2
-        -∗ WP Seq (Instr Executable) @[th] {{ HO th }}) ∧
+        -∗ safe[th]) ∧
     ▷ (∀ a_f,
-        ⌜(pc_a ^+ so_label_offset ".Lso_f_checkints" <= a_f < pc_a ^+ so_label_offset ".Lso_f_alloc")%a⌝ -∗
+        ⌜a_f ∈ₐ [pc_a ^+ so_label_offset ".Lso_f_checkints", pc_a ^+ so_label_offset ".Lso_f_alloc")⌝ -∗
         (∃ a_r, ca0 ↦ᵣ[th] WCap t p g b e a_r @@? π) ∗
         cs0 ↦ᵣ[th] - ∗
         cs1 ↦ᵣ[th] - ∗
         ([∗ list] a;v ∈ l;ws, a ↦ₐ v) -∗
-        trap_safe (WCap true RX Global pc_b pc_e a_f) ⊤
+        trap_safe (Cap RX Global pc_b pc_e a_f) ⊤
           (HO th)) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hp Hshadow Hl)
       "(HPC & Hca0 & Hcs0 & Hcs1 & Hobject & Hcode_main & Hpost)".
@@ -82,19 +82,19 @@ Section SO_Checkints_Blocks_2.
     (wcs0 wcs1 : LWord) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     (b < e)%a ->
-    PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
-    ca0 ↦ᵣ[th] WCap false p g b e a @@? π ∗
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
+    ca0 ↦ᵣ[th] Cap⁻ p g b e a @@? π ∗
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     codefrag_pers pc_a so_main_code ∗
-    ( ca0 ↦ᵣ[th] WCap false p g b e b @@? π ∗
+    ( ca0 ↦ᵣ[th] Cap⁻ p g b e b @@? π ∗
       cs0 ↦ᵣ[th] - ∗
       cs1 ↦ᵣ[th] - -∗
       trap_safe
-        (WCap true RX Global pc_b pc_e
+        (Cap RX Global pc_b pc_e
            ((pc_a ^+ so_label_offset ".Lso_f_checkints") ^+ checkints_loop_offset)%a) ⊤
         (HO th) )
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hbe)
       "(HPC & Hca0 & Hcs0 & Hcs1 & Hcode_main & Hfailed)".

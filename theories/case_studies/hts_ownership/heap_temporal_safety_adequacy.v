@@ -91,7 +91,7 @@ Section hts_obligations.
       solve_addr. }
     (* 3 - The export entries, imported by main and B *)
     set (B_f := SCap true RO Global (cmpt_exp_tbl_pcc B_cmpt) (cmpt_exp_tbl_entries_end B_cmpt)
-                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry hts_B_entry_adv)%a).
+                  (cmpt_exp_tbl_pcc B_cmpt ^+ ExportTable_offset_entry hts_B_entry_adv)).
     set (malloc_f := allocator_malloc Global).
     set (free_f := allocator_free Global).
     assert (cmpt_export_sb (cmpt_of img "B") hts_B_entry_adv = B_f ∧
@@ -243,7 +243,7 @@ Section hts_obligations.
       iApply (sealed_import_safe with "Hseal_alloc_adv"); [done | done |].
       intros ? ? ? ? ? Heq; injection Heq; intros; subst.
       fw_fold_cmpt B_cmpt.
-      replace (cmpt_b_static_sealed B_cmpt ^+ 1)%a with (cmpt_e_static_sealed B_cmpt)
+      replace (cmpt_b_static_sealed B_cmpt ^+ 1) with (cmpt_e_static_sealed B_cmpt)
         by (rewrite /adv_owner_a in Hadv_owner_size; solve_addr+Hadv_owner_size).
       apply cmpt_static_sealed_disjoint_from_heap. }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_B".
@@ -307,7 +307,7 @@ Import image.
 (** END-TO-END THEOREM *)
 Theorem hts_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
   hts_initial_state_ok flag σ →
-  rtc erased_step ([Seq (Instr Executable)], σ) (es, σ') →
+  rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.

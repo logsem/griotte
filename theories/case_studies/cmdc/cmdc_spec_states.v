@@ -101,15 +101,12 @@ Section CMDC_States.
 
   (** The bounds of the code and of the imports, as given to [cmdc_spec]. *)
   Definition cmdc_code_bounds (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable) : Prop :=
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code)%a ∧
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_main_code) ∧
     (pc_b + cmdc_label ".Lcmdc_init")%a = Some pc_a ∧
     disjoint_from_shadow pc_b pc_e ∧
     is_heap_address pc_b = false ∧
     is_heap_cap (WSealed ot_switcher B_f) = false ∧
     is_heap_cap (WSealed ot_switcher C_g) = false.
 
-  (** The capability of the entry point of the switcher. *)
-  Definition cmdc_switcher_entry : Word :=
-    WSentry FwdDisable true XSRW_ Local b_switcher e_switcher a_switcher_call.
 
 End CMDC_States.

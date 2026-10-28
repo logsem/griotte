@@ -26,11 +26,11 @@ Section KVS_getFullKey.
     (user_key nkey : Z) (πnkey : option AId) (l_user_key : Locality) ( user_key_addr : Addr )
     :
     let instrs := (kvs_getFullKey_instrs off rdst rsealkey rkey) in
-    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
     is_shadow_address user_key_addr = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ->
-    withinBounds user_key_addr (user_key_addr ^+ 1)%a user_key_addr = true ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs) ->
+    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ->
+    withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
 
     rsealkey ≠ cnull ->
@@ -38,28 +38,28 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ[th] - ∗
       rsealkey ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗
       rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
       user_key_addr ↦ₐ WInt user_key ∗
 
       codefrag_pers pc_a instrs ∗
       ▷ (
-          PC ↦ₚ[th] WCap true RX Global pc_b pc_e (pc_a ^+ length instrs)%a ∗
+          PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ length instrs) ∗
           rdst ↦ᵣ[th] WInt (kvs_full_key user_key nkey) ∗
           rsealkey ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗
           rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
-          (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+          (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
           user_key_addr ↦ₐ WInt user_key ∗
           codefrag_pers pc_a instrs -∗
 
-          WP Seq (Instr Executable) @[th] {{ HO th }}
+          safe[th]
         )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow Huser_key_shadow HsubBounds Hoff Hbounds_user_key_addr Hrsealkey Hkey Hdst)
@@ -97,9 +97,9 @@ Section KVS_getFullKey.
     ( wsealkey : LWord )
     :
     let instrs := (kvs_getFullKey_instrs off rdst rsealkey rkey) in
-    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a = false ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs)%a ->
-    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ->
+    is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length instrs) ->
+    (pc_a + off)%a = Some (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ->
 
     (is_sealed_with_o wsealkey.(lw) KVS_OTYPE = false \/ get_tag wsealkey.(lw) = false) ->
 
@@ -107,19 +107,19 @@ Section KVS_getFullKey.
     rdst ≠ cnull ->
 
     (
-      PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a ∗
+      PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       rdst ↦ᵣ[th] - ∗
       rsealkey ↦ᵣ[th] wsealkey ∗
 
-      (pc_b ^+ UNSEALING_USER_KEY_OFFSET)%a ↦ₐ□ kvs_service_unsealing_key ∗
+      (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
 
       codefrag_pers pc_a instrs ∗
 
       ( rdst ↦ᵣ[th] - ∗
         rsealkey ↦ᵣ[th] wsealkey -∗
-        trap_safe (WCap true RX Global pc_b pc_e (pc_a ^+ 3)%a) ⊤
+        trap_safe (Cap RX Global pc_b pc_e (pc_a ^+ 3)) ⊤
           (HO th) )
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     intros instrs ; subst instrs.
     iIntros (Hunsealing_shadow HsubBounds Hoff Hnot_sealed_with_kvs_otype Hrsealkey Hdst)

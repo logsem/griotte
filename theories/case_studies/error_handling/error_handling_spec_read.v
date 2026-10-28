@@ -48,9 +48,9 @@ Section Error_Handling_Read.
   Definition stats_static : iProp Σ :=
     ("#Hcode_stats" ∷ codefrag_pers STATS_pcc_b stats_code ∗
      "#Htbl_pcc" ∷ b_stats_exp_tbl ↦ₐ□ stats_wpcc ∗
-     "#Htbl_cgp" ∷ (b_stats_exp_tbl ^+ ExportTable_offset_cgp)%a ↦ₐ□ stats_wcgp ∗
-     "#Htbl_eh" ∷ b_stats_exp_tbl ↦ₕ□{stackful} stats_handler_pcc_off ∗
-     "#Htbl_ehs" ∷ b_stats_exp_tbl ↦ₕ□{stackless} ExportTable_no_handler ∗
+     "#Htbl_cgp" ∷ (b_stats_exp_tbl ^+ ExportTable_offset_cgp) ↦ₐ□ stats_wcgp ∗
+     "#Htbl_eh" ∷ b_stats_exp_tbl ↦ₑ□{stackful} stats_handler_pcc_off ∗
+     "#Htbl_ehs" ∷ b_stats_exp_tbl ↦ₑ□{stackless} ExportTable_no_handler ∗
      "#Htbl_read" ∷ stats_read_exp_tbl_addr ↦ₐ□ lword_of_word stats_exp_tbl_entry_read)%I.
 
   #[global] Instance stats_static_persistent : Persistent stats_static.
@@ -72,7 +72,7 @@ Section Error_Handling_Read.
       below the limit. *)
   Lemma stats_read_handler_runs (cstk : CSTK) (rfault : LReg) (g : Locality) (b e a : Addr) :
     STATS_pcc_b ≠ b_switcher →
-    rfault !!! csp = lword_of_word (WCap true RWL g b e a) →
+    rfault !!! csp = lword_of_word (Cap RWL g b e a) →
     (b + ErrorState_size <= a)%Z → (a <= e)%a →
     Z.even (top_error_count cstk) = true →
     (top_error_count cstk + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z →
@@ -92,12 +92,12 @@ Section Error_Handling_Read.
       apply Hauth. split; first done. exists x. rewrite /heap_authority_base decide_True //.
       rewrite /ErrorState_size in Hba. solve_addr.
     - rewrite (handler_word_entry _ _
-                 (lword_of_word (WCap true RX Global STATS_pcc_b STATS_pcc_e
-                                   (STATS_pcc_b ^+ stats_handler_pcc_off)%a))).
+                 (lword_of_word (Cap RX Global STATS_pcc_b STATS_pcc_e
+                                   (STATS_pcc_b ^+ stats_handler_pcc_off)))).
       { done. }
       rewrite /handler_entry /stats_wpcc /stats_pcc /=.
       rewrite (_ : (STATS_pcc_b + stats_handler_pcc_off)%a =
-                   Some (STATS_pcc_b ^+ stats_handler_pcc_off)%a); first done.
+                   Some (STATS_pcc_b ^+ stats_handler_pcc_off)); first done.
       rewrite /stats_handler_pcc_off. cbn in Hsize_code |- *. solve_addr.
   Qed.
 
@@ -121,11 +121,11 @@ Section Error_Handling_Read.
     (∀ c, P_mcause c → mcause_ok c) →
     STATS_pcc_b ≠ b_switcher →
     (∀ r, is_Some (rfault !! r)) →
-    rfault !!! csp = lword_of_word (WCap true RWL g b e a) →
+    rfault !!! csp = lword_of_word (Cap RWL g b e a) →
     rfault !!! cgp = stats_wcgp →
     jalr_target_ok cnull cra (rfault !!! cra).(lw) = true →
     (b + ErrorState_size <= a)%Z → (a <= e)%a →
-    disjoint_from_shadow (a ^+ (- ErrorState_size))%a a →
+    disjoint_from_shadow (a ^+ (- ErrorState_size)) a →
     top_export_tbl cstk = b_stats_exp_tbl →
     Z.even (top_error_count cstk) = true →
     (top_error_count cstk + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z →
@@ -285,7 +285,7 @@ Section Error_Handling_Read.
     (ca0 ↦ᵣ[th] wptr -∗
      trap_safe_cause (stats_load_mcause f) (stats_load_mtval wptr f)
        (stats_pcc stats_load_addr) ⊤ (HO th))
-    ⊢ WP Seq (Instr Executable) @[th] {{ HO th }}.
+    ⊢ safe[th].
   Proof.
     iIntros (Hcheck) "(HPC & Hca0 & #Hcode_stats & Hfailed)".
     iDestruct (stats_load_instr_pers with "Hcode_stats") as "#Hinstr".
@@ -333,7 +333,7 @@ Section Error_Handling_Read.
     rmap !! cgp = Some stats_wcgp →
     na_inv (tpool th) Nstats stats_inv -∗
     stats_static -∗
-    PC ↦ₚ[th] stats_pcc (STATS_pcc_b ^+ stats_read_pcc_off)%a -∗
+    PC ↦ₚ[th] stats_pcc (STATS_pcc_b ^+ stats_read_pcc_off) -∗
     registers_pointsto rmap -∗
     na_own (tpool th) ⊤ -∗
     ▷ (PC ↦ₚ[th] stats_pcc stats_load_addr -∗
@@ -341,8 +341,8 @@ Section Error_Handling_Read.
        STATS_cgp_b ↦ₐ WInt 1 -∗
        na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
        (▷ stats_inv ∗ na_own (tpool th) (⊤ ∖ ↑Nstats) ={⊤}=∗ na_own (tpool th) ⊤) -∗
-       WP Seq (Instr Executable) @[th] {{ HO th }}) -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+       safe[th]) -∗
+    safe[th].
   Proof.
     iIntros (Hfull Hcgp) "#Hinv_stats #Hstatic HPC Hregs Hna Hcont".
     iNamed "Hstatic".
@@ -379,8 +379,8 @@ Section Error_Handling_Read.
     ▷ (PC ↦ₚ[th] lupdatePcPerm (rmap !!! cra) -∗
        registers_pointsto (<[ca1 := lword_of_word (WInt 0)]> rmap) -∗
        na_own (tpool th) ⊤ -∗
-       WP Seq (Instr Executable) @[th] {{ HO th }}) -∗
-    WP Seq (Instr Executable) @[th] {{ HO th }}.
+       safe[th]) -∗
+    safe[th].
   Proof.
     iIntros (Hfull Hcgp Hcra) "#Hstatic HPC Hregs Hlock Hna Hclose Hcont".
     iNamed "Hstatic".
@@ -423,11 +423,11 @@ Section Error_Handling_Read.
       nothing (the load faults, and the callee is unwound). *)
   Definition stats_arg_pre (wptr v : LWord) : iProp Σ :=
     match wptr with
-    | MkLWord (WCap true p _ b e a) None =>
+    | MkLWord (Cap p _ b e a) None =>
         ⌜readAllowed p = true ∧ (b < e)%a ∧ is_heap_address b = false ∧
          is_shadow_address (stats_read_addr b e a) = false ∧ is_heap_cap v.(lw) = false⌝ ∗
         stats_read_addr b e a ↦ₐ v
-    | MkLWord (WCap false _ _ _ _ _) _ => True
+    | MkLWord (Cap⁻ _ _ _ _ _) _ => True
     | _ => False
     end%I.
 
@@ -435,9 +435,9 @@ Section Error_Handling_Read.
       loaded word, or [ECOMPARTMENTFAIL] for an untagged capability. *)
   Definition stats_arg_post (wptr v wca0 : LWord) : iProp Σ :=
     match wptr with
-    | MkLWord (WCap true p _ b e a) None =>
+    | MkLWord (Cap p _ b e a) None =>
         ⌜wca0 = lload_word p v⌝ ∗ stats_read_addr b e a ↦ₐ v
-    | MkLWord (WCap false _ _ _ _ _) _ => ⌜wca0 = WInt ECOMPARTMENTFAIL⌝
+    | MkLWord (Cap⁻ _ _ _ _ _) _ => ⌜wca0 = WInt ECOMPARTMENTFAIL⌝
     | _ => False
     end%I.
 
@@ -495,7 +495,7 @@ Section Error_Handling_Read.
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk stats_read_nargs stats_read_min_stack ⊤
       STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e stats_read_pcc_off
-      (WCap true RO Global b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
+      (Cap RO Global b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
     iIntros (Hswitcher Hstk_shadow Hwptr)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
@@ -504,7 +504,7 @@ Section Error_Handling_Read.
       "(%Hminstk & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hcstk & HP & Hret)".
     set (frm := {| cf_tframe := _ ; cf_saved := _ ; ccrel := Known_to_Known |}).
-    set (wret := WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return).
+    set (wret := Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return).
     rewrite /stats_read_min_stack in Hminstk.
 
     (* The registers, as one full map *)
@@ -562,7 +562,7 @@ Section Error_Handling_Read.
     set (bc := stk_callee_b b_stk a_stk).
     set (ec := stk_callee_e e_stk a_stk).
     set (cur := stk_start_a bc ec).
-    set (es := (cur ^+ (- ErrorState_size))%a).
+    set (es := cur ^+ (- ErrorState_size)).
     assert ((bc <= es)%a ∧ (es + ErrorState_size)%a = Some cur ∧ (cur <= ec)%a) as
       (Hbc_es & Hes_cur & Hcur_ec).
     { rewrite /es /cur /stk_start_a /ErrorState_size /StackEntry_reserved_space in Hminstk |- *.
@@ -571,9 +571,9 @@ Section Error_Handling_Read.
     rewrite /ErrorState_size in Hes_cur.
     (* The callee's stack, from the slot and the parts around it *)
     iAssert (□ ∀ ws, ⌜length ws = Z.to_nat ErrorState_size⌝ -∗
-               [[ bc , es ]] ↦ₐ [[ region_addrs_zeroes bc es ]] -∗
+               [[ bc , es ]] ↦ₐ [[ 0…0 ]] -∗
                [[ es , cur ]] ↦ₐ [[ ws ]] -∗
-               [[ cur , ec ]] ↦ₐ [[ region_addrs_zeroes cur ec ]] -∗
+               [[ cur , ec ]] ↦ₐ [[ 0…0 ]] -∗
                ∃ stk_mem, [[ bc , ec ]] ↦ₐ [[ stk_mem ]])%I as "#Hstk_join".
     { iIntros "!>" (ws Hws) "Hstk_lo Hslot Hstk_hi".
       iDestruct (region_pointsto_split es ec cur with "[$Hslot $Hstk_hi]") as "Hstk".
@@ -632,7 +632,7 @@ Section Error_Handling_Read.
         rewrite /stats_read_addr Hbounds in Ha_shadow.
         iEval (rewrite /stats_read_addr Hbounds) in "Ha".
         set (f := FaultCheri BoundsViolation (CheriGPR ca0)).
-        assert (data_cap_check readAllowed PermitLoadViolation ca0 (WCap true p g b e a) 0 = inl f)
+        assert (data_cap_check readAllowed PermitLoadViolation ca0 (Cap p g b e a) 0 = inl f)
           as Hcheck.
         { rewrite /data_cap_check Hread (_ : (a + 0)%a = Some a); last solve_addr.
           by rewrite /= Hbounds. }
@@ -737,7 +737,7 @@ Section Error_Handling_Read.
       iEval (rewrite /stats_may_fault /=) in "Hret".
       iDestruct "Hret" as "[ [_ Hfault_cont] _]".
       set (f := FaultCheri TagViolation (CheriGPR ca0)).
-      assert (data_cap_check readAllowed PermitLoadViolation ca0 (WCap false p g b e a) 0 = inl f)
+      assert (data_cap_check readAllowed PermitLoadViolation ca0 (Cap⁻ p g b e a) 0 = inl f)
         as Hcheck by by apply data_cap_check_untagged.
       assert (¬ stats_repairable (fault_mcause f) (fault_mtval f)) as Hnrep.
       { intros (_ & Hcode & _). rewrite /f /= mtval_code_field_encode in Hcode.

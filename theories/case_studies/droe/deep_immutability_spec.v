@@ -20,12 +20,12 @@ Section DROE.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
-  Notation V := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
       stack [b, e) and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
-    (entry_cstack {| tf_csp := WCap true RWL Local b e (stk_start_a b e);
+    (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
                      tf_error_count := 0 |}) (only parsing).
 
@@ -61,7 +61,7 @@ Section DROE.
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length droe_main_code) ->
 
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     (pc_b + droe_label ".Ldroe_init")%a = Some pc_a ->
@@ -69,7 +69,7 @@ Section DROE.
     (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
-    LNonHeap (cgp_b ^+1 )%a ∉ dom (std W_init_C) ->
+    LNonHeap (cgp_b ^+1 ) ∉ dom (std W_init_C) ->
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
@@ -80,11 +80,11 @@ Section DROE.
       ∗ na_own (tpool th) ⊤
 
       (* initial register file *)
-      ∗ PC ↦ₚ[th] WCap true RX Global pc_b pc_e pc_a
-      ∗ cgp ↦ᵣ[th] WCap true RW Global cgp_b cgp_e cgp_b
-      ∗ csp ↦ᵣ[th] WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
+      ∗ PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a
+      ∗ cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b
+      ∗ csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)
       ∗ cra ↦ᵣ[th] thread_return_sentry
-      ∗ ( [∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w )
+      ∗ regs[th] rmap
       (* initial memory layout *)
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a droe_main_code
@@ -98,9 +98,9 @@ Section DROE.
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
-      ∗ interp W_init_C C (WCap true RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
 
-      ⊢ WP Seq (Instr Executable) @[th] {{ HO th }})%I.
+      ⊢ safe[th])%I.
   Proof.
     (* Outline of the proof:
        - [droe_init_blocks_1_spec]: block 0, initialise the data,
