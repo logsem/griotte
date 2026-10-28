@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -29,14 +29,14 @@ Section fundamental.
   Lemma lea_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
     (ρ : region_type) (dst src : RegName) (arg : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_old trusted_fault W C regs p p' g b e a w (Lea dst src arg) ρ P cstk Ws Cs.
+    ftlr_instr trusted_fault W C regs p p' g b e a w (Lea dst src arg) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_lea with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_lea (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
@@ -50,33 +50,33 @@ Section fundamental.
                       | ].
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
         assert (src ≠ cnull) as Hsrc_cnull
           by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
         rewrite llookup_reg_not_cnull // in Hsrc.
         iSpecialize ("Hreg" $! src _ Hsrc).
-        iApply (interp_weakening with "IHnew Hreg"); eauto; try solve_addr;
+        iApply (interp_weakening with "IH Hreg"); eauto; try solve_addr;
           try apply subseg_heap_base_same.
         + eapply PermFlowsToReflexive.
         + apply LocalityFlowsToReflexive.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
         assert (src ≠ cnull) as Hsrc_cnull
@@ -86,66 +86,66 @@ Section fundamental.
         iApply (interp_weakening_ot with "Hreg"); eauto; try solve_addr.
         + apply SealPermFlowsToReflexive.
         + apply LocalityFlowsToReflexive.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
         by iApply interp_untagged.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
         by iApply interp_untagged.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
         by iApply interp_untagged.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply ("IH" $! _ _ _ _ _ regs' with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
         iApply interp_clear_tag.
-      - iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
     { subst regs'.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
   Qed.
 
 End fundamental.

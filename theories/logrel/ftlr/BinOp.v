@@ -15,7 +15,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -42,7 +42,7 @@ Section fundamental.
   Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P
+    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P
       (decodeInstrW w.(lw) = Add dst r1 r2 \/
        decodeInstrW w.(lw) = Sub dst r1 r2 \/
        decodeInstrW w.(lw) = Mul dst r1 r2 \/
@@ -59,7 +59,7 @@ Section fundamental.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_BinOp with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_BinOp (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
@@ -69,19 +69,19 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
     - incrementPC_inv; simplify_map_eq.
-      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iNext.
 
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=_]ₗ> regs) with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]")
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp")
       ; eauto.
       + by apply full_map_linsert.
       + iApply (interp_linsert with "Hreg"). iIntros (_). iApply interp_int.
-      + iApply (interp_next_PC with "Hinv_interp"); eauto.
+      + iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

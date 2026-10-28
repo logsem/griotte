@@ -15,7 +15,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -438,7 +438,7 @@ Section fundamental.
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (dst src : RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_old trusted_fault W C regs p p' g b e a w (CLoad dst src imm) ρ P cstk Ws Cs.
+    ftlr_instr trusted_fault W C regs p p' g b e a w (CLoad dst src imm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -500,7 +500,7 @@ Section fundamental.
                  regs src imm mem with "Hprov") as "Hwit".
     (* The source needs no status witness: a revoked source fails, which is
        safe. *)
-    iApply (wp_load_witness_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
+    iApply (wp_load_witness_imm (CL := link_core) _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
               with "[$HPC $HMemRes $Hwit $Hmap //]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
@@ -523,7 +523,7 @@ Section fundamental.
          iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
          iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
          { destruct ρ; auto; contradiction. }
-         iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
+         iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
 
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
@@ -532,7 +532,7 @@ Section fundamental.
     (* The world's witness makes the loaded word valid. *)
     rewrite (load_witness_mem_eq _ _ _ _ _ _ _ _ _ _ _ _ Hallow' Hl) in Hpost.
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#HLVInterp"; first exact Hpost.
-    iApply wp_pure_step_later; auto. iNext; iIntros "_".
+    iNext.
     apply incrementPC_Some_inv in Hincr as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
     injection HPC as <- <- <- <- <- <- <-.
 
@@ -540,13 +540,11 @@ Section fundamental.
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    iApply ("IH" $! _ _ _ _ _ (<[dst:=loadv']ₗ> regs)
-             with "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]").
+    iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
     { by apply full_map_linsert. }
     (* The value relation holds for the register that was loaded to. *)
     { iApply (interp_linsert with "Hreg"). iIntros (_). done. }
-    iModIntro.
-    iApply (interp_next_PC with "Hinv_interp"); eauto.
+    iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
   Qed.
 
 End fundamental.

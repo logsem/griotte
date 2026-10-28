@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -29,14 +29,14 @@ Section fundamental.
   Lemma jmp_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_type) (rimm : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_old trusted_fault W C regs p p' g b e a w (Jmp rimm) ρ P cstk Ws Cs.
+    ftlr_instr trusted_fault W C regs p p' g b e a w (Jmp rimm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Jmp with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_Jmp (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
@@ -45,17 +45,17 @@ Section fundamental.
     { iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto. }
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
 
     incrementPC_inv as (t0&p0&g0&b0&e0&a0&a0'&π0&?&Ha0'&?); simplify_map_eq.
-    iApply wp_pure_step_later; auto. iNext; iIntros "_".
+    iNext.
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]") ; eauto.
-    iApply (interp_weakening with "IHnew Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
+    iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp") ; eauto.
+    iApply "IH". iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 
 End fundamental.
