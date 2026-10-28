@@ -31,16 +31,16 @@ Section AllocatorFreeTailBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
-    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (b - heap_b))%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
+    ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (b - heap_b)) ∗
     ca2 ↦ᵣ WInt (e - b) ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
-       ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2) ∗
+       ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b)) ∗
        ca2 ↦ᵣ WInt 0 ∗
        ca0 ↦ᵣ WInt ALLOC_OK ∗
        ca1 ↦ᵣ WInt 0 ∗
@@ -48,8 +48,8 @@ Section AllocatorFreeTailBlocks.
        ([∗ list] a ∈ finz.seq_between b e,
           a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
        codefrag_pers pc_a allocator_free_tail_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hbounds.
     iIntros "(HPC & Hctp & Hca2 & Hca0 & Hca1 & Hpainting & Hpayload & #Hcode_main & Hφ)".
@@ -62,7 +62,7 @@ Section AllocatorFreeTailBlocks.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
     iApply (allocator_paint_spec ShadowLive ShadowQuarantined ctp ca2 E RX Global
-      pc_b pc_e pc_a b e (shadow_b ^+ (b - heap_b))%a (shadow_b ^+ (e - heap_b))%a
+      pc_b pc_e pc_a b e (shadow_b ^+ (b - heap_b)) (shadow_b ^+ (e - heap_b))
       (ι ↦st{1} APainting) (λ a, addr_alloc a (Claimed ι))
       with "[- $HPC $Hctp $Hca2 $Hcode $Hpainting $Hpayload]");
       [done|solve_addr|done|solve_addr|solve_addr|solve_addr| | | |].
@@ -83,7 +83,7 @@ Section AllocatorFreeTailBlocks.
     iInstr "Hcode".
     destruct (decide (ca0 = cnull)) as [|_]; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 2)%a.
+    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 2).
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
@@ -100,12 +100,12 @@ Section AllocatorFreeTailBlocks.
     (∀ x lv, x ≠ cnull -> regs !! x = Some lv ->
        has_authority lv.(lw) -> lv.(lprov) ≠ Some ι) ->
     (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) ≠ Some ι) ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2) ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
     ca3 ↦ᵣ allocator_revoker_cap ∗
     ca4 ↦ᵣ w4 ∗
-    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
+    ctp ↦ᵣ Cap RW Global shadow_b shadow_e se ∗
     ca2 ↦ᵣ wa2 ∗
     ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
     mtdc ↦ₜ m ∗
@@ -113,20 +113,20 @@ Section AllocatorFreeTailBlocks.
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 3)%a ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 3) ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt e ∗
        ca3 ↦ᵣ allocator_revoker_cap ∗
        ca4 ↦ᵣ WInt (b - e) ∗
-       ctp ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+       ctp ↦ᵣ Cap RW Global shadow_b shadow_e sb ∗
        ca2 ↦ᵣ WInt (e - b) ∗
        ([∗ map] r↦w ∈ regs, r ↦ᵣ w) ∗
        mtdc ↦ₜ m ∗
        revoke_post ι ∗
        ι ⊒ AQuar ∗
        codefrag_pers pc_a allocator_free_tail_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Hsb Hdom Hclean Hclean_mtdc.
     iIntros "(HPC & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hca2 & Hregs & Hmtdc & #Hobj & Hpainting &
@@ -181,9 +181,9 @@ Section AllocatorFreeTailBlocks.
     rewrite -big_sepL_sep.
     unfold lword_of_word.
     (* Store ca3 0. *)
-    iInstrApply "Hcode" (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2)%a None
-              (a_revoke ^+ 3)%a _ _ ca3 (inl 0%Z) 0 RW Global
-              revoker_addr (revoker_addr ^+ 1)%a revoker_addr {[ι]})
+    iInstrApply "Hcode" (wp_store_revoker _ RX Global pc_b pc_e (a_revoke ^+ 2) None
+              (a_revoke ^+ 3) _ _ ca3 (inl 0%Z) 0 RW Global
+              revoker_addr (revoker_addr ^+ 1) revoker_addr {[ι]})
       with "[$HPC $Hregs Hquar Hpayload]"
       as "(HPC & Hregs & Hpost)".
     { rewrite /regs_of /operands_of !dom_insert_L. set_solver. }
@@ -208,7 +208,7 @@ Section AllocatorFreeTailBlocks.
     (* Lea ctp ctp ca4. *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 3)%a.
+    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 3).
     iApply "Hφ". iFrame "∗ Hq Hcode_main".
   Qed.
 
@@ -223,44 +223,44 @@ Section AllocatorFreeTailBlocks.
     (∀ r w, rmap !! r = Some w -> has_authority w.(lw) -> w.(lprov) = None) ->
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
     (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) = None) ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 2) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ WInt ALLOC_OK ∗
     ca1 ↦ᵣ WInt 0 ∗
     ca2 ↦ᵣ wa2 ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+    ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
     ca3 ↦ᵣ allocator_revoker_cap ∗
     ca4 ↦ᵣ w4 ∗
-    ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
+    ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b)) ∗
     ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
     mtdc ↦ₜ m ∗
     alloc_obj ι b e ∗
     ι ↦st{1} APainting ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowQuarantined ∗ addr_alloc a (Claimed ι)) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4)%a ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4) ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_OK ∗
        ca1 ↦ᵣ WInt 0 ∗
        ca2 ↦ᵣ WInt 0 ∗
-       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt e ∗
        ca3 ↦ᵣ allocator_revoker_cap ∗
        ca4 ↦ᵣ WInt (b - e) ∗
-       ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b))%a ∗
+       ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (e - heap_b)) ∗
        ([∗ map] r↦w ∈ rmap, r ↦ᵣ w) ∗
        mtdc ↦ₜ m ∗
        ι ↦st{1} ADead ∗
        ι ⊒ AQuar ∗
        ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ ShadowLive ∗ addr_alloc a Unclaimed) ∗
        codefrag_pers pc_a allocator_free_tail_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds_code Hbounds Hdom Hclean Hclean_ret Hclean_mtdc.
     pose proof Hbounds_code as (Hpc & Hpc_shadow).
@@ -270,8 +270,8 @@ Section AllocatorFreeTailBlocks.
     allocator_free_tail_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
     pose proof heap_valid.
-    set (sb := (shadow_b ^+ (b - heap_b))%a).
-    set (se := (shadow_b ^+ (e - heap_b))%a).
+    set (sb := shadow_b ^+ (b - heap_b)).
+    set (se := shadow_b ^+ (e - heap_b)).
 
     (* Block 2: the revoker store, with the rest of the register file but
        [cnull] *)
@@ -338,7 +338,7 @@ Section AllocatorFreeTailBlocks.
     { right. apply allocator_paint_ok_unclaimed. }
     iNext. iIntros "(HPC & Hctp & Hca2 & _ & Hcells & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 4)%a.
+    change_pc_to (pc_a ^+ allocator_free_tail_block_offset 4).
     iApply "Hφ". iFrame "∗ Hq Hcode_main".
   Qed.
 
@@ -347,15 +347,15 @@ Section AllocatorFreeTailBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4) ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Htgt.
     iIntros "(HPC & Hcra & #Hcode_main & Hφ)".
@@ -368,7 +368,7 @@ Section AllocatorFreeTailBlocks.
     iHide "Hcode_main" as hcode.
     (* Jmp .free_return. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_free_tail_block_offset 6)%a);
+    { transitivity (Some (pc_a ^+ allocator_free_tail_block_offset 6));
         offsets_compute; solve_addr. }
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -388,7 +388,7 @@ Section AllocatorFreeTailBlocks.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 5)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 5) ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -399,8 +399,8 @@ Section AllocatorFreeTailBlocks.
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow) Htgt.
     iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".

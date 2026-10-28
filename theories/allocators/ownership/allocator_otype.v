@@ -55,7 +55,7 @@ Section AllocatorOtype.
     ∃ (id : Z) (a : Addr) (Ω : gset AId),
       (* Shape of the allocator capability *)
       ⌜ w = lword_of_word (WSealable (allocator_capability_scap Global a)) ⌝ ∗
-      ⌜ withinBounds a (a ^+ 1)%a a = true ⌝ ∗
+      ⌜ withinBounds a (a ^+ 1) a = true ⌝ ∗
       ⌜ is_shadow_address a = false ⌝ ∗
       (* The owner word, its identifier, and the rights of its allocations *)
       a ↦ₐ WInt id ∗
@@ -98,7 +98,7 @@ Section AllocatorOtype.
     world_interp W C -∗
     ◇ (∃ (g : Locality) (a : Addr) (id : Z) (Ω : gset AId),
         ⌜ w = lword_of_word (allocator_capability g a) ⌝ ∗
-        ⌜ withinBounds a (a ^+ 1)%a a = true ⌝ ∗
+        ⌜ withinBounds a (a ^+ 1) a = true ⌝ ∗
         ⌜ is_shadow_address a = false ⌝ ∗
         a ↦ₐ WInt id ∗
         allocator_owner_id id Ω ∗
@@ -146,7 +146,7 @@ Section AllocatorOtype.
     rewrite world_interp_open_eq /world_interp_open_def.
     iFrame "Hregion Hsts".
     iAssert (sealing_map_resource_open W C AllocOtype allocator_otype_propC
-      {[WCap true RO g a (a ^+ 1)%a a @@? None]}) with "[Hothers]" as "Hres".
+      {[Cap RO g a (a ^+ 1) a @@? None]}) with "[Hothers]" as "Hres".
     { iExists ws'. iFrame "Hseals_ws' Hothers".
       iSplit; first done. iSplit; first done.
       iIntros (w'). iApply mono_priv_ot_allocator. }
@@ -167,7 +167,7 @@ Section AllocatorOtype.
     world_interp W C -∗
     ◇ (∃ (g : Locality) (a : Addr) (id : Z) (Ω : gset AId),
         ⌜ w = lword_of_word (allocator_capability g a) ⌝ ∗
-        ⌜ withinBounds a (a ^+ 1)%a a = true ⌝ ∗
+        ⌜ withinBounds a (a ^+ 1) a = true ⌝ ∗
         ⌜ is_shadow_address a = false ⌝ ∗
         a ↦ₐ WInt id ∗
         allocator_owner_id id Ω ∗

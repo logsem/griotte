@@ -92,7 +92,7 @@ Section AllocatorCommonSegmentBounds.
 
   (** The bounds of a segment [code] at [a]: the PCC and the shadow table. *)
   Definition allocator_segment_bounds (code : list Word) (pc_b pc_e a : Addr) : Prop :=
-    SubBounds pc_b pc_e a (a ^+ length code)%a ∧
+    SubBounds pc_b pc_e a (a ^+ length code) ∧
     disjoint_from_shadow pc_b pc_e.
 
 End AllocatorCommonSegmentBounds.

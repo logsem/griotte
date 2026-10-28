@@ -46,11 +46,28 @@ Module FwPrintNotations.
     (only printing, format "[ 'U' ,  g ,  b ,  e ,  a ]").
   Notation "[ 'O' , g , b , e , a ]" := (WSealable (SSealRange true (false, false) g b e a))
     (only printing, format "[ 'O' ,  g ,  b ,  e ,  a ]").
-  Notation "( 'E-' k p , g , b , e , a )" := (WSentry k true p g b e a)
+  Notation "( 'E-' k p , g , b , e , a )" := (Sentry k p g b e a)
     (only printing, k at level 0, p at level 0,
      format "( 'E-' k  p ,  g ,  b ,  e ,  a )").
   Notation "{ o , sb }" := (WSealed o sb)
     (only printing, format "{  o ,  sb  }").
+  (* The abbreviations [Sealed] and [SealedSR] take precedence over the
+     notation above: the same notation on sealed capabilities and sealing
+     ranges. *)
+  Notation "{ o , ( p , g , b , e , a ) }" := (WSealed o (SCap true p g b e a))
+    (only printing, format "{  o ,  ( p ,  g ,  b ,  e ,  a )  }").
+  Notation "{ o , [ 'SU' , g , b , e , a ] }" :=
+    (WSealed o (SSealRange true (true, true) g b e a))
+    (only printing, format "{  o ,  [ 'SU' ,  g ,  b ,  e ,  a ]  }").
+  Notation "{ o , [ 'S' , g , b , e , a ] }" :=
+    (WSealed o (SSealRange true (true, false) g b e a))
+    (only printing, format "{  o ,  [ 'S' ,  g ,  b ,  e ,  a ]  }").
+  Notation "{ o , [ 'U' , g , b , e , a ] }" :=
+    (WSealed o (SSealRange true (false, true) g b e a))
+    (only printing, format "{  o ,  [ 'U' ,  g ,  b ,  e ,  a ]  }").
+  Notation "{ o , [ 'O' , g , b , e , a ] }" :=
+    (WSealed o (SSealRange true (false, false) g b e a))
+    (only printing, format "{  o ,  [ 'O' ,  g ,  b ,  e ,  a ]  }").
   Notation "'entry' m n stk off" :=
     (WInt (encode_entry_point m (Z.of_nat n) (Z.of_nat stk) (Z.of_nat off)))
     (only printing, at level 10, m at level 0, n at level 0, stk at level 0, off at level 0).
@@ -1118,8 +1135,8 @@ Section memory_map.
        "export table" n
        (app
           (words_cells
-             [WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c);
-              WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c);
+             [Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c);
+              Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c);
               cmpt_exp_tbl_handler c; cmpt_exp_tbl_handler_stackless c])
           (map entry_cell (cmpt_exp_tbl_entries c)))].
 

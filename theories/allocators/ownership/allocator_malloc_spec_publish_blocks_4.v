@@ -22,27 +22,27 @@ Section AllocatorMallocPublishBlocks4.
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 4)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 4) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
-    ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+    ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
+    ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ WInt n @@? πn ∗
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
-       ct0 ↦ᵣ WCap true RW Global heap_b heap_e finish ∗
-       ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
-       ca0 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
+       ct0 ↦ᵣ Cap RW Global heap_b heap_e finish ∗
+       ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
+       ca0 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
        ca1 ↦ᵣ WInt 0 ∗
-       allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e finish ∗
+       allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e finish ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds Hbase Hfinish Hrange Htgt. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
     iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & #Hcode_main & Hφ)".
@@ -69,13 +69,13 @@ Section AllocatorMallocPublishBlocks4.
     iInstr "Hcode".
     (* Jmp .malloc_return. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_return_offset)%a);
+    { transitivity (Some (pc_a ^+ allocator_malloc_return_offset));
         offsets_compute; solve_addr. }
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* Block 5: return *)
     change_pc_to
-      ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2)%a.
+      ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2).
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode]");
       [by apply allocator_malloc_exit_bounds | done |].

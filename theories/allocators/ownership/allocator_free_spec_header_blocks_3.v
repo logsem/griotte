@@ -29,53 +29,53 @@ Section AllocatorFreeHeaderBlocks3.
     (heap_b < b /\ b < e /\ e <= next /\ next <= heap_e)%a ->
     (s1 = ShadowQuarantined -> s2 = ShadowLive ->
       (heap_b + allocator_header_words < b)%Z) ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 3) ∗
     ctp ↦ᵣ wctp ∗
     ca3 ↦ᵣ w3 ∗
     ca4 ↦ᵣ w4 ∗
     ca2 ↦ᵣ wa2 ∗
-    ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+    ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
     ct1 ↦ᵣ WInt b ∗
     ct2 ↦ᵣ WInt e ∗
-    (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-      WCap true RW Global shadow_b shadow_e shadow_b ∗
-    (pc_b ^+ allocator_revoker_import_off)%a ↦ₐ□ allocator_revoker_cap ∗
-    (b ^+ (-1))%a ↦ₛ s1 ∗
+    (pc_b ^+ allocator_shadow_import_off) ↦ₐ□
+      Cap RW Global shadow_b shadow_e shadow_b ∗
+    (pc_b ^+ allocator_revoker_import_off) ↦ₐ□ allocator_revoker_cap ∗
+    (b ^+ (-1)) ↦ₛ s1 ∗
     b ↦ₛ s2 ∗
     (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
-     then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh ∗
-         ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt oh
+     then (b ^+ (- allocator_header_words)) ↦ₐ WInt eh ∗
+         ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt oh
     else emp) ∗
     ca0 ↦ᵣ WInt o ∗
     codefrag_pers pc_a allocator_free_code ∗
-    ▷ ((pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-         WCap true RW Global shadow_b shadow_e shadow_b ∗
-       (pc_b ^+ allocator_revoker_import_off)%a ↦ₐ□ allocator_revoker_cap ∗
-       (b ^+ (-1))%a ↦ₛ s1 ∗
+    ▷ ((pc_b ^+ allocator_shadow_import_off) ↦ₐ□
+         Cap RW Global shadow_b shadow_e shadow_b ∗
+       (pc_b ^+ allocator_revoker_import_off) ↦ₐ□ allocator_revoker_cap ∗
+       (b ^+ (-1)) ↦ₛ s1 ∗
        b ↦ₛ s2 ∗
        (if decide (s1 = ShadowQuarantined ∧ s2 = ShadowLive)
-        then (b ^+ (- allocator_header_words))%a ↦ₐ WInt eh ∗
-             ((b ^+ (- allocator_header_words)) ^+ 1)%a ↦ₐ WInt oh
+        then (b ^+ (- allocator_header_words)) ↦ₐ WInt eh ∗
+             ((b ^+ (- allocator_header_words)) ^+ 1) ↦ₐ WInt oh
         else emp) ∗
        ca0 ↦ᵣ WInt o ∗
-       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt e ∗
        ca4 ↦ᵣ - ∗
        codefrag_pers pc_a allocator_free_code ∗
        ((⌜s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e ∧ oh = o⌝ ∗
-         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 5)%a ∗
+         PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_block_offset 5) ∗
          ca3 ↦ᵣ allocator_revoker_cap ∗
          ca2 ↦ᵣ WInt (e - b) ∗
-         ctp ↦ᵣ WCap true RW Global shadow_b shadow_e (shadow_b ^+ (b - heap_b))%a)
+         ctp ↦ᵣ Cap RW Global shadow_b shadow_e (shadow_b ^+ (b - heap_b)))
         ∨
         (⌜¬ (s1 = ShadowQuarantined ∧ s2 = ShadowLive ∧ eh = e ∧ oh = o)⌝ ∗
-         PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset)%a ∗
+         PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset) ∗
          ca3 ↦ᵣ - ∗
          ca2 ↦ᵣ - ∗
          ctp ↦ᵣ -))
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & _) Hpcc Hbounds Hheader.
     iIntros "(HPC & Hctp & Hct3 & Hct4 & Hca2 & Hct0 & Hct1 & Hct2 & #Himport & #Hrevoker_import &
@@ -85,8 +85,8 @@ Section AllocatorFreeHeaderBlocks3.
     allocator_free_unfold_code "Hcode_main".
     pose proof heap_shadow_same_size as Hss.
     pose proof heap_valid.
-    set (sb := (shadow_b ^+ (b - heap_b))%a).
-    assert (Htr1 : heap_to_shadow (b ^+ -1)%a = Some (sb ^+ -1)%a).
+    set (sb := shadow_b ^+ (b - heap_b)).
+    assert (Htr1 : heap_to_shadow (b ^+ -1) = Some (sb ^+ -1)).
     { rewrite allocator_heap_to_shadow; last solve_addr. f_equal. subst sb. solve_addr. }
     assert (Htr2 : heap_to_shadow b = Some sb).
     { rewrite allocator_heap_to_shadow; last solve_addr. done. }
@@ -105,7 +105,7 @@ Section AllocatorFreeHeaderBlocks3.
     pose proof allocator_revoker_import_not_heap.
     (* Auipcc ctp ".Limport_shadow". *)
     iInstr "Hcode".
-    { instantiate (1 := (pc_b ^+ allocator_shadow_import_off)%a).
+    { instantiate (1 := pc_b ^+ allocator_shadow_import_off).
       rewrite /allocator_shadow_import_off. offsets_compute; solve_addr. }
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
@@ -125,10 +125,10 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     (* Sub ca3 ca3 1. *)
     iInstr "Hcode".
-    replace (b - heap_b - 1)%Z with ((sb ^+ -1)%a - shadow_b)%Z by (subst sb; solve_addr).
+    replace (b - heap_b - 1)%Z with ((sb ^+ -1) - shadow_b)%Z by (subst sb; solve_addr).
     (* Lea ctp ctp ca3. *)
     iInstr "Hcode".
-    { transitivity (Some (sb ^+ -1)%a); subst sb; solve_addr. }
+    { transitivity (Some (sb ^+ -1)); subst sb; solve_addr. }
     unfold lword_of_word.
     (* CLoad ca3 ctp: the shadow entry of the word below the base. *)
     iInstrApply "Hcode" (wp_load_success_from_shadow _ ca3 ctp)
@@ -146,7 +146,7 @@ Section AllocatorFreeHeaderBlocks3.
       { intros [=]. apply (Henc _ _ Hs1q). lia. }
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hφ". iFrame "∗ Hcode_main Himport Hrevoker_import". iRight. iSplit; first (iPureIntro; intros (? & _); done).
@@ -157,8 +157,8 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     (* Lea ctp ctp 1. *)
     iInstr "Hcode".
-    { transitivity (Some (sb ^+ 0)%a); subst sb; solve_addr. }
-    replace ((sb ^+ -1) ^+ 1)%a with sb by (subst sb; solve_addr).
+    { transitivity (Some (sb ^+ 0)); subst sb; solve_addr. }
+    replace ((sb ^+ -1) ^+ 1) with sb by (subst sb; solve_addr).
     (* CLoad ca3 ctp: the shadow entry of the base. *)
     iInstrApply "Hcode" (wp_load_success_from_shadow _ ca3 ctp)
       with "[$HPC $Hct3 $Hctp $Hs2]"
@@ -175,7 +175,7 @@ Section AllocatorFreeHeaderBlocks3.
       { intros [=]. apply (Henc _ _ Hs2l). lia. }
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hφ". iFrame "∗ Hcode_main Himport Hrevoker_import". iRight. iSplit; first (iPureIntro; intros (_ & ? & _); done).
@@ -195,16 +195,16 @@ Section AllocatorFreeHeaderBlocks3.
     iInstr "Hcode".
     unfold allocator_header_words in *.
     change (Z.opp 3) with (-3)%Z in *.
-    replace (b - next - 3)%Z with ((b ^+ -3)%a - next)%Z by solve_addr.
+    replace (b - next - 3)%Z with ((b ^+ -3) - next)%Z by solve_addr.
     (* Lea ca4 ca4 ca3. *)
     iInstr "Hcode".
-    { transitivity (Some (b ^+ -3)%a); solve_addr. }
+    { transitivity (Some (b ^+ -3)); solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
     (* CLoad ca2 ca4: the recorded end. *)
     iInstrApply "Hcode" (wp_load_success_notinstr _ ca2 ca4)
       with "[$HPC $Hca2 $Hct4 $Hhdr $Hdw]"
       as "(HPC & Hca2 & Hct4 & Hhdr & _)".
-    { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3)%a);
+    { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3));
         first exact heap_shadow_disjoint.
       apply withinBounds_true_iff. solve_addr. }
     { reflexivity. }
@@ -221,7 +221,7 @@ Section AllocatorFreeHeaderBlocks3.
       iInstrApply "Hcode" (wp_load_success_notinstr_imm _ ca3 ca4)
         with "[$HPC $Hct3 $Hct4 $Hown $Hdw]"
         as "(HPC & Hct3 & Hct4 & Hown & _)".
-      { eapply (disjoint_from_shadow_not_in heap_b heap_e ((b ^+ -3) ^+ 1)%a);
+      { eapply (disjoint_from_shadow_not_in heap_b heap_e ((b ^+ -3) ^+ 1));
           first exact heap_shadow_disjoint.
         apply withinBounds_true_iff. solve_addr. }
       { reflexivity. }
@@ -238,7 +238,7 @@ Section AllocatorFreeHeaderBlocks3.
         iInstr "Hcode".
         (* Auipcc ca3 ".Limport_revoker". *)
         iInstr "Hcode".
-        { instantiate (1 := (pc_b ^+ allocator_revoker_import_off)%a).
+        { instantiate (1 := pc_b ^+ allocator_revoker_import_off).
           rewrite /allocator_revoker_import_off. offsets_compute; solve_addr. }
         (* CLoad ca3 ca3 0. *)
         iInstr "Hcode".
@@ -250,13 +250,13 @@ Section AllocatorFreeHeaderBlocks3.
         iEval (rewrite /lload_word /lift_word /=) in "Hct3".
         iEval (cbn [load_word]) in "Hct3".
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-        change_pc_to (pc_a ^+ allocator_free_block_offset 5)%a.
+        change_pc_to (pc_a ^+ allocator_free_block_offset 5).
         iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
         iFrame "∗ Hcode_main Himport Hrevoker_import". iLeft. iFrame "∗". done.
       + assert (Hneq : WInt (oh - o) ≠ WInt 0) by (intros [=]; apply Hneo; lia).
         (* Jne .free_invalid ca3 0. *)
         iInstr "Hcode".
-        { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+        { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
             offsets_compute; solve_addr. }
         unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
         iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].
@@ -265,7 +265,7 @@ Section AllocatorFreeHeaderBlocks3.
     - assert (Hneq : WInt (eh - e) ≠ WInt 0) by (intros [=]; apply Hne; solve_addr).
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset)%a);
+      { transitivity (Some (pc_a ^+ allocator_free_invalid_offset));
           offsets_compute; solve_addr. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hφ". case_decide as Hd; [|exfalso; naive_solver].

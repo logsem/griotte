@@ -9,7 +9,7 @@ From griotte.allocators.common Require Import allocator_common_preamble.
 (** A tagged, nonempty capability based in the heap has authority. *)
 Lemma heap_authority_base_heap_cap `{MP : MachineParameters} p g b e a :
   (heap_b <= b)%a -> (b < e)%a -> (b < heap_e)%a ->
-  heap_authority_base (WCap true p g b e a) = Some b.
+  heap_authority_base (Cap p g b e a) = Some b.
 Proof.
   intros Hb Hbe He.
   rewrite /heap_authority_base decide_True // /heap_cap_base /=.
@@ -19,7 +19,7 @@ Qed.
 
 Lemma has_authority_heap_cap `{MP : MachineParameters} p g b e a :
   (heap_b <= b)%a -> (b < e)%a -> (b < heap_e)%a ->
-  has_authority (WCap true p g b e a).
+  has_authority (Cap p g b e a).
 Proof.
   intros Hb Hbe He. split; first done. exists b.
   by apply heap_authority_base_heap_cap.
@@ -42,31 +42,31 @@ Section AllocatorMacros.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := fetch_instrs off rdst in
-    let pc_end := (pc_a ^+ length code)%a in
+    let pc_end := (pc_a ^+ length code) in
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a pc_end ->
-    (pc_a + off)%a = Some (pc_b ^+ n)%a ->
-    withinBounds pc_b pc_e (pc_b ^+ n)%a = true ->
+    (pc_a + off)%a = Some (pc_b ^+ n) ->
+    withinBounds pc_b pc_e (pc_b ^+ n) = true ->
     disjoint_from_shadow pc_b pc_e ->
     is_heap_cap wentry.(lw) = false ->
     rdst ≠ cnull ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
     rdst ↦ᵣ wdst ∗
-    (pc_b ^+ n)%a ↦ₐ□ wentry ∗
+    (pc_b ^+ n) ↦ₐ□ wentry ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
+    ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_end ∗
          rdst ↦ᵣ lload_word pc_p wentry ∗
-         (pc_b ^+ n)%a ↦ₐ□ wentry ∗
+         (pc_b ^+ n) ↦ₐ□ wentry ∗
          codefrag_pers pc_a code
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+         -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros code pc_end Hvpc Hcont Hoff Hpc_n Hdisjoint Hnonheap Hrdst;
       subst code pc_end.
     iIntros "(HPC & Hrdst & #Hentry & #Hcode & Hφ)".
     codefrag_facts "Hcode".
-    assert (is_shadow_address (pc_b ^+ n)%a = false) as Hshadow.
+    assert (is_shadow_address (pc_b ^+ n) = false) as Hshadow.
     { eapply disjoint_from_shadow_not_in; eauto. }
     (* Auipcc rdst off. *)
     iInstr "Hcode".
@@ -80,19 +80,19 @@ Section AllocatorMacros.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := encodeInstrsW [Jalr cnull cra] in
-    SubBounds pc_b pc_e pc_a (pc_a ^+ length code)%a ->
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
     disjoint_from_shadow pc_b pc_e ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    PC ↦ₚ WCap true RX Global pc_b pc_e pc_a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     codefrag_pers pc_a code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
          codefrag_pers pc_a code ∗
          £ 1
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+         -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros code Hpc Hdisjoint Htgt; subst code.
     iIntros "(HPC & Hcra & #Hcode & Hφ)".
@@ -109,7 +109,7 @@ Section AllocatorMacros.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := allocator_zero_instrs rptr rend rtmp in
-    let pc_end := (pc_a ^+ length code)%a in
+    let pc_end := (pc_a ^+ length code) in
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a pc_end ->
     disjoint_from_shadow pc_b pc_e ->
@@ -118,22 +118,22 @@ Section AllocatorMacros.
     NoDup [cnull; rptr; rend; rtmp] ->
     π = deref_id dw ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-    rptr ↦ᵣ WCap true p g b e b @@? π ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
+    rptr ↦ᵣ Cap p g b e b @@? π ∗
     deref_witness_res dw ∗
     rend ↦ᵣ WInt (finz.to_z e) ∗
     rtmp ↦ᵣ wtmp ∗
     allocator_range_memory b e ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
-         rptr ↦ᵣ WCap true p g b e e @@? π ∗
+    ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_end ∗
+         rptr ↦ᵣ Cap p g b e e @@? π ∗
          deref_witness_res dw ∗
          rend ↦ᵣ WInt (finz.to_z e) ∗
          rtmp ↦ᵣ WInt 0 ∗
          ([∗ list] a ∈ finz.seq_between b e, a ↦ₐ WInt 0) ∗
          codefrag_pers pc_a code
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+         -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
 
   Proof.
     intros code pc_end; subst code pc_end.
@@ -170,12 +170,12 @@ Section AllocatorMacros.
 
     (* Lea rptr rptr 1 advances the heap cursor. *)
     iInstr "Hcode".
-    { transitivity (Some (b ^+ 1)%a); solve_addr. }
+    { transitivity (Some (b ^+ 1)); solve_addr. }
     (* GetA rtmp rptr reads the advanced cursor. *)
     iInstr "Hcode".
     (* Sub rtmp rend rtmp computes the remaining length. *)
     iInstr "Hcode".
-    destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
+    destruct (decide (b ^+ 1 = e)) as [Hlast | Hmore].
     - rewrite Hlast Z.sub_diag.
       (* Jne .allocator_zero rtmp 0 falls through after the last address. *)
       iInstr "Hcode".
@@ -187,7 +187,7 @@ Section AllocatorMacros.
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
-      iApply ("IH" $! (b ^+ 1)%a with
+      iApply ("IH" $! (b ^+ 1) with
         "[] [] HPC Hptr Hdw Hend Htmp Hmem [Ha Hφ]").
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
@@ -201,7 +201,7 @@ Section AllocatorMacros.
       store the entry's current value, or by a shared resource [R] together
       with a per-cell resource [P a]. *)
   Definition allocator_paint_ok (R : iProp Σ) (P : Addr → iProp Σ) (b e : Addr) : Prop :=
-    ∀ a Rs Cs, (b <= a < e)%a →
+    ∀ a Rs Cs, a ∈ₐ [b, e) →
       reg_auth Rs -∗ addr_alloc_auth Cs -∗ R ∗ P a -∗ ⌜shadow_perm_ok Rs Cs a⌝.
 
   (** The shadow store of the paint loop: the entry of [b] receives [s_new],
@@ -210,24 +210,24 @@ Section AllocatorMacros.
     (rptr : RegName) (s_old s_new : AllocStatus) (b e sb : Addr)
     (R : iProp Σ) (P : Addr → iProp Σ) :
     decodeInstrW w.(lw) = Store rptr (inl (encodeAllocStatus s_new)) 0 →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rptr ≠ cnull →
     (b < e)%a →
-    (shadow_b <= sb < shadow_e)%a →
+    sb ∈ₐ [shadow_b, shadow_e) →
     heap_to_shadow b = Some sb →
     s_old = s_new ∨ allocator_paint_ok R P b e →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+        ▷ rptr ↦ᵣ Cap RW Global shadow_b shadow_e sb ∗
         ▷ b ↦ₛ s_old ∗
         R ∗
         P b }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
-        rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+        rptr ↦ᵣ Cap RW Global shadow_b shadow_e sb ∗
         b ↦ₛ s_new ∗
         R ∗
         P b }}}.
@@ -268,7 +268,7 @@ Section AllocatorMacros.
     (φ : language.val griotte_lang → iPropI Σ) :
 
     let code := allocator_paint_instrs rptr rcount s_new in
-    let pc_end := (pc_a ^+ length code)%a in
+    let pc_end := (pc_a ^+ length code) in
     executeAllowed pc_p = true ->
     SubBounds pc_b pc_e pc_a pc_end ->
     disjoint_from_shadow pc_b pc_e ->
@@ -276,24 +276,24 @@ Section AllocatorMacros.
     (shadow_b <= sb /\ sb < se /\ se <= shadow_e)%a ->
     (finz.to_z se - finz.to_z sb = finz.to_z e - finz.to_z b)%Z ->
     (∀ a, (b <= a /\ a < e)%a ->
-       heap_to_shadow a = Some (sb ^+ (finz.to_z a - finz.to_z b))%a) ->
+       heap_to_shadow a = Some (sb ^+ (finz.to_z a - finz.to_z b))) ->
     NoDup [cnull; rptr; rcount] ->
     s_old = s_new ∨ allocator_paint_ok R P b e ->
 
-    PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a ∗
-    rptr ↦ᵣ WCap true RW Global shadow_b shadow_e sb ∗
+    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
+    rptr ↦ᵣ Cap RW Global shadow_b shadow_e sb ∗
     rcount ↦ᵣ WInt (finz.to_z e - finz.to_z b) ∗
     R ∗
     ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ s_old ∗ P a) ∗
     codefrag_pers pc_a code ∗
-    ▷ (PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_end ∗
-         rptr ↦ᵣ WCap true RW Global shadow_b shadow_e se ∗
+    ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_end ∗
+         rptr ↦ᵣ Cap RW Global shadow_b shadow_e se ∗
          rcount ↦ᵣ WInt 0 ∗
          R ∗
          ([∗ list] a ∈ finz.seq_between b e, a ↦ₛ s_new ∗ P a) ∗
          codefrag_pers pc_a code
-         -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+         -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros code pc_end; subst code pc_end.
     iIntros (Hexec Hpc Hpc_shadow Hheap Hshadow Hlen Htranslate Hregs Hok)
@@ -311,14 +311,14 @@ Section AllocatorMacros.
     rewrite Hcode_eq in Hpc |- *.
     codefrag_facts "Hcode".
     clear Hcode_eq.
-    assert (Hbnext : (b + 1)%a = Some (b ^+ 1)%a) by solve_addr.
+    assert (Hbnext : (b + 1)%a = Some (b ^+ 1)) by solve_addr.
     assert (Hbnext_e : (b ^+ 1 <= e)%a) by solve_addr.
     iEval (rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons)
       in "Hcells".
     iDestruct "Hcells" as "[[Hs HP] Hcells]".
     assert (Hmap : heap_to_shadow b = Some sb).
     { specialize (Htranslate b).
-      replace (sb ^+ (b - b))%a with sb in Htranslate by solve_addr.
+      replace (sb ^+ (b - b)) with sb in Htranslate by solve_addr.
       apply Htranslate; solve_addr. }
     unfold lword_of_word.
 
@@ -331,14 +331,14 @@ Section AllocatorMacros.
 
     (* Lea rptr rptr 1 advances the shadow cursor. *)
     iInstr "Hcode".
-    { transitivity (Some (sb ^+ 1)%a); solve_addr. }
+    { transitivity (Some (sb ^+ 1)); solve_addr. }
     (* Sub rcount rcount 1 consumes one word of the count. *)
     iInstr "Hcode".
-    destruct (decide ((b ^+ 1)%a = e)) as [Hlast | Hmore].
+    destruct (decide (b ^+ 1 = e)) as [Hlast | Hmore].
     - replace (e - b - 1)%Z with 0%Z by solve_addr.
       (* Jne .allocator_paint rcount 0 falls through after the last address. *)
       iInstr "Hcode".
-      assert (Hslast : (sb ^+ 1)%a = se) by solve_addr.
+      assert (Hslast : sb ^+ 1 = se) by solve_addr.
       rewrite Hslast.
       iApply "Hφ"; iFrame "∗ Hcode".
       rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap)))
@@ -348,8 +348,8 @@ Section AllocatorMacros.
       iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
-      replace (e - b - 1)%Z with (e - (b ^+ 1)%a)%Z by solve_addr.
-      iApply ("IH" $! (b ^+ 1)%a (sb ^+ 1)%a with
+      replace (e - b - 1)%Z with (e - (b ^+ 1))%Z by solve_addr.
+      iApply ("IH" $! (b ^+ 1) (sb ^+ 1) with
         "[] [] [] [] [] HPC Hptr Hcount HR Hcells [Hs HP Hφ]").
       { iPureIntro; solve_addr. }
       { iPureIntro; solve_addr. }
@@ -430,12 +430,12 @@ Section AllocatorLayoutFacts.
 
   (** The heap root is identifier-less and has authority. *)
   Lemma allocator_heap_root_authority next :
-    has_authority (WCap true RW Global heap_b heap_e next).
+    has_authority (Cap RW Global heap_b heap_e next).
   Proof. pose proof heap_valid. apply has_authority_heap_cap; solve_addr. Qed.
 
   (** The imported capabilities carry no heap authority. *)
   Lemma allocator_shadow_import_not_heap :
-    is_heap_cap (WCap true RW Global shadow_b shadow_e shadow_b) = false.
+    is_heap_cap (Cap RW Global shadow_b shadow_e shadow_b) = false.
   Proof.
     rewrite /is_heap_cap /heap_cap_base /memory_cap_base /=.
     destruct (is_heap_address shadow_b) eqn:Hheap; last reflexivity.
@@ -456,7 +456,7 @@ Section AllocatorLayoutFacts.
   (** The heap translates affinely to the shadow table. *)
   Lemma allocator_heap_to_shadow x :
     (heap_b <= x /\ x < heap_e)%a ->
-    heap_to_shadow x = Some (shadow_b ^+ (x - heap_b))%a.
+    heap_to_shadow x = Some (shadow_b ^+ (x - heap_b)).
   Proof.
     intros Hx. pose proof heap_shadow_same_size. pose proof heap_valid.
     rewrite allocator_common_translation_affine /translate_region.
@@ -468,45 +468,45 @@ Section AllocatorLayoutFacts.
   (** The allocator's three imports, as separate words. *)
   Lemma allocator_imports_split :
     [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ⊣⊢
-    (allocator_pcc_b ^+ allocator_shadow_import_off)%a ↦ₐ
-      WCap true RW Global shadow_b shadow_e shadow_b ∗
-    (allocator_pcc_b ^+ 1)%a ↦ₐ
-      WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype ∗
-    (allocator_pcc_b ^+ allocator_revoker_import_off)%a ↦ₐ allocator_revoker_cap.
+    (allocator_pcc_b ^+ allocator_shadow_import_off) ↦ₐ
+      Cap RW Global shadow_b shadow_e shadow_b ∗
+    (allocator_pcc_b ^+ 1) ↦ₐ
+      SealRange (false, true) Global AllocOtype (AllocOtype ^+ 1) AllocOtype ∗
+    (allocator_pcc_b ^+ allocator_revoker_import_off) ↦ₐ allocator_revoker_cap.
   Proof.
     pose proof allocator_common_size_imports as Hsize.
     rewrite allocator_imports_length in Hsize.
     rewrite /allocator_imports !fmap_cons fmap_nil.
-    rewrite (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1)%a);
+    rewrite (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1));
       [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 1)%a (allocator_pcc_b ^+ 2)%a);
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 1) (allocator_pcc_b ^+ 2));
       [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 2)%a allocator_code_b);
+    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 2) allocator_code_b);
       [|solve_addr|solve_addr].
     rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
     rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
-    assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
+    assert (allocator_pcc_b ^+ 0 = allocator_pcc_b) as -> by solve_addr.
     iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
   Qed.
 
   (** The allocator's three imports, as separate persistent words. *)
   Lemma allocator_imports_split_pers :
     [[allocator_pcc_b, allocator_code_b]] ↦ₐ□ [[lword_of_word <$> allocator_imports]] ⊢
-    (allocator_pcc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-      WCap true RW Global shadow_b shadow_e shadow_b ∗
-    (allocator_pcc_b ^+ 1)%a ↦ₐ□
-      WSealRange true (false, true) Global AllocOtype (AllocOtype ^+ 1)%ot AllocOtype ∗
-    (allocator_pcc_b ^+ allocator_revoker_import_off)%a ↦ₐ□ allocator_revoker_cap.
+    (allocator_pcc_b ^+ allocator_shadow_import_off) ↦ₐ□
+      Cap RW Global shadow_b shadow_e shadow_b ∗
+    (allocator_pcc_b ^+ 1) ↦ₐ□
+      SealRange (false, true) Global AllocOtype (AllocOtype ^+ 1) AllocOtype ∗
+    (allocator_pcc_b ^+ allocator_revoker_import_off) ↦ₐ□ allocator_revoker_cap.
   Proof.
     pose proof allocator_common_size_imports as Hsize.
     rewrite allocator_imports_length in Hsize.
     rewrite /region_pointsto_pers /allocator_imports !fmap_cons fmap_nil.
     rewrite (finz_seq_between_cons allocator_pcc_b); last solve_addr.
-    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1)%a); last solve_addr.
-    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1 ^+ 1)%a); last solve_addr.
+    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (allocator_pcc_b ^+ 1 ^+ 1)); last solve_addr.
     rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
-    assert ((allocator_pcc_b ^+ 0)%a = allocator_pcc_b) as -> by solve_addr.
-    assert ((allocator_pcc_b ^+ 1 ^+ 1)%a = (allocator_pcc_b ^+ 2)%a) as -> by solve_addr.
+    assert (allocator_pcc_b ^+ 0 = allocator_pcc_b) as -> by solve_addr.
+    assert (allocator_pcc_b ^+ 1 ^+ 1 = allocator_pcc_b ^+ 2) as -> by solve_addr.
     iIntros "($ & $ & $ & _)".
   Qed.
 

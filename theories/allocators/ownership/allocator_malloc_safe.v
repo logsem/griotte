@@ -34,8 +34,8 @@ Section Heap_Temporal_Safety_Interp.
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
     execute_entry_point allocator_exp_tbl_b
-      (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
-      (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
+      (Cap RX Global allocator_pcc_b allocator_pcc_e allocator_malloc_pcc_addr)
+      (Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_malloc_nargs allocator_malloc_min_stack W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
@@ -44,7 +44,6 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
-    rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs #Hzeros]".
@@ -109,7 +108,7 @@ Section Heap_Temporal_Safety_Interp.
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
       iApply (allocator_malloc_invalid_correct ⊤ ⊤ g_owner a_owner id wca1
-        (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
         | apply jalr_target_ok_switcher_return_sentry |].
@@ -158,7 +157,7 @@ Section Heap_Temporal_Safety_Interp.
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
         (dom (heap_std (revoke W))) ⊤ ⊤ g_owner a_owner id Ω n π1
-        (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
         | apply jalr_target_ok_switcher_return_sentry |].
@@ -276,7 +275,7 @@ Section Heap_Temporal_Safety_Interp.
             apply not_true_iff_false in Hrev_heap.
             apply Hrev_heap, withinBounds_true_iff.
             destruct Hbounds as (Hb & Hbe & He). solve_addr. }
-        iAssert (interp Wshare C (WCap true RW Global b e b @@ ι))
+        iAssert (interp Wshare C (Cap RW Global b e b @@ ι))
           with "[]" as "#Hinterp_result".
         { iEval (rewrite interp_unfold interp1_eq /=).
           iSplit; last (iPureIntro; split; [exact I|split; assumption]).
@@ -309,7 +308,7 @@ Section Heap_Temporal_Safety_Interp.
         set (Wfixed := close_list closing Wshare).
         assert (related_sts_pub_world Wshare Wfixed) as Hshare_fixed.
         { subst Wfixed. apply close_list_related_sts_pub. }
-        iAssert (interp Wfixed C (WCap true RW Global b e b @@ ι))
+        iAssert (interp Wfixed C (Cap RW Global b e b @@ ι))
           with "[]" as "#Hinterp_fixed".
         { iApply (monotone.interp_monotone_cap_valid Wshare Wfixed C
             true RW Global b e b (Some ι) with "[] Hinterp_result").
@@ -337,7 +336,7 @@ Section Heap_Temporal_Safety_Interp.
         { iApply interp_int. }
         iApply (switcher_ret_specification W Wshare C _
           e_stk b_stk l stk_mem cstk Ws Cs
-          (WCap true RW Global b e b @@ ι) (WInt 0)
+          (Cap RW Global b e b @@ ι) (WInt 0)
           with "[$Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
@@ -355,23 +354,23 @@ Section Heap_Temporal_Safety_Interp.
     (W : WORLD)
     (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
-    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
-    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a in
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
+    let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off) in
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
-    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+    allocator_exp_tbl_b ↦ₐ□ Cap RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
+    a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     no_handler allocator_exp_tbl_b ∗
     a_alloc_entry_malloc ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) -∗
     ot_switcher_prop W C
-      (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
+      (Cap RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_malloc).
   Proof.
     intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
@@ -379,7 +378,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
-      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)%a,
+      (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off),
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
       allocator_malloc_nargs, allocator_malloc_min_stack, allocator_malloc_pcc_off.
     iFrame "#".
@@ -401,7 +400,7 @@ Section Heap_Temporal_Safety_Interp.
     iSplit; first (iPureIntro; pose proof allocator_size_imports as Himports;
       rewrite /allocator_malloc_pcc_off -allocator_imports_length; eauto).
 
-    assert (forall a, (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a ->
+    assert (forall a, a ∈ₐ [allocator_exp_tbl_b, allocator_exp_tbl_e) ->
       is_shadow_address a = false) as Hexport_shadow.
     { intros a Ha. apply not_true_is_false; intros Hshadow.
       pose proof allocator_regions_disjoint as Hregions.
@@ -457,7 +456,7 @@ Section Heap_Temporal_Safety_Interp.
     iModIntro.
     iIntros (W') "%Hpriv".
     iNext.
-    change (allocator_pcc_b ^+ allocator_malloc_pcc_off)%a with allocator_malloc_pcc_addr.
+    change (allocator_pcc_b ^+ allocator_malloc_pcc_off) with allocator_malloc_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".
     iApply (malloc_exec_entry_point W' C Hpc_b).
     iFrame "#".

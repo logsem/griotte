@@ -27,8 +27,8 @@ Section AllocatorMallocPrepareBlocks3.
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
     (finish <= heap_e)%a ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     ca1 ↦ᵣ WInt n @@? πn ∗
     ctp ↦ᵣ WInt o ∗
     ct0 ↦ᵣ w0 ∗
@@ -37,31 +37,31 @@ Section AllocatorMallocPrepareBlocks3.
     ca3 ↦ᵣ w3 ∗
     ca4 ↦ᵣ w4 ∗
     ca2 ↦ᵣ wa2 ∗
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-    (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-      WCap true RW Global shadow_b shadow_e shadow_b ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+    (pc_b ^+ allocator_shadow_import_off) ↦ₐ□
+      Cap RW Global shadow_b shadow_e shadow_b ∗
     allocator_range_memory next b ∗
     alloc_obj ι b finish ∗
     ι ↦st{1} ALive ∗
     codefrag_pers pc_a allocator_malloc_code ∗
-    ▷ (PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 3)%a ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    ▷ (PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 3) ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        ca1 ↦ᵣ WInt n @@? πn ∗
-       ctp ↦ᵣ WCap true RW Global shadow_b shadow_e shadow_b ∗
-       ct0 ↦ᵣ WCap true RW Global heap_b heap_e next ∗
+       ctp ↦ᵣ Cap RW Global shadow_b shadow_e shadow_b ∗
+       ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
        ct1 ↦ᵣ WInt b ∗
        ct2 ↦ᵣ WInt finish ∗
        ca3 ↦ᵣ WInt 0 ∗
-       ca4 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
-       ca2 ↦ᵣ (WCap true RW Global b finish b) @@ ι ∗
-       allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-       (pc_b ^+ allocator_shadow_import_off)%a ↦ₐ□
-         WCap true RW Global shadow_b shadow_e shadow_b ∗
+       ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
+       ca2 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
+       allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+       (pc_b ^+ allocator_shadow_import_off) ↦ₐ□
+         Cap RW Global shadow_b shadow_e shadow_b ∗
        allocator_header next b finish (o, 0%Z) ∗
        ι ↦st{1} ALive ∗
        codefrag_pers pc_a allocator_malloc_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros (Hpc & Hpc_shadow & Hcgp_pc) Hpcc Hpositive Hnext Hbase Hfinish Hroom.
     iIntros "(HPC & Hcgp & Hca1 & Hctp & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 & Hslot &
@@ -125,13 +125,13 @@ Section AllocatorMallocPrepareBlocks3.
     assert (Hnextb : (next < b)%a) by solve_addr.
     assert (Hsecondb : (next ^+ 1 < b)%a) by solve_addr.
     assert (Hthirdb : (next ^+ 2 < b)%a) by solve_addr.
-    assert (Hthirdaddr : ((next ^+ 1)%a ^+ 1)%a = (next ^+ 2)%a) by solve_addr.
-    assert (Hthirdend : ((next ^+ 2)%a ^+ 1)%a = b) by solve_addr.
+    assert (Hthirdaddr : (next ^+ 1) ^+ 1 = next ^+ 2) by solve_addr.
+    assert (Hthirdend : (next ^+ 2) ^+ 1 = b) by solve_addr.
     assert (Hempty : finz.seq_between b b = []) by (apply finz_seq_between_empty; solve_addr).
     iEval (rewrite /allocator_range_memory
       (finz_seq_between_cons next b Hnextb) big_sepL_cons
-      (finz_seq_between_cons (next ^+ 1)%a b Hsecondb) big_sepL_cons
-      Hthirdaddr (finz_seq_between_cons (next ^+ 2)%a b Hthirdb) big_sepL_cons
+      (finz_seq_between_cons (next ^+ 1) b Hsecondb) big_sepL_cons
+      Hthirdaddr (finz_seq_between_cons (next ^+ 2) b Hthirdb) big_sepL_cons
       Hthirdend Hempty) in "Hheader".
     iDestruct "Hheader" as "([%wend Hend] & [%wr1 Hr1] & [%wr2 Hr2] & _)".
     (* Store ct0 ct2. *)
@@ -141,7 +141,7 @@ Section AllocatorMallocPrepareBlocks3.
     { apply withinBounds_true_iff. solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
     (* Store ct0 ctp 1. *)
-    iInstrApply "Hcode" (wp_store_success_reg_imm _ _ _ _ _ _ _ _ _ _ ct0 ctp wr1 _ _ _ _ _ (next ^+ 1)%a 1)
+    iInstrApply "Hcode" (wp_store_success_reg_imm _ _ _ _ _ _ _ _ _ _ ct0 ctp wr1 _ _ _ _ _ (next ^+ 1) 1)
       with "[$HPC $Hct0 $Hctp $Hr1 $Hdw]"
       as "(HPC & Hctp & Hct0 & Hr1 & _)".
     { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
@@ -150,7 +150,7 @@ Section AllocatorMallocPrepareBlocks3.
     { solve_addr. }
     iPoseProof deref_res_none as "-#Hdw".
     (* Store ct0 0 2. *)
-    iInstrApply "Hcode" (wp_store_success_z_imm _ _ _ _ _ _ _ _ _ _ ct0 0 wr2 _ _ _ _ _ (next ^+ 2)%a 2)
+    iInstrApply "Hcode" (wp_store_success_z_imm _ _ _ _ _ _ _ _ _ _ ct0 0 wr2 _ _ _ _ _ (next ^+ 2) 2)
       with "[$HPC $Hct0 $Hr2 $Hdw]"
       as "(HPC & Hct0 & Hr2 & _)".
     { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
@@ -164,7 +164,7 @@ Section AllocatorMallocPrepareBlocks3.
     rewrite /allocator_malloc_pcc_off in Hpcc.
     (* Auipcc ctp ".Limport_shadow". *)
     iInstr "Hcode".
-    { instantiate (1 := (pc_b ^+ allocator_shadow_import_off)%a).
+    { instantiate (1 := pc_b ^+ allocator_shadow_import_off).
       rewrite /allocator_shadow_import_off. offsets_compute; solve_addr. }
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
@@ -173,7 +173,7 @@ Section AllocatorMallocPrepareBlocks3.
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     iEval (cbn [load_word]) in "Hctp".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
-    change_pc_to (pc_a ^+ allocator_malloc_block_offset 3)%a.
+    change_pc_to (pc_a ^+ allocator_malloc_block_offset 3).
     iApply "Hφ". iFrame "∗ Hcode_main Himport". rewrite /allocator_header /=. iFrame "∗". done.
   Qed.
 
@@ -183,7 +183,7 @@ Section AllocatorMallocPrepareBlocks3.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_no_memory_offset)%a ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_no_memory_offset) ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
@@ -194,14 +194,14 @@ Section AllocatorMallocPrepareBlocks3.
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
        £ 1
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds Htgt. pose proof Hbounds as (Hpc & _ & _).
     iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
-    assert ((pc_a ^+ allocator_malloc_no_memory_offset)%a =
-      ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 1)%a)
+    assert (pc_a ^+ allocator_malloc_no_memory_offset =
+      (pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 1)
       as -> by (cbn in Hpc; offsets_compute; solve_addr).
     iApply (allocator_malloc_exit_oom_spec with
       "[- $HPC $Hcra $Hca0 $Hca1 $Hcode]");
@@ -219,8 +219,8 @@ Section AllocatorMallocPrepareBlocks3.
     (heap_b < next /\ next <= heap_e)%a ->
     (heap_e - next - allocator_header_words < n)%Z ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    PC ↦ₚ WCap true RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2)%a ∗
-    cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 2) ∗
+    cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ WInt n @@? πn ∗
@@ -230,10 +230,10 @@ Section AllocatorMallocPrepareBlocks3.
     ca3 ↦ᵣ w3 ∗
     ca4 ↦ᵣ w4 ∗
     ca2 ↦ᵣ wa2 ∗
-    allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
+    allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
-       cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+       cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
@@ -243,10 +243,10 @@ Section AllocatorMallocPrepareBlocks3.
        ca3 ↦ᵣ - ∗
        ca4 ↦ᵣ - ∗
        ca2 ↦ᵣ - ∗
-       allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
+       allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
        codefrag_pers pc_a allocator_malloc_code
-       -∗ WP Seq (Instr Executable) @ E {{ φ }})
-    ⊢ WP Seq (Instr Executable) @ E {{ φ }}.
+       -∗ WP Exec @ E {{ φ }})
+    ⊢ WP Exec @ E {{ φ }}.
   Proof.
     intros Hbounds Hpositive Hnext Hoom Htgt. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
     iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hca2 &
@@ -284,7 +284,7 @@ Section AllocatorMallocPrepareBlocks3.
     replace (heap_e - next - 3 <? n)%Z with true by (symmetry; apply Z.ltb_lt; lia).
     (* Jne .malloc_no_memory ca3 0. *)
     iInstr "Hcode".
-    { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset)%a);
+    { transitivity (Some (pc_a ^+ allocator_malloc_no_memory_offset));
         offsets_compute; solve_addr. }
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply (allocator_malloc_oom_spec with "[- $HPC $Hcra $Hca0 $Hca1 $Hcode_main]");

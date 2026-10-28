@@ -384,8 +384,8 @@ Section Allocator.
   Qed.
 
   Definition allocator_export_table `{allocatorLayout} : list Word :=
-    [WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b;
-     WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b]
+    [Cap RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b;
+     Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b]
       ++ allocator_export_table_entries.
 
   (** Compartment memory contains imports followed by code, the bump
@@ -401,13 +401,13 @@ Section Allocator.
       allocator_export_table).
 
   Definition allocator_free_pcc_addr `{allocatorLayout} : Addr :=
-    (allocator_pcc_b ^+ allocator_free_pcc_off)%a.
+    (allocator_pcc_b ^+ allocator_free_pcc_off).
 
   (** An allocator capability: a read-only capability on the static word [a],
       which holds the owner identifier, sealed with the allocator's otype. *)
 
   Definition allocator_capability_scap (g : Locality) (a : Addr) : Sealable :=
-    SCap true RO g a (a ^+ 1)%a a.
+    SCap true RO g a (a ^+ 1) a.
 
   Definition allocator_capability `{allocatorLayout} (g : Locality) (a : Addr) : Word :=
     WSealed AllocOtype (allocator_capability_scap g a).

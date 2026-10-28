@@ -75,8 +75,8 @@ Section Heap_Temporal_Safety_Interp.
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
     execute_entry_point allocator_exp_tbl_b
-      (WCap true RX Global allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr)
-      (WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
+      (Cap RX Global allocator_pcc_b allocator_pcc_e allocator_free_pcc_addr)
+      (Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b)
       allocator_free_nargs allocator_free_min_stack W C.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
@@ -85,7 +85,6 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
-    rewrite /interp_conf.
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs %Hzeros]".
@@ -133,11 +132,11 @@ Section Heap_Temporal_Safety_Interp.
     destruct wca1 as [wa1 π].
     assert (Hshape :
       (∃ p g b e a,
-        wa1 = WCap true p g b e a ∧
+        wa1 = Cap p g b e a ∧
         (heap_b < b ∧ b < e ∧ e <= heap_e)%a) ∨
       (∀ next allocations o,
         (heap_b < next ∧ next <= heap_e)%a →
-        allocator_chain (heap_b ^+ 1)%a next allocations →
+        allocator_chain (heap_b ^+ 1) next allocations →
         ¬ allocator_free_valid next allocations o wa1)).
     { destruct wa1 as [n|s|tag p g b e a|ot s].
       - right. intros next allocations o _ _ (p & g & b & e & a & Hcap & _).
@@ -172,7 +171,7 @@ Section Heap_Temporal_Safety_Interp.
         as (g_owner a_owner id Ω)
         "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
       iApply (allocator_free_invalid_correct ⊤ ⊤ g_owner a_owner id (wa1 @@? π)
-        (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)
         | solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner
@@ -220,7 +219,7 @@ Section Heap_Temporal_Safety_Interp.
     (* A tagged heap argument is a live capability of the object [ι] that
        the world records, whose bounds cover the argument's. *)
     destruct Hcap as (p & g & b & e & a & -> & Hbounds).
-    iDestruct ("Hargs" $! ca1 (WCap true p g b e a @@? π) with "[] []")
+    iDestruct ("Hargs" $! ca1 (Cap p g b e a @@? π) with "[] []")
       as "#Hinterp_ca1".
     { iPureIntro. rewrite /allocator_free_nargs /dom_arg_rmap. set_solver. }
     { iPureIntro. exact Hwca1. }
@@ -256,7 +255,7 @@ Section Heap_Temporal_Safety_Interp.
           with "[$Hinterp_csp $Hsts $Hregion]") as (l)
           "(%Htemps & Hsts & Hregion & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
         iApply (allocator_free_wrong_owner_spec ⊤ ⊤ g_owner a_owner id Ω p g ι b e a
-          (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+          (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
           with "[-]");
           [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
           | apply jalr_target_ok_switcher_return_sentry |].
@@ -318,7 +317,7 @@ Section Heap_Temporal_Safety_Interp.
         as "[Hright Hrights]"; first exact HιΩ.
       iDestruct "Hright" as "[#Hq_old|Hright]".
       { iExFalso.
-        assert (finz.seq_between b e = b :: finz.seq_between (b ^+ 1)%a e) as Hseq.
+        assert (finz.seq_between b e = b :: finz.seq_between (b ^+ 1) e) as Hseq.
         { apply finz_seq_between_cons. destruct Hbounds as (_ & ? & _). solve_addr. }
         iEval (rewrite Hseq) in "Hcells".
         iDestruct (big_sepL2_cons_inv_l with "Hcells") as (w0 ws' ->) "[Hc _]".
@@ -333,12 +332,12 @@ Section Heap_Temporal_Safety_Interp.
         [solve_ndisj|solve_ndisj|].
       iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
       iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
-        (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
-        (TStack (WCap true RWL Global b_trusted_stack e_trusted_stack b_trusted_stack)) rmap
+        (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rmap
         (HO th) with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
         | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
-        | intros vm [Hprov _] _; exact Hprov | apply jalr_target_ok_switcher_return_sentry |].
+        | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry |].
       { subst rmap. apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
@@ -368,7 +367,7 @@ Section Heap_Temporal_Safety_Interp.
         destruct (decide (κ = ι)) as [->|Hne].
         - subst h'. rewrite (heap_quarantine_lookup _ _ _ Hι) Hι /=.
           rewrite /alloc_object_contains /=.
-          destruct (decide (b <= x < e)%a) as [Hx|]; last done.
+          destruct (decide (x ∈ₐ [b, e))) as [Hx|]; last done.
           exfalso. apply Hnotin. apply list_elem_of_fmap. exists x.
           split; first done. by apply elem_of_finz_seq_between.
         - subst h'. by rewrite heap_quarantine_lookup_ne. }
@@ -403,7 +402,7 @@ Section Heap_Temporal_Safety_Interp.
         b_stk e_stk (stk_start_a b_stk e_stk) None eq_refl
         with "Hinterp_csp") as %[_ Hstack_disjoint].
       iAssert (interp (heap_std_update W h') C
-        (WCap true RWL Local b_stk e_stk (stk_start_a b_stk e_stk)))
+        (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)))
         with "[Hinterp_csp]" as "Hinterp_csp_q".
       { iApply (monotone.interp_monotone_cap_nonheap
           W (heap_std_update W h') C true RWL Local
@@ -462,7 +461,7 @@ Section Heap_Temporal_Safety_Interp.
         as (g_owner a_owner id Ω)
         "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
       iApply (allocator_free_narrowed_spec ⊤ ⊤ g_owner a_owner id p g ι base objend b e a
-        (WSentry (ret_kind mie) true XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ destruct Hbounds as (_ & Hbe & _); solve_addr | exact Hnarrow | solve_ndisj | solve_ndisj
         | exact Hshadow_owner | exact Hbounds_owner
@@ -515,23 +514,23 @@ Section Heap_Temporal_Safety_Interp.
     (W : WORLD)
     (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
-    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp)%a in
-    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a in
+    let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
+    let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off) in
     allocator_service_ctx ∗
     allocator_service_static ∗
     seal_pred AllocOtype allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
-    allocator_exp_tbl_b ↦ₐ□ WCap true RX Global
+    allocator_exp_tbl_b ↦ₐ□ Cap RX Global
       allocator_pcc_b allocator_pcc_e allocator_pcc_b ∗
-    a_alloc_exp_tbl_cgp ↦ₐ□ WCap true RW Global
+    a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     no_handler allocator_exp_tbl_b ∗
     a_alloc_entry_free ↦ₐ□
       WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off) -∗
     ot_switcher_prop W C
-      (WCap true RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
+      (Cap RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_free).
   Proof.
     intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_free.
@@ -539,7 +538,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
-      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off)%a,
+      (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off),
       allocator_pcc_b, allocator_pcc_e, allocator_cgp_b, allocator_cgp_e,
       allocator_free_nargs, allocator_free_min_stack, allocator_free_pcc_off.
     iFrame "#".
@@ -564,7 +563,7 @@ Section Heap_Temporal_Safety_Interp.
       rewrite allocator_free_pcc_off_eq /allocator_malloc_pcc_off in Hcode |- *;
       solve_addr).
 
-    assert (forall a, (allocator_exp_tbl_b <= a < allocator_exp_tbl_e)%a ->
+    assert (forall a, a ∈ₐ [allocator_exp_tbl_b, allocator_exp_tbl_e) ->
       is_shadow_address a = false) as Hexport_shadow.
     { intros a Ha. apply not_true_is_false; intros Hshadow.
       pose proof allocator_regions_disjoint as Hregions.
@@ -620,7 +619,7 @@ Section Heap_Temporal_Safety_Interp.
     iModIntro.
     iIntros (W') "%Hpriv".
     iNext.
-    change (allocator_pcc_b ^+ allocator_free_pcc_off)%a with allocator_free_pcc_addr.
+    change (allocator_pcc_b ^+ allocator_free_pcc_off) with allocator_free_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".
     iApply (free_exec_entry_point W' C Hpc_b).
     iFrame "#".

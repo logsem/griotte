@@ -115,7 +115,7 @@ Section AllocatorCommonWorld.
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     NoDup (allocator_entry_ids allocations) ->
     allocator_cells_wf next allocations live issued Cs ->
-    r ↦ᵣ (WCap true p g b e a) @@ ι -∗
+    r ↦ᵣ (Cap p g b e a) @@ ι -∗
     alloc_obj ι b e -∗
     free_auth_held ι -∗
     ([∗ list] _ ∈ finz.seq_between b e, ι ↦st{share (finz.dist b e)} ALive) -∗
@@ -124,7 +124,7 @@ Section AllocatorCommonWorld.
     |~{E}~> ∃ r0,
       ⌜(b, e, r0, ι) ∈ allocations⌝ ∗
       ⌜ι ∈ live⌝ ∗
-      r ↦ᵣ (WCap true p g b e a) @@ ι ∗
+      r ↦ᵣ (Cap p g b e a) @@ ι ∗
       allocator_cells Cs ∗
       ι ↦st{1} ALive ∗
       (∀ live', ⌜∀ ι', ι' ≠ ι -> (ι' ∈ live <-> ι' ∈ live')⌝ -∗
@@ -136,7 +136,7 @@ Section AllocatorCommonWorld.
     iDestruct (allocator_cells_acc _ _ _ Hc with "Hcells") as "[Hcell Hcells_close]".
     iDestruct "Hcell" as "(Hclaim & Hcell)".
     (* The share of the base cell shows that [ι] is not dead. *)
-    assert (Hseq : finz.seq_between b e = b :: finz.seq_between (b ^+ 1)%a e)
+    assert (Hseq : finz.seq_between b e = b :: finz.seq_between (b ^+ 1) e)
       by (apply finz_seq_between_cons; solve_addr).
     iEval (rewrite Hseq) in "Hshares".
     iDestruct (big_sepL_cons with "Hshares") as "[Hshare_b Hshares]".

@@ -196,7 +196,7 @@ Section obligation_facts.
     fw_entry_at_code fw →
     firmware_ok fw img σ →
     let m := fw_entry_cmpt fw img 0 in
-    fw_entry_pc fw img 0 = WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m).
+    fw_entry_pc fw img 0 = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m).
   Proof.
     intros Hentry Hok m. pose proof Hok as (Hcmpts & _ & Hregs & Hwf).
     destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
@@ -293,9 +293,9 @@ Section prepared.
     | TrustedBody tb =>
         match tb_error_handler tb, tb_error_handler_stackless tb with
         | None, None => no_handler b
-        | eh, ehs => b ↦ₕ□{stackful} handler_word eh ∗ b ↦ₕ□{stackless} handler_word ehs
+        | eh, ehs => b ↦ₑ□{stackful} handler_word eh ∗ b ↦ₑ□{stackless} handler_word ehs
         end
-    | UntrustedBody _ => ∃ eh ehs : Z, b ↦ₕ□{stackful} eh ∗ b ↦ₕ□{stackless} ehs
+    | UntrustedBody _ => ∃ eh ehs : Z, b ↦ₑ□{stackful} eh ∗ b ↦ₑ□{stackless} ehs
     end.
 
   #[global] Instance fw_handler_res_persistent fc b : Persistent (fw_handler_res fc b).
@@ -307,15 +307,15 @@ Section prepared.
     (b + ExportTable_offset_entry j)%a = Some s →
     (s + length ws)%a = Some e →
     ([∗ list] a;v ∈ finz.seq_between s e; ws, a ↦ₐ□ lword_of_word v) ⊣⊢
-    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry (j + k))%a ↦ₐ□ lword_of_word v.
+    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry (j + k)) ↦ₐ□ lword_of_word v.
   Proof.
     revert s j. induction ws as [|w ws IH]; intros s j Hs He.
     - cbn in He. rewrite finz_seq_between_empty; [done | solve_addr].
     - cbn in He. rewrite finz_seq_between_cons; last solve_addr.
       rewrite big_sepL2_cons big_sepL_cons.
-      rewrite (IH (s ^+ 1)%a (S j)); [| solve_addr | solve_addr].
+      rewrite (IH (s ^+ 1) (S j)); [| solve_addr | solve_addr].
       rewrite Nat.add_0_r.
-      replace (b ^+ ExportTable_offset_entry j)%a with s by solve_addr.
+      replace (b ^+ ExportTable_offset_entry j) with s by solve_addr.
       f_equiv. apply big_sepL_proper. intros k v _. by rewrite Nat.add_succ_r.
   Qed.
 
@@ -323,7 +323,7 @@ Section prepared.
     (b + ExportTable_offset_entries)%a = Some s →
     (s + length ws)%a = Some e →
     ([∗ list] a;v ∈ finz.seq_between s e; ws, a ↦ₐ□ lword_of_word v) ⊣⊢
-    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v.
+    [∗ list] k ↦ v ∈ ws, (b ^+ ExportTable_offset_entry k) ↦ₐ□ lword_of_word v.
   Proof.
     intros Hs He. rewrite (exp_tbl_entries_offsets_from b s e 0); [done | solve_addr | done].
   Qed.
@@ -331,11 +331,11 @@ Section prepared.
   (** The export table of a compartment. *)
   Definition fw_cmpt_pers_res (img : fw_image) (fc : fw_cmpt) : iProp Σ :=
     let c := cmpt_of img (fc_name fc) in
-    cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
-    cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    cmpt_exp_tbl_pcc c ↦ₐ□ Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
+    cmpt_exp_tbl_cgp c ↦ₐ□ Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     fw_handler_res fc (cmpt_exp_tbl_pcc c) ∗
     ([∗ list] k ↦ v ∈ cmpt_exp_tbl_entries c,
-       (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a ↦ₐ□ lword_of_word v).
+       (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k) ↦ₐ□ lword_of_word v).
 
   #[global] Instance fw_cmpt_pers_res_persistent img fc : Persistent (fw_cmpt_pers_res img fc).
   Proof. rewrite /fw_cmpt_pers_res. apply _. Qed.
@@ -347,7 +347,7 @@ Section prepared.
     cmpt_ok fw img fc →
     fc_export_nargs fc !! k = Some n →
     n ≤ 7 →
-    fw_cmpt_pers_res img fc ⊢ (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k)%a ↦ₑ□{nargs} n.
+    fw_cmpt_pers_res img fc ⊢ (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_entry k) ↦ₑ□{nargs} n.
   Proof.
     intros c Hok Hk Hn.
     assert (∃ ie (m off : nat),
@@ -407,12 +407,12 @@ Section prepared.
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
-    "HPC" ∷ PC ↦ₚ[th] WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
-    "Hcgp" ∷ cgp ↦ᵣ[th] WCap true RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
+    "HPC" ∷ PC ↦ₚ[th] Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m) ∗
+    "Hcgp" ∷ cgp ↦ᵣ[th] Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m) ∗
     "Hcsp" ∷
-      csp ↦ᵣ[th] WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
+      csp ↦ᵣ[th] Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
     "Hcra" ∷ cra ↦ᵣ[th] thread_return_sentry (swlayout := fw_switcher_layout img) ∗
-    "Hregs" ∷ ([∗ map] r↦w ∈ fw_cleared_regs, r ↦ᵣ[th] w) ∗
+    "Hregs" ∷ regs[th] fw_cleared_regs ∗
     "Hstack" ∷
       [[ b_stack t, e_stack t ]] ↦ₐ
         [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
@@ -421,9 +421,9 @@ Section prepared.
          <= e_stack t)%Z ⌝ ∗
     "Hcstk" ∷
       ◯(CSTK)[th]
-        (entry_cstack {| tf_csp := WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
+        (entry_cstack {| tf_csp := Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
                          tf_export_tbl :=
-                           WCap true RW Global (cmpt_exp_tbl_pcc m)
+                           Cap RW Global (cmpt_exp_tbl_pcc m)
                              (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
                          tf_error_count := 0 |}) ∗
     "Hna" ∷ na_own (tpool th) ⊤.
@@ -464,8 +464,8 @@ Section prepared.
       persistent. *)
   Lemma fw_adv_cmpt_init {E : coPset} img fc (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :
     let c := cmpt_of img (fc_name fc) in
-    let a_eh := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandler)%a in
-    let a_ehs := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandlerStackless)%a in
+    let a_eh := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandler) in
+    let a_ehs := (cmpt_exp_tbl_pcc c ^+ ExportTable_offset_errorHandlerStackless) in
     ([∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w)
     ={E}=∗
     [[ cmpt_b_pcc c, cmpt_a_code c ]] ↦ₐ [[ lword_of_word <$> cmpt_imports c ]] ∗
@@ -473,8 +473,8 @@ Section prepared.
     [[ cmpt_b_cgp c, cmpt_e_cgp c ]] ↦ₐ [[ lword_of_word <$> cmpt_data c ]] ∗
     [[ cmpt_b_static_sealed c, cmpt_e_static_sealed c ]] ↦ₐ
       [[ lword_of_word <$> cmpt_static_sealed c ]] ∗
-    cmpt_exp_tbl_pcc c ↦ₐ□ WCap true RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
-    cmpt_exp_tbl_cgp c ↦ₐ□ WCap true RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
+    cmpt_exp_tbl_pcc c ↦ₐ□ Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c) ∗
+    cmpt_exp_tbl_cgp c ↦ₐ□ Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     a_eh ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler c) ∗
     a_ehs ↦ₐ□ lword_of_word (cmpt_exp_tbl_handler_stackless c) ∗
     ([∗ list] a;v ∈ finz.seq_between (cmpt_exp_tbl_entries_start c) (cmpt_exp_tbl_entries_end c);
@@ -532,7 +532,7 @@ Section prepared.
     iMod (region_pointsto_persist with "Himports") as "$".
     iMod (codefrag_persist with "[Hcode]") as "$"; last done.
     rewrite /codefrag.
-    replace (cmpt_a_code c ^+ length (cmpt_code c))%a with (cmpt_e_pcc c); first done.
+    replace (cmpt_a_code c ^+ length (cmpt_code c)) with (cmpt_e_pcc c); first done.
     pose proof (icl_code_size _ Hc). solve_addr.
   Qed.
 End prepared.
@@ -548,7 +548,7 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParam
      firmware_ok fw img σ →
      ⊢ fw_init_res (th := UserThread 0) fw img
        ={⊤}=∗
-       WP Seq (Instr Executable) @[u 0] {{ _, True }}) →
+       WP Exec @[u 0] {{ _, True }}) →
   fw_obligations Σ fw.
 Proof.
   intros Hentry Hprep img σ ceriseb sealsg stsg relg cstackg Hok.
@@ -854,7 +854,7 @@ Definition fw_entry_untrusted (fw : firmware) : Prop :=
 Definition fw_entry_pcc `{MP : MachineParameters} (fw : firmware) (img : fw_image) (i : nat)
   : Word :=
   let m := fw_entry_cmpt fw img i in
-  WCap true RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_b_pcc m).
+  Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_b_pcc m).
 
 (** ** The obligations of a firmware whose first thread starts in an untrusted compartment
 

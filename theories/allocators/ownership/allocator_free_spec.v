@@ -29,7 +29,7 @@ Section AllocatorFree.
     (φ : language.val griotte_lang → iPropI Σ) :
     (∀ next allocations live issued Cs,
       (heap_b < next /\ next <= heap_e)%a ->
-      allocator_chain (heap_b ^+ 1)%a next allocations ->
+      allocator_chain (heap_b ^+ 1) next allocations ->
       allocator_entries_wf allocations ->
       allocator_cells_wf next allocations live issued Cs ->
       allocator_free_in_prefix next wreq.(lw) ->
@@ -47,7 +47,7 @@ Section AllocatorFree.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     ⊢ (
        allocator_service_ctx ∗
@@ -55,9 +55,9 @@ Section AllocatorFree.
        na_own (tpool th) F ∗
        P ∗
        a_owner ↦ₐ WInt o ∗
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
@@ -73,7 +73,7 @@ Section AllocatorFree.
           P ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
@@ -85,8 +85,8 @@ Section AllocatorFree.
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] -
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros Hreject_request HEservice HFservice Hshadow_a Hbounds_a Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & HP & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
@@ -120,19 +120,19 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* The tail: set ALLOC_INVALID, return and close the service
        invariant. *)
-    iAssert (PC ↦ₚ WCap true RX Global allocator_pcc_b allocator_pcc_e
-               (allocator_free_pcc_addr ^+ allocator_free_invalid_offset)%a ∗
-             cgp ↦ᵣ WCap true RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
+    iAssert (PC ↦ₚ Cap RX Global allocator_pcc_b allocator_pcc_e
+               (allocator_free_pcc_addr ^+ allocator_free_invalid_offset) ∗
+             cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
              ca0 ↦ᵣ WInt o ∗
              ca1 ↦ᵣ wreq ∗
              ca2 ↦ᵣ - ∗ ct0 ↦ᵣ - ∗ ct1 ↦ᵣ - ∗ ct2 ↦ᵣ - ∗ ca3 ↦ᵣ - ∗ ca4 ↦ᵣ - ∗ ctp ↦ᵣ - ∗
-             allocator_cgp_b ↦ₐ WCap true RW Global heap_b heap_e next ∗
-             allocator_headers (heap_b ^+ 1)%a next allocations ∗
+             allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+             allocator_headers (heap_b ^+ 1) next allocations ∗
              allocator_entries_res live allocations ∗
              allocator_service_owners allocations ∗
              allocator_cells Cs ∗
              P -∗
-             WP Seq (Instr Executable) @ E {{ φ }})%I
+             WP Exec @ E {{ φ }})%I
       with "[- HPC Hca0 Hca1 Hslot Hheaders Htoks Howners Hcells HP Hct0 Hct1 Hct2
                Hct3 Hct4 Hca2 Hctp Hcgp]"
       as "Hreject".
@@ -206,7 +206,7 @@ Section AllocatorFree.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     ⊢ (
        allocator_service_ctx ∗
@@ -214,13 +214,13 @@ Section AllocatorFree.
        na_own (tpool th) F ∗
        alloc_obj ι b e ∗
        a_owner ↦ₐ WInt o ∗
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
-       ca1 ↦ᵣ[th] (WCap true p g b' e' a) @@ ι ∗
+       ca1 ↦ᵣ[th] (Cap p g b' e' a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
        ct0 ↦ᵣ[th] - ∗
        ct1 ↦ᵣ[th] - ∗
@@ -231,7 +231,7 @@ Section AllocatorFree.
        ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
@@ -243,15 +243,15 @@ Section AllocatorFree.
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] -
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
 
   Proof.
     intros Hbounds Hneq HEservice HFservice Hshadow_a Hbounds_a Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & #Hobj & Howner & Hrest)".
     iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
       Hct3 & Hct4 & Hctp & Hpost)".
-    iApply (allocator_free_reject_correct E F g_owner a_owner o ((WCap true p g b' e' a) @@ ι) wret
+    iApply (allocator_free_reject_correct E F g_owner a_owner o ((Cap p g b' e' a) @@ ι) wret
       (alloc_obj ι b e) φ with "[-]");
       [|exact HEservice|exact HFservice|exact Hshadow_a|exact Hbounds_a|exact Htgt|].
     { intros next allocations live issued Cs Hnext Hchain Hwf Hcwf Hprefix Hobs.
@@ -293,7 +293,7 @@ Section AllocatorFree.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     ι ∉ Ω ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     ⊢ (
@@ -303,13 +303,13 @@ Section AllocatorFree.
        allocator_owner_id id Ω ∗
        alloc_obj ι b e ∗
        a_owner ↦ₐ WInt id ∗
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
-       ca1 ↦ᵣ[th] (WCap true p g b e a) @@ ι ∗
+       ca1 ↦ᵣ[th] (Cap p g b e a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
        ct0 ↦ᵣ[th] - ∗
        ct1 ↦ᵣ[th] - ∗
@@ -321,7 +321,7 @@ Section AllocatorFree.
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
@@ -333,15 +333,15 @@ Section AllocatorFree.
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] -
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
 
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & #Hobj & Howner & Hrest)".
     iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 &
       Hct3 & Hct4 & Hctp & Hpost)".
-    iApply (allocator_free_reject_correct E F g_owner a_owner id ((WCap true p g b e a) @@ ι) wret
+    iApply (allocator_free_reject_correct E F g_owner a_owner id ((Cap p g b e a) @@ ι) wret
       (allocator_owner_id id Ω ∗ alloc_obj ι b e) φ with "[-]");
       [|exact HEservice|exact HFservice|exact Hshadow_a|exact Hbounds_a|exact Htgt|].
     { intros next allocations live issued Cs Hnext Hchain Hwf Hcwf Hprefix Hobs.
@@ -383,12 +383,12 @@ Section AllocatorFree.
 
     (∀ (next : Addr) (allocations : list allocator_header_entry),
       (heap_b < next /\ next <= heap_e)%a ->
-      allocator_chain (heap_b ^+ 1)%a next allocations ->
+      allocator_chain (heap_b ^+ 1) next allocations ->
       ¬ allocator_free_valid next allocations o wreq.(lw)) ->
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
     ⊢ (
@@ -398,9 +398,9 @@ Section AllocatorFree.
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
@@ -416,7 +416,7 @@ Section AllocatorFree.
        ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
@@ -429,8 +429,8 @@ Section AllocatorFree.
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] -
 
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros Hinvalid HEservice HFservice Hshadow_a Hbounds_a Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & Hrest)".
@@ -471,7 +471,7 @@ Section AllocatorFree.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     ι ∈ Ω ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     length ws = length (finz.seq_between b e) ->
@@ -493,13 +493,13 @@ Section AllocatorFree.
        free_auth_held ι ∗
 
        (* Initial register file. *)
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_free_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
-       ca1 ↦ᵣ[th] (WCap true p g b e a) @@ ι ∗
+       ca1 ↦ᵣ[th] (Cap p g b e a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
        ct0 ↦ᵣ[th] - ∗
        ct1 ↦ᵣ[th] - ∗
@@ -507,7 +507,7 @@ Section AllocatorFree.
        ca3 ↦ᵣ[th] - ∗
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
-       ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+       regs[th] rmap ∗
        mtdc ↦ₜ[th] m ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
@@ -515,7 +515,7 @@ Section AllocatorFree.
           allocator_owner_id id Ω ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_OK ∗
@@ -527,13 +527,13 @@ Section AllocatorFree.
           ca3 ↦ᵣ[th] - ∗
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
-          ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w) ∗
+          regs[th] rmap ∗
           mtdc ↦ₜ[th] m ∗
           ι ⊒ AQuar ∗
           £ 1
 
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret
       Hclean_mtdc Htgt.
@@ -580,7 +580,7 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hctp & Hca0 & _ & Howner & _)".
     (* Blocks 1 and 2: the request is a capability in the allocated prefix. *)
     (* The whole status token is the dereference witness of the GetTag. *)
-    iApply (allocator_free_check_valid_spec _ _ _ _ next id _ ((WCap true p g b e a) @@ ι)
+    iApply (allocator_free_check_valid_spec _ _ _ _ next id _ ((Cap p g b e a) @@ ι)
       _ _ _ _ (DerefLive ι 1) with
       "[- $Hslot $HPC $Hcgp $Hca0 $Hca1 $Hctp $Hct0 $Hct1 $Hct2 $Hct3 $Hfull $Hfree_code]").
     { done. }
@@ -646,22 +646,21 @@ Section AllocatorFree.
 
     allocator_service_static ∗
     na_own (tpool th) F ∗
-    PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+    PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
       allocator_free_pcc_addr ∗
     ca0 ↦ᵣ[th] wsealed ∗
     ctp ↦ᵣ[th] - ∗
     ca3 ↦ᵣ[th] - ∗
     ca4 ↦ᵣ[th] - ∗
-    (∀ a, ⌜(allocator_free_pcc_addr <= a <
-            allocator_free_pcc_addr ^+ length (allocator_owner_instrs allocator_free_owner_off ctp ca0))%a⌝ -∗
+    (∀ a, ⌜a ∈ₐ [allocator_free_pcc_addr, allocator_free_pcc_addr ^+ length (allocator_owner_instrs allocator_free_owner_off ctp ca0))⌝ -∗
       na_own (tpool th) F ∗
       ctp ↦ᵣ[th] - ∗
       ca0 ↦ᵣ[th] wsealed ∗
       ca3 ↦ᵣ[th] - ∗
       ca4 ↦ᵣ[th] - -∗
-      trap_safe (WCap true RX Global allocator_pcc_b allocator_pcc_e a) E
+      trap_safe (Cap RX Global allocator_pcc_b allocator_pcc_e a) E
         (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Seq (Instr Executable) @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
+    ⊢ WP Exec @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     iIntros (HEswitcher Hwsealed)
       "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".

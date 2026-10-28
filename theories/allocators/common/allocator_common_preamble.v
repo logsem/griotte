@@ -27,7 +27,7 @@ Definition allocator_positive_size (w : Word) : Prop :=
 Definition allocator_free_in_prefix {MP : MachineParameters}
   (next : Addr) (w : Word) : Prop :=
   ∃ (p : Perm) (g : Locality) (b e a : Addr),
-    w = WCap true p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a.
+    w = Cap p g b e a ∧ (heap_b < b /\ b < e /\ e <= next)%a.
 
 (** Ghost header entries contain the payload base, the header values and the
     allocation identifier: [(base, end, reserved, ι)]. The physical header stores
@@ -71,8 +71,8 @@ Section AllocatorHeaders.
   Definition allocator_header (h b e : Addr) (reserved : Z * Z) : iProp Σ :=
     (⌜(h + allocator_header_words)%a = Some b⌝ ∗
      h ↦ₐ WInt e ∗
-     ((h ^+ 1)%a ↦ₐ WInt reserved.1 ∗
-      (h ^+ 2)%a ↦ₐ WInt reserved.2))%I.
+     ((h ^+ 1) ↦ₐ WInt reserved.1 ∗
+      (h ^+ 2) ↦ₐ WInt reserved.2))%I.
 
   (** A list segment ending at [stop], following the recursive [isList]
       convention in Cerise's [examples/keylist.v]. The empty segment owns no
@@ -203,15 +203,15 @@ End AllocatorCells.
 Record allocator_cells_wf {MP : MachineParameters} (next : Addr)
     (allocations : list allocator_header_entry) (live issued : gset AId)
     (Cs : gmap Addr (AddrClaim * AllocStatus * bool)) : Prop := {
-  acw_dom a : (heap_b <= a < heap_e)%a -> is_Some (Cs !! a);
+  acw_dom a : a ∈ₐ [heap_b, heap_e) -> is_Some (Cs !! a);
   acw_root : Cs !! heap_b = Some (HeapRoot, ShadowLive, false);
-  acw_cursor a : (next <= a < heap_e)%a -> Cs !! a = Some (Unclaimed, ShadowLive, false);
+  acw_cursor a : a ∈ₐ [next, heap_e) -> Cs !! a = Some (Unclaimed, ShadowLive, false);
   acw_live b e reserved ι a :
-    (b, e, reserved, ι) ∈ allocations -> ι ∈ live -> (b <= a < e)%a ->
+    (b, e, reserved, ι) ∈ allocations -> ι ∈ live -> a ∈ₐ [b, e) ->
     Cs !! a = Some (Claimed ι, ShadowLive, false);
   acw_claimed a ι s hdr :
     Cs !! a = Some (Claimed ι, s, hdr) ->
-    ∃ b e reserved, (b, e, reserved, ι) ∈ allocations ∧ ι ∈ live ∧ (b <= a < e)%a;
+    ∃ b e reserved, (b, e, reserved, ι) ∈ allocations ∧ ι ∈ live ∧ a ∈ₐ [b, e);
   acw_header a c s hdr :
     Cs !! a = Some (c, s, hdr) -> (hdr = true <-> allocator_is_header allocations a);
   acw_painted a c s hdr :

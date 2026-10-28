@@ -26,7 +26,7 @@ Section AllocatorMalloc.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     ¬ allocator_positive_size wreq.(lw) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
@@ -38,9 +38,9 @@ Section AllocatorMalloc.
        a_owner ↦ₐ WInt o ∗
 
        (* Initial register file. *)
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
@@ -56,7 +56,7 @@ Section AllocatorMalloc.
        ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt o ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
@@ -69,8 +69,8 @@ Section AllocatorMalloc.
           ca4 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] -
 
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a Hinvalid Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 &
@@ -120,7 +120,7 @@ Section AllocatorMalloc.
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1)%a a_owner = true ->
+    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     (0 < n)%Z ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
@@ -133,9 +133,9 @@ Section AllocatorMalloc.
        a_owner ↦ₐ WInt id ∗
 
        (* Initial register file. *)
-       PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+       PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
          allocator_malloc_pcc_addr ∗
-       cgp ↦ᵣ[th] WCap true RW Global
+       cgp ↦ᵣ[th] Cap RW Global
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
@@ -151,7 +151,7 @@ Section AllocatorMalloc.
        ▷ (na_own (tpool th) F ∗
           a_owner ↦ₐ WInt id ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
-          cgp ↦ᵣ[th] WCap true RW Global
+          cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
           ca2 ↦ᵣ[th] - ∗
@@ -170,15 +170,15 @@ Section AllocatorMalloc.
                   (e - b = n)%Z⌝ ∗
                 ⌜ι ∉ S⌝ ∗
                 ⌜ι ∉ Ω⌝ ∗
-                ca0 ↦ᵣ[th] (WCap true RW Global b e b) @@ ι ∗
+                ca0 ↦ᵣ[th] (Cap RW Global b e b) @@ ι ∗
                 ca1 ↦ᵣ[th] WInt 0 ∗
                 alloc_obj ι b e ∗
                 free_auth_held ι ∗
                 allocator_owner_id id (Ω ∪ {[ι]}) ∗
                 [[b, e]] ↦ₕ[ι] [[region_addrs_zeroes b e]]))
 
-          -∗ WP Seq (Instr Executable) @[th] E {{ φ }})
-       -∗ WP Seq (Instr Executable) @[th] E {{ φ }})%I.
+          -∗ WP Exec @[th] E {{ φ }})
+       -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a Hpositive Htgt.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 &
@@ -217,13 +217,13 @@ Section AllocatorMalloc.
     destruct (decide (n + allocator_header_words <= heap_e - next)%Z) as [Hroom|Hoom].
     - unfold allocator_header_words in Hroom.
       pose proof heap_valid.
-      assert (Hbase : (next + allocator_header_words)%a = Some (next ^+ 3)%a)
+      assert (Hbase : (next + allocator_header_words)%a = Some (next ^+ 3))
         by (unfold allocator_header_words; solve_addr).
-      assert (Hfinish : ((next ^+ 3)%a + n)%a = Some ((next ^+ 3)%a ^+ n)%a) by solve_addr.
+      assert (Hfinish : ((next ^+ 3) + n)%a = Some ((next ^+ 3) ^+ n)) by solve_addr.
       assert (Hrange : (next < (next ^+ 3) /\ (next ^+ 3) < ((next ^+ 3) ^+ n)
                         /\ ((next ^+ 3) ^+ n) <= heap_e)%a) by solve_addr.
-      set (b := (next ^+ 3)%a) in *.
-      set (finish := (b ^+ n)%a) in *.
+      set (b := next ^+ 3) in *.
+      set (finish := b ^+ n) in *.
       clearbody b finish.
       (* Claim the cells of the new chunk for a fresh identifier [ι]. *)
       iMod (allocator_malloc_claim E (S ∪ issued) next b finish with "Hcells")
@@ -295,23 +295,21 @@ Section AllocatorMalloc.
 
     allocator_service_static ∗
     na_own (tpool th) F ∗
-    PC ↦ₚ[th] WCap true RX Global allocator_pcc_b allocator_pcc_e
+    PC ↦ₚ[th] Cap RX Global allocator_pcc_b allocator_pcc_e
       allocator_malloc_pcc_addr ∗
     ca0 ↦ᵣ[th] wsealed ∗
     ctp ↦ᵣ[th] - ∗
     ca3 ↦ᵣ[th] - ∗
     ca4 ↦ᵣ[th] - ∗
-    (∀ a, ⌜(allocator_malloc_pcc_addr <= a <
-            allocator_malloc_pcc_addr
-              ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))%a⌝ -∗
+    (∀ a, ⌜a ∈ₐ [allocator_malloc_pcc_addr, allocator_malloc_pcc_addr ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0))⌝ -∗
       na_own (tpool th) F ∗
       ctp ↦ᵣ[th] - ∗
       ca0 ↦ᵣ[th] wsealed ∗
       ca3 ↦ᵣ[th] - ∗
       ca4 ↦ᵣ[th] - -∗
-      trap_safe (WCap true RX Global allocator_pcc_b allocator_pcc_e a) E
+      trap_safe (Cap RX Global allocator_pcc_b allocator_pcc_e a) E
         (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Seq (Instr Executable) @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
+    ⊢ WP Exec @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
   Proof.
     iIntros (HEswitcher Hwsealed)
       "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".

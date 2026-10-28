@@ -174,7 +174,7 @@ Qed.
 Lemma allocator_chain_payload_not_header h stop allocations b e reserved ι a :
   allocator_chain h stop allocations ->
   (b, e, reserved, ι) ∈ allocations ->
-  (b <= a < e)%a ->
+  a ∈ₐ [b, e) ->
   ¬ allocator_is_header allocations a.
 Proof.
   revert h. induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
@@ -226,8 +226,8 @@ Section AllocatorHeaderContracts.
     ∀ h stop allocations (b e : Addr) reserved ι,
       (b, e, reserved, ι) ∈ allocations ->
       allocator_headers h stop allocations ⊢
-      (b ^+ (- allocator_header_words))%a ↦ₐ WInt e ∗
-      ((b ^+ (- allocator_header_words))%a ↦ₐ WInt e -∗ allocator_headers h stop allocations).
+      (b ^+ (- allocator_header_words)) ↦ₐ WInt e ∗
+      ((b ^+ (- allocator_header_words)) ↦ₐ WInt e -∗ allocator_headers h stop allocations).
   Proof.
     intros h stop allocations. revert h.
     induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
@@ -236,7 +236,7 @@ Section AllocatorHeaderContracts.
     - rewrite elem_of_cons in Hin. destruct Hin as [Heq|Hin].
       + injection Heq as <- <- <- <-.
         iIntros "(%Hbounds & (%Hbase & Hend & Hreserved) & Htail)".
-        assert ((b ^+ (- allocator_header_words))%a = h) as ->
+        assert (b ^+ (- allocator_header_words) = h) as ->
           by (unfold allocator_header_words in *; solve_addr).
         iFrame "Hend". iIntros "Hend". iFrame. done.
       + iIntros "(%Hbounds & Hhead & Htail)".
@@ -483,7 +483,7 @@ Definition allocator_malloc_cell (b : Addr) (ι : AId) (a : Addr) :
 
 Lemma allocator_cells_wf_malloc {MP : MachineParameters} next b finish allocations
     live issued Cs r0 ι :
-  allocator_chain (heap_b ^+ 1)%a next allocations ->
+  allocator_chain (heap_b ^+ 1) next allocations ->
   allocator_cells_wf next allocations live issued Cs ->
   (heap_b < next)%a ->
   (next + allocator_header_words)%a = Some b ->
@@ -525,7 +525,7 @@ Proof.
       exists b', e', reserved. split; [set_solver|]. split; [set_solver|done].
   - (* The new header words are the cells below [b]. *)
     assert (∀ a, allocator_is_header (allocations ++ [(b, finish, r0, ι)]) a <->
-              allocator_is_header allocations a ∨ (next <= a < b)%a) as Hnew.
+              allocator_is_header allocations a ∨ a ∈ₐ [next, b)) as Hnew.
     { intros a. split.
       - intros (b' & e' & r' & ι' & Hin & Ha). apply elem_of_app in Hin as [Hin|Hin].
         + left. by exists b', e', r', ι'.
@@ -560,7 +560,7 @@ Definition allocator_free_cell (a : Addr) : AddrClaim * AllocStatus * bool :=
 
 Lemma allocator_cells_wf_free {MP : MachineParameters} next allocations live issued Cs
     b e reserved ι :
-  allocator_chain (heap_b ^+ 1)%a next allocations ->
+  allocator_chain (heap_b ^+ 1) next allocations ->
   NoDup (allocator_entry_ids allocations) ->
   allocator_cells_wf next allocations live issued Cs ->
   (b, e, reserved, ι) ∈ allocations ->
@@ -626,7 +626,7 @@ Section AllocatorInitialCells.
   Qed.
 
   Lemma allocator_initial_cells_wf :
-    allocator_cells_wf (heap_b ^+ 1)%a [] ∅ ∅ allocator_initial_cells.
+    allocator_cells_wf (heap_b ^+ 1) [] ∅ ∅ allocator_initial_cells.
   Proof.
     pose proof heap_valid as Hvalid.
     constructor.
