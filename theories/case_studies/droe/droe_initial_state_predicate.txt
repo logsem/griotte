@@ -56,7 +56,7 @@ droe_initial_state_ok (flag : Addr) (σ : ExecConf) :=
            cmpt_exp_tbl_handler_stackless C ::
            cmpt_exp_tbl_entries C)
       ∪ mem_region (b_trusted_stack t0)                                     -- thread 0, trusted stack, entry frame in main
-          (initial_trusted_stack_content (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) 24)
+          (initial_trusted_stack_content (RWL, Local, b_stack t0, e_stack t0, (e_stack t0 ^- StackEntry_reserved_space)%f) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) 1 24)
       ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                    -- thread 0, stack
       ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                           -- thread 0, hazard slots
   shadowtbl σ = initial_heap_shadow                                         -- every heap address live

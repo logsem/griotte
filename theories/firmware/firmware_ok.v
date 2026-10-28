@@ -251,7 +251,8 @@ Section translation.
       of the thread. As the loader does, the entry frame holds the stack
       pointer of the thread (its initial [csp]) and the export table of the
       compartment the thread starts in, read-write and global, as the loader
-      writes it. The stack and the hazard slots are zeroed. *)
+      writes it. Its [threadID] is [i + 1], as the loader writes it (0 is
+      the idle thread). The stack and the hazard slots are zeroed. *)
   Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
@@ -263,7 +264,7 @@ Section translation.
             (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
                (cmpt_exp_tbl_pcc c))
             (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
-            (ft_tstack_frames ft))) ∪
+            (S i) (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
       (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
     note ("thread " ++ nat_str i ++ ", hazard slots")

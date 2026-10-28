@@ -358,7 +358,7 @@ Section layout_memory.
       (WCap true RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
       (WCap true RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
       (WCap true WO Global (b_hazard t) (e_hazard t) (b_hazard t))
-      (ft_tstack_frames ft).
+      (S i) (ft_tstack_frames ft).
 
   (** The stack pointer cell of the entry frame of the thread [i]. *)
   Lemma fw_tstack_content_csp (img : fw_image) (i : nat) (ft : fw_thread) :
@@ -535,8 +535,9 @@ Section layout_of_img_wf.
     constructor.
   Qed.
 
-  Lemma initial_trusted_stack_content_length w_csp w_export_table w_hazard n :
-    Z.of_nat (length (initial_trusted_stack_content w_csp w_export_table w_hazard n)) =
+  Lemma initial_trusted_stack_content_length w_csp w_export_table w_hazard thread_id n :
+    Z.of_nat
+      (length (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n)) =
       tstack_frame_offset (S n).
   Proof.
     rewrite /initial_trusted_stack_content !length_app !length_replicate /=.
@@ -545,14 +546,14 @@ Section layout_of_img_wf.
     lia.
   Qed.
 
-  Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table n :
+  Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table thread_id n :
     let w_hazard := WCap true WO Global b_hz e_hz b_hz in
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
     trusted_stack_layout b e b_hz e_hz
-      (initial_trusted_stack_content w_csp w_export_table w_hazard n).
+      (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n).
   Proof.
     intros w_hazard Hsize Hcsp Hexport_table Hhazard. split.
     - by rewrite initial_trusted_stack_content_length.
