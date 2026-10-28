@@ -28,7 +28,7 @@ Section fundamental.
   Lemma seta_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
     (ρ : region_type) (dst src : RegName) (arg : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (SetA dst src arg) ρ P cstk Ws Cs.
+    ftlr_instr_old trusted_fault W C regs p p' g b e a w (SetA dst src arg) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -61,7 +61,7 @@ Section fundamental.
           by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
         rewrite llookup_reg_not_cnull // in Hsrc.
         iSpecialize ("Hreg" $! src _ Hsrc).
-        iApply (interp_weakening with "IH Hreg"); eauto; try solve_addr;
+        iApply (interp_weakening with "IHnew Hreg"); eauto; try solve_addr;
           try apply subseg_heap_base_same.
         + eapply PermFlowsToReflexive.
         + apply LocalityFlowsToReflexive.

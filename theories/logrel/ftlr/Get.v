@@ -29,7 +29,7 @@ Section fundamental.
         (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst r : RegName) (ins: instr)
         (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     is_Get ins dst r →
-    ftlr_instr trusted_fault W C regs p p' g b e a w ins ρ P cstk Ws Cs.
+    ftlr_instr_old trusted_fault W C regs p p' g b e a w ins ρ P cstk Ws Cs.
   Proof.
     intros Hinstr Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

@@ -30,7 +30,7 @@ Section fundamental.
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (i : instr) (ρ : region_type) (off arg1 arg2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     is_JCond i off arg1 arg2 →
-    ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
+    ftlr_instr_old trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
   Proof.
     intros HJCond Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -68,7 +68,7 @@ Section fundamental.
     { destruct ρ;auto;contradiction. }
 
     iApply ("IH" $! _ _ _ _ _ regs with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]") ; eauto.
-    iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
+    iApply (interp_weakening with "IHnew Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 
 End fundamental.

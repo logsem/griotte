@@ -41,7 +41,7 @@ Section fundamental.
   Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst : RegName)
     (r1 r2: Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P
+    ftlr_instr_base_old trusted_fault W C regs p p' g b e a w ρ P
       (decodeInstrW w.(lw) = Add dst r1 r2 \/
        decodeInstrW w.(lw) = Sub dst r1 r2 \/
        decodeInstrW w.(lw) = Mul dst r1 r2 \/

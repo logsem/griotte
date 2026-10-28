@@ -454,7 +454,7 @@ Section fundamental.
    Lemma store_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
      (ρ : region_type) (dst : RegName) (src : Z + RegName) (P : D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-     ftlr_instr trusted_fault W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
+     ftlr_instr_old trusted_fault W C regs p p' g b e a w (Store dst src imm) ρ P cstk Ws Cs.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

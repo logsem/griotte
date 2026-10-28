@@ -30,7 +30,7 @@ Section fundamental.
   Lemma auipcc_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
     (ρ : region_type) (dst : RegName) (imm : Z) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (Auipcc dst imm) ρ P cstk Ws Cs.
+    ftlr_instr_old trusted_fault W C regs p p' g b e a w (Auipcc dst imm) ρ P cstk Ws Cs.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -61,7 +61,7 @@ Section fundamental.
     - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
       rewrite /auipcc_word.
       destruct (a + imm)%a as [a'|]; last by iApply interp_untagged.
-      iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr;
+      iApply (interp_weakening with "IHnew Hinv_interp"); eauto; try solve_addr;
       try apply subseg_heap_base_same.
       + eapply PermFlowsToReflexive.
       + apply LocalityFlowsToReflexive.
