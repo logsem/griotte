@@ -5,6 +5,7 @@ From griotte Require Export logrel.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_Mov.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 Import uPred.
 
 Section fundamental.
@@ -13,7 +14,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
+    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -36,7 +37,7 @@ Section fundamental.
 
     iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Mov with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_Mov (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
@@ -46,19 +47,19 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ; auto; contradiction. }
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
     - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & π0 & ? & ? & ?); simplify_map_eq.
-      iApply wp_pure_step_later; auto; iNext; iIntros "_".
+      iNext.
 
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
       { destruct ρ;auto;contradiction. }
 
-      iApply ("IH" $! _ _ _ _ _ (<[dst:=w0]ₗ> regs) with "[%] [] [HPC] [Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$Htframe]"); eauto.
+      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       + by apply full_map_linsert.
       + iApply (interp_linsert with "Hreg"). iIntros (_).
         by iApply (interp_lword_of_argument with "Hreg").
-      + iApply (interp_next_PC with "[Hinv_interp]"); eauto.
+      + iApply "IH". iApply (interp_next_PC with "[Hinv_interp]"); eauto.
   Qed.
 
 End fundamental.

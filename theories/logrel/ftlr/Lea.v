@@ -5,6 +5,7 @@ From stdpp Require Import base.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_base rules_Lea.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 
 Section fundamental.
   Context

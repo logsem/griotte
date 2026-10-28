@@ -5,6 +5,7 @@ From stdpp Require Import base.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_base rules_Jalr.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 
 Section fundamental.
   Context
@@ -12,6 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {CL : CritLink Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
@@ -45,7 +47,7 @@ Section fundamental.
     1,2: assert (ρ = Temporary ∨ ρ = Permanent) as Hρ by (destruct ρ; auto; contradiction);
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
       iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto;
-      iApply (ftlr_trap with "Htrap Hreg Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+      iNext; iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
@@ -65,8 +67,6 @@ Section fundamental.
       - by apply executeAllowed_nonO.
       - reflexivity.
     }
-
-    iApply wp_pure_step_later; auto.
 
     (* A [cnull] destination leaves the registers unchanged. *)
     assert (∀ x, is_Some (regs' !! x)) as Hsome'.
@@ -94,54 +94,20 @@ Section fundamental.
     iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
     { destruct ρ;auto;contradiction. }
 
-    destruct (updatePcPerm wsrc) as
-      [z | [t0 p0 g0 b0 e0 a0 | t0 sp0 g0 b0 e0 a0] | k0 t0 p0 g0 b0 e0 a0 | ot sb]
-      eqn:Hwsrc; cycle 1.
-    { destruct t0; cycle 1.
-      { iNext; iIntros "_".
-        iApply (wp_bind (fill [SeqCtx])).
-        iApply (wp_notCorrectPC_tag with "HPC"); first done.
-        iNext; iIntros "HPC /=".
-        iApply (ftlr_trap with "Htrap Hreg' Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
-      }
-      destruct (executeAllowed p0) eqn:Hpft; cycle 1.
-      { iNext; iIntros "_".
-        iApply (wp_bind (fill [SeqCtx])).
-        iApply (wp_notCorrectPC with "HPC"); [eapply not_isCorrectPC_perm; naive_solver|].
-        iNext; iIntros "HPC /=".
-        iApply (ftlr_trap with "Htrap Hreg' Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
-      }
-
-      destruct_word wsrc; try destruct t; cbn in Hwsrc; try discriminate.
-      { destruct c; inv Hwsrc.
-        iNext ; iIntros "_".
-        iApply ("IH" $! _ _ _ _ _ regs' with
-                 "[%] [] [$HPC] [$Hmap] [$Hworld_interp] [$Hcont] [//] Htop [$Hown] [$]") ; eauto.
-      }
-      inv Hwsrc.
-      iEval (rewrite interp_unfold) in "Hwsrc".
-      simpl; rewrite /enter_cond.
-      iDestruct "Hwsrc" as "[%Hnonheap #Hinterp_src]".
-      iAssert (future_world g0 W W) as "Hfuture".
-      { iApply futureworld_refl. }
-      iSpecialize ("Hinterp_src" with "Hfuture").
-      pose proof (LocalityFlowsToReflexive g0) as Hg0.
-      iSpecialize ("Hinterp_src" $! g0 Hg0).
-      iNext. iIntros "_".
-      iApply ("Hinterp_src" $! cstk Ws Cs regs'
-               with "[$HPC $Hmap $Hworld_interp $Htframe $Hown $Hcont $Htop]").
-      iSplit; last done.
-      iSplit.
-      + iIntros (ri); cbn; iPureIntro. apply Hsome'.
-      + iIntros (ri wi Hregs_ri). iApply interp_filter_heap. by iApply "Hreg'".
-    }
-
-    (* Non-capability cases *)
-    all: iNext; iIntros "_".
-    all: iApply (wp_bind (fill [SeqCtx])).
-    all: iApply (wp_notCorrectPC with "HPC"); [intro Hcontra ; inv Hcontra|].
-    all: iNext; iIntros "HPC /=".
-    all: iApply (ftlr_trap with "Htrap Hreg' Htop HPC Hmap Hworld_interp Hcont Hown Htframe"); eauto.
+    (* The next-PC witness: the enter condition of a sentry, the induction
+       hypothesis otherwise. *)
+    iAssert (▷ interp_expression W C (updatePcPerm wsrc @@? πs))%I as "Hnext".
+    { destruct wsrc as [z | sb | k [] p0 g0 b0 e0 a0 | ot sb]; cbn [updatePcPerm].
+      4: { iNext. iApply "IH". by iApply interp_untagged. }
+      3: { iEval (rewrite interp_unfold) in "Hwsrc".
+           iDestruct "Hwsrc" as "[_ #Hinterp_src]".
+           iAssert (future_world g0 W W) as "Hfuture".
+           { iApply futureworld_refl. }
+           iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
+           apply LocalityFlowsToReflexive. }
+      all: iNext; iApply "IH"; iExact "Hwsrc". }
+    iNext.
+    iApply (ftlr_post_next with "HPC Hmap Hreg' Hnext Hworld_interp"); first done.
   Qed.
 
 End fundamental.

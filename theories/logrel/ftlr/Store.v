@@ -5,6 +5,7 @@ From griotte Require Export logrel monotone.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules_Store wp_rules_interp.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 Import uPred.
 
 

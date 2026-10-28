@@ -6,6 +6,7 @@ From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Export rules_JCond.
 From griotte Require Import rules_base.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 
 Section fundamental.
   Context

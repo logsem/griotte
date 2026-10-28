@@ -7,6 +7,7 @@ From griotte Require Import rules_base.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Import machine_base.
+Import CoreWPNotations.
 
 Section fundamental.
   Context

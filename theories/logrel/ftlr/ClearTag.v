@@ -6,6 +6,7 @@ From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Export rules_ClearTag rules_base.
 From griotte Require Import BinOp.
 From griotte Require Import map_simpl register_tactics.
+Import CoreWPNotations.
 
 Section fundamental.
   Context
