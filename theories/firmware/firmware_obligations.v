@@ -91,9 +91,10 @@ Section obligation_facts.
     img_switcher_layout (img_sw img) (thread_of img 0)
       (replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)).
   Proof.
-    intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
-    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
-    split; [by eapply img_wf_trusted_stack_layout | by eapply img_wf_switcher_layout].
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
+    pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
+    split; [exact (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf)
+           | exact (img_wf_switcher_layout _ _ _ _ H0 Hwf)].
   Qed.
 
   Lemma fw_cmpts_disjoint_at fw img σ i j fci fcj
@@ -115,8 +116,8 @@ Section obligation_facts.
   Lemma fw_switcher_layout_wf_of fw img σ :
     firmware_ok fw img σ → @switcherLayoutWf MP (fw_switcher_layout img).
   Proof.
-    intros Hok. destruct (fw_switcher_layouts _ _ _ Hok) as [Hts Hsw].
-    exact (fw_switcher_layout_wf img _ _ Hts Hsw).
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
+    exact (fw_switcher_layout_wf fw img Hwf (firmware_ok_thread0 _ _ _ Hok)).
   Qed.
 
   Definition fw_switcher_cmpt fw img σ (Hok : firmware_ok fw img σ) : cmptSwitcher :=

@@ -136,6 +136,60 @@ Section initial_rootedness.
 
 End initial_rootedness.
 
+(** ** The ghost state of the other threads *)
+Section thread_ghost_init.
+  Context {Σ : gFunctors}.
+
+  (** The ghost state of a thread that does not run first: its PC, its
+      registers, its mtdc and its MIE. Their authorities are dropped until
+      the threads are scheduled; only the fragment of mtdc is kept. *)
+  Lemma thread_ghost_init {cerise_preg : ceriseGpreS Σ} (m : mtdc_val) :
+    ⊢ |==> ∃ (pg : pcG Σ) (rg : gen_heapGS RegName LWord Σ) (mtg : mtdcG Σ) (mieg : mieG Σ),
+      @mtdc_frag Σ mtg m.
+  Proof.
+    iMod (PC_init (lword_of_word (WInt 0))) as (pg) "_".
+    iMod (gen_heap_init (∅ : gmap RegName LWord)) as (rg) "_".
+    iMod (mtdc_init m) as (mtg) "[_ Hmtdc]".
+    iMod (MIE_init InterruptDisabled) as (mieg) "_".
+    iModIntro. by iExists pg, rg, mtg, mieg.
+  Qed.
+
+  (** [thread_ghost_init] for a list of mtdc values. *)
+  Lemma threads_ghost_init {cerise_preg : ceriseGpreS Σ} (ms : list mtdc_val) :
+    ⊢ |==> ∃ gs : list (pcG Σ * gen_heapGS RegName LWord Σ * mtdcG Σ * mieG Σ),
+      [∗ list] g; m ∈ gs; ms, @mtdc_frag Σ g.1.2 m.
+  Proof.
+    iInduction ms as [|m ms] "IH".
+    - iModIntro. by iExists [].
+    - iMod (thread_ghost_init m) as (pg rg mtg mieg) "Hmtdc".
+      iMod "IH" as (gs) "Hgs".
+      iModIntro. iExists ((pg, rg, mtg, mieg) :: gs).
+      rewrite big_sepL2_cons /=. iFrame.
+  Qed.
+
+  (** A non-atomic pool for each element of a list. *)
+  Lemma na_pools_alloc {na_invg : na_invariants.na_invG Σ} {A} (l : list A) :
+    ⊢ |==> ∃ ps : list na_inv_pool_name, [∗ list] p; _ ∈ ps; l, na_own p ⊤.
+  Proof.
+    iInduction l as [|x l] "IH".
+    - iModIntro. by iExists [].
+    - iMod na_alloc as (p) "Hna".
+      iMod "IH" as (ps) "Hnas".
+      iModIntro. iExists (p :: ps).
+      rewrite big_sepL2_cons. iFrame.
+  Qed.
+
+  Lemma big_sepL2_nth_l {A B} (Φ : A → B → iProp Σ) (xs : list A) (ys : list B) (d : A) :
+    ([∗ list] x; y ∈ xs; ys, Φ x y) ⊢ [∗ list] k ↦ y ∈ ys, Φ (nth k xs d) y.
+  Proof.
+    revert ys. induction xs as [|x xs IH]; intros [|y ys]; cbn.
+    - by iIntros.
+    - by iIntros "[]".
+    - by iIntros "[]".
+    - iIntros "[$ H]". by iApply IH.
+  Qed.
+End thread_ghost_init.
+
 (** ** Iris adequacy for the assert flag
 
     The premise receives the program-logic resources of the initial state
@@ -143,7 +197,13 @@ End initial_rootedness.
     non-atomic invariant token) and must produce a WP for the machine together with
     the invariant of the assert flag. The machine runs as the user thread [0]:
     its PC, registers and pool are those of [UserThread 0] in the base; the
-    shared heaps are stated at the base. *)
+    shared heaps are stated at the base. The user thread [S k] receives the
+    mtdc value [ms !! k] and the token of its pool; its PC and registers are
+    placeholders, unused until the threads are scheduled. *)
+Section flag_adequacy.
+  (* Threads [0] and [S k] meet here: every form names its thread. *)
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+
 Lemma cerise_flag_adequacy (Σ : gFunctors)
   {inv_preg : invGpreS Σ}
   {cerise_preg : ceriseGpreS Σ}
@@ -151,7 +211,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   `{MP: MachineParameters} {TV : trapVector}
   (flagN : namespace) (flag : Addr) (H : gset Addr)
   (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
-  (wmtdc : Word) (es : list griotte_lang.expr) :
+  (wmtdc : Word) (ms : list mtdc_val) (es : list griotte_lang.expr) :
   ghost_init_cond (pc, reg, sreg, m, sh) H →
   reg !! cnull = Some (WInt 0) →
   sreg !! MTDC = Some wmtdc →
@@ -165,7 +225,11 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
      (* the pool of thread [0] in [ceriseb], not the [na_invg] parameter *)
-     @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread 0)) ⊤
+     @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread 0)) ⊤ -∗
+     (* the user threads [S k]: their mtdc and the tokens of their pools *)
+     ([∗ list] k ↦ m ∈ ms,
+        mtdc ↦ₜ[u (S k)] m ∗
+        @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread (S k))) ⊤)
      ={⊤}=∗
      WP Seq (Instr Executable) @[u 0] {{ _, True }} ∗
      inv flagN (flag ↦ₐ WInt 0)) →
@@ -179,15 +243,30 @@ Proof.
                 (state_is_good (pc', reg', sreg', m', sh'))).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
   iMod (@na_alloc Σ na_invg) as (pool) "Hna".
+  (* The pools of the user threads [S k], of the context-switch thread and
+     of the other threads. *)
+  iMod (na_pools_alloc ms) as (pools) "Hnas".
+  iMod (@na_alloc Σ na_invg) as (pool_c) "_".
+  iMod (@na_alloc Σ na_invg) as (pool_d) "_".
   pose cerise_na_invs := Build_cerise_na_invs _ na_invg pool.
+  (* The ghost state of the user threads [S k], of the context-switch thread
+     and of the other threads; before thread [0]'s, which typeclass search
+     must find. *)
+  iMod (threads_ghost_init ms) as (gs) "Hgs".
+  iMod (thread_ghost_init (ExceptionScratch (lword_of_word (WInt 0))))
+    as (pg_c rg_c mtg_c mieg_c) "_".
+  iMod (thread_ghost_init (ExceptionScratch (lword_of_word (WInt 0))))
+    as (pg_d rg_d mtg_d mieg_d) "_".
   iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H (TStack (lword_of_word wmtdc)) wmtdc
           Hinit Hmtdc (mtdc_match_TStack _))
     as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg)
        "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims)".
   iEval (rewrite init_lmem_pointsto) in "Hmem".
   rewrite (init_lregs_cnull reg Hnull).
-  (* Every thread has the PC, the registers, mtdc, MIE and the pool of the
-     machine. *)
+  iDestruct (big_sepL2_nth_l _ _ _ (pg_d, rg_d, mtg_d, mieg_d) with "Hgs") as "Hgs".
+  iDestruct (big_sepL2_nth_l _ _ _ pool_d with "Hnas") as "Hnas".
+  (* Thread [0] has the PC, the registers, mtdc, MIE and the pool of the
+     machine; every other thread its own. *)
   pose ceriseb := {|
     cb_invG := Hinv;
     cb_na_invG := na_invg;
@@ -198,13 +277,19 @@ Proof.
     cb_addr_alloc := addr_allocg;
     cb_trapVector := TV;
     cb_mpie := mpieg;
-    cb_pc_of := λ _, pc_g;
-    cb_regs_of := λ _, reg_heapg;
-    cb_mtdc_of := λ _, mtdcg;
-    cb_mie_of := λ _, mieg;
-    tpool := λ _, pool |}.
+    cb_pc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg) gs (pg_c, rg_c, mtg_c, mieg_c)
+                                (pg_d, rg_d, mtg_d, mieg_d) th).1.1.1;
+    cb_regs_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg) gs (pg_c, rg_c, mtg_c, mieg_c)
+                                (pg_d, rg_d, mtg_d, mieg_d) th).1.1.2;
+    cb_mtdc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg) gs (pg_c, rg_c, mtg_c, mieg_c)
+                                (pg_d, rg_d, mtg_d, mieg_d) th).1.2;
+    cb_mie_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg) gs (pg_c, rg_c, mtg_c, mieg_c)
+                                (pg_d, rg_d, mtg_d, mieg_d) th).2;
+    tpool := thread_map pool pools pool_c pool_d |}.
   pose ceriseg := ceriseG_of (base := ceriseb) (UserThread 0).
-  iMod (Hwp ceriseb eq_refl with "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna") as "[Hwp #Hflag]".
+  iMod (Hwp ceriseb eq_refl with "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna [Hgs Hnas]")
+    as "[Hwp #Hflag]".
+  { iApply (big_sepL_sep_2 with "Hgs Hnas"). }
   iModIntro.
   iExists (fun σ _ _ => cerise_state_interp σ ∗ crit_link σ)%I.
   iExists (fun _ => True)%I. cbn. iFrame "Hσ".
@@ -221,6 +306,7 @@ Proof.
   destruct (Hnonheap eq_refl) as [Heq | (_ & Hb)]; last by destruct Hb.
   rewrite /state_is_good Hpw Heq //.
 Qed.
+End flag_adequacy.
 
 (** ** Initial world, seal store and call stack *)
 Section world_init.
@@ -230,8 +316,11 @@ Section world_init.
     {cstack_preg : CSTACK_preG Σ}
     `{MP: MachineParameters}.
 
-  (** The call stack starts with the entry frame [ef] of the thread only. *)
-  Lemma initialise_world (Cs : list CmptName) (ots : gset OType) (ef : trusted_frame) :
+  (** The call stack of the user thread [0] starts with its entry frame
+      [ef] only, that of the user thread [S k] with the entry frame
+      [efs !! k] only. *)
+  Lemma initialise_world (Cs : list CmptName) (ots : gset OType) (ef : trusted_frame)
+      (efs : list trusted_frame) :
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
@@ -239,10 +328,14 @@ Section world_init.
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       ●(CSTK)[u 0] (entry_cstack ef) ∗
       ◯(CSTK)[u 0] (entry_cstack ef) ∗
+      ([∗ list] k ↦ ef' ∈ efs,
+         ●(CSTK)[u (S k)] (entry_cstack ef') ∗ ◯(CSTK)[u (S k)] (entry_cstack ef')) ∗
       [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅, ∅) C.
   Proof.
     intros HCNames HNoDup.
-    iMod (gen_cstack_init (entry_cstack ef)) as (cstackg) "[Hcstk_full Hcstk_frag]".
+    iMod (gen_cstack_init (entry_cstack ef) ((λ ef', entry_cstack ef') <$> efs))
+      as (cstackg) "(Hcstk_full & Hcstk_frag & Hcstks)".
+    iEval (rewrite big_sepL_fmap) in "Hcstks".
     iMod (world_interp_init ots) as (relg stsg seal_storeg) "(Hworld_interp & Hseal_store)".
     rewrite HCNames big_sepS_list_to_set //.
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
