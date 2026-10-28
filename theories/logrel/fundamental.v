@@ -51,6 +51,8 @@ Section fundamental_generic.
   Lemma ftlr_instr_cases :
     ∀ W C regs p p' g b e a w i ρ P, ftlr_instr W C regs p p' g b e a w i ρ P.
   Proof.
+    (* A case stated at a fixed link then fails at once instead of unfolding. *)
+    Opaque ftlr_instr_base.
     intros W C regs p p' g b e a w i ρ P.
     (* proof by cases on each instruction *)
     destruct i.
