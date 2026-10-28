@@ -16,7 +16,6 @@ Section fundamental.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -29,9 +28,9 @@ Section fundamental.
 
   Lemma jcond_case (W : WORLD) (C : CmptName)  (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (i : instr) (ρ : region_type) (off arg1 arg2 : Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    (w : LWord) (i : instr) (ρ : region_type) (off arg1 arg2 : Z + RegName) (P:D) :
     is_JCond i off arg1 arg2 →
-    ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
+    ftlr_instr W C regs p p' g b e a w i ρ P.
   Proof.
     intros HJCond Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

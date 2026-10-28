@@ -13,7 +13,6 @@ Section fundamental.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -26,8 +25,8 @@ Section fundamental.
   (** The [Fail] and [Halt] cases of the FTLR. *)
   Lemma fail_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w Fail ρ P cstk Ws Cs.
+    (w : LWord) (ρ : region_type) (P:V) :
+    ftlr_instr W C regs p p' g b e a w Fail ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".
@@ -42,8 +41,8 @@ Section fundamental.
 
   Lemma halt_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P:V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w Halt ρ P cstk Ws Cs.
+    (w : LWord) (ρ : region_type) (P:V) :
+    ftlr_instr W C regs p p' g b e a w Halt ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

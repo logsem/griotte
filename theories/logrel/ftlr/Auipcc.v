@@ -15,7 +15,6 @@ Section fundamental.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -30,8 +29,8 @@ Section fundamental.
       version), so it is safe because the PC is. *)
   Lemma auipcc_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
-    (ρ : region_type) (dst : RegName) (imm : Z) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr trusted_fault W C regs p p' g b e a w (Auipcc dst imm) ρ P cstk Ws Cs.
+    (ρ : region_type) (dst : RegName) (imm : Z) (P:D) :
+    ftlr_instr W C regs p p' g b e a w (Auipcc dst imm) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

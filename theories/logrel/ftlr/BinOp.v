@@ -17,7 +17,6 @@ Section fundamental.
     {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -41,8 +40,8 @@ Section fundamental.
 
   Lemma binop_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg) (p p' : Perm)
     (g : Locality) (b e a : Addr) (w : LWord) (ρ : region_type) (dst : RegName)
-    (r1 r2: Z + RegName) (P:D) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P
+    (r1 r2: Z + RegName) (P:D) :
+    ftlr_instr_base W C regs p p' g b e a w ρ P
       (decodeInstrW w.(lw) = Add dst r1 r2 \/
        decodeInstrW w.(lw) = Sub dst r1 r2 \/
        decodeInstrW w.(lw) = Mul dst r1 r2 \/
@@ -52,7 +51,7 @@ Section fundamental.
        decodeInstrW w.(lw) = LShiftR dst r1 r2 \/
        decodeInstrW w.(lw) = Lt dst r1 r2 \/
        decodeInstrW w.(lw) = Le dst r1 r2
-      ) cstk Ws Cs.
+      ).
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
     iIntros "@".

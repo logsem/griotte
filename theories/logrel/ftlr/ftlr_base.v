@@ -71,10 +71,10 @@ Section fundamental.
     | HaltedV => True
     end.
 
-  Definition ftlr_instr_base (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+  Definition ftlr_instr_base
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V) (Pinstr : Prop) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (w : LWord) (ρ : region_type) (P : V) (Pinstr : Prop)
     : Prop :=
     validPCperm p g
     → (∀ x : RegName, is_Some (regs !! x))
@@ -105,12 +105,12 @@ Section fundamental.
     -∗ WP Instr Executable @core[th]
        {{ v, ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C v }}.
 
-  Definition ftlr_instr (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+  Definition ftlr_instr
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (i: instr) (ρ : region_type) (P : V) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (w : LWord) (i: instr) (ρ : region_type) (P : V)
     : Prop :=
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i) cstk Ws Cs.
+    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i).
 
   (** The hand-off of a case, after the next instruction. *)
   Lemma ftlr_post_next W C (regs : LReg) (pc : LWord) :

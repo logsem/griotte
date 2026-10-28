@@ -16,7 +16,6 @@ Section fundamental_generic.
     {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {CL : CritLink Σ}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -32,11 +31,10 @@ Section fundamental_generic.
   (** Weakening of the instruction premise of a case lemma. *)
   Lemma ftlr_instr_base_mono (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop)
-    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop) :
     (Q → Pinstr) →
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P Pinstr cstk Ws Cs →
-    ftlr_instr_base trusted_fault W C regs p p' g b e a w ρ P Q cstk Ws Cs.
+    ftlr_instr_base W C regs p p' g b e a w ρ P Pinstr →
+    ftlr_instr_base W C regs p p' g b e a w ρ P Q.
   Proof.
     intros HQP H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked HQ.
     exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked (HQP HQ)).
@@ -51,10 +49,9 @@ Section fundamental_generic.
 
   (** The case lemmas of all the instructions. *)
   Lemma ftlr_instr_cases :
-    ∀ W C regs p p' g b e a w i ρ P cstk Ws Cs,
-      ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs.
+    ∀ W C regs p p' g b e a w i ρ P, ftlr_instr W C regs p p' g b e a w i ρ P.
   Proof.
-    intros W C regs p p' g b e a w i ρ P cstk Ws Cs.
+    intros W C regs p p' g b e a w i ρ P.
     (* proof by cases on each instruction *)
     destruct i.
     - (* Jmp *) apply jmp_case.
@@ -135,7 +132,7 @@ Section fundamental.
     iIntros (cstk Ws Cs regs)
       "(#Hreg & #Htop & HPC & Hregs & Hworld & Hcont & Hown & Hcstk & %Hframe)".
     iApply (ftlr_step (λ _, True)%I (λ _, True)%I trusted_fault W C InterruptEnabled w
-              cstk Ws Cs regs (ftlr_instr_cases trusted_fault) Hframe
+              cstk Ws Cs regs ftlr_instr_cases Hframe
               with "[] Htrap [] Hw Hreg Htop HPC Hregs [Hworld] Hcont Hown Hcstk [] []").
     - iApply world_accessor_exclusive.
     - by iModIntro.

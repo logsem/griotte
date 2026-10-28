@@ -265,8 +265,8 @@ Section ftlr_step.
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName) (m : InterruptStatus) (w : LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
-    (∀ W C regs p p' g b e a w i ρ P cstk Ws Cs,
-        ftlr_instr trusted_fault W C regs p p' g b e a w i ρ P cstk Ws Cs) →
+    (∀ W C regs p p' g b e a w i ρ P,
+        ftlr_instr W C regs p p' g b e a w i ρ P) →
     frame_match Ws Cs cstk W C →
     world_accessor thr mie -∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
@@ -334,9 +334,8 @@ Section ftlr_step.
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
     { iApply (Hcases W' C (filter_heap W' <$> regs) p p' g b e a wa (decodeInstrW wa.(lw)) ρ P
-                cstk Ws Cs with
-               "[$IH $Hinv_interp $Hregs $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
-                 $Hworld $Hstate $HPC $Hmap]"); eauto. }
+              with "[$IH $Hinv_interp $Hregs $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
+                    $Hworld $Hstate $HPC $Hmap]"); eauto. }
     (* 6. The hand-off goes back to the accessor. *)
     iIntros (v) "Hpost !>".
     iDestruct "Hpost" as (W'' Hrel') "[Hworld Hpost]".
