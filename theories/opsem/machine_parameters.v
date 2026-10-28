@@ -95,7 +95,7 @@ Definition translate_region (b e target a : Addr) : option Addr :=
 Lemma translate_region_spec (b e target target_e a a' : Addr) :
   (e - b = target_e - target)%Z ->
   translate_region b e target a = Some a' <->
-  (b <= a < e)%a ∧ (target <= a' < target_e)%a ∧
+  a ∈ₐ [b, e) ∧ a' ∈ₐ [target, target_e) ∧
   (a' : Z) = (target + (a - b))%Z.
 Proof.
   intros Hsize. unfold translate_region.
@@ -465,10 +465,10 @@ Definition encodePermSum `{MachineParameters} (p : Perm + SealPerms) : Z :=
   end.
 
 Section word_type_encoding.
-  Definition wt_cap := WCap true (O LG LM) Global 0%a 0%a 0%a.
-  Definition wt_sentry := WSentry Inherit true (O LG LM) Global 0%a 0%a 0%a.
-  Definition wt_sealrange := WSealRange true (false, false) Global 0%ot 0%ot 0%ot.
-  Definition wt_sealed := WSealed 0%ot (SCap true (O LG LM) Global 0%a 0%a 0%a).
+  Definition wt_cap := Cap (O LG LM) Global 0%a 0%a 0%a.
+  Definition wt_sentry := Sentry Inherit (O LG LM) Global 0%a 0%a 0%a.
+  Definition wt_sealrange := SealRange (false, false) Global 0%ot 0%ot 0%ot.
+  Definition wt_sealed := Sealed 0%ot (O LG LM) Global 0%a 0%a 0%a.
   Definition wt_int := WInt 0.
 End word_type_encoding.
 

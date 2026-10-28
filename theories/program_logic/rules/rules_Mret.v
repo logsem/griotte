@@ -23,7 +23,7 @@ Section griotte_lang_rules.
 
   Inductive Mret_failure (lpc : LWord) : Prop :=
   | Mret_fail_nonxsr p g b e a π :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = false →
       Mret_failure lpc.
 
@@ -32,9 +32,9 @@ Section griotte_lang_rules.
   Inductive Mret_spec (lpc : LWord) (sregs : LSReg) (lpc' : LWord)
     : griotte_lang.val → Prop :=
   | Mret_spec_success p g b e a π :
-      lpc = WCap true p g b e a @@? π →
+      lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
-      sregs !! MEPCC = Some lpc' →
+      sregs !! mepcc = Some lpc' →
       Mret_spec lpc sregs lpc' NextIV
   | Mret_spec_failure :
       lpc' = lpc →
@@ -46,19 +46,19 @@ Section griotte_lang_rules.
       link on success; [T1] comes back on a fault. *)
   Lemma wp_Mret_link Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq (T1 T2 : iProp Σ) :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (if has_sreg_access pc_p
      then sregs_of Mret ⊆ dom sregs
      else True) →
     link_transfer mie_from_mpie T1 T2 →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
         ▷ T1
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
+        ⌜ Mret_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
@@ -79,7 +79,7 @@ Section griotte_lang_rules.
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a Hsmap". iSplit.
       - iPureIntro. apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr.
       - iRight. by iFrame. }
-    destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs MEPCC) as (vepcc & Hvepcc & Hvepcc');
+    destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs mepcc) as (vepcc & Hvepcc & Hvepcc');
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvepcc') as (wepcc & Hwepcc & Hrelepcc).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
@@ -88,7 +88,7 @@ Section griotte_lang_rules.
     injection Hstep as <- <-.
     rewrite /update_pcc /update_sreg /=.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
       (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
       (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
@@ -96,11 +96,11 @@ Section griotte_lang_rules.
     rewrite -ls_join_set_mstatus in Her1.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
-                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
+                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mepcc))).
     iMod (sys_interp_set_mstatus _ (ls_mpie lsreg) InterruptEnabled with "Hsr") as "Hsr".
     iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
     iMod (Htr _ (wepcc, r,
-                 <[MSTATUS := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
+                 <[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
            with "[$Hlink $HT]") as "[Hlink HT]".
     { split.
       - by rewrite /mie_st /mpie_st /= lookup_insert_eq Hwst /= mie_of_mstatus_enc
@@ -116,11 +116,11 @@ Section griotte_lang_rules.
   Lemma wp_mret_success_link E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) dq
       (T1 T2 : iProp Σ) :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     link_transfer mie_from_mpie T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ mepcc ↦ₓ vepcc
         ∗ ▷ T1 }}}
@@ -154,17 +154,17 @@ Section griotte_lang_rules_core.
 
   Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (if has_sreg_access pc_p
      then sregs_of Mret ⊆ dom sregs
      else True) →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ Mret_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
+        ⌜ Mret_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ sregs, k ↦ₓ y)
@@ -180,10 +180,10 @@ Section griotte_lang_rules_core.
       enabled, in the state interpretation. *)
   Lemma wp_mret_success E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) dq :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ mepcc ↦ₓ vepcc }}}
       Instr Executable @ E

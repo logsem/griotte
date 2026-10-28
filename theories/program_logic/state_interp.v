@@ -48,7 +48,7 @@ Section state_interp.
 
   (** No points-to of the shared heap is at MTDC or mstatus. *)
   Lemma sys_interp_not_sys ls sr dq v :
-    sys_interp ls -∗ sr ↦ₓ{dq} v -∗ ⌜sr ≠ MTDC ∧ sr ≠ MSTATUS⌝.
+    sys_interp ls -∗ sr ↦ₓ{dq} v -∗ ⌜sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hsys Hp". iNamed "Hsys". destruct Hlsh as [Hn1 Hn2].
     iDestruct (gen_heap_valid with "Hsr Hp") as %Hv.
@@ -56,7 +56,7 @@ Section state_interp.
   Qed.
 
   Lemma SI_sreg_not_sys σ sr dq v :
-    cerise_state_interp σ -∗ sr ↦ₓ{dq} v -∗ ⌜sr ≠ MTDC ∧ sr ≠ MSTATUS⌝.
+    cerise_state_interp σ -∗ sr ↦ₓ{dq} v -∗ ⌜sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hσ Hp". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iApply (sys_interp_not_sys with "Hsr Hp").
@@ -66,7 +66,7 @@ Section state_interp.
       registers. *)
   Lemma sys_interp_valid ls (sregs : LSReg) :
     sys_interp ls -∗ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) -∗
-    ⌜sregs ⊆ ls_join ls ∧ ∀ sr, sr ∈ dom sregs → sr ≠ MTDC ∧ sr ≠ MSTATUS⌝.
+    ⌜sregs ⊆ ls_join ls ∧ ∀ sr, sr ∈ dom sregs → sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hsys Hmap". iNamed "Hsys". destruct Hlsh as [Hn1 Hn2].
     iAssert (⌜∀ l v, sregs !! l = Some v → ls_sh ls !! l = Some v⌝)%I as %Hincl.
@@ -80,7 +80,7 @@ Section state_interp.
   Qed.
 
   Lemma sys_interp_valid_1 ls sr v :
-    sys_interp ls -∗ sr ↦ₓ v -∗ ⌜ls_join ls !! sr = Some v ∧ sr ≠ MTDC ∧ sr ≠ MSTATUS⌝.
+    sys_interp ls -∗ sr ↦ₓ v -∗ ⌜ls_join ls !! sr = Some v ∧ sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hsys Hp". iDestruct (sys_interp_not_sys with "Hsys Hp") as %[H1 H2].
     iNamed "Hsys". iDestruct (gen_heap_valid with "Hsr Hp") as %Hv.
@@ -107,7 +107,7 @@ Section state_interp.
 
   (** MTCC holds the trap vector. *)
   Lemma sys_interp_mtcc ls :
-    sys_interp ls -∗ ⌜ls_join ls !! MTCC = Some (lword_of_word mtcc_vec)⌝.
+    sys_interp ls -∗ ⌜ls_join ls !! mtcc = Some (lword_of_word mtcc_vec)⌝.
   Proof.
     iIntros "Hsys". iNamed "Hsys".
     iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hv.
@@ -150,7 +150,7 @@ End state_interp.
     empty, and the heap addresses are heap roots on a given set [H] and
     unclaimed elsewhere. *)
 (** The system registers that the state interpretation reserves. *)
-Definition reserved_sregs : list SRegName := [MSTATUS; MEPCC; MCAUSE; MTVAL; MTCC].
+Definition reserved_sregs : list SRegName := [mstatus; mepcc; mcause; mtval; mtcc].
 
 Section ghost_init.
   Context `{MP : MachineParameters, TV : !trapVector}.
@@ -199,9 +199,9 @@ Section ghost_init.
     gi_pc_ok : pc_ok (pcc σ);
     gi_sregs_pc_ok sr w : is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w;
     gi_reserved_sregs sr : sr ∈ reserved_sregs → is_Some (sreg σ !! sr);
-    gi_mtcc : sreg σ !! MTCC = Some mtcc_vec;
-    gi_mtval : ∃ z, sreg σ !! MTVAL = Some (WInt z);
-    gi_mstatus : ∃ mie mpie, sreg σ !! MSTATUS = Some (WInt (mstatus_enc mie mpie));
+    gi_mtcc : sreg σ !! mtcc = Some mtcc_vec;
+    gi_mtval : ∃ z, sreg σ !! mtval = Some (WInt z);
+    gi_mstatus : ∃ mie mpie, sreg σ !! mstatus = Some (WInt (mstatus_enc mie mpie));
   }.
 
   Lemma lookup_init_claims H a :
@@ -296,7 +296,7 @@ Section ghost_init.
       [m0] that stands for its initial word. *)
   Lemma cerise_ghost_init σ H (m0 : mtdc_val) (wmtdc : Word) :
     ghost_init_cond σ H →
-    sreg σ !! MTDC = Some wmtdc →
+    sreg σ !! mtdc = Some wmtdc →
     mtdc_match m0 (lword_of_word wmtdc) →
     ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
              (pg : pcG Σ)
@@ -313,7 +313,7 @@ Section ghost_init.
   Proof.
     iIntros (Hinit Hmtdc Hm0).
     destruct (gi_mstatus _ _ Hinit) as (mie0 & mpie0 & Hmst).
-    set (lsh := delete MTDC (delete MSTATUS (init_lsregs (sreg σ)))).
+    set (lsh := delete mtdc (delete mstatus (init_lsregs (sreg σ)))).
     iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
     iMod (gen_heap_init (init_lregs (reg σ))) as (rg) "(Hr & Hrs & _)".
     iMod (gen_heap_init lsh) as (srg) "(Hsr & Hsrs & _)".
@@ -325,29 +325,29 @@ Section ghost_init.
     iMod (MIE_init mie0) as (mieg) "[Hmie Hmie_f]".
     iMod (MPIE_init mpie0) as (mpieg) "[Hmpie Hmpie_f]".
     iModIntro. iExists mg, sg, pg, rg, srg, regg, ag, mtg, mieg, mpieg.
-    assert (∀ sr, sr ≠ MTDC → sr ≠ MSTATUS → lsh !! sr = lword_of_word <$> sreg σ !! sr)
+    assert (∀ sr, sr ≠ mtdc → sr ≠ mstatus → lsh !! sr = lword_of_word <$> sreg σ !! sr)
       as Hlsh.
     { intros sr H1 H2. rewrite /lsh !lookup_delete_ne; [|congruence..].
       by rewrite /init_lsregs lookup_fmap. }
-    destruct (gi_reserved_sregs _ _ Hinit MEPCC) as [wepcc Hwepcc]; first set_solver.
-    destruct (gi_reserved_sregs _ _ Hinit MCAUSE) as [wcause Hwcause]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit mepcc) as [wepcc Hwepcc]; first set_solver.
+    destruct (gi_reserved_sregs _ _ Hinit mcause) as [wcause Hwcause]; first set_solver.
     destruct (gi_mtval _ _ Hinit) as [ztval Hwtval].
     pose proof (gi_mtcc _ _ Hinit) as Hwtcc.
-    iDestruct (big_sepM_delete _ _ MEPCC with "Hsrs") as "[Hmepcc Hsrs]".
+    iDestruct (big_sepM_delete _ _ mepcc with "Hsrs") as "[Hmepcc Hsrs]".
     { rewrite Hlsh // Hwepcc //. }
-    iDestruct (big_sepM_delete _ _ MCAUSE with "Hsrs") as "[Hmcause Hsrs]".
+    iDestruct (big_sepM_delete _ _ mcause with "Hsrs") as "[Hmcause Hsrs]".
     { rewrite lookup_delete_ne // Hlsh // Hwcause //. }
-    iDestruct (big_sepM_delete _ _ MTVAL with "Hsrs") as "[Hmtval Hsrs]".
+    iDestruct (big_sepM_delete _ _ mtval with "Hsrs") as "[Hmtval Hsrs]".
     { rewrite lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtval //. }
-    iDestruct (big_sepM_delete _ _ MTCC with "Hsrs") as "[Hmtcc Hsrs]".
+    iDestruct (big_sepM_delete _ _ mtcc with "Hsrs") as "[Hmtcc Hsrs]".
     { rewrite lookup_delete_ne // lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtcc //. }
     set (ls := MkLSys lsh m0 (lword_of_word wmtdc) mie0 mpie0).
     assert (ls_join ls = init_lsregs (sreg σ)) as Hjoin.
     { apply map_eq. intros i. rewrite /ls_join /lsregs_join /=.
-      destruct (decide (i = MSTATUS)) as [->|H1].
+      destruct (decide (i = mstatus)) as [->|H1].
       { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hmst. }
       rewrite lookup_insert_ne; last congruence.
-      destruct (decide (i = MTDC)) as [->|H2].
+      destruct (decide (i = mtdc)) as [->|H2].
       { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hmtdc. }
       rewrite lookup_insert_ne; last congruence.
       rewrite Hlsh //. by rewrite /init_lsregs lookup_fmap. }

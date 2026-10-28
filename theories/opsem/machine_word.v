@@ -50,6 +50,24 @@ Inductive Word: Type :=
 Notation WCap t p g b e a := (WSealable (SCap t p g b e a)).
 Notation WSealRange t p g b e a := (WSealable (SSealRange t p g b e a)).
 
+(** Tagged and untagged words: notation-only names; [WCap t …] stays for
+    code generic in the tag. *)
+Notation Cap p g b e a := (WSealable (SCap true p g b e a)).
+Notation "'Cap⁻' p g b e a" := (WSealable (SCap false p g b e a))
+  (at level 10, p, g, b, e, a at level 9).
+Notation Sentry k p g b e a := (WSentry k true p g b e a).
+Notation "'Sentry⁻' k p g b e a" := (WSentry k false p g b e a)
+  (at level 10, k, p, g, b, e, a at level 9).
+Notation SealRange p g b e a := (WSealable (SSealRange true p g b e a)).
+Notation "'SealRange⁻' p g b e a" := (WSealable (SSealRange false p g b e a))
+  (at level 10, p, g, b, e, a at level 9).
+Notation Sealed o p g b e a := (WSealed o (SCap true p g b e a)).
+Notation "'Sealed⁻' o p g b e a" := (WSealed o (SCap false p g b e a))
+  (at level 10, o, p, g, b, e, a at level 9).
+Notation SealedSR o p g b e a := (WSealed o (SSealRange true p g b e a)).
+Notation "'SealedSR⁻' o p g b e a" := (WSealed o (SSealRange false p g b e a))
+  (at level 10, o, p, g, b, e, a at level 9).
+
 (** Base used by the memory revocation filter. Sealing ranges are keys, not
     memory capabilities; sentries retain the base of their executable cap. *)
 Definition memory_cap_base (w : Word) : option Addr :=
@@ -83,7 +101,7 @@ Definition clear_tag (w : Word) : Word :=
   match w with
   | WInt z => WInt z
   | WSealable sb => WSealable (clear_tag_sealable sb)
-  | WSentry k _ p g b e a => WSentry k false p g b e a
+  | WSentry k _ p g b e a => Sentry⁻ k p g b e a
   | WSealed ot sb => WSealed ot (clear_tag_sealable sb)
   end.
 
@@ -315,13 +333,13 @@ Definition store_word (p : Perm) (w : Word) : Word :=
 
 Definition readAllowedWord (w : Word) : Prop :=
   match w with
-  | WCap true p _ _ _ _ => readAllowed p = true
+  | Cap p _ _ _ _ => readAllowed p = true
   | _ => False
   end.
 
 Definition writeAllowedWord (w : Word) : Prop :=
   match w with
-  | WCap true p _ _ _ _ => writeAllowed p = true
+  | Cap p _ _ _ _ => writeAllowed p = true
   | _ => False
   end.
 
@@ -842,9 +860,9 @@ Definition isWithinCap (c: Word) (b e: finz MemNum) : bool :=
 Inductive isCorrectPC: Word → Prop :=
 | isCorrectPC_intro:
     forall p g (b e a : Addr),
-      (b <= a < e)%a →
+      a ∈ₐ [b, e) →
       executeAllowed p = true ->
-      isCorrectPC (WCap true p g b e a).
+      isCorrectPC (Cap p g b e a).
 
 Lemma isCorrectPC_tag w : isCorrectPC w -> get_tag w = true.
 Proof. by inversion 1. Qed.
@@ -891,7 +909,7 @@ Proof.
 Qed.
 
 Lemma not_isCorrectPC_bounds (t : bool) p g b e a :
- ¬ (b <= a < e)%a → ¬ isCorrectPC (WCap t p g b e a).
+ ¬ a ∈ₐ [b, e) → ¬ isCorrectPC (WCap t p g b e a).
 Proof.
   intros Hbounds.
   intros Hvpc. inversion Hvpc.
@@ -960,7 +978,7 @@ Qed.
 Lemma isCorrectPC_executeAllowed_InBounds p g b e a :
   executeAllowed p = true →
   InBounds b e a →
-  isCorrectPC (WCap true p g b e a).
+  isCorrectPC (Cap p g b e a).
 Proof.
   unfold InBounds. intros. constructor; eauto.
 Qed.

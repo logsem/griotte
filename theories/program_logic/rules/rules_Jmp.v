@@ -34,15 +34,15 @@ Section griotte_lang_rules.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jmp rimm) ⊆ dom regs →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ Jmp_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs rimm lpc' retv ⌝ ∗
+        ⌜ Jmp_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs rimm lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
@@ -54,9 +54,9 @@ Section griotte_lang_rules.
     unfold regs_of, operands_of in Dregs.
     assert (arg_owned regs rimm) as Hdomr.
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
-    assert (exec_opt (Jmp rimm) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
+    assert (exec_opt (Jmp rimm) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
               (imm ← lz_of_argument regs rimm;
-               advancePC (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
+               advancePC (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument_dom regs rimm Hdomr) as [imm Himm].
@@ -71,14 +71,14 @@ Section griotte_lang_rules.
 
    Lemma wp_jmp_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w imm dq :
      decodeInstrW w.(lw) = Jmp (inl imm) →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ{dq} w
      }}}.
    Proof.
@@ -101,16 +101,16 @@ Section griotte_lang_rules.
    Lemma wp_jmp_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rimm wimm imm dq:
      decodeInstrW w.(lw) = Jmp (inr rimm) →
      IsLInt wimm imm →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + imm)%a = Some pc_a' →
      rimm ≠ cnull ->
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ rimm ↦ᵣ wimm
      }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ{dq} w
          ∗ rimm ↦ᵣ wimm
      }}}.

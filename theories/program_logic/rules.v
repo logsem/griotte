@@ -32,13 +32,13 @@ From griotte Require Export
 
   - code fragment: instead of {P} ⇝ {s. Q}, we write:
 
-     ∀φ, P ∗ (Q -∗ WP Seq (Instr Executable) {{ φ }}) ⊢ WP Seq (Instr Executable) {{ φ }}
+     ∀φ, P ∗ (Q -∗ WP Exec {{ φ }}) ⊢ WP Exec {{ φ }}
 
     (see for instance [examples.macros_new.rclear_spec])
 
   - complete safe execution: instead of {P} ⇝ ∙, we write:
 
-     P -∗ WP Seq (Instr Executable) {{ λ _, True }}
+     P -∗ WP Exec {{ λ _, True }}
 
     (see for instance [examples.minimal_counter.counter_full_run_spec])
 

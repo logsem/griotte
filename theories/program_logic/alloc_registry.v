@@ -414,7 +414,7 @@ Section heap_pointsto.
     match k with
     | LNonHeap _ => emp
     | LHeap a ι =>
-        ∃ b e, ⌜(b <= a < e)%a⌝ ∗ alloc_obj ι b e ∗ ι ↦st{share (finz.dist b e)} ALive
+        ∃ b e, ⌜a ∈ₐ [b, e)⌝ ∗ alloc_obj ι b e ∗ ι ↦st{share (finz.dist b e)} ALive
     end%I.
 
   Definition key_pointsto (k : LAddr) (v : LWord) : iProp Σ :=
@@ -465,7 +465,7 @@ Section heap_pointsto_lemmas.
   Qed.
 
   Lemma heap_pointsto_alloc_obj a ι v b e :
-    alloc_obj ι b e -∗ a ↦ₕ[ι] v -∗ ⌜(b <= a < e)%a⌝.
+    alloc_obj ι b e -∗ a ↦ₕ[ι] v -∗ ⌜a ∈ₐ [b, e)⌝.
   Proof.
     iIntros "Hobj [_ (%b' & %e' & %Hin & Hobj' & _)]".
     by iDestruct (alloc_obj_agree with "Hobj Hobj'") as %[-> ->].

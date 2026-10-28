@@ -155,7 +155,7 @@ Lemma lw_llegalise sr v : (llegalise sr v).(lw) = legalise sr v.(lw).
 Proof. done. Qed.
 Lemma lprov_llegalise sr v : (llegalise sr v).(lprov) = v.(lprov).
 Proof. done. Qed.
-Lemma llegalise_mtdc v : llegalise MTDC v = v.
+Lemma llegalise_mtdc v : llegalise mtdc v = v.
 Proof. by destruct v. Qed.
 Lemma llegalise_lword_of_word sr w :
   llegalise sr (lword_of_word w) = lword_of_word (legalise sr w).

@@ -96,7 +96,7 @@ Qed.
 Definition sregs_of (i: instr): gset SRegName :=
   match i with
   | SpecialRW _ sr _ => {[ sr ]}
-  | Mret => {[ MEPCC ]}
+  | Mret => {[ mepcc ]}
   | _ => ∅
   end.
 
@@ -296,9 +296,9 @@ Section logical_lookups.
     end.
 
   Lemma read_reg_prov_cap (regs : LReg) r p g b e a π :
-    lw <$> regs !!ₗ r = Some (WCap true p g b e a) →
+    lw <$> regs !!ₗ r = Some (Cap p g b e a) →
     read_reg_prov regs r π →
-    regs !! r = Some (WCap true p g b e a @@? π).
+    regs !! r = Some (Cap p g b e a @@? π).
   Proof.
     intros Hinr Hπ.
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hinr) as (_ & π' & Hr).

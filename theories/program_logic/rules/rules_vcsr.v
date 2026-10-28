@@ -47,7 +47,7 @@ Section vcsr.
   (** MEPCC and mcause, with any values: what the error path gives back
       first. *)
   Definition vcsr_res_def : iProp Σ :=
-    ∃ wepcc wcause, vcsr_frag MEPCC wepcc ∗ vcsr_frag MCAUSE wcause.
+    ∃ wepcc wcause, vcsr_frag mepcc wepcc ∗ vcsr_frag mcause wcause.
   #[local] Definition vcsr_res_aux : seal (@vcsr_res_def). Proof. by eexists. Qed.
   Definition vcsr_res := vcsr_res_aux.(unseal).
   #[local] Definition vcsr_res_unseal : @vcsr_res = @vcsr_res_def := vcsr_res_aux.(seal_eq).
@@ -59,14 +59,14 @@ Section vcsr.
   Proof. rewrite vcsr_res_unseal. apply _. Qed.
 
   Lemma vcsr_res_intro wepcc wcause :
-    vcsr_frag MEPCC wepcc -∗
-    vcsr_frag MCAUSE wcause -∗
+    vcsr_frag mepcc wepcc -∗
+    vcsr_frag mcause wcause -∗
     vcsr_res.
   Proof. rewrite vcsr_res_unseal. iIntros "Hmepcc Hmcause". iExists _, _. iFrame. Qed.
 
   Lemma vcsr_res_elim :
     vcsr_res -∗
-    ∃ wepcc wcause, vcsr_frag MEPCC wepcc ∗ vcsr_frag MCAUSE wcause.
+    ∃ wepcc wcause, vcsr_frag mepcc wepcc ∗ vcsr_frag mcause wcause.
   Proof. rewrite vcsr_res_unseal. by iIntros "H". Qed.
 
   (** The resources of trap entry are the views of the lent volatile
@@ -75,9 +75,9 @@ Section vcsr.
       predicate [P_mtval]. *)
   Lemma trap_entry_out_vcsr_frag P_mcause P_mtval w :
     trap_entry_out_cause P_mcause P_mtval w -∗
-    vcsr_frag MEPCC (lmepcc_of_pc w) ∗
-    (∃ cause : Z, ⌜P_mcause cause⌝ ∗ vcsr_frag MCAUSE (lword_of_word (WInt cause))) ∗
-    (∃ tval : Z, ⌜P_mtval tval⌝ ∗ vcsr_frag MTVAL (lword_of_word (WInt tval))).
+    vcsr_frag mepcc (lmepcc_of_pc w) ∗
+    (∃ cause : Z, ⌜P_mcause cause⌝ ∗ vcsr_frag mcause (lword_of_word (WInt cause))) ∗
+    (∃ tval : Z, ⌜P_mtval tval⌝ ∗ vcsr_frag mtval (lword_of_word (WInt tval))).
   Proof. rewrite trap_entry_out_unfold vcsr_frag_unseal. by iIntros "H". Qed.
 
   (** The return of MEPCC and mcause to the state interpretation, in front
@@ -99,7 +99,7 @@ Section vcsr.
       back. *)
   Lemma wp_vcsr_tval_return E e Φ (z : Z) :
     to_val e = None →
-    vcsr_frag MTVAL (lword_of_word (WInt z)) -∗
+    vcsr_frag mtval (lword_of_word (WInt z)) -∗
     trap_vcsr_res -∗
     (trap_entry_res -∗ WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
@@ -119,8 +119,8 @@ Section vcsr.
     to_val e = None →
     trap_vcsr_res -∗
     (∀ wepcc wcause,
-       vcsr_frag MEPCC wepcc -∗
-       vcsr_frag MCAUSE wcause -∗
+       vcsr_frag mepcc wepcc -∗
+       vcsr_frag mcause wcause -∗
        WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
@@ -143,18 +143,18 @@ Section vcsr.
       mtval with [csrr]). *)
   Lemma wp_cspecialr_vcsr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst sr vsr dq :
     decodeInstrW w.(lw) = SpecialRW dst sr (inr cnull) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wdst ∗
         ▷ vcsr_frag sr vsr }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           dst ↦ᵣ vsr ∗
           vcsr_frag sr vsr }}}.
@@ -180,22 +180,22 @@ Section vcsr.
   (** [cspecialw mepcc, src]: the lent volatile register MEPCC receives the
       legalised word. *)
   Lemma wp_cspecialw_mepcc E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src vsrc vold dq :
-    decodeInstrW w.(lw) = SpecialRW cnull MEPCC (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mepcc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ vsrc ∗
-        ▷ vcsr_frag MEPCC vold }}}
+        ▷ vcsr_frag mepcc vold }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           src ↦ᵣ vsrc ∗
-          vcsr_frag MEPCC (llegalise MEPCC vsrc) }}}.
+          vcsr_frag mepcc (llegalise mepcc vsrc) }}}.
   Proof.
     rewrite vcsr_frag_unseal.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hcnull φ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
@@ -223,14 +223,14 @@ Section vcsr.
   Lemma wp_mret_vcsr_link E pc_p pc_g pc_b pc_e pc_a pc_π w wepcc wcause dq
       (T1 T2 : iProp Σ) :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     link_transfer mie_from_mpie T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ vcsr_frag MEPCC wepcc ∗
-        ▷ vcsr_frag MCAUSE wcause ∗
+        ▷ vcsr_frag mepcc wepcc ∗
+        ▷ vcsr_frag mcause wcause ∗
         ▷ T1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
@@ -254,7 +254,7 @@ Section vcsr.
     injection Hstep as <- <-.
     rewrite /update_pcc /update_sreg /=.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ MSTATUS
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
       (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
       (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
@@ -262,13 +262,13 @@ Section vcsr.
     rewrite -ls_join_set_mstatus in Her1.
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ wepcc wepcc' Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
-                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her MEPCC))).
+                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mepcc))).
     iMod (sys_interp_set_mstatus _ (ls_mpie lsreg) InterruptEnabled with "Hsr") as "Hsr".
     (* The lent registers return. *)
     iDestruct (sys_interp_trap_return with "Hsr Hmepcc Hmcause") as "(_ & Hsr & Htok)".
     iMod (PC_update _ _ wepcc with "HPCa HPC") as "[HPCa HPC]".
     iMod (Htr _ (wepcc', r,
-                 <[MSTATUS := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
+                 <[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
            with "[$Hlink $HT]") as "[Hlink HT]".
     { split.
       - by rewrite /mie_st /mpie_st /= lookup_insert_eq Hwst /= mie_of_mstatus_enc
@@ -297,12 +297,12 @@ Section vcsr.
      | inr rs =>
          if decide (rs = cnull) then Some (pc, r, psr, m, st)
          else wsrc ← r !!ᵣ rs;
-              Some (update_sreg (pc, r, psr, m, st) MSTATUS (legalise MSTATUS wsrc))
-     | inl z => Some (update_sreg (pc, r, psr, m, st) MSTATUS (legalise MSTATUS (WInt z)))
+              Some (update_sreg (pc, r, psr, m, st) mstatus (legalise mstatus wsrc))
+     | inl z => Some (update_sreg (pc, r, psr, m, st) mstatus (legalise mstatus (WInt z)))
      end) = Some (pc, r, psr', m, st) →
     match mstatus_src_mie regs src with
     | None => psr' = psr
-    | Some b => ∃ mpie, psr' = <[MSTATUS := WInt (mstatus_enc b mpie)]> psr
+    | Some b => ∃ mpie, psr' = <[mstatus := WInt (mstatus_enc b mpie)]> psr
     end.
   Proof.
     intros Hregs Dsrc Hφ. destruct src as [z|rs]; cbn in *.
@@ -320,20 +320,20 @@ Section vcsr.
       not observed. The write may change MIE: link-transfer premise. *)
   Lemma wp_specialrw_reserved_success_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src
       (regs : LReg) dq (T1 T2 : iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW dst MSTATUS src →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW dst mstatus src →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
-    regs_of (SpecialRW dst MSTATUS src) ⊆ dom regs →
+    regs_of (SpecialRW dst mstatus src) ⊆ dom regs →
     link_transfer (mie_update (mstatus_src_mie regs src)) T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ T1 }}}
       Instr Executable @ E
       {{{ vold, RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           ([∗ map] k↦y ∈ specialrw_regs regs dst vold, k ↦ᵣ y) ∗
           T2 }}}.
@@ -342,11 +342,11 @@ Section vcsr.
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
     set (vold := lword_of_word (WInt (mstatus_enc (ls_mie lsreg) (ls_mpie lsreg)))).
-    assert (ls_join lsreg !! MSTATUS = Some vold) as Hvold' by apply ls_join_mstatus.
+    assert (ls_join lsreg !! mstatus = Some vold) as Hvold' by apply ls_join_mstatus.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg (ls_join lsreg) lmem regs
-                {[MSTATUS := vold]} MSTATUS src vold Her Hlregs Hregs)
+                {[mstatus := vold]} mstatus src vold Her Hlregs Hregs)
       as (sregs' & psr' & lsreg' & _ & Hφ1 & _ & _).
     { by apply map_singleton_subseteq_l. }
     { rewrite /regs_of /operands_of in Dregs. set_solver. } { by simplify_map_eq. }
@@ -356,11 +356,11 @@ Section vcsr.
     { rewrite /regs_of /operands_of in Dregs. set_solver. }
     pose proof (specialrw_mstatus_phys _ _ _ _ _ _ _ _ _ Hregs Dsrc Hφ1) as Hpsr'.
     iAssert (|==> ∃ ls',
-               ⌜erasure R C (WCap true pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)
-                  (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join ls') lmem⌝ ∗
+               ⌜erasure R C (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)
+                  (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join ls') lmem⌝ ∗
                ⌜mie_update (mstatus_src_mie regs src)
-                  (WCap true pc_p pc_g pc_b pc_e pc_a, r, psr, m, st)
-                  (WCap true pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)⌝ ∗
+                  (Cap pc_p pc_g pc_b pc_e pc_a, r, psr, m, st)
+                  (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)⌝ ∗
                sys_interp ls')%I
       with "[Hsr]" as ">(%ls' & %Her1 & %Hrel & Hsr)".
     { destruct (mstatus_src_mie regs src) as [b|].
@@ -375,16 +375,16 @@ Section vcsr.
         + split; first by rewrite /= lookup_insert_ne.
           by rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc.
       - subst psr'. iModIntro. iExists lsreg. by iFrame "Hsr". }
-    assert (incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
-              Some (WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
+    assert (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
+              Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
     { by apply incrementPC_add. }
-    iApply (instr_close_link_transfer _ _ _ _ (WCap true pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)
+    iApply (instr_close_link_transfer _ _ _ _ (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)
               with "Hlink HT"); [exact Htr | by apply mie_update_kept |].
     case_decide as Hdst.
     - (* The old value is dropped. *)
       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-        (λ lpc' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
+        (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
       { intros lpc'' Hi'. rewrite /incrementPC in Hi. simplify_eq. done. }
@@ -396,7 +396,7 @@ Section vcsr.
         (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her1 Hokold Hrelold) Hi)
         as (pc' & Hu & _).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
-        (λ lpc' regs' retv, lpc' = WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
+        (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                             regs' = <[dst := vold]> regs ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her1. } { exact Hlregs. }
@@ -412,18 +412,18 @@ Section vcsr.
 
   (** [csrr dst, mstatus]: any value. It does not write mstatus. *)
   Lemma wp_csrr_mstatus E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst dq :
-    decodeInstrW w.(lw) = SpecialRW dst MSTATUS (inr cnull) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW dst mstatus (inr cnull) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ E
       {{{ vst, RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           dst ↦ᵣ vst }}}.
   Proof.
@@ -444,20 +444,20 @@ Section vcsr.
       interpretation; MIE becomes MIE of the source. *)
   Lemma wp_csrw_mstatus_link E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src vsrc dq
       (T1 T2 : iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW cnull MSTATUS (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mstatus (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
     link_transfer (mie_set (mie_of (get_a vsrc.(lw)))) T1 T2 →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ vsrc ∗
         ▷ T1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           src ↦ᵣ vsrc ∗
           T2 }}}.
@@ -486,13 +486,13 @@ Section vcsr_core.
 
   Lemma wp_mret_vcsr E pc_p pc_g pc_b pc_e pc_a pc_π w wepcc wcause dq :
     decodeInstrW w.(lw) = Mret →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ vcsr_frag MEPCC wepcc ∗
-        ▷ vcsr_frag MCAUSE wcause }}}
+        ▷ vcsr_frag mepcc wepcc ∗
+        ▷ vcsr_frag mcause wcause }}}
       Instr Executable @ E
       {{{ RET NextIV;
           PC ↦ₚ wepcc ∗
@@ -512,18 +512,18 @@ Section vcsr_core.
       value, and a write to it is not observed. *)
   Lemma wp_specialrw_reserved_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src
       (regs : LReg) dq :
-    decodeInstrW w.(lw) = SpecialRW dst MSTATUS src →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW dst mstatus src →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
-    regs_of (SpecialRW dst MSTATUS src) ⊆ dom regs →
+    regs_of (SpecialRW dst mstatus src) ⊆ dom regs →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) }}}
       Instr Executable @ E
       {{{ vold, RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           ([∗ map] k↦y ∈ specialrw_regs regs dst vold, k ↦ᵣ y) }}}.
   Proof.
@@ -538,18 +538,18 @@ Section vcsr_core.
   (** [csrw mstatus, src]: the legalised write goes to the state
       interpretation. *)
   Lemma wp_csrw_mstatus E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src vsrc dq :
-    decodeInstrW w.(lw) = SpecialRW cnull MSTATUS (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    decodeInstrW w.(lw) = SpecialRW cnull mstatus (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ vsrc }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
           pc_a ↦ₐ{dq} w ∗
           src ↦ᵣ vsrc }}}.
   Proof.

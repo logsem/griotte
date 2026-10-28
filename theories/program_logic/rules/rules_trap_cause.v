@@ -73,7 +73,7 @@ Section trap_cause.
   Definition word_agree (P : Prop) (x y : Word) : Prop :=
     y = x ∨
     (y = clear_tag x ∧ (get_tag x = true → P) ∧
-     ∀ p g b e a ea, x = WCap true p g b e a → withinBounds b e ea = true →
+     ∀ p g b e a ea, x = Cap p g b e a → withinBounds b e ea = true →
        is_heap_address ea = true).
 
   (** Memory words agree on what the faults read: the decoded instruction and
@@ -272,7 +272,7 @@ Section trap_cause.
     trap_fault φp = trap_fault φl ∨
     (fault_mcause (trap_fault φl) = MCAUSE_CHERI ∧
      ∃ p g b e a wi r,
-       pcc φl = WCap true p g b e a ∧ isCorrectPCb (pcc φl) = true ∧
+       pcc φl = Cap p g b e a ∧ isCorrectPCb (pcc φl) = true ∧
        mem φl !! a = Some wi ∧ fault_auth_reg (decodeInstrW wi) = Some r ∧ S r ∧
        trap_fault φp = FaultCheri TagViolation (CheriGPR r)).
   Proof.
@@ -381,7 +381,7 @@ Section trap_cause.
       [lm], if it is a correct PC. *)
   Definition instr_at (lpc : LWord) (lm : LMem) : option LWord :=
     match lpc.(lw) with
-    | WCap true _ _ _ _ a => if isCorrectPCb lpc.(lw) then lm !! a else None
+    | Cap _ _ _ _ a => if isCorrectPCb lpc.(lw) then lm !! a else None
     | _ => None
     end.
 
@@ -429,7 +429,7 @@ Section trap_cause.
       the fault is not an access fault, which an address that the fragment
       misses would give. *)
   Definition lfault_known (lpc : LWord) (lregs : LReg) (lm : LMem) : Prop :=
-    (∀ p g b e a wi, lpc.(lw) = WCap true p g b e a → lm !! a = Some wi →
+    (∀ p g b e a wi, lpc.(lw) = Cap p g b e a → lm !! a = Some wi →
        regs_of (decodeInstrW wi.(lw)) ⊆ dom lregs) ∧
     fault_is_access (lfault lpc lregs lm) = false.
 

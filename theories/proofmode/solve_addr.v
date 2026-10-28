@@ -27,13 +27,13 @@ Proof. solve_addr. Qed.
 Lemma incr_addr_opt_add_twice (a: Addr) (n m: Z) :
   (0 <= n)%Z ->
   (0 <= m)%Z ->
-  ((a ^+ n) ^+ m)%a = (a ^+ (n + m)%Z)%a.
+  ((a ^+ n) ^+ m) = (a ^+ (n + m)%Z).
 Proof. solve_addr. Qed.
 
 Lemma incr_addr_opt_add_twice' (a: Addr) (n m: Z) :
   (0 <= n)%Z ->
   (0 <= m)%Z ->
-  ((a ^+ n) ^+ m)%a = (a ^+ (n + m)%Z)%a.
+  ((a ^+ n) ^+ m) = (a ^+ (n + m)%Z).
 Proof. zify_addr;[]. (* only one goal! *) lia. Qed.
 
 Lemma top_le_eq a : (top <= a)%a → a = top.
@@ -98,7 +98,7 @@ Proof. solve_addr. Qed.
 
 Lemma incr_addr_ne a i :
   i ≠ 0%Z → a ≠ top →
-  (a ^+ i)%a ≠ a.
+  (a ^+ i) ≠ a.
 Proof. intros H1 H2. intro. apply H2. solve_addr. Qed.
 
 Lemma incr_addr_ne_top a z a' :
@@ -106,10 +106,10 @@ Lemma incr_addr_ne_top a z a' :
   a ≠ top.
 Proof. intros. intro. solve_addr. Qed.
 
-Lemma get_addrs_from_option_addr_comm a i k :
+Lemma get_addrs_from_option_addr_comm (a : Addr) i k :
   (k >= 0)%Z -> (i >= 0)%Z ->
-  (((a ^+ i) ^+ k)%a) =
-  ((a ^+ (i + k)%Z)%a).
+  ((a ^+ i) ^+ k) =
+  (a ^+ (i + k)%Z).
 Proof. solve_addr. Qed.
 
 Lemma incr_addr_of_z (a a' : Addr) :

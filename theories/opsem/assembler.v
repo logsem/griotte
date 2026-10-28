@@ -391,7 +391,7 @@ Module Asm_Griotte.
         Ok (machine_instructions.SetMIE b)
     | CsrMIE b sr mask =>
         z ← asm_eval mask env n;
-        if decide (sr = MSTATUS ∧ z = Z.shiftl 1 MIE_BIT)
+        if decide (sr = mstatus ∧ z = Z.shiftl 1 MIE_BIT)
         then Ok (machine_instructions.SetMIE b)
         else Err "csrsi/csrci: only mstatus with the MIE mask 0x8"%string
     | Mret =>

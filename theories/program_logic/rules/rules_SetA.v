@@ -46,14 +46,14 @@ Section griotte_lang_rules.
     lz_of_argument regs rv = Some z ->
     z_to_addr z = None ->
     incrementPC lpc = Some lpc' ->
-    regs' = <[ dst := WCap false p g b e a @@? π ]ₗ> regs ->
+    regs' = <[ dst := Cap⁻ p g b e a @@? π ]ₗ> regs ->
     SetA_spec lpc regs dst src rv lpc' regs' NextIV
   | SetA_spec_invalidated_sr: forall (t : bool) p g b e a π z,
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     z_to_otype z = None ->
     incrementPC lpc = Some lpc' ->
-    regs' = <[ dst := WSealRange false p g b e a @@? π ]ₗ> regs ->
+    regs' = <[ dst := SealRange⁻ p g b e a @@? π ]ₗ> regs ->
     SetA_spec lpc regs dst src rv lpc' regs' NextIV
   (* An integer becomes the address. *)
   | SetA_spec_int: forall n π z,
@@ -78,14 +78,14 @@ Section griotte_lang_rules.
 
   Lemma wp_SetA Ep pc_p pc_g pc_b pc_e pc_a pc_π dst src arg w (regs : LReg) dq :
     decodeInstrW w.(lw) = SetA dst src arg →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (SetA dst src arg) ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ SetA_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
+        ⌜ SetA_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -137,7 +137,7 @@ Section griotte_lang_rules.
         { intros lpc' Hi. eapply SetA_spec_success_cap; eauto. }
         { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
         iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WCap false p g b e a @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (Cap⁻ p g b e a @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
         { intros lpc' Hi. eapply SetA_spec_success_sr; eauto. }
         { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
         iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange false p g b e a @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (SealRange⁻ p g b e a @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -179,12 +179,12 @@ Section griotte_lang_rules.
     | WCap t p g b e a =>
         Some (match z_to_addr n with
               | Some a' => WCap t p g b e a'
-              | None => WCap false p g b e a
+              | None => Cap⁻ p g b e a
               end @@? v.(lprov))
     | WSealRange t p g b e a =>
         Some (match z_to_otype n with
               | Some a' => WSealRange t p g b e a'
-              | None => WSealRange false p g b e a
+              | None => SealRange⁻ p g b e a
               end @@? v.(lprov))
     | WInt _ => Some (WInt n @@? v.(lprov))
     | _ => Some (lclear_tag v)
@@ -227,13 +227,13 @@ Section griotte_lang_rules.
       follow. *)
   Lemma wp_seta_next E pc_p pc_g pc_b pc_e pc_a pc_π w dst src arg regs wr z wr' lpc' dq :
     decodeInstrW w.(lw) = SetA dst src arg →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (SetA dst src arg) ⊆ dom regs →
     regs !!ₗ src = Some wr →
     lz_of_argument regs arg = Some z →
     seta_result wr z = Some wr' →
-    incrementPC (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
@@ -254,19 +254,19 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z a' π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = Some a' →
     rv ≠ cnull →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ rv ↦ᵣ wz }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rv ↦ᵣ wz ∗
         r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
@@ -282,17 +282,17 @@ Section griotte_lang_rules.
 
   Lemma wp_seta_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z a' π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = Some a' →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WCap t p g b e a @@? π }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ WCap t p g b e a' @@? π }}}.
   Proof.
@@ -308,18 +308,18 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg_int Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv n wz z π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rv ≠ cnull →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WInt n @@? π ∗
         ▷ rv ↦ᵣ wz }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rv ↦ᵣ wz ∗
         r1 ↦ᵣ WInt z @@? π }}}.
@@ -334,16 +334,16 @@ Section griotte_lang_rules.
 
   Lemma wp_seta_success_z_int Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 n z π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WInt n @@? π }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ WInt z @@? π }}}.
   Proof.
@@ -358,18 +358,18 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg_any Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv wr wr' wz dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inr rv) →
     seta_result wr (get_a wz.(lw)) = Some wr' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rv ≠ cnull →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ wr ∗
         ▷ rv ↦ᵣ wz }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rv ↦ᵣ wz ∗
         r1 ↦ᵣ wr' }}}.
@@ -384,16 +384,16 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_z_any Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr wr' z dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inl z) →
     seta_result wr z = Some wr' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ wr }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ wr' }}}.
   Proof.
@@ -407,52 +407,52 @@ Section griotte_lang_rules.
   Lemma wp_seta_invalid_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = None →
     rv ≠ cnull →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ rv ↦ᵣ wz }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         rv ↦ᵣ wz ∗
-        r1 ↦ᵣ WCap false p g b e a @@? π }}}.
+        r1 ↦ᵣ Cap⁻ p g b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hr1 & >Hrv) Hφ".
     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
     iDestruct (map_of_regs_2 with "Hrv Hr1") as "[Hmap %]".
     iApply (wp_seta_next _ _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
-      (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+      (Cap⁻ p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
       try by rewrite /seta_result /= Ha'.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_seta_invalid_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z π dq :
     decodeInstrW w.(lw) = SetA r1 r1 (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = None →
     r1 ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ WCap t p g b e a @@? π }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
-        r1 ↦ᵣ WCap false p g b e a @@? π }}}.
+        r1 ↦ᵣ Cap⁻ p g b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull ϕ) "(>HPC & >Hpc_a & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
     iApply (wp_seta_next _ _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
-      (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+      (Cap⁻ p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
       try by rewrite /seta_result /= Ha'.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
@@ -462,21 +462,21 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src rv (t : bool) p g b e a wdst wz z a' π dq :
     decodeInstrW w.(lw) = SetA dst src (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = Some a' →
     rv ≠ cnull →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ rv ↦ᵣ wz ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WCap t p g b e a @@? π ∗
         rv ↦ᵣ wz ∗
@@ -493,19 +493,19 @@ Section griotte_lang_rules.
 
   Lemma wp_seta_success_z_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src (t : bool) p g b e a wdst z a' π dq :
     decodeInstrW w.(lw) = SetA dst src (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = Some a' →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WCap t p g b e a @@? π ∗
         dst ↦ᵣ WCap t p g b e a' @@? π }}}.
@@ -521,20 +521,20 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg_int_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src rv n wdst wz z π dq :
     decodeInstrW w.(lw) = SetA dst src (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rv ≠ cnull →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WInt n @@? π ∗
         ▷ rv ↦ᵣ wz ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WInt n @@? π ∗
         rv ↦ᵣ wz ∗
@@ -550,18 +550,18 @@ Section griotte_lang_rules.
 
   Lemma wp_seta_success_z_int_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src n wdst z π dq :
     decodeInstrW w.(lw) = SetA dst src (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WInt n @@? π ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WInt n @@? π ∗
         dst ↦ᵣ WInt z @@? π }}}.
@@ -576,20 +576,20 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_reg_any_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src rv wsrc wsrc' wdst wz dq :
     decodeInstrW w.(lw) = SetA dst src (inr rv) →
     seta_result wsrc (get_a wz.(lw)) = Some wsrc' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     rv ≠ cnull →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ wsrc ∗
         ▷ rv ↦ᵣ wz ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ wsrc ∗
         rv ↦ᵣ wz ∗
@@ -605,18 +605,18 @@ Section griotte_lang_rules.
   Lemma wp_seta_success_z_any_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src wsrc wsrc' wdst z dq :
     decodeInstrW w.(lw) = SetA dst src (inl z) →
     seta_result wsrc z = Some wsrc' →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ wsrc ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ wsrc ∗
         dst ↦ᵣ wsrc' }}}.
@@ -631,58 +631,58 @@ Section griotte_lang_rules.
   Lemma wp_seta_invalid_reg_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src rv (t : bool) p g b e a wdst wz z π dq :
     decodeInstrW w.(lw) = SetA dst src (inr rv) →
     IsLInt wz z →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = None →
     rv ≠ cnull →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ rv ↦ᵣ wz ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WCap t p g b e a @@? π ∗
         rv ↦ᵣ wz ∗
-        dst ↦ᵣ WCap false p g b e a @@? π }}}.
+        dst ↦ᵣ Cap⁻ p g b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hwz Hvpc Hpca' Ha' Hcnull Hcnull' Hcnull'' ϕ) "(>HPC & >Hpc_a & >Hsrc & >Hrv & >Hdst) Hφ".
     destruct (IsLInt_inv _ _ Hwz) as [πz ->].
     iDestruct (map_of_regs_3 with "Hsrc Hrv Hdst") as "[Hmap (%&%&%)]".
     iApply (wp_seta_next _ _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
-      (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+      (Cap⁻ p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
       try by rewrite /seta_result /= Ha'.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   Lemma wp_seta_invalid_z_src Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst src (t : bool) p g b e a wdst z π dq :
     decodeInstrW w.(lw) = SetA dst src (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     z_to_addr z = None →
     src ≠ cnull →
     dst ≠ cnull →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ src ↦ᵣ WCap t p g b e a @@? π ∗
         ▷ dst ↦ᵣ wdst }}}
       Instr Executable @ Ep
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
         src ↦ᵣ WCap t p g b e a @@? π ∗
-        dst ↦ᵣ WCap false p g b e a @@? π }}}.
+        dst ↦ᵣ Cap⁻ p g b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpca' Ha' Hcnull Hcnull' ϕ) "(>HPC & >Hpc_a & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %]".
     iApply (wp_seta_next _ _ _ _ _ _ _ _ _ _ _ _ (WCap t p g b e a @@? π) _
-      (WCap false p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
+      (Cap⁻ p g b e a @@? π) with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
       try by rewrite /seta_result /= Ha'.
     iIntros "!> (HPC & Hpc_a & Hmap)". iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
   Qed.

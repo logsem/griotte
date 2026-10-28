@@ -77,19 +77,24 @@ Qed.
 
     mtdc and MIE are per thread, MPIE is shared; each has its own ghost
     state. The ghost value of a thread's mtdc stands for a logical word:
-    the trusted stack [w] up to the Global bit ([TStack w]), or exactly [w]
-    ([ExceptionScratch w]). *)
-Inductive mtdc_val := TStack (w : LWord) | ExceptionScratch (w : LWord).
+    the trusted stack capability up to its locality ([TStack p b e a],
+    written [Capₗ p _ b e a]), or exactly [v] ([ExceptionScratch v]). *)
+Inductive mtdc_val :=
+| TStack (p : Perm) (b e a : Addr)
+| ExceptionScratch (v : LWord).
 
-(** The logical mtdc words that the ghost value [m] stands for. *)
+(** The logical mtdc words that the ghost value [m] stands for: the trusted
+    stack up to its locality, or exactly [v]. *)
 Definition mtdc_match (m : mtdc_val) (vm : LWord) : Prop :=
   match m with
-  | TStack v => vm.(lprov) = v.(lprov) ∧ force_global vm.(lw) = force_global v.(lw)
+  | TStack p b e a => ∃ g, vm = Cap p g b e a
   | ExceptionScratch v => vm = v
   end.
 
-Lemma mtdc_match_TStack v : mtdc_match (TStack v) v.
-Proof. done. Qed.
+(** [Capₗ p _ b e a]: a capability up to its locality. *)
+Notation "'Capₗ' p '_' b e a" := (TStack p b e a)
+  (at level 10, p, b, e, a at level 9, format "'Capₗ'  p  _  b  e  a").
+Coercion ExceptionScratch : LWord >-> mtdc_val.
 
 Lemma mtdc_match_ExceptionScratch v : mtdc_match (ExceptionScratch v) v.
 Proof. done. Qed.
@@ -332,57 +337,61 @@ Definition Ntval : namespace := Ntrap .@ "tval".
 
 (* Points to predicates for the system registers of the shared heap: the
    system-wide control and status registers *)
-Notation "sr ↦ₓ{ q } w" := (pointsto (L:=SRegName) (V:=LWord) sr q w)
-  (at level 20, q at level 50, format "sr  ↦ₓ{ q }  w") : bi_scope.
-Notation "sr ↦ₓ w" := (pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w) (at level 20) : bi_scope.
-Notation "sr ↦ₓ -" := (∃ w, pointsto (L:=SRegName) (V:=LWord) sr (DfracOwn 1) w)%I (at level 20) : bi_scope.
+Notation "sr ↦ₓ dq w" := (pointsto (L:=SRegName) (V:=LWord) sr dq w)
+  (at level 20, dq custom dfrac at level 1, format "sr  ↦ₓ dq  w") : bi_scope.
+Notation "sr ↦ₓ dq -" := (∃ w, pointsto (L:=SRegName) (V:=LWord) sr dq w)%I
+  (at level 20, dq custom dfrac at level 1, format "sr  ↦ₓ dq  -") : bi_scope.
 
 (* Points to predicate for the PC *)
 Notation "'PC' ↦ₚ w" := (PC_frag w) (at level 20, format "'PC'  ↦ₚ  w") : bi_scope.
 
 (* Points to predicates for registers *)
-Notation "r ↦ᵣ{ q } w" := (pointsto (L:=RegName) (V:=LWord) r q w)
-  (at level 20, q at level 50, format "r  ↦ᵣ{ q }  w") : bi_scope.
-Notation "r ↦ᵣ w" := (pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w) (at level 20) : bi_scope.
-Notation "r ↦ᵣ -" := (∃ w, pointsto (L:=RegName) (V:=LWord) r (DfracOwn 1) w)%I (at level 20) : bi_scope.
+Notation "r ↦ᵣ dq w" := (pointsto (L:=RegName) (V:=LWord) r dq w)
+  (at level 20, dq custom dfrac at level 1, format "r  ↦ᵣ dq  w") : bi_scope.
+Notation "r ↦ᵣ dq -" := (∃ w, pointsto (L:=RegName) (V:=LWord) r dq w)%I
+  (at level 20, dq custom dfrac at level 1, format "r  ↦ᵣ dq  -") : bi_scope.
 
 (* Points to predicates for the PC and registers of thread [th] *)
 Notation "'PC' ↦ₚ[ th ] w" := (@PC_frag _ (@cerise_pcG _ (ceriseG_of th)) w)
   (at level 20, th custom thread, format "'PC'  ↦ₚ[ th ]  w") : bi_scope.
-Notation "r ↦ᵣ[ th ]{ q } w" :=
-  (@pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r q w)
-  (at level 20, th custom thread, q at level 50, format "r  ↦ᵣ[ th ]{ q }  w") : bi_scope.
-Notation "r ↦ᵣ[ th ] w" :=
-  (@pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r (DfracOwn 1) w)
-  (at level 20, th custom thread, format "r  ↦ᵣ[ th ]  w") : bi_scope.
-Notation "r ↦ᵣ[ th ] -" :=
-  (∃ w, @pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r (DfracOwn 1) w)%I
-  (at level 20, th custom thread, format "r  ↦ᵣ[ th ]  -") : bi_scope.
+Notation "r ↦ᵣ[ th ] dq w" :=
+  (@pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r dq w)
+  (at level 20, th custom thread, dq custom dfrac at level 1,
+   format "r  ↦ᵣ[ th ] dq  w") : bi_scope.
+Notation "r ↦ᵣ[ th ] dq -" :=
+  (∃ w, @pointsto RegName _ _ LWord _ (@reg_gen_regG _ (ceriseG_of th)) r dq w)%I
+  (at level 20, th custom thread, dq custom dfrac at level 1,
+   format "r  ↦ᵣ[ th ] dq  -") : bi_scope.
+
+(** The registers of the map [rmap], owned by thread [th]; [regs₀[th]]: and
+    all zero. No unannotated form. *)
+Notation "'regs[' th ] rmap" :=
+  ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w)%I
+  (at level 20, th custom thread, rmap at level 10, format "'regs[' th ]  rmap") : bi_scope.
+Notation "'regs₀[' th ] rmap" :=
+  ([∗ map] r↦w ∈ rmap, r ↦ᵣ[th] w ∗ ⌜w = lword_of_word (WInt 0%Z)⌝)%I
+  (at level 20, th custom thread, rmap at level 10, format "'regs₀[' th ]  rmap") : bi_scope.
 
 (** The mtdc fragment of a thread: [mtdc ↦ₜ m] in proofs and in
-    instance-generic files, [mtdc ↦ₜ[th] m] for thread [th]. [mtdc] becomes a
-    keyword, so it is also a notation for [MTDC] at level 0 (the
-    abbreviation of [registers.v] no longer parses); the fragment notations
-    are at level 0 too, so that the two prefixes are compatible. *)
-Notation "'mtdc'" := MTDC (at level 0).
+    instance-generic files, [mtdc ↦ₜ[th] m] for thread [th]. [mtdc] is a
+    keyword at level 0 (a notation for [MTDC], [registers.v]); the fragment
+    notations are at level 0 too, so that the two prefixes are compatible. *)
 Notation "'mtdc' ↦ₜ m" := (mtdc_frag m)
   (at level 0, m at level 10, format "'mtdc'  ↦ₜ  m") : bi_scope.
 Notation "'mtdc' ↦ₜ[ th ] m" := (@mtdc_frag _ (@cerise_mtdcG _ (ceriseG_of th)) m)
   (at level 0, th custom thread, m at level 10, format "'mtdc'  ↦ₜ[ th ]  m") : bi_scope.
 
 (* Points to predicates for memory *)
-Notation "a ↦ₐ{ q } w" := (pointsto (L:=Addr) (V:=LWord) a q w)
-  (at level 20, q at level 50, format "a  ↦ₐ{ q }  w") : bi_scope.
-Notation "a ↦ₐ w" := (pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w) (at level 20) : bi_scope.
-Notation "a ↦ₐ -" := (∃ w, pointsto (L:=Addr) (V:=LWord) a (DfracOwn 1) w)%I (at level 20) : bi_scope.
-Notation "a ↦ₐ□ w" := (pointsto (L:=Addr) (V:=LWord) a DfracDiscarded w)
-  (at level 20, format "a  ↦ₐ□  w") : bi_scope.
+Notation "a ↦ₐ dq w" := (pointsto (L:=Addr) (V:=LWord) a dq w)
+  (at level 20, dq custom dfrac at level 1, format "a  ↦ₐ dq  w") : bi_scope.
+Notation "a ↦ₐ dq -" := (∃ w, pointsto (L:=Addr) (V:=LWord) a dq w)%I
+  (at level 20, dq custom dfrac at level 1, format "a  ↦ₐ dq  -") : bi_scope.
 
 (* Points to predicates for shadow table *)
-Notation "a ↦ₛ{ q } b" := (pointsto (L:=Addr) (V:=AllocStatus) a q b)
-  (at level 20, q at level 50, format "a  ↦ₛ{ q }  b") : bi_scope.
-Notation "a ↦ₛ b" := (pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b) (at level 20) : bi_scope.
-Notation "a ↦ₛ -" := (∃ b, pointsto (L:=Addr) (V:=AllocStatus) a (DfracOwn 1) b)%I (at level 20) : bi_scope.
+Notation "a ↦ₛ dq s" := (pointsto (L:=Addr) (V:=AllocStatus) a dq s)
+  (at level 20, dq custom dfrac at level 1, format "a  ↦ₛ dq  s") : bi_scope.
+Notation "a ↦ₛ dq -" := (∃ s, pointsto (L:=Addr) (V:=AllocStatus) a dq s)%I
+  (at level 20, dq custom dfrac at level 1, format "a  ↦ₛ dq  -") : bi_scope.
 
 (** The classes of the ghost state before its allocation. *)
 Class ceriseGpreS Σ := {

@@ -22,7 +22,7 @@ Section codefrag.
   Lemma codefrag_lookup_acc a0 (cs: list Word) (i: nat) w:
     SimplTC (cs !! i) (Some w) →
     codefrag a0 cs -∗
-      (a0 ^+ i)%a ↦ₐ w @@? None ∗ ((a0 ^+ i)%a ↦ₐ w @@? None -∗ codefrag a0 cs).
+      (a0 ^+ i) ↦ₐ w @@? None ∗ ((a0 ^+ i) ↦ₐ w @@? None -∗ codefrag a0 cs).
   Proof.
     iIntros (Hi) "Hcs".
     iDestruct (codefrag_contiguous_region with "Hcs") as %Hub.
@@ -39,7 +39,7 @@ Section codefrag.
   (* Persistent code needs no accessor: the cell is persistent too. *)
   Lemma codefrag_lookup_acc_pers a0 (cs: list Word) (i: nat) w:
     SimplTC (cs !! i) (Some w) →
-    codefrag_pers a0 cs -∗ (a0 ^+ i)%a ↦ₐ□ w @@? None.
+    codefrag_pers a0 cs -∗ (a0 ^+ i) ↦ₐ□ w @@? None.
   Proof.
     iIntros (Hi) "Hcs". by iApply (codefrag_lookup_pers with "Hcs").
   Qed.
@@ -61,12 +61,12 @@ Ltac wp_instr :=
   subst X;
   cbv beta.
 
-Lemma z_addr_base {fb off off1 off2 : Z} {f0 f1 f2 : finz fb}: (f0 + off1)%f = Some f1 → (f0 + off2)%f = Some f2 → (off2 - off1)%Z = off → (f1 ^+ off)%f = f2.
+Lemma z_addr_base {fb off off1 off2 : Z} {f0 f1 f2 : finz fb}: (f0 + off1)%f = Some f1 → (f0 + off2)%f = Some f2 → (off2 - off1)%Z = off → (f1 ^+ off) = f2.
   Proof. solve_addr. Qed.
 Ltac solve_block_move :=
     first [solve_addr+ |
     lazymatch goal with
-      | |- (?prev_a ^+ ?off)%f = ?cur_a =>
+      | |- (?prev_a ^+ ?off) = ?cur_a =>
           match goal with
             | H: (prev_a + ?off1)%a = Some cur_a |- _ => solve_addr+H
             | H1: (?base_a + ?off1)%a = Some prev_a |- _ =>
@@ -121,10 +121,10 @@ Ltac codefrag_facts h :=
      codefrag_contiguous h HH;
      cbn [length map encodeInstrsW] in HH
     );
-    (match goal with H : SubBounds _ _ a_base (a_base ^+ _)%a |- _ => idtac end ||
+    (match goal with H : SubBounds _ _ a_base (a_base ^+ _) |- _ => idtac end ||
      (try match goal with H : SubBounds ?b ?e _ _ |- _ =>
             let HH := fresh in
-            assert (HH: SubBounds b e a_base (a_base ^+ length code)%a) by solve_addr;
+            assert (HH: SubBounds b e a_base (a_base ^+ length code)) by solve_addr;
             cbn [length map encodeInstrsW] in HH
           end))
   end end.
@@ -135,7 +135,7 @@ Ltac clear_codefrag_facts h :=
   let ac := codefrag_base_code P in
   lazymatch ac with (?a_base, ?code) =>
     try match goal with H : ContiguousRegion a_base _ |- _ => clear H end;
-    try match goal with H : SubBounds _ _ a_base (a_base ^+ _)%a |- _ => clear H end
+    try match goal with H : SubBounds _ _ a_base (a_base ^+ _) |- _ => clear H end
   end end.
 
 (* Classes for the code sub-block focusing tactic *)
@@ -194,7 +194,7 @@ Section codefrag_subblock.
     iDestruct (codefrag_contiguous_region with "H") as %Hregion.
     rewrite /codefrag fmap_app. rewrite /codefrag in Hregion.
     destruct Hregion as [an Han]. rewrite length_app in Han |- *.
-    iDestruct (region_pointsto_split _ _ (a0 ^+ length l1)%a with "H") as "[H1 H2]".
+    iDestruct (region_pointsto_split _ _ (a0 ^+ length l1) with "H") as "[H1 H2]".
     { by solve_addr. }
     { by rewrite ?length_fmap /finz.dist; solve_addr. }
     iFrame. iIntros "H1".
@@ -214,11 +214,11 @@ Section codefrag_subblock.
     iDestruct (codefrag_contiguous_region with "H") as %[a1 Ha1].
     rewrite /codefrag !fmap_app.
     rewrite !length_app in Ha1 |- *.
-    iDestruct (region_pointsto_split _ _ (a0 ^+ length l1)%a with "H") as "[H1 H2]".
+    iDestruct (region_pointsto_split _ _ (a0 ^+ length l1) with "H") as "[H1 H2]".
     { solve_addr. }
     { rewrite ?length_fmap /finz.dist; solve_addr. }
-    iExists (a0 ^+ length l1)%a. iSplitR; first (iPureIntro; solve_addr).
-    iDestruct (region_pointsto_split _ _ ((a0 ^+ length l1) ^+ length l)%a with "H2") as "[H2 H3]".
+    iExists (a0 ^+ length l1). iSplitR; first (iPureIntro; solve_addr).
+    iDestruct (region_pointsto_split _ _ ((a0 ^+ length l1) ^+ length l) with "H2") as "[H2 H3]".
     { solve_addr. }
     { rewrite ?length_fmap /finz.dist; solve_addr. }
     iFrame.
@@ -242,7 +242,7 @@ Section codefrag_subblock.
     rewrite !length_app in Ha1.
     iDestruct (codefrag_app_pers with "H") as "[_ H]".
     iDestruct (codefrag_app_pers with "H") as "[H _]".
-    iExists (a0 ^+ length l1)%a. iFrame. iPureIntro. solve_addr.
+    iExists (a0 ^+ length l1). iFrame. iPureIntro. solve_addr.
   Qed.
 
   (* The continuation of a focus or of an instruction lookup on persistent
@@ -277,11 +277,11 @@ Ltac codefrag_pers_mk_cont h hi hcont :=
   end.
 
 Lemma focus_block_0_SubBounds (b e b' : Addr) k m :
-  SubBounds b e b' (b' ^+ k)%a →
+  SubBounds b e b' (b' ^+ k) →
   ContiguousRegion b' m →
   (0 ≤ m)%Z →
   (m ≤ k)%Z →
-  SubBounds b e b' (b' ^+ m)%a.
+  SubBounds b e b' (b' ^+ m).
 Proof. solve_addr. Qed.
 
 (* More efficient version of codefrag_facts (avoids calling [solve_addr])
@@ -290,7 +290,7 @@ Ltac focus_block_0_codefrag_facts hi a0 :=
   let HCR := fresh in
   codefrag_contiguous hi HCR;
   cbn [length map encodeInstrsW] in HCR;
-  try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _)%a |- _ =>
+  try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _) |- _ =>
     let HSB' := fresh in
     unshelve epose proof (focus_block_0_SubBounds _ _ _ _ _ HSB HCR _ _) as HSB';
     [solve_pure ..|];
@@ -344,13 +344,13 @@ Tactic Notation "focus_block_0" constr(h) "as" constr(hi) constr(hcont) :=
   end.
 
 Lemma focus_block_SubBounds (b e b' b'': Addr) k m n :
-  SubBounds b e b' (b' ^+ k)%a →
+  SubBounds b e b' (b' ^+ k) →
   ContiguousRegion b'' m →
   (b' + n)%a = Some b'' →
   (0 ≤ n)%Z →
   (0 ≤ m)%Z →
   ((n + m) <= k)%Z →
-  SubBounds b e b'' (b'' ^+ m)%a.
+  SubBounds b e b'' (b'' ^+ m).
 Proof. solve_addr. Qed.
 
 (* More efficient version of codefrag_facts (avoids calling [solve_addr])
@@ -359,7 +359,7 @@ Ltac focus_block_codefrag_facts hi a0 Ha_base :=
   let HCR := fresh in
   codefrag_contiguous hi HCR;
   cbn [length map encodeInstrsW] in HCR;
-  try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _)%a |- _ =>
+  try lazymatch goal with HSB : SubBounds ?b ?e a0 (a0 ^+ _) |- _ =>
     let HSB' := fresh in
     unshelve epose proof (focus_block_SubBounds _ _ _ _ _ _ _ HSB HCR Ha_base _ _ _) as HSB';
     [solve_pure ..|];
@@ -970,10 +970,10 @@ Tactic Notation "iApplyCapAuto" constr(lem) :=
 Definition as_weak_addr_incr (a b: Addr) (z: Z) `{AsWeakFinZIncr _ a b z} :=
   (b, Z.to_nat z).
 
-Lemma addr_incr_zero (a: Addr) : (a ^+ 0)%a = a.
+Lemma addr_incr_zero (a: Addr) : a ^+ 0 = a.
 Proof. solve_addr. Qed.
 
-Lemma addr_incr_zero_nat (a: Addr) : (a ^+ 0%nat)%a = a.
+Lemma addr_incr_zero_nat (a: Addr) : a ^+ 0%nat = a.
 Proof. solve_addr. Qed.
 
 (* The current PC address, stated as a logical word or through the

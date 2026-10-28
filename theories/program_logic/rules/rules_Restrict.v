@@ -78,7 +78,7 @@ Section griotte_lang_rules.
       (p',g') = (decodePermPair n) ->
       (PermFlowsTo p' p && LocalityFlowsTo g' g) = false →
       incrementPC lpc = Some lpc' →
-      regs' = <[ dst := WCap false p' g' b e a @@? π ]ₗ> regs →
+      regs' = <[ dst := Cap⁻ p' g' b e a @@? π ]ₗ> regs →
       Restrict_spec lpc regs dst src arg lpc' regs' NextIV
   | Restrict_spec_invalidated_sr (t : bool) p g b e a π n p' g':
       regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
@@ -86,7 +86,7 @@ Section griotte_lang_rules.
       (p',g') = (decodeSealPermPair n) ->
       (SealPermFlowsTo p' p && LocalityFlowsTo g' g) = false →
       incrementPC lpc = Some lpc' →
-      regs' = <[ dst := WSealRange false p' g' b e a @@? π ]ₗ> regs →
+      regs' = <[ dst := SealRange⁻ p' g' b e a @@? π ]ₗ> regs →
       Restrict_spec lpc regs dst src arg lpc' regs' NextIV
   (* An integer is unchanged; a sealed word or a sentry loses its tag. *)
   | Restrict_spec_untagged w:
@@ -103,15 +103,15 @@ Section griotte_lang_rules.
 
   Lemma wp_Restrict Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src arg regs dq :
     decodeInstrW w.(lw) = Restrict dst src arg ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Restrict dst src arg) ⊆ dom regs →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
+        ⌜ Restrict_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -131,7 +131,7 @@ Section griotte_lang_rules.
     rewrite (lz_of_argument_incl R regs r _ n) /= in Hstep; [|done|done].
     destruct (decide (is_mutable_range wsrc.(lw) = false)) as [Hk | Hk].
     { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag wsrc) (clear_tag wsrc.(lw)) _ _ _
-        (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
+        (λ lpc' regs' retv, Restrict_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
@@ -145,7 +145,7 @@ Section griotte_lang_rules.
     - destruct (decodePermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && PermFlowsTo p' p && LocalityFlowsTo g' g).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WCap nt p' g' b e a @@? π) _ _ _ _
-        (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
+        (λ lpc' regs' retv, Restrict_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); last done; first by left.
@@ -167,7 +167,7 @@ Section griotte_lang_rules.
     - destruct (decodeSealPermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && SealPermFlowsTo p' p && LocalityFlowsTo g' g).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange nt p' g' b e a @@? π) _ _ _ _
-        (λ lpc' regs' retv, Restrict_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
+        (λ lpc' regs' retv, Restrict_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); last done; first by right.
@@ -190,7 +190,7 @@ Section griotte_lang_rules.
    Lemma wp_restrict_success_reg Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 rv (t : bool) p g b e a wz z p' g' π dq :
      decodeInstrW w.(lw) = Restrict r1 r1 (inr rv) →
      IsLInt wz z →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (p',g') = (decodePermPair z) ->
      PermFlowsTo p' p = true →
@@ -198,13 +198,13 @@ Section griotte_lang_rules.
      rv ≠ cnull ->
      r1 ≠ cnull ->
 
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π
          ∗ ▷ rv ↦ᵣ wz }}}
        Instr Executable @ Ep
        {{{ RET NextIV;
-           PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+           PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
            ∗ pc_a ↦ₐ{dq} w
            ∗ rv ↦ᵣ wz
            ∗ r1 ↦ᵣ WCap t p' g' b e a @@? π }}}.
@@ -239,19 +239,19 @@ Section griotte_lang_rules.
 
    Lemma wp_restrict_success_z Ep pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 (t : bool) p g b e a z p' g' π dq :
      decodeInstrW w.(lw) = Restrict r1 r1 (inl z) →
-     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
      (pc_a + 1)%a = Some pc_a' →
      (p',g') = (decodePermPair z) ->
      PermFlowsTo p' p = true →
      LocalityFlowsTo g' g = true →
      r1 ≠ cnull ->
 
-     {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
          ∗ ▷ pc_a ↦ₐ{dq} w
          ∗ ▷ r1 ↦ᵣ WCap t p g b e a @@? π }}}
        Instr Executable @ Ep
      {{{ RET NextIV;
-         PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
          ∗ pc_a ↦ₐ{dq} w
          ∗ r1 ↦ᵣ WCap t p' g' b e a @@? π }}}.
    Proof.
@@ -290,21 +290,21 @@ Section instruction_outcomes.
   #[local] Lemma restrict_invalidated_map_cap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src arg regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src arg →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Restrict dst src arg) ⊆ dom regs →
     regs !!ₗ src = Some (WCap t p g b e a @@? π) →
     lz_of_argument regs arg = Some n →
     (p', g') = decodePermPair n →
     PermFlowsTo p' p && LocalityFlowsTo g' g = false →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ <[ dst := WCap false p' g' b e a @@? π ]ₗ> regs, k ↦ᵣ y }}}.
+        [∗ map] k↦y ∈ <[ dst := Cap⁻ p' g' b e a @@? π ]ₗ> regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hsrc Harg Hdecode Hflows Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Restrict with "[$HPC $Hpc_a $Hmap]"); eauto.
@@ -325,21 +325,21 @@ Section instruction_outcomes.
   #[local] Lemma restrict_invalidated_map_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
       w dst src arg regs (t : bool) p g b e a π n p' g' dq :
     decodeInstrW w.(lw) = Restrict dst src arg →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Restrict dst src arg) ⊆ dom regs →
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
     lz_of_argument regs arg = Some n →
     (p', g') = decodeSealPermPair n →
     SealPermFlowsTo p' p && LocalityFlowsTo g' g = false →
     (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
         pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ <[ dst := WSealRange false p' g' b e a @@? π ]ₗ> regs, k ↦ᵣ y }}}.
+        [∗ map] k↦y ∈ <[ dst := SealRange⁻ p' g' b e a @@? π ]ₗ> regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hsrc Harg Hdecode Hflows Hpca' φ) "(HPC & Hpc_a & Hmap) Hφ".
     iApply (wp_Restrict with "[$HPC $Hpc_a $Hmap]"); eauto.
@@ -359,19 +359,19 @@ Section instruction_outcomes.
   (* Restrict: immediate and register operands, including effective cnull reads. *)
   Lemma wp_restrict_invalidated_z E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst (t : bool) p g b e a n p' g' π dq :
     decodeInstrW w.(lw) = Restrict dst dst (inl n) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     (p', g') = decodePermPair n →
     PermFlowsTo p' p && LocalityFlowsTo g' g = false →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
-        ∗ dst ↦ᵣ WCap false p' g' b e a @@? π }}}.
+        ∗ dst ↦ᵣ Cap⁻ p' g' b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
@@ -391,21 +391,21 @@ Section instruction_outcomes.
   Lemma wp_restrict_invalidated_reg E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst (t : bool) p g b e a n p'
       g' src (ws : LWord) π dq :
     decodeInstrW w.(lw) = Restrict dst dst (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     (if decide (src = cnull) then lnull else ws).(lw) = WInt n →
     (p', g') = decodePermPair n →
     PermFlowsTo p' p && LocalityFlowsTo g' g = false →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
         ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
-        ∗ dst ↦ᵣ WCap false p' g' b e a @@? π
+        ∗ dst ↦ᵣ Cap⁻ p' g' b e a @@? π
         ∗ src ↦ᵣ ws }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull Hread Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".
@@ -425,19 +425,19 @@ Section instruction_outcomes.
 
   Lemma wp_restrict_invalidated_z_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst (t : bool) p g b e a n p' g' π dq :
     decodeInstrW w.(lw) = Restrict dst dst (inl n) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     (p', g') = decodeSealPermPair n →
     SealPermFlowsTo p' p && LocalityFlowsTo g' g = false →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
-        ∗ dst ↦ᵣ WSealRange false p' g' b e a @@? π }}}.
+        ∗ dst ↦ᵣ SealRange⁻ p' g' b e a @@? π }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
@@ -457,21 +457,21 @@ Section instruction_outcomes.
   Lemma wp_restrict_invalidated_reg_sr E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst (t : bool) p g b e a n
       p' g' src (ws : LWord) π dq :
     decodeInstrW w.(lw) = Restrict dst dst (inr src) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     (if decide (src = cnull) then lnull else ws).(lw) = WInt n →
     (p', g') = decodeSealPermPair n →
     SealPermFlowsTo p' p && LocalityFlowsTo g' g = false →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ dst ↦ᵣ WSealRange t p g b e a @@? π
         ∗ ▷ src ↦ᵣ ws }}}
       Instr Executable @ E
     {{{ RET NextIV;
-        PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
         ∗ pc_a ↦ₐ{dq} w
-        ∗ dst ↦ᵣ WSealRange false p' g' b e a @@? π
+        ∗ dst ↦ᵣ SealRange⁻ p' g' b e a @@? π
         ∗ src ↦ᵣ ws }}}.
   Proof.
     iIntros (Hinstr Hpc Hincr Hnull Hread Hdecode Hreject φ) "(>HPC & >Hmem & >Hr1 & >Hr2) Hφ".

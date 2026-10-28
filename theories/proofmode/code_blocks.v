@@ -162,6 +162,6 @@ Tactic Notation "jump_to" constr(target) :=
     first instruction is at [base]: the target is [base ^+ asm_label P s]. *)
 Tactic Notation "jump_label" constr(s) "of" constr(P) "at" constr(base)
     "by" tactic3(tac) :=
-  jump_to (base ^+ asm_label P s)%a by tac.
+  jump_to (base ^+ asm_label P s) by tac.
 Tactic Notation "jump_label" constr(s) "of" constr(P) "at" constr(base) :=
-  jump_to (base ^+ asm_label P s)%a.
+  jump_to (base ^+ asm_label P s).

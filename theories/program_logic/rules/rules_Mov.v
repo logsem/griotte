@@ -33,14 +33,14 @@ Section griotte_lang_rules.
 
   Lemma wp_Mov Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = Mov dst src ->
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Mov dst src) ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ Mov_spec (WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
+        ⌜ Mov_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -54,8 +54,8 @@ Section griotte_lang_rules.
     { destruct src as [| r0]; eauto; cbn.
       destruct (Hri r0) as [? [? ?]]; first set_solver+. eauto. }
     destruct (lword_of_argument_phys _ _ _ _ _ Hregs Hwsrc) as (s & Hsrc & Hrel).
-    assert (exec_opt (Mov dst src) pc_p (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              nextPC (update_reg (WCap true pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+    assert (exec_opt (Mov dst src) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
+              nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
                 (and_tag s wsrc.(lw)))) as HH.
     { cbn. by rewrite Hsrc. }
     rewrite HH in Hstep.
@@ -71,15 +71,15 @@ Section griotte_lang_rules.
 
   Lemma wp_move_success_z_gen E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr1 z dq :
     decodeInstrW w.(lw) = Mov r1 (inl z) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ wr1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ (if (decide (r1 = cnull)) then wr1 else WInt z) }}}.
   Proof.
@@ -100,18 +100,18 @@ Section griotte_lang_rules.
 
   Lemma wp_move_success_reg E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr1 rv wrv dq :
     decodeInstrW w.(lw) = Mov r1 (inr rv) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
     rv ≠ cnull ->
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ wr1
         ∗ ▷ rv ↦ᵣ wrv }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ wrv
           ∗ rv ↦ᵣ wrv }}}.
@@ -132,16 +132,16 @@ Section griotte_lang_rules.
 
   Lemma wp_move_success_reg_same E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r1 wr1 dq :
     decodeInstrW w.(lw) = Mov r1 (inr r1) →
-    isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull ->
 
-    {{{ ▷ PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a @@? pc_π
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
         ∗ ▷ pc_a ↦ₐ{dq} w
         ∗ ▷ r1 ↦ᵣ wr1 }}}
       Instr Executable @ E
       {{{ RET NextIV;
-          PC ↦ₚ WCap true pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
           ∗ pc_a ↦ₐ{dq} w
           ∗ r1 ↦ᵣ wr1 }}}.
   Proof.

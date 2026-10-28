@@ -88,9 +88,9 @@ Section trap_entry_windows.
     @trap_tval_res = @trap_tval_res_def := trap_tval_res_aux.(seal_eq).
 
   Definition trap_entry_out_def (P_mcause P_mtval : Z → Prop) (w : LWord) : iProp Σ :=
-    MEPCC ↦ₓ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
+    mepcc ↦ₓ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ mcause ↦ₓ lword_of_word (WInt c)) ∗
+    (∃ v : Z, ⌜P_mtval v⌝ ∗ mtval ↦ₓ lword_of_word (WInt v)).
   #[local] Definition trap_entry_out_aux : seal (@trap_entry_out_def). Proof. by eexists. Qed.
   Definition trap_entry_out_cause := trap_entry_out_aux.(unseal).
   #[local] Definition trap_entry_out_unseal :
@@ -109,9 +109,9 @@ Section trap_entry_windows.
       mtval ([rules_vcsr] turns them into the views of the lent registers). *)
   Lemma trap_entry_out_unfold P_mcause P_mtval w :
     trap_entry_out_cause P_mcause P_mtval w ⊣⊢
-    MEPCC ↦ₓ lmepcc_of_pc w ∗
-    (∃ c : Z, ⌜P_mcause c⌝ ∗ MCAUSE ↦ₓ lword_of_word (WInt c)) ∗
-    (∃ v : Z, ⌜P_mtval v⌝ ∗ MTVAL ↦ₓ lword_of_word (WInt v)).
+    mepcc ↦ₓ lmepcc_of_pc w ∗
+    (∃ c : Z, ⌜P_mcause c⌝ ∗ mcause ↦ₓ lword_of_word (WInt c)) ∗
+    (∃ v : Z, ⌜P_mtval v⌝ ∗ mtval ↦ₓ lword_of_word (WInt v)).
   Proof. by rewrite trap_entry_out_unseal. Qed.
 
   (** Weaker cause and value predicates. *)
@@ -133,10 +133,10 @@ Section trap_entry_windows.
     sys_interp lsreg -∗
     trap_vcsr_res -∗
     ∃ wepcc wcause,
-      ⌜ls_join lsreg !! MEPCC = Some wepcc ∧ ls_join lsreg !! MCAUSE = Some wcause⌝ ∗
+      ⌜ls_join lsreg !! mepcc = Some wepcc ∧ ls_join lsreg !! mcause = Some wcause⌝ ∗
       sys_interp lsreg ∗
-      MEPCC ↦ₓ wepcc ∗
-      MCAUSE ↦ₓ wcause.
+      mepcc ↦ₓ wepcc ∗
+      mcause ↦ₓ wcause.
   Proof.
     rewrite trap_vcsr_res_unseal.
     iIntros "Hsys Htok". iNamed "Hsys". iDestruct "Hwins" as "[Hwin Hwin_tval]".
@@ -155,9 +155,9 @@ Section trap_entry_windows.
       trap-entry token without [Ntval] comes back. *)
   Lemma sys_interp_trap_return lsreg wepcc wcause :
     sys_interp lsreg -∗
-    MEPCC ↦ₓ wepcc -∗
-    MCAUSE ↦ₓ wcause -∗
-    ⌜ls_join lsreg !! MEPCC = Some wepcc ∧ ls_join lsreg !! MCAUSE = Some wcause⌝ ∗
+    mepcc ↦ₓ wepcc -∗
+    mcause ↦ₓ wcause -∗
+    ⌜ls_join lsreg !! mepcc = Some wepcc ∧ ls_join lsreg !! mcause = Some wcause⌝ ∗
     sys_interp lsreg ∗
     trap_vcsr_res.
   Proof.
@@ -179,7 +179,7 @@ Section trap_entry_windows.
       [Ntval] comes back. *)
   Lemma sys_interp_tval_return lsreg (z : Z) :
     sys_interp lsreg -∗
-    MTVAL ↦ₓ lword_of_word (WInt z) -∗
+    mtval ↦ₓ lword_of_word (WInt z) -∗
     sys_interp lsreg ∗
     trap_tval_res.
   Proof.
@@ -198,8 +198,8 @@ Section trap_entry_windows.
       back. *)
   Lemma wp_trap_entry_return E e Φ (wepcc wcause : LWord) :
     to_val e = None →
-    MEPCC ↦ₓ wepcc -∗
-    MCAUSE ↦ₓ wcause -∗
+    mepcc ↦ₓ wepcc -∗
+    mcause ↦ₓ wcause -∗
     (trap_vcsr_res -∗ WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
@@ -217,7 +217,7 @@ Section trap_entry_windows.
       instruction: the token of [Ntval] comes back. *)
   Lemma wp_tval_return E e Φ (z : Z) :
     to_val e = None →
-    MTVAL ↦ₓ lword_of_word (WInt z) -∗
+    mtval ↦ₓ lword_of_word (WInt z) -∗
     (trap_tval_res -∗ WP e @ E {{ Φ }}) -∗
     WP e @ E {{ Φ }}.
   Proof.
@@ -260,7 +260,7 @@ Section griotte_lang_traps.
     (|={E}=> trap_entry_res ∗
        ▷ (trap_entry_out_cause P_mcause P_mtval w -∗
           PC ↦ₚ lword_of_word mtcc_vec -∗
-          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
+          WP Exec @ E {{ Φ }})) ∧
     ▷ Φ FaultedV.
   #[local] Definition trap_safe_aux : seal (@trap_safe_def). Proof. by eexists. Qed.
   Definition trap_safe_cause := trap_safe_aux.(unseal).
@@ -271,7 +271,7 @@ Section griotte_lang_traps.
     ((|={E}=> trap_entry_res ∗
        ▷ (trap_entry_out_cause P_mcause P_mtval w -∗
           PC ↦ₚ lword_of_word mtcc_vec -∗
-          WP Seq (Instr Executable) @ E {{ Φ }})) ∧
+          WP Exec @ E {{ Φ }})) ∧
      ▷ Φ FaultedV) -∗
     trap_safe_cause P_mcause P_mtval w E Φ.
   Proof. rewrite trap_safe_unseal. by iIntros "H". Qed.
@@ -342,10 +342,10 @@ Section griotte_lang_traps.
     (* The trap vector is an executable capability, so its physical copy is
        exact. *)
     assert (wtcc = mtcc_vec) as ->.
-    { destruct (er_sreg_pc_ok _ _ _ _ _ _ _ Her MTCC _ eq_refl Htcc mtcc_vec_tagged)
+    { destruct (er_sreg_pc_ok _ _ _ _ _ _ _ Her mtcc _ eq_refl Htcc mtcc_vec_tagged)
         as [_ Hx].
       apply (reg_phys_executable R C (lword_of_word mtcc_vec)).
-      - by apply (er_sreg_words _ _ _ _ _ _ _ Her MTCC).
+      - by apply (er_sreg_words _ _ _ _ _ _ _ Her mtcc).
       - exact Hreltcc.
       - apply mtcc_vec_tagged.
       - exact Hx. }
@@ -360,7 +360,7 @@ Section griotte_lang_traps.
     pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
       as Her'.
     (* mstatus: MIE is disabled and MPIE receives MIE. *)
-    set (mie_old := mie_of (get_a (sreg_word σ1 MSTATUS))).
+    set (mie_old := mie_of (get_a (sreg_word σ1 mstatus))).
     iMod (sys_interp_set_mstatus _ InterruptDisabled mie_old with "Hsr") as "Hsr".
     iNamed "Hsr". destruct Hlsh as [Hn1 Hn2]. iDestruct "Hwins" as "[Hwin Hwin_tval]".
     (* With the token in hand, MEPCC, mcause and mtval are held. *)
@@ -379,9 +379,9 @@ Section griotte_lang_traps.
            with "Hsr Hmtval") as "[Hsr Hmtval]".
     iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
     pose (ls' := MkLSys
-      (<[MTVAL := lword_of_word (WInt (trap_tval σ1))]>
-        (<[MCAUSE := lword_of_word (WInt (trap_cause σ1))]>
-          (<[MEPCC := lmepcc_of_pc w]> (ls_sh lsreg))))
+      (<[mtval := lword_of_word (WInt (trap_tval σ1))]>
+        (<[mcause := lword_of_word (WInt (trap_cause σ1))]>
+          (<[mepcc := lmepcc_of_pc w]> (ls_sh lsreg))))
       (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
     assert (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w (ls_join lsreg) = ls_join ls')
       as Hjoin.
@@ -454,7 +454,7 @@ Section griotte_lang_traps.
     ¬ isCorrectPC w.(lw) →
     PC ↦ₚ w -∗
     trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
-    WP Seq (Instr Executable) @ E {{ Φ }}.
+    WP Exec @ E {{ Φ }}.
   Proof.
     iIntros (Hnpc) "HPC Htrap".
     iApply (wp_bind (fill [SeqCtx])).

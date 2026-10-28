@@ -1,5 +1,6 @@
 From stdpp Require Export numbers.
 From machine_utils Require Export finz.
+From griotte Require Export finz_notations.
 From griotte Require Export stdpp_extra.
 
 (* No longer a coercion in Coq >= 8.14*)
@@ -26,7 +27,6 @@ Notation "a1 <=? a2" := (@finz.leb ONum a1 a2) : OType_scope.
 Notation "a1 < a2" := (@finz.lt ONum a1 a2) : OType_scope.
 Notation "a1 <? a2" := (@finz.ltb ONum a1 a2) : OType_scope.
 Notation "a1 + z" := (@finz.incr ONum a1 z) : OType_scope.
-Notation "a ^+ off" := (@finz.incr_default ONum a off) (at level 50) : OType_scope.
 
 Notation z_to_otype := (@finz.of_z ONum).
 Notation z_of_ot := (@finz.to_z ONum).

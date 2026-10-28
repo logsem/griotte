@@ -168,16 +168,16 @@ Definition legalise_pc (w : Word) : Word :=
     of [w], mstatus keeping only its MIE and MPIE bits. *)
 Definition legalise (sr : SRegName) (w : Word) : Word :=
   match sr with
-  | MTCC | MEPCC => legalise_pc w
-  | MTDC => w
-  | MSTATUS => WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w)))
-  | MCAUSE | MTVAL => WInt (get_a w)
+  | mtcc | mepcc => legalise_pc w
+  | mtdc => w
+  | mstatus => WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w)))
+  | mcause | mtval => WInt (get_a w)
   end.
 
 (** The system registers that hold a PC: [mret] and trap entry jump to them
     without checks. *)
 Definition is_pc_sreg (sr : SRegName) : bool :=
-  match sr with MTCC | MEPCC => true | _ => false end.
+  match sr with mtcc | mepcc => true | _ => false end.
 
 Lemma legalise_pc_pc_ok w : pc_ok (legalise_pc w).
 Proof.
@@ -186,10 +186,10 @@ Proof.
     rewrite ?get_tag_clear_tag; naive_solver.
 Qed.
 
-Lemma legalise_mtcc_pc_ok w : pc_ok (legalise MTCC w).
+Lemma legalise_mtcc_pc_ok w : pc_ok (legalise mtcc w).
 Proof. apply legalise_pc_pc_ok. Qed.
 
-Lemma legalise_mepcc_pc_ok w : pc_ok (legalise MEPCC w).
+Lemma legalise_mepcc_pc_ok w : pc_ok (legalise mepcc w).
 Proof. apply legalise_pc_pc_ok. Qed.
 
 Lemma legalise_pc_sreg_pc_ok sr w : is_pc_sreg sr = true → pc_ok (legalise sr w).
@@ -205,11 +205,11 @@ Proof.
 Qed.
 
 Lemma legalise_mstatus w :
-  legalise MSTATUS w = WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w))).
+  legalise mstatus w = WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w))).
 Proof. done. Qed.
 
 Lemma legalise_mstatus_enc mie mpie :
-  legalise MSTATUS (WInt (mstatus_enc mie mpie)) = WInt (mstatus_enc mie mpie).
+  legalise mstatus (WInt (mstatus_enc mie mpie)) = WInt (mstatus_enc mie mpie).
 Proof. by rewrite legalise_mstatus /= mie_of_mstatus_enc mpie_of_mstatus_enc. Qed.
 
 Lemma legalise_clear_tag sr w : legalise sr (clear_tag w) = clear_tag (legalise sr w).
@@ -229,7 +229,7 @@ Qed.
 (** A boolean test for [isCorrectPC]. *)
 Definition isCorrectPCb (w: Word): bool :=
   match w with
-  | WCap true p g b e a =>
+  | Cap p g b e a =>
     (b <=? a)%a && (a <? e)%a && executeAllowed p
   | _ => false
   end.
@@ -302,7 +302,7 @@ Section opsem.
         when get_tag wrsrc then
         when jalr_sealing_ok rdst rsrc wrsrc then
         when executable_word wrsrc then
-        wst ← (sreg φ) !! MSTATUS;
+        wst ← (sreg φ) !! mstatus;
         match pcc φ with
         | (WCap t p g b e a) =>
             match (a + 1)%a with
@@ -317,7 +317,7 @@ Section opsem.
                 (* A sentry that sets the interrupt status writes MIE. *)
                 let φ_st :=
                   match jalr_mstatus wrsrc (get_a wst) with
-                  | Some z => φ_dst .[MSTATUS :=ₛᵣ WInt z]
+                  | Some z => φ_dst .[mstatus :=ₛᵣ WInt z]
                   | None => φ_dst
                   end in
                 Some (NextI, φ_st)
@@ -328,7 +328,7 @@ Section opsem.
     | CLoad dst src imm =>
       wsrc ← (reg φ) !!ᵣ src;
       match wsrc with
-      | WCap true p g b e a =>
+      | Cap p g b e a =>
         ea ← (a + imm)%a;
         when readAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
@@ -360,7 +360,7 @@ Section opsem.
       tostore ← word_of_argument (reg φ) ρ;
       wdst ← (reg φ) !!ᵣ dst;
       match wdst with
-      | WCap true p g b e a =>
+      | Cap p g b e a =>
         ea ← (a + imm)%a;
         when writeAllowed p && withinBounds b e ea then
           if (is_shadow_address ea)
@@ -394,12 +394,12 @@ Section opsem.
       | WCap t p g b e a =>
           match (a + n)%a with
           | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
-          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
+          | None => φ .[dst :=ᵣ Cap⁻ p g b e a] |> nextPC
           end
       | WSealRange t p g b e a =>
          match (a + n)%ot with
           | Some a' => φ .[dst :=ᵣ WSealRange t p g b e a'] |> nextPC
-          | None => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
+          | None => φ .[dst :=ᵣ SealRange⁻ p g b e a] |> nextPC
           end
       | WInt z => φ .[dst :=ᵣ WInt (z + n)%Z] |> nextPC
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
@@ -412,12 +412,12 @@ Section opsem.
       | WCap t p g b e a =>
           match z_to_addr n with
           | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
-          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
+          | None => φ .[dst :=ᵣ Cap⁻ p g b e a] |> nextPC
           end
       | WSealRange t p g b e a =>
           match z_to_otype n with
           | Some a' => φ .[dst :=ᵣ WSealRange t p g b e a'] |> nextPC
-          | None => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
+          | None => φ .[dst :=ᵣ SealRange⁻ p g b e a] |> nextPC
           end
       | WInt _ => φ .[dst :=ᵣ WInt n] |> nextPC
       (* A sealed word or a sentry loses its tag; its address is unchanged. *)
@@ -485,7 +485,7 @@ Section opsem.
       | Some a1, Some a2 =>
         let new_tag := t && isWithin a1 a2 b e && (a1 <=? a2)%a in
         φ .[dst :=ᵣ WCap new_tag p g a1 a2 a] |> nextPC
-      | _, _ => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
+      | _, _ => φ .[dst :=ᵣ Cap⁻ p g b e a] |> nextPC
       end
     | WSealRange t p g b e a =>
       n1 ← z_of_argument (reg φ) ρ1;
@@ -494,7 +494,7 @@ Section opsem.
       | Some o1, Some o2 =>
         let new_tag := t && isWithin o1 o2 b e in
         φ .[dst :=ᵣ WSealRange new_tag p g o1 o2 a] |> nextPC
-      | _, _ => φ .[dst :=ᵣ WSealRange false p g b e a] |> nextPC
+      | _, _ => φ .[dst :=ᵣ SealRange⁻ p g b e a] |> nextPC
       end
     (* An integer is unchanged; a sealed word or a sentry loses its tag, its
        bounds unchanged. *)
@@ -578,24 +578,24 @@ Section opsem.
   | SetMIE b =>
       (* MIE receives [b]; MPIE is unchanged. *)
       when has_sreg_access plevel then
-        wst ← (sreg φ) !! MSTATUS;
-        φ .[MSTATUS :=ₛᵣ WInt (mstatus_enc b (mpie_of (get_a wst)))] |> nextPC
+        wst ← (sreg φ) !! mstatus;
+        φ .[mstatus :=ₛᵣ WInt (mstatus_enc b (mpie_of (get_a wst)))] |> nextPC
   | Mret =>
       (* The PC receives MEPCC without checks: MEPCC is legalised when
          written. MIE receives MPIE, and MPIE becomes enabled. *)
       when has_sreg_access plevel then
-        wepcc ← (sreg φ) !! MEPCC;
-        wst ← (sreg φ) !! MSTATUS;
+        wepcc ← (sreg φ) !! mepcc;
+        wst ← (sreg φ) !! mstatus;
         Some (NextI,
           φ .[PC      := wepcc]
-            .[MSTATUS :=ₛᵣ WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)])
+            .[mstatus :=ₛᵣ WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)])
   | Auipcc dst imm =>
       (* As Lea on the PC: the tag is cleared on an address overflow. *)
       match pcc φ with
       | WCap t p g b e a =>
           match (a + imm)%a with
           | Some a' => φ .[dst :=ᵣ WCap t p g b e a'] |> nextPC
-          | None => φ .[dst :=ᵣ WCap false p g b e a] |> nextPC
+          | None => φ .[dst :=ᵣ Cap⁻ p g b e a] |> nextPC
           end
       | _ => None
       end
@@ -626,14 +626,14 @@ Section opsem.
         step (Executable, φ) (Faulted, φ)
   | step_exec_memfail:
       forall φ p g b e a,
-        pcc φ = WCap true p g b e a →
+        pcc φ = Cap p g b e a →
         (mem φ) !! a = None →
         step (Executable, φ) (Faulted, φ)
   | step_exec_instr:
       forall φ p g b e a i c wa,
-        pcc φ = WCap true p g b e a → (* only works for caps *)
+        pcc φ = Cap p g b e a → (* only works for caps *)
         (mem φ) !! a = Some wa →
-        isCorrectPC (WCap true p g b e a) →
+        isCorrectPC (Cap p g b e a) →
         decodeInstrW wa = i →
         exec i p φ = c →
         step (Executable, φ) (c.1, c.2).
@@ -668,7 +668,7 @@ Section opsem.
   Definition data_cap_check (perm_ok : Perm → bool) (perm_code : cheri_cause_code)
     (r : RegName) (w : Word) (imm : Z) : fault + Addr :=
     match w with
-    | WCap true p _ b e a =>
+    | Cap p _ b e a =>
         if perm_ok p then
           match (a + imm)%a with
           | Some ea =>
@@ -677,9 +677,9 @@ Section opsem.
           | None => inl (FaultCheri BoundsViolation (CheriGPR r))
           end
         else inl (FaultCheri perm_code (CheriGPR r))
-    | WSealRange true _ _ _ _ _ => inl (FaultCheri perm_code (CheriGPR r))
-    | WSentry _ true _ _ _ _ _
-    | WSealed _ (SCap true _ _ _ _ _) | WSealed _ (SSealRange true _ _ _ _ _) =>
+    | SealRange _ _ _ _ _ => inl (FaultCheri perm_code (CheriGPR r))
+    | Sentry _ _ _ _ _ _
+    | Sealed _ _ _ _ _ _ | SealedSR _ _ _ _ _ _ =>
         inl (FaultCheri SealViolation (CheriGPR r))
     | _ => inl (FaultCheri TagViolation (CheriGPR r))
     end.
@@ -765,10 +765,10 @@ Section opsem.
       the PC for a CSR. *)
   Definition sreg_cheri_reg (sr : SRegName) : cheri_reg :=
     match sr with
-    | MTCC => CheriMTCC
-    | MTDC => CheriMTDC
-    | MEPCC => CheriMEPCC
-    | MSTATUS | MCAUSE | MTVAL => CheriPCC
+    | mtcc => CheriMTCC
+    | mtdc => CheriMTDC
+    | mepcc => CheriMEPCC
+    | mstatus | mcause | mtval => CheriPCC
     end.
 
   (** The fault of the instruction [i], executed with the PC permission
@@ -797,7 +797,7 @@ Section opsem.
       PC, a fetch from an address absent from memory is an access fault. *)
   Definition trap_fault (φ : ExecConf) : fault :=
     match pcc φ with
-    | WCap true p _ _ _ a =>
+    | Cap p _ _ _ a =>
         if isCorrectPCb (pcc φ) then
           match mem φ !! a with
           | None => FaultInstAccess a
@@ -805,9 +805,9 @@ Section opsem.
           end
         else if executeAllowed p then FaultCheri BoundsViolation CheriPCC
         else FaultCheri PermitExecuteViolation CheriPCC
-    | WSealRange true _ _ _ _ _ => FaultCheri PermitExecuteViolation CheriPCC
-    | WSentry _ true _ _ _ _ _
-    | WSealed _ (SCap true _ _ _ _ _) | WSealed _ (SSealRange true _ _ _ _ _) =>
+    | SealRange _ _ _ _ _ => FaultCheri PermitExecuteViolation CheriPCC
+    | Sentry _ _ _ _ _ _
+    | Sealed _ _ _ _ _ _ | SealedSR _ _ _ _ _ _ =>
         FaultCheri SealViolation CheriPCC
     | _ => FaultCheri TagViolation CheriPCC
     end.
@@ -844,12 +844,12 @@ Section opsem.
       receive the cause and the value, and the PC receives MTCC without checks
       (MTCC is legalised when written). *)
   Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
-    let mie := mie_of (get_a (sreg_word φ MSTATUS)) in
-    φ .[MEPCC   :=ₛᵣ mepcc_of_pc (pcc φ)]
-      .[MSTATUS :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
-      .[MCAUSE  :=ₛᵣ WInt cv.1]
-      .[MTVAL   :=ₛᵣ WInt cv.2]
-      .[PC      := sreg_word φ MTCC].
+    let mie := mie_of (get_a (sreg_word φ mstatus)) in
+    φ .[mepcc   :=ₛᵣ mepcc_of_pc (pcc φ)]
+      .[mstatus :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
+      .[mcause  :=ₛᵣ WInt cv.1]
+      .[mtval   :=ₛᵣ WInt cv.2]
+      .[PC      := sreg_word φ mtcc].
 
   (** After a fault, the machine stops instead of entering the exception
       handler when neither the PC nor MTCC is tagged. A fault with an untagged
@@ -857,6 +857,6 @@ Section opsem.
       nothing, when MTCC is untagged: the entry would install the untagged
       MTCC in the PC, which would fault again. *)
   Definition trap_halts (φ : ExecConf) : bool :=
-    negb (get_tag (pcc φ)) && negb (get_tag (sreg_word φ MTCC)).
+    negb (get_tag (pcc φ)) && negb (get_tag (sreg_word φ mtcc)).
 
 End opsem.

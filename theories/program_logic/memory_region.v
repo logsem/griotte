@@ -26,9 +26,6 @@ Section region.
   Definition included (b' e' : Addr) (b e : Addr) : iProp Σ :=
     (⌜(b <= b')%a⌝ ∧ (⌜e' <= e⌝)%a)%I.
 
-  Definition in_range (a b e : Addr) : Prop :=
-    (b <= a)%a ∧ (a < e)%a.
-
   Lemma pointsto_decomposition:
     forall l1 l2 ws1 ws2,
       length l1 = length ws1 ->
@@ -82,7 +79,7 @@ Section region.
         ∗ region_pointsto b a (take n ws)
         ∗ ([∗ list] w ∈ ws, φ w)
         ∗ a ↦ₐ w ∗ φ w
-        ∗ region_pointsto (a^+1)%a e (drop (S n) ws))%I.
+        ∗ region_pointsto (a^+1) e (drop (S n) ws))%I.
   Proof.
     intros. iSplit.
     - iIntros "H".
@@ -109,7 +106,7 @@ Section region.
 
 
   Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
-            (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
+            (at level 20, format "[[  b ,  e  ]]  ↦ₐ  [[  ws  ]]") : bi_scope.
 
   Lemma region_pointsto_cons
       (b b' e : Addr) (w : LWord) (ws : list LWord) :
@@ -152,14 +149,14 @@ Section region.
        iDestruct (big_sepL2_app' with "Hbe") as "[Hba Ha'b]".
        + by rewrite finz_seq_length.
        + iFrame.
-         rewrite (_: (b ^+ finz.dist b a)%a = a)...
+         rewrite (_: b ^+ finz.dist b a = a)...
          rewrite (_: finz.dist a e = finz.dist b e - finz.dist b a)...
          (* todo: turn these two into lemmas *)
      - iIntros "[Hba Hae]".
        rewrite /region_pointsto /finz.seq_between. (* todo: use a proper region splitting lemma *)
        rewrite (finz_seq_decomposition (finz.dist b e) _ (finz.dist b a))...
        iApply (big_sepL2_app with "Hba [Hae]"); cbn.
-       rewrite (_: (b ^+ finz.dist b a)%a = a)...
+       rewrite (_: b ^+ finz.dist b a = a)...
        rewrite (_: finz.dist b e - finz.dist b a = finz.dist a e)...
    Qed.
 
@@ -187,15 +184,15 @@ Section region.
     [[b, e]] ↦ₐ [[ws]] -∗
     ∃ ws' w,
       ⌜ws = ws' ++ [w]⌝ ∗
-      [[b, (e ^+ -1)%a]] ↦ₐ [[ws']] ∗
-      (e ^+ -1)%a ↦ₐ w.
+      [[b, e ^+ -1]] ↦ₐ [[ws']] ∗
+      (e ^+ -1) ↦ₐ w.
   Proof.
     iIntros (Hbe) "Hws".
     iDestruct (big_sepL2_length with "Hws") as %Hlen.
     rewrite finz_seq_between_length in Hlen.
     destruct ws as [|w ws'] using rev_ind.
     { exfalso. cbn in Hlen. rewrite /finz.dist in Hlen. solve_addr+Hbe Hlen. }
-    iDestruct (region_pointsto_split_r b e (e ^+ -1)%a with "Hws") as "[Hws Hw]".
+    iDestruct (region_pointsto_split_r b e (e ^+ -1) with "Hws") as "[Hws Hw]".
     { solve_addr+Hbe. }
     { cbn. rewrite /finz.dist. solve_addr+Hbe. }
     iDestruct (region_pointsto_single with "Hw") as (w') "[Hw %Hw']";
@@ -207,22 +204,22 @@ Section region.
   (** A region of memory is the separated conjunction of its cells. *)
   Lemma region_pointsto_cells (b e : Addr) (ws : list LWord) :
     (b + length ws)%a = Some e →
-    [[ b , e ]] ↦ₐ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w.
+    [[ b , e ]] ↦ₐ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i) ↦ₐ w.
   Proof.
     revert b. induction ws as [|w ws IH]; intros b Hb; cbn in Hb |- *.
     - rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr].
-    - rewrite (region_pointsto_cons b (b ^+ 1)%a); [|solve_addr|solve_addr].
+    - rewrite (region_pointsto_cons b (b ^+ 1)); [|solve_addr|solve_addr].
       rewrite IH; [|solve_addr].
-      rewrite (_ : (b ^+ 0%nat)%a = b); [|solve_addr].
+      rewrite (_ : b ^+ 0%nat = b); [|solve_addr].
       f_equiv. apply big_sepL_proper. intros k y Hk%lookup_lt_Some.
-      rewrite (_ : ((b ^+ 1) ^+ k)%a = (b ^+ S k)%a); [done|solve_addr].
+      rewrite (_ : (b ^+ 1) ^+ k = b ^+ S k); [done|solve_addr].
   Qed.
 
   Lemma region_pointsto_cells_app (b a e : Addr) (ws ws' : list LWord) :
     (b + length ws)%a = Some a →
     (a <= e)%a →
     [[ b , e ]] ↦ₐ [[ ws ++ ws' ]] ⊣⊢
-    ([∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w) ∗
+    ([∗ list] i ↦ w ∈ ws, (b ^+ i) ↦ₐ w) ∗
     [[ a , e ]] ↦ₐ [[ ws' ]].
   Proof.
     intros Ha Hae.
@@ -235,9 +232,9 @@ Section region.
       [cell_addr b i] reduces to [b ^+ i] (or [b] for [i = 0]). It is the
       normal form used by [iRegionSplit] and [iRegionMerge]. *)
   Definition cell_addr (b : Addr) (i : nat) : Addr :=
-    match i with 0%nat => b | S _ => (b ^+ i)%a end.
+    match i with 0%nat => b | S _ => (b ^+ i) end.
 
-  Lemma cell_addr_eq b i : cell_addr b i = (b ^+ i)%a.
+  Lemma cell_addr_eq b i : cell_addr b i = (b ^+ i).
   Proof. destruct i; cbn; solve_addr. Qed.
 
   Fixpoint region_cells_from (b : Addr) (i : nat) (w : LWord) (ws : list LWord) : iProp Σ :=
@@ -250,7 +247,7 @@ Section region.
     match ws with [] => emp | w :: ws' => region_cells_from b 0 w ws' end.
 
   Lemma region_cells_from_big_sepL b i w ws :
-    region_cells_from b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat)%a ↦ₐ y.
+    region_cells_from b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat) ↦ₐ y.
   Proof.
     revert i w. induction ws as [|w' ws IH]; intros i w; cbn [region_cells_from].
     - by rewrite big_sepL_singleton Nat.add_0_r cell_addr_eq.
@@ -259,7 +256,7 @@ Section region.
   Qed.
 
   Lemma region_cells_big_sepL b ws :
-    region_cells b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ w.
+    region_cells b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i) ↦ₐ w.
   Proof. destruct ws as [|w ws]; first done. apply region_cells_from_big_sepL. Qed.
 
   Lemma region_pointsto_region_cells (b e : Addr) (ws : list LWord) :
@@ -275,24 +272,14 @@ Section region.
     [[ a , e ]] ↦ₐ [[ ws' ]].
   Proof. intros. by rewrite region_cells_big_sepL region_pointsto_cells_app. Qed.
 
-   Lemma within_in_range:
-     forall a b b' e e',
-    (b <= b')%a ->
-    (e' <= e)%a ->
-    in_range a b' e' ->
-    in_range a b e.
-  Proof.
-    intros * ? ? [? ?]. split; solve_addr.
-  Qed.
-
    (*--------------------------------------------------------------------------*)
 
   (** Persistent regions: every cell is a discarded points-to. *)
   Definition region_pointsto_pers (b e : Addr) (ws : list LWord) : iProp Σ :=
     ([∗ list] k↦y1;y2 ∈ (finz.seq_between b e);ws, y1 ↦ₐ□ y2)%I.
 
-  Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
-            (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
+  Notation "[[ b , e ]] ↦ₐ □ [[ ws ]]" := (region_pointsto_pers b e ws)
+            (at level 20, format "[[  b ,  e  ]]  ↦ₐ □  [[  ws  ]]") : bi_scope.
 
   #[global] Instance region_pointsto_pers_persistent b e ws :
     Persistent ([[ b , e ]] ↦ₐ□ [[ ws ]]).
@@ -330,15 +317,15 @@ Section region.
   (** A persistent region is the separated conjunction of its cells. *)
   Lemma region_pointsto_pers_cells (b e : Addr) (ws : list LWord) :
     (b + length ws)%a = Some e →
-    [[ b , e ]] ↦ₐ□ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ□ w.
+    [[ b , e ]] ↦ₐ□ [[ ws ]] ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i) ↦ₐ□ w.
   Proof.
     revert b. induction ws as [|w ws IH]; intros b Hb; cbn in Hb |- *.
     - rewrite /region_pointsto_pers finz_seq_between_empty; [done|solve_addr].
-    - rewrite (region_pointsto_pers_cons b (b ^+ 1)%a); [|solve_addr|solve_addr].
+    - rewrite (region_pointsto_pers_cons b (b ^+ 1)); [|solve_addr|solve_addr].
       rewrite IH; [|solve_addr].
-      rewrite (_ : (b ^+ 0%nat)%a = b); [|solve_addr].
+      rewrite (_ : b ^+ 0%nat = b); [|solve_addr].
       f_equiv. apply big_sepL_proper. intros k y Hk%lookup_lt_Some.
-      rewrite (_ : ((b ^+ 1) ^+ k)%a = (b ^+ S k)%a); [done|solve_addr].
+      rewrite (_ : (b ^+ 1) ^+ k = b ^+ S k); [done|solve_addr].
   Qed.
 
   (** [region_cells_pers] is [region_cells] with discarded points-to. *)
@@ -352,7 +339,7 @@ Section region.
     match ws with [] => emp | w :: ws' => region_cells_from_pers b 0 w ws' end.
 
   Lemma region_cells_from_pers_big_sepL b i w ws :
-    region_cells_from_pers b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat)%a ↦ₐ□ y.
+    region_cells_from_pers b i w ws ⊣⊢ [∗ list] k ↦ y ∈ w :: ws, (b ^+ (i + k)%nat) ↦ₐ□ y.
   Proof.
     revert i w. induction ws as [|w' ws IH]; intros i w; cbn [region_cells_from_pers].
     - by rewrite big_sepL_singleton Nat.add_0_r cell_addr_eq.
@@ -361,7 +348,7 @@ Section region.
   Qed.
 
   Lemma region_cells_pers_big_sepL b ws :
-    region_cells_pers b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i)%a ↦ₐ□ w.
+    region_cells_pers b ws ⊣⊢ [∗ list] i ↦ w ∈ ws, (b ^+ i) ↦ₐ□ w.
   Proof. destruct ws as [|w ws]; first done. apply region_cells_from_pers_big_sepL. Qed.
 
   Lemma region_pointsto_pers_region_cells (b e : Addr) (ws : list LWord) :
@@ -374,17 +361,14 @@ Section region.
 End region.
 
 #[global] Notation "[[ b , e ]] ↦ₐ [[ ws ]]" := (region_pointsto b e ws)
-            (at level 50, format "[[ b , e ]] ↦ₐ [[ ws ]]") : bi_scope.
-#[global] Notation "[[ b , e ]] ↦ₐ□ [[ ws ]]" := (region_pointsto_pers b e ws)
-            (at level 50, format "[[ b , e ]] ↦ₐ□ [[ ws ]]") : bi_scope.
+            (at level 20, format "[[  b ,  e  ]]  ↦ₐ  [[  ws  ]]") : bi_scope.
+#[global] Notation "[[ b , e ]] ↦ₐ □ [[ ws ]]" := (region_pointsto_pers b e ws)
+            (at level 20, format "[[  b ,  e  ]]  ↦ₐ □  [[  ws  ]]") : bi_scope.
 #[global] Notation "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]" := (heap_region_pointsto ι b e ws)
-            (at level 50, format "[[ b , e ]] ↦ₕ[ ι ] [[ ws ]]") : bi_scope.
+            (at level 20, format "[[  b ,  e  ]]  ↦ₕ[ ι ]  [[  ws  ]]") : bi_scope.
 
 #[global] Notation "[[ b , e ]] ⊂ₐ [[ b' , e' ]]" := (included b e b' e')
-            (at level 50, format "[[ b , e ]] ⊂ₐ [[ b' , e' ]]") : bi_scope.
-
-#[global] Notation "a ∈ₐ [[ b , e ]]" := (in_range a b e)
-            (at level 50, format "a ∈ₐ [[ b , e ]]") : bi_scope.
+            (at level 20, format "[[  b ,  e  ]]  ⊂ₐ  [[  b' ,  e'  ]]") : bi_scope.
 
 (** Normalise the spine of the list [l] into [x0 :: ... :: xn :: t], by
     unfolding the definitions that produce the list (e.g. a constant
@@ -448,7 +432,7 @@ Section codefrag.
 
   (* Code is identifier-less: its words are lifted with [lword_of_word]. *)
   Definition codefrag (a0: Addr) (cs: list Word) :=
-    ([[ a0, (a0 ^+ length cs)%a ]] ↦ₐ [[ lword_of_word <$> cs ]])%I.
+    ([[ a0, a0 ^+ length cs ]] ↦ₐ [[ lword_of_word <$> cs ]])%I.
 
   Lemma codefrag_contiguous_region a0 cs :
     codefrag a0 cs -∗
@@ -469,7 +453,7 @@ Section codefrag.
      of instructions (e.g. when framing) never unfolds its [[∗ list]]. *)
   #[local] Definition codefrag_pers_def (a0: Addr) (cs: list Word) : iProp Σ :=
     (⌜ContiguousRegion a0 (length cs)⌝ ∗
-     [∗ list] i ↦ w ∈ cs, (a0 ^+ i)%a ↦ₐ□ lword_of_word w)%I.
+     [∗ list] i ↦ w ∈ cs, (a0 ^+ i) ↦ₐ□ lword_of_word w)%I.
   #[local] Definition codefrag_pers_aux : seal (@codefrag_pers_def). Proof. by eexists. Qed.
   Definition codefrag_pers := codefrag_pers_aux.(stdpp.base.unseal).
   #[local] Definition codefrag_pers_unseal :
@@ -502,7 +486,7 @@ Section codefrag.
 
   Lemma codefrag_lookup_pers a0 cs (i: nat) w :
     cs !! i = Some w →
-    codefrag_pers a0 cs -∗ (a0 ^+ i)%a ↦ₐ□ lword_of_word w.
+    codefrag_pers a0 cs -∗ (a0 ^+ i) ↦ₐ□ lword_of_word w.
   Proof.
     rewrite codefrag_pers_unseal.
     iIntros (Hi) "[_ Hcs]".
@@ -511,7 +495,7 @@ Section codefrag.
 
   Lemma codefrag_app_pers a0 l1 l2 :
     codefrag_pers a0 (l1 ++ l2) -∗
-    codefrag_pers a0 l1 ∗ codefrag_pers (a0 ^+ length l1)%a l2.
+    codefrag_pers a0 l1 ∗ codefrag_pers (a0 ^+ length l1) l2.
   Proof.
     rewrite codefrag_pers_unseal.
     iIntros "[%Hcr Hcs]".
@@ -519,12 +503,12 @@ Section codefrag.
     rewrite big_sepL_app. iDestruct "Hcs" as "[H1 H2]".
     iSplitL "H1".
     - iFrame. iPureIntro. destruct Hcr as [e He].
-      exists (a0 ^+ length l1)%a. solve_addr.
+      exists (a0 ^+ length l1). solve_addr.
     - iSplitR.
       { iPureIntro. destruct Hcr as [e He]. exists e. solve_addr. }
       iApply (big_sepL_mono with "H2").
       iIntros (k w _) "Hw".
-      rewrite (_: (a0 ^+ (length l1 + k)%nat)%a = ((a0 ^+ length l1) ^+ k)%a); first done.
+      rewrite (_: a0 ^+ (length l1 + k)%nat = (a0 ^+ length l1) ^+ k); first done.
       destruct Hcr as [e He]. solve_addr.
   Qed.
 
@@ -534,7 +518,6 @@ Section region_addrs_zeroes.
 
   Definition region_addrs_zeroes (b e : Addr) : list LWord :=
     replicate (finz.dist b e) (lword_of_word (WInt 0%Z)).
-
 
   Lemma region_addrs_zeroes_split (b a e: Addr) :
     (b <= a)%a ∧ (a <= e)%a →
@@ -546,6 +529,10 @@ Section region_addrs_zeroes.
   Qed.
 
 End region_addrs_zeroes.
+
+(** The region of [b] to [e], all zero. *)
+#[global] Notation "[[ b , e ]] ↦ₐ [[ 0…0 ]]" := (region_pointsto b e (region_addrs_zeroes b e))
+  (at level 20, format "[[  b ,  e  ]]  ↦ₐ  [[  0…0  ]]") : bi_scope.
 
 Section cells_store.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
@@ -563,10 +550,10 @@ Section cells_store.
       D i
       ={⊤}=∗
       ∃ (v : LWord) (q : Qp),
-        ⌜is_shadow_address (a ^+ i)%a = false⌝ ∗
-        (a ^+ i)%a ↦ₐ v ∗
+        ⌜is_shadow_address (a ^+ i) = false⌝ ∗
+        (a ^+ i) ↦ₐ v ∗
         deref_res π q ∗
-        ▷ ((a ^+ i)%a ↦ₐ lstore_word p (ws !!! i) -∗
+        ▷ ((a ^+ i) ↦ₐ lstore_word p (ws !!! i) -∗
            deref_res π q
            ={⊤}=∗
            D (S i)).
@@ -580,10 +567,10 @@ Section cells_store.
   Lemma cells_store_acc_tail (D : nat → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (w : LWord) (ws : list LWord) :
     cells_store_acc D p e a π (w :: ws) -∗
-    cells_store_acc (λ i, D (S i)) p e (a ^+ 1)%a π ws.
+    cells_store_acc (λ i, D (S i)) p e (a ^+ 1) π ws.
   Proof.
     iIntros "#Hacc !>" (i Hi Hie) "HD".
-    rewrite (_ : ((a ^+ 1) ^+ i)%a = (a ^+ S i)%a); last solve_addr.
+    rewrite (_ : (a ^+ 1) ^+ i = a ^+ S i); last solve_addr.
     iApply ("Hacc" $! (S i) with "[%] [%] HD"); [cbn; lia | solve_addr].
   Qed.
 
@@ -606,14 +593,14 @@ Section cells_load.
       L i ls
       ={⊤}=∗
       ∃ (v : LWord) (dq : dfrac) (wit : load_witness) (dw : deref_witness),
-        ⌜is_shadow_address (a ^+ i)%a = false⌝ ∗
+        ⌜is_shadow_address (a ^+ i) = false⌝ ∗
         ⌜π = deref_id dw⌝ ∗
-        (a ^+ i)%a ↦ₐ{dq} v ∗
+        (a ^+ i) ↦ₐ{dq} v ∗
         load_witness_res wit ∗
         deref_witness_res dw ∗
         ▷ (∀ v' : LWord,
              ⌜load_post wit p v v'⌝ -∗
-             (a ^+ i)%a ↦ₐ{dq} v -∗
+             (a ^+ i) ↦ₐ{dq} v -∗
              load_witness_res wit -∗
              deref_witness_res dw
              ={⊤}=∗
@@ -628,10 +615,10 @@ Section cells_load.
   Lemma cells_load_acc_tail (L : nat → list LWord → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (n : nat) (w : LWord) :
     cells_load_acc L p e a π (S n) -∗
-    cells_load_acc (λ i ls, L (S i) (w :: ls)) p e (a ^+ 1)%a π n.
+    cells_load_acc (λ i ls, L (S i) (w :: ls)) p e (a ^+ 1) π n.
   Proof.
     iIntros "#Hacc !>" (i ls Hi Hie) "HL".
-    rewrite (_ : ((a ^+ 1) ^+ i)%a = (a ^+ S i)%a); last solve_addr.
+    rewrite (_ : (a ^+ 1) ^+ i = a ^+ S i); last solve_addr.
     iApply ("Hacc" $! (S i) (w :: ls) with "[%] [%] HL"); [lia | solve_addr].
   Qed.
 

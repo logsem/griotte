@@ -2,7 +2,7 @@ From Stdlib Require Import Eqdep_dec. (* Needed to prove decidable equality on R
 From Stdlib.micromega Require Import ZifyClasses.
 From stdpp Require Import gmap list countable.
 From machine_utils Require Export finz.
-From griotte Require Export stdpp_extra.
+From griotte Require Export stdpp_extra finz_notations.
 
 (* No longer a coercion in Coq >= 8.14*)
 #[local] Coercion Z.of_nat : nat >-> Z.
@@ -164,7 +164,7 @@ Definition ca4 : RegName := R 14 eq_refl.
 Definition ca5 : RegName := R 15 eq_refl.
 
 Notation mtcc    := MTCC.
-Notation mtdc    := MTDC.
+Notation "'mtdc'" := MTDC (at level 0).
 Notation mepcc   := MEPCC.
 Notation mstatus := MSTATUS.
 Notation mcause  := MCAUSE.
