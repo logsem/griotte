@@ -23,6 +23,7 @@ Section kvs_obligations.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map}.
   Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option LWord)}.
   Context {cname : CmptNameG} {B : CmptName}.
+  Context {kvs_otype_preg : kvsOtypePreG Σ}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the KVS firmware: the thread
@@ -189,8 +190,7 @@ Section kvs_obligations.
       as "[ [Hkvs_logical_user_B HB_lukvs_frag] _]"; first by set_solver+Hkeys.
 
     pose proof (
-        @kvs_main_spec Σ ceriseb (UserThread 0) seal_storeg _ _ _ _ _ _ _
-          kvsg _ _ B
+        kvs_main_spec (th := UserThread 0) (kvsg := kvsg) (B := B)
       ) as Spec.
 
     (* 5.2 The static sealed key of B *)
@@ -210,103 +210,88 @@ Section kvs_obligations.
       as "(Hkvs_etbl_entries_addOrUpdate & Hkvs_etbl_entries_read
           & Hkvs_etbl_entries_erase & _)".
 
-    iMod (seal_store_update_alloc _ (kvs_otype_propC (th := UserThread 0)) with "Hseal_store_kvs")
+    (* 5.4 The registry of the sealed user keys: B's key, valid in B *)
+    iMod (ghost_map_alloc (∅ : gmap LAddr CmptName)) as (γreg) "[Hreg_auth _]".
+    pose kvs_otypeg := {| kvs_otype_inG := kvs_otype_preg; kvs_otype_name := γreg |}.
+    iMod (ghost_map_insert_persist (LNonHeap user_key_addr_B) B with "Hreg_auth")
+      as "[Hreg_auth #Hel_B]"; first done.
+    iMod (na_inv_alloc (tpool (UserThread 0)) _ Nkvs_otype
+            (∃ M : gmap LAddr CmptName,
+               ghost_map_auth γreg 1 M ∗
+               [∗ map] k ↦ C ∈ M,
+                 kvs_otype_contents (th := UserThread 0) C k)
+           with "[Hreg_auth Ha_user_key_B Hkvs_logical_user_B HB_lukvs_frag]") as "#Hreg".
+    { iApply bi.later_intro. iExists _. iFrame "Hreg_auth".
+      rewrite insert_empty big_sepM_singleton /kvs_otype_contents.
+      iExists _, user_key_addr_B. iFrame "Ha_user_key_B Hkvs_logical_user_B".
+      iSplit; first done.
+      iApply (big_sepS_impl with "HB_lukvs_frag").
+      iModIntro; iIntros (mk Hmk) "Hmk". rewrite /safe_kvs_pointsto. iRight. iExact "Hmk". }
+    iAssert (kvs_otype_registry (th := UserThread 0) (kvs_otypeg := kvs_otypeg)) as "#Hregistry".
+    { iExact "Hreg". }
+
+    iMod (seal_store_update_alloc _ SealGlobal
+            (kvs_otype_propC (kvs_otypeg := kvs_otypeg))
+           with "Hseal_store_kvs")
       as "#Hsealed_pred_ot_kvs".
 
-    (* 6 - Seal the exported entries of the KVS with [ot_switcher] in the
-       world of B *)
-    set ( adversary_imports :=
-            ({[ lword_of_word (WSealable kvs_addOrUpdate) ; lword_of_word (WSealable kvs_addOrUpdate')]}
-              ∪
-            {[ lword_of_word (WSealable kvs_read) ; lword_of_word (WSealable kvs_read')]}
-              ∪
-            {[ lword_of_word (WSealable kvs_erase) ; lword_of_word (WSealable kvs_erase')]} : gset LWord)
-        ).
-
-    set (W1 := <o[ switcher.ot_switcher := adversary_imports]o> W0).
-
-    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_addOrUpdate))
+    (* 6 - The exported entries of the KVS, sealed with [ot_switcher], are
+       valid in the world of B *)
+    iAssert (ot_switcher_prop (th := UserThread 0) W0 B (WSealable kvs_addOrUpdate))
       as "#ot_switcher_kvs_addOrUpdate".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_addOrUpdate_entry_point_spec; [exact Hkvs_switcher |].
-      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+      iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
 
-    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_read))
+    iAssert (ot_switcher_prop (th := UserThread 0) W0 B (WSealable kvs_read))
       as "#ot_switcher_kvs_read".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_read_entry_point_spec; [exact Hkvs_switcher |].
-      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+      iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
 
-    iAssert (ot_switcher_prop (th := UserThread 0) W1 B (WSealable kvs_erase))
+    iAssert (ot_switcher_prop (th := UserThread 0) W0 B (WSealable kvs_erase))
       as "#ot_switcher_kvs_erase".
     {
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_erase_entry_point_spec; [exact Hkvs_switcher |].
-      iFrame "Hsealed_pred_ot_kvs Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
+      iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
     }
 
-    assert (switcher.ot_switcher ∉ dom (seal_std W0)) as Hot_notin_W0.
-    { by subst W0. }
-    iMod
-      (world_interp_salloc W0 B (ot_switcher_propC (th := UserThread 0))
-        switcher.ot_switcher adversary_imports
-        with "[$Hseal_switcher] [ ] [ ] [$Hworld_B]")
-      as "(Hworld_B & Hseal_kvs_f)"; first done.
-    { iIntros (w); iApply mono_priv_ot_switcher. }
-    { rewrite {2}/adversary_imports.
-      rewrite 2!normalise_sealed_words_union.
-      rewrite !normalise_sealed_words_borrow.
-      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_erase").
-      iEval (rewrite union_comm_L); iApply big_sepS_insert_2; first (iFrame "ot_switcher_kvs_read").
-      rewrite big_sepS_singleton; iFrame "ot_switcher_kvs_addOrUpdate".
-    }
-    subst W1; set (W1 := <o[ switcher.ot_switcher := adversary_imports]o> W0).
+    iDestruct (seal_main_export (th := UserThread 0) W0 B kvs_addOrUpdate
+                with "Hseal_switcher ot_switcher_kvs_addOrUpdate") as "#Hinterp_kvs_addOrUpdate".
+    { done. }
+    { intros ????? [= <- <- <- <- <-]. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt). }
+    iDestruct (seal_main_export (th := UserThread 0) W0 B kvs_read
+                with "Hseal_switcher ot_switcher_kvs_read") as "#Hinterp_kvs_read".
+    { done. }
+    { intros ????? [= <- <- <- <- <-]. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt). }
+    iDestruct (seal_main_export (th := UserThread 0) W0 B kvs_erase
+                with "Hseal_switcher ot_switcher_kvs_erase") as "#Hinterp_kvs_erase".
+    { done. }
+    { intros ????? [= <- <- <- <- <-]. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt). }
 
-    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_addOrUpdate))
-      as "#Hinterp_kvs_addOrUpdate".
-    { iEval (rewrite interp_unfold /= /interp_sb).
-      iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      cbn.
-      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
-    }
-    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_read))
-      as "#Hinterp_kvs_read".
-    { iEval (rewrite interp_unfold /= /interp_sb).
-      iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      cbn.
-      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
-    }
-    iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_erase))
-      as "#Hinterp_kvs_erase".
-    { iEval (rewrite interp_unfold /= /interp_sb).
-      iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      cbn.
-      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
-    }
-
+    (* The sealed user key of B, recorded in the registry for B *)
     set ( kvs_user_key_B_sb := (kvs_user_seal_key_scap Global user_key_addr_B)).
-    set ( kvs_user_key_B_sb' := borrow_sb kvs_user_key_B_sb).
-    set ( adversary_kvs_keys := ( {[ lword_of_word (WSealable kvs_user_key_B_sb) ; lword_of_word (WSealable kvs_user_key_B_sb')]} : gset LWord)).
-    set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
-
-    iAssert (kvs_otype_prop (th := UserThread 0) W1' B (WSealable kvs_user_key_B_sb))
-      with "[$Hkvs_logical_user_B $Ha_user_key_B HB_lukvs_frag]" as "ot_kvs_user_key_B".
+    iAssert (kvs_otype_prop (kvs_otypeg := kvs_otypeg) W0 B
+               (WSealable kvs_user_key_B_sb))
+      as "#ot_kvs_user_key_B".
     {
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
       rewrite B_static_sealed in H.
+      iExists user_key_addr_B.
       repeat iSplit.
       - iPureIntro; auto.
       - iPureIntro.
@@ -317,116 +302,55 @@ Section kvs_obligations.
         + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
         + apply withinBounds_true_iff.
           cbn in H |- *; solve_addr+H.
-      - iApply (big_sepS_impl with "HB_lukvs_frag").
-        iModIntro; iIntros (mk Hmk) "$".
+      - iExact "Hel_B".
     }
-
-    assert (ot_kvs ∉ dom (seal_std W1)) as Hot_notin_W1.
-    { subst W0 W1; rewrite dom_insert_L dom_empty_L; set_solver+Hot_kvs_switcher. }
-    iMod
-      (world_interp_salloc W1 B (kvs_otype_propC (th := UserThread 0)) ot_kvs adversary_kvs_keys
-        with "[$Hsealed_pred_ot_kvs] [ ] [ ot_kvs_user_key_B ] [$Hworld_B]")
-      as "(Hworld_B & Hseal_kvs_ku)"; first done.
-    { iIntros (w); iApply mono_priv_ot_kvs. }
-    { rewrite normalise_sealed_words_borrow.
-      rewrite big_sepS_singleton; iFrame "ot_kvs_user_key_B".
-    }
-    subst W1' ; set (W1' := <o[ ot_kvs := adversary_kvs_keys ]o> W1).
-
-    iAssert (interp (th := UserThread 0) W1' B (WSealed ot_kvs kvs_user_key_B_sb))
+    iAssert (interp (th := UserThread 0) W0 B (WSealed ot_kvs kvs_user_key_B_sb))
       as "#Hinterp_kvs_user_key_B".
-    { iEval (rewrite interp_unfold /= /interp_sb).
-      iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+).
-      cbn.
-      iApply heap_cap_ok_disjoint.
-      subst user_key_addr_B.
-      replace (image.cmpt_b_static_sealed (cmpt_of img "B") ^+ 1)%a
-        with (image.cmpt_e_static_sealed (cmpt_of img "B")).
-      2: { pose proof (cmpt_static_sealed_size B_cmpt) as Hsize.
-           rewrite B_static_sealed in Hsize; cbn in Hsize |- *; solve_addr+Hsize. }
-      apply (cmpt_static_sealed_disjoint_from_heap B_cmpt).
-    }
+    { iApply (interp_sealed_of_seals (th := UserThread 0) W0 B ot_kvs
+                (kvs_otype_propC (kvs_otypeg := kvs_otypeg)) kvs_user_key_B_sb
+               with "Hsealed_pred_ot_kvs []").
+      { intros ????? [= <- <- <- <- <-].
+        subst user_key_addr_B.
+        replace (cmpt_b_static_sealed B_cmpt ^+ 1)%a with (cmpt_e_static_sealed B_cmpt).
+        2: { pose proof (cmpt_static_sealed_size B_cmpt) as Hsize.
+             rewrite B_static_sealed in Hsize; cbn in Hsize |- *; solve_addr+Hsize. }
+        apply (cmpt_static_sealed_disjoint_from_heap B_cmpt). }
+      { iApply kvs_otype_kind_ok. }
+      assert (lforce_global (lword_of_word (WSealable kvs_user_key_B_sb))
+              = lword_of_word (WSealable kvs_user_key_B_sb)) as Heq by reflexivity.
+      rewrite Heq /kvs_otype_propC. cbn [fst snd].
+      iApply bi.later_intro. iExact "ot_kvs_user_key_B". }
 
-    (* 7 - Close the world of B: its compartment becomes permanent, and the
-       stack temporary; its export is safe to share. *)
+    (* 7 - Close the world of B: its compartment becomes Global regions, and
+       the stack temporary; its export is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
-            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
+            HB_l W0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
                   (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt)
-                  _ _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
+                  _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports'.
-      set (Winter := std_update_compartment W1' B_cmpt).
-      assert (related_sts_priv_world W1' Winter) as Hrelated_W1'_Winter.
-      {
-        apply related_sts_pub_priv_world.
-        subst Winter.
-        eapply std_update_compartment_pub; eauto ; apply Forall_true; intros; done.
-      }
-      assert (related_sts_priv_world W1 Winter) as Hrelated_W1_Winter.
-      {
-        eapply related_sts_priv_trans_world; eauto.
-        apply related_sts_pub_priv_world.
-        subst W1'.
-        apply related_sts_pub_world_update_ot.
-      }
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
       { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher Hswitcher_static").
         exact Hok. }
-
-      (* KVS.addOrUpdate *)
+      (* The KVS entries and the sealed user key are Global: valid in every world *)
       iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { iPureIntro; exact Hrelated_W1_Winter. }
-          iFrame "Hinterp_kvs_addOrUpdate".
-        * iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 B RWL (WSealed switcher.ot_switcher kvs_addOrUpdate)
-                    with "Hinterp"); [exact Hrelated|by unfold kvs_addOrUpdate; cbn].
-      }
-      (* KVS.read *)
+      { iApply interp_to_in_mem.
+        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_addOrUpdate"). }
       iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { iPureIntro; exact Hrelated_W1_Winter. }
-          iFrame "Hinterp_kvs_read".
-        * iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 B RWL (WSealed switcher.ot_switcher kvs_read)
-                    with "Hinterp"); [exact Hrelated|by unfold kvs_read; cbn].
-      }
-      (* KVS.erase *)
+      { iApply interp_to_in_mem.
+        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_read"). }
       iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { iPureIntro; exact Hrelated_W1_Winter. }
-          iFrame "Hinterp_kvs_erase".
-        * iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 B RWL (WSealed switcher.ot_switcher kvs_erase)
-                    with "Hinterp"); [exact Hrelated|by unfold kvs_erase; cbn].
-      }
-      (* KVS sealed user key *)
+      { iApply interp_to_in_mem.
+        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_erase"). }
       iApply big_sepL_cons; iSplitL.
-      { iSplit.
-        * iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W1' Winter with "[]").
-          { iPureIntro; exact Hrelated_W1'_Winter. }
-          iFrame "Hinterp_kvs_user_key_B".
-        * iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 B RWL (WSealed ot_kvs kvs_user_key_B_sb)
-                    with "Hinterp"); [exact Hrelated|by unfold kvs_user_key_B_sb; cbn].
-      }
+      { iApply interp_to_in_mem.
+        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_user_key_B"). }
       done. }
 
     cbn [fc_name fw_nth fw_cmpts kvs_firmware]. rewrite HsbB.
@@ -508,7 +432,7 @@ Proof.
     as (sw & asrt & t0 & main & kvs & B & ot_kvs & key_main & key_B & <- & Hkeys & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
-              ghost_varΣ kvs_physical_map]
+              ghost_varΣ kvs_physical_map; @kvs_otypeΣ CmptNames_kvs_CmptNameG]
             (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B));
     [| exact Hfw | exact Hstep].
   apply (kvs_fw_obligations (B := kvs_adv_name)), Hkeys.

@@ -56,9 +56,37 @@ Section monotone.
       intros i rpub rpriv rpub' rpriv' Hr. by rewrite lookup_empty in Hr.
   Qed.
 
-  Lemma interp_monotone_sd_same_heap W W' C ot sb π :
-    ⌜related_sts_priv_world W W'⌝
-    -∗ interp W C (WSealed ot sb @@? π) -∗ interp W' C (WSealed ot sb @@? π).
+  (** A sealed word under a Global-kind otype is valid in every world. *)
+  Lemma interp_monotone_sd_same_heap W W' C ot sb π P :
+    ⌜related_sts_priv_world W W'⌝ -∗
+    ot ↪ₒ{SealGlobal} P -∗
+    interp W C (WSealed ot sb @@? π) -∗
+    interp W' C (WSealed ot sb @@? π).
+  Proof.
+    iIntros (Hrelated) "#Hspred #Hinterp".
+    destruct sb as [t p g b e a | t p g b e a]; destruct t;
+      rewrite !interp_unfold /= /interp_sb; try done.
+    all: iDestruct "Hinterp" as "[(%κ & %P' & #Hs & #Hok & #HP) $]";
+      iDestruct (seal_pred_agree with "Hspred Hs") as "[<- _]";
+      iExists SealGlobal, P'; iFrame "Hs Hok";
+      iDestruct "Hok" as "[_ #Hc]"; iNext; by iApply ("Hc" $! th th W W').
+  Qed.
+
+  (** A sealed word with a Global payload is valid in every world. *)
+  Lemma interp_monotone_sd_nl W W' C ot sb π :
+    ⌜related_sts_priv_world W W'⌝ -∗
+    ⌜isLocalSealable sb = false⌝ -∗
+    interp W C (WSealed ot sb @@? π) -∗
+    interp W' C (WSealed ot sb @@? π).
+  Proof.
+    iIntros (Hrelated Hnl) "#Hinterp".
+    by iApply (interp_global_world_free with "Hinterp").
+  Qed.
+
+  Lemma interp_monotone_sd_pub W W' C ot sb π :
+    ⌜related_sts_pub_world W W'⌝ -∗
+    interp W C (WSealed ot sb @@? π) -∗
+    interp W' C (WSealed ot sb @@? π).
   Proof.
     iIntros (Hrelated) "#Hinterp".
     destruct sb as [t p g b e a | t p g b e a]; destruct t;
@@ -188,7 +216,7 @@ Section monotone.
     - iApply (interp_monotone_cap_valid with "[] [$]"); eauto.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
     - iApply (interp_monotone_sentry with "[] [$]"); eauto.
-    - iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto.
+    - iApply (interp_monotone_sd_pub with "[] [$]"); eauto.
   Qed.
 
   Lemma interp_monotone_nl_sentry W W' C k t p g b e a π :
@@ -229,7 +257,7 @@ Section monotone.
     - iApply (interp_monotone_nl_cap_valid with "[] [] [$]"); eauto.
     - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
     - iApply (interp_monotone_nl_sentry with "[] [] [$]"); eauto.
-    - iApply (interp_monotone_sd_same_heap with "[] [$]"); eauto.
+    - iApply (interp_monotone_sd_nl with "[] [] [$]"); eauto.
   Qed.
 
   Lemma interp_in_mem_monotone W W' C p w :

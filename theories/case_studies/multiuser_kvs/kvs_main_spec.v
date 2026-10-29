@@ -243,7 +243,8 @@ Section KVS_main_spec.
     set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply (monotone.interp_monotone_sd_same_heap W0 W1 B with "[] [Hinterp_W0_B_f]").
+    { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+      iApply (monotone.interp_monotone_sd_same_heap W0 W1 B with "[] Hseal_switcher [Hinterp_W0_B_f]").
       { iPureIntro. exact Hrelared_priv_W0_W1. }
       iExact "Hinterp_W0_B_f". }
 

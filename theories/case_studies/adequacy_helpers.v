@@ -103,7 +103,7 @@ Section adequacy_helpers.
          k ↦ₐ lword_of_word y) -∗
       can_alloc_pred switcher.ot_switcher
       ={E}=∗
-      seal_pred switcher.ot_switcher ot_switcher_propC ∗
+      switcher.ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC ∗
       switcher_static.
     Proof.
       intros Hmtcc.
@@ -125,7 +125,7 @@ Section adequacy_helpers.
       iDestruct "Hswitcher_data" as "(_ & Hswitcher_sealing & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { exact Hsize. }
-      iMod (seal_store_update_alloc _ ot_switcher_propC with "Hseal_store")
+      iMod (seal_store_update_alloc _ SealGlobal ot_switcher_propC with "Hseal_store")
         as "#Hsealed_pred_ot_switcher".
       iAssert (codefrag switcher.a_switcher_call switcher_instrs)
         with "[Hswitcher]" as "Hswitcher_code".

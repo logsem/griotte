@@ -573,36 +573,34 @@ Section adversary.
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
-  (** An import [w] is safe to store in the memory of [C] in the world
-      [W]. *)
-  Definition fw_import_safe (W : WORLD) (C : CmptName) (w : Word) : iProp Σ :=
-    interp_in_memC (W, C, lword_of_word w) ∗ future_priv_mono C interp_in_memC (lword_of_word w).
+  (** An import [w] is safe to store in the memory of [C] in every world. *)
+  Definition fw_import_safe (C : CmptName) (w : Word) : iProp Σ :=
+    interp_in_mem_gC (C, lword_of_word w).
 
   (** The imports of a compartment, as the words of the firmware. *)
-  Lemma fw_imports_safe_words fw img fc W C :
+  Lemma fw_imports_safe_words fw img fc C :
     cmpt_ok fw img fc →
     let c := cmpt_of img (fc_name fc) in
-    ([∗ list] v ∈ lword_of_word <$> cmpt_imports c,
-       interp_in_memC (W, C, v) ∗ future_priv_mono C interp_in_memC v) ⊣⊢
-    [∗ list] w ∈ fc_imports fc, fw_import_safe W C (fw_word_of fw img (fc_static_sealed fc) c w).
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports c, interp_in_mem_gC (C, v)) ⊣⊢
+    [∗ list] w ∈ fc_imports fc, fw_import_safe C (fw_word_of fw img (fc_static_sealed fc) c w).
   Proof.
     intros Hok c. rewrite (cmpt_ok_imports _ _ _ Hok) -list_fmap_compose big_sepL_fmap //.
   Qed.
 
   (** The switcher call sentry is safe to import. *)
-  Lemma fw_switcher_call_safe fw img σ c W C :
+  Lemma fw_switcher_call_safe fw img σ c C :
     firmware_ok fw img σ →
     na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
-    fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
+    fw_import_safe C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
     intros Hok.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
     iIntros "#Hswitcher #Hswitcher_static".
-    rewrite /fw_import_safe /fw_word_of /note. iSplit; last iIntros "!>" (W2 W3 Hrel) "_";
-      iEval (rewrite /interp_in_mem_pre /=); rewrite /interp_in_mem_pre /=;
-      (iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
-       iFrame "Hswitcher Hswitcher_static").
+    rewrite /fw_import_safe /fw_word_of /note.
+    iEval (cbn [fst snd]; rewrite /interp_in_mem_pre /=).
+    iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
+      iFrame "Hswitcher Hswitcher_static".
   Qed.
 
   (** The facts about an untrusted compartment [fc] of a firmware that the
@@ -717,7 +715,7 @@ Section adversary.
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
      [∗ list] w ∈ fc_imports fc,
-       fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
+       fw_import_safe C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -773,7 +771,7 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -811,7 +809,7 @@ Section adversary.
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
-     [∗ list] w ∈ fc_imports fc, fw_import_safe W' C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
+     [∗ list] w ∈ fc_imports fc, fw_import_safe C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -872,7 +870,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} `{MP : Ma
      ⊢ fw_setup_res (th := UserThread 0) fw img
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
-         world_interp (ceriseg := ceriseG_of (UserThread 0)) W C ∗
+         world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) W C ∗
          interp (th := UserThread 0) W C (fw_entry_pcc fw img 0) ∗
          interp (th := UserThread 0) W C (fw_entry_cgp fw img 0) ∗
          interp (th := UserThread 0) W C (fw_thread_csp img 0)) →

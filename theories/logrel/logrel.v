@@ -2009,6 +2009,43 @@ Section logrel.
       + by iDestruct "Hok" as "[_ []]".
   Qed.
 
+  (** ** Sealed words
+
+      A sealed word is valid when the predicate of a Global-kind otype holds
+      of its payload made Global. *)
+  Lemma interp_sb_intro_global W C o P sb π :
+    seal_kind_ok SealGlobal C P -∗
+    o ↪ₒ{SealGlobal} P -∗
+    ▷ P (th, W, C, lforce_global (WSealable sb @@? π)) -∗
+    sealed_payload_ok (WSealable sb @@? π) -∗
+    interp W C (WSealed o sb @@? π).
+  Proof.
+    iIntros "#Hok #Hs HP #Hpayload".
+    destruct (get_tag_sealable sb) eqn:Htag;
+      last (rewrite interp_untagged_eq //=; auto).
+    iDestruct "Hok" as "[%Hpers Hc]".
+    rewrite interp_unfold /= Htag /interp_sb.
+    iSplit; last done.
+    iExists SealGlobal, P. iFrame "Hs". iSplit; first by iFrame "Hc".
+    iExact "HP".
+  Qed.
+
+  (** The validity of a sealed word gives the predicate of its otype, after
+      agreement with the otype's seal predicate. *)
+  Lemma interp_sb_elim W C o κ P sb π :
+    get_tag_sealable sb = true →
+    o ↪ₒ{κ} P -∗
+    interp W C (WSealed o sb @@? π) -∗
+    ▷ P (th, W, C, norm κ (WSealable sb @@? π)) ∗
+    sealed_payload_ok (WSealable sb @@? π).
+  Proof.
+    iIntros (Htag) "#Hs #Hinterp".
+    rewrite interp_unfold /= Htag /interp_sb.
+    iDestruct "Hinterp" as "[(%κ' & %P' & #Hs' & _ & #HP) $]".
+    iDestruct (seal_pred_agree with "Hs Hs'") as "[<- #Heq]".
+    iNext. by iRewrite ("Heq" $! (th, W, C, norm κ (WSealable sb @@? π))).
+  Qed.
+
   (** The validity of a word in every world. *)
   Definition interp_g (C : CmptName) (w : LWord) : iProp Σ := interp ∅ C w.
 
