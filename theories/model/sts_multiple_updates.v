@@ -11,11 +11,9 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {Wd : Type} {eqWd : EqDecision Wd} {countWd : Countable Wd}
     `{MP: MachineParameters}.
 
-  (* The lemmas of this file do not depend on the type of sealed words. *)
-  #[local] Notation WORLD := (leibnizO (World LAddr region_type OType Wd)).
+  #[local] Notation WORLD := (leibnizO (World LAddr region_type)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -34,12 +32,6 @@ Section std_updates.
 
    Lemma std_update_multiple_loc_rel W l ρ :
      wrel (std_update_multiple W l ρ) = wrel W.
-   Proof.
-     induction l; auto.
-   Qed.
-
-   Lemma std_update_multiple_seals W l ρ :
-     seal_std (std_update_multiple W l ρ) = seal_std W.
    Proof.
      induction l; auto.
    Qed.
@@ -182,14 +174,13 @@ Section std_updates.
      related_sts_pub_world (std_update_multiple W l ρ) (std_update_multiple W' l ρ).
    Proof.
      intros Hrelated.
-     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] Wseals].
-     destruct W' as [Wstd_sta' [Wloc_sta' Wloc_rel'] Wseals'].
-     destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related & Wseals_related).
+     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] ].
+     destruct W' as [Wstd_sta' [Wloc_sta' Wloc_rel'] ].
+     destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related).
      simpl in *.
-     split;[|split]
+     split
      ; [clear Hcus_related
-       |by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta
-       |by repeat rewrite std_update_multiple_seals].
+       |by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta].
      split.
      - apply std_update_multiple_std_sta_dom_monotone. auto.
      - intros i x y Hx Hy.
@@ -221,7 +212,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|split];[|apply related_sts_pub_refl|apply related_sts_seals_std_refl].
+     split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -242,7 +233,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|split];[|apply related_sts_pub_refl|apply related_sts_seals_std_refl].
+     split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -303,10 +294,6 @@ Section std_updates.
      std_update_keys W (LNonHeap <$> l) ρ = std_update_multiple W l ρ.
    Proof. induction l as [|a l IH]; first done. by rewrite fmap_cons /= IH. Qed.
 
-
-   Lemma std_update_keys_seals W l ρ :
-     seal_std (std_update_keys W l ρ) = seal_std W.
-   Proof. induction l; simpl; auto. Qed.
 
    Lemma std_update_keys_loc W l ρ :
      loc (std_update_keys W l ρ) = loc W.

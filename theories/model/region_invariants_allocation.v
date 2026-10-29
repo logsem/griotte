@@ -1,17 +1,18 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export
-  stdpp_extra iris_extra region_invariants sealing_invariants sts_multiple_updates.
+  stdpp_extra iris_extra region_invariants sts_multiple_updates.
 
 Section region_alloc.
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {stsg : STSG Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
+  Implicit Types t : Thread.
 
   Lemma key_pointsto_dupl_false (k : LAddr) v1 v2 :
     k ↦ₖ v1 -∗ k ↦ₖ v2 -∗ False.
@@ -22,571 +23,138 @@ Section region_alloc.
     iApply (addr_dupl_false with "H1 H2").
   Qed.
 
-  (** Lemmas for extending the region map.
-
-      The core lemma adds a fresh known key [k] in state [ρ], given the
-      resources of its heap branch. *)
-  Lemma extend_region_key E W C (k : LAddr) ρ p φ `{∀ Wv, Persistent (φ Wv)} :
-    k ∉ dom (std W) →
-    sts_full_world W C -∗
-    region W C -∗
-    heap_key_known k -∗
-    heap_key_resource k (region_std_interp (<s[k := ρ]s>W) C k p φ ρ)
-
-    ={E}=∗
-
-    region (<s[k := ρ]s>W) C ∗
-    rel C k p φ ∗
-    sts_full_world (<s[k := ρ]s>W) C.
+  (** A cell refutes a closed body of the map of Permanent regions at its
+      key: the body is the same cell or, for a heap key, a tombstone. *)
+  Lemma body_g_cell_false C k p φ v :
+    body_g C k p φ -∗ k ↦ₖ v -∗ False.
   Proof.
-    iIntros (Hnone) "Hfull Hreg #Hknown_k Hk".
-    rewrite region_eq rel_eq /region_def /rel_def.
-    iNamed "Hreg".
-    iRename "Hmap" into "Hpreds".
-    destruct (M !! k) eqn:HRl.
-    { (* The location is not in the map *)
-      exfalso. apply Hnone. rewrite Hdom elem_of_dom HRl. eauto. }
-    (* if not, we need to allocate a new saved pred using φ,
-       and extend R with k := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
-    iMod (update_RELS _ _ _ k γpred p with "HM") as "[HR HM]"; auto.
-    iMod (sts_alloc_std_i W C k ρ with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    assert (related_sts_pub_world W (<s[k := ρ]s>W)) as Hrelated
-        by by apply related_sts_pub_world_fresh.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'"; first exact Hrelated.
-    iModIntro. rewrite bi.sep_exist_r. iExists _.
-    iFrame "HR ∗ #".
-    iExists (<[k := ρ]> Mρ); iSplitR; [|iSplitR; [|iSplitR]].
-    - iPureIntro. rewrite /std_update in Hdom |- *.
-      repeat rewrite dom_insert_L; rewrite Hdom; auto.
-    - iPureIntro. repeat rewrite dom_insert_L. rewrite Hdomρ. auto.
-    - rewrite dom_insert_L big_sepS_insert; last by apply not_elem_of_dom.
-      by iFrame "#".
-    - iApply big_sepM_insert; auto.
-      iSplitR "Hpreds'".
-      { iExists ρ. iFrame. iSplitR; [iPureIntro; apply lookup_insert_eq|].
-        iExists γpred. by iFrame "%#". }
-      iApply (big_sepM_mono with "Hpreds'").
-      iIntros (k' x Hk') "Hρ".
-      iDestruct "Hρ" as (ρ' Hρ') "[Hstate Hρ]".
-      iExists ρ'.
-      assert (k' ≠ k) as Hne by (intros ->; rewrite HRl in Hk'; done).
-      rewrite lookup_insert_ne; auto. iSplitR; [auto|]. iFrame.
+    iIntros "Hb Hv". rewrite /body_g. destruct k as [a|a ι]; simpl.
+    - iDestruct "Hb" as (v') "(_ & Hv' & _)". iApply (addr_dupl_false with "Hv Hv'").
+    - iDestruct "Hb" as "[(%v' & _ & Hv' & _)|Hq]".
+      + iApply (key_pointsto_dupl_false (LHeap a ι) with "Hv Hv'").
+      + iApply (heap_pointsto_quar_false with "Hv Hq").
   Qed.
 
-  Lemma extend_region_temp E W C k v p φ `{∀ Wv, Persistent (φ Wv)} :
-    isO p = false ->
-    k ∉ dom (std W) →
-    (if isWL p then future_pub_mono C φ v else
-       (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)) -∗
-    sts_full_world W C -∗
-    region W C -∗
-    k ↦ₖ v -∗
-    φ (W,C,v)
+  (** ** Extending the map of Permanent regions
 
-    ={E}=∗
-
-    region (<s[k := Temporary ]s>W) C ∗
-    rel C k p φ ∗
-    sts_full_world (<s[k := Temporary ]s>W) C.
+      A new key enters the map of Permanent regions of [C] with no world
+      step: its cell shows that it is fresh in the map. *)
+  Lemma g_extend C O k v p (φ : CmptName * LWord → iProp Σ) :
+    k ∉ O → isO p = false → (∀ x, Persistent (φ x)) →
+    world_interp_g_open C O -∗ heap_key_known k -∗ k ↦ₖ v -∗ ▷ φ (C, v) ==∗
+    world_interp_g_open C O ∗ rel_g C k p φ.
   Proof.
-    iIntros (HnpO Hnone) "#HmonoV Hfull Hreg Hk Hφ".
-    iDestruct (key_pointsto_known with "Hk") as "#Hknown_k".
-    iApply (extend_region_key with "Hfull Hreg Hknown_k"); first done.
-    iApply heap_key_resource_intro.
-    rewrite /region_std_interp. iExists v. iFrame "Hk HmonoV".
-    iSplit; first done.
-    assert (related_sts_pub_world W (<s[k := Temporary]s>W)) as Hrelated
-        by by apply related_sts_pub_world_fresh.
-    iNext.
-    destruct (isWL p); [|destruct (isDL p)].
-    all: iApply ("HmonoV" with "[] Hφ"); iPureIntro.
-    1,2: done.
-    by apply related_sts_pub_priv_world.
-  Qed.
-
-  Lemma extend_region_perm E W C k v p φ `{∀ Wv, Persistent (φ Wv)} :
-    isO p = false ->
-    k ∉ dom (std W) →
-    future_priv_mono C φ v -∗
-    sts_full_world W C -∗
-    region W C -∗
-    k ↦ₖ v -∗
-    φ (W,C,v)
-
-    ={E}=∗
-
-    region (<s[k := Permanent ]s>W) C ∗
-    rel C k p φ ∗
-    sts_full_world (<s[k := Permanent ]s>W) C.
-  Proof.
-    iIntros (HnpO Hnone) "#HmonoV Hfull Hreg Hk Hφ".
-    iDestruct (key_pointsto_known with "Hk") as "#Hknown_k".
-    iApply (extend_region_key with "Hfull Hreg Hknown_k"); first done.
-    iApply heap_key_resource_intro.
-    rewrite /region_std_interp. iExists v. iFrame "Hk HmonoV".
-    iSplit; first done.
-    iNext. iApply ("HmonoV" with "[] Hφ"); iPureIntro.
-    by apply related_sts_pub_priv_world, related_sts_pub_world_fresh.
-  Qed.
-
-  (** Revoked entries require only the saved predicate and standard state. *)
-  Lemma extend_region_revoked E W C k p φ `{∀ Wv, Persistent (φ Wv)} :
-    k ∉ dom (std W) →
-    sts_full_world W C -∗
-    region W C -∗
-    heap_key_known k
-
-    ={E}=∗
-
-    region (<s[k := Revoked ]s>W) C ∗
-    rel C k p φ ∗
-    sts_full_world (<s[k := Revoked ]s>W) C.
-  Proof.
-    iIntros (Hnone) "Hfull Hreg #Hknown_k".
-    iApply (extend_region_key with "Hfull Hreg Hknown_k"); first done.
-    iApply heap_key_resource_emp.
-  Qed.
-
-  (** Entries of a quarantined object are tombstones, whatever their state. *)
-  Lemma extend_region_quarantined_heap E W C a ι p φ (ρ : region_type) `{∀ Wv, Persistent (φ Wv)} :
-    LHeap a ι ∉ dom (std W) →
-    sts_full_world W C -∗
-    region W C -∗
-    heap_key_known (LHeap a ι) -∗
-    ι ⊒ AQuar
-
-    ={E}=∗
-
-    region (<s[LHeap a ι := ρ ]s>W) C ∗
-    rel C (LHeap a ι) p φ ∗
-    sts_full_world (<s[LHeap a ι := ρ ]s>W) C.
-  Proof.
-    iIntros (Hnone) "Hfull Hreg #Hknown_k #Hq".
-    iApply (extend_region_key with "Hfull Hreg Hknown_k"); first done.
-    by iApply heap_key_close_tomb.
-  Qed.
-
-  (** Extensions by a list of keys. *)
-  Lemma extend_region_revoked_keys E W C (l1 : list LAddr) p φ `{∀ Wv, Persistent (φ Wv)} :
-    Forall (λ k, std W !! k = None) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k ∈ l1, heap_key_known k)
-
-    ={E}=∗
-
-    region (std_update_keys W l1 Revoked) C ∗
-    ([∗ list] k ∈ l1, rel C k p φ) ∗
-    sts_full_world (std_update_keys W l1 Revoked) C.
-  Proof.
-    induction l1 as [|k l1 IH].
-    - cbn. iIntros (_) "Hsts Hr _". by iFrame.
-    - intros [Hk Hl1]%Forall_cons_1.
-      iIntros "Hsts Hr [#Hknown_k Hknown]".
-      iMod (IH with "Hsts Hr Hknown") as "(Hr & #Hrels & Hsts)"; [done|].
-      simpl. destruct (decide (k ∈ l1)) as [Hin|Hnin].
-      + iDestruct (big_sepL_elem_of with "Hrels") as "Hk"; first exact Hin.
-        rewrite (_ : <s[k:=Revoked]s>(std_update_keys W l1 Revoked)
-                     = std_update_keys W l1 Revoked).
-        { by iFrame "∗#". }
-        rewrite /std_update insert_id; last by apply std_update_keys_lookup_in.
-        by destruct (std_update_keys W l1 Revoked) as [].
-      + assert (k ∉ dom (std (std_update_keys W l1 Revoked))) as Hnone.
-        { rewrite not_elem_of_dom std_update_keys_lookup_same //. }
-        iMod (extend_region_revoked _ _ _ k p φ Hnone with "Hsts Hr Hknown_k")
-          as "(Hr & Hrel & Hsts)".
-        by iFrame "∗#".
-  Qed.
-
-  Lemma extend_region_temp_keys E W C (l1 : list LAddr) l2 p φ `{∀ Wv, Persistent (φ Wv)} :
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k;v ∈ l1;l2,
-       k ↦ₖ v ∗
-       φ (W, C, v) ∗
-       (if isWL p then future_pub_mono C φ v else
-          (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)))
-
-    ={E}=∗
-
-    region (std_update_keys W l1 Temporary) C ∗
-    ([∗ list] k ∈ l1, rel C k p φ) ∗
-    sts_full_world (std_update_keys W l1 Temporary) C.
-  Proof.
-    revert l2. induction l1 as [|k l1 IH].
-    - cbn. iIntros (l2 _ _) "Hsts Hr _". by iFrame.
-    - intros l2 HnpO [Hk Hl1]%Forall_cons_1.
-      iIntros "Hsts Hr Hl".
-      iDestruct (big_sepL2_length with "Hl") as %Hlen.
-      iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hkl1 ND]%NoDup_cons.
-      { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
-        iApply (key_pointsto_dupl_false with "H1 H2"). }
-      destruct l2 as [|v l2]; [by inversion Hlen|].
-      iDestruct (big_sepL2_cons with "Hl") as "[(Hk & Hφ & #Hf) Hl]".
-      iMod (IH with "Hsts Hr Hl") as "(Hr & Hrels & Hsts)"; [done|done|].
-      assert (related_sts_pub_world W (std_update_keys W l1 Temporary)) as Hrelated.
-      { apply related_sts_pub_update_keys.
-        eapply Forall_impl; first exact Hl1. intros. by rewrite not_elem_of_dom. }
-      assert (k ∉ dom (std (std_update_keys W l1 Temporary))) as Hnone.
-      { rewrite not_elem_of_dom std_update_keys_lookup_same //. }
-      iMod (extend_region_temp _ _ _ k v p φ HnpO Hnone
-             with "Hf Hsts Hr Hk [Hφ]") as "(Hr & Hrel & Hsts)".
-      { destruct (isWL p); [|destruct (isDL p)].
-        all: iApply ("Hf" with "[] Hφ"); iPureIntro.
-        1,2: done.
-        by apply related_sts_pub_priv_world. }
-      iModIntro. cbn. iFrame.
-  Qed.
-
-  Lemma extend_region_perm_keys E W C (l1 : list LAddr) l2 p φ `{∀ Wv, Persistent (φ Wv)} :
-    isO p = false ->
-    Forall (λ k, std W !! k = None) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k;v ∈ l1;l2,
-       k ↦ₖ v ∗
-       φ (W, C, v) ∗
-       future_priv_mono C φ v)
-
-    ={E}=∗
-
-    region (std_update_keys W l1 Permanent) C ∗
-    ([∗ list] k ∈ l1, rel C k p φ) ∗
-    sts_full_world (std_update_keys W l1 Permanent) C.
-  Proof.
-    revert l2. induction l1 as [|k l1 IH].
-    - cbn. iIntros (l2 _ _) "Hsts Hr _". by iFrame.
-    - intros l2 HnpO [Hk Hl1]%Forall_cons_1.
-      iIntros "Hsts Hr Hl".
-      iDestruct (big_sepL2_length with "Hl") as %Hlen.
-      iDestruct (NoDup_of_sepL2_exclusive with "[] Hl") as %[Hkl1 ND]%NoDup_cons.
-      { iIntros (? ? ?) "(H1 & ? & ?) (H2 & ? & ?)".
-        iApply (key_pointsto_dupl_false with "H1 H2"). }
-      destruct l2 as [|v l2]; [by inversion Hlen|].
-      iDestruct (big_sepL2_cons with "Hl") as "[(Hk & Hφ & #Hf) Hl]".
-      iMod (IH with "Hsts Hr Hl") as "(Hr & Hrels & Hsts)"; [done|done|].
-      assert (related_sts_pub_world W (std_update_keys W l1 Permanent)) as Hrelated.
-      { apply related_sts_pub_update_keys.
-        eapply Forall_impl; first exact Hl1. intros. by rewrite not_elem_of_dom. }
-      assert (k ∉ dom (std (std_update_keys W l1 Permanent))) as Hnone.
-      { rewrite not_elem_of_dom std_update_keys_lookup_same //. }
-      iMod (extend_region_perm _ _ _ k v p φ HnpO Hnone
-             with "Hf Hsts Hr Hk [Hφ]") as "(Hr & Hrel & Hsts)".
-      { iApply ("Hf" with "[] Hφ"); iPureIntro.
-        by apply related_sts_pub_priv_world. }
-      iModIntro. cbn. iFrame.
-  Qed.
-
-  (** Extensions by a list of non-heap addresses. *)
-  Lemma extend_region_revoked_sepL2 E W C l1 p φ `{∀ Wv, Persistent (φ Wv)}:
-    Forall (λ k, std W !! LNonHeap k = None) l1 →
-    sts_full_world W C -∗
-    region W C
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Revoked) C ∗
-    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) ∗
-    sts_full_world (std_update_multiple W l1 Revoked) C.
-  Proof.
-    iIntros (Hnone) "Hsts Hr".
-    iMod (extend_region_revoked_keys _ W C (LNonHeap <$> l1) p φ with "Hsts Hr []")
-      as "(Hr & Hrels & Hsts)".
-    { by apply Forall_fmap. }
-    { by iApply heap_key_known_nonheap_list. }
-    rewrite !std_update_keys_nonheap. iEval (rewrite big_sepL_fmap) in "Hrels".
-    by iFrame.
-  Qed.
-
-  Lemma extend_region_temp_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k;v ∈ l1;l2,
-       k ↦ₐ v ∗
-       φ (W, C, v) ∗
-       (if isWL p then future_pub_mono C φ v else
-          (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)))
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Temporary) C ∗
-    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) ∗
-    sts_full_world (std_update_multiple W l1 Temporary) C.
-  Proof.
-    iIntros (HnpO Hnone) "Hsts Hr Hl".
-    iMod (extend_region_temp_keys _ W C (LNonHeap <$> l1) l2 p φ with "Hsts Hr [Hl]")
-      as "(Hr & Hrels & Hsts)".
+    iIntros (HkO HpO Hpers) "(%M & Hm) #Hkn Hv Hφ".
+    destruct (M !! k) as [γp|] eqn:HMk.
+    { iExFalso. iDestruct "Hm" as "(_ & _ & Hb)".
+      iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HMk|].
+      rewrite decide_False //. iDestruct "Hb" as (φ') "(_ & _ & Hb)".
+      iApply (body_g_cell_false with "Hb Hv"). }
+    iMod (rmap_insert _ M _ O k p φ with "Hm Hkn [Hv Hφ]") as (γp) "[Hm Hr]".
+    { by apply not_elem_of_dom. }
     { done. }
-    { by apply Forall_fmap. }
-    { rewrite big_sepL2_fmap_l. iExact "Hl". }
-    rewrite !std_update_keys_nonheap. iEval (rewrite big_sepL_fmap) in "Hrels".
-    by iFrame.
+    { rewrite /body_g. destruct k; simpl; [|iLeft]; iExists v; by iFrame. }
+    iModIntro. iSplitL "Hm"; [by iExists _|]. by rewrite rel_g_eq.
   Qed.
 
-  Lemma extend_region_perm_sepL2 E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) l1 →
-    sts_full_world W C -∗
-    region W C -∗
-    ([∗ list] k;v ∈ l1;l2,
-       k ↦ₐ v ∗
-       φ (W, C, v) ∗
-       future_priv_mono C φ v)
+  (** ** Extending the local map
 
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent) C ∗
-    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) ∗
-    sts_full_world (std_update_multiple W l1 Permanent) C.
+      A fresh key enters the local world in a local state, with its body in
+      the new world; the other bodies move along the public step. *)
+  Lemma l_extend t W C O k ρ p φ :
+    k ∉ dom (std W) → k ∉ O → (∀ x, Persistent (φ x)) →
+    world_interp_l_open t W C O -∗ heap_key_known k -∗ body_l (<s[k := ρ]s> W) C k p φ ==∗
+    world_interp_l_open t (<s[k := ρ]s> W) C O ∗ rel_l t C k p φ.
   Proof.
-    iIntros (HnpO Hnone) "Hsts Hr Hl".
-    iMod (extend_region_perm_keys _ W C (LNonHeap <$> l1) l2 p φ with "Hsts Hr [Hl]")
-      as "(Hr & Hrels & Hsts)".
+    iIntros (Hk HkO Hpers) "(%M & Hw) #Hkn Hb". iNamed "Hw".
+    assert (M !! k = None) as HMk.
+    { apply not_elem_of_dom. by rewrite -Hdom. }
+    assert (related_sts_pub_world W (<s[k := ρ]s> W)) as Hpub.
+    { by apply related_sts_pub_world_fresh. }
+    iDestruct (rmap_transform _ M _ (body_l (<s[k := ρ]s> W) C) O O (λ _, emp)%I (λ _, emp)%I
+      with "[] [] Hm") as "[Hm _]".
+    { iApply big_sepM_intro. by iIntros "!>" (???). }
+    { iIntros "!>" (k' γp Hk') "_ _ Hb'". iSplitL; [|done].
+      case_decide; [done|].
+      iDestruct "Hb'" as (φ') "(%Hp & #Hsp & Hb')". iExists φ'. iFrame "#%".
+      iApply (body_l_mono_pub with "Hb'"); [done|].
+      assert (k' ≠ k) by (intros ->; congruence).
+      rewrite /std_update /= lookup_insert_ne //. }
+    iMod (rmap_insert _ M _ O k p φ with "Hm Hkn Hb") as (γp) "[Hm Hr]"; [by apply not_elem_of_dom|done|].
+    iModIntro. iSplitR "Hr"; [|by rewrite rel_l_eq].
+    iExists _. rewrite /wil_M. iFrame "Hm". iFrame "Hloc". iPureIntro.
+    rewrite /std_update /= !dom_insert_L. set_solver.
+  Qed.
+
+  (** A fresh key enters a map open, with no body yet. *)
+  Lemma rmap_insert_open {A} `{!savedPredG Σ A} γ M body O k p (φ : A → iProp Σ) :
+    k ∉ dom M →
+    rmap γ M body O -∗ heap_key_known k ==∗
+    ∃ γp, rmap γ (<[k := (γp, p)]> M) body ({[k]} ∪ O) ∗ rmap_rel γ k p φ.
+  Proof.
+    iIntros (HkM) "(Ha & Hks & Hb) #Hkn".
+    iMod (saved_pred_alloc φ DfracDiscarded) as (γp) "#Hsp"; [done|].
+    iMod (ghost_map_insert_persist k (γp, p) with "Ha") as "[Ha #Hel]"; [by apply not_elem_of_dom|].
+    iModIntro. iExists γp. iFrame "Ha". iSplitL; [|iExists γp; by iFrame "#"].
+    iSplitL "Hks".
+    - iApply big_sepM_insert; [by apply not_elem_of_dom|]. by iFrame "∗#".
+    - iApply big_sepM_insert; [by apply not_elem_of_dom|]. rewrite decide_True; [|set_solver].
+      iSplitR; [done|]. iApply (big_sepM_mono with "Hb"). iIntros (k' γp' Hk') "Hb".
+      assert (k' ≠ k) by (intros ->; apply HkM; by eapply elem_of_dom_2).
+      destruct (decide (k' ∈ O)) as [HO|HO];
+        [rewrite decide_True; [done|set_solver]|rewrite decide_False; [done|set_solver]].
+  Qed.
+
+  (** Global regions enter the map open: each cell shows that its key is
+      fresh. *)
+  Lemma g_insert_open_list C M O (ks : list LAddr) (lw : list LWord) p (φ : CmptName * LWord → iProp Σ) :
+    NoDup ks → (∀ k, k ∈ ks → k ∉ O) →
+    rmap (γrel_g C) M (body_g C) O -∗ ([∗ list] k;v ∈ ks;lw, k ↦ₖ v) ==∗
+    ∃ M', rmap (γrel_g C) M' (body_g C) (list_to_set ks ∪ O) ∗
+      ([∗ list] k ∈ ks, rel_g C k p φ) ∗ ([∗ list] k;v ∈ ks;lw, k ↦ₖ v).
+  Proof.
+    iInduction ks as [|k ks IH] "IH" forall (M O lw).
+    { iIntros (_ _) "Hm Hl". iModIntro. iExists M. rewrite union_empty_l_L. by iFrame. }
+    iIntros (Hnd HO) "Hm Hl".
+    apply NoDup_cons in Hnd as [Hk Hnd].
+    iDestruct (big_sepL2_cons_inv_l with "Hl") as (v lw' ->) "[Hv Hl]".
+    destruct (M !! k) as [γp|] eqn:HMk.
+    { iExFalso. iDestruct "Hm" as "(_ & _ & Hb)".
+      iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HMk|].
+      rewrite decide_False; [|apply HO; set_solver].
+      iDestruct "Hb" as (φ') "(_ & _ & Hb)".
+      iApply (body_g_cell_false with "Hb Hv"). }
+    iDestruct (key_pointsto_known with "Hv") as "#Hkn".
+    iMod (rmap_insert_open _ M _ O k p φ with "Hm Hkn") as (γp) "[Hm Hr]"; [by apply not_elem_of_dom|].
+    iMod ("IH" $! _ ({[k]} ∪ O) lw' with "[] [] Hm Hl") as (M') "(Hm & Hrs & Hl)".
     { done. }
-    { by apply Forall_fmap. }
-    { rewrite big_sepL2_fmap_l. iExact "Hl". }
-    rewrite !std_update_keys_nonheap. iEval (rewrite big_sepL_fmap) in "Hrels".
-    by iFrame.
+    { iPureIntro. intros k' Hk'. apply not_elem_of_union. split; [set_solver|]. apply HO. set_solver. }
+    iModIntro. iExists M'.
+    replace (list_to_set (k :: ks) ∪ O) with (list_to_set ks ∪ ({[k]} ∪ O)) by set_solver.
+    iFrame "Hm Hrs Hl Hv". by rewrite rel_g_eq.
   Qed.
 
-  (** Extensions of an opened region by non-heap addresses. *)
-  Lemma extend_region_perm_open E W C a w p la1 φ `{∀ Wv, Persistent (φ Wv)} :
-    LNonHeap a ∉ dom (std W) →
-    a ∉ la1 ->
-    sts_full_world (std_update_multiple W la1 Permanent) C -∗
-    open_region_many (std_update_multiple W la1 Permanent) C (LNonHeap <$> la1) -∗
-    a ↦ₐ w
-    ={E}=∗
-    open_region_many (std_update_multiple W (a::la1) Permanent) C (LNonHeap <$> (a::la1))
-    ∗ rel C a p φ
-    ∗ a ↦ₐ w
-    ∗ sts_state_std C (LNonHeap a) Permanent
-    ∗ sts_full_world (std_update_multiple W (a::la1) Permanent) C.
+  (** Closing open Global regions, each with its cell and its predicate. *)
+  Lemma g_close_list C M O (ks : list LAddr) (lw : list LWord) p (φ : CmptName * LWord → iProp Σ) :
+    NoDup ks → (∀ k, k ∈ ks → k ∉ O) → isO p = false → (∀ x, Persistent (φ x)) →
+    rmap (γrel_g C) M (body_g C) (list_to_set ks ∪ O) -∗
+    ([∗ list] k;v ∈ ks;lw, k ↦ₖ v ∗ ▷ φ (C, v) ∗ rel_g C k p φ) -∗
+    rmap (γrel_g C) M (body_g C) O.
   Proof.
-    iIntros (Hnone ?) "Hfull Hreg Ha".
-    assert (LNonHeap a ∉ dom (std (std_update_multiple W la1 Permanent))) as Hnone'.
-    {
-      rewrite not_elem_of_dom.
-      rewrite std_sta_update_multiple_lookup_same_i; eauto.
-      by rewrite -not_elem_of_dom.
-    }
-    rewrite open_region_many_eq /open_region_many_def ?fmap_cons.
-    iNamed "Hreg".
-    iRename "Hmap" into "Hpreds".
-    destruct (M !! LNonHeap a) eqn:HRl.
-    { (* The location is not in the map *)
-      assert ((delete_list (LNonHeap <$> la1)) M !! LNonHeap a = Some o) as HRl'.
-      { rewrite lookup_delete_list_notin; auto. }
-      iDestruct (big_sepM_delete _ _ _ _ HRl' with "Hpreds") as "[Hl' _]".
-      iDestruct "Hl'" as (ρ' Hl) "[Hstate Hl']".
-      iDestruct (sts_full_state_std with "Hfull Hstate") as %Hcontr.
-      rewrite (not_elem_of_dom _ (LNonHeap a)) in Hnone'.
-      by rewrite Hcontr in Hnone'.
-    }
-    rewrite /region_map_def.
-    (* if not, we need to allocate a new saved pred using φ, *)
-    (*      and extend R with l := pred *)
-    iMod (saved_pred_alloc φ) as (γpred) "#Hφ'"; first apply dfrac_valid_discarded.
-    iMod (update_RELS _ _ _ a γpred p with "HM") as "[HR #HM]"; auto.
-    iAssert (rel C a p φ) as "Ha_rel".
-    { rewrite rel_eq /rel_def; iFrame "#". }
-    iMod (sts_alloc_std_i _ C (LNonHeap a) Permanent
-           with "[] Hfull") as "(Hfull & Hstate)"; auto.
-    apply (related_sts_pub_world_fresh (std_update_multiple W la1 Permanent) a Permanent)
-      in Hnone' as Hrelated; auto.
-    iDestruct (region_map_monotone with "Hpreds") as "Hpreds'"; first apply Hrelated.
-    iModIntro. rewrite bi.sep_exist_r. iExists _.
-    iFrame "HR ∗ #".
-    iExists (<[LNonHeap a :=Permanent]> Mρ);iSplitR;[|iSplitR; [|iSplitR]].
-    - iPureIntro. rewrite /std_update in Hdom |- *.
-      repeat rewrite dom_insert_L; rewrite Hdom; auto.
-    - iPureIntro. repeat rewrite dom_insert_L. rewrite Hdomρ. auto.
-    - rewrite dom_insert_L big_sepS_insert; last by apply not_elem_of_dom.
-      by iFrame "#".
-    - cbn.
-      rewrite -(delete_list_delete _ (<[LNonHeap a :=(γpred, p)]> M)); last done.
-      rewrite delete_insert_id; last done.
-      rewrite -(delete_list_delete _ (<[LNonHeap a :=_]> Mρ)); last done.
-      rewrite delete_insert_id; last (rewrite -not_elem_of_dom Hdomρ not_elem_of_dom; done).
-      iApply (big_sepM_mono with "Hpreds'").
-      iIntros (a' x Ha) "Hρ".
-      iDestruct "Hρ" as (ρ Hρ) "[Hstate Hρ]".
-      iExists ρ.
-      iFrame.
-      done.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open_ind E W C la1 la2 lw2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la2 →
-    NoDup la1 ->
-    NoDup la2 ->
-    la2 ## la1 ->
-    sts_full_world (std_update_multiple W la1 Permanent) C -∗
-    open_region_many (std_update_multiple W la1 Permanent) C (LNonHeap <$> la1) -∗
-    ([∗ list] k;v ∈ la2;lw2, k ↦ₐ v)
-
-    ={E}=∗
-
-    open_region_many (std_update_multiple W (la1++la2) Permanent) C (LNonHeap <$> (la1++la2))
-    ∗ ([∗ list] k;v ∈ la2;lw2,
-          k ↦ₐ v
-          ∗ sts_state_std C (LNonHeap k) Permanent)
-    ∗ ([∗ list] k ∈ la2, rel C (LNonHeap k) p φ)
-    ∗ sts_full_world (std_update_multiple W (la1++la2) Permanent) C.
-  Proof.
-    revert la1 lw2.
-    induction la2.
-    { cbn. intros. iIntros "? ? ?".
-      rewrite app_nil_r. iFrame. iModIntro. done. }
-    iIntros (la1 lw2 Hp HW Hnodup_l1 Hnodup_l2 Hdisj) "Hsts Hreg Hl2".
-    apply NoDup_cons in Hnodup_l2 as [Hna Hnodup_l2].
-    apply disjoint_cons in Hdisj as Hni'.
-    apply disjoint_swap in Hdisj;auto.
-    apply Forall_cons in HW as [HWa HW].
-    iDestruct (big_sepL2_length with "Hl2") as "%Hlen_l2".
-    destruct lw2 as [|w lw2]; simplify_eq.
-    iDestruct "Hl2" as "[ Ha Hl2]".
-    replace (std_update_multiple W (la1 ++ a :: la2) Permanent)
-              with (std_update_multiple W ( a::(la1 ++ la2)) Permanent).
-    2: { apply std_update_multiple_permutation.
-         apply Permutation_middle.
-    }
-    iMod (extend_region_perm_open with "Hsts Hreg Ha") as "(Hreg & Hrel & Ha & Hsts_std & Hsts)"; auto.
-    { by rewrite not_elem_of_dom. }
-    iMod (IHla2 (a::la1) lw2 with "[Hsts] [Hreg] [Hl2]") as "(Hreg&?&?&?)"; auto.
-    { apply NoDup_cons;auto. }
-    iDestruct (open_region_many_permutation _ _ _ (LNonHeap <$> (la1 ++ a :: la2)) with "Hreg") as "Hreg".
-    { apply fmap_Permutation. apply Permutation_middle. }
-    iFrame "∗#".
-    done.
-  Qed.
-
-  Lemma region_close_many E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} :
-    NoDup l1 ->
-    isO p = false ->
-    ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ) -∗
-    open_region_many W C (LNonHeap <$> l1) -∗
-    ([∗ list] k;v ∈ l1;l2, k ↦ₐ v ∗ sts_state_std C (LNonHeap k) Permanent) -∗
-    ([∗ list] v ∈ l2, φ (W, C, v)) -∗
-    ([∗ list] v ∈ l2, future_priv_mono C φ v)
-    ={E}=∗ region W C.
-  Proof.
-    revert l2.
-    induction l1; iIntros (l2 HNoDup Hp) "#Hrel Hreg Hl Hφ Hmono".
-    {by rewrite region_open_nil. }
-    iDestruct (big_sepL2_length with "Hl") as %Hlen.
-    destruct l2; [ by inversion Hlen |]; simplify_eq.
-    cbn.
-    iDestruct "Hrel" as "[Ha_rel Hrel]".
-    iDestruct "Hl" as "[(Ha & Ha_std) Hl]".
-    iDestruct "Hφ" as "[Ha_φ Hφ]".
-    iDestruct "Hmono" as "[Ha_mono Hmono]".
-    apply NoDup_cons in HNoDup as [Ha_l1 HNoDup].
-    iDestruct (region_close_next_perm with "[$Ha_std $Hreg $Ha $Ha_mono $Ha_φ $Ha_rel]")
-      as "Hreg"; eauto.
-    iMod (IHl1 with "Hrel Hreg Hl Hφ Hmono"); auto.
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)}:
-    NoDup l1 ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ (
-         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
-         -∗ ([∗ list] v ∈ l2,
-               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v)
-       )
-
-    ={E}=∗
-
-    region (std_update_multiple W l1 Permanent) C
-    ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
-    ∗ ([∗ list] v ∈ l2,
-               (φ ((std_update_multiple W l1 Permanent), C, v)) ∗ future_priv_mono C φ v).
-  Proof.
-    iIntros (HNoDup Hp Hl1) "Hsts Hreg Hl".
-    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
-    "(Hreg & Hl & #Hrel & Hsts)"; auto.
-    { apply NoDup_nil. auto. }
-    { eapply disjoint_nil_r. }
-    { by rewrite -region_open_nil. }
-    { cbn; iFrame "Hrel Hsts".
-      iIntros "Hφ".
-      iDestruct ("Hφ" with "Hrel") as "#Hφ".
-      iFrame "#".
-      iDestruct (big_sepL_sep with "Hφ") as "[Hφ' Hmono]".
-      iMod (region_close_many with "Hrel Hreg Hl Hφ' Hmono"); eauto.
-    }
-  Qed.
-
-  Lemma extend_region_perm_sepL2_open'
-    {sealsg: sealStoreG Σ} E W C l1 l2 p φ `{∀ Wv, Persistent (φ Wv)} o ws ws_sealed:
-    let W' := (<o[ o := ws ]o> (std_update_multiple W l1 Permanent)) in
-    NoDup l1 ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) l1 →
-    sts_full_world W C
-    -∗ region W C
-    -∗ sealing_map W C
-    -∗ ([∗ list] k;v ∈ l1;l2, k ↦ₐ v)
-    -∗ (
-         ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
-         ∗ sts_full_world (std_update_multiple W l1 Permanent) C
-         ∗ sealing_map (std_update_multiple W l1 Permanent) C
-         ∗ open_region_many (std_update_multiple W l1 Permanent) C (LNonHeap <$> l1)
-         ==∗
-         sts_full_world W' C ∗
-         sealing_map W' C ∗
-         open_region_many W' C (LNonHeap <$> l1) ∗
-         ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v) ∗
-         ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-       )
-
-    ={E}=∗
-
-    region W' C
-    ∗ sts_full_world W' C
-    ∗ sealing_map W' C
-    ∗ ([∗ list] k ∈ l1, rel C (LNonHeap k) p φ)
-    ∗ ([∗ list] v ∈ l2, (φ (W', C, v)) ∗ future_priv_mono C φ v)
-    ∗ ([∗ set] v ∈ ws_sealed, (φ (W', C, v)))
-.
-  Proof.
-    intros W'; subst W'.
-
-    iIntros (HNoDup Hp Hl1) "Hsts Hreg Hseals Hl Hφ".
-    iMod (extend_region_perm_sepL2_open_ind E W C [] l1 l2 p φ with "[Hsts] [Hreg] [Hl]") as
-    "(Hreg & Hl & #Hrel & Hsts)"; auto.
-    { apply NoDup_nil. auto. }
-    { eapply disjoint_nil_r. }
-    { by rewrite -region_open_nil. }
-
-    iDestruct (sealing_map_monotone_pub _ _ (std_update_multiple W l1 Permanent) with "Hseals") as "Hseals".
-    { by rewrite std_update_multiple_seals. }
-    { apply related_sts_pub_update_multiple.
-      eapply Forall_impl; first exact Hl1.
-      intros a Ha; cbn in *.
-      by rewrite not_elem_of_dom.
-    }
-    iMod ("Hφ" with "[$Hrel $Hsts $Hseals $Hreg]") as "(Hsts & Hseals & Hreg & #Hφ & #Hφ')".
-    cbn; iFrame "Hrel Hsts".
-    iFrame "#".
-    iDestruct (big_sepL_sep with "Hφ") as "[Hφ'' Hmono]".
-    iDestruct (open_region_many_monotone _ _ (<o[o:=ws]o>(std_update_multiple W l1 Permanent)) with "Hreg") as "Hreg".
-    { auto. }
-    { apply related_sts_pub_refl_world. }
-    iMod (region_close_many with "Hrel Hreg Hl Hφ'' Hmono") as "Hreg"; eauto.
-    by iFrame.
+    iInduction ks as [|k ks IH] "IH" forall (O lw).
+    { iIntros (_ _ _ _) "Hm _". by rewrite union_empty_l_L. }
+    iIntros (Hnd HO HpO Hpers) "Hm Hl".
+    apply NoDup_cons in Hnd as [Hk Hnd].
+    iDestruct (big_sepL2_cons_inv_l with "Hl") as (v lw' ->) "[(Hv & Hφ & Hr) Hl]".
+    replace (list_to_set (k :: ks) ∪ O) with (list_to_set ks ∪ ({[k]} ∪ O)) by set_solver.
+    iDestruct ("IH" $! ({[k]} ∪ O) lw' with "[] [] [] [] Hm Hl") as "Hm".
+    { done. }
+    { iPureIntro. intros k' Hk'. apply not_elem_of_union. split; [set_solver|]. apply HO. set_solver. }
+    { done. }
+    { done. }
+    rewrite rel_g_eq.
+    iApply (rmap_close with "Hm Hr"); [apply HO; set_solver|].
+    rewrite /body_g. iApply heap_key_resource_intro. iExists v. by iFrame "∗%".
   Qed.
 
 End region_alloc.

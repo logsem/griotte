@@ -8,7 +8,7 @@ Section sealing_interp.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {stsg : STSG Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
