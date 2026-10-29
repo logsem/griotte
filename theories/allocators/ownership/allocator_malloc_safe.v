@@ -156,7 +156,7 @@ Section Heap_Temporal_Safety_Interp.
       destruct wca1 as [wa1 π1].
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
-        (dom (heap_std (revoke W))) ⊤ ⊤ g_owner a_owner id Ω n π1
+        (heap_ids (dom (std (revoke W)))) ⊤ ⊤ g_owner a_owner id Ω n π1
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
@@ -214,40 +214,26 @@ Section Heap_Temporal_Safety_Interp.
         iDestruct ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights]")
           as "Hworld".
         destruct Hbounds_size as [Hbounds Hsize].
-        (* [ι] is fresh for the caller's world: no receipt is needed. *)
-        assert (heap_fresh (heap_std (revoke W)) ι b e) as Hfresh.
-        { split; last (destruct Hbounds as (_ & ? & _); done).
-          exact (not_elem_of_dom_1 (heap_std (revoke W) : Heap) ι Hι_new). }
+        (* [ι] is fresh for the caller's world: no key of [ι] is in it. *)
         set (lk := (λ a, LHeap a ι) <$> finz.seq_between b e).
-        iDestruct (malloc_heap_unused_range (revoke W) C ι b e Hfresh
-          with "Hworld") as %Hstd_none.
-        set (Walloc := heap_std_update (revoke W)
-          (heap_allocate (heap_std (revoke W)) ι b e)).
-        assert (heap_std Walloc !! ι = Some (MkAllocObject b e AllocObjectLive))
-          as Hι_alloc.
-        { subst Walloc. cbn. by rewrite /heap_allocate lookup_insert_eq. }
-        assert (Forall (heap_key_live (heap_std Walloc)) lk) as Hlive.
-        { apply Forall_fmap, Forall_forall. intros a Ha. simpl.
-          rewrite /heap_key_live (heap_key_status_lookup _ a _ _ Hι_alloc) //.
-          by apply elem_of_finz_seq_between in Ha. }
-        assert (Forall (λ k, std Walloc !! k = None) lk) as Hstd_none_alloc.
+        assert (Forall (λ k, k ∉ dom (std (revoke W))) lk) as Hstd_none.
+        { apply Forall_fmap, Forall_forall. intros a _. simpl.
+          by apply heap_ids_fresh. }
+        assert (Forall (λ k, std (revoke W) !! k = None) lk) as Hstd_none_rev.
         { eapply Forall_impl; first exact Hstd_none.
           intros k Hk. exact (not_elem_of_dom_1 (std (revoke W) : gmap LAddr region_type) k Hk). }
-        iMod (hts_world_heap_allocate (revoke W) C ι b e
-          Hfresh with "Hobj Hworld") as "Hworld".
-        set (Wshare := std_update_keys Walloc lk Permanent).
-        iMod (world_interp_extend_perm_keys Walloc C lk
+        set (Wshare := std_update_keys (revoke W) lk Permanent).
+        iMod (world_interp_extend_perm_keys (revoke W) C lk
           (region_addrs_zeroes b e) RW interp_in_memC with "Hworld [Hcells]")
           as "[Hworld #Hrels]".
-        1: exact Hlive.
         1: reflexivity.
-        1: exact Hstd_none_alloc.
+        1: exact Hstd_none_rev.
         { rewrite /heap_region_pointsto big_sepL2_fmap_l.
           iApply (big_sepL2_mono with "Hcells").
           iIntros (k y w Hy Hw) "Hy".
           rewrite /region_addrs_zeroes in Hw.
           apply lookup_replicate in Hw as [-> _].
-          iApply (init_PermRes Walloc C (LHeap y ι) RW interp_in_memC (WInt 0)
+          iApply (init_PermRes (revoke W) C (LHeap y ι) RW interp_in_memC (WInt 0)
             with "[] Hy []").
           { reflexivity. }
           { iApply interp_weakening.future_priv_mono_interp_in_mem_z. }
@@ -257,12 +243,6 @@ Section Heap_Temporal_Safety_Interp.
         { apply withinBounds_true_iff.
           destruct Hbounds as (Hb & Hbe & He).
           split; [solve_addr|solve_addr]. }
-        assert (heap_std Wshare = heap_std Walloc) as Hshare_heap
-          by (subst Wshare; apply std_update_keys_heap).
-        assert (heap_cap_valid Wshare RW b e (Some ι)) as Hcap_valid.
-        { intros _. split; first exact Hb_heap.
-          exists (MkAllocObject b e AllocObjectLive). rewrite Hshare_heap.
-          repeat split; try done; solve_addr. }
         assert (disjoint_from_mmio b e) as Hshadow.
         { split.
           - unfold disjoint_from_shadow. intros a Ha Hsa.
@@ -278,7 +258,9 @@ Section Heap_Temporal_Safety_Interp.
         iAssert (interp Wshare C (Cap RW Global b e b @@ ι))
           with "[]" as "#Hinterp_result".
         { iEval (rewrite interp_unfold interp1_eq /=).
-          iSplit; last (iPureIntro; split; [exact I|split; assumption]).
+          iSplit; last (iSplit; [iPureIntro; split; [exact I|assumption] |
+            iIntros (_); iSplit; [iPureIntro; done |
+              iExists b, e; iFrame "Hobj"; iPureIntro; solve_addr] ]).
           iApply big_sepL_intro.
           iIntros (k a Ha).
           assert (a ∈ finz.seq_between b e) as Ha_in
@@ -312,12 +294,10 @@ Section Heap_Temporal_Safety_Interp.
           with "[]" as "#Hinterp_fixed".
         { iApply (monotone.interp_monotone_cap_valid Wshare Wfixed C
             true RW Global b e b (Some ι) with "[] Hinterp_result").
-          - intros _. subst Wfixed. rewrite /heap_cap_valid /heap_cap_live close_list_heap.
-            exact Hcap_valid.
-          - iPureIntro. exact Hshare_fixed. }
+          iPureIntro. exact Hshare_fixed. }
         destruct Htemps as [Hnodup Htemps].
         assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
-        { subst Wfixed Wshare Walloc closing.
+        { subst Wfixed Wshare closing.
           apply malloc_related_pub; assumption. }
         (* Restore the return registers and pass the heap capability to the caller. *)
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".

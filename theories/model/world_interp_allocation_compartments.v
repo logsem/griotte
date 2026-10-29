@@ -37,10 +37,6 @@ Section region_alloc_cmpt.
     <o[ ot_switcher := exported_entries_words C_cmpt ]o> Wimports.
 
 
-  Lemma std_update_compartment_heap W C_cmpt :
-    heap_std (std_update_compartment W C_cmpt) = heap_std W.
-  Proof. unfold std_update_compartment. simpl. by rewrite !std_update_multiple_heap. Qed.
-
   Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
@@ -316,8 +312,8 @@ Section region_alloc_cmpt.
           assert (Hdisjoint : disjoint_from_heap b e).
           { rewrite /disjoint_from_heap in Hcgp_heap |- *.
             set_solver+Hsub Hcgp_heap. }
-          iPureIntro. split; first by apply heap_cap_valid_disjoint.
-          intros x Hx Hheap.
+          iSplit; first by iApply heap_cap_ok_disjoint.
+          iPureIntro. intros x Hx Hheap.
           rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
           exfalso. eapply Hdisjoint; first exact Hx.
           apply withinBounds_true_iff in Hheap.
@@ -330,17 +326,17 @@ Section region_alloc_cmpt.
           destruct Hp as [ [ [] ] ]; done.
         }
         iSplitR; cycle 1.
-        { iPureIntro. split; first done.
-          assert (finz.seq_between b e ⊆
+        { assert (finz.seq_between b e ⊆
             finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) as Hbounds.
           { intros a' Ha'. apply elem_of_finz_seq_between in Ha'.
             apply elem_of_finz_seq_between; solve_addr. }
-          split.
-          - pose proof Hcgp_shadow as [Hcgp_sh Hcgp_rev]. split.
+          iSplit.
+          - iPureIntro. split; first done.
+            pose proof Hcgp_shadow as [Hcgp_sh Hcgp_rev]. split.
             + rewrite /disjoint_from_shadow in Hcgp_sh |- *.
               set_solver+Hbounds Hcgp_sh.
             + set_solver+Hbounds Hcgp_rev.
-          - apply heap_cap_valid_disjoint.
+          - iApply heap_cap_ok_disjoint.
             rewrite /disjoint_from_heap in Hcgp_heap |- *.
             set_solver+Hbounds Hcgp_heap.
         }
@@ -424,7 +420,7 @@ Section region_alloc_cmpt.
 
     iSplit.
     - iEval (rewrite interp_unfold /=).
-      iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hpcc_shadow|iApply heap_cap_ok_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
       rewrite /addr_key.
@@ -487,7 +483,7 @@ Section region_alloc_cmpt.
       iApply (monoReq_interp_in_mem _ _ _ _ Permanent); done.
 
     - iEval (rewrite interp_unfold /=).
-      iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hcgp_shadow|iApply heap_cap_ok_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).
       rewrite /addr_key.
@@ -580,7 +576,7 @@ Section region_alloc_cmpt.
 
     iAssert (interp Wfinal C pcc_cap) as "#Hinterp_pcc".
     { iEval (rewrite interp_unfold /=).
-      iSplitR; last (iPureIntro; split; [exact Hpcc_shadow|apply heap_cap_valid_disjoint; exact Hpcc_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hpcc_shadow|iApply heap_cap_ok_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       rewrite /addr_key.
@@ -649,7 +645,7 @@ Section region_alloc_cmpt.
 
     iAssert (interp Wfinal C cgp_cap) as "#Hinterp_cgp".
     { iEval (rewrite interp_unfold /=).
-      iSplitR; last (iPureIntro; split; [exact Hcgp_shadow|apply heap_cap_valid_disjoint; exact Hcgp_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hcgp_shadow|iApply heap_cap_ok_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       rewrite /addr_key.

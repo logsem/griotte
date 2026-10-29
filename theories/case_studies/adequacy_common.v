@@ -330,7 +330,7 @@ Section world_init.
       ◯(CSTK)[u 0] (entry_cstack ef) ∗
       ([∗ list] k ↦ ef' ∈ efs,
          ●(CSTK)[u (S k)] (entry_cstack ef') ∗ ◯(CSTK)[u (S k)] (entry_cstack ef')) ∗
-      [∗ list] C ∈ Cs, world_interp (MkWorld ∅ (∅, ∅) ∅ ∅) C.
+      [∗ list] C ∈ Cs, world_interp (MkWorld ∅ (∅,∅) ∅) C.
   Proof.
     intros HCNames HNoDup.
     iMod (gen_cstack_init (entry_cstack ef) ((λ ef', entry_cstack ef') <$> efs))
@@ -359,10 +359,6 @@ Section adversary_world.
   Definition adv_world_with (ρ : region_type) (W : WORLD) (sw : cmptSwitcher) (C_cmpt : cmpt)
     : WORLD :=
     std_update_multiple (std_update_compartment W C_cmpt) (stack_addrs sw) ρ.
-
-  Lemma adv_world_with_heap ρ W sw C_cmpt :
-    heap_std (adv_world_with ρ W sw C_cmpt) = heap_std W.
-  Proof. by rewrite /adv_world_with std_update_multiple_heap std_update_compartment_heap. Qed.
 
   Lemma elem_of_dom_std_update_compartment (W : WORLD) (C_cmpt : cmpt) (a : Addr) :
     LNonHeap a ∈ dom (std (std_update_compartment W C_cmpt)) →
@@ -435,8 +431,8 @@ Section adversary_world.
       assert (std W !! LNonHeap a = Some Temporary) by (rewrite Forall_lookup in Htemp; eauto).
       iSplit; last done.
       iApply (monoReq_interp_in_mem _ _ _ _ Temporary); done. }
-    iPureIntro; split; first done.
-    by apply heap_cap_valid_disjoint.
+    iSplit; first done.
+    by iApply heap_cap_ok_disjoint.
   Qed.
 
   Lemma adv_world_free_cmpt (W : WORLD) (C_cmpt : cmpt) :
@@ -552,8 +548,7 @@ Section adversary_world.
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _ & (g & a & ->) & Hsub).
     iEval (rewrite interp_unfold /= /interp_sb).
     iSplit; first (iApply sts_seals_std_weaken; done).
-    iPureIntro; cbn.
-    apply heap_cap_valid_disjoint, cmpt_exp_tbl_disjoint_from_heap.
+    cbn. iApply heap_cap_ok_disjoint. apply cmpt_exp_tbl_disjoint_from_heap.
   Qed.
 
   (** Allocate an adversary compartment [C_cmpt] in the world: its imports,
@@ -594,8 +589,7 @@ Section adversary_world.
       iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
       destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hbase & _).
       iApply (interp_in_mem_load_result with "Hv").
-      right; split; [reflexivity|].
-      apply filter_heap_nonheap; exact Hbase. }
+      by right. }
     iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hworld")
       as "($ & $ & $ & _ & #Hexp)"; [done..| |].
     { iIntros "(#Hpcc & #Hcgp & Hworld)".
@@ -686,8 +680,6 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    assert (heap_std W' = heap_std Wadv) as Hheap.
-    { by rewrite /Wadv adv_world_with_heap /W' std_update_compartment_heap. }
     iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
     iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
     iSplit.
@@ -749,8 +741,6 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    assert (heap_std W' = heap_std Wadv) as Hheap.
-    { by rewrite /Wadv adv_world_with_heap /W' std_update_compartment_heap. }
     iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
     iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
     iSplitL "Hrel_stk"; first by iApply StackWorldResources_from_rel_stack.
@@ -892,21 +882,11 @@ Section adversary_imports.
   Proof.
     intros w; subst w.
     iIntros "#Hswitcher #Hswitcher_static".
-    assert (heap_authority_base
-              (Sentry FwdDisable XSRW_ Local
-                 switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) = None)
-      as Hcall_nonheap.
-    { destruct (heap_authority_base _) as [b|] eqn:Hauth; last done.
-      apply heap_authority_base_heap_cap_base in Hauth.
-      pose proof switcher_call_sentry_not_heap as Hnonheap.
-      unfold is_heap_cap in Hnonheap; rewrite Hauth in Hnonheap; discriminate. }
     iEval (cbn); iSplit.
     - iEval (rewrite /interp_in_mem_pre /=).
-      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
       by iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]").
     - iIntros "!>" (W' W'' Hrel) "_".
       iEval (rewrite /interp_in_mem_pre /=).
-      rewrite filter_heap_nonheap; last exact Hcall_nonheap.
       by iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]").
   Qed.
 
@@ -923,9 +903,8 @@ Section adversary_imports.
     iEval (rewrite interp_unfold /= /interp_sb).
     destruct (get_tag_sealable sb); last done.
     iSplit; first (iApply (sts_seals_std_weaken with "Hseal"); by destruct sb).
-    iPureIntro.
     destruct sb as [ [] p g b e a | [] ? ? ? ]; cbn; try done.
-    apply heap_cap_valid_disjoint; by eapply Hheap.
+    iApply heap_cap_ok_disjoint; by eapply Hheap.
   Qed.
 
   (** A global word sealed in the world is a safe import. *)
@@ -1071,9 +1050,8 @@ Section main_exports.
     replace (get_tag_sealable sb) with true
       by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
     iSplit; first done.
-    iPureIntro.
     destruct sb as [ [] p g b e a | [] ? ? ? ]; cbn; try done.
-    apply heap_cap_valid_disjoint; by eapply Hheap.
+    iApply heap_cap_ok_disjoint; by eapply Hheap.
   Qed.
 
 End main_exports.

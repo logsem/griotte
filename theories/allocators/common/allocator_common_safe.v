@@ -16,29 +16,11 @@ Section AllocatorCommonSafe.
     `{MP: MachineParameters}
   .
 
-  (** The world's provenance of [ι]: the allocation's identifier and bounds. *)
-  Lemma free_world_alloc_obj W C ι obj :
-    heap_std W !! ι = Some obj ->
-    world_interp W C -∗
-    world_interp W C ∗
-    alloc_obj ι (alloc_object_base obj) (alloc_object_end obj).
-  Proof.
-    iIntros (Hι) "Hworld".
-    iDestruct (world_interp_open_heap_provenance W C [] with "[Hworld]")
-      as "[Hworld #Hprovenance]".
-    { by rewrite -open_world_interp_empty. }
-    iDestruct (heap_provenance_alloc_obj with "Hprovenance") as "#Hobj"; first exact Hι.
-    rewrite -open_world_interp_empty.
-    iFrame "Hworld Hobj".
-  Qed.
-
-  (** Quarantined cells close on the [emp] branch: the world's entry for [ι]
-      carries [ι ⊒ AQuar]. *)
-  Lemma free_world_close_quarantined_list W C ι o (la : list Addr) :
+  (** Quarantined cells close as tombstones, with the witness that [ι] is
+      quarantined. *)
+  Lemma free_world_close_quarantined_list W C ι (la : list Addr) :
     NoDup la ->
-    heap_std W !! ι = Some o ->
-    alloc_object_status o = AllocObjectQuarantined ->
-    Forall (alloc_object_contains o) la ->
+    ι ⊒ AQuar -∗
     world_interp_open W C ((λ a, LHeap a ι) <$> la) ∗
     ([∗ list] a ∈ la,
       ∃ p φ ρ,
@@ -48,20 +30,19 @@ Section AllocatorCommonSafe.
     -∗
     world_interp W C.
   Proof.
-    intros Hnodup Hι Hstatus Hcontains.
+    intros Hnodup.
     induction la as [|a la IH].
-    - iIntros "(Hworld & _)".
+    - iIntros "_ (Hworld & _)".
       by rewrite -open_world_interp_empty.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
-      apply Forall_cons in Hcontains as [Ha Hcontains].
-      iIntros "(Hworld & Hhandles)".
+      iIntros "#Hq (Hworld & Hhandles)".
       iDestruct "Hhandles" as "[Hhandle Hhandles]".
       iDestruct "Hhandle" as (p φ ρ) "(%Hpers & #Hrel & Hstate)".
-      iDestruct (close_world_interp_next_quarantined_heap W C _ a ι p φ ρ o
-        with "Hworld Hrel Hstate") as "Hworld"; eauto.
+      iDestruct (close_world_interp_next_quarantined_heap W C _ a ι p φ ρ
+        with "Hq Hworld Hrel Hstate") as "Hworld".
       { intros Hin. apply list_elem_of_fmap in Hin as (a' & Heq & Hin).
         simplify_eq. done. }
-      iApply (IH Hnodup Hcontains with "[$Hworld $Hhandles]").
+      iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
   Qed.
 
   (** The registers outside the arguments carry no identifier at entry: the

@@ -596,13 +596,11 @@ Section adversary.
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe W C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
-    intros Hok. destruct (fw_switcher_layouts _ _ _ Hok) as [_ Hsw].
+    intros Hok.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    destruct (isl_switcher_not_heap _ _ _ Hsw) as [Hb _].
     iIntros "#Hswitcher #Hswitcher_static".
     rewrite /fw_import_safe /fw_word_of /note. iSplit; last iIntros "!>" (W2 W3 Hrel) "_";
       iEval (rewrite /interp_in_mem_pre /=); rewrite /interp_in_mem_pre /=;
-      (rewrite filter_heap_nonheap; last (cbn; rewrite Hb; by case_decide));
       (iApply (interp_switcher_call (swlayout := fw_switcher_layout img));
        iFrame "Hswitcher Hswitcher_static").
   Qed.
