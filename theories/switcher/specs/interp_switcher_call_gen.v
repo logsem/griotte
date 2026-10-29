@@ -791,8 +791,7 @@ Section fundamental.
     iDestruct ("Hentry_prop" with "[//] [//]") as "Hentry_ot".
     iNamed "Hentry_ot".
     rewrite /lword_of_word in Hw; simplify_eq.
-    iSpecialize ("Hentry_cont" $! W with "[]").
-    { iPureIntro. apply related_sts_priv_refl_world. }
+    iSpecialize ("Hentry_cont" $! W).
 
     (* [.Lswitcher_decode_entry]: load the callee and jump to it *)
     set (rmap' := call_regs_without regs).

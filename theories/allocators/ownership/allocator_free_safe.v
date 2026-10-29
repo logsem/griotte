@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher_base switcher_base_ktk.
 From griotte Require Import register_tactics map_simpl rules_registry.
-From griotte Require Import world_interp_stack model_interp_stack.
+From griotte Require Import world_interp_stack wp_rules_interp.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.
 From griotte.allocators.common Require Import allocator_common_safe.
@@ -17,53 +17,62 @@ Section Heap_Temporal_Safety_Interp.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {allocator_ownerg : allocatorOwnerG Σ}
+    {allocator_otypeg : allocatorOtypeG Σ}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
   .
 
   (** The safe [free] runs with the ownership layer's [FreeAuth] instance:
-      the right to free an object is held by the sealing predicate of its
+      the right to free an object is held by the registry entry of its
       owner's allocator capability. *)
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
-  (** Open the cells of [lk], keys of the object [ι], in the region, with
-      the standard states held separately (the sealing map may be open). A
-      live status share of [ι] refutes their tombstones. *)
-  Lemma free_region_open_list W C ι q (lk : list LAddr) :
+  (** Open the cells of [lk], keys of the object [ι], in the world. A live
+      status share of [ι] refutes their tombstones, and a Global region of a
+      key that is also Temporary. *)
+  Lemma free_region_open_list W C g ι q (lk : list LAddr) :
     NoDup lk ->
-    Forall (λ k,
-      (∃ x, k = LHeap x ι) ∧
-      ∃ ρ, ρ ≠ Revoked ∧ std W !! k = Some ρ) lk ->
-    ι ↦st{q} ALive ∗ region W C ∗ sts_full_world W C
-    ==∗
-    ∃ ws,
+    Forall (λ k, ∃ x, k = LHeap x ι) lk ->
+    ι ↦st{q} ALive -∗
+    ([∗ list] k ∈ lk, heap_cap_O_key W C g k) -∗
+    world_interp W C -∗
+    ◇ ∃ ws,
       ι ↦st{q} ALive ∗
-      open_region_many W C lk ∗
-      sts_full_world W C ∗
+      world_interp_open W C lk ∗
       ([∗ list] k;v ∈ lk;ws, k ↦ₖ v) ∗
-      ([∗ list] k ∈ lk,
-        ∃ p φ ρ,
-          ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-          rel C k p φ ∗
-          sts_state_std C k ρ).
+      ([∗ list] k ∈ lk, region_key W C k).
   Proof.
-    intros Hnodup Hstates.
+    intros Hnodup Hkeys.
     induction lk as [|k lk IH].
-    - iIntros "(Hst & Hregion & Hsts)". iModIntro. iExists [].
-      rewrite -region_open_nil. iFrame. simpl. done.
+    - iIntros "Hst _ Hworld". iModIntro. iExists [].
+      rewrite -open_world_interp_empty. iFrame. cbn. done.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
-      apply Forall_cons in Hstates as [ [ [x ->] (ρ & Hnr & Hstd)] Hstates].
-      iIntros "(Hst & Hregion & Hsts)".
-      iMod (region_rel_get_state W C (LHeap x ι) ρ Hstd with "[$Hregion $Hsts]")
-        as "(Hregion & Hsts & Hrel)".
-      iDestruct "Hrel" as (p φ) "[%Hpers #Hrel]".
-      iMod (IH Hnodup Hstates with "[$Hst $Hregion $Hsts]") as (ws)
-        "(Hst & Hregion & Hsts & Hmem & Hhandles)".
-      iDestruct (region_open_next W C φ lk (LHeap x ι) p ρ Hnr Hnotin
-        Hstd with "[$Hregion $Hrel $Hsts]") as "(Hsts & Hstate & Hregion & Hres)".
-      iDestruct (heap_key_resource_live with "Hst Hres") as "[(%v & Ha & _) Hst]".
-      iModIntro. iExists (v :: ws). simpl.
-      iFrame "Hst Hregion Hsts Ha Hmem Hhandles".
-      iExists p, φ, ρ. iFrame "Hstate Hrel". done.
+      apply Forall_cons in Hkeys as [ [x ->] Hkeys].
+      iIntros "Hst [#Hcov Hcovs] Hworld".
+      iMod (IH Hnodup Hkeys with "Hst Hcovs Hworld") as (ws) "(Hst & Hworld & Hmem & Hkeys)".
+      iAssert (◇ (world_interp_open W C ({[LHeap x ι]} ∪ lk) ∗ ι ↦st{q} ALive ∗
+                 (∃ v, LHeap x ι ↦ₖ v) ∗ region_key W C (LHeap x ι)))%I
+        with "[Hst Hworld]" as ">(Hworld & Hst & [%v Ha] & Hkey)".
+      { iDestruct "Hcov" as "[(%p & %φ & %Hpers & #Hrel) | Hloc]".
+        - destruct (decide (std W !! LHeap x ι = Some Temporary)) as [HT|HnT].
+          + iDestruct (world_interp_open_rel_g_temporary with "Hworld Hrel")
+              as "[_ (%a' & %ι' & %Hk & #Hq)]"; [done|done|].
+            injection Hk as <- <-.
+            iDestruct (live_quar_false with "Hst Hq") as "[]".
+          + iDestruct (open_world_interp_permanent with "Hworld Hrel")
+              as "[Hworld Hres]"; [done|done|].
+            iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
+            iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+            iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
+            iRight. iExists p, φ. by iFrame "Hrel %".
+        - destruct g; [by iDestruct "Hloc" as "[]"|].
+          iDestruct "Hloc" as (p φ Hpers) "(#Hrel & %HT)".
+          iDestruct (open_world_interp_temporary with "Hworld Hrel")
+            as "[Hworld Hres]"; [done|done|].
+          iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
+          iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+          iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
+          iLeft. iExists p, φ. by iFrame "Hrel %". }
+      iModIntro. iExists (v :: ws). cbn. iFrame "Hst Ha Hmem Hkey Hkeys Hworld".
   Qed.
 
   (** Execute free for an arbitrary caller and update the shared heap world. *)
@@ -71,7 +80,8 @@ Section Heap_Temporal_Safety_Interp.
     allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
     allocator_service_static ∗
-    seal_pred AllocOtype allocator_otype_propC ∗
+    allocator_otype_registry ∗
+    AllocOtype ↪ₒ{SealGlobal} allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
@@ -82,7 +92,7 @@ Section Heap_Temporal_Safety_Interp.
   Proof.
     (* Unpack the entry register map and classify the requested capability. *)
     iIntros (Hpc_b)
-      "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
+      "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
@@ -193,12 +203,12 @@ Section Heap_Temporal_Safety_Interp.
       iMod (world_interp_revoke_stack W C b_stk e_stk
         (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
         "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-      (* Take the owner word and token out of the sealing predicate. *)
-      iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
-        with "Hspred Hinterp_ca0 Hworld")
+      (* Take the owner word and token out of the registry. *)
+      iMod (allocator_otype_acc ⊤ ⊤ W C wca0 with "Hreg Hspred Hinterp_ca0 Hna")
         as (g_owner a_owner id Ω)
-        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
-      iApply (allocator_free_invalid_correct ⊤ ⊤ g_owner a_owner id wreq
+        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hna & Hclose)";
+        [solve_ndisj | solve_ndisj | done | done |].
+      iApply (allocator_free_invalid_correct ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id wreq
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ intros next allocations Hnext Hchain; exact (Hinvalid next allocations id Hnext Hchain)
@@ -208,8 +218,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
-      (* Close the sealing predicate of the allocator capability. *)
-      iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
+      (* Close the registry. *)
+      iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
       iDestruct "Hca2" as (wca2') "Hca2".
       iDestruct "Hct0" as (wct0') "Hct0".
@@ -257,33 +267,29 @@ Section Heap_Temporal_Safety_Interp.
     { iPureIntro. exact Hwca1. }
     iDestruct (interp_cap_heap_conditions W C p g b e a π
       with "Hinterp_ca1") as "#Hcapvalid".
-    iDestruct (free_heap_cap_payload W p g b e π Hbounds with "Hcapvalid")
-      as (ι base objend) "(-> & #Hobj & [%Hbase %Hend] & %Hpayload)".
+    iDestruct (free_heap_cap_payload W C p g b e π Hbounds with "Hcapvalid")
+      as (ι base objend) "(-> & #Hobj & [%Hbase %Hend] & #Hcov)".
     destruct (decide ((b,e)=(base,objend))) as [Hexact|Hnarrow].
     - (* Exact bounds: the owner set of the allocator capability decides. *)
       injection Hexact as <- <-.
       set (lk := (λ x, LHeap x ι) <$> finz.seq_between b e).
-      assert (Hpayload_keys : Forall (λ k,
-          (∃ x, k = LHeap x ι) ∧
-          ∃ ρ, ρ ≠ Revoked ∧ std W !! k = Some ρ) lk).
-      { apply Forall_fmap. eapply Forall_impl; first exact Hpayload.
-        intros x Hx. split; [by exists x | exact Hx]. }
+      assert (Hpayload_keys : Forall (λ k, ∃ x, k = LHeap x ι) lk).
+      { apply Forall_fmap, Forall_forall. intros x _. by exists x. }
       assert (Hlk_nodup : NoDup lk).
       { apply NoDup_fmap_2; last apply finz_seq_between_NoDup.
         intros x y Heq. by injection Heq. }
-      (* Take the owner word and token out of the sealing predicate, keeping
-         the region available to open the payload. *)
-      iMod (allocator_otype_sopen W W C wca0 Hwca0_tag Hwca0_sealed
-        with "Hspred Hinterp_ca0 Hworld")
+      (* Take the owner word and token out of the registry. *)
+      iMod (allocator_otype_acc ⊤ ⊤ W C wca0 with "Hreg Hspred Hinterp_ca0 Hna")
         as (g_owner a_owner id Ω)
-        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hregion & Hsts & Hclose)".
+        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hna & Hclose)";
+        [solve_ndisj | solve_ndisj | done | done |].
       destruct (decide (ι ∈ Ω)) as [HιΩ|HιΩ]; cycle 1.
       { (* The object belongs to another owner and is not freed. *)
         iExtract "Hrmap" csp as "Hcspr".
-        iMod (monotone_revoke_stack W C b_stk e_stk (stk_start_a b_stk e_stk)
-          with "[$Hinterp_csp $Hsts $Hregion]") as (l)
-          "(%Htemps & Hsts & Hregion & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-        iApply (allocator_free_wrong_owner_spec ⊤ ⊤ g_owner a_owner id Ω p g ι b e a
+        iMod (world_interp_revoke_stack W C b_stk e_stk (stk_start_a b_stk e_stk)
+          with "[$Hinterp_csp $Hworld]") as (l)
+          "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
+        iApply (allocator_free_wrong_owner_spec ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id Ω p g ι b e a
           (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
           with "[-]");
           [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
@@ -292,13 +298,8 @@ Section Heap_Temporal_Safety_Interp.
         iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
         iNext.
         iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
-        (* Close the sealing predicate in the revoked world. *)
-        iDestruct ("Hclose" $! (revoke W) [] Ω
-          with "[] [] [$Hsts $Ha_owner $Hid $Hrights Hregion]") as "Hworld".
-        { done. }
-        { iPureIntro. apply revoke_related_sts_priv_world. }
-        { by rewrite -region_open_nil. }
-        iEval (rewrite -open_world_interp_empty) in "Hworld".
+        (* Close the registry. *)
+        iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
         iDestruct "Hca2" as (wca2') "Hca2".
         iDestruct "Hct0" as (wct0') "Hct0".
@@ -333,7 +334,7 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hsync. }
         { exact Hnodup. }
         { intros x Hx. apply Htemps in Hx. exact Hx. } }
-      (* The sealing predicate holds the right to free [ι], or the witness
+      (* The registry holds the right to free [ι], or the witness
          that [ι] is already quarantined. *)
       iDestruct (allocator_owned_rights_delete with "Hrights")
         as "[Hright Hrights]"; first exact HιΩ.
@@ -353,21 +354,17 @@ Section Heap_Temporal_Safety_Interp.
         iAssert (allocator_owned_rights Ω) with "[Hrights]" as "Hrights".
         { iApply (allocator_owned_rights_delete _ _ HιΩ). iFrame "Hrights".
           iLeft. iExact "Hq_old". }
-        iDestruct ("Hclose" $! W [] Ω
-          with "[] [] [$Hsts $Ha_owner $Hid $Hrights Hregion]") as "Hworld".
-        { done. }
-        { iPureIntro. apply related_sts_priv_refl_world. }
-        { by rewrite -region_open_nil. }
-        iEval (rewrite -open_world_interp_empty) in "Hworld".
+        iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
         iApply ("Hreject" $! (lclear_tag (Cap p g b e a @@? Some ι))
                  with "[%] Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hrmap").
         intros next allocations o _ _ (p' & g' & b' & e' & a' & Hcap & _).
         discriminate Hcap. }
       (* Accept: open every cell of [ι], with the right to free it refuting
          their tombstones, and free it. *)
-      iMod (free_region_open_list W C ι (1/2) lk Hlk_nodup Hpayload_keys
-        with "[$Hright $Hregion $Hsts]")
-        as (ws) "(Hright & Hregion & Hsts & Hcells & Hhandles)".
+      iMod (free_region_open_list W C g ι (1/2) lk Hlk_nodup Hpayload_keys
+        with "Hright [] Hworld")
+        as (ws) "(Hright & Hworld_open & Hcells & Hhandles)".
+      { rewrite /lk big_sepL_fmap. iExact "Hcov". }
       iDestruct (big_sepL2_length _ _ _ with "Hcells") as %Hlen.
       rewrite length_fmap in Hlen.
       rewrite big_sepL2_fmap_l.
@@ -380,7 +377,7 @@ Section Heap_Temporal_Safety_Interp.
       iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
         [solve_ndisj|solve_ndisj|].
       iDestruct "Hsw" as (a_tstk cstk' save_area tstk_next) "[>Hmtdc Hsw]".
-      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
+      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nallocator_otype ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rmap
         (HO th) with "[-]");
@@ -405,21 +402,17 @@ Section Heap_Temporal_Safety_Interp.
       iMod ("Hsw_close" with "[$Hna_post Hmtdc Hsw]") as "Hna_post".
       { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
       subst rmap. iExtract "Hrmap" csp as "Hcspr".
-      (* The world is unchanged: the sealing predicate gets [ι ⊒ AQuar] in
+      (* The world is unchanged: the registry gets [ι ⊒ AQuar] in
          place of the right to free [ι], and the cells of [ι] close as
          tombstones. *)
-      iDestruct ("Hclose" $! W lk Ω
-        with "[] [] [$Hregion $Hsts $Ha_owner $Hid Hrights]")
-        as "Hworld_open_q".
-      { done. }
-      { iPureIntro. apply related_sts_priv_refl_world. }
+      iMod ("Hclose" $! Ω with "[$Ha_owner $Hid Hrights $Hna_post]") as "Hna_post".
       { iApply (allocator_owned_rights_delete _ _ HιΩ). iFrame "Hrights".
         iLeft. iExact "Hq". }
       iAssert (world_interp W C)
-        with "[Hworld_open_q Hhandles]" as "Hworld_q".
+        with "[Hworld_open Hhandles]" as "Hworld_q".
       { iApply (free_world_close_quarantined_list W C ι
           (finz.seq_between b e) (finz_seq_between_NoDup b e) with "Hq").
-        rewrite big_sepL_fmap. iFrame "Hworld_open_q Hhandles". }
+        rewrite big_sepL_fmap. iFrame "Hworld_open Hhandles". }
       iMod (world_interp_revoke_stack W C
           b_stk e_stk (stk_start_a b_stk e_stk)
           with "[$Hinterp_csp $Hworld_q]")
@@ -463,12 +456,12 @@ Section Heap_Temporal_Safety_Interp.
       iMod (world_interp_revoke_stack W C b_stk e_stk
         (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
         "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-      (* Take the owner word and token out of the sealing predicate. *)
-      iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
-        with "Hspred Hinterp_ca0 Hworld")
+      (* Take the owner word and token out of the registry. *)
+      iMod (allocator_otype_acc ⊤ ⊤ W C wca0 with "Hreg Hspred Hinterp_ca0 Hna")
         as (g_owner a_owner id Ω)
-        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
-      iApply (allocator_free_narrowed_spec ⊤ ⊤ g_owner a_owner id p g ι base objend b e a
+        "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hna & Hclose)";
+        [solve_ndisj | solve_ndisj | done | done |].
+      iApply (allocator_free_narrowed_spec ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id p g ι base objend b e a
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ destruct Hbounds as (_ & Hbe & _); solve_addr | exact Hnarrow | solve_ndisj | solve_ndisj
@@ -478,8 +471,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
-      (* Close the sealing predicate of the allocator capability. *)
-      iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
+      (* Close the registry. *)
+      iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
       iDestruct "Hca2" as (wca2') "Hca2".
       iDestruct "Hct0" as (wct0') "Hct0".
@@ -526,7 +519,8 @@ Section Heap_Temporal_Safety_Interp.
     let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off) in
     allocator_service_ctx ∗
     allocator_service_static ∗
-    seal_pred AllocOtype allocator_otype_propC ∗
+    allocator_otype_registry ∗
+    AllocOtype ↪ₒ{SealGlobal} allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ Cap RX Global
@@ -543,7 +537,7 @@ Section Heap_Temporal_Safety_Interp.
   Proof.
     intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_free.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
-    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
+    iIntros "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off),
@@ -625,7 +619,7 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
-    iIntros (W') "%Hpriv".
+    iIntros (W').
     iNext.
     change (allocator_pcc_b ^+ allocator_free_pcc_off) with allocator_free_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".

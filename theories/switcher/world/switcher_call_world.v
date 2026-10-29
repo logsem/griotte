@@ -41,9 +41,7 @@ Section Switcher_Call_World.
     iDestruct "Hvalid" as "(#Hmono & #Hzcond & #Hrcond & #Hwcond & %Hpers)".
     iExists φ, p.
     iSplitR; first iApply ("Hwcond" with "Hv'").
-    iSplitR.
-    { rewrite /mono_temporary decide_True; first iApply "Hmono".
-      left; by eapply isWL_flowsto. }
+    iSplitR; first iApply "Hmono".
     iSplitL "Hrel"; first iExact "Hrel".
     iSplitR; last (iPureIntro; exact Hflow).
     iFrame "Hmono Hzcond Hrcond Hwcond"; iPureIntro; exact Hpers.
@@ -148,26 +146,10 @@ Section Switcher_Call_World.
 
   (** ** Entry point of the callee *)
 
-  (** Since [Po] is persistent, the world interpretation is given back
-      immediately: only the sealing predicate is under a later. *)
-  Lemma world_interp_seal_pred_singleton_persistent
-    (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : LWord) :
-    seal_pred o Po -∗
-    sts_seals_std C o {[ w ]} -∗
-    world_interp W C -∗
-    world_interp W C ∗ ▷ Po (W, C, lforce_global w).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
-    iDestruct (sealing_map_seal_pred_persistent with "Hspred Hseal Hseals Hsts")
-      as "($ & $ & H)"; eauto.
-    by rewrite normalise_sealed_words_singleton big_sepS_singleton.
-  Qed.
-
   (** The sealing predicate of [ot_switcher] describes the entry point of
       the callee, once unsealed. *)
   Lemma switcher_entry_point_prop W C (wct1 : LWord) :
-    seal_pred ot_switcher ot_switcher_propC -∗
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wct1.(lw) ot_switcher then interp W C wct1 else True) -∗
     world_interp W C -∗
     world_interp W C ∗
@@ -191,11 +173,13 @@ Section Switcher_Call_World.
     rewrite (interp_unfold _ _ (WSealed ot_switcher wsb0 @@? π0)).
     iEval (cbn; rewrite Htag) in "Htarget_v".
     rewrite /interp_sb.
-    iDestruct "Htarget_v" as "[#Htarget_v _]".
-    iAssert (sts_seals_std C ot_switcher {[WSealable wsb0 @@? π0]}) as "#Htarget_v'".
-    { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
-    iDestruct (world_interp_seal_pred_singleton_persistent with
-                "Hp_ot_switcher Htarget_v' Hworld_interp") as "($ & HP)".
+    iDestruct "Htarget_v" as "[(%κ & %P & #Hs & _ & #HP0) _]".
+    iDestruct (seal_pred_agree with "Hp_ot_switcher Hs") as "[<- #Heq]".
+    iAssert (▷ ot_switcher_propC (th, W, C, norm SealGlobal (WSealable wsb0 @@? π0)))%I
+      as "#HP".
+    { iNext. iRewrite ("Heq" $! (th, W, C, norm SealGlobal (WSealable wsb0 @@? π0))).
+      iExact "HP0". }
+    iFrame "Hworld_interp".
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.
     { iEval (cbn) in "HP".
@@ -562,24 +546,17 @@ Section Switcher_Call_World.
     iApply (big_sepL_impl with "Hstk_val'").
     iIntros "!>" (k a' Ha') "Hr".
     rewrite ?addr_key_None.
-    iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & Hpers) & %Hperm_flow)".
+    iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & %Hpers) & %Hperm_flow)".
     iExists p,φ.
     iSplit; first (iPureIntro; exact Hperm_flow).
-    iFrame "Hpers Hrel Hzcond".
+    iSplit; first (iPureIntro; exact Hpers).
+    iSplit.
+    { rewrite /region_rel /= /region_rel_l. iFrame "Hrel HmonoR". iPureIntro.
+      subst W'. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto. }
+    iSplit; first iFrame "Hzcond".
     iSplit.
     { erewrite readAllowed_flowsto; eauto. }
-    iSplit.
     { erewrite writeAllowed_flowsto; eauto. }
-    iSplitL "Hmono HmonoR".
-    {
-      rewrite /monoReq /monotonicity_guarantees_region.
-      erewrite isWL_flowsto; eauto.
-      subst W'.
-      rewrite std_sta_update_multiple_lookup_in_i.
-      2: { apply list_elem_of_lookup. eauto. }
-      done.
-    }
-    iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto.
   Qed.
 
   (** Collect the registers cleared on the exhausted path of the

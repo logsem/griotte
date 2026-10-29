@@ -14,13 +14,14 @@ Section Heap_Temporal_Safety_Interp.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
+    {allocator_otypeg : allocatorOtypeG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
   .
 
   (** The safe [malloc] runs with the ownership layer's [FreeAuth] instance:
-      the right to free a new object is added to the sealing predicate of the
+      the right to free a new object is added to the registry entry of the
       allocator capability. *)
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
@@ -29,7 +30,8 @@ Section Heap_Temporal_Safety_Interp.
     allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
     allocator_service_static ∗
-    seal_pred AllocOtype allocator_otype_propC ∗
+    allocator_otype_registry ∗
+    AllocOtype ↪ₒ{SealGlobal} allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     no_handler allocator_exp_tbl_b ⊢
@@ -40,7 +42,7 @@ Section Heap_Temporal_Safety_Interp.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
     iIntros (Hpc_b)
-      "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
+      "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
         Hcstk & Hna)".
@@ -90,11 +92,11 @@ Section Heap_Temporal_Safety_Interp.
     iMod (world_interp_revoke_stack W C b_stk e_stk
       (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
       "(%Htemps & Hworld & Hstack_revoked & Hstack_forall & Hstack_mem & Hrevoked & %Hrevoked_forall)".
-    (* Take the owner word and token out of the sealing predicate. *)
-    iMod (allocator_otype_open W (revoke W) C wca0 Hwca0_tag Hwca0_sealed
-      with "Hspred Hinterp_ca0 Hworld")
+    (* Take the owner word and token out of the registry. *)
+    iMod (allocator_otype_acc ⊤ ⊤ W C wca0 with "Hreg Hspred Hinterp_ca0 Hna")
       as (g_owner a_owner id Ω)
-      "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hclose)".
+      "(-> & %Hbounds_owner & %Hshadow_owner & Ha_owner & Hid & Hrights & Hna & Hclose)";
+      [solve_ndisj | solve_ndisj | done | done |].
     (* Split the requested size into the physical allocator's two cases. *)
     assert (Hsize_dec :
       allocator_positive_size wca1.(lw) \/ ~ allocator_positive_size wca1.(lw)).
@@ -107,7 +109,7 @@ Section Heap_Temporal_Safety_Interp.
       - right. intros (m & Heq & Hm). discriminate. }
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
-      iApply (allocator_malloc_invalid_correct ⊤ ⊤ g_owner a_owner id wca1
+      iApply (allocator_malloc_invalid_correct ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id wca1
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
@@ -116,8 +118,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
       iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
-      (* Close the sealing predicate of the allocator capability. *)
-      iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
+      (* Close the registry. *)
+      iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
       iDestruct "Hca2" as (wca2') "Hca2".
       iDestruct "Hct0" as (wct0') "Hct0".
@@ -156,7 +158,7 @@ Section Heap_Temporal_Safety_Interp.
       destruct wca1 as [wa1 π1].
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
-        (heap_ids (dom (std (revoke W)))) ⊤ ⊤ g_owner a_owner id Ω n π1
+        (heap_ids (dom (std (revoke W)))) ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id Ω n π1
         (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
         with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
@@ -168,8 +170,8 @@ Section Heap_Temporal_Safety_Interp.
       iDestruct "Hresult" as "[Hoom|Hsuccess]".
       + (* Capacity exhausted: restore the caller and return ALLOC_NO_MEMORY. *)
         iDestruct "Hoom" as "(Hid & Hca0 & Hca1)".
-        (* Close the sealing predicate of the allocator capability. *)
-        iDestruct ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights]") as "Hworld".
+        (* Close the registry. *)
+        iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
         iDestruct "Hca2" as (wca2') "Hca2".
         iDestruct "Hct0" as (wct0') "Hct0".
@@ -207,36 +209,27 @@ Section Heap_Temporal_Safety_Interp.
       + (* Allocate the fresh heap object and install its zeroed payload. *)
         iDestruct "Hsuccess" as (ι b e)
           "(%Hbounds_size & %Hι_new & %Hι_Ω & Hca0 & Hca1 & #Hobj & Hright & Hid & Hcells)".
-        (* Close the sealing predicate, which now also holds the right to
+        (* Close the registry, which now also holds the right to
            free the new object. *)
         iDestruct (allocator_owned_rights_insert with "Hrights Hright")
           as "Hrights"; first exact Hι_Ω.
-        iDestruct ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights]")
-          as "Hworld".
+        iMod ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights $Hna]")
+          as "Hna".
         destruct Hbounds_size as [Hbounds Hsize].
-        (* [ι] is fresh for the caller's world: no key of [ι] is in it. *)
+        (* The cells of [ι] become Global regions: the world is unchanged. *)
         set (lk := (λ a, LHeap a ι) <$> finz.seq_between b e).
-        assert (Forall (λ k, k ∉ dom (std (revoke W))) lk) as Hstd_none.
-        { apply Forall_fmap, Forall_forall. intros a _. simpl.
-          by apply heap_ids_fresh. }
-        assert (Forall (λ k, std (revoke W) !! k = None) lk) as Hstd_none_rev.
-        { eapply Forall_impl; first exact Hstd_none.
-          intros k Hk. exact (not_elem_of_dom_1 (std (revoke W) : gmap LAddr region_type) k Hk). }
-        set (Wshare := std_update_keys (revoke W) lk Permanent).
+        set (Wshare := revoke W).
         iMod (world_interp_extend_perm_keys (revoke W) C lk
-          (region_addrs_zeroes b e) RW interp_in_memC with "Hworld [Hcells]")
+          (region_addrs_zeroes b e) RW interp_in_mem_gC with "Hworld [Hcells]")
           as "[Hworld #Hrels]".
-        1: reflexivity.
-        1: exact Hstd_none_rev.
         { rewrite /heap_region_pointsto big_sepL2_fmap_l.
           iApply (big_sepL2_mono with "Hcells").
           iIntros (k y w Hy Hw) "Hy".
           rewrite /region_addrs_zeroes in Hw.
           apply lookup_replicate in Hw as [-> _].
-          iApply (init_PermRes (revoke W) C (LHeap y ι) RW interp_in_memC (WInt 0)
-            with "[] Hy []").
+          iApply (init_PermRes C (LHeap y ι) RW interp_in_mem_gC (WInt 0)
+            with "Hy []").
           { reflexivity. }
-          { iApply interp_weakening.future_priv_mono_interp_in_mem_z. }
           iApply interp_int. }
         (* The returned heap capability is valid for this live object. *)
         assert (is_heap_address b = true) as Hb_heap.
@@ -273,18 +266,13 @@ Section Heap_Temporal_Safety_Interp.
           iSplit; first
             (iPureIntro; apply interp_weakening.persistent_cond_interp_in_mem).
           iSplit.
-          { iApply (big_sepL_elem_of with "Hrels"); exact Hk_in. }
+          { rewrite /region_rel /= /region_rel_g.
+            iApply (big_sepL_elem_of with "Hrels"); exact Hk_in. }
           iSplit.
           { iNext. iApply interp_weakening.zcond_interp_in_mem. }
           iSplit.
           { iNext. iApply interp_weakening.rcond_interp_in_mem. }
-          iSplit.
-          { iNext. iApply interp_weakening.wcond_interp_in_mem. }
-          iSplit.
-          { iApply interp_weakening.monoReq_interp_in_mem.
-            - by apply std_update_keys_lookup_in.
-            - intros _. reflexivity. }
-          iPureIntro. by apply std_update_keys_lookup_in. }
+          iNext. iApply interp_weakening.wcond_interp_in_mem. }
         (* Close the caller's temporary regions in the extended world. *)
         set (closing := l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)).
         set (Wfixed := close_list closing Wshare).
@@ -298,7 +286,7 @@ Section Heap_Temporal_Safety_Interp.
         destruct Htemps as [Hnodup Htemps].
         assert (related_sts_pub_world W Wfixed) as Hrelated_pub.
         { subst Wfixed Wshare closing.
-          apply malloc_related_pub; assumption. }
+          apply related_pub_revoke_close_list. exact Htemps. }
         (* Restore the return registers and pass the heap capability to the caller. *)
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
         iDestruct "Hca2" as (wca2') "Hca2".
@@ -338,7 +326,8 @@ Section Heap_Temporal_Safety_Interp.
     let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off) in
     allocator_service_ctx ∗
     allocator_service_static ∗
-    seal_pred AllocOtype allocator_otype_propC ∗
+    allocator_otype_registry ∗
+    AllocOtype ↪ₒ{SealGlobal} allocator_otype_propC ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     allocator_exp_tbl_b ↦ₐ□ Cap RX Global
@@ -355,7 +344,7 @@ Section Heap_Temporal_Safety_Interp.
   Proof.
     intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
-    iIntros "(#Hservice & #Hstatic & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
+    iIntros "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
     iExists g_allocator_exp_tbl, allocator_exp_tbl_b, allocator_exp_tbl_e,
       (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off),
@@ -434,7 +423,7 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
-    iIntros (W') "%Hpriv".
+    iIntros (W').
     iNext.
     change (allocator_pcc_b ^+ allocator_malloc_pcc_off) with allocator_malloc_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".

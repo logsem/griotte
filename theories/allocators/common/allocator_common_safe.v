@@ -10,11 +10,19 @@ From griotte.allocators.common Require Import allocator_common_preamble.
 Section AllocatorCommonSafe.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {ceriseg:ceriseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
+
+  (** The region of a key in its part of the world: a Temporary key of
+      the local world, or a Global region of a key that is not Temporary. *)
+  Definition region_key (W : WORLD) (C : CmptName) (k : LAddr) : iProp Σ :=
+    (∃ p (φ : WORLD * CmptName * LWord → iProp Σ),
+       ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝) ∨
+    (∃ p (φ : CmptName * LWord → iProp Σ),
+       ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵍ[C]{p} φ ∗ ⌜std W !! k ≠ Some Temporary⌝).
 
   (** Quarantined cells close as tombstones, with the witness that [ι] is
       quarantined. *)
@@ -22,11 +30,7 @@ Section AllocatorCommonSafe.
     NoDup la ->
     ι ⊒ AQuar -∗
     world_interp_open W C ((λ a, LHeap a ι) <$> la) ∗
-    ([∗ list] a ∈ la,
-      ∃ p φ ρ,
-        ⌜∀ WCv, Persistent (φ WCv)⌝ ∗
-        rel C (LHeap a ι) p φ ∗
-        sts_state_std C (LHeap a ι) ρ)
+    ([∗ list] a ∈ la, region_key W C (LHeap a ι))
     -∗
     world_interp W C.
   Proof.
@@ -37,12 +41,19 @@ Section AllocatorCommonSafe.
     - apply NoDup_cons in Hnodup as [Hnotin Hnodup].
       iIntros "#Hq (Hworld & Hhandles)".
       iDestruct "Hhandles" as "[Hhandle Hhandles]".
-      iDestruct "Hhandle" as (p φ ρ) "(%Hpers & #Hrel & Hstate)".
-      iDestruct (close_world_interp_next_quarantined_heap W C _ a ι p φ ρ
-        with "Hq Hworld Hrel Hstate") as "Hworld".
+      assert (LHeap a ι ∉ (λ a, LHeap a ι) <$> la) as Hnotin'.
       { intros Hin. apply list_elem_of_fmap in Hin as (a' & Heq & Hin).
         simplify_eq. done. }
-      iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
+      iEval (rewrite (world_interp_open_permutation W C _
+               ({[LHeap a ι]} ∪ ((λ a, LHeap a ι) <$> la))); last set_solver)
+        in "Hworld".
+      iDestruct "Hhandle" as "[(%p & %φ & %Hpers & #Hrel & %HT) | (%p & %φ & %Hpers & #Hrel & %HnT)]".
+      + iDestruct (close_world_interp_next_quarantined_heap_l W C _ a ι p φ
+          with "Hq Hworld Hrel") as "Hworld"; [done|done|].
+        iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
+      + iDestruct (close_world_interp_next_quarantined_heap_g W C _ a ι p φ
+          with "Hq Hworld Hrel") as "Hworld"; [done|done|].
+        iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
   Qed.
 
   (** The registers outside the arguments carry no identifier at entry: the

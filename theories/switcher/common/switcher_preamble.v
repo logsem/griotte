@@ -549,7 +549,7 @@ Section Switcher_preamble.
       entries, at the section's thread. *)
   Definition switcher_sealing_inv : iProp Σ :=
     "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
-    "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
+    "#Hp_ot_switcher" ∷ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
 
   #[global] Instance switcher_sealing_inv_persistent : Persistent switcher_sealing_inv.
   Proof. apply _. Qed.
@@ -572,7 +572,7 @@ Section Switcher_preamble.
 
   (** The predicate of the sealed export entries, from [switcher_static]. *)
   Lemma switcher_static_seal_pred :
-    switcher_static ⊢ seal_pred ot_switcher ot_switcher_propC.
+    switcher_static ⊢ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
   Proof. iIntros "(_ & _ & _ & Hsealing)". iNamed "Hsealing". iExact "Hp_ot_switcher". Qed.
 
 End Switcher_preamble.

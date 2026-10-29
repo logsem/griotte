@@ -960,8 +960,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
-    iSpecialize ("Hentry_cont" $! W' with "[]").
-    { iPureIntro. by apply related_sts_pub_priv_world. }
+    iSpecialize ("Hentry_cont" $! W').
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
                     b_stk e_stk a_stk (Cap RO g_tbl b_tbl e_tbl a_tbl)).
     iDestruct (switcher_cc_cont_frame W C _ _ _ _ _ _ _ _ _ _ _
