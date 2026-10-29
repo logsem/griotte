@@ -312,7 +312,7 @@ End flag_adequacy.
 Section world_init.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {Cname : CmptNameG}
     {seal_store_preg : sealStorePreG Σ}
-    {sts_preg : STS_preG LAddr region_type OType LWord Σ} {relpreg : relGpreS Σ}
+    {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
     {cstack_preg : CSTACK_preG Σ}
     `{MP: MachineParameters}.
 
@@ -324,7 +324,7 @@ Section world_init.
     CNames = list_to_set Cs →
     NoDup Cs →
     ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
-            (stsg : STSG LAddr region_type OType LWord Σ) (cstackg : CSTACKG Σ),
+            (stsg : STSG Σ) (cstackg : CSTACKG Σ),
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       ●(CSTK)[u 0] (entry_cstack ef) ∗
       ◯(CSTK)[u 0] (entry_cstack ef) ∗
@@ -349,7 +349,7 @@ Section adversary_world.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.
@@ -760,7 +760,7 @@ Section adversary_exports.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
@@ -868,7 +868,7 @@ Section adversary_imports.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
@@ -935,7 +935,7 @@ Section service_exports.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.
@@ -1013,7 +1013,7 @@ Section main_exports.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.

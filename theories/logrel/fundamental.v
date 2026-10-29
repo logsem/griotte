@@ -13,7 +13,7 @@ Section fundamental_generic.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
@@ -105,7 +105,7 @@ Section fundamental.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .

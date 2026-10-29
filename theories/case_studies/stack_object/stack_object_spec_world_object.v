@@ -19,7 +19,7 @@ Section SO_World_List.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
@@ -187,7 +187,7 @@ Section SO_World_Object.
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 

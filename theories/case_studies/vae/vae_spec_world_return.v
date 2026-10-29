@@ -20,7 +20,7 @@ Section VAE_World_Return.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -91,7 +91,7 @@ Section VAE_World_Return.
     loc (revoke W0) !! i = Some (encode b) ->
     wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     wrel W3 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
-    sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv -∗
+    sts_rel_loc C i awk_rel_pub awk_rel_priv -∗
     world_interp (revoke W6) C -∗
     RevokedCells W0 C l0_live -∗
     RevokedCells W3 C l1_live -∗

@@ -1683,7 +1683,7 @@ Section resources.
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
@@ -1868,7 +1868,7 @@ Section thread_trusted_stack_inv.
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
   (* The user threads [0] and [S k] meet here: every form names its thread. *)
@@ -1960,7 +1960,7 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
     (fw : firmware) : Prop :=
   ∀ (img : fw_image) (σ : ExecConf)
     (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
-    (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
+    (stsg : STSG Σ) (relg : relGS Σ)
     (cstackg : CSTACKG Σ),
     firmware_ok fw img σ →
     ⊢ fw_shared_res fw img -∗
@@ -1977,7 +1977,7 @@ Theorem firmware_adequacy (Σ : gFunctors)
     {cerise_preg : ceriseGpreS Σ}
     {na_invg : na_invariants.na_invG Σ}
     {seal_store_preg : sealStorePreG Σ}
-    {sts_preg : STS_preG LAddr region_type OType LWord Σ}
+    {sts_preg : STS_preG Σ}
     {cstack_preg : CSTACK_preG Σ}
     {Cname : CmptNameG}
     {relpreg : relGpreS Σ}
@@ -2067,7 +2067,7 @@ End adequacy.
     [firmware_adequacy_closed] at [Σcs]. *)
 Definition firmwarePreΣ {Cname : CmptNameG} : gFunctors :=
   #[invΣ; ceriseGpreΣ; CSTACK_preΣ; na_invΣ; sealStorePreΣ;
-    STS_preΣ LAddr region_type OType LWord; relPreΣ;
+    STS_preΣ; relPreΣ;
     savedPredΣ (WorldT * CmptName * LWord)].
 
 Theorem firmware_adequacy_closed (Σcs : gFunctors) {Cname : CmptNameG}

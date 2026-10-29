@@ -270,7 +270,7 @@ Section prepared.
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
@@ -543,7 +543,7 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParam
   fw_entry_at_code fw →
   (∀ (img : fw_image) (σ : ExecConf)
      (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
-     (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
+     (stsg : STSG Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
      ⊢ fw_init_res (th := UserThread 0) fw img
@@ -569,7 +569,7 @@ Section adversary.
     {Σ : gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
@@ -866,7 +866,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} `{MP : Ma
   fw_entry_untrusted fw →
   (∀ (img : fw_image) (σ : ExecConf)
      (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
-     (stsg : STSG LAddr region_type OType LWord Σ) (relg : relGS Σ)
+     (stsg : STSG Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
      ⊢ fw_setup_res (th := UserThread 0) fw img

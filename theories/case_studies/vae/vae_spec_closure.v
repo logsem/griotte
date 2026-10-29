@@ -13,7 +13,7 @@ Section VAE.
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -83,7 +83,7 @@ Section VAE.
     ∗ a_vae_entry_awkward ↦ₐ□ WInt (encode_entry_point InterruptEnabled 1 4 (length (imports ++ VAE_main_code_init)))
     (* invariant for d *)
     ∗ inv Nawk (awk_inv C i cgp_b)
-    ∗ sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv
+    ∗ sts_rel_loc C i awk_rel_pub awk_rel_priv
       -∗
     ot_switcher_prop W C (Cap RO g_vae_exp_tbl b_vae_exp_tbl e_vae_exp_tbl a_vae_entry_awkward).
   Proof.

@@ -6,7 +6,7 @@ Section VAE_helper.
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -19,7 +19,7 @@ Section VAE_helper.
 
   Definition Nawk : namespace := nroot .@ "awk".
   Definition awk_inv C i a :=
-    (∃ x:bool, sts_state_loc (A:=LAddr) C i x
+    (∃ x:bool, sts_state_loc C i x
             ∗ if x
               then a ↦ₐ WInt 1%Z
               else a ↦ₐ WInt 0%Z)%I.
