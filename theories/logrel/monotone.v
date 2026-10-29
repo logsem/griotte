@@ -57,7 +57,7 @@ Section monotone.
   Qed.
 
   (** A sealed word under a Global-kind otype is valid in every world. *)
-  Lemma interp_monotone_sd_same_heap W W' C ot sb π P :
+  Lemma interp_monotone_sd W W' C ot sb π P :
     ⌜related_sts_priv_world W W'⌝ -∗
     ot ↪ₒ{SealGlobal} P -∗
     interp W C (WSealed ot sb @@? π) -∗
@@ -204,7 +204,7 @@ Section monotone.
     rewrite !interp_unfold /=; auto.
   Qed.
 
-  Lemma interp_monotone_same_heap (W W' : WORLD) C w :
+  Lemma interp_monotone (W W' : WORLD) C w :
     ⌜related_sts_pub_world W W'⌝
     -∗ interp W C w -∗ interp W' C w.
   Proof.
@@ -241,11 +241,11 @@ Section monotone.
   Lemma interp_g_any_world W C w :
     interp_g C w -∗ interp W C w.
   Proof.
-    iIntros "Hw". iApply (interp_monotone_same_heap with "[] Hw").
+    iIntros "Hw". iApply (interp_monotone with "[] Hw").
     iPureIntro. apply related_sts_pub_world_empty.
   Qed.
 
- Lemma interp_monotone_nl_same_heap W W' C w :
+ Lemma interp_monotone_nl W W' C w :
     ⌜related_sts_priv_world W W'⌝
     -∗ ⌜isLocalWord w.(lw) = false⌝
     -∗ interp W C w -∗ interp W' C w.
@@ -266,7 +266,7 @@ Section monotone.
   Proof.
     intros Hrelated.
     change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
-    iIntros "Hw". by iApply (interp_monotone_same_heap with "[] Hw").
+    iIntros "Hw". by iApply (interp_monotone with "[] Hw").
   Qed.
 
   Lemma interp_in_mem_monotone_nl W W' C p w :
@@ -276,7 +276,7 @@ Section monotone.
   Proof.
     intros Hrelated Hnl.
     change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
-    iIntros "Hw". iApply (interp_monotone_nl_same_heap with "[] [] Hw"); first done.
+    iIntros "Hw". iApply (interp_monotone_nl with "[] [] Hw"); first done.
     by rewrite lw_lload_word.
   Qed.
 
@@ -358,7 +358,7 @@ Qed.
     interp_reg interp W C regs -∗ interp_reg interp W' C regs.
   Proof.
     iIntros (Hrel) "[Hfull #Hregs]". iSplit; first done.
-    iIntros (r v Hv). iApply (interp_monotone_same_heap with "[] (Hregs [//])"); done.
+    iIntros (r v Hv). iApply (interp_monotone with "[] (Hregs [//])"); done.
   Qed.
 
   (** A safe word without identifier is safe in a public future world. *)
@@ -368,7 +368,7 @@ Qed.
     interp W C w -∗ interp W' C w.
   Proof.
     iIntros (Hrel Hnoid) "Hw".
-    by iApply (interp_monotone_same_heap with "[] Hw").
+    by iApply (interp_monotone with "[] Hw").
   Qed.
 
 End monotone.

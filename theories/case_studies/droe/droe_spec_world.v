@@ -158,7 +158,7 @@ Section DROE_World.
     iModIntro.
     iFrame "Hworld_interp_C Hrel_cgp_b Hinterp_W3_C_a".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hseal_switcher Hinterp_W0_C_f").
+    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").
       iPureIntro. apply revoke_related_sts_priv_world. }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0");
                    apply revoke_related_sts_priv_world).

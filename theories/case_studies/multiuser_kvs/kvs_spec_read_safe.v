@@ -303,7 +303,7 @@ Section KVS_spec_read_safe.
       { iDestruct "Hca0" as "[$|$]"; iApply interp_int. }
       iAssert (∃ wca1', ca1 ↦ᵣ wca1' ∗ interp Wfixed C wca1')%I with "[Hca1]" as "(%wca1' & Hca1 & #Hinterp_wca1')".
       { iDestruct "Hca1" as "[(%&?&?)|$]"; [iExists _; iFrame|iApply interp_int].
-        iApply (monotone.interp_monotone_same_heap with "[] [$]"); eauto.
+        iApply (monotone.interp_monotone with "[] [$]"); eauto.
         iPureIntro; apply close_list_related_sts_pub ; eauto.
       }
       iDestruct "Hctp" as "[% Hctp]"; iDestruct (big_sepM_insert _ _ ctp with "[$Hrmap $Hctp]") as "Hrmap".

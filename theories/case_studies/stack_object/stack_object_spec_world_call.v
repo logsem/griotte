@@ -285,14 +285,14 @@ Section SO_World_Call.
     iModIntro.
     iFrame "Hworld_interp_C Hinterp_z".
     iSplit.
-    { iApply (interp_monotone_same_heap W2 W3 C _ with "[] Hinterp_object"); eauto. }
+    { iApply (interp_monotone W2 W3 C _ with "[] Hinterp_object"); eauto. }
 
     (* The callback is safe to share in [W3] *)
     iSplit.
     { destruct (is_sealed_with_o wct1.(lw) ot_switcher) eqn:His_sealed; last done.
       destruct wct1 as [ [| [|] | |] π1]; try discriminate.
       simpl in His_sealed; apply Z.eqb_eq, finz_to_z_eq in His_sealed as ->.
-      iApply (interp_monotone_sd_same_heap W0 W3 with "[] Hseal Hinterp_wct1"); eauto.
+      iApply (interp_monotone_sd W0 W3 with "[] Hseal Hinterp_wct1"); eauto.
     }
 
     (* The stack frame of the callee is still revoked *)
@@ -420,7 +420,7 @@ Section SO_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hseal Hinterp_C_f").
+    { iApply (interp_monotone_sd with "[] Hseal Hinterp_C_f").
       by iPureIntro. }
     iSplit; last done.
     iNext.

@@ -162,7 +162,7 @@ Section DLE_World.
       iApply wcond_interp_in_mem_dl.
     }
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hseal_switcher Hinterp_W0_C_f").
+    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").
       by iPureIntro. }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0"); auto).
 
@@ -253,7 +253,7 @@ Section DLE_World.
     assert (related_sts_priv_world W4 (revoke W4)) as Hrelated_priv_W4
         by apply revoke_related_sts_priv_world.
     iSplit.
-    { iApply (interp_monotone_sd_same_heap W3 (revoke W4) with "[] Hseal_switcher Hinterp_W3_C_f").
+    { iApply (interp_monotone_sd W3 (revoke W4) with "[] Hseal_switcher Hinterp_W3_C_f").
       iPureIntro.
       eapply related_sts_priv_trans_world; last exact Hrelated_priv_W4.
       by apply related_sts_pub_priv_world.

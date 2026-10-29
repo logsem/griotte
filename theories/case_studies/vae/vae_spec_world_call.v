@@ -195,7 +195,7 @@ Section VAE_World_Call.
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:Hsealed; last done.
     destruct wg as [ [| [|] | |] π]; try discriminate.
     simpl in Hsealed; apply Z.eqb_eq, finz_to_z_eq in Hsealed as ->.
-    iApply (interp_monotone_sd_same_heap W W' with "[] Hseal Hg"); eauto.
+    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
   Qed.
 
   (** The callback [g], restored by the switcher after a call in the world
@@ -216,7 +216,7 @@ Section VAE_World_Call.
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:His_sealed; last done.
     destruct wg as [ [| [|] | |] π]; try discriminate.
     simpl in His_sealed; apply Z.eqb_eq, finz_to_z_eq in His_sealed as ->.
-    iApply (interp_monotone_sd_same_heap W W' with "[] Hseal Hg"); eauto.
+    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
   Qed.
 
   (** The world [W'] after a call is a public future world of the world [W]
@@ -340,7 +340,7 @@ Section VAE_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hseal Hinterp_C_f"); by iPureIntro. }
+    { iApply (interp_monotone_sd with "[] Hseal Hinterp_C_f"); by iPureIntro. }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

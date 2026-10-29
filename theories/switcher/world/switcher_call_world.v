@@ -256,7 +256,7 @@ Section Switcher_Call_World.
       destruct Hv as [Hv|Hv].
       + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
         destruct (decide (r ∈ _)) as [|Hcontra]; last set_solver+Hcontra Hr.
-        by iApply (interp_monotone_same_heap with "[%] Hv").
+        by iApply (interp_monotone with "[%] Hv").
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
         iApply interp_int.
     - iIntros (r v Hr Hv).

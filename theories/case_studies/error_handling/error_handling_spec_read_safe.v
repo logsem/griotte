@@ -452,8 +452,8 @@ Section Error_Handling_Read_Safe.
     { exact Hnodup. }
     { intros a Ha; apply Htemps; done. }
     iSplit.
-    - iApply (monotone.interp_monotone_same_heap W0 with "[] Hinterp_ca0"); done.
-    - iApply (monotone.interp_monotone_same_heap W0 with "[] Hinterp_ca1"); done.
+    - iApply (monotone.interp_monotone W0 with "[] Hinterp_ca0"); done.
+    - iApply (monotone.interp_monotone W0 with "[] Hinterp_ca1"); done.
   Qed.
 
   (** The unwind of [stats_read] for an unknown caller, from the world open

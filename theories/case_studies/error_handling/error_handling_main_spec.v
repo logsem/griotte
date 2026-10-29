@@ -646,7 +646,7 @@ Section Error_Handling_Main_Spec.
       by eapply revoke_related_sts_priv_world.
     iAssert (interp W1 C (WSealed ot_switcher adv_f)) as "#Hinterp_W1_adv".
     { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-      iApply (monotone.interp_monotone_sd_same_heap W0 W1 C with "[] Hseal_switcher Hinterp_adv").
+      iApply (monotone.interp_monotone_sd W0 W1 C with "[] Hseal_switcher Hinterp_adv").
       iPureIntro. exact Hrelated_priv_W0_W1. }
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0")
       as "Hstack_revoked_W1"; eauto.

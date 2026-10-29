@@ -654,8 +654,8 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
-    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
+    iSplit; first (iApply (interp_monotone_nl with "[] [] Hpcc"); eauto).
+    iSplit; first (iApply (interp_monotone_nl with "[] [] Hcgp"); eauto).
     iSplit.
     { iApply interp_stack_temporary; last done.
       - apply stack_disjoint_from_mmio.
@@ -664,7 +664,7 @@ Section adversary_world.
         by apply std_sta_update_multiple_lookup_in_i. }
     iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
-    by iApply (interp_monotone_sd_same_heap with "[] Hseal_pred Hv").
+    by iApply (interp_monotone_sd with "[] Hseal_pred Hv").
   Qed.
 
   (** Same as [initialise_adversary_world], but the switcher stack is
@@ -714,12 +714,12 @@ Section adversary_world.
       - intros a Ha; apply Hfree; by right.
       - intros a Ha; cbn in *; by rewrite not_elem_of_dom.
     }
-    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hpcc"); eauto).
-    iSplit; first (iApply (interp_monotone_nl_same_heap with "[] [] Hcgp"); eauto).
+    iSplit; first (iApply (interp_monotone_nl with "[] [] Hpcc"); eauto).
+    iSplit; first (iApply (interp_monotone_nl with "[] [] Hcgp"); eauto).
     iSplitL "Hrel_stk"; first by iApply StackWorldResources_from_rel_stack.
     iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
     destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & _).
-    by iApply (interp_monotone_sd_same_heap with "[] Hseal_pred Hv").
+    by iApply (interp_monotone_sd with "[] Hseal_pred Hv").
   Qed.
 
 End adversary_world.
