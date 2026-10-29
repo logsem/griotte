@@ -276,7 +276,6 @@ Section hts_obligations.
     { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
-    { by rewrite (adv_world_with_heap Temporary W1' swc B_cmpt). }
     { done. }
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.

@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost.
+From griotte Require Import world_interp_stack region_invariants.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
 From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
@@ -78,7 +78,7 @@ Section HTS_Spec_Dangling.
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
                  $Hcstk $Hcode_main]"); [done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
-      & %Hb_lookup & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
+      & _ & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
@@ -102,7 +102,7 @@ Section HTS_Spec_Dangling.
 
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
-    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hb_lookup Hstd_rev
+    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hstd_rev
       with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) (hts_Wfree_related Wret ι)

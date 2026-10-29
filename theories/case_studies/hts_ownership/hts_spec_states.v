@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost region_keys.
+From griotte Require Import world_interp_stack region_invariants region_keys.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Export code_blocks.
 
@@ -262,19 +262,21 @@ Section HTS_States.
     codefrag_pers pc_a hts_main_code.
 
   (** The world shared with the first adversary call: the stack is revoked
-      and the buffer [b] of [ι] is allocated and [Permanent]. *)
+      and the buffer [b] of [ι] is [Permanent]. *)
   Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
-    <s[LHeap b ι := Permanent]s>
-      (heap_std_update (revoke W_init_C) (heap_allocate ∅ ι b (b ^+ 1))).
+    <s[LHeap b ι := Permanent]s> (revoke W_init_C).
 
-  (** The world after freeing [ι] in the revoked world [Wret]. *)
+  (** The world after freeing [ι] in the revoked world [Wret]: the entry of
+      [b] is a tombstone. *)
   Definition hts_Wfree (Wret : WORLD) (ι : AId) : WORLD :=
-    heap_std_update (revoke Wret) (heap_quarantine (heap_std (revoke Wret)) ι).
+    revoke Wret.
 
-  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι]. *)
+  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι], whose key
+      is not in the revoked world. *)
   Definition hts_malloc_ok (a_ret : Addr) : iProp Σ :=
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
+      ⌜LHeap b ι ∉ dom (std (revoke W_init_C))⌝ ∗
       hts_frame a_ret (stk_start_a csp_b csp_e) ∗
       ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
@@ -329,7 +331,7 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
-      ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1) AllocObjectLive)⌝ ∗
+      alloc_obj ι b (b ^+ 1) ∗
       ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
       rel C (LHeap b ι) RW interp_in_memC ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗

@@ -183,7 +183,6 @@ Section vae_untrusted_entry_obligations.
         iSplit.
         + iApply interp_to_in_mem.
           iApply (interp_monotone_sd_same_heap W1' with "[]").
-          { by rewrite std_update_compartment_heap. }
           { iPureIntro.
             apply related_sts_pub_priv_world.
             eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done). }

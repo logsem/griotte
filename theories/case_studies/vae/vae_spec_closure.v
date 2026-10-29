@@ -25,20 +25,17 @@ Section VAE.
   Implicit Types C : CmptName.
   #[local] Notation V := (interpO Σ).
 
-  (** Quarantined addresses are heap addresses: they are disjoint from any
-      part of the stack. *)
-  #[local] Lemma vae_quarantined_disjoint_nonheap
-      (W : WORLD) (l : list LAddr) (stk : list Addr) :
-    Forall
-      (fun a => heap_key_status (heap_std W) a = Some AllocObjectQuarantined)
-      l ->
+  (** Tombstoned keys are heap keys: they are disjoint from any part of
+      the stack. *)
+  #[local] Lemma vae_quarantined_disjoint_nonheap (l : list LAddr) (stk : list Addr) :
+    Forall (λ a, ∃ x ι, a = LHeap x ι) l ->
     l ## (LNonHeap <$> stk).
   Proof.
     intros Hq.
     rewrite elem_of_disjoint. intros a Ha Hstk_a.
     apply list_elem_of_fmap in Hstk_a as [a' [-> _] ].
     rewrite Forall_forall in Hq.
-    specialize (Hq _ Ha). discriminate.
+    by destruct (Hq _ Ha) as (x & ι & ?).
   Qed.
 
   Lemma vae_awkward_spec
@@ -98,7 +95,7 @@ Section VAE.
        - [vae_world_flag_false]: the flag can be set to [false];
        - [vae_awkward_blocks_1_spec]: blocks 4-6, set the flag to [0], and
          jump to the switcher;
-       - [vae_world_quarantine]: close the quarantined revoked keys;
+       - [vae_world_quarantine]: close the tombstoned revoked keys;
        - [vae_world_stack], [vae_world_callback] and [vae_call_args]:
          prepare the first call to [g];
        - [switcher_cc_specification_alt]: first call to [g];
@@ -106,7 +103,7 @@ Section VAE.
          to [true];
        - [vae_awkward_blocks_2_spec]: blocks 7-9, set the flag to [1], and
          jump to the switcher;
-       - [vae_world_quarantine]: close the quarantined keys revoked by the
+       - [vae_world_quarantine]: close the tombstoned keys revoked by the
          first call;
        - [vae_world_stack], [vae_world_callback_restored] and
          [vae_call_args]: prepare the second call to [g];
@@ -194,12 +191,9 @@ Section VAE.
 
     (* Close the quarantined revoked keys *)
     iMod (vae_world_quarantine W0 W2 C l with "Hworld_interp_C Hrevoked_l")
-      as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_live & %Hl0_quarantined
+      as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_quarantined
                                     & Hworld_interp_C & Hl0_live)".
-    { reflexivity. }
     set (W2q := close_list l0_quarantined W2).
-    assert (heap_std W0 = heap_std W2q) as Hheap_W0_W2q.
-    { reflexivity. }
     assert (related_sts_priv_world W0 W2q) as Hpriv_W0_W2q.
     { eapply related_sts_priv_pub_trans_world; [exact Hpriv_W0_W2|].
       subst W2q. apply close_list_related_sts_pub. }
@@ -220,7 +214,7 @@ Section VAE.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_addrs_W0_free.
       by eapply vae_quarantined_disjoint_nonheap. }
     iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
-      [done|done|by case_match|].
+      [done|by case_match|].
     iDestruct (vae_call_args W2q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
@@ -290,12 +284,9 @@ Section VAE.
 
     (* Close the quarantined keys revoked by the first call *)
     iMod (vae_world_quarantine W3 W5 C l1 with "Hworld_interp_C Hrevoked_l1")
-      as (l1_live l1_quarantined) "(%Hl1_partition & %Hl1_live & %Hl1_quarantined
+      as (l1_live l1_quarantined) "(%Hl1_partition & %Hl1_quarantined
                                     & Hworld_interp_C & Hl1_live)".
-    { reflexivity. }
     set (W5q := close_list l1_quarantined W5).
-    assert (heap_std W5q = heap_std W3) as Hheap_W5q_W3.
-    { reflexivity. }
     assert (related_sts_priv_world W3 W5q) as Hpriv_W3_W5q.
     { eapply related_sts_priv_pub_trans_world; [exact Hpriv_W3_W5|].
       subst W5q. apply close_list_related_sts_pub. }
@@ -368,7 +359,6 @@ Section VAE.
            (finz.seq_between (stk_start_a csp_b csp_e) csp_e) stk_res
            with "[$Hworld_interp_C $Hstk_res]")
       as "(Hworld_interp_C & Hstk_res & %Hstk_res_W7)".
-    { apply Forall_forall; intros x _. apply heap_key_live_nonheap. }
     { apply Forall_forall; intros x Hx.
       destruct Hpriv_W0_W7 as [ [Hdom_W0_W7 _] _].
       apply Hdom_W0_W7. rewrite elem_of_dom.
