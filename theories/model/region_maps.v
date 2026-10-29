@@ -2,7 +2,7 @@ From iris.algebra Require Import auth excl agree gmap.
 From iris.base_logic.lib Require Import ghost_map saved_prop.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import named_props_extra.
-From griotte Require Import region_keys resources world_std_sts.
+From griotte Require Import region_keys resources world_std_sts heap_region.
 
 (** * Owned region maps
 
@@ -179,23 +179,6 @@ Section rmap.
   Context {Σ : gFunctors} `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ}
     `{!ghost_mapG Σ LAddr (gname * Perm)}.
 
-  (* TODO: move to model/heap_region.v *)
-  Definition heap_key_known (k : LAddr) : iProp Σ :=
-    match k with
-    | LNonHeap _ => True
-    | LHeap a ι => ∃ b e, alloc_obj ι b e ∗ ⌜a ∈ₐ [b, e)⌝
-    end%I.
-
-  (* TODO: move to model/heap_region.v *)
-  Definition heap_key_resource (k : LAddr) (P : iProp Σ) : iProp Σ :=
-    match k with
-    | LNonHeap _ => P
-    | LHeap _ ι => P ∨ ι ⊒ AQuar
-    end%I.
-
-  #[global] Instance heap_key_resource_ne k : NonExpansive (heap_key_resource k).
-  Proof. intros n P Q HPQ. destruct k; simpl; [done|]. by f_equiv. Qed.
-
   (** A key names a saved predicate: a persistent element of the map. *)
   Definition rmap_rel {A} `{!savedPredG Σ A} (γ : gname) (k : LAddr) (p : Perm)
       (φ : A → iProp Σ) : iProp Σ :=
@@ -213,31 +196,9 @@ Section rmap.
     ([∗ map] k ↦ γp ∈ M, k ↪[γ]□ γp ∗ heap_key_known k) ∗
     [∗ map] k ↦ γp ∈ M, if decide (k ∈ O) then emp else rentry body k γp.
 
-  #[global] Instance heap_key_known_persistent k : Persistent (heap_key_known k).
-  Proof. destruct k; apply _. Qed.
-
   #[global] Instance rmap_rel_persistent {A} `{!savedPredG Σ A} γ k p (φ : A → iProp Σ) :
     Persistent (rmap_rel γ k p φ).
   Proof. apply _. Qed.
-
-  Lemma heap_key_resource_mono k (P Q : iProp Σ) :
-    (P -∗ Q) -∗ heap_key_resource k P -∗ heap_key_resource k Q.
-  Proof.
-    iIntros "HPQ H". destruct k; simpl; [by iApply "HPQ"|].
-    iDestruct "H" as "[H|H]"; [iLeft; by iApply "HPQ"|by iRight].
-  Qed.
-
-  Lemma heap_key_open_cases k (P : iProp Σ) :
-    heap_key_resource k P ⊢ P ∨ ∃ a ι, ⌜k = LHeap a ι⌝ ∗ ι ⊒ AQuar.
-  Proof.
-    destruct k as [a|a ι]; simpl; iIntros "H"; [by iLeft|].
-    iDestruct "H" as "[H|#Hq]"; [by iLeft|].
-    iRight. iExists a, ι. iSplit; [done|iExact "Hq"].
-  Qed.
-
-  Lemma heap_key_close_tomb a ι (P : iProp Σ) :
-    ι ⊒ AQuar ⊢ heap_key_resource (LHeap a ι) P.
-  Proof. iIntros "Hq". rewrite /heap_key_resource /=. by iRight. Qed.
 
   Lemma sepM_split_set {B} (M : gmap LAddr B) (S : gset LAddr) (Φ : LAddr → B → iProp Σ) :
     ([∗ map] k ↦ x ∈ M, Φ k x) ⊣⊢

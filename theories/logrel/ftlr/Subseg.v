@@ -46,8 +46,8 @@ Section fundamental.
       { destruct (decide (r = cnull)) as [->|Hnull].
         + rewrite llookup_reg_cnull /lnull in Hr. simplify_eq.
         + rewrite llookup_reg_not_cnull // in Hr. iApply "Hreg"; eauto. }
-      iDestruct (interp_cap_heap_conditions with "Hr") as %[Hvalid _].
-      iPureIntro. exact (Hvalid Hlt). }
+      iDestruct (interp_cap_heap_conditions with "Hr") as "[#Hvalid _]".
+      by iApply "Hvalid". }
     assert (subseg_root_free regs src r1 r2) as Hroot.
     { intros t0 p0 g0 b0 e0 a0 a1 a2 Hsrc Ha1 Ha2 Ht Hlt.
       apply andb_true_iff in Ht as [Ht Hle]. apply andb_true_iff in Ht as [-> Hwi].

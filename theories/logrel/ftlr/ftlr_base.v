@@ -137,7 +137,7 @@ Section fundamental.
     ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C FaultedV.
   Proof.
     iIntros (Hfull) "HPC Hregs Hreg Hworld".
-    iExists W. iFrame. iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iExists W. iFrame "HPC Hregs Hworld". iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
     by iApply (interp_reg_intro with "Hreg").
   Qed.
 

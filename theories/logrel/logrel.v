@@ -85,36 +85,16 @@ Section logrel.
   Qed.
 
 
-  (** The CLoad filter as the world sees it. A word with heap authority and an
-      identifier [ι] loads untagged once the world has [ι] Quarantined;
-      every other word loads unchanged. The lookup is by the word's
-      identifier, not by address. *)
-  Definition filter_heap (W : WORLD) (w : LWord) : LWord :=
-    match heap_authority_base w.(lw), w.(lprov) with
-    | Some _, Some ι =>
-        match heap_std W !! ι with
-        | Some o =>
-            match alloc_object_status o with
-            | AllocObjectLive => w
-            | AllocObjectQuarantined => lclear_tag w
-            end
-        | None => w
-        end
-    | _, _ => w
-    end.
-
   (* interp expression definitions *)
   Definition registers_pointsto (r : LReg) : iProp Σ :=
     (regs[th] r)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
-  (** Each register is safe once filtered by the world: a register word with
-      heap authority whose identifier the world has Quarantined is only
-      required to be safe untagged. *)
+  (** Each register is safe. *)
   Program Definition interp_reg (interp : V) : R :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg ∧
-       ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C (filter_heap W v)))%I.
+       ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C v))%I.
   Solve All Obligations with solve_proper.
 
   (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
@@ -272,78 +252,20 @@ Section logrel.
     by repeat f_equiv.
   Qed.
 
-  Lemma filter_heap_nonheap W w :
-    heap_authority_base w.(lw) = None -> filter_heap W w = w.
-  Proof. intros Hw. by rewrite /filter_heap Hw. Qed.
-
-  Lemma filter_heap_noid W w :
-    w.(lprov) = None -> filter_heap W w = w.
-  Proof. intros Hw. rewrite /filter_heap Hw. by destruct (heap_authority_base _). Qed.
-
-  Lemma filter_heap_live W w ι o :
-    w.(lprov) = Some ι ->
-    heap_std W !! ι = Some o ->
-    alloc_object_status o = AllocObjectLive -> filter_heap W w = w.
-  Proof.
-    intros Hι Hlookup Hstatus. rewrite /filter_heap Hι Hlookup Hstatus.
-    by destruct (heap_authority_base _).
-  Qed.
-
-  Lemma filter_heap_quarantined W w b ι o :
-    heap_authority_base w.(lw) = Some b ->
-    w.(lprov) = Some ι ->
-    heap_std W !! ι = Some o ->
-    alloc_object_status o = AllocObjectQuarantined -> filter_heap W w = lclear_tag w.
-  Proof. intros Hb Hι Hlookup Hstatus. by rewrite /filter_heap Hb Hι Hlookup Hstatus. Qed.
-
-  Lemma filter_heap_result W w :
-    filter_heap W w = w ∨ filter_heap W w = lclear_tag w.
-  Proof.
-    rewrite /filter_heap. destruct (heap_authority_base _) as [b|]; last by left.
-    destruct (lprov w) as [ι|]; last by left.
-    destruct (heap_std W !! ι) as [o|]; last by left.
-    destruct (alloc_object_status o); [by left | by right].
-  Qed.
-
-  (** The filter strips a tag only from a quarantined identifier's word with
-      authority. *)
-  Lemma filter_heap_cleared W w :
-    filter_heap W w ≠ w ->
-    ∃ b ι o, heap_authority_base w.(lw) = Some b ∧ w.(lprov) = Some ι ∧
-             heap_std W !! ι = Some o ∧ alloc_object_status o = AllocObjectQuarantined.
-  Proof.
-    rewrite /filter_heap. intros Hne.
-    destruct (heap_authority_base _) as [b|]; last done.
-    destruct (lprov w) as [ι|]; last done.
-    destruct (heap_std W !! ι) as [o|] eqn:Ho; last done.
-    destruct (alloc_object_status o) eqn:Hs; first done. eauto 10.
-  Qed.
-
-  Lemma filter_heap_untagged W w :
-    get_tag w.(lw) = false -> filter_heap W w = w.
-  Proof.
-    intros Htag. destruct (filter_heap_result W w) as [-> | ->]; first done.
-    by apply lclear_tag_untagged.
-  Qed.
-
-  Lemma filter_heap_lclear_tag W w :
-    filter_heap W (lclear_tag w) = lclear_tag w.
-  Proof. apply filter_heap_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag. Qed.
-
   (** A saved register has the result of a CLoad in the current world.
       The load outcome depends on the shadow, while the second conjunct
       records the world fact needed when its tag is retained. *)
   Definition load_heap_in_world (W : WORLD) (saved actual : LWord) : Prop :=
-    load_heap saved actual ∧ filter_heap W actual = actual.
+    load_heap saved actual.
 
   Lemma load_heap_in_world_nonheap W saved actual :
     is_heap_cap saved.(lw) = false ->
     load_heap_in_world W saved actual -> actual = saved.
-  Proof. intros Hnonheap [Hloaded _]. exact (load_heap_nonheap saved actual Hnonheap Hloaded). Qed.
+  Proof. intros Hnonheap Hloaded. exact (load_heap_nonheap saved actual Hnonheap Hloaded). Qed.
 
   Definition interp_in_mem_pre
     (W : WORLD) (C : CmptName) (p : Perm) (interp : V) (w : LWord) : iProp Σ :=
-    interp W C (filter_heap W (lload_word p w)).
+    interp W C (lload_word p w).
 
   #[global] Instance interp_in_mem_pre_ne W C p w :
     NonExpansive (λ interp, interp_in_mem_pre W C p interp w).
@@ -836,93 +758,83 @@ Section logrel.
   (** Interp trivially holds for integers. *)
   Definition interp_z : V := λne _ _ w, ⌜match w.(lw) with WInt z => True | _ => False end⌝%I.
 
-  (** Heap authority belongs to the live object of the word's identifier [ι],
-      whose range covers both bounds. *)
-  Definition heap_cap_live (W : WORLD) (p : Perm) (b e : Addr) (ι : AId) : Prop :=
-    ∃ o, heap_std W !! ι = Some o ∧
-         alloc_object_status o = AllocObjectLive ∧
-         (alloc_object_base o <= b)%a ∧ (e <= alloc_object_end o)%a ∧
-         executeAllowed p = false ∧ isWL p = false.
+  (** Heap authority belongs to the object of the word's identifier [ι],
+      whose recorded range covers both bounds. An empty or reversed
+      capability carries no memory authority; one without an identifier
+      stays clear of the heap. *)
+  Definition heap_cap_ok (p : Perm) (b e : Addr) (π : option AId) : iProp Σ :=
+    (⌜(b < e)%a⌝ →
+     match π with
+     | Some ι =>
+         ⌜is_heap_address b = true ∧ executeAllowed p = false ∧ isWL p = false⌝ ∗
+         ∃ bo eo, alloc_obj ι bo eo ∗ ⌜(bo <= b)%a ∧ (e <= eo)%a⌝
+     | None => ⌜disjoint_from_heap b e⌝
+     end)%I.
 
-  (** Empty and reversed ordinary capabilities carry no memory authority.
-      A non-empty capability with an identifier has a heap base and is live;
-      one without an identifier stays clear of the heap. *)
-  Definition heap_cap_valid (W : WORLD) (p : Perm) (b e : Addr) (π : option AId) : Prop :=
-    (b < e)%a ->
-    match π with
-    | Some ι => is_heap_address b = true ∧ heap_cap_live W p b e ι
-    | None => disjoint_from_heap b e
-    end.
+  #[global] Instance heap_cap_ok_persistent p b e π : Persistent (heap_cap_ok p b e π).
+  Proof. rewrite /heap_cap_ok. destruct π; apply _. Qed.
 
-  Lemma heap_cap_valid_key_status W p b e π a :
-    heap_cap_valid W p b e π -> a ∈ finz.seq_between b e ->
-    heap_key_status (heap_std W) (addr_key π a) = Some AllocObjectLive.
+  #[global] Instance heap_cap_ok_timeless p b e π : Timeless (heap_cap_ok p b e π).
+  Proof. rewrite /heap_cap_ok. destruct π; apply _. Qed.
+
+  (** The key of an address of a capability with an identifier is known. *)
+  Lemma heap_cap_ok_id p b e ι :
+    (b < e)%a →
+    heap_cap_ok p b e (Some ι) -∗
+    ⌜is_heap_address b = true ∧ executeAllowed p = false ∧ isWL p = false⌝.
+  Proof. iIntros (Hbe) "Hok". by iDestruct ("Hok" with "[%]") as "[$ _]". Qed.
+
+  Lemma heap_cap_ok_key_known p b e π a :
+    a ∈ finz.seq_between b e ->
+    heap_cap_ok p b e π -∗ heap_key_known (addr_key π a).
   Proof.
-    intros Hvalid Ha. apply elem_of_finz_seq_between in Ha.
-    specialize (Hvalid ltac:(solve_addr)).
-    destruct π as [ι|]; last done.
-    destruct Hvalid as (_ & o & Hι & Hlive & Hb & He & _).
-    rewrite addr_key_Some (heap_key_status_lookup _ _ _ o) // ?Hlive //.
-    rewrite /alloc_object_contains. solve_addr.
+    iIntros (Ha) "#Hok". apply elem_of_finz_seq_between in Ha.
+    destruct π as [ι|]; last by rewrite addr_key_None.
+    iDestruct ("Hok" with "[%]") as "[_ (%bo & %eo & #Hobj & %Hbo)]"; first solve_addr.
+    rewrite addr_key_Some. iExists bo, eo. iFrame "Hobj". iPureIntro. solve_addr.
   Qed.
-
-  Lemma heap_cap_valid_key_live W p b e π a :
-    heap_cap_valid W p b e π -> a ∈ finz.seq_between b e ->
-    heap_key_live (heap_std W) (addr_key π a).
-  Proof. apply heap_cap_valid_key_status. Qed.
 
   (** Tagged O capabilities retain authority to free their heap payload.
       Nonheap ranges must stay disjoint from the heap under narrowing. *)
   Definition heap_cap_O_valid (W : WORLD) (p : Perm) (g : Locality)
-      (b e : Addr) (π : option AId) : Prop :=
-    heap_cap_valid W p b e π ∧
-    ∀ a, a ∈ finz.seq_between b e ->
-      is_heap_address a = true -> region_state_nwl W (addr_key π a) g.
+      (b e : Addr) (π : option AId) : iProp Σ :=
+    heap_cap_ok p b e π ∗
+    ⌜∀ a, a ∈ finz.seq_between b e ->
+      is_heap_address a = true -> region_state_nwl W (addr_key π a) g⌝.
+
+  #[global] Instance heap_cap_O_valid_persistent W p g b e π :
+    Persistent (heap_cap_O_valid W p g b e π).
+  Proof. apply _. Qed.
 
   Program Definition interp_cap_O : V := λne W _ w,
-    ⌜match w.(lw) with
+    (match w.(lw) with
       | Cap p g b e a => heap_cap_O_valid W p g b e w.(lprov)
       | _ => True
-      end⌝%I.
+      end)%I.
   Solve All Obligations with solve_proper.
 
-  Lemma heap_cap_valid_disjoint W p b e :
-    disjoint_from_heap b e -> heap_cap_valid W p b e None.
-  Proof. by intros Hdisjoint Hnonempty. Qed.
+  Lemma heap_cap_ok_disjoint p b e :
+    disjoint_from_heap b e -> ⊢ heap_cap_ok p b e None.
+  Proof. iIntros (Hdisjoint Hnonempty). done. Qed.
 
-  (** The key of an address of a valid capability is live in the world: the
-      object's key when the capability has an identifier, a non-heap key
-      otherwise. *)
-  Lemma heap_cap_valid_addr_live W p b e π ea :
-    withinBounds b e ea = true ->
-    heap_cap_valid W p b e π ->
-    heap_key_live (heap_std W) (addr_key π ea).
-  Proof.
-    intros Hbounds Hvalid. eapply heap_cap_valid_key_live; first done.
-    apply elem_of_finz_seq_between. by apply withinBounds_true_iff in Hbounds.
-  Qed.
-
-  (** A valid capability over a heap payload names the live object covering
-      it, and every cell of the payload is a live, non-revoked key of the
-      world. *)
+  (** A valid capability over a heap payload names the object covering it,
+      and every cell of the payload is a non-revoked key of the world. *)
   Lemma free_heap_cap_payload W p g b e π :
     (heap_b < b ∧ b < e ∧ e <= heap_e)%a ->
-    heap_cap_O_valid W p g b e π ->
-    ∃ ι o, π = Some ι ∧ heap_std W !! ι = Some o ∧
-      alloc_object_status o = AllocObjectLive ∧
-      (alloc_object_base o <= b)%a ∧ (e <= alloc_object_end o)%a ∧
-      Forall (λ x, heap_key_live (heap_std W) (LHeap x ι) ∧
-        ∃ ρ, ρ ≠ Revoked ∧ std W !! LHeap x ι = Some ρ) (finz.seq_between b e).
+    heap_cap_O_valid W p g b e π -∗
+    ∃ ι bo eo, ⌜π = Some ι⌝ ∗ alloc_obj ι bo eo ∗
+      ⌜(bo <= b)%a ∧ (e <= eo)%a⌝ ∗
+      ⌜Forall (λ x, ∃ ρ, ρ ≠ Revoked ∧ std W !! LHeap x ι = Some ρ) (finz.seq_between b e)⌝.
   Proof.
-    intros (Hb & Hbe & He) (Hvalid & Hcoverage).
-    pose proof (Hvalid Hbe) as Hlive.
+    iIntros ((Hb & Hbe & He)) "[#Hok %Hcoverage]".
+    iDestruct ("Hok" with "[%]") as "Hlive"; first done.
     destruct π as [ι|]; last first.
-    { exfalso. rewrite /disjoint_from_heap elem_of_disjoint in Hlive.
+    { iDestruct "Hlive" as %Hlive. exfalso. rewrite /disjoint_from_heap elem_of_disjoint in Hlive.
       eapply (Hlive b); apply elem_of_finz_seq_between; solve_addr. }
-    destruct Hlive as (_ & o & Hι & Hstatus & Hbase & Hend & _).
-    exists ι, o. do 5 (split; first done).
-    apply Forall_forall. intros x Hx. split.
-    { by eapply (heap_cap_valid_key_live W p b e (Some ι)). }
+    iDestruct "Hlive" as "[_ (%bo & %eo & #Hobj & %Hbo)]".
+    iExists ι, bo, eo. iFrame "Hobj". do 2 (iSplit; first done).
+    iPureIntro.
+    apply Forall_forall. intros x Hx.
     assert (Hxheap : is_heap_address x = true).
     { apply withinBounds_true_iff.
       apply elem_of_finz_seq_between in Hx. solve_addr. }
@@ -1005,7 +917,7 @@ Section logrel.
                 => False
               | WCap t p g b e a =>
                   interp_cap_body interp W C p g b e w.(lprov)
-                  ∗ ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e w.(lprov)⌝
+                  ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov)
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -1021,7 +933,7 @@ Section logrel.
      might not be possible.
    *)
   Definition unseal_cond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : LWord), P W C (lforce_global w) -∗ interp W C (filter_heap W w)).
+    (□ ∀ (W: WORLD) (w : LWord), P W C (lforce_global w) -∗ interp W C w).
   #[global] Instance unseal_cond_ne n :
     Proper ((=) ==> (=) ==> dist n ==> dist n) unseal_cond.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
@@ -1066,10 +978,10 @@ Section logrel.
       identifier. *)
   Program Definition interp_sb (W : WORLD) (C : CmptName) (o : OType) (w : LWord) : iPropO Σ :=
     (sts_seals_std C o {[w ; lborrow w ]} ∗
-     ⌜match w.(lw) with
-       | Cap p g b e a => heap_cap_valid W p b e w.(lprov)
+     match w.(lw) with
+       | Cap p g b e a => heap_cap_ok p b e w.(lprov)
        | _ => True
-       end⌝)%I.
+       end)%I.
   Solve All Obligations with solve_proper.
 
   (** Definition of interp, pre-fixpoint. Untagged words are safe data.
@@ -1112,9 +1024,9 @@ Section logrel.
     | |- context [WCap _ ?p ?g _ _ _] =>
         change (dist n
           (interp_cap_body x W C p g b e π ∗
-            ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝)%I
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I
           (interp_cap_body y W C p g b e π ∗
-            ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝)%I);
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I);
         f_equiv; exact (interp_cap_body_contractive W C p g b e π n x y Hdist)
     end.
   Qed.
@@ -1159,7 +1071,7 @@ Section logrel.
   Solve All Obligations with solve_proper.
 
   Lemma interp_in_mem_eq p W C w :
-    interp_in_mem p W C w ≡ interp W C (filter_heap W (lload_word p w)).
+    interp_in_mem p W C w ≡ interp W C (lload_word p w).
   Proof. reflexivity. Qed.
   Definition interp_continuation : K := interp_cont interp.
   Program Definition interp_expression : E :=
@@ -1193,88 +1105,6 @@ Section logrel.
   Lemma interp_clear_tag W C w : ⊢ interp W C (lclear_tag w).
   Proof. apply interp_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag. Qed.
 
-  (** The world's filter preserves safety. *)
-  Lemma interp_filter_heap W C w :
-    interp W C w -∗ interp W C (filter_heap W w).
-  Proof.
-    iIntros "Hw". destruct (filter_heap_result W w) as [-> | ->]; first done.
-    iApply interp_clear_tag.
-  Qed.
-
-  Lemma world_interp_heap_provenance W C :
-    world_interp W C -∗ world_interp W C ∗ heap_provenance (heap_std W).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "@".
-    iDestruct (region_heap_provenance with "Hr") as "[Hr #Hprov]".
-    by iFrame "∗#".
-  Qed.
-
-  (** A register can be replaced by its filtered word: the filter clears
-      only words with authority whose identifier is quarantined, and those
-      already have an untagged physical copy. *)
-  Lemma reg_refilter_world E W r v :
-    heap_provenance (heap_std W) -∗
-    r ↦ᵣ[th] v -∗
-    |~{E}~> r ↦ᵣ[th] filter_heap W v.
-  Proof.
-    iIntros "#Hprov Hr".
-    destruct (decide (filter_heap W v = v)) as [Heq | Hne].
-    { rewrite Heq. by iModIntro. }
-    destruct (filter_heap_cleared W v Hne) as (b & ι & o & Hb & Hι & Ho & Hq).
-    rewrite (filter_heap_quarantined W v b ι o) //.
-    iDestruct (heap_provenance_quarantined with "Hprov") as "#Hquar"; [done | done |].
-    destruct (get_tag v.(lw)) eqn:Htag.
-    - iApply (reg_refilter with "Hquar Hr"); [split; eauto | done].
-    - rewrite lclear_tag_untagged //. by iModIntro.
-  Qed.
-
-  (** A register file safe up to the world's filter is replaced by its
-      filtered words, which are safe. *)
-  Lemma registers_refilter E W C (regs : LReg) :
-    world_interp W C -∗
-    registers_pointsto regs -∗
-    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C (filter_heap W v)) -∗
-    |~{E}~>
-    world_interp W C ∗
-    registers_pointsto (filter_heap W <$> regs) ∗
-    (∀ (r : RegName) (v : LWord), ⌜(filter_heap W <$> regs) !! r = Some v⌝ → interp W C v).
-  Proof.
-    iIntros "Hworld Hregs Hsafe".
-    iDestruct (world_interp_heap_provenance with "Hworld") as "[Hworld #Hprov]".
-    iAssert (|~{E}~> [∗ map] r↦v ∈ regs, r ↦ᵣ filter_heap W v)%I
-      with "[Hregs]" as ">Hregs".
-    { iInduction regs as [|r v regs Hr] "IH" using map_ind.
-      - iModIntro. by rewrite big_sepM_empty.
-      - iDestruct (big_sepM_insert with "Hregs") as "[Hr Hregs]"; first done.
-        iMod (reg_refilter_world with "Hprov Hr") as "Hr".
-        iMod ("IH" with "Hregs") as "Hregs".
-        iModIntro. rewrite big_sepM_insert //. iFrame. }
-    iModIntro. rewrite /registers_pointsto big_sepM_fmap. iFrame.
-    iIntros (r v Hv). apply lookup_fmap_Some in Hv as (v0 & <- & Hv0).
-    by iApply "Hsafe".
-  Qed.
-
-  (** Running from a register file safe up to the world's filter reduces to
-      running from a register file whose words are safe. *)
-  Lemma interp_reg_refilter W C (regs : LReg) :
-    interp_reg interp W C regs -∗
-    registers_pointsto regs -∗
-    world_interp W C -∗
-    (∀ (regs' : LReg),
-        full_map regs' -∗
-        (∀ (r : RegName) (v : LWord), ⌜regs' !! r = Some v⌝ → interp W C v) -∗
-        registers_pointsto regs' -∗
-        world_interp W C -∗
-        safe[th]) -∗
-    safe[th].
-  Proof.
-    iIntros "[%Hfull Hsafe] Hregs Hworld Hcont".
-    iMod (registers_refilter with "Hworld Hregs Hsafe") as "(Hworld & Hregs & Hsafe)".
-    iApply ("Hcont" with "[] Hsafe Hregs Hworld").
-    iIntros (r). iPureIntro. rewrite lookup_fmap. by destruct (Hfull r) as [? ->].
-  Qed.
-
   Lemma interp_int W C z π : ⊢ interp W C (WInt z @@? π).
   Proof. by apply interp_untagged. Qed.
 
@@ -1283,7 +1113,6 @@ Section logrel.
 
   Lemma interp_lnull W C : ⊢ interp W C lnull.
   Proof. by apply interp_untagged. Qed.
-
 
   (** We have, and we _WANT_, [interp] to be Persistent *)
   #[global] Instance interp_persistent W C w : Persistent (interp W C w).
@@ -1300,9 +1129,10 @@ Section logrel.
                 | |- context [WCap _ ?p ?g _ _ _] =>
                     change (Persistent
                       (interp_cap_body interp W C p g b e π ∗
-                        ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝)%I);
+                        ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I);
                     apply _
-                end ].
+                end
+              | (cbn; apply _) ].
     - change (Persistent
         ((if permit_seal sr
           then safe_to_seal W C interp b e else True) ∗
@@ -1315,7 +1145,7 @@ Section logrel.
         destruct t; cbn in Htag; try discriminate; apply _.
   Qed.
 
-  (** A full register file of safe words is safe up to the world's filter. *)
+  (** A full register file of safe words is safe. *)
   Lemma interp_reg_intro W C (regs : LReg) :
     (∀ r, is_Some (regs !! r)) →
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
@@ -1323,7 +1153,7 @@ Section logrel.
   Proof.
     iIntros (Hfull) "#Hregs".
     iSplit; first (iIntros (r); iPureIntro; apply Hfull).
-    iIntros (r v Hv). iApply interp_filter_heap. by iApply "Hregs".
+    iIntros (r v Hv). by iApply "Hregs".
   Qed.
 
   (** Register maps: a write to [cnull] is dropped, a read of [cnull] is an
@@ -1370,25 +1200,21 @@ Section logrel.
 
   Lemma interp_to_in_mem W C w : interp W C w -∗ interp_in_mem RWL W C w.
   Proof.
-    change (⊢ interp W C w -∗ interp W C (filter_heap W (lload_word RWL w)))%I.
+    change (⊢ interp W C w -∗ interp W C (lload_word RWL w))%I.
     replace (lload_word RWL w) with w by (destruct w; done).
-    destruct (filter_heap_result W w) as [-> | ->].
-    - iIntros "$".
-    - iIntros "_". iApply interp_clear_tag.
+    iIntros "$".
   Qed.
 
-  (** The observed load must justify retaining the tag. [load_heap] alone
-      does not supply this evidence. *)
+  (** A loaded word is either untagged or the loaded word itself. *)
   Lemma interp_in_mem_load_result W C p raw actual :
-    actual = lclear_tag (lload_word p raw) ∨
-      (actual = lload_word p raw ∧ filter_heap W (lload_word p raw) = lload_word p raw) ->
+    actual = lclear_tag (lload_word p raw) ∨ actual = lload_word p raw ->
     interp_in_mem p W C raw -∗ interp W C actual.
   Proof.
-    intros [Hactual | [Hactual Hfilter] ]; subst actual.
+    intros [Hactual | Hactual]; subst actual.
     - iIntros "_". iApply interp_clear_tag.
-    - change (⊢ interp W C (filter_heap W (lload_word p raw)) -∗
+    - change (⊢ interp W C (lload_word p raw) -∗
         interp W C (lload_word p raw))%I.
-      rewrite Hfilter. iIntros "$".
+      iIntros "$".
   Qed.
 
 
@@ -1414,7 +1240,7 @@ Section logrel.
                     ∗ monoReq W C (addr_key π a) p' P
                     ∗ ⌜ if isWL p then region_state_pwl W (addr_key π a) else region_state_nwl W (addr_key π a) g⌝)
                ∗ ⌜(if isWL p then g = Local else True) ∧
-                    disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝)%I).
+                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I).
   Proof.
     pose proof (interp_cap_body_eq interp W C p g b e π) as Hbody.
     destruct p as [rx wp dl dro].
@@ -1429,9 +1255,6 @@ Section logrel.
     all: rewrite ?bi.sep_False ?bi.False_sep.
     all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
       ⌜revoker_addr ∉ finz.seq_between b e⌝) -?bi.pure_and.
-    all: rewrite -?(bi.persistent_and_sep
-      ⌜disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e⌝
-      ⌜heap_cap_valid W _ b e π⌝) -?bi.pure_and.
     all: reflexivity.
   Qed.
 
@@ -1439,36 +1262,25 @@ Section logrel.
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a π :
     isO p = false →
     interp W C (Cap p g b e a @@? π) -∗
-    ⌜disjoint_from_mmio b e ∧ heap_cap_valid W p b e π⌝.
+    ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π.
   Proof.
     iIntros (HnonO) "Hinterp".
     rewrite interp_unfold interp1_eq HnonO.
     destruct (has_sreg_access p); first done.
-    iDestruct "Hinterp" as "[_ %Hregions]".
-    iPureIntro. naive_solver.
-  Qed.
-
-  Lemma interp_cap_addr_live W C p g b e a ea π :
-    isO p = false ->
-    withinBounds b e ea = true ->
-    interp W C (Cap p g b e a @@? π) -∗
-    ⌜heap_key_live (heap_std W) (addr_key π ea)⌝.
-  Proof.
-    iIntros (Hp Hbounds) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid]; first done.
-    iPureIntro. eapply heap_cap_valid_addr_live; eauto.
+    iDestruct "Hinterp" as "[_ [%Hregions #Hok]]".
+    iFrame "Hok". iPureIntro. naive_solver.
   Qed.
 
   Lemma interp_cap_heap_conditions W C p g b e a π :
     interp W C (Cap p g b e a @@? π) -∗
-    ⌜heap_cap_O_valid W p g b e π⌝.
+    heap_cap_O_valid W p g b e π.
   Proof.
     rewrite interp_unfold interp1_eq.
     destruct (isO p); first by iIntros "$".
     destruct (has_sreg_access p); first by iIntros "H".
-    iIntros "[#Hlist %Hconditions]".
+    iIntros "[#Hlist [%Hconditions #Hok]]".
     rewrite /heap_cap_O_valid.
-    iSplit; first (iPureIntro; exact (proj2 (proj2 Hconditions))).
+    iFrame "Hok".
     iIntros (x Hx Hheap).
     iDestruct (big_sepL_elem_of with "Hlist") as (q P)
       "(Hflow & Hpers & Hrel & Hz & Hr & Hw & Hmono & %Hstate)";
@@ -1483,14 +1295,15 @@ Section logrel.
     ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hexec) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
+    iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow #Hheap]";
       first by eapply executeAllowed_nonO.
-    iPureIntro. split; first done.
+    iSplit; first done.
     destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
-    { rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
-    specialize (Hheap Hnonempty).
+    { iPureIntro. rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
+    iDestruct ("Hheap" with "[%]") as "Hheap'"; first done.
     destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & Hnonexec & Hnotwl). congruence.
+    iDestruct "Hheap'" as "[%Hconds _]". exfalso.
+    destruct Hconds as (_ & Hnonexec & Hnotwl). congruence.
   Qed.
 
   Lemma interp_cap_disjoint_wl (W : WORLD) (C : CmptName) p g b e a π :
@@ -1499,14 +1312,15 @@ Section logrel.
     ⌜disjoint_from_mmio b e ∧ disjoint_from_heap b e⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap];
+    iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow #Hheap]";
       first (apply isWL_nonO; exact Hwl).
-    iPureIntro. split; first done.
+    iSplit; first done.
     destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
-    { rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
-    specialize (Hheap Hnonempty).
+    { iPureIntro. rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
+    iDestruct ("Hheap" with "[%]") as "Hheap'"; first done.
     destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & Hnonexec & Hnotwl). congruence.
+    iDestruct "Hheap'" as "[%Hconds _]". exfalso.
+    destruct Hconds as (_ & Hnonexec & Hnotwl). congruence.
   Qed.
 
   Lemma interp_cap_not_shadow (W : WORLD) (C : CmptName) p g b e a a' π :
@@ -1515,7 +1329,7 @@ Section logrel.
     interp W C (Cap p g b e a @@? π) -∗ ⌜is_shadow_address a' = false⌝.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[Hshadow Hheap]; auto.
+    iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow _]"; auto.
     iPureIntro. eapply disjoint_from_shadow_not_in; last eauto.
     by apply disjoint_from_mmio_shadow.
   Qed.
@@ -1526,7 +1340,7 @@ Section logrel.
     interp W C (Cap p g b e a @@? π) -∗ ⌜is_mmio_address a' = false⌝.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[Hmmio Hheap]; auto.
+    iDestruct (interp_cap_regions with "Hinterp") as "[%Hmmio _]"; auto.
     iPureIntro. eapply disjoint_from_mmio_not_in; eauto.
   Qed.
 
@@ -1545,7 +1359,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hwa ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
@@ -1574,7 +1388,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
     pose proof (readAllowed_flowsto _ _ Hfl' Ra) as Ra'.
@@ -1642,7 +1456,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply readAllowed_nonO in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
@@ -1672,7 +1486,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Ra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & _)";eauto.
     pose proof (writeAllowed_flowsto _ _ Hfl' Ra) as Ra'.
@@ -1749,7 +1563,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hra ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
@@ -1782,7 +1596,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply writeAllowed_nonO in Hwa ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     iPureIntro.
@@ -1804,7 +1618,7 @@ Section logrel.
     replace (isO p) with false.
     2: { eapply isWL_nonO in Hp ;done. }
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp %Hloc]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
     iDestruct (extract_from_region_inv with "Hinterp")
              as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate)";eauto.
     by rewrite Hp in Hstate.
@@ -1844,14 +1658,14 @@ Section logrel.
     ⌜Forall (λ a', addr_key π a' = LNonHeap a') (finz.seq_between b e)⌝.
   Proof.
     iIntros (Hwl) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid];
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hvalid]";
       first by apply isWL_nonO.
-    iPureIntro. apply Forall_forall. intros a' Ha'.
-    assert (b < e)%a as Hlt.
-    { apply elem_of_finz_seq_between in Ha'. solve_addr. }
-    specialize (Hvalid Hlt).
-    destruct π as [ι|]; last done.
-    destruct Hvalid as (_ & o & _ & _ & _ & _ & _ & Hnwl). congruence.
+    destruct π as [ι|]; last first.
+    { iPureIntro. apply Forall_forall. intros a' Ha'. done. }
+    destruct (decide (b < e)%a) as [Hlt|Hge]; last first.
+    { iPureIntro. rewrite finz_seq_between_empty; [done|solve_addr]. }
+    iDestruct (heap_cap_ok_id with "Hvalid") as %(_ & _ & Hnwl); first done.
+    congruence.
   Qed.
 
 
@@ -1912,12 +1726,12 @@ Section logrel.
   Proof.
     iIntros (Hpc) "Hinterp".
     assert (executeAllowed p = true) as Hexec by (by inversion Hpc).
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hvalid];
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hvalid]";
       first by eapply executeAllowed_nonO.
-    iPureIntro. destruct π as [ι|]; last done.
+    destruct π as [ι|]; last done.
     pose proof (isCorrectPC_withinBounds _ _ _ _ _ _ Hpc) as Hwb.
     apply withinBounds_true_iff in Hwb.
-    destruct (Hvalid ltac:(solve_addr)) as (_ & o & _ & _ & _ & _ & Hnexec & _).
+    iDestruct (heap_cap_ok_id with "Hvalid") as %(_ & Hnexec & _); first solve_addr.
     congruence.
   Qed.
 
@@ -1967,7 +1781,7 @@ Section logrel.
       replace (isO c) with false.
       2: { eapply readAllowed_nonO in Hrar ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
-      iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
+      iDestruct "Hinterp_w" as "[Hinterp_w [%Hc_cond _]]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
@@ -1986,7 +1800,7 @@ Section logrel.
       replace (isO c) with false.
       2: { eapply writeAllowed_nonO in Hwaw ;done. }
       destruct (has_sreg_access c) eqn:HnXSR; auto.
-      iDestruct "Hinterp_w" as "[Hinterp_w %Hc_cond ]".
+      iDestruct "Hinterp_w" as "[Hinterp_w [%Hc_cond _]]".
       iDestruct (extract_from_region_inv with "Hinterp_w")
         as (p1 P1 Hflc1 Hperscond_P1) "(Hrel1 & Hzcond1 & Hrcond1 & Hwcond1 & HmonoR1 & %Hstate1)"
       ; eauto; iClear "Hinterp_w".
@@ -1995,108 +1809,31 @@ Section logrel.
       congruence.
   Qed.
 
-  Lemma filter_heap_map W (f : Word -> Word) w :
-    (∀ w' : Word, memory_cap_bounds (f w') = memory_cap_bounds w') ->
-    clear_tag (f w.(lw)) = f (clear_tag w.(lw)) ->
-    filter_heap W (lift_word f w) = lift_word f (filter_heap W w).
-  Proof.
-    intros Hbounds Hclear. destruct w as [w π].
-    rewrite /filter_heap /= (heap_authority_base_bounds_eq (f w) w (Hbounds w)).
-    destruct (heap_authority_base w) as [b|]; last done.
-    destruct π as [ι|]; last done.
-    destruct (heap_std W !! ι) as [o|]; last done.
-    destruct (alloc_object_status o); first done.
-    rewrite /lclear_tag /lift_word /=. by rewrite Hclear.
-  Qed.
-
-  Lemma filter_heap_borrow W w :
-    filter_heap W (lborrow w) = lborrow (filter_heap W w).
-  Proof.
-    apply filter_heap_map.
-    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
-    - destruct w as [w π].
-      by destruct w as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
-  Qed.
-
-  Lemma filter_heap_load_word W p w :
-    filter_heap W (lload_word p w) = lload_word p (filter_heap W w).
-  Proof.
-    apply filter_heap_map.
-    - apply memory_cap_bounds_load_word.
-    - symmetry. apply load_word_clear_tag.
-  Qed.
-
   (** ** Loads in the current world
 
-      The world supplies a status witness for the CLoad rule: the
-      quarantine witness [ι ⊒ AQuar] when it has the loaded word's
-      identifier [ι] Quarantined, and the plain witness otherwise. *)
-  Definition load_witness_of (W : WORLD) (v : LWord) : load_witness :=
-    match v.(lprov) with
-    | Some ι =>
-        match heap_std W !! ι with
-        | Some o =>
-            match alloc_object_status o with
-            | AllocObjectQuarantined => LoadQuar ι
-            | AllocObjectLive => LoadPlain
-            end
-        | None => LoadPlain
-        end
-    | None => LoadPlain
-    end.
+      The status witness for the CLoad rule. A stale word loads as itself: a
+      dereference of it faults on its tombstone. *)
+  Definition load_witness_of (W : WORLD) (v : LWord) : load_witness := LoadPlain.
 
-  Lemma heap_provenance_load_witness W v :
-    heap_provenance (heap_std W) -∗ load_witness_res (load_witness_of W v).
-  Proof.
-    iIntros "#Hprov". rewrite /load_witness_of.
-    destruct (lprov v) as [ι|]; last done.
-    destruct (heap_std W !! ι) as [o|] eqn:Hι; last done.
-    destruct (alloc_object_status o) eqn:Ho; first done.
-    by iApply (heap_provenance_quarantined with "Hprov").
-  Qed.
-
-  Lemma world_interp_open_load_witness W C s v :
-    world_interp_open W C s -∗
-    world_interp_open W C s ∗ load_witness_res (load_witness_of W v).
-  Proof.
-    iIntros "Hworld".
-    iDestruct (world_interp_open_heap_provenance with "Hworld") as "[$ #Hprov]".
-    by iApply heap_provenance_load_witness.
-  Qed.
+  Lemma load_witness_of_intro W v : ⊢ load_witness_res (load_witness_of W v).
+  Proof. done. Qed.
 
   (** The CLoad post under the world's witness: the loaded word is either
-      untagged, or kept and kept by the world's filter. *)
+      untagged, or the loaded word itself. *)
   Lemma load_post_world W p v actual :
     load_post (load_witness_of W v) p v actual ->
-    actual = lclear_tag (lload_word p v) ∨
-      (actual = lload_word p v ∧ filter_heap W (lload_word p v) = lload_word p v).
-  Proof.
-    intros (Hplain & _ & _ & Hwit).
-    destruct Hplain as [-> | [_ ->] ]; last by left.
-    destruct (decide (filter_heap W (lload_word p v) = lload_word p v)) as [Hkeep|Hne];
-      first by right.
-    left. destruct (filter_heap_cleared W _ Hne) as (b & ι & o & Hb & Hι & Ho & Hq).
-    rewrite lprov_lload_word in Hι. rewrite lw_lload_word in Hb.
-    rewrite /load_witness_of Hι Ho Hq in Hwit.
-    apply Hwit; first done.
-    intros Htag. split; first done. exists b.
-    rewrite -Hb. apply heap_authority_base_bounds_eq.
-    symmetry. apply memory_cap_bounds_load_word.
-  Qed.
+    actual = lclear_tag (lload_word p v) ∨ actual = lload_word p v.
+  Proof. intros (_ & _ & _ & Hwit). by right. Qed.
 
   Lemma interp_in_mem_load_post W C p raw actual :
     load_post (load_witness_of W raw) p raw actual ->
     interp_in_mem p W C raw -∗ interp W C actual.
-  Proof. intros Hpost. by apply interp_in_mem_load_result, load_post_world. Qed.
+  Proof. intros Hpost. by apply interp_in_mem_load_result, (load_post_world W). Qed.
 
   Lemma load_post_world_load_heap_in_world W p v actual :
     load_post (load_witness_of W v) p v actual ->
     load_heap_in_world W (lload_word p v) actual.
-  Proof.
-    intros Hpost. split; first apply Hpost.
-    destruct (load_post_world W p v actual Hpost) as [-> | [-> Hkeep] ]; last done.
-    apply filter_heap_lclear_tag.
-  Qed.
+  Proof. intros Hpost. apply Hpost. Qed.
 
   (** A valid executable capability with a non-empty range carries no
       identifier: heap authority is never executable. *)
@@ -2105,10 +1842,26 @@ Section logrel.
     interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hexec Hbe) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hheap]";
       first by eapply executeAllowed_nonO.
-    iPureIntro. specialize (Hheap Hbe). destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & Hnonexec & _). congruence.
+    iDestruct ("Hheap" with "[%]") as "Hheap'"; first done.
+    destruct π as [ι|]; last done.
+    iDestruct "Hheap'" as "[%Hconds _]". exfalso.
+    destruct Hconds as (_ & Hnonexec & _). congruence.
+  Qed.
+
+  (** A non-empty capability with an identifier has heap authority. *)
+  Lemma interp_cap_has_authority W C p g b e a ea ι :
+    isO p = false → withinBounds b e ea = true →
+    interp W C (Cap p g b e a @@? Some ι) -∗ ⌜has_authority (Cap p g b e a)⌝.
+  Proof.
+    iIntros (HnO Hwb) "Hinterp".
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hok]"; first done.
+    apply withinBounds_true_iff in Hwb.
+    iDestruct (heap_cap_ok_id with "Hok") as %(Hb & _ & _); first solve_addr.
+    iPureIntro. split; first done. exists b.
+    rewrite /heap_authority_base decide_True; last solve_addr.
+    by rewrite /heap_cap_base /memory_cap_base /= Hb.
   Qed.
 
   Lemma interp_lstore_word W C p v :

@@ -52,13 +52,13 @@ Section fundamental.
     iApply enter_cond_weakening;auto.
   Qed.
 
-  Lemma heap_cap_valid_perm W p p' b e π :
-    PermFlowsTo p' p -> heap_cap_valid W p b e π -> heap_cap_valid W p' b e π.
+  Lemma heap_cap_ok_perm p p' b e π :
+    PermFlowsTo p' p -> heap_cap_ok p b e π -∗ heap_cap_ok p' b e π.
   Proof.
-    intros Hflow Hvalid Hnonempty. specialize (Hvalid Hnonempty).
+    iIntros (Hflow) "#Hok %Hnonempty". iSpecialize ("Hok" with "[//]").
     destruct π as [ι|]; last done.
-    destruct Hvalid as (Hheap & o & Hι & Hlive & Hb & He & Hexec & HnotWL).
-    split; first done. exists o.
+    iDestruct "Hok" as "[%Hconds $]". iPureIntro.
+    destruct Hconds as (Hheap & Hexec & HnotWL).
     repeat split; eauto using notexecuteAllowed_flowsfrom, notisWL_flowsfrom.
   Qed.
 
@@ -71,9 +71,10 @@ Section fundamental.
   Proof.
     intros HpO Hp Hg. iIntros "Hinterp".
     destruct t; last (iApply interp_untagged; done).
-    iDestruct (interp_cap_heap_conditions with "Hinterp") as %[Hvalid Hcoverage].
+    iDestruct (interp_cap_heap_conditions with "Hinterp") as "[#Hvalid %Hcoverage]".
     iEval (rewrite interp_unfold interp1_eq HpO).
-    iPureIntro. split; first (eapply heap_cap_valid_perm; eauto).
+    iSplit; first by iApply (heap_cap_ok_perm with "Hvalid").
+    iPureIntro.
     intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
     destruct g, g'; cbn in Hg; try done. by left.
   Qed.
@@ -93,11 +94,11 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[#A %Hconditions]".
-    destruct Hconditions as [Hpwl_cond [Hshadow Hheap] ].
-    have Hheap' := heap_cap_valid_perm W p p' b e π Hp Hheap.
+    iDestruct "HA" as "[#A [%Hconditions #Hheap]]".
+    destruct Hconditions as [Hpwl_cond Hshadow].
     iSplit; cycle 1.
-    { iPureIntro. split; last by split.
+    { iSplit; last by iApply (heap_cap_ok_perm with "Hheap").
+      iPureIntro. split; last done.
       case_eq (isWL p'); intros Hpwl'; auto.
       pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
       rewrite Hpwl in Hpwl_cond.
@@ -257,8 +258,8 @@ Section fundamental.
         destruct (isO (BPerm rx w dl dro)) eqn:HpO.
         { destruct rx,w; cbn in *; try done.
           rewrite !interp_unfold /=.
-          iDestruct "Hw" as %[Hvalid Hcoverage].
-          iPureIntro. split; first done.
+          iDestruct "Hw" as "[#Hvalid %Hcoverage]".
+          iFrame "Hvalid". iPureIntro.
           intros x Hx Hheap. specialize (Hcoverage x Hx Hheap).
           destruct g; [by left|done].
         }
@@ -316,10 +317,9 @@ Section fundamental.
   Lemma interp_in_mem_load_word W C p w :
     interp_in_mem RWL W C w -∗ interp_in_mem p W C w.
   Proof.
-    change (⊢ interp W C (filter_heap W (lload_word RWL w)) -∗
-      interp W C (filter_heap W (lload_word p w)))%I.
+    change (⊢ interp W C (lload_word RWL w) -∗
+      interp W C (lload_word p w))%I.
     replace (lload_word RWL w) with w by (destruct w; done).
-    rewrite filter_heap_load_word.
     iIntros "H". by iApply interp_load_word.
   Qed.
 
@@ -328,46 +328,21 @@ Section fundamental.
     interp_in_mem RWL W C (WSealable sb @@? π) -∗ interp W C (WSealable sb @@? π).
   Proof.
     iIntros "#Hsealed Hmem".
-    destruct sb as [t p g b e a|t p g b e a]; destruct t.
-    - iEval (rewrite interp_unfold /= /interp_sb) in "Hsealed".
-      iDestruct "Hsealed" as "[_ %Hvalid]". cbn in Hvalid.
-      iEval (rewrite interp_in_mem_eq) in "Hmem".
-      replace (lload_word RWL (Cap p g b e a @@? π)) with (Cap p g b e a @@? π)
-        by done.
-      destruct (decide (filter_heap W (Cap p g b e a @@? π) = Cap p g b e a @@? π))
-        as [Hkeep|Hne]; first by rewrite Hkeep.
-      destruct (filter_heap_cleared W _ Hne) as (b0 & ι & o & Hb & Hι & Ho & Hq).
-      cbn in Hι. subst π.
-      change (heap_authority_base (Cap p g b e a) = Some b0) in Hb.
-      apply heap_authority_base_memory_cap_bounds in Hb as (e0 & [= <- <-] & Hlt & _).
-      destruct (Hvalid Hlt) as (_ & o' & Ho' & Hlive & _). congruence.
-    - iApply interp_untagged; done.
-    - iEval (rewrite interp_in_mem_eq) in "Hmem".
-      replace (lload_word RWL (SealRange p g b e a @@? π)) with (SealRange p g b e a @@? π)
-        by done.
-      by rewrite filter_heap_nonheap.
-    - iApply interp_untagged; done.
+    iEval (rewrite interp_in_mem_eq) in "Hmem".
+    by replace (lload_word RWL (WSealable sb @@? π)) with (WSealable sb @@? π)
+      by (by destruct sb).
   Qed.
 
 
-
-  Lemma filter_heap_readonly W w :
-    filter_heap W (lreadonly w) = lreadonly (filter_heap W w).
-  Proof.
-    apply filter_heap_map.
-    - intros w'. by destruct w' as [z|[t p g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
-    - destruct w as [w π].
-      by destruct w as [z|[t [] g b e a|t p g b e a]|k t p g b e a|ot [t p g b e a|t p g b e a] ].
-  Qed.
 
   Lemma interp_in_mem_readonly_word W C w :
     interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (lreadonly w).
   Proof.
-    change (⊢ interp W C (filter_heap W (lload_word RWL w)) -∗
-              interp W C (filter_heap W (lload_word RWL (lreadonly w))))%I.
+    change (⊢ interp W C (lload_word RWL w) -∗
+              interp W C (lload_word RWL (lreadonly w)))%I.
     replace (lload_word RWL w) with w by (destruct w; done).
     replace (lload_word RWL (lreadonly w)) with (lreadonly w) by (destruct w; done).
-    rewrite filter_heap_readonly. iIntros "H". by iApply interp_readonly_word.
+    iIntros "H". by iApply interp_readonly_word.
   Qed.
 
   Lemma persistent_cond_interp_in_mem : persistent_cond (interp_in_mem RWL).
@@ -482,7 +457,6 @@ Section fundamental.
     world_interp W C
     ==∗
     ∃ W', ⌜ related_sts_pub_world W W' ⌝ ∗
-          ⌜heap_std W = heap_std W'⌝ ∗
           world_interp W' C ∗
           interp W' C (WSealed a sb @@? π).
   Proof.
@@ -490,7 +464,7 @@ Section fundamental.
     destruct (get_tag_sealable sb) eqn:Htag.
     2: { iModIntro. iExists W. iFrame.
          iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
-         iSplit; first done. iApply interp_untagged. done. }
+         iApply interp_untagged. done. }
     rewrite (interp_unfold W C (SealRange _ _ _ _ _ @@? _)).
     iDestruct "HVsr" as "[Hss _]"; rewrite /= Hseal.
     apply seq_between_dist_Some in Hwb.
@@ -507,20 +481,19 @@ Section fundamental.
       subst new_seals_words.
       rewrite normalise_sealed_words_borrow big_sepS_singleton.
       iNext; iApply "Hwcond_Po".
-      iApply (interp_monotone_same_heap with "[%] [$HVsb]"); [reflexivity|eauto].
+      iApply (interp_monotone_same_heap with "[%] [$HVsb]"); eauto.
     }
     iMod (world_interp_sealing_update with "Hsealpred Hws Hworld_interp") as "(Hworld_interp & #Hstd_seals)"; eauto.
     subst W'.
     iModIntro.
-    iExists _. iSplit; first done. iSplit; first done.
+    iExists _. iSplit; first done.
     iFrame "Hworld_interp".
     iEval (rewrite interp_unfold /= Htag /interp_sb).
     iSplit.
     - iApply sts_seals_std_weaken; last iFrame "#". set_solver+.
     - destruct sb as [t q l b' e' a'|t q l b' e' a']; destruct t;
         cbn in Htag; try discriminate; last done.
-      iDestruct (interp_cap_heap_conditions with "HVsb") as %[Hvalid _].
-      done.
+      by iDestruct (interp_cap_heap_conditions with "HVsb") as "[$ _]".
   Qed.
 
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)
@@ -579,20 +552,23 @@ Section fundamental.
   Lemma subseg_heap_base_noid b b' e' : subseg_heap_base None b b' e'.
   Proof. by intros ι ?. Qed.
 
-  Lemma heap_cap_valid_subseg W p b e b' e' π :
+  Lemma heap_cap_ok_subseg p b e b' e' π :
     (b <= b')%a -> (e' <= e)%a ->
     subseg_heap_base π b b' e' ->
-    heap_cap_valid W p b e π -> heap_cap_valid W p b' e' π.
+    heap_cap_ok p b e π -∗ heap_cap_ok p b' e' π.
   Proof.
-    intros Hb He Hgate Hvalid Hnonempty.
-    specialize (Hvalid ltac:(solve_addr)).
+    iIntros (Hb He Hgate) "#Hvalid %Hnonempty".
+    iSpecialize ("Hvalid" with "[%]"); first solve_addr.
     destruct π as [ι|].
-    - destruct Hvalid as (Hbheap & o & Hι & Hlive & Hbase & Hend & Hrest).
-      split.
-      + destruct (decide (b = b')) as [<-|Hne]; first done.
+    - iDestruct "Hvalid" as "[%Hconds (%bo & %eo & #Hobj & %Hbo)]".
+      destruct Hconds as (Hbheap & Hexec & Hwl).
+      iSplit.
+      + iPureIntro. split; last done.
+        destruct (decide (b = b')) as [<-|Hne]; first done.
         by apply (Hgate ι).
-      + destruct Hrest as [Hexec Hwl]. exists o. repeat split; try done; solve_addr.
-    - rewrite /disjoint_from_heap elem_of_disjoint in Hvalid |- *.
+      + iExists bo, eo. iFrame "Hobj". iPureIntro. solve_addr.
+    - iDestruct "Hvalid" as %Hvalid. iPureIntro.
+      rewrite /disjoint_from_heap elem_of_disjoint in Hvalid |- *.
       intros a Ha Hheap. eapply Hvalid; last exact Hheap.
       apply elem_of_finz_seq_between in Ha.
       apply elem_of_finz_seq_between. solve_addr.
@@ -616,16 +592,15 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[A %Hconditions]".
-    destruct Hconditions as [Hpwl_cond Hregions].
-    destruct Hregions as [Hshadow Hheap].
+    iDestruct "HA" as "[A [%Hconditions #Hok]]".
+    destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hshadow' : disjoint_from_mmio b' e').
     { eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
-    have Hheap' := heap_cap_valid_perm W p p' b' e' π Hp
-      (heap_cap_valid_subseg W p b e b' e' π Hb He Hgate Hheap).
-    have Hregions' := conj Hshadow' Hheap'.
     iSplitL "A"; cycle 1.
-    { iPureIntro. split; last exact Hregions'.
+    { iSplit.
+      2: { iApply (heap_cap_ok_perm with "[]"); first exact Hp.
+           by iApply (heap_cap_ok_subseg with "Hok"). }
+      iPureIntro. split; last exact Hshadow'.
       case_eq (isWL p'); intros Hpwl'; auto.
       pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
       rewrite Hpwl in Hpwl_cond.
@@ -691,12 +666,12 @@ Section fundamental.
     intros Hb He Hgate Hp Hl. iIntros "#IH HA".
     destruct t; last (iApply interp_untagged; done).
     destruct (isO p') eqn:HpO'.
-    { iDestruct (interp_cap_heap_conditions with "HA") as %[Hvalid Hcoverage].
+    { iDestruct (interp_cap_heap_conditions with "HA") as "[#Hvalid %Hcoverage]".
       iEval (rewrite interp_unfold interp1_eq HpO').
-      iPureIntro. split.
-      - eapply heap_cap_valid_perm; first exact Hp.
-        eapply heap_cap_valid_subseg; eauto.
-      - intros x Hx Hheap.
+      iSplit.
+      - iApply (heap_cap_ok_perm with "[]"); first exact Hp.
+        by iApply (heap_cap_ok_subseg with "Hvalid").
+      - iPureIntro. intros x Hx Hheap.
         assert (Hxold : x ∈ finz.seq_between b e).
         { apply elem_of_finz_seq_between in Hx.
           apply elem_of_finz_seq_between. solve_addr. }
@@ -724,9 +699,8 @@ Section fundamental.
     iEval (rewrite interp_unfold interp1_eq) in "HA".
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
-    iDestruct "HA" as "[A %Hconditions]".
-    destruct Hconditions as [Hpwl_cond Hregions].
-    destruct Hregions as [Hshadow Hheap].
+    iDestruct "HA" as "[A [%Hconditions #Hok]]".
+    destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hregions' : disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e').
     { split; last exact (proj2 Hsentry).
       eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
@@ -738,8 +712,8 @@ Section fundamental.
     iEval (rewrite interp_unfold interp1_eq HpnotO HpXSR).
     iSplitR; cycle 1.
     {
-      iPureIntro. split; last (split; [exact (proj1 Hregions')|
-        apply heap_cap_valid_disjoint; exact (proj2 Hregions')]).
+      iSplit; last (iApply heap_cap_ok_disjoint; exact (proj2 Hregions')).
+      iPureIntro. split; last exact (proj1 Hregions').
       destruct (isWL p) eqn:Hpwl; auto.
       simplify_eq.
       destruct g',g''; inversion Hl; inversion Hflows; auto.

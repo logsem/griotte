@@ -4,7 +4,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Import world_ghost_theory.
 From griotte Require Export logrel.
 From griotte Require Import ftlr_base interp_weakening.
-From griotte Require Import rules_Load wp_rules_interp.
+From griotte Require Import rules_Load rules_deref_quar wp_rules_interp.
 From griotte Require Import map_simpl register_tactics.
 Import CoreWPNotations.
 Import uPred.
@@ -53,15 +53,9 @@ Section fundamental.
     by rewrite /load_witness_mem Hr Hadd Hv.
   Qed.
 
-  Lemma heap_provenance_load_witness_mem W regs r imm mem :
-    heap_provenance (heap_std W) -∗ load_witness_res (load_witness_mem W regs r imm mem).
-  Proof.
-    iIntros "#Hprov". rewrite /load_witness_mem.
-    destruct (regs !! r) as [ [ [|[t p g b e a|]| |] π]|]; try done.
-    destruct (a + imm)%a as [ea|]; last done.
-    destruct (mem !! ea) as [v|]; last done.
-    by iApply heap_provenance_load_witness.
-  Qed.
+  Lemma load_witness_mem_intro W regs r imm mem :
+    ⊢ load_witness_res (load_witness_mem W regs r imm mem).
+  Proof. rewrite /load_witness_mem. by repeat case_match. Qed.
 
   (* A decision procedure that does not unfold [reg_allows_load_imm], so that
      the definitions below can be rewritten under [(a + imm)%a]. *)
@@ -76,7 +70,6 @@ Section fundamental.
     (∃ ρ,
      sts_state_std C k ρ
     ∗ ⌜ρ ≠ Revoked⌝
-    ∗ ⌜heap_key_live (heap_std W) k⌝
     ∗ world_interp_open W C (k :: als)
     ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
     ∗ if_later_P has_later (key_share k)
@@ -169,16 +162,19 @@ Section fundamental.
     -∗ rel C (LNonHeap a_pc) p_pc' (safeC P)
     -∗ world_interp_open W C [LNonHeap a_pc]
     -∗ a_pc ↦ₐ w_pc
-    -∗ ◇ (allow_load_res imm W C src regs a_pc p_pc'
-          ∗ a_pc ↦ₐ w_pc).
+    -∗ ◇ ((allow_load_res imm W C src regs a_pc p_pc'
+          ∗ a_pc ↦ₐ w_pc)
+         ∨ (∃ ι ws, ⌜regs !! src = Some ws⌝ ∗ ⌜has_authority ws.(lw)⌝ ∗
+              ⌜ws.(lprov) = Some ι⌝ ∗ ι ⊒ AQuar ∗
+              world_interp_open W C [LNonHeap a_pc] ∗ a_pc ↦ₐ w_pc)).
   Proof.
     iIntros (HVsrc Hπ Hfl) "#Hreg #Hinterp_pc #Hinva Hworld_interp Hapc".
     rewrite /allow_load_res.
     destruct (a + imm)%a as [ea|] eqn:Hadd; cycle 1.
-    { iModIntro. iFrame "Hapc". iExists t,p,g,b,e,a,π. iFrame "%". by rewrite Hadd. }
+    { iModIntro. iLeft. iFrame "Hapc". iExists t,p,g,b,e,a,π. iFrame "%". by rewrite Hadd. }
     destruct (decide (reg_allows_load_imm regs
                         src imm p g b e a ea)) as [Hallows|Hallows]; cycle 1.
-    { iModIntro. iFrame "Hapc". iExists t,p,g,b,e,a,π. iFrame "%".
+    { iModIntro. iLeft. iFrame "Hapc". iExists t,p,g,b,e,a,π. iFrame "%".
       rewrite Hadd. by rewrite decide_False. }
     pose proof (load_prov_eq imm Hallows Hπ) as Hsrc.
     destruct (decide (addr_key π ea = LNonHeap a_pc)) as [Hkey|Hkey].
@@ -186,7 +182,7 @@ Section fundamental.
       destruct (addr_key_pc _ _ _ Hkey) as [-> ->].
       iDestruct (interp_hpf_eq imm W C (safeC P) regs src p g b e a a_pc
         p_pc p_pc' with "Hreg Hinva") as %Hflp; eauto.
-      iModIntro. iFrame "Hapc". iExists t,p,g,b,e,a,None. iFrame "%".
+      iModIntro. iLeft. iFrame "Hapc". iExists t,p,g,b,e,a,None. iFrame "%".
       rewrite Hadd. rewrite decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hoff & Hra & Hwb).
     apply andb_prop in Hwb as [Hle Hge].
@@ -199,26 +195,27 @@ Section fundamental.
     { by rewrite /withinBounds Hle Hge. }
     iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hvsrc") as %HH; eauto.
     destruct HH as (ρ0 & Hstd & Hnotrevoked).
-    iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
-      eauto using readAllowed_nonO.
-    (* Another key: open its region. *)
-    iDestruct (open_world_interp_next _ _ _ (addr_key π ea) p0 _ ρ0 with "Hrel0 Hworld_interp")
-      as "(Hworld & Hstate' & [%w0 (HpO&Hea&HP0&Hmono)] )"; eauto.
+    (* Another key: open its region, a cell or a tombstone. *)
+    iDestruct (open_world_interp_next_cases _ _ _ π ea p0 _ ρ0 with "Hrel0 Hworld_interp")
+      as "[(Hworld & Hstate' & [%w0 (HpO&Hea&HP0&Hmono)] ) | (%ι & -> & #Hq & Hworld)]"; eauto.
     { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
     { destruct ρ0; simplify_eq; [by left | by right]. }
+    2: { iDestruct (interp_cap_has_authority with "Hvsrc") as %Hauth;
+           [by eapply readAllowed_nonO|exact Hbounds|].
+         iModIntro. iRight. iExists ι, _. iFrame "Hq Hworld Hapc". by iPureIntro. }
     iEval (rewrite addr_key_pointsto) in "Hea".
     iDestruct "Hea" as "[Hea Hshare]".
     iDestruct "Hea" as ">Hea".
     (* Its address is not the PC's: both points-to are full. *)
     iDestruct (address_neq with "Hea Hapc") as %Hne.
-    iModIntro. iFrame "Hapc".
+    iModIntro. iLeft. iFrame "Hapc".
     iExists t,p,g,b,e,a,π. iFrame "%". rewrite Hadd.
     rewrite decide_True // decide_False //.
     iExists w0,p0,P0.
     iSplit; first done. iSplit; first done. iSplit; first done.
     iFrame "Hea". iSplitR "Hrcond0"; last done.
     iExists ρ0. iFrame "Hstate' Hworld Hshare Hrel0 HP0".
-    iSplit; first done. iSplit; first done.
+    iSplit; first done.
     iNext.
     rewrite mono_invariant_monotonicity_guarantees_region; eauto.
   Qed.
@@ -371,7 +368,7 @@ Section fundamental.
       }
       iSpecialize ("Hrcond" with "Hw").
       rewrite /interp_in_mem_pre.
-      rewrite /interp_in_mem /= /interp_in_mem_pre !filter_heap_load_word.
+      rewrite /interp_in_mem /= /interp_in_mem_pre.
       iApply (interp_weakening_word_load W C p p_pc'); eauto.
     - iDestruct "HLoadRes"
         as (w p' P' Hflp'' HpersP' Hne) "(-> & HLoadRes & #Hrcond')".
@@ -379,7 +376,7 @@ Section fundamental.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
       rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
+      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
       ; cbn.
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
       assert (isO p' = false) as HpO'.
@@ -391,10 +388,10 @@ Section fundamental.
         rewrite mono_invariant_monotonicity_guarantees_region; eauto.
       }
       iDestruct ("Hrcond'" with "HV") as "HV'".
-      iEval (rewrite /interp_in_mem /= /interp_in_mem_pre filter_heap_load_word).
-      iApply (interp_weakening_word_load W C p p' (filter_heap W loadv));
+      iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
+      iApply (interp_weakening_word_load W C p p' loadv);
         first exact Hflp''.
-      iEval (rewrite /interp_in_mem_pre filter_heap_load_word) in "HV'".
+      iEval (rewrite /interp_in_mem_pre) in "HV'".
       iExact "HV'".
   Qed.
 
@@ -421,7 +418,7 @@ Section fundamental.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame "Hapc".
       rewrite /persistent_cond in HpersP'.
       iDestruct "HLoadRes"
-        as (ρ1) "(Hstate' & %Hnotrevoked & %Hlive & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
+        as (ρ1) "(Hstate' & %Hnotrevoked & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
       ; cbn.
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
       assert (isO p' = false) as HpO'.
@@ -468,12 +465,22 @@ Section fundamental.
       by repeat eexists.
     }
 
-    (* The world's heap provenance supplies the status witness of the
-       load rule. *)
-    iDestruct (world_interp_open_heap_provenance with "Hworld_interp") as "[Hworld_interp #Hprov]".
-
     (* Step 1: open the region, if necessary, and store all the resources obtained from the region in allow_load_res imm *)
-    iMod (create_load_res imm with "Hreg Hinv_interp Hinva Hworld_interp Ha") as "[HLoadRes Ha]"; eauto.
+    iMod (create_load_res imm with "Hreg Hinv_interp Hinva Hworld_interp Ha")
+      as "[[HLoadRes Ha] | (%ι & %ws & %Hws & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
+    2: { (* A tombstone: the load faults on the tag of the source. *)
+         iDestruct (big_sepM_insert_acc with "Hmap") as "[Hsrc Hmap]"; first exact Hws.
+         iApply (wp_load_quar_imm (CL := link_core) with "[$HPC $Ha $Hsrc $Hq]"); eauto.
+         iNext. iIntros "(HPC & Ha & Hsrc)".
+         iDestruct ("Hmap" with "Hsrc") as "Hmap".
+         iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
+         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+         { destruct ρ; auto; contradiction. }
+         iApply (ftlr_post_fault with "HPC Hmap [] Hworld_interp").
+         { intros r'. rewrite lookup_insert_is_Some'. by right. }
+         iIntros (r' v Hv). destruct (decide (r' = src)) as [->|Hne].
+         - rewrite lookup_insert_eq in Hv. injection Hv as <-. iApply interp_clear_tag.
+         - rewrite lookup_insert_ne // in Hv. by iApply "Hreg". }
     (* Clear helper values; they exist in the existential now *)
     clear HVsrc HVπ t0 p0 g0 b0 e0 a0 π0.
 
@@ -495,8 +502,7 @@ Section fundamental.
       by iApply "Hreg".
     }
 
-    iDestruct (heap_provenance_load_witness_mem W
-                 regs src imm mem with "Hprov") as "Hwit".
+    iPoseProof (load_witness_mem_intro W regs src imm mem) as "Hwit".
     (* The source needs no status witness: a revoked source fails, which is
        safe. *)
     iApply (wp_load_witness_imm (CL := link_core) _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId

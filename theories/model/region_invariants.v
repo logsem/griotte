@@ -61,22 +61,20 @@ Section standard_world_interp.
     (C : CmptName)
     (MC : gmap LAddr (gname * Perm))
     (Mρ: gmap LAddr region_type) :=
-    (⌜heap_keys_known (heap_std W) (dom (std W))⌝ ∗
-     (heap_std_fragments C (heap_std W) ∗
-      heap_provenance (heap_std W)) ∗
-     [∗ map] k↦γp ∈ MC,
+    ([∗ map] k↦γp ∈ MC,
        ∃ ρ, ⌜Mρ !! k = Some ρ⌝
             ∗ sts_state_std C k ρ
             ∗ ∃ γpred p φ, ⌜γp = (γpred,p)⌝
                     ∗ ⌜∀ Wv, Persistent (φ Wv)⌝
                     ∗ saved_pred_own γpred DfracDiscarded φ
-                    ∗ heap_key_resource (heap_std W) k (region_std_interp W C k p φ ρ))%I.
+                    ∗ heap_key_resource k (region_std_interp W C k p φ ρ))%I.
 
   Definition region_def (W : WORLD) (C : CmptName) : iProp Σ :=
     (∃ (M : relT) (Mρ : gmap LAddr region_type),
         "HM" ∷ RELS C M ∗
         "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
         "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "#Hknown" ∷ ([∗ set] k ∈ dom M, heap_key_known k) ∗
         "Hmap" ∷ region_map_def W C M Mρ)%I.
   #[local] Definition region_aux : seal (@region_def). Proof. by eexists. Qed.
   Definition region := region_aux.(unseal).
@@ -91,8 +89,7 @@ Section standard_world_interp.
     iIntros (Hlookup) "[Hr Hsts]".
     rewrite region_eq /region_def.
     iNamed "Hr".
-    iDestruct "Hmap" as "[%Hcovered Hr]".
-    iDestruct "Hr" as "[Hheap Hr]".
+    iRename "Hmap" into "Hr".
     assert (is_Some (M !! a)) as [ [γ p] Hγp].
     { apply elem_of_dom.
       rewrite -Hdom. rewrite elem_of_dom; eauto.
@@ -105,7 +102,7 @@ Section standard_world_interp.
     all: iDestruct (big_sepM_delete _ _ a with "[Hρ Ha $Hr]") as "Hr";[eauto| |].
     { iExists Temporary. iFrame "∗#%". }
     all: iModIntro.
-    all: iSplitL "HM Hr Hheap".
+    all: iSplitL "HM Hr ".
     { iExists M. iFrame "∗#%". }
     all: iFrame; iExists p,φ; iSplit;auto; rewrite rel_eq /rel_def; iExists γpred.
     all: simplify_eq; iFrame "Hsaved Hrel".
@@ -122,7 +119,7 @@ Section standard_world_interp.
     rewrite region_eq /region_def.
     iNamed "Hr".
     rewrite /region_map_def.
-    iDestruct "Hmap" as "(%Hcovered & Hheap & Hentries)".
+    iDestruct "Hmap" as "Hentries".
     assert (is_Some (M !! a)) as [γp Hγp].
     { apply elem_of_dom. rewrite -Hdom elem_of_dom. eauto. }
     destruct γp as [γ p].
@@ -137,9 +134,9 @@ Section standard_world_interp.
     iDestruct (big_sepM_delete _ _ a with "[Hstate Haddr $Hentries]")
       as "Hentries"; [exact Hγp| |].
     { iExists ρ. iFrame "∗#%". }
-    iModIntro. iSplitL "HM Hheap Hentries".
+    iModIntro. iSplitL "HM Hentries".
     { iExists M, Mρ. iFrame "HM".
-      iFrame "%". rewrite /region_map_def. iFrame "Hheap Hentries". }
+      iFrame "%#". rewrite /region_map_def. iFrame "Hentries". }
     iFrame "Hsts".
     iExists p', φ. iSplit; first done.
     rewrite rel_eq /rel_def. iExists γpred.
@@ -150,23 +147,16 @@ Section standard_world_interp.
   (* region_map is monotone with regards to public future world relation *)
   Lemma region_map_monotone (C : CmptName) (W W' : WORLD) M Mρ :
     related_sts_pub_world W W' ->
-    heap_std W = heap_std W' ->
-    heap_keys_known (heap_std W') (dom (std W')) ->
     region_map_def W C M Mρ
     -∗ region_map_def W' C M Mρ.
   Proof.
-    iIntros (Hrelated Hheap Hknown') "Hr".
-    iDestruct "Hr" as "[%Hknown Hr]".
-    iDestruct "Hr" as "[Hheap Hr]".
-    iSplit; first done.
-    iSplitL "Hheap".
-    { rewrite -Hheap. iFrame. }
+    iIntros (Hrelated) "Hr".
     iApply (big_sepM_mono with "Hr").
     iIntros (a γ Hsome) "Hm".
     iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
     iExists ρ. iFrame. iSplitR; first done.
     iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-    iExists γpred, p, φ. iFrame "%#". rewrite -Hheap.
+    iExists γpred, p, φ. iFrame "%#".
     iApply (heap_key_resource_mono with "[] Hl"). iIntros "Hl".
     destruct ρ; cbn [region_std_interp]; last done.
     - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
@@ -181,21 +171,17 @@ Section standard_world_interp.
 
   Lemma region_monotone C W W':
     dom (std W) = dom (std W')
-    -> related_sts_pub_world W W'
-    -> heap_std W = heap_std W' ->
+    -> related_sts_pub_world W W' ->
     region W C
     -∗ region W' C.
   Proof.
     rewrite region_eq /region_def.
-    iIntros (Hdomeq Hrelated Hheap) "@"; simplify_map_eq.
-    iExists M, Mρ. iFrame "HM".
+    iIntros (Hdomeq Hrelated) "@"; simplify_map_eq.
+    iExists M, Mρ. iFrame "HM Hknown".
     iSplitR.
     { iPureIntro. rewrite -Hdomeq Hdom; done. }
     iSplitR; first done.
-    iAssert (⌜heap_keys_known (heap_std W) (dom (std W))⌝)%I as %Hknown.
-    { by iDestruct "Hmap" as "[% _]". }
-    iApply region_map_monotone; last eauto; eauto.
-    by rewrite -Hdomeq -Hheap.
+    by iApply region_map_monotone.
   Qed.
 
   (* ----------------------------------------------------------------------------------------------- *)
@@ -207,6 +193,7 @@ Section standard_world_interp.
         "HM" ∷ RELS C M ∗
         "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
         "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "#Hknown" ∷ ([∗ set] k ∈ dom M, heap_key_known k) ∗
         "Hmap" ∷ region_map_def W C (delete a M) (delete a Mρ))%I.
   #[local] Definition open_region_aux : seal (@open_region_def). Proof. by eexists. Qed.
   Definition open_region := open_region_aux.(unseal).
@@ -219,10 +206,7 @@ Section standard_world_interp.
     region_map_def W C (delete a M) Mρ -∗
     region_map_def W C (delete a M) (delete a Mρ).
   Proof.
-    iIntros "Hr". iDestruct "Hr" as "[%Hknown Hr]".
-    iDestruct "Hr" as "[Hheap Hr]".
-    iSplit; first done.
-    iFrame "Hheap".
+    iIntros "Hr".
     iApply (big_sepM_mono with "Hr").
     iIntros (a' γr Ha') "HH".
     iDestruct "HH" as (ρ Hρ) "(Hsts & HH)".
@@ -240,10 +224,7 @@ Section standard_world_interp.
     region_map_def W C (delete a M) (delete a Mρ) -∗
     region_map_def W C (delete a M) Mρ.
   Proof.
-    iIntros "Hr". iDestruct "Hr" as "[%Hknown Hr]".
-    iDestruct "Hr" as "[Hheap Hr]".
-    iSplit; first done.
-    iFrame "Hheap".
+    iIntros "Hr".
     iApply (big_sepM_mono with "Hr").
     iIntros (a' γr Ha) "HH". iDestruct "HH" as (ρ Hρ) "(Hsts & HH)".
     iExists ρ.
@@ -271,6 +252,7 @@ Section standard_world_interp.
         "HM" ∷ RELS C M ∗
         "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
         "%Hdomρ" ∷ ⌜dom Mρ = dom M⌝ ∗
+        "#Hknown" ∷ ([∗ set] k ∈ dom M, heap_key_known k) ∗
         "Hmap" ∷ region_map_def W C (delete_list l M) (delete_list l Mρ))%I.
   #[local] Definition open_region_many_aux : seal (@open_region_many_def). Proof. by eexists. Qed.
   Definition open_region_many := open_region_many_aux.(unseal).
@@ -288,28 +270,24 @@ Section standard_world_interp.
 
   Lemma open_region_many_monotone (C : CmptName) (W W' : WORLD) l:
     dom (std W) = dom (std W')
-    -> related_sts_pub_world W W'
-    -> heap_std W = heap_std W' ->
+    -> related_sts_pub_world W W' ->
     open_region_many W C l -∗ open_region_many W' C l.
   Proof.
-    iIntros (Hdomeq Hrelated Hheap) "HW".
+    iIntros (Hdomeq Hrelated) "HW".
     rewrite open_region_many_eq /open_region_many_def.
     iNamed "HW"; simplify_eq.
-    iExists M, Mρ. iFrame "HM".
+    iExists M, Mρ. iFrame "HM Hknown".
     iSplitR; first (iPureIntro; congruence).
     iSplitR; first done.
-    iAssert (⌜heap_keys_known (heap_std W) (dom (std W))⌝)%I as %Hknown.
-    { by iDestruct "Hmap" as "[% _]". }
-    iApply region_map_monotone; last eauto; eauto.
-    by rewrite -Hdomeq -Hheap.
+    by iApply region_map_monotone.
   Qed.
 
   (** The world knows the identifier of every heap key, open or not. *)
   Lemma open_region_many_keys_known W C l :
-    open_region_many W C l -∗ ⌜heap_keys_known (heap_std W) (dom (std W))⌝.
+    open_region_many W C l -∗ [∗ set] k ∈ dom (std W), heap_key_known k.
   Proof.
     rewrite open_region_many_eq /open_region_many_def.
-    iIntros "@". iDestruct "Hmap" as "[% _]". done.
+    iIntros "@". by rewrite Hdom.
   Qed.
 
   Lemma region_open_nil W C :
@@ -321,28 +299,26 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_next_temp_pwl W C φ als k p :
-    heap_key_live (heap_std W) k ->
     k ∉ als →
     (std W) !! k = Some Temporary ->
     isWL p = true →
     open_region_many W C als ∗ rel C k p φ ∗ sts_full_world W C -∗
-    ∃ v, open_region_many W C (k :: als)
-         ∗ sts_full_world W C
-         ∗ sts_state_std C k Temporary
-         ∗ k ↦ₖ v
-         ∗ ⌜isO p = false⌝
-         ∗ ▷ future_pub_mono C φ v
-         ∗ ▷ φ (W,C,v).
+    open_region_many W C (k :: als)
+    ∗ sts_full_world W C
+    ∗ sts_state_std C k Temporary
+    ∗ heap_key_resource k
+        (∃ v, k ↦ₖ v
+              ∗ ⌜isO p = false⌝
+              ∗ ▷ future_pub_mono C φ v
+              ∗ ▷ φ (W,C,v)).
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iNamed "Hopen"; simplify_eq.
-    iDestruct "Hmap" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iRename "Hmap" into "Hpreds".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -352,45 +328,46 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_key_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
-    inversion HH; subst. rewrite Hpwl.
-    iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame "HM Hfull Hstate Hl".
-    iSplitR "Hφv".
+    inversion HH; subst.
+    iFrame "HM Hfull Hstate".
+    iSplitR "Hl".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
       iSplitR; first eauto.
+      iFrame "Hknown".
       iApply region_map_delete; iFrame "%∗".
-    - repeat (iSplitR).
+    - iApply (heap_key_resource_mono with "[] Hl"). iIntros "Hl".
+      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
+      rewrite Hpwl.
+      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
+      iExists v. iFrame "Hl".
+      repeat (iSplitR).
       + auto.
       + iApply future_pub_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
   Lemma region_open_next_temp_nwl W C φ als k p :
-    heap_key_live (heap_std W) k ->
     k ∉ als →
     (std W) !! k = Some Temporary ->
     isWL p = false →
     open_region_many W C als ∗ rel C k p φ ∗ sts_full_world W C -∗
-    ∃ v, open_region_many W C (k :: als)
-         ∗ sts_full_world W C
-         ∗ sts_state_std C k Temporary
-         ∗ k ↦ₖ v
-         ∗ ⌜isO p = false⌝
-         ∗ ▷ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
-         ∗ ▷ φ (W,C,v).
+    open_region_many W C (k :: als)
+    ∗ sts_full_world W C
+    ∗ sts_state_std C k Temporary
+    ∗ heap_key_resource k
+        (∃ v, k ↦ₖ v
+              ∗ ⌜isO p = false⌝
+              ∗ ▷ (if isDL p then future_pub_mono C φ v else future_priv_mono C φ v)
+              ∗ ▷ φ (W,C,v)).
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp Hpwl) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /region_map_def /=.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iNamed "Hopen"; simplify_eq.
-    iDestruct "Hmap" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iRename "Hmap" into "Hpreds".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -400,17 +377,20 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_key_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
-    inversion HH; subst. rewrite Hpwl.
-    iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iFrame "HM Hfull Hstate Hl".
-    iSplitR "Hφv".
+    inversion HH; subst.
+    iFrame "HM Hfull Hstate".
+    iSplitR "Hl".
     - iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
       iSplitR; first eauto.
+      iFrame "Hknown".
       iApply region_map_delete; iFrame "%∗".
-    - repeat (iSplitR).
+    - iApply (heap_key_resource_mono with "[] Hl"). iIntros "Hl".
+      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
+      rewrite Hpwl.
+      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
+      iExists v. iFrame "Hl".
+      repeat (iSplitR).
       + auto.
       + destruct (isDL p').
         * iApply future_pub_mono_eq_pred; auto.
@@ -419,29 +399,26 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_open_next_perm W C φ als k p :
-    heap_key_live (heap_std W) k ->
     k ∉ als → (std W) !! k = Some Permanent ->
     open_region_many W C als
     ∗ rel C k p φ
     ∗ sts_full_world W C
-    -∗ ∃ v,
-        sts_full_world W C
-        ∗ sts_state_std C k Permanent
-        ∗ open_region_many W C (k :: als)
-        ∗ k ↦ₖ v
-        ∗ ⌜isO p = false⌝
-        ∗ ▷ (future_priv_mono C φ v)
-        ∗ ▷ φ (W,C,v).
+    -∗ sts_full_world W C
+       ∗ sts_state_std C k Permanent
+       ∗ open_region_many W C (k :: als)
+       ∗ heap_key_resource k
+           (∃ v, k ↦ₖ v
+                 ∗ ⌜isO p = false⌝
+                 ∗ ▷ (future_priv_mono C φ v)
+                 ∗ ▷ φ (W,C,v)).
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq .
     iIntros (Hnin Htemp) "(Hopen & #Hrel & Hfull)".
     rewrite /open_region_many_def /= /region_map_def.
     rewrite rel_eq /rel_def /rel_def /region_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iNamed "Hopen"; simplify_eq.
-    iDestruct "Hmap" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iRename "Hmap" into "Hpreds".
     iDestruct ( (reg_in C M) with "[$HM $Hγpred]") as %HMeq;eauto.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -451,25 +428,26 @@ Section standard_world_interp.
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hst.
     rewrite Htemp in Hst. (destruct ρ; try by simplify_eq); [].
     iDestruct "Hl" as (γpred' p' φ' HH Hpers) "(#Hφ' & Hl)".
-    iDestruct (heap_key_resource_live_elim _ _ _ Hlive with "Hl") as "Hl".
-    iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
     inv HH.
-    iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
-    iExists _. iFrame "HM Hfull Hstate Hl".
-    iSplitR "Hφv".
+    iFrame "HM Hfull Hstate".
+    iSplitR "Hl".
     - rewrite /open_region.
       iExists Mρ. repeat (rewrite -HMeq).
       iSplitR; first eauto.
       iSplitR; first eauto.
+      iFrame "Hknown".
       iApply region_map_delete; iFrame "%∗".
-    - repeat (iSplitR).
+    - iApply (heap_key_resource_mono with "[] Hl"). iIntros "Hl".
+      iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφv)".
+      iDestruct (saved_pred_agree _ _ _ _ _ (W,C,v) with "Hφ Hφ'") as "#Hφeq".
+      iExists v. iFrame "Hl".
+      repeat (iSplitR).
       + auto.
       + iApply future_priv_mono_eq_pred; auto.
       + iNext; iRewrite "Hφeq". iFrame.
   Qed.
 
   Lemma region_close_next_temp_pwl W C φ als k p v `{forall Wv, Persistent (φ Wv)} :
-    heap_key_live (heap_std W) k ->
     k ∉ als ->
     isWL p = true →
     sts_state_std C k Temporary
@@ -481,20 +459,17 @@ Section standard_world_interp.
     ∗ rel C k p φ
     -∗ open_region_many W C als.
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iNamed "Hreg_open".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hmap") as "Hpreds".
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM Hheap]") as "test";
+    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_intro.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete k M)) //.
@@ -509,7 +484,6 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_next_temp_nwl W C φ als k p v `{forall Wv, Persistent (φ Wv)} :
-    heap_key_live (heap_std W) k ->
     k ∉ als ->
     isWL p = false →
     sts_state_std C k Temporary
@@ -521,20 +495,17 @@ Section standard_world_interp.
     ∗ rel C k p φ
       -∗ open_region_many W C als.
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin Hpwl) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iNamed "Hreg_open".
     iDestruct (region_map_insert _ _ _ _ _ Temporary with "Hmap") as "Hpreds".
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM Hheap]") as "test";
+    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame. iSplitR; [by simplify_map_eq|].
-      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_live_intro; first exact Hlive.
+      iExists _,p,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_intro.
       rewrite /region_std_interp Hpwl. iFrame "∗ #%". }
     rewrite -(delete_list_delete _ M) //.
     rewrite -(delete_list_insert _ (delete k M)) //.
@@ -549,7 +520,6 @@ Section standard_world_interp.
   Qed.
 
   Lemma region_close_next_perm W C φ als k p v `{forall Wv, Persistent (φ Wv)} :
-    heap_key_live (heap_std W) k ->
     k ∉ als ->
     ⊢ sts_state_std C k Permanent
     ∗ open_region_many W C (k :: als)
@@ -560,21 +530,18 @@ Section standard_world_interp.
     ∗ rel C k p φ
       -∗ open_region_many W C als.
   Proof.
-    intros Hlive.
     rewrite open_region_many_eq /open_region_many_def.
     iIntros (Hnin) "(Hstate & Hreg_open & Hl & % & #HmonoV & Hφ & #Hrel)".
     rewrite rel_eq /rel_def /rel /region.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ_saved]".
     iNamed "Hreg_open".
     iDestruct (region_map_insert _ _ _ _ _ Permanent with "Hmap") as "Hpreds".
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
-    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM Hheap]") as "test";
+    iDestruct (big_sepM_insert _ (delete k (delete_list als M)) k with "[-HM]") as "test";
       first by rewrite lookup_delete_eq.
     { iFrame.
       iSplitR; [by simplify_map_eq|].
-      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_live_intro; first exact Hlive. cbn [region_std_interp]. iFrame "∗ #%".
+      iExists _,_,_. iSplitR; first done. iFrame "%#". iApply heap_key_resource_intro. cbn [region_std_interp]. iFrame "∗ #%".
     }
     rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
@@ -631,33 +598,35 @@ Section standard_world_interp.
     (φ : WORLD * CmptName * LWord → iProp Σ)
     (als : list LAddr) (k : LAddr) (p : Perm) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
-    heap_key_live (heap_std W) k ->
     k ∉ als →
     std W !! k = Some ρ →
     ⊢ open_region_many W C als
     ∗ rel C k p φ
     ∗ sts_full_world W C
-    -∗ ∃ v : LWord,
-        sts_full_world W C
-        ∗ sts_state_std C k ρ
-        ∗ open_region_many W C (k :: als)
-        ∗ k ↦ₖ v
-        ∗ ▷ monotonicity_guarantees_region C φ p v ρ
-        ∗ ▷ φ (W, C, v)
-        ∗ ⌜isO p = false⌝.
+    -∗ sts_full_world W C
+       ∗ sts_state_std C k ρ
+       ∗ open_region_many W C (k :: als)
+       ∗ heap_key_resource k
+           (∃ v : LWord,
+              k ↦ₖ v
+              ∗ ▷ monotonicity_guarantees_region C φ p v ρ
+              ∗ ▷ φ (W, C, v)
+              ∗ ⌜isO p = false⌝).
   Proof.
-    intros Hlive.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "H".
     destruct ρ; try congruence.
     - case_eq (isWL p); intros.
-      + iDestruct (region_open_next_temp_pwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
-        ; eauto; iFrame.
-      + iDestruct (region_open_next_temp_nwl with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
-        ; eauto; iFrame.
+      + iDestruct (region_open_next_temp_pwl with "H") as "(A & B & C & D)"; eauto.
+        iFrame. iApply (heap_key_resource_mono with "[] D").
+        iIntros "(%v & ? & ? & ? & ?)". iExists v. by iFrame.
+      + iDestruct (region_open_next_temp_nwl with "H") as "(A & B & C & D)"; eauto.
+        iFrame. iApply (heap_key_resource_mono with "[] D").
+        iIntros "(%v & ? & ? & ? & ?)". iExists v. iFrame.
         destruct (isDL p); eauto.
-    - iDestruct (region_open_next_perm with "H") as (v) "[A [B [C [D [E [F G]]]]]]"
-      ; eauto; iFrame.
+    - iDestruct (region_open_next_perm with "H") as "(A & B & C & D)"; eauto.
+      iFrame. iApply (heap_key_resource_mono with "[] D").
+      iIntros "(%v & ? & ? & ? & ?)". iExists v. by iFrame.
   Qed.
 
   Lemma region_open_list (W : WORLD) (C : CmptName)
@@ -666,7 +635,6 @@ Section standard_world_interp.
    :
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
-    Forall (fun '(a,p,φ,ρ) => heap_key_live (heap_std W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
@@ -676,23 +644,21 @@ Section standard_world_interp.
     ∗ open_region_many W C l'
     ∗ sts_full_world W C -∗
 
-    ∃ lv,
-      open_region_many W C (la++l')
-      ∗ sts_full_world W C
-      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
-      ∗ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, a ↦ₖ v)
-      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, monotonicity_guarantees_region C φ p v ρ)
-      ∗ ▷ ([∗ list] '(a,p,φ,ρ) ; v ∈ l ; lv, φ (W,C,v))
-      ∗ ⌜ length lv = length la ⌝
-      ∗ ([∗ list] '(a,p,φ,ρ) ∈ l , ⌜ isO p = false ⌝)
+    open_region_many W C (la++l')
+    ∗ sts_full_world W C
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l, sts_state_std C a ρ)
+    ∗ ([∗ list] '(a,p,φ,ρ) ∈ l,
+         heap_key_resource a
+           (∃ v, a ↦ₖ v
+                 ∗ ▷ monotonicity_guarantees_region C φ p v ρ
+                 ∗ ▷ φ (W,C,v)
+                 ∗ ⌜ isO p = false ⌝))
   .
   Proof.
-    induction l; intros la Hlive Hnodup Hdis Hregion_state Ha_state ;
+    induction l; intros la Hnodup Hdis Hregion_state Ha_state ;
       iIntros "(Hrel & Hr & Hsts)"; cbn in * |- *.
-    - iExists []; cbn in *.
-      by iFrame.
+    - by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
-      apply Forall_cons_1 in Hlive as [Hlive_a Hlive].
       iDestruct "Hrel" as "[Hrel_a Hrel]".
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
@@ -700,23 +666,15 @@ Section standard_world_interp.
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
       iDestruct (IHl with "[$Hrel $Hr $Hsts]") as "IH"; eauto.
-      iDestruct "IH" as (lv) "(Hr & Hsts & Hsts_stds & Hlv & Hmono & Hlφ & %Hlen & Hp)".
+      iDestruct "IH" as "(Hr & Hsts & Hsts_stds & Hres)".
       iDestruct (region_open_next with "[$Hr $Hrel_a $Hsts]") as "Ha"; eauto.
       {
         intros Hcontra.
         apply elem_of_app in Hcontra. destruct Hcontra as [Hcontra|Hcontra]
         ; [set_solver+Hcontra Hnotin|set_solver+Hcontra Ha_notin_l'].
       }
-      iDestruct "Ha" as (va) "(Hsts & Hsts_std_a & Hr & Hv_a & Hmono_a & Hφ_a & %Hp_a)".
-      iExists (va::lv); iFrame.
-      iDestruct (big_sepL2_cons (fun _ '(a, _, _, _) v => (a ↦ₖ v)%I) (a,p,φ,ρ) va with "[$]") as "Hlv".
+      iDestruct "Ha" as "(Hsts & Hsts_std_a & Hr & Hres_a)".
       iFrame.
-      iSplitR "Hlφ Hφ_a"; [iNext|iSplit;[iNext|]].
-      + iDestruct (big_sepL2_cons (fun _ '(a, p, φ, ρ) v => monotonicity_guarantees_region C φ p v ρ) (a,p,φ,ρ) va with "[$]") as "Hlφ".
-        iFrame.
-      + iDestruct (big_sepL2_cons (fun _ '(a, _, φ, _) v => φ (W, C, v)) (a,p,φ,ρ) va with "[$]") as "Hlφ".
-        iFrame.
-      + by cbn ; rewrite Hlen.
   Qed.
 
   Lemma region_close_next
@@ -725,7 +683,6 @@ Section standard_world_interp.
     `{forall Wv, Persistent (φ Wv)}
     (als : list LAddr) (k : LAddr) (p : Perm) (v : LWord) (ρ : region_type)
     (Hρnotrevoked : ρ <> Revoked) :
-    heap_key_live (heap_std W) k ->
     k ∉ als
     → sts_state_std C k ρ
     ∗ open_region_many W C (k :: als)
@@ -736,7 +693,6 @@ Section standard_world_interp.
     ∗ rel C k p φ
       -∗ open_region_many W C als.
   Proof.
-    intros Hlive.
     rewrite /monotonicity_guarantees_region.
     intros. iIntros "[A [B [C [D [E [F G]]]]]]".
     destruct ρ; try congruence.
@@ -755,7 +711,6 @@ Section standard_world_interp.
 
     let la  := (fmap (fun '(a,p,φ,ρ) => a) l) in
     length l = length lv ->
-    Forall (fun '(a,p,φ,ρ) => heap_key_live (heap_std W) a) l ->
     NoDup la ->
     la ## l' ->
     Forall (fun '(a,p,φ,ρ) => ρ ≠ Revoked) l ->
@@ -771,11 +726,10 @@ Section standard_world_interp.
       -∗ open_region_many W C l'.
   Proof.
     generalize dependent lv.
-    induction l; intros lv la Hlen Hlive Hnodup Hdis Hregion_state Hpers ;
+    induction l; intros lv la Hlen Hnodup Hdis Hregion_state Hpers ;
       iIntros "(Hr & Hstd & Hv & Hmono & Hφ & Hrel & Hp)"; cbn in * |- *.
     - by iFrame.
     - destruct a as [[[a p] φ] ρ]; cbn in * |- *.
-      apply Forall_cons_1 in Hlive as [Hlive_a Hlive].
       iDestruct "Hrel" as "[Hrel_a Hrel]".
       apply NoDup_cons in Hnodup; destruct Hnodup as [Hnotin Hnodup].
       apply Forall_cons_1 in Hregion_state; destruct Hregion_state as [Hρ_a Hregion_state].
@@ -798,23 +752,20 @@ Section standard_world_interp.
       iDestruct (IHl with "[$Hr $Hstd $Hv $Hmono $Hφ $Hrel $Hp]") as "IH"; eauto.
   Qed.
 
-  (** A region of a quarantined object holds nothing: opening and closing it
-      does not depend on its logical standard state. *)
-  Lemma region_open_next_quarantined_heap W C als a ι p φ ρ o :
-    heap_std W !! ι = Some o ->
-    alloc_object_status o = AllocObjectQuarantined ->
+  (** Opening a heap region and dropping its resource works for every standard
+      state; a tombstone closes it again in every standard state. *)
+  Lemma region_open_next_quarantined_heap W C als a ι p φ ρ :
     LHeap a ι ∉ als -> std W !! LHeap a ι = Some ρ ->
     open_region_many W C als ∗ rel C (LHeap a ι) p φ ∗ sts_full_world W C -∗
     open_region_many W C (LHeap a ι :: als) ∗ sts_full_world W C ∗
-    sts_state_std C (LHeap a ι) ρ ∗ ⌜alloc_object_contains o a⌝.
+    sts_state_std C (LHeap a ι) ρ.
   Proof.
-    iIntros (Hι Hstatus Hnin Hstd) "(Hopen & #Hrel & Hfull)".
+    iIntros (Hnin Hstd) "(Hopen & #Hrel & Hfull)".
     rewrite open_region_many_eq /open_region_many_def /= /region_map_def.
     rewrite rel_eq /rel_def.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hφ]".
     iNamed "Hopen".
-    iDestruct "Hmap" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
+    iRename "Hmap" into "Hpreds".
     iDestruct (reg_in with "[$HM $Hγpred]") as %HMeq.
     rewrite HMeq delete_list_insert; auto.
     rewrite delete_list_delete; auto.
@@ -823,84 +774,39 @@ Section standard_world_interp.
     iDestruct "Ha" as (ρ' Ha) "[Hstate Ha]".
     iDestruct (sts_full_state_std with "Hfull Hstate") as %Hstd'.
     rewrite Hstd in Hstd'. simplify_eq.
-    iDestruct "Ha" as (γpred' p' φ' Heq Hpers) "[#Hsaved Ha]".
-    iEval (rewrite /heap_key_resource Hι Hstatus) in "Ha".
-    iDestruct "Ha" as "[%Hcontains _]".
+    iDestruct "Ha" as (γpred' p' φ' Heq Hpers) "[#Hsaved _]".
     rewrite -!HMeq.
-    iDestruct (region_map_delete with "[Hpreds Hheap]") as
-      "[%Hknown' [Hheap Hpreds]]".
+    iDestruct (region_map_delete with "[Hpreds]") as
+      "Hpreds".
     { iFrame "%∗". }
     iSplitR "Hfull Hstate"; last by iFrame.
-    iExists M,Mρ. iFrame "HM Hheap Hpreds %".
+    iExists M,Mρ. iFrame "HM Hpreds Hknown %".
   Qed.
 
-  Lemma region_close_next_quarantined_heap W C als a ι p φ ρ o
+  Lemma region_close_next_quarantined_heap W C als a ι p φ ρ
     `{∀ Wv, Persistent (φ Wv)} :
-    heap_std W !! ι = Some o ->
-    alloc_object_status o = AllocObjectQuarantined ->
-    alloc_object_contains o a ->
     LHeap a ι ∉ als ->
-    sts_state_std C (LHeap a ι) ρ ∗ open_region_many W C (LHeap a ι :: als) ∗
+    ι ⊒ AQuar ∗ sts_state_std C (LHeap a ι) ρ ∗ open_region_many W C (LHeap a ι :: als) ∗
     rel C (LHeap a ι) p φ -∗ open_region_many W C als.
   Proof.
-    iIntros (Hι Hstatus Hcontains Hnin) "(Hstate & Hopen & #Hrel)".
+    iIntros (Hnin) "(#Hq & Hstate & Hopen & #Hrel)".
     rewrite open_region_many_eq /open_region_many_def.
     rewrite rel_eq /rel_def.
     iDestruct "Hrel" as (γpred) "#[Hγpred Hsaved]".
     iNamed "Hopen".
     iDestruct (region_map_insert _ _ _ _ _ ρ with "Hmap") as "Hpreds".
-    iDestruct "Hpreds" as "[%Hknown Hpreds]".
-    iDestruct "Hpreds" as "[Hheap Hpreds]".
     rewrite -!/delete_list.
     iDestruct (big_sepM_insert _ (delete (LHeap a ι) (delete_list als M)) (LHeap a ι)
       with "[Hstate $Hpreds]") as "Hpreds";
       first by rewrite lookup_delete_eq.
     { iExists ρ. iFrame. iSplitR; first by rewrite lookup_insert_eq.
-      iExists γpred,p,φ. iSplitR; first done. iFrame "%#".
-      by iApply heap_key_resource_quarantined. }
+      iExists γpred,p,φ. iSplitR; first done. iFrame "%#". }
     rewrite -(delete_list_delete _ M) // -(delete_list_insert _ (delete _ M)) //.
     rewrite -(delete_list_insert _ Mρ) //.
     iExists M,(<[LHeap a ι :=ρ]> Mρ).
     iDestruct (reg_in with "[$HM $Hγpred]") as %HMeq.
-    rewrite -HMeq. iFrame "%∗".
+    rewrite -HMeq. iFrame "%∗#".
     iPureIntro. by rewrite HMeq insert_delete_eq !dom_insert_L Hdomρ.
-  Qed.
-
-  (** The region map follows a heap future, given the new heap fragments and provenance. *)
-  Lemma region_map_def_heap_future C W W' M Mρ (R : iProp Σ) :
-    related_sts_pub_world W W' ->
-    std W = std W' ->
-    (heap_std_fragments C (heap_std W) ∗ heap_provenance (heap_std W) ==∗
-       heap_std_fragments C (heap_std W') ∗ heap_provenance (heap_std W') ∗ R) -∗
-    region_map_def W C M Mρ ==∗
-    region_map_def W' C M Mρ ∗ R.
-  Proof.
-    iIntros (Hrelated Hstd) "Hupd Hr".
-    iDestruct "Hr" as "[%Hknown [Hheap Hr]]".
-    iMod ("Hupd" with "Hheap") as "(Hfrags & Hprov & $)".
-    iModIntro. iSplit.
-    { iPureIntro. rewrite -Hstd. eapply heap_keys_known_mono; [|done|exact Hknown].
-      intros ι Hι. apply elem_of_dom in Hι as [o Ho].
-      destruct (proj1 (proj2 (proj2 (proj2 Hrelated))) ι o Ho) as (o' & Ho' & _).
-      by apply elem_of_dom_2 in Ho'. }
-    iFrame "Hfrags Hprov".
-    iApply (big_sepM_mono with "Hr").
-    iIntros (a γ Hsome) "Hm".
-    iDestruct "Hm" as (ρ Hρ) "[Hstate Hm]".
-    iExists ρ. iFrame. iSplitR; first done.
-    iDestruct "Hm" as (γpred p φ Heq Hpers) "(#Hsavedφ & Hl)".
-    iExists γpred, p, φ. iFrame "%#".
-    iApply (heap_key_resource_future with "Hl"); first exact (proj2 (proj2 (proj2 Hrelated))).
-    iIntros "Hl".
-    destruct ρ; cbn [region_std_interp]; last done.
-    - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
-      iFrame "%#∗".
-      destruct (isWL p); [| destruct (isDL p)]; (iApply "HmonoV"; eauto; iFrame).
-      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
-    - iDestruct "Hl" as (v Hne) "(Hl & #HmonoV & Hφ)".
-      iFrame "%#∗".
-      iApply "HmonoV"; iFrame "∗#"; auto.
-      iPureIntro; apply related_sts_pub_priv_world in Hrelated; naive_solver.
   Qed.
 
 End standard_world_interp.

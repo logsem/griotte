@@ -3,7 +3,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Export logrel monotone.
 From griotte Require Import ftlr_base interp_weakening.
-From griotte Require Import rules_Store wp_rules_interp.
+From griotte Require Import rules_Store rules_deref_quar wp_rules_interp.
 From griotte Require Import map_simpl register_tactics.
 Import CoreWPNotations.
 Import uPred.
@@ -91,7 +91,6 @@ Section fundamental.
         sts_state_std C k ρ
         ∗ ⌜std W !! k = Some ρ⌝
         ∗ ⌜ρ ≠ Revoked⌝
-        ∗ ⌜heap_key_live (heap_std W) k⌝
         ∗ world_interp_open W C (k :: ls)
         ∗ if_later_P
             has_later
@@ -170,17 +169,20 @@ Section fundamental.
     -∗ rel C (LNonHeap a) p' (safeC P)
     -∗ world_interp_open W C [LNonHeap a]
     -∗ a ↦ₐ w_pc
-    -∗ ◇ (allow_store_res imm W C r1 r2 regs a p' true
-          ∗ a ↦ₐ w_pc).
+    -∗ ◇ ((allow_store_res imm W C r1 r2 regs a p' true
+          ∗ a ↦ₐ w_pc)
+         ∨ (∃ ι wd, ⌜regs !! r1 = Some wd⌝ ∗ ⌜has_authority wd.(lw)⌝ ∗
+              ⌜wd.(lprov) = Some ι⌝ ∗ ι ⊒ AQuar ∗
+              world_interp_open W C [LNonHeap a] ∗ a ↦ₐ w_pc)).
   Proof.
     iIntros (HVr1 Hπ Hfl Hwoa) "#HVPCr #Hreg #Hinva Hworld_interp Hapc".
     rewrite /allow_store_res.
     destruct (a0 + imm)%a as [ea0|] eqn:Hea.
-    2: { iModIntro. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%".
+    2: { iModIntro. iLeft. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%".
          rewrite Hea. by iFrame. }
     destruct (decide (reg_allows_store_imm regs
                         r1 imm p0 g0 b0 e0 a0 ea0)) as [Hallows|Hallows]; cycle 1.
-    { iModIntro. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%".
+    { iModIntro. iLeft. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%".
       rewrite Hea decide_False //. }
     pose proof (store_prov_eq imm Hallows Hπ) as Hsrc.
     destruct (decide (addr_key π0 ea0 = LNonHeap a)) as [Hkey|Hkey].
@@ -188,7 +190,7 @@ Section fundamental.
       destruct (addr_key_pc _ _ _ Hkey) as [-> ->].
       iDestruct (interp_hpf_eq imm W C (safeC P) regs r1 p0 g0 b0 e0 a0 a
         p p' with "Hreg Hinva") as %Hflp; eauto.
-      iModIntro. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,None,storev. iFrame "%".
+      iModIntro. iLeft. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,None,storev. iFrame "%".
       rewrite Hea decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hadd & Hwa & Hwb).
     apply andb_prop in Hwb as [Hle Hge].
@@ -201,19 +203,20 @@ Section fundamental.
     { by rewrite /withinBounds Hle Hge. }
     iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea0 with "Hvsrc") as %HH; eauto.
     destruct HH as [ρ' [Hstd' Hnotrevoked'] ].
-    iDestruct (interp_cap_addr_live with "Hvsrc") as %Hlive;
-      eauto using writeAllowed_nonO.
-    (* Another key: open its region. *)
-    iDestruct (open_world_interp_next _ _ _ (addr_key π0 ea0) p'' _ ρ' with "Hrel'' Hworld_interp")
-      as "(Hworld & Hstate' & [%w0 (?&Hea0&?&?)] )"; eauto.
+    (* Another key: open its region, a cell or a tombstone. *)
+    iDestruct (open_world_interp_next_cases _ _ _ π0 ea0 p'' _ ρ' with "Hrel'' Hworld_interp")
+      as "[(Hworld & Hstate' & [%w0 (?&Hea0&?&?)] ) | (%ι & -> & #Hq & Hworld)]"; eauto.
     { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
     { destruct ρ'; simplify_eq; [by left | by right]. }
+    2: { iDestruct (interp_cap_has_authority with "Hvsrc") as %Hauth;
+           [by eapply writeAllowed_nonO|exact Hbounds|].
+         iModIntro. iRight. iExists ι, _. iFrame "Hq Hworld Hapc". by iPureIntro. }
     iEval (rewrite addr_key_pointsto) in "Hea0".
     iDestruct "Hea0" as "[Hea0 Hshare]".
     iDestruct "Hea0" as ">Hea0".
     (* Its address is not the PC's: both points-to are full. *)
     iDestruct (address_neq with "Hea0 Hapc") as %Hne.
-    iModIntro. iFrame "Hapc".
+    iModIntro. iLeft. iFrame "Hapc".
     iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%". rewrite Hea.
     rewrite decide_True // decide_False //.
     iExists p'',P'',w0.
@@ -225,7 +228,7 @@ Section fundamental.
     }
     iFrame "∗#".
     iSplit; first done. iSplit; first done. iSplit; first done.
-    iSplit; first done. iSplit; first done. iSplit; first done.
+    iSplit; first done. iSplit; first done.
     iNext.
     rewrite mono_invariant_monotonicity_guarantees_region; eauto.
   Qed.
@@ -376,7 +379,7 @@ Section fundamental.
       iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP' Hne) "(#Hzcond' & #Hwcond' & #Hrcond' & #HmonoR' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
-      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & %Hlive & Hworld_interp & #HmonoV & _ & Hshare & Hrel')".
+      iDestruct "HStoreRes" as (ρ1) "(Hstate' & % & % & Hworld_interp & #HmonoV & _ & Hshare & Hrel')".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
       iDestruct "Hmem" as  "[Ha1 Hpc_a]".
       iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
@@ -416,7 +419,7 @@ Section fundamental.
     - iDestruct "HStoreRes"
         as (p' P' w' Hflp' HpersP' Hne) "(_ & _ & _ & _ & -> & HStoreRes)".
       iDestruct "HStoreRes"
-        as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & %Hlive & Hworld_interp & #HmonoV & HV & Hshare & Hrel')".
+        as (ρ1) "(Hstate' & %Hstd1 & %Hnotrevoked1 & Hworld_interp & #HmonoV & HV & Hshare & Hrel')".
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha1 $]".
       iDestruct (addr_key_pointsto_join with "Ha1 Hshare") as "Ha1".
@@ -488,7 +491,21 @@ Section fundamental.
 
     (* Step 1: open the region, if necessary,
        and store all the resources obtained from the region in allow_store_res imm *)
-    iMod (create_store_res imm with "Hinv_interp Hreg Hinva Hworld_interp Ha") as "[HStoreRes Ha]"; eauto.
+    iMod (create_store_res imm with "Hinv_interp Hreg Hinva Hworld_interp Ha")
+      as "[[HStoreRes Ha] | (%ι & %wd & %Hwd & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
+    2: { (* A tombstone: the store faults on the tag of the address. *)
+         iDestruct (big_sepM_insert_acc with "Hmap") as "[Hdst Hmap]"; first exact Hwd.
+         iApply (wp_store_quar_imm (CL := link_core) with "[$HPC $Ha $Hdst $Hq]"); eauto.
+         iNext. iIntros "(HPC & Ha & Hdst)".
+         iDestruct ("Hmap" with "Hdst") as "Hmap".
+         iDestruct ("WorldRes" with "[$Ha $Hinterp $HmonoV]") as "WorldRes".
+         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
+         { destruct ρ; auto; contradiction. }
+         iApply (ftlr_post_fault with "HPC Hmap [] Hworld_interp").
+         { intros r'. rewrite lookup_insert_is_Some'. by right. }
+         iIntros (r' v Hv). destruct (decide (r' = dst)) as [->|Hne].
+         - rewrite lookup_insert_eq in Hv. injection Hv as <-. iApply interp_clear_tag.
+         - rewrite lookup_insert_ne // in Hv. by iApply "Hreg". }
     (* Clear helper values; they exist in the existential now *)
     clear HVdst HVπ t0 p0 g0 b0 e0 a0 π0 Hwoa storev.
 

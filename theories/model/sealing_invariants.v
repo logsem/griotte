@@ -62,7 +62,7 @@ Section sealing_interp.
   Definition sealing_map := sealing_map_aux.(unseal).
   #[local] Definition sealing_map_eq : @sealing_map = @sealing_map_def := sealing_map_aux.(seal_eq).
 
-  #[local] Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (MkWorld ∅ (∅,∅) ∅ ∅) C)%I.
+  #[local] Lemma sealing_map_def_empty (C : CmptName) : ⊢ (sealing_map_def (MkWorld ∅ (∅,∅) ∅) C)%I.
   Proof. iStartProof; rewrite /sealing_map_def ; done. Qed.
 
   #[local] Lemma sealing_map_def_monotone (C : CmptName) (W W' : WORLD) :
@@ -255,7 +255,7 @@ Section sealing_interp.
       by iFrame.
   Qed.
 
-  Lemma sealing_map_empty (C : CmptName) : ⊢ (sealing_map (MkWorld ∅ (∅,∅) ∅ ∅) C)%I.
+  Lemma sealing_map_empty (C : CmptName) : ⊢ (sealing_map (MkWorld ∅ (∅,∅) ∅) C)%I.
   Proof. rewrite sealing_map_eq; apply sealing_map_def_empty. Qed.
 
   Lemma sealing_map_monotone (C : CmptName) (W W' : WORLD) :

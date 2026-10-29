@@ -64,7 +64,7 @@ Section fundamental.
 
       iDestruct ("Hreg" $! r1 _ Hr1) as "HVsr".
       iMod (sealing_preserves_interp with "HVsb HVsr Hworld_interp") as
-        "(%W' & %Hrelated & %Hheap & Hworld_interp & #HVsb')"; auto.
+        "(%W' & %Hrelated & Hworld_interp & #HVsb')"; auto.
       iModIntro. iNext.
       iApply ftlr_post_future; first exact Hrelated.
       iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").

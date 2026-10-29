@@ -79,7 +79,7 @@ Section ftlr_step_generic.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
-    iDestruct "Hinv_interp" as "[_ %Hcontra]". naive_solver.
+    iDestruct "Hinv_interp" as "[_ [%Hcontra _]]". naive_solver.
   Qed.
 
   (** The region resources of the address pointed to by a safe, correct PC. *)
@@ -109,7 +109,7 @@ Section ftlr_step_generic.
     destruct (isO p) eqn: HnO.
     { destruct Hp as [Hexec _]; eapply executeAllowed_nonO in Hexec; congruence. }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
-    iDestruct "Hinv" as "[#Hinv %Hpwl_cond]".
+    iDestruct "Hinv" as "[#Hinv [%Hpwl_cond _]]".
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
     assert (readAllowed p = true) as Hra.
     { destruct Hp as [Hexec _]; by eapply executeAllowed_is_readAllowed. }
@@ -273,11 +273,12 @@ Section ftlr_step.
       iSplit; first done.
       iExists regs, w. by iFrame "HPC Hregs Hreg'". }
     destruct w as [ [ | [ [] p g b e a | ] | | ] π]; try by inversion HcorrectPC.
-    (* 3. The re-filter. *)
-    iDestruct "Hreg'" as "[%Hfull Hsafe]".
-    iMod (registers_refilter with "Hworld Hregs Hsafe") as "(Hworld & Hmap & #Hregs)".
-    assert (∀ x : RegName, is_Some ((filter_heap W' <$> regs) !! x)) as Hfull'.
-    { intros x. rewrite lookup_fmap. by destruct (Hfull x) as [? ->]. }
+    (* 3. The registers. *)
+    iDestruct "Hreg'" as "[%Hfull #Hsafe]".
+    iRename "Hregs" into "Hmap".
+    iRename "Hsafe" into "Hregs".
+    assert (∀ x : RegName, is_Some (regs !! x)) as Hfull'.
+    { intros x. by destruct (Hfull x) as [? ->]. }
     (* 4. The PC and the region of its address. *)
     iDestruct (interp_pc_noid with "Hw") as %->; first exact HcorrectPC.
     iDestruct (interp_monotone_noid with "Hw") as "#Hinv_interp"; [done | done |].
@@ -293,10 +294,10 @@ Section ftlr_step.
       destruct Hstate_a as [Htemp | Hperm]; eauto. }
     iDestruct (open_world_interp W' C (LNonHeap a) p' _ ρ with "[$Hrela] [$Hworld]")
       as "(Hworld & Hstate & (%wa & WorldRes))";
-      [apply heap_key_live_nonheap | destruct ρ; auto; contradiction | exact Hρ |].
+      [destruct ρ; auto; contradiction | exact Hρ |].
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
-    { iApply (Hcases W' C (filter_heap W' <$> regs) p p' g b e a wa (decodeInstrW wa.(lw)) ρ P
+    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P
               with "[$IH $Hinv_interp $Hregs $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
                     $Hworld $Hstate $HPC $Hmap]"); eauto. }
     (* 6. The hand-off goes back to the accessor. *)
