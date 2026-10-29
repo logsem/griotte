@@ -131,7 +131,7 @@ Section KVS_spec_erase.
 
     (* Open sealing predicate of sealed user key *)
     iEval (rewrite interp_unfold /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
-    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
+    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 _]".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb @@? π0]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
 

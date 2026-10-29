@@ -133,7 +133,7 @@ Section KVS_spec_read_safe.
 
     (* Open sealing predicate of sealed user key *)
     iEval (rewrite interp_unfold /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
-    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
+    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 _]".
     iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb @@? π0]})%I as "#Hinterp_wca0'".
     { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
 
@@ -170,9 +170,8 @@ Section KVS_spec_read_safe.
       iLeft; iFrame.
       iApply (interp_in_mem_load_result W C RWL w actual).
       { rewrite !lload_word_RWL.
-        destruct Hactual as [Hload Hfilter].
-        destruct Hload as [-> | [_ ->] ].
-        - right. split; [reflexivity | exact Hfilter].
+        destruct Hactual as [-> | [_ ->] ].
+        - right. reflexivity.
         - left. reflexivity. }
       iApply "Hinterp_nkey"; iPureIntro; apply related_sts_priv_refl_world.
 

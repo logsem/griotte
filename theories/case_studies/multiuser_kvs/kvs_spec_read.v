@@ -489,7 +489,7 @@ Section KVS_spec_read.
           cra ↦ᵣ[th] - ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ[th] - ∗ (* scratch *)
           ct1 ↦ᵣ[th] - ∗ (* scratch *)
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -629,7 +629,7 @@ Section KVS_spec_read.
           cra ↦ᵣ[th] - ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ[th] - ∗ (* scratch *)
           ct1 ↦ᵣ[th] - ∗ (* scratch *)
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -746,7 +746,7 @@ Section KVS_spec_read.
          cra ↦ᵣ[th] - ∗
          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
          ctp ↦ᵣ[th] - ∗ (* scratch *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
          ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -831,7 +831,7 @@ Section KVS_spec_read.
          cra ↦ᵣ[th] - ∗
          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
          ct2 ↦ᵣ[th] - ∗ (* scratch *)
          ctp ↦ᵣ[th] - ∗ (* scratch *)

@@ -87,11 +87,11 @@ Section DROE_World.
 
     iAssert (interp W2 C (Cap RO_DRO Global cgp_b (cgp_b ^+ 1) cgp_b)) as "#Hinterp_cgp_b".
     { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
-      iSplit; last (iPureIntro;
+      iSplit; last (
         pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
-        split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+        iSplit; [iPureIntro; exact Hsub_shadow|iApply heap_cap_ok_disjoint; exact Hsub_heap]).
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)); last solve_addr.
@@ -163,11 +163,11 @@ Section DROE_World.
 
     iAssert (interp W3 C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1))) as "#Hinterp_W3_C_a".
     { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
-      iSplit; last (iPureIntro;
+      iSplit; last (
         pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1) (cgp_b ^+ 2)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
-        split; [exact Hsub_shadow|apply heap_cap_valid_disjoint; exact Hsub_heap]).
+        iSplit; [iPureIntro; exact Hsub_shadow|iApply heap_cap_ok_disjoint; exact Hsub_heap]).
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)); last solve_addr.
@@ -201,7 +201,7 @@ Section DROE_World.
     iModIntro.
     iFrame "Hworld_interp_C Hrel_cgp_b Hinterp_W3_C_a".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_W0_C_f"); first reflexivity.
+    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_W0_C_f").
       by iPureIntro. }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0"); auto).
 

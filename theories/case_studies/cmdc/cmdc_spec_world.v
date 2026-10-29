@@ -78,8 +78,8 @@ Section CMDC_World.
     iSplit.
     { iEval (rewrite interp_unfold). iEval (cbn).
       iSplitL; last first.
-      { iPureIntro. split.
-        - split.
+      { iSplit.
+        - iPureIntro. split.
           + pose proof (not_mmio_not_shadow _ Ha_mmio) as Ha_shadow.
             rewrite /disjoint_from_shadow elem_of_disjoint.
             intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
@@ -91,7 +91,7 @@ Section CMDC_World.
             assert (revoker_addr = a) as Heq by solve_addr+Ha' Ha_e.
             rewrite -Heq /is_revoker_address bool_decide_eq_false in Ha_rev.
             by apply Ha_rev.
-        - apply heap_cap_valid_disjoint.
+        - iApply heap_cap_ok_disjoint.
           rewrite /disjoint_from_heap elem_of_disjoint.
           intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
           assert (a' = a) as -> by solve_addr+Ha' Ha_e.

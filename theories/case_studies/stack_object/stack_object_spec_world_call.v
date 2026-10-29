@@ -104,25 +104,19 @@ Section SO_World_Call.
       - apply elem_of_finz_seq_between.
         apply withinBounds_true_iff in Hheap. solve_addr.
     }
-    assert (Forall (λ a, heap_key_live (heap_std W2) (LNonHeap a)) [a_stk1])
-      as Hfresh_live.
-    { constructor; [apply heap_key_live_nonheap|constructor]. }
     iMod (world_interp_restore_world W2 W2 C [LNonHeap a_stk1]
       with "[$Hworld_interp] [Hclosing_resources]")
       as "Hworld_interp".
-    { constructor; [apply heap_key_live_nonheap|constructor]. }
     { apply close_list_related_sts_pub. }
     { iClear "#".
       rewrite (_ : [LNonHeap a_stk1] = LNonHeap <$> [a_stk1]) // /RevokedResources big_sepL_fmap.
       iApply (big_sepL_impl with "Hclosing_resources").
       iModIntro; iIntros (k ka Hka) "H".
-      assert (heap_key_status (heap_std W2) (LNonHeap ka) = Some AllocObjectLive)
-        as Hlive_ka by done.
-      iEval (rewrite Hlive_ka).
       iDestruct "H" as (p0 phi Hpers) "(Htemp & Hrel)".
       iExists p0, phi.
       iFrame "Hrel".
       iSplit; first (iPureIntro; exact Hpers).
+      iApply heap_key_resource_intro.
       iDestruct "Htemp" as (v) "(HpO & Ha & Hmono & Hphi)".
       iExists v.
       rewrite /TmpRes mono_temporary_eq.
@@ -140,11 +134,12 @@ Section SO_World_Call.
       cbn.
       iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.
-      { iPureIntro. split; first done.
-        rewrite /disjoint_from_heap elem_of_disjoint in Hheap |- *.
-        split.
-        - eapply disjoint_from_mmio_weaken; last exact Hshadow; solve_addr.
-        - apply heap_cap_valid_disjoint.
+      { rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
+        iSplit.
+        - iPureIntro. split; first done.
+          eapply disjoint_from_mmio_weaken; last exact Hshadow; solve_addr.
+        - iApply heap_cap_ok_disjoint.
+          rewrite /disjoint_from_heap elem_of_disjoint.
           intros x Hx Hregion.
           eapply Hheap; [|exact Hregion].
           apply elem_of_finz_seq_between.
@@ -169,50 +164,43 @@ Section SO_World_Call.
     iModIntro. iFrame "#∗%".
   Qed.
 
-  (** Close the quarantined keys [l] in [Wcur]: they own no memory. *)
-  Lemma stack_object_restore_quarantined
-      (Wbase Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    heap_std Wbase = heap_std Wcur ->
-    Forall
-      (fun a => heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined)
-      l ->
-    world_interp Wcur C ∗ RevokedResources Wbase C l
-    ==∗
-    world_interp (close_list l Wcur) C.
-  Proof.
-    intros Hheap Hq.
-    assert (Forall
-      (fun a => heap_key_status (heap_std (close_list l Wcur)) a =
-        Some AllocObjectQuarantined) l) as Hq_closed.
-    { rewrite close_list_heap -Hheap. exact Hq. }
-    rewrite (RevokedResources_quarantined Wbase C l Hq).
-    rewrite -(RevokedResources_quarantined (close_list l Wcur) C l Hq_closed).
-    iIntros "[Hworld Hres]".
-    iApply (world_interp_restore with "[$Hworld $Hres]").
-  Qed.
-
-  (** Split the revoked keys [l] at their heap status in [Wbase], and close
-      the quarantined ones in [Wcur]. *)
+  (** Split the revoked keys [l] into the keys that hold their cells and the
+      tombstones of freed objects, and close the tombstones in [Wcur]: they
+      own no memory. *)
   Lemma so_world_quarantine (Wbase Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    heap_std Wbase = heap_std Wcur ->
     world_interp Wcur C -∗
     RevokedResources Wbase C l
     ==∗
     ∃ l_live l_q,
       ⌜l ≡ₚ l_live ++ l_q⌝ ∗
-      ⌜Forall (λ a, heap_key_live (heap_std Wbase) a) l_live⌝ ∗
-      ⌜Forall (λ a, heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined) l_q⌝ ∗
+      ⌜Forall (λ a, ∃ x ι, a = LHeap x ι) l_q⌝ ∗
       world_interp (close_list l_q Wcur) C ∗
-      RevokedResources Wbase C l_live.
+      RevokedCells Wbase C l_live.
   Proof.
-    iIntros (Hheap) "Hworld_interp_C Hrevoked_l".
-    iDestruct (revoked_status_some with "Hrevoked_l") as "[Hrevoked_l %Hstatuses]".
-    destruct (heap_status_partition (heap_std Wbase) l Hstatuses)
-      as (l_live & l_q & Hpartition & Hlive & Hq).
-    iEval (rewrite Hpartition RevokedResources_app) in "Hrevoked_l".
-    iDestruct "Hrevoked_l" as "[Hl_live Hl_q]".
-    iMod (stack_object_restore_quarantined Wbase Wcur C l_q
-           with "[$Hworld_interp_C $Hl_q]") as "Hworld_interp_C"; [done|done|].
+    iIntros "Hworld_interp_C Hrevoked_l".
+    iAssert (∃ l_live l_q,
+      ⌜l ≡ₚ l_live ++ l_q⌝ ∗
+      ⌜Forall (λ a, ∃ x ι, a = LHeap x ι) l_q⌝ ∗
+      RevokedResources Wcur C l_q ∗
+      RevokedCells Wbase C l_live)%I
+      with "[Hrevoked_l]" as (l_live l_q) "(%Hpartition & %Hq & Hl_q & Hl_live)".
+    { iInduction l as [|k l] "IH".
+      { iExists [], []. rewrite /RevokedResources /RevokedCells /=. by iFrame. }
+      iDestruct "Hrevoked_l" as "[(%pa & %Φa & %Hpers & #Hrel & Hk) Hl]".
+      iDestruct ("IH" with "Hl") as (l_live l_q) "(%Hpartition & %Hq & Hl_q & Hl_live)".
+      iDestruct (heap_key_open_cases with "Hk") as "[Hk | (%x & %ι & -> & #Hquar)]".
+      - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
+        iSplit; first (iPureIntro; by rewrite Hpartition).
+        iSplit; first done.
+        iExists pa, Φa. by iFrame "Hrel Hk".
+      - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
+        iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
+        iSplit; first (iPureIntro; constructor; eauto).
+        iExists pa, Φa. iFrame "Hrel". iSplit; first done.
+        by iApply heap_key_close_tomb. }
+    iMod (world_interp_restore_world Wcur Wcur C l_q
+           with "Hworld_interp_C Hl_q") as "Hworld_interp_C".
+    { apply close_list_related_sts_pub. }
     iModIntro. iExists l_live, l_q. by iFrame.
   Qed.
 
@@ -306,9 +294,6 @@ Section SO_World_Call.
       split; solve_addr+Hastk1 Hastk2. }
     assert (related_sts_priv_world W0 W3) as Hpriv_W0_W3.
     { eapply related_sts_priv_pub_trans_world; eauto. }
-    assert (heap_std W0 = heap_std W3) as Hheap_W0_W3.
-    { subst W3 W2q W2.
-      rewrite /reinstate !close_list_heap revoke_heap. reflexivity. }
     assert (related_sts_pub_world W2 W3) as Hpub_W2_W3.
     { eapply related_sts_pub_trans_world; eauto. }
     iModIntro.
@@ -447,8 +432,8 @@ Section SO_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f"); last by iPureIntro.
-      by rewrite revoke_heap. }
+    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f").
+      by iPureIntro. }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

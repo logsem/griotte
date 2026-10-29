@@ -279,22 +279,22 @@ Section kvs_obligations.
       as "#Hinterp_kvs_addOrUpdate".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      iPureIntro; cbn.
-      apply heap_cap_valid_disjoint, (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
+      cbn.
+      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
     }
     iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_read))
       as "#Hinterp_kvs_read".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      iPureIntro; cbn.
-      apply heap_cap_valid_disjoint, (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
+      cbn.
+      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
     }
     iAssert (interp (th := UserThread 0) W1 B (WSealed switcher.ot_switcher kvs_erase))
       as "#Hinterp_kvs_erase".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_f") ; last set_solver+).
-      iPureIntro; cbn.
-      apply heap_cap_valid_disjoint, (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
+      cbn.
+      iApply heap_cap_ok_disjoint. apply (cmpt_exp_tbl_disjoint_from_heap kvs_cmpt).
     }
 
     set ( kvs_user_key_B_sb := (kvs_user_seal_key_scap Global user_key_addr_B)).
@@ -337,8 +337,8 @@ Section kvs_obligations.
       as "#Hinterp_kvs_user_key_B".
     { iEval (rewrite interp_unfold /= /interp_sb).
       iSplit; first (iApply (sts_seals_std_weaken with "Hseal_kvs_ku") ; last set_solver+).
-      iPureIntro; cbn.
-      apply heap_cap_valid_disjoint.
+      cbn.
+      iApply heap_cap_ok_disjoint.
       subst user_key_addr_B.
       replace (image.cmpt_b_static_sealed (cmpt_of img "B") ^+ 1)%a
         with (image.cmpt_e_static_sealed (cmpt_of img "B")).
@@ -384,7 +384,6 @@ Section kvs_obligations.
       { iSplit.
         * iApply interp_to_in_mem.
           iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { subst Winter. by rewrite std_update_compartment_heap. }
           { iPureIntro; exact Hrelated_W1_Winter. }
           iFrame "Hinterp_kvs_addOrUpdate".
         * iIntros (W2 W3) "!> %Hrelated Hinterp".
@@ -397,7 +396,6 @@ Section kvs_obligations.
       { iSplit.
         * iApply interp_to_in_mem.
           iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { subst Winter. by rewrite std_update_compartment_heap. }
           { iPureIntro; exact Hrelated_W1_Winter. }
           iFrame "Hinterp_kvs_read".
         * iIntros (W2 W3) "!> %Hrelated Hinterp".
@@ -410,7 +408,6 @@ Section kvs_obligations.
       { iSplit.
         * iApply interp_to_in_mem.
           iApply (interp_monotone_sd_same_heap W1 Winter with "[]").
-          { subst Winter. by rewrite std_update_compartment_heap. }
           { iPureIntro; exact Hrelated_W1_Winter. }
           iFrame "Hinterp_kvs_erase".
         * iIntros (W2 W3) "!> %Hrelated Hinterp".
@@ -423,7 +420,6 @@ Section kvs_obligations.
       { iSplit.
         * iApply interp_to_in_mem.
           iApply (interp_monotone_sd_same_heap W1' Winter with "[]").
-          { subst Winter. by rewrite std_update_compartment_heap. }
           { iPureIntro; exact Hrelated_W1'_Winter. }
           iFrame "Hinterp_kvs_user_key_B".
         * iIntros (W2 W3) "!> %Hrelated Hinterp".
