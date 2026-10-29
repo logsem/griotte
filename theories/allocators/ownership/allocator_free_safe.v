@@ -357,12 +357,12 @@ Section Heap_Temporal_Safety_Interp.
       { iNext. iExists a_tstk, cstk', save_area, tstk_next. iFrame. }
       subst rmap. iExtract "Hrmap" csp as "Hcspr".
       (* Move the world's entry for [ι] to Quarantined. *)
-      set (h' := heap_quarantine W.2 ι).
-      pose proof (heap_quarantine_future W.2 ι) as Hheap_future.
+      set (h' := heap_quarantine (heap_std W) ι).
+      pose proof (heap_quarantine_future (heap_std W) ι) as Hheap_future.
       pose proof (related_sts_pub_world_heap_update W
-        (heap_quarantine W.2 ι) Hheap_future) as Hrelated_W_q.
+        (heap_quarantine (heap_std W) ι) Hheap_future) as Hrelated_W_q.
       assert (Houtside : ∀ k, k ∉ lk ->
-          heap_key_status W.2 k = heap_key_status h' k).
+          heap_key_status (heap_std W) k = heap_key_status h' k).
       { intros [x|x κ] Hnotin; first done. cbn.
         destruct (decide (κ = ι)) as [->|Hne].
         - subst h'. rewrite (heap_quarantine_lookup _ _ _ Hι) Hι /=.

@@ -1688,7 +1688,7 @@ Section resources.
     `{MP : MachineParameters}.
 
   (** The empty world. *)
-  Definition fw_world0 : WORLD := (∅, (∅, ∅), ∅, ∅).
+  Definition fw_world0 : WORLD := (MkWorld ∅ (∅, ∅) ∅ ∅).
 
   (** The resources shared by the threads: the code of the switcher and the
       invariant of the assert library, the memory of every compartment

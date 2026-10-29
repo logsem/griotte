@@ -8,7 +8,7 @@ Section world_std_revocation.
     `{MP: MachineParameters}.
 
   (* The lemmas of this file do not depend on the type of sealed words. *)
-  #[local] Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
+  #[local] Notation WORLD := (leibnizO (World LAddr region_type OType Wd)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -38,7 +38,7 @@ Section world_std_revocation.
                | Temporary => Revoked
                | _ => v
                end).
-  Definition revoke (W : WORLD) : WORLD := (revoke_std_sta (std W), cus W, seal_std W, heap_std W).
+  Definition revoke (W : WORLD) : WORLD := MkWorld (revoke_std_sta (std W)) (cus W) (seal_std W) (heap_std W).
 
   (* A weaker revocation which only revokes elements from a list *)
   Fixpoint revoke_list_std_sta (l : list LAddr) (fs : STS_STD) : STS_STD :=
@@ -53,7 +53,7 @@ Section world_std_revocation.
                end
     end.
   Definition revoke_list (l : list LAddr) (W : WORLD) : WORLD
-    := ((revoke_list_std_sta l (std W)), cus W, seal_std W, heap_std W).
+    := MkWorld (revoke_list_std_sta l (std W)) (cus W) (seal_std W) (heap_std W).
 
 
 
@@ -385,7 +385,7 @@ Section world_std_revocation.
     rewrite /revoke_list /=.
     destruct (std W !! i) eqn:Hsome; auto.
     destruct r eqn:Htemp; auto.
-    - destruct W as [ [ Wstd_sta Wloc] W_heap ].
+    - destruct W as [Wstd_sta Wcus Wloc W_heap].
       destruct Hpriv as [(Hdoms & Ha) Hloc]; auto.
       split;simpl;auto.
       rewrite /related_sts_std_priv.
@@ -408,7 +408,7 @@ Section world_std_revocation.
     related_sts_priv_world W (revoke_list l W).
   Proof.
     induction l.
-    - destruct W as [ [ [] ] W_heap ]. rewrite /revoke_list /=. apply related_sts_priv_refl_world.
+    - destruct W. rewrite /revoke_list /=. apply related_sts_priv_refl_world.
     - split;[|split];[|apply related_sts_priv_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
       apply revoke_list_related_sts_priv_cons_world; auto.
   Qed.
@@ -434,7 +434,7 @@ Section world_std_revocation.
                end
     end.
   Definition close_list_std_sta (l : list LAddr) (fs : STS_STD) : STS_STD := conditional_close_list_std_sta Revoked l fs.
-  Definition close_list (l : list LAddr) (W : WORLD) : WORLD := (close_list_std_sta l (std W), cus W, seal_std W, heap_std W).
+  Definition close_list (l : list LAddr) (W : WORLD) : WORLD := MkWorld (close_list_std_sta l (std W)) (cus W) (seal_std W) (heap_std W).
 
   Lemma conditional_close_list_std_sta_is_Some Wstd_sta ρ l i :
     is_Some (Wstd_sta !! i) <-> is_Some (conditional_close_list_std_sta ρ l Wstd_sta !! i).
@@ -550,7 +550,7 @@ Section world_std_revocation.
 
   Lemma close_list_related_sts_pub_cons_world W a l :
     related_sts_pub_world W (close_list l W) →
-    related_sts_pub_world W (close_list_std_sta (a :: l) (std W), cus W, seal_std W, heap_std W).
+    related_sts_pub_world W (MkWorld (close_list_std_sta (a :: l) (std W)) (cus W) (seal_std W) (heap_std W)).
   Proof.
     rewrite /close_list /close_list_std_sta /=. intros IHl.
     destruct (std W !! a) eqn:Hsome; eauto.
@@ -579,7 +579,7 @@ Section world_std_revocation.
     related_sts_pub_world W (close_list l W).
   Proof.
     induction l.
-    - rewrite /close_list /=. destruct W as [ [ [] ] W_heap ]. apply related_sts_pub_refl_world.
+    - rewrite /close_list /=. destruct W. apply related_sts_pub_refl_world.
     - apply close_list_related_sts_pub_cons_world; auto.
   Qed.
 
@@ -621,14 +621,14 @@ Section world_std_revocation.
     intros Htemporaries.
     rewrite /revoke /close_list.
     rewrite close_revoke_eq; auto; cbn.
-    destruct W as [ [ [] ] W_heap ]; apply related_sts_pub_refl_world.
+    destruct W; apply related_sts_pub_refl_world.
   Qed.
 
 
   Lemma close_list_empty W : (close_list [] W) = W.
   Proof.
     rewrite /close_list.
-    by destruct W as [ [ [] ] W_heap ]; rewrite -surjective_pairing.
+    by destruct W.
   Qed.
 
    (* commuting updates and revoke *)
@@ -641,8 +641,8 @@ Section world_std_revocation.
      rewrite Forall_cons in Hl; destruct Hl as [Hla Hl].
      rewrite /revoke /revoke_std_sta.
      rewrite fmap_insert.
-     destruct W as [ [W1 W2] W_heap ].
-     rewrite -/revoke_std_sta -/(revoke (W1,W2,W_heap)).
+     destruct W as [W1 Wc W2 W_heap].
+     rewrite -/revoke_std_sta -/(revoke (MkWorld W1 Wc W2 W_heap)).
      rewrite -IHl; auto.
      rewrite insert_id; auto.
      destruct (decide (a ∈ l)).
@@ -691,7 +691,7 @@ Section world_std_revocation.
   Lemma extract_temps W :
     ∃ l, NoDup l ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ l).
   Proof.
-    destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
+    destruct W as [Wstd_sta Wloc Wseals W_heap].
     induction Wstd_sta using (map_ind (M:=gmap LAddr) (A:=region_type)).
     - exists []. split;[by apply NoDup_nil|]. intros a. split; intros Hcontr; inversion Hcontr.
     - destruct IHWstd_sta as [l [Hdup Hiff] ].

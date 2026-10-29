@@ -15,7 +15,7 @@ Section std_updates.
     `{MP: MachineParameters}.
 
   (* The lemmas of this file do not depend on the type of sealed words. *)
-  #[local] Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
+  #[local] Notation WORLD := (leibnizO (World LAddr region_type OType Wd)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -161,7 +161,7 @@ Section std_updates.
        { rewrite (_: <s[a:=ρ]s>(std_update_multiple W l ρ) = std_update_multiple W l ρ) /=.
          { by apply related_sts_pub_refl_world. }
          rewrite /std_update insert_id /=.
-         { by destruct (std_update_multiple W l ρ) as [ [ [] ] ]. }
+         { by destruct (std_update_multiple W l ρ) as []. }
          by apply std_sta_update_multiple_lookup_in_i.
        }
        apply related_sts_pub_world_fresh; auto.
@@ -186,8 +186,8 @@ Section std_updates.
      related_sts_pub_world (std_update_multiple W l ρ) (std_update_multiple W' l ρ).
    Proof.
      intros Hrelated.
-     destruct W as [ [ [Wstd_sta [Wloc_sta Wloc_rel] ] Wseals ] W_heap ].
-     destruct W' as [ [ [ Wstd_sta' [Wloc_sta' Wloc_rel']  ] Wseals' ] W_heap' ].
+     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] Wseals W_heap].
+     destruct W' as [Wstd_sta' [Wloc_sta' Wloc_rel'] Wseals' W_heap'].
      destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related & Wseals_related).
      simpl in *.
      split;[|split]
@@ -271,10 +271,10 @@ Section std_updates.
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=
          ; first by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [ [ [] ] ].
+         rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [].
          by apply std_sta_update_multiple_lookup_in_i.
        }
-       destruct W as [ [Hstd Hloc] W_heap ].
+       destruct W as [Hstd Hcus Hloc W_heap].
        apply related_sts_pub_world_revoked_temporary in Ha_std.
        eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
@@ -360,7 +360,7 @@ Section std_updates.
        { rewrite (_: <s[k:=ρ]s>(std_update_keys W l ρ) = std_update_keys W l ρ) /=.
          { by apply related_sts_pub_refl_world. }
          rewrite /std_update insert_id /=.
-         { by destruct (std_update_keys W l ρ) as [ [ [] ] ]. }
+         { by destruct (std_update_keys W l ρ) as []. }
          by apply std_update_keys_lookup_in.
        }
        apply related_sts_pub_world_fresh.

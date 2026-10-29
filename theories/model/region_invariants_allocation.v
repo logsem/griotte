@@ -205,7 +205,7 @@ Section region_alloc.
                      = std_update_keys W l1 Revoked).
         { by iFrame "∗#". }
         rewrite /std_update insert_id; last by apply std_update_keys_lookup_in.
-        by destruct (std_update_keys W l1 Revoked) as [ [ [] ] ].
+        by destruct (std_update_keys W l1 Revoked) as [].
       + assert (k ∉ dom (std (std_update_keys W l1 Revoked))) as Hnone.
         { rewrite not_elem_of_dom std_update_keys_lookup_same //. }
         assert (heap_key_live (heap_std (std_update_keys W l1 Revoked)) k) as Hlive.

@@ -261,9 +261,9 @@ Section VAE_helper.
     }
 
     split; [|split]; cbn; cycle 1.
-    - destruct W0 as [ [ [W0_std [W0_loc W0_rel] ] W0_seals] W_heap0 ],
-          W3 as [ [ [W3_std [W3_loc W3_rel] ] W3_seals] W_heap3 ],
-          W6 as [ [ [W6_std [W6_loc W6_rel] ] W6_seals] W_heap6 ]; cbn.
+    - destruct W0 as [W0_std [W0_loc W0_rel] W0_seals W_heap0],
+          W3 as [W3_std [W3_loc W3_rel] W3_seals W_heap3],
+          W6 as [W6_std [W6_loc W6_rel] W6_seals W_heap6]; cbn.
       destruct Hrelated_pub_W2_W3 as
         (HW2_W3_std & HW2_W3_cus & HW2_W3_seals).
       destruct Hrelated_pub_W5_W6 as

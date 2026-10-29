@@ -97,6 +97,29 @@ Proof.
   solve_inG.
 Qed.
 
+(** A world: the standard STS, the custom STSs (states and relations), the
+    seal STS and the heap observation. *)
+Record World (A B O Wd : Type)
+  {eqA : EqDecision A} {countA : Countable A}
+  {eqO : EqDecision O} {countO : Countable O}
+  {eqWd : EqDecision Wd} {countWd : Countable Wd} := MkWorld {
+  std : leibnizO (STS_std_states A B);
+  cus : leibnizO (STS_states * STS_rels);
+  seal_std : leibnizO (seals_std O Wd);
+  heap_std : Heap;
+}.
+Arguments MkWorld {_ _ _ _ _ _ _ _ _ _} _ _ _ _.
+Arguments std {_ _ _ _ _ _ _ _ _ _} _.
+Arguments cus {_ _ _ _ _ _ _ _ _ _} _.
+Arguments seal_std {_ _ _ _ _ _ _ _ _ _} _.
+Arguments heap_std {_ _ _ _ _ _ _ _ _ _} _.
+
+#[global] Instance World_inhabited (A B O Wd : Type)
+  {eqA : EqDecision A} {countA : Countable A}
+  {eqO : EqDecision O} {countO : Countable O}
+  {eqWd : EqDecision Wd} {countWd : Countable Wd} : Inhabited (World A B O Wd) :=
+  populate (MkWorld ∅ (∅, ∅) ∅ ∅).
+
 Section definitionsS.
 
   (* A now needs to be comparable, so we can distinquish between higher and lower a's *)
@@ -111,13 +134,9 @@ Section definitionsS.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
   Notation SEAL_STD := (leibnizO (seals_std O Wd)).
-  Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+  Notation WORLD := (leibnizO (World A B O Wd)).
 
   (* Some practical shorthands for projections *)
-  Notation std W := (W : WORLD).1.1.1.
-  Notation cus W := (W : WORLD).1.1.2.
-  Notation seal_std W := (W : WORLD).1.2.
-  Notation heap_std W := (W : WORLD).2.
   Notation loc W := (cus (W : WORLD)).1.
   Notation wrel W := (cus (W : WORLD)).2.
 
@@ -238,10 +257,6 @@ Section definitionsS.
 End definitionsS.
 
 (* Some practical shorthands for projections *)
-Notation std W := W.1.1.1.
-Notation cus W := W.1.1.2.
-Notation seal_std W := W.1.2.
-Notation heap_std W := W.2.
 Notation loc W := (cus W).1.
 Notation wrel W := (cus W).2.
 
@@ -264,7 +279,7 @@ Section pre_STS.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
   Notation SEAL_STD := (leibnizO (seals_std O Wd)).
-  Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+  Notation WORLD := (leibnizO (World A B O Wd)).
   Implicit Types W : WORLD.
 
   Lemma gen_sts_std_init :
@@ -349,7 +364,7 @@ Section pre_STS.
 
   Lemma gen_sts_init :
     ⊢ |==> ∃ (stsg : STSG A B O Wd Σ),
-      [∗ set] C ∈ CNames, sts_full_world (∅, (∅,∅), ∅, ∅) C.
+      [∗ set] C ∈ CNames, sts_full_world (MkWorld ∅ (∅,∅) ∅ ∅) C.
   Proof.
     iMod gen_sts_std_init as (γsstd) "Hstd".
     iMod gen_sts_state_init as (γs) "Hs".
@@ -397,7 +412,7 @@ Section STS.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states A B)).
   Notation SEAL_STD := (leibnizO (seals_std O Wd)).
-  Notation WORLD := (prodO (prodO (prodO STS_STD STS) SEAL_STD) (leibnizO Heap)).
+  Notation WORLD := (leibnizO (World A B O Wd)).
   Implicit Types W : WORLD.
 
   (* --------------------- REFLEXIVITY --------------------- *)
@@ -687,7 +702,7 @@ Qed.
     -∗ ⌜ wrel W !! i = Some (convert_rel rpub,convert_rel rpriv)⌝.
   Proof.
     rewrite sts_rel_loc_unseal /sts_rel_loc_def /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def.
-    destruct W as [ [ [Wstd [fs fr]] Wseals] W_heap ].
+    destruct W as [Wstd [fs fr] Wseals W_heap].
     iIntros "(_ & [_ H1] & _) H2 /=".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
@@ -709,7 +724,7 @@ Qed.
     -∗ ⌜std W !! a = Some b⌝.
   Proof.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_state_std_unseal /sts_state_std_def.
-    destruct W as [ [ [Wstd Wcus] Wseals] W_heap ].
+    destruct W as [Wstd Wcus Wseals W_heap].
     iIntros "(H1 & _ & _) H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete; iPureIntro.
     specialize (Hv a).
@@ -729,7 +744,7 @@ Qed.
     -∗ ⌜loc W !! i = Some (encode d)⌝.
   Proof.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_state_loc_unseal /sts_state_loc_def.
-    destruct W as [ [ [Wstd [fs gs]] Wseals ] W_heap ].
+    destruct W as [Wstd [fs gs] Wseals W_heap].
     iIntros "(_ & [H1 _] & _) H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete;
       iPureIntro.
@@ -749,7 +764,7 @@ Qed.
     -∗ ⌜∃ ws', seal_std W !!o = Some ws' ∧ ws ⊆ ws' ⌝.
   Proof.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_unseal /sts_full_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_seals_std_unseal /sts_seals_std_def.
-    destruct W as [ [ [Wstd Wcus] Wseals ] W_heap ].
+    destruct W as [Wstd Wcus Wseals W_heap].
     iIntros "(_ & _ & H1 & _) H2".
     iDestruct (own_valid_2 with "H1 H2") as %[HR Hv]%auth_both_valid_discrete; iPureIntro.
     specialize (Hv o).
@@ -763,17 +778,17 @@ Qed.
 
   (* Definition and notation for updating a standard or local state in the STS collection *)
   Definition std_update (W : WORLD) (a : A) (b : B) : WORLD :=
-    (<[ a := b]>(std W), cus W, seal_std W, heap_std W).
+    MkWorld (<[ a := b]>(std W)) (cus W) (seal_std W) (heap_std W).
   Definition loc_alloc (W : WORLD) (i : positive) (d : D)
     (rpub rpriv : D → D -> Prop) : WORLD :=
-    (std W,(<[ i := encode d]>(loc W),
-              <[ i := (convert_rel rpub,convert_rel rpriv)]>(wrel W)), seal_std W, heap_std W).
+    MkWorld (std W) (<[ i := encode d]>(loc W),
+              <[ i := (convert_rel rpub,convert_rel rpriv)]>(wrel W)) (seal_std W) (heap_std W).
   Definition loc_update (W : WORLD) (i : positive) (d : D) :=
-    (std W, ( (<[i := encode d ]>(loc W)), wrel W), seal_std W, heap_std W).
+    MkWorld (std W) ( (<[i := encode d ]>(loc W)), wrel W) (seal_std W) (heap_std W).
   Definition seals_std_update (W : WORLD) (o : O) (ws : gset Wd) :=
-    (std W, cus W, (<[o := ws ]>(seal_std W)), heap_std W).
+    MkWorld (std W) (cus W) (<[o := ws ]>(seal_std W)) (heap_std W).
   Definition seals_std_update_default (W : WORLD) (o : O) (ws : gset Wd) :=
-    (std W, cus W, (<[o := ws ∪ (default ∅ (seal_std W !! o)) ]>(seal_std W)), heap_std W).
+    MkWorld (std W) (cus W) (<[o := ws ∪ (default ∅ (seal_std W !! o)) ]>(seal_std W)) (heap_std W).
 
   Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
   Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
@@ -800,7 +815,7 @@ Qed.
     sts_full_world (<s[ a := b ]s> W) C ∗ sts_state_std C a b.
   Proof.
     rewrite /sts_full_world sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_state_std_unseal /sts_state_std_def /std_update /=.
-    destruct W as [ [ [fsd Wloc] ?] W_heap ]. rewrite sts_full_std_unseal /sts_full_std_def.
+    destruct W as [fsd Wloc ? W_heap]. rewrite sts_full_std_unseal /sts_full_std_def.
     iIntros (Hfresh1) "[H1 Hloc] /=".
     iMod (own_update
             (A := sts_std_stateUR A B)
@@ -820,7 +835,7 @@ Qed.
     sts_full_world (<o[ o := ws ]o> W) C ∗ sts_seals_std C o ws.
   Proof.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_unseal /sts_full_def sts_seals_std_unseal /sts_seals_std_def /seals_std_update /=.
-    destruct W as [ [ [? ?] Wseals] W_heap ]. rewrite sts_full_seals_std_unseal /sts_full_seals_std_def.
+    destruct W as [? ? Wseals W_heap]. rewrite sts_full_seals_std_unseal /sts_full_seals_std_def.
     iIntros (Hfresh1) "(H1 & H2 & Hseals & Hheap) /=".
     assert (Wseals !! o = None) as -> by (rewrite -not_elem_of_dom //).
 
@@ -845,7 +860,7 @@ Qed.
   Proof.
     iIntros (Ho) "[Hsts Hf] /="; cbn in *.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_unseal /sts_full_def sts_seals_std_unseal /sts_seals_std_def /seals_std_update /=.
-    destruct W as [ [ [? ?] Wseals] W_heap ]. rewrite sts_full_seals_std_unseal /sts_full_seals_std_def.
+    destruct W as [? ? Wseals W_heap]. rewrite sts_full_seals_std_unseal /sts_full_seals_std_def.
     iDestruct "Hsts" as "(H1 & H2 & Hseals & Hheap)"; cbn in *.
     rewrite Ho /=.
 
@@ -869,7 +884,7 @@ Qed.
   (** The heap authority is global; compartment worlds retain persistent full
       heap observations. Refreshing one does not alter its other components. *)
   Definition heap_std_update (W : WORLD) (W_heap : Heap) : WORLD :=
-    (std W, cus W, seal_std W, W_heap).
+    MkWorld (std W) (cus W) (seal_std W) W_heap.
 
   Lemma related_sts_pub_world_heap_update W W_heap :
     related_sts_heap_std (heap_std W) W_heap ->
@@ -886,14 +901,14 @@ Qed.
   Proof. intros Hheap. apply related_sts_pub_priv_world, related_sts_pub_world_heap_update; done. Qed.
 
   Definition fresh_cus_name (W : WORLD) :=
-    match W with | (_, (fs, fr), _, _) => fresh (dom fs ∪ dom fr) end.
+    match W with | MkWorld _ (fs, fr) _ _ => fresh (dom fs ∪ dom fr) end.
 
   Lemma fresh_name_notin (W : WORLD) (ι : positive) :
     ι ∈ dom (loc W) ∨ ι ∈ dom (wrel W)
     -> ι ≠ fresh_cus_name W.
   Proof.
     intros Hι.
-    destruct W as [ [ [ Wsta [ Wcus_loc Wcus_rel ] ] Wseals] W_heap ]; cbn in *.
+    destruct W as [Wsta [ Wcus_loc Wcus_rel ] Wseals W_heap]; cbn in *.
     pose proof ( is_fresh ( (dom Wcus_loc ∪ dom Wcus_rel) ) ).
     set_solver.
   Qed.
@@ -906,7 +921,7 @@ Qed.
     ∗ sts_state_loc C (A:=A) i d ∗ sts_rel_loc C (A:=A) i rpub rpriv.
   Proof.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_rel_loc_unseal /sts_rel_loc_def sts_state_loc_unseal /sts_state_loc_def /loc_alloc.
-    destruct W as [ [ [Wstd [fs fr]] Wseals] W_heap ].
+    destruct W as [Wstd [fs fr] Wseals W_heap].
     iIntros "(Hstd & [H1 H2] & Hseals & Hheap) /=".
     assert (fresh (dom fs ∪ dom fr) ∉ (dom fs ∪ dom fr)) as Hfresh.
     { apply is_fresh. }
@@ -951,7 +966,7 @@ Qed.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_std with "Hsf Hi") as %Hfs.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_state_std_unseal /sts_state_std_def /std_update.
-    destruct W as [ [ [fsd Wloc] Wseals] W_heap ].
+    destruct W as [fsd Wloc Wseals W_heap].
     iDestruct "Hsf" as "(H1 & Hloc & ?) /=".
     iCombine "H1" "Hi" as "H1".
     iMod (own_update (A := sts_std_stateUR A B)
@@ -975,7 +990,7 @@ Qed.
     iIntros "Hsf Hi".
     iDestruct (sts_full_state_loc with "Hsf Hi") as %Hfs.
     rewrite /sts_full_world sts_full_std_unseal /sts_full_std_def sts_full_seals_std_unseal /sts_full_seals_std_def sts_full_unseal /sts_full_def sts_state_loc_unseal /sts_state_loc_def /loc_update.
-    destruct W as [ [ [Wstd [fs fr]] Wseals] W_heap ].
+    destruct W as [Wstd [fs fr] Wseals W_heap].
     iDestruct "Hsf" as "(Hdst & [H1 H2] & ?) /=".
     iCombine "H1" "Hi" as "H1".
     iMod (own_update (A := sts_stateUR)
@@ -1033,7 +1048,7 @@ Qed.
   Lemma related_sts_pub_world_fresh_loc W (i x : positive) (rpub rpriv : positive -> positive -> Prop) :
     i ∉ dom (loc W) →
     i ∉ dom (wrel W) →
-    related_sts_pub_world W (std W,(<[i:=x]> (loc W), <[i:= (rpub,rpriv)]> (wrel W)), seal_std W, heap_std W).
+    related_sts_pub_world W (MkWorld (std W) (<[i:=x]> (loc W), <[i:= (rpub,rpriv)]> (wrel W)) (seal_std W) (heap_std W)).
   Proof.
     intros Hdom_sta Hdom_rel.
     rewrite /related_sts_pub_world /=.
@@ -1053,7 +1068,7 @@ Qed.
   Lemma related_sts_pub_world_update_ot (W : WORLD) (o : O) (ws : gset Wd) :
     related_sts_pub_world W (<o[o:=ws]o>W).
   Proof.
-    destruct W as [ [ [Wstd Wcus] Wseals ] W_heap ].
+    destruct W as [Wstd Wcus Wseals W_heap].
     split;[|split]; [ apply related_sts_std_pub_refl | apply related_sts_pub_refl | ]; cbn in *.
     split; last apply related_sts_heap_std_refl.
     split.

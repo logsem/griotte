@@ -330,7 +330,7 @@ Section world_init.
       ◯(CSTK)[u 0] (entry_cstack ef) ∗
       ([∗ list] k ↦ ef' ∈ efs,
          ●(CSTK)[u (S k)] (entry_cstack ef') ∗ ◯(CSTK)[u (S k)] (entry_cstack ef')) ∗
-      [∗ list] C ∈ Cs, world_interp (∅, (∅, ∅), ∅, ∅) C.
+      [∗ list] C ∈ Cs, world_interp (MkWorld ∅ (∅, ∅) ∅ ∅) C.
   Proof.
     intros HCNames HNoDup.
     iMod (gen_cstack_init (entry_cstack ef) ((λ ef', entry_cstack ef') <$> efs))

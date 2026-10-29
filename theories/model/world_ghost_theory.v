@@ -2085,14 +2085,14 @@ Section world_interp_Pre.
 
   Lemma world_interp_init (oset : gset OType) :
     ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG LAddr region_type OType LWord Σ) (sstoreg : sealStoreG Σ),
-            ([∗ set] C ∈ CNames, world_interp (∅, (∅,∅), ∅, ∅) C) ∗
+            ([∗ set] C ∈ CNames, world_interp (MkWorld ∅ (∅,∅) ∅ ∅) C) ∗
             ([∗ set] o ∈ oset, can_alloc_pred o)).
   Proof.
     iMod (gen_sts_init) as (stsg) "Hsts".
     iMod (rel_init) as (relg) "HRELS".
     iMod (seal_store_init) as (sstoreg) "Hseals".
     iExists relg, stsg, sstoreg; iFrame "Hseals".
-    set (Wempty := (∅, (∅,∅), ∅, ∅)).
+    set (Wempty := (MkWorld ∅ (∅,∅) ∅ ∅)).
     iAssert ([∗ set] C ∈ CNames, region Wempty C)%I with "[HRELS]" as "Hr".
     { iApply (big_sepS_impl with "HRELS").
       iModIntro; iIntros (C HC) "HRELS".

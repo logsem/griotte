@@ -175,7 +175,7 @@ Section region_invariant_revocation.
   Proof.
     iIntros (Hdom) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [ [Wstd_sta Wloc] W_heap ].
+    destruct W as [Wstd_sta Wcus Wloc W_heap].
     iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".
@@ -334,8 +334,8 @@ Section region_invariant_revocation.
            iDestruct "Ha" as (v Hne0) "(Hx & #HmonoV & #Hφ0)"; simplify_eq.
            rewrite /heap_key_live in Hlive_x. rewrite Hlive_x.
            iExists v; iFrame "%∗".
-           destruct W as [ [ Wstd_sta Wloc] W_heap ].
-           iDestruct (saved_pred_agree _ _ _ _ _ (Wstd_sta, Wloc, W_heap, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
+           destruct W as [Wstd_sta Wcus Wloc W_heap].
+           iDestruct (saved_pred_agree _ _ _ _ _ (MkWorld Wstd_sta Wcus Wloc W_heap, C, v) with "Hφ Hsaved") as "#Hφeq". iFrame.
            iDestruct (internal_eq_iff with "Hφeq") as "Hφeq'".
            iSplitL "HmonoV";[|by iNext; iApply "Hφeq'"].
            all: destruct (isWL p0).
@@ -351,7 +351,7 @@ Section region_invariant_revocation.
         iNamed "Hr".
         iDestruct "Hmap" as "[%Hknown [Hheapfrag Hr]]".
         iClear "IH".
-        rewrite /revoke_list /=. destruct W as [ [ [ Wstd_sta Wloc] Wseals] W_heap ].
+        rewrite /revoke_list /=. destruct W as [Wstd_sta Wloc Wseals W_heap].
         destruct (Wstd_sta !! x) as [ρx|] eqn:Hsome.
         2: { iFrame. iModIntro. rewrite Hsome. iFrame. iFrame. auto. }
         rewrite Hsome.
@@ -400,10 +400,10 @@ Section region_invariant_revocation.
   Proof.
     intros Htemps.
     assert (∀ W', std_update_keys W' s Revoked
-                  = (std (std_update_keys W' s Revoked), cus W', seal_std W', heap_std W'))
+                  = MkWorld (std (std_update_keys W' s Revoked)) (cus W') (seal_std W') (heap_std W'))
       as Hshape.
     { clear Htemps. intros W'. induction s as [|k s IH].
-      - by destruct W' as [ [ [] ] ].
+      - by destruct W'.
       - cbn [std_update_keys]. rewrite /std_update IH //. }
     rewrite Hshape /revoke /revoke_list /=.
     do 3 f_equal.
@@ -783,7 +783,7 @@ Section region_invariant_revocation.
     intros Hheap.
     iIntros (Hrevoked Hdom Hstd Hrelated) "Hfull Hr".
     rewrite /revoke in Hdom |- *.
-    destruct W as [ [ [Wstd_sta Wloc] Wseals] W_heap ].
+    destruct W as [Wstd_sta Wloc Wseals W_heap].
     iDestruct "Hr" as "[%Hknown [Hheapfrag Hr]]".
     iDestruct (big_sepM_exists with "Hr") as (m') "Hr".
     iDestruct (big_sepM2_sep with "Hr") as "[HMρ Hr]".

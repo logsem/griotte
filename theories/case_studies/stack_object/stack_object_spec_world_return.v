@@ -440,7 +440,7 @@ Section SO_World_Return.
           apply elem_of_finz_seq_between.
           stk_unfold; solve_addr+Hx Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
       }
-      destruct W4 as [ [ [W4std W4cus] W4seals] W_heap4 ]; cbn.
+      destruct W4 as [W4std W4cus W4seals W_heap4]; cbn.
       split; [|split];
         [|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl] ]; cbn.
       split.
@@ -466,8 +466,8 @@ Section SO_World_Return.
       { intros x Hx. apply elem_of_app in Hx as [Hx|Hx].
         - apply elem_of_app; left. by apply Hl0_closing_revoked.
         - by apply elem_of_app; right. }
-      destruct W0 as [ [ [W0std W0cus] W0seals] W_heap0 ].
-      destruct W4 as [ [ [W4std W4cus] W4seals] W_heap4 ]. cbn in *.
+      destruct W0 as [W0std W0cus W0seals W_heap0].
+      destruct W4 as [W4std W4cus W4seals W_heap4]. cbn in *.
       split; [|split]; cbn; cycle 1.
       - destruct Hpriv as (_ & Hcus03 & _).
         destruct Hpub as (_ & Hcus34 & _).
@@ -493,7 +493,7 @@ Section SO_World_Return.
             specialize (Hinitial_W5 x Hx_close).
             rewrite close_list_std_sta_revoked in Hx5; auto.
             simplify_eq; apply rtc_refl.
-          * assert (std (W4std, W4cus, W4seals, W_heap4) !! x = Some Permanent)
+          * assert (std (MkWorld W4std W4cus W4seals W_heap4) !! x = Some Permanent)
               as Hx4.
             { eapply region_state_priv_perm.
               - eapply related_sts_priv_pub_trans_world; eauto.
