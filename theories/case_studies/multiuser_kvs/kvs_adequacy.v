@@ -23,7 +23,7 @@ Section kvs_obligations.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map}.
   Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option LWord)}.
   Context {cname : CmptNameG} {B : CmptName}.
-  Context {kvs_otype_preg : kvsOtypePreG Σ}.
+  Context {seal_registry_preg : sealRegistryPreG LAddr Σ}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the KVS firmware: the thread
@@ -212,26 +212,26 @@ Section kvs_obligations.
 
     (* 5.4 The registry of the sealed user keys: B's key, valid in B *)
     iMod (ghost_map_alloc (∅ : gmap LAddr CmptName)) as (γreg) "[Hreg_auth _]".
-    pose kvs_otypeg := {| kvs_otype_inG := kvs_otype_preg; kvs_otype_name := γreg |}.
-    iMod (ghost_map_insert_persist (LNonHeap user_key_addr_B) B with "Hreg_auth")
+    pose seal_registryg :=
+      {| seal_registry_inG := seal_registry_preg; seal_registry_name := λ _, γreg |}.
+    iMod (registry_auth_insert (seal_registryg := seal_registryg)
+            ot_kvs ∅ (LNonHeap user_key_addr_B) B with "Hreg_auth")
       as "[Hreg_auth #Hel_B]"; first done.
-    iMod (na_inv_alloc (tpool (UserThread 0)) _ Nkvs_otype
-            (∃ M : gmap LAddr CmptName,
-               ghost_map_auth γreg 1 M ∗
-               [∗ map] k ↦ C ∈ M,
-                 kvs_otype_contents (th := UserThread 0) C k)
-           with "[Hreg_auth Ha_user_key_B Hkvs_logical_user_B HB_lukvs_frag]") as "#Hreg".
-    { iApply bi.later_intro. iExists _. iFrame "Hreg_auth".
-      rewrite insert_empty big_sepM_singleton /kvs_otype_contents.
+    iMod (registry_alloc (th := UserThread 0) (seal_registryg := seal_registryg) Nkvs_otype ot_kvs
+            (kvs_sealed_obj_resources (th := UserThread 0)) _ _
+           with "Hreg_auth [Ha_user_key_B Hkvs_logical_user_B HB_lukvs_frag]") as "#Hreg".
+    { iApply bi.later_intro.
+      rewrite insert_empty big_sepM_singleton /kvs_sealed_obj_resources.
       iExists _, user_key_addr_B. iFrame "Ha_user_key_B Hkvs_logical_user_B".
       iSplit; first done.
       iApply (big_sepS_impl with "HB_lukvs_frag").
       iModIntro; iIntros (mk Hmk) "Hmk". rewrite /safe_kvs_pointsto. iRight. iExact "Hmk". }
-    iAssert (kvs_otype_registry (th := UserThread 0) (kvs_otypeg := kvs_otypeg)) as "#Hregistry".
+    iAssert (kvs_otype_registry (th := UserThread 0) (seal_registryg := seal_registryg))
+      as "#Hregistry".
     { iExact "Hreg". }
 
     iMod (seal_store_update_alloc _ SealGlobal
-            (kvs_otype_propC (kvs_otypeg := kvs_otypeg))
+            (kvs_otype_propC (seal_registryg := seal_registryg))
            with "Hseal_store_kvs")
       as "#Hsealed_pred_ot_kvs".
 
@@ -285,29 +285,31 @@ Section kvs_obligations.
 
     (* The sealed user key of B, recorded in the registry for B *)
     set ( kvs_user_key_B_sb := (kvs_user_seal_key_scap Global user_key_addr_B)).
-    iAssert (kvs_otype_prop (kvs_otypeg := kvs_otypeg) W0 B
-               (WSealable kvs_user_key_B_sb))
-      as "#ot_kvs_user_key_B".
+    assert (static_word_shape (lword_of_word (WSealable kvs_user_key_B_sb))) as Hshape_B.
     {
       pose proof (cmpt_static_sealed_size B_cmpt) as H.
       rewrite B_static_sealed in H.
-      iExists user_key_addr_B.
-      repeat iSplit.
-      - iPureIntro; auto.
-      - iPureIntro.
-        subst user_key_addr_B.
+      apply static_word_shape_intro.
+      - subst user_key_addr_B.
         cbn in H |- *; solve_addr+H.
-      - iPureIntro. subst user_key_addr_B.
+      - subst user_key_addr_B.
         eapply disjoint_from_shadow_not_in.
         + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
         + apply withinBounds_true_iff.
           cbn in H |- *; solve_addr+H.
-      - iExact "Hel_B".
     }
+    iAssert (kvs_otype_propC (seal_registryg := seal_registryg)
+               (UserThread 0, W0, B, lword_of_word (WSealable kvs_user_key_B_sb)))
+      as "#ot_kvs_user_key_B".
+    { iApply (registry_propC_intro (seal_registryg := seal_registryg)
+                ot_kvs sealed_cap_key static_word_shape (UserThread 0) W0 B
+                (lword_of_word (WSealable kvs_user_key_B_sb))
+                (LNonHeap user_key_addr_B) eq_refl Hshape_B
+               with "Hel_B"). }
     iAssert (interp (th := UserThread 0) W0 B (WSealed ot_kvs kvs_user_key_B_sb))
       as "#Hinterp_kvs_user_key_B".
     { iApply (interp_sealed_of_seals (th := UserThread 0) W0 B ot_kvs
-                (kvs_otype_propC (kvs_otypeg := kvs_otypeg)) kvs_user_key_B_sb
+                (kvs_otype_propC (seal_registryg := seal_registryg)) kvs_user_key_B_sb
                with "Hsealed_pred_ot_kvs []").
       { intros ????? [= <- <- <- <- <-].
         subst user_key_addr_B.
@@ -318,7 +320,7 @@ Section kvs_obligations.
       { iApply kvs_otype_kind_ok. }
       assert (lforce_global (lword_of_word (WSealable kvs_user_key_B_sb))
               = lword_of_word (WSealable kvs_user_key_B_sb)) as Heq by reflexivity.
-      rewrite Heq /kvs_otype_propC. cbn [fst snd].
+      rewrite Heq.
       iApply bi.later_intro. iExact "ot_kvs_user_key_B". }
 
     (* 7 - Close the world of B: its compartment becomes Global regions, and
@@ -432,7 +434,7 @@ Proof.
     as (sw & asrt & t0 & main & kvs & B & ot_kvs & key_main & key_B & <- & Hkeys & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
-              ghost_varΣ kvs_physical_map; @kvs_otypeΣ CmptNames_kvs_CmptNameG]
+              ghost_varΣ kvs_physical_map; @seal_registryΣ CmptNames_kvs_CmptNameG LAddr _ _]
             (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B));
     [| exact Hfw | exact Hstep].
   apply (kvs_fw_obligations (B := kvs_adv_name)), Hkeys.

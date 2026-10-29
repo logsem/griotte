@@ -17,7 +17,7 @@ Section Heap_Temporal_Safety_Interp.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {allocator_ownerg : allocatorOwnerG Σ}
-    {allocator_otypeg : allocatorOtypeG Σ}
+    {seal_registryg : sealRegistryG LAddr Σ}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
   .
 

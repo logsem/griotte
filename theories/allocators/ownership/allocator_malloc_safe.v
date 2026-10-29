@@ -14,7 +14,7 @@ Section Heap_Temporal_Safety_Interp.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
-    {allocator_otypeg : allocatorOtypeG Σ}
+    {seal_registryg : sealRegistryG LAddr Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}

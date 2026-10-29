@@ -14,7 +14,7 @@ Section KVS_spec_addOrUpdate_safe.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {kvs_otypeg : kvsOtypeG Σ}
+    {seal_registryg : sealRegistryG LAddr Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}

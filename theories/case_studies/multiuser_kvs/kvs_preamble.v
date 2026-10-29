@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import switcher kvs.
+From griotte Require Export seal_registry.
 
 
 Definition user_key_t := Z.
@@ -1407,26 +1408,6 @@ Qed.
 Definition Nkvs : namespace := nroot .@ "kvs".
 Definition Nkvs_otype : namespace := nroot .@ "kvs_otype".
 
-(** The ghost state of the registry of the sealed user keys: a map from the
-    key of each sealed object to the compartment it is valid in. *)
-Class kvsOtypePreG {Cname : CmptNameG} Σ := {
-  kvs_otype_preG_mapG :: ghost_mapG Σ LAddr CmptName;
-}.
-#[export] Hint Mode kvsOtypePreG - - : typeclass_instances.
-
-Class kvsOtypeG {Cname : CmptNameG} Σ := {
-  kvs_otype_inG :: kvsOtypePreG Σ;
-  kvs_otype_name : gname;
-}.
-#[export] Hint Mode kvsOtypeG - - : typeclass_instances.
-
-Definition kvs_otypeΣ {Cname : CmptNameG} : gFunctors :=
-  #[ghost_mapΣ LAddr CmptName].
-
-#[global] Instance subG_kvs_otypeΣ {Cname : CmptNameG} {Σ} :
-  subG kvs_otypeΣ Σ -> kvsOtypePreG Σ.
-Proof. solve_inG. Qed.
-
 Section KVS_preamble.
   Context
     {Σ:gFunctors}
@@ -1434,7 +1415,7 @@ Section KVS_preamble.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {kvs_otypeg : kvsOtypeG Σ}
+    {seal_registryg : sealRegistryG LAddr Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -1482,7 +1463,7 @@ Section KVS_preamble.
 
   (** The contents of the registry at the key of a sealed user key, for the
       compartment [C]: the user key word, and the user's map. *)
-  Definition kvs_otype_contents (C : CmptName) (k : LAddr) : iProp Σ :=
+  Definition kvs_sealed_obj_resources (C : CmptName) (k : LAddr) : iProp Σ :=
     ∃ (uk : user_key_t) (a : Addr),
       ⌜ k = LNonHeap a ⌝ ∗
       a ↦ₐ WInt uk ∗
@@ -1491,53 +1472,31 @@ Section KVS_preamble.
 
   (** The registry: its invariant holds the contents of every recorded
       key. *)
-  Definition kvs_otype_registry : iProp Σ :=
-    na_inv (tpool th) Nkvs_otype
-      (∃ M : gmap LAddr CmptName,
-         ghost_map_auth kvs_otype_name 1 M ∗
-         [∗ map] k ↦ C ∈ M, kvs_otype_contents C k).
+  Definition kvs_otype_registry {KVS : kvsLayout} : iProp Σ :=
+    registry_inv Nkvs_otype KVS_OTYPE kvs_sealed_obj_resources.
 
-  #[global] Instance kvs_otype_registry_persistent :
+  #[global] Instance kvs_otype_registry_persistent {KVS : kvsLayout} :
     Persistent kvs_otype_registry.
-  Proof. apply _. Qed.
+  Proof. rewrite /kvs_otype_registry. apply _. Qed.
 
-  (** The predicate of a sealed user key: its shape, and its key recorded in
-      the registry for the compartment [C]. *)
-  Definition kvs_otype_inv
-    {KVS_layout : kvsLayout}
-    (W : WORLD) (C : CmptName) (w : LWord) : iProp Σ :=
-    ∃ (a : Addr),
-      (* Shape of the capability*)
-      ⌜ w = WSealable (kvs_user_seal_key_scap Global a) ⌝ ∗
-      ⌜ withinBounds a (a^+1) a = true ⌝ ∗
-      ⌜ is_shadow_address a = false ⌝ ∗
-      (* Its key in the registry *)
-      LNonHeap a ↪[kvs_otype_name]□ C.
-
-  Program Definition kvs_otype_prop
-    {KVS_layout : kvsLayout} :
-    (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
-    λne (W : WORLD) (C : CmptName) (w : LWord), (kvs_otype_inv W C w)%I.
-  Solve All Obligations with solve_proper.
-
+  (** The predicate of a sealed user key: a Global read-only capability on
+      a static word, whose key is recorded in the registry for the
+      compartment. *)
   Definition kvs_otype_propC {KVS : kvsLayout} : Thread * WORLD * CmptName * LWord -> iProp Σ :=
-    λ x, kvs_otype_prop x.1.1.2 x.1.2 x.2.
+    registry_propC KVS_OTYPE sealed_cap_key static_word_shape.
 
   #[global] Instance kvs_otype_propC_persistent {KVS : kvsLayout} x :
     Persistent (kvs_otype_propC x).
-  Proof. rewrite /kvs_otype_propC /= /kvs_otype_inv. apply _. Qed.
+  Proof. rewrite /kvs_otype_propC. apply _. Qed.
 
   #[global] Instance kvs_otype_propC_timeless {KVS : kvsLayout} x :
     Timeless (kvs_otype_propC x).
-  Proof. rewrite /kvs_otype_propC /= /kvs_otype_inv. apply _. Qed.
+  Proof. rewrite /kvs_otype_propC. apply _. Qed.
 
   (** The predicate does not depend on the thread nor on the world. *)
   Lemma kvs_otype_kind_ok {KVS : kvsLayout} (C : CmptName) :
     ⊢ seal_kind_ok SealGlobal C kvs_otype_propC.
-  Proof.
-    iSplit; first (iPureIntro; intros x; apply _).
-    iIntros "!>" (t t' W W' w) "H". done.
-  Qed.
+  Proof. rewrite /kvs_otype_propC. apply registry_kind_ok. Qed.
 
   (** A valid word sealed with [KVS_OTYPE] is a sealed user key, whose key
       the registry records for [C]. The user key word comes out of the
@@ -1573,28 +1532,18 @@ Section KVS_preamble.
     destruct w as [ | | | ot sb]; try done.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = KVS_OTYPE) as -> by solve_addr+Hsealed.
-    cbn in Htag.
-    iEval (rewrite interp_unfold /= Htag) in "Hinterp".
-    iDestruct "Hinterp" as "[(%κ & %P & #Hs & _ & #HP) _]".
-    iDestruct (seal_pred_agree with "Hspred Hs") as "[<- #Heq]".
-    (* The contents mention [interp]: no [iNext] and no [>] over them, whose
-       instance search would unfold the fixpoint. *)
-    iSpecialize ("Heq" $! (th, Ww, C, norm SealGlobal (WSealable sb @@? π))).
-    iCombine "Heq HP" as "HP'".
-    iAssert (▷ kvs_otype_propC (th, Ww, C, norm SealGlobal (WSealable sb @@? π)))%I
-      as "Hkp".
-    { iApply (bi.later_mono with "HP'"). iIntros "[Heq' HP']". iRewrite "Heq'". iExact "HP'". }
-    iMod "Hkp" as (a) "(%Heq_w & %Hbounds & %Hshadow & #Hel)".
+    iMod (registry_acc Nkvs_otype KVS_OTYPE sealed_cap_key static_word_shape
+            kvs_sealed_obj_resources E F Ww C sb π
+           with "Hreg Hspred Hinterp Hna")
+      as (k) "(%Hkey & %Hshape & Hk & Hna & Hclose)"; [done|done|exact Htag|].
+    destruct Hshape as (a & Heq_w & Hbounds & Hshadow).
+    rewrite Heq_w in Hkey. cbn in Hkey. injection Hkey as <-.
     destruct sb as [t p g b e a' | ]; cbn in Heq_w; simplify_eq.
-    rewrite /lforce_global /lift_word /force_global /= /kvs_user_seal_key_scap in Heq_w.
+    rewrite /lforce_global /lift_word /force_global /= in Heq_w.
     simplify_eq.
-    iEval (cbn [fst snd]) in "Hel".
-    iMod (na_inv_acc with "Hreg Hna") as "(Hopen & Hna & Hclose)"; [done|done|].
-    iDestruct "Hopen" as (M) "[>Hauth Hcontents]".
-    iDestruct (ghost_map_lookup with "Hauth Hel") as %HM.
-    iEval (rewrite (big_sepM_delete _ _ _ _ HM)) in "Hcontents".
-    iDestruct "Hcontents" as "[Hk Hcontents]".
-    rewrite /kvs_otype_contents.
+    (* The contents mention [interp]: only their timeless parts lose their
+       later, and no [iNext] goes over them. *)
+    rewrite /kvs_sealed_obj_resources.
     iDestruct "Hk" as (uk a') "(>%Ha' & >Ha & Huser & Hpts)".
     injection Ha' as <-.
     iModIntro.
@@ -1603,13 +1552,9 @@ Section KVS_preamble.
     iSplit; first done.
     iSplit; first done.
     iIntros "[Hres Hna]".
-    iAssert (▷ kvs_otype_contents C (LNonHeap a))%I with "[Hres]" as "Hk".
-    { iApply (bi.later_mono with "Hres"). iIntros "(Ha & Huser & Hpts)".
-      iExists uk, a. iFrame "Ha Huser Hpts". done. }
-    iCombine "Hk Hcontents" as "Hcontents".
-    iEval (rewrite -(big_sepM_delete _ _ _ _ HM)) in "Hcontents".
-    iApply ("Hclose" with "[- $Hna]").
-    iExists M. iFrame "Hauth". iExact "Hcontents".
+    iApply ("Hclose" with "[Hres $Hna]").
+    iApply (bi.later_mono with "Hres"). iIntros "(Ha & Huser & Hpts)".
+    iExists uk, a. iFrame "Ha Huser Hpts". done.
   Qed.
 
 End KVS_preamble.
