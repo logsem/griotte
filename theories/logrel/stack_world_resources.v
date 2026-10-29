@@ -7,8 +7,8 @@ From griotte Require Import world_ghost_theory.
 Section Stack_World_Resources.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
   .
@@ -48,9 +48,7 @@ Section Stack_World_Resources.
     specialize (H (W,C,v)).
     iSplitR "Hmono".
     + iApply "Hwcond"; iApply interp_int.
-    + rewrite /mono_temporary.
-      destruct ( decide (isWL pa = true ∨ isDL pa = true) )
-      ; iIntros (???) "!>H /="; iApply "Hzcond"; done.
+    + iIntros (W0 W1 Hrelated) "!> H /="; iApply "Hzcond"; done.
   Qed.
 
   Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
@@ -104,7 +102,7 @@ Section Stack_World_Resources.
 
   (* Derive [StackWorldResource] from [rel] *)
   Lemma StackWorldResource_from_rel_stack W C a :
-    rel C (LNonHeap a) RWL interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
+    (LNonHeap a) ↪ˡ[C]{RWL} interp_in_memC -∗ StackWorldResource interp W C a (WInt 0).
   Proof.
     iIntros "Hrel".
     iExists (interp_in_mem RWL), RWL; cbn. iFrame.
@@ -124,7 +122,7 @@ Section Stack_World_Resources.
   Qed.
 
   Lemma StackWorldResources_from_rel_stack W C la :
-    ([∗ list] a ∈ la, rel C (LNonHeap a) RWL interp_in_memC) -∗
+    ([∗ list] a ∈ la, (LNonHeap a) ↪ˡ[C]{RWL} interp_in_memC) -∗
     StackWorldResources interp W C la (replicate (length la) (lword_of_word (WInt 0))).
   Proof.
     induction la; [iIntros "H" | iIntros "[Ha H]"]; first done; cbn.

@@ -11,8 +11,8 @@ Import CoreWPNotations.
 Section fundamental_generic.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {CL : CritLink Σ}
     `{MP: MachineParameters}
@@ -31,13 +31,13 @@ Section fundamental_generic.
   (** Weakening of the instruction premise of a case lemma. *)
   Lemma ftlr_instr_base_mono (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (P : V) (Pinstr Q : Prop) :
+    (w : LWord) (ρ : region_part) (P : V) (Pinstr Q : Prop) :
     (Q → Pinstr) →
     ftlr_instr_base W C regs p p' g b e a w ρ P Pinstr →
     ftlr_instr_base W C regs p p' g b e a w ρ P Q.
   Proof.
-    intros HQP H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked HQ.
-    exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked (HQP HQ)).
+    intros HQP H Hp Hsome HcorrectPC Hbae Hfp Hpers HQ.
+    exact (H Hp Hsome HcorrectPC Hbae Hfp Hpers (HQP HQ)).
   Qed.
 
   #[local] Ltac by_binop_case :=
@@ -103,8 +103,8 @@ End fundamental_generic.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     (trusted_fault : CSTK → LWord → LReg → iProp Σ)
@@ -174,9 +174,7 @@ Section fundamental.
     assert (isO p = false) by (by eapply executeAllowed_nonO).
     iDestruct (interp_cap_disjoint with "Hw") as %[_ Hdisjoint]; first done.
     destruct g.
-    - iDestruct "Hfuture" as %Hrelated.
-      iDestruct (interp_monotone_nl_cap_nonheap with "Hw") as "Hw'";
-        [exact Hdisjoint|exact Hrelated|done|].
+    - iDestruct (interp_global_world_free W W' with "Hw") as "Hw'"; first done.
       iApply (fundamental W' with "Htrap"); eauto.
       iApply interp_lea; eauto.
     - iDestruct "Hfuture" as %Hrelated.

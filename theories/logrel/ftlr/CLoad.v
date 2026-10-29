@@ -12,8 +12,8 @@ Import uPred.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
@@ -66,14 +66,13 @@ Section fundamental.
   (* The necessary resources to close the region again,
      except for the points to predicate, which we will store separately
      The boolean bl can be used to keep track of whether or not we have applied a wp lemma *)
-  Definition region_open_resources W C (k : LAddr) als p φ v (has_later : bool): iProp Σ :=
+  Definition region_open_resources W C (k : LAddr) als p' (P : D) v (has_later : bool): iProp Σ :=
     (∃ ρ,
-     sts_state_std C k ρ
-    ∗ ⌜ρ ≠ Revoked⌝
-    ∗ world_interp_open W C (k :: als)
-    ∗ if_later_P has_later (monotonicity_guarantees_region C φ p v ρ ∗ φ (W,C, v))
+     region_rel_part ρ W C k p' P
+    ∗ world_interp_open W C ({[k]} ∪ als)
+    ∗ if_later_P has_later (pc_content ρ W C P v)
     ∗ if_later_P has_later (key_share k)
-    ∗ rel C k p φ)%I.
+    ∗ if_later_P has_later (k ↦ₖ v ∗ pc_content ρ W C P v -∗ pc_open W C k p' P v ρ))%I.
 
   Lemma load_inr_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea t1 p1 g1 b1 e1 a1}:
     reg_allows_load_imm regs r imm p0 g0 b0 e0 a0 ea →
@@ -107,30 +106,34 @@ Section fundamental.
               ∗ ⌜persistent_cond P⌝
               ∗ ⌜ea ≠ pc_a⌝
               ∗ ▷ ea ↦ₐ w
-              ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' (safeC P) w true)
+              ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' P w true)
               ∗ ▷ rcond P C p' interp)
     else world_interp_open W C [LNonHeap pc_a] end)%I.
 
    Lemma interp_hpf_eq (imm : Z) (W : WORLD) (C : CmptName) P (regs : leibnizO LReg) (r1 : RegName)
-    p g b e a pc_a pc_p pc_p' :
+    p g b e a pc_a pc_p pc_p' ρ w_pc :
     read_reg_prov regs r1 None
     → reg_allows_load_imm regs r1 imm p g b e a pc_a
     → PermFlowsTo pc_p pc_p'
     → (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → (interp W C v))
-    -∗ rel C (LNonHeap pc_a) pc_p' P
-    -∗ ⌜PermFlowsTo p pc_p'⌝.
+    -∗ region_rel_part ρ W C (LNonHeap pc_a) pc_p' P
+    -∗ world_interp_open W C [LNonHeap pc_a]
+    -∗ pc_a ↦ₐ w_pc
+    -∗ world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ w_pc ∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
     intros Hπ Hrar Hfl.
     pose proof (load_prov_eq imm Hrar Hπ) as Hr1.
     destruct Hrar as (_ & Hadd & Hwa & Hwb).
-    iIntros "Hreg #Hinva".
+    iIntros "Hreg #Hinva Hw Ha".
     iDestruct ("Hreg" $! r1 _ Hr1) as "Hr1".
     iDestruct (read_allowed_inv _ _ pc_a with "Hr1")
       as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
     { apply andb_true_iff in Hwb as [Hle Hge].
       split; [apply Zle_is_le_bool | apply Zlt_is_lt_bool]; auto. }
-    iDestruct (rel_agree _ _ _ _ p'' pc_p' with "[$Hinva $Hrel'']") as "[-> _]".
-    done.
+    iDestruct (region_rel_part_of with "Hrel''") as (ρ'' _) "Hpart''".
+    iDestruct (region_rel_part_agree_open _ _ _ pc_a with "Hw Ha Hinva Hpart''")
+      as "($ & $ & %Heq)".
+    destruct Heq as [_ ->]. done.
   Qed.
 
   Definition allow_load_mem (imm : Z) W C r (regs : LReg) pc_a pc_p pc_w (mem : LMem) (has_later: bool):=
@@ -145,7 +148,7 @@ Section fundamental.
               ∗ ⌜persistent_cond P⌝
               ∗ ⌜ea ≠ pc_a⌝
               ∗ ⌜mem = <[ea:=w]> (<[pc_a:=pc_w]> ∅)⌝
-              ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' (safeC P) w has_later)
+              ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' P w has_later)
               ∗ if_later_P has_later (rcond P C p' interp))
     else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [LNonHeap pc_a] end)%I.
 
@@ -153,13 +156,14 @@ Section fundamental.
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p_pc p_pc' : Perm) (g_pc : Locality) (b_pc e_pc a_pc : Addr)
     (src : RegName)
-    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (P:D) (w_pc : LWord) :
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (P:D) (w_pc : LWord)
+    (ρ : region_part) :
     read_reg_inr regs src t p g b e a
     → read_reg_prov regs src π
     → PermFlowsTo p_pc p_pc'
     → (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ interp W C (Cap p_pc g_pc b_pc e_pc a_pc @@? None)
-    -∗ rel C (LNonHeap a_pc) p_pc' (safeC P)
+    -∗ region_rel_part ρ W C (LNonHeap a_pc) p_pc' P
     -∗ world_interp_open W C [LNonHeap a_pc]
     -∗ a_pc ↦ₐ w_pc
     -∗ ◇ ((allow_load_res imm W C src regs a_pc p_pc'
@@ -180,8 +184,9 @@ Section fundamental.
     destruct (decide (addr_key π ea = LNonHeap a_pc)) as [Hkey|Hkey].
     { (* The PC's region: already open. *)
       destruct (addr_key_pc _ _ _ Hkey) as [-> ->].
-      iDestruct (interp_hpf_eq imm W C (safeC P) regs src p g b e a a_pc
-        p_pc p_pc' with "Hreg Hinva") as %Hflp; eauto.
+      iDestruct (interp_hpf_eq imm W C P regs src p g b e a a_pc
+        p_pc p_pc' ρ w_pc with "Hreg Hinva Hworld_interp Hapc")
+        as "(Hworld_interp & Hapc & %Hflp)"; eauto.
       iModIntro. iLeft. iFrame "Hapc". iExists t,p,g,b,e,a,None. iFrame "%".
       rewrite Hadd. rewrite decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hoff & Hra & Hwb).
@@ -189,20 +194,19 @@ Section fundamental.
     iAssert (interp W C (Cap p g b e a @@? π)) as "#Hvsrc".
     { iApply ("Hreg" $! src _ Hsrc). }
     iDestruct (read_allowed_inv _ _ ea with "Hvsrc")
-      as (p0 P0 Hflp0 Hcond_pers0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; auto
+      as (p0 P0 Hflp0 Hcond_pers0) "(#Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; auto
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
     assert (withinBounds b e ea = true) as Hbounds.
     { by rewrite /withinBounds Hle Hge. }
-    iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hvsrc") as %HH; eauto.
-    destruct HH as (ρ0 & Hstd & Hnotrevoked).
     (* Another key: open its region, a cell or a tombstone. *)
-    iDestruct (open_world_interp_next_cases _ _ _ π ea p0 _ ρ0 with "Hrel0 Hworld_interp")
-      as "[(Hworld & Hstate' & [%w0 (HpO&Hea&HP0&Hmono)] ) | (%ι & -> & #Hq & Hworld)]"; eauto.
+    iDestruct (open_world_interp_next_cases _ _ _ π ea p0 P0 p g with "Hrel0 Hworld_interp")
+      as "[(%ρ0 & _ & #Hpart0 & Hworld & WorldRes0) | (%ι & -> & #Hq & Hworld)]"; [done| |..].
     { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
-    { destruct ρ0; simplify_eq; [by left | by right]. }
     2: { iDestruct (interp_cap_has_authority with "Hvsrc") as %Hauth;
            [by eapply readAllowed_nonO|exact Hbounds|].
          iModIntro. iRight. iExists ι, _. iFrame "Hq Hworld Hapc". by iPureIntro. }
+    iDestruct "WorldRes0" as (w0) "WorldRes0".
+    iDestruct (pc_open_acc with "WorldRes0") as "[ [Hea HP0] Hclose0]".
     iEval (rewrite addr_key_pointsto) in "Hea".
     iDestruct "Hea" as "[Hea Hshare]".
     iDestruct "Hea" as ">Hea".
@@ -214,10 +218,7 @@ Section fundamental.
     iExists w0,p0,P0.
     iSplit; first done. iSplit; first done. iSplit; first done.
     iFrame "Hea". iSplitR "Hrcond0"; last done.
-    iExists ρ0. iFrame "Hstate' Hworld Hshare Hrel0 HP0".
-    iSplit; first done.
-    iNext.
-    rewrite mono_invariant_monotonicity_guarantees_region; eauto.
+    iExists ρ0. iFrame "Hpart0 Hworld Hshare HP0 Hclose0".
   Qed.
 
   Lemma load_res_implies_mem_map (imm : Z)
@@ -332,14 +333,14 @@ Section fundamental.
     (pc_w : LWord) (src : RegName)
     (p_pc p_pc' : Perm) (g_pc : Locality) (b_pc e_pc a_pc : Addr)
     (p : Perm) (g : Locality) (b e a ea : Addr)
-    (mem0 : LMem) (loadv : LWord) (P:D) :
+    (mem0 : LMem) (loadv : LWord) (P:D) (ρ : region_part) :
     PermFlowsTo p_pc p_pc'
     -> reg_allows_load_imm regs src imm p g b e a ea
     -> mem0 !! ea = Some loadv
     -> interp W C (Cap p_pc g_pc b_pc e_pc a_pc @@? None)
       -∗ (∀ r v, ⌜regs !! r = Some v⌝ → interp W C v)
          -∗ rcond' P C a_pc regs p_pc'
-            -∗ P W C pc_w
+            -∗ pc_content ρ W C P pc_w
                -∗ ([∗ map] a1↦w0 ∈ mem0, a1 ↦ₐ w0)
                   -∗ allow_load_mem imm W C src regs a_pc p_pc' pc_w mem0 false
                      -∗ world_interp_open W C [LNonHeap a_pc] ∗ a_pc ↦ₐ pc_w ∗ interp_in_mem p W C loadv.
@@ -366,7 +367,7 @@ Section fundamental.
            split; first done.
            split; first done. cbn. done.
       }
-      iSpecialize ("Hrcond" with "Hw").
+      iDestruct (pc_content_rcond with "Hrcond Hw") as "Hrc".
       rewrite /interp_in_mem_pre.
       rewrite /interp_in_mem /= /interp_in_mem_pre.
       iApply (interp_weakening_word_load W C p p_pc'); eauto.
@@ -375,19 +376,14 @@ Section fundamental.
       rewrite lookup_insert_eq in Ha; inversion Ha; clear Ha; subst.
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame.
-      rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes" as (ρ1) "(Hstate' & %Hnotrevoked & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
-      ; cbn.
+      iDestruct "HLoadRes" as (ρ1) "(#Hpart1 & Hworld_interp & HV & Hshare & Hclose1)".
+      pose proof (pc_content_persistent ρ1 W C P' loadv HpersP').
+      iDestruct "HV" as "#HVp".
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
-      assert (isO p' = false) as HpO'.
-      { eapply readAllowed_flowsto, readAllowed_nonO in Hflp''; auto. }
-      iDestruct (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha Hfuture]") as "$"; eauto.
+      iDestruct ("Hclose1" with "[$Ha $HVp]") as "Hres1".
+      iDestruct (pc_close_next with "Hworld_interp Hpart1 Hres1") as "$"; [|done|].
       { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
-      { destruct ρ1; simplify_eq; naive_solver. }
-      { iFrame "∗#%".
-        rewrite mono_invariant_monotonicity_guarantees_region; eauto.
-      }
-      iDestruct ("Hrcond'" with "HV") as "HV'".
+      iDestruct (pc_content_rcond with "Hrcond' HVp") as "HV'".
       iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
       iApply (interp_weakening_word_load W C p p' loadv);
         first exact Hflp''.
@@ -416,36 +412,27 @@ Section fundamental.
       iDestruct "HLoadRes" as (w p' P' Hflp'' HpersP' Hne) "(-> & HLoadRes & _)".
       rewrite memMap_resource_2ne; last auto.
       iDestruct "Hmem" as "[Ha Hapc]"; iFrame "Hapc".
-      rewrite /persistent_cond in HpersP'.
-      iDestruct "HLoadRes"
-        as (ρ1) "(Hstate' & %Hnotrevoked & Hworld_interp & (Hfuture & #HV) & Hshare & Hrel')"
-      ; cbn.
+      iDestruct "HLoadRes" as (ρ1) "(#Hpart1 & Hworld_interp & HV & Hshare & Hclose1)".
       iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
-      assert (isO p' = false) as HpO'.
-      { eapply readAllowed_flowsto, readAllowed_nonO in Hflp''; auto. }
-      iApply (close_world_interp_next with "Hworld_interp Hstate' Hrel' [Ha Hfuture]"); eauto.
-      { apply not_elem_of_cons; split; last apply not_elem_of_nil. done. }
-      { destruct ρ1; simplify_eq; naive_solver. }
-      { iFrame "∗#%".
-        rewrite mono_invariant_monotonicity_guarantees_region; eauto.
-      }
+      iDestruct ("Hclose1" with "[$Ha $HV]") as "Hres1".
+      iApply (pc_close_next with "Hworld_interp Hpart1 Hres1"); [|done].
+      apply not_elem_of_cons; split; last apply not_elem_of_nil. done.
   Qed.
 
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (dst src : RegName) (P:D) :
+    (w : LWord) (ρ : region_part) (dst src : RegName) (P:D) :
     ftlr_instr W C regs p p' g b e a w (CLoad dst src imm) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
 
-    iDestruct (WorldRes_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
 
     iClear "Hwcond".
     iDestruct (if_dec_later with "Hrcond") as "Hrcond'"; iClear "Hrcond".
 
-    assert (Persistent (▷ P W C w)) as HpersP.
-    { apply later_persistent. specialize (Hpers (W,C,w)). auto. }
+    pose proof (pc_content_persistent ρ W C P w Hpers).
     iDestruct "Hinterp" as "#Hw".
 
     pose proof Hsome as Hsome'.
@@ -474,8 +461,7 @@ Section fundamental.
          iNext. iIntros "(HPC & Ha & Hsrc)".
          iDestruct ("Hmap" with "Hsrc") as "Hmap".
          iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
-         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-         { destruct ρ; auto; contradiction. }
+         iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
          iApply (ftlr_post_fault with "HPC Hmap [] Hworld_interp").
          { intros r'. rewrite lookup_insert_is_Some'. by right. }
          iIntros (r' v Hv). destruct (decide (r' = src)) as [->|Hne].
@@ -526,8 +512,7 @@ Section fundamental.
     2: { subst regs'.
          iDestruct (mem_map_recover_res_fault with "Hmem HLoadMem") as "[Hworld_interp Ha]".
          iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
-         iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-         { destruct ρ; auto; contradiction. }
+         iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
          iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
 
@@ -542,8 +527,7 @@ Section fundamental.
     injection HPC as <- <- <- <- <- <- <-.
 
     iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-    { destruct ρ;auto;contradiction. }
+    iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
     iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
     { by apply full_map_linsert. }

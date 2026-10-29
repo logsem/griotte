@@ -19,8 +19,8 @@ Import CoreWPNotations.
 Section ftlr_step_generic.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
@@ -86,23 +86,23 @@ Section ftlr_step_generic.
   Lemma interp_pc_in_registers W C (regs : leibnizO LReg) p g b e a :
     isCorrectPC (Cap p g b e a) →
     validPCperm p g →
+    world_interp W C -∗
     interp W C (Cap p g b e a) -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    world_interp W C ∗
     ∃ (p' : Perm) (P : V),
       ⌜PermFlowsTo p p'⌝ ∗
       ⌜persistent_cond P⌝ ∗
-      rel C (LNonHeap a) p' (safeC P) ∗
+      region_rel W C (LNonHeap a) p' P p g ∗
       ▷ zcond P C ∗
       (if decide (readAllowed_a_in_lregs regs a)
        then ▷ (rcond P C p' interp)
        else emp) ∗
       (if decide (writeAllowed_a_in_lregs regs a)
        then ▷ wcond P C interp
-       else emp) ∗
-      monoReq W C (LNonHeap a) p' P ∗
-      ⌜if isWL p then region_state_pwl W (LNonHeap a) else region_state_nwl W (LNonHeap a) g⌝.
+       else emp).
   Proof.
-    iIntros (HcorrectPC Hp) "#Hinv #Hreg".
+    iIntros (HcorrectPC Hp) "Hw #Hinv #Hreg".
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
     iEval (rewrite !interp_unfold interp1_eq) in "Hinv".
@@ -113,7 +113,7 @@ Section ftlr_step_generic.
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
     assert (readAllowed p = true) as Hra.
     { destruct Hp as [Hexec _]; by eapply executeAllowed_is_readAllowed. }
-    iApply (interp_in_registers with "[Hreg] [H]"); eauto.
+    iApply (interp_in_registers with "Hw [Hreg] [H]"); eauto.
   Qed.
 
 End ftlr_step_generic.
@@ -122,8 +122,8 @@ End ftlr_step_generic.
 Section ftlr_step.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -286,20 +286,31 @@ Section ftlr_step.
     assert ((b <= a)%a ∧ (a < e)%a) as Hbae.
     { eapply in_range_is_correctPC; eauto. solve_addr. }
     iDestruct (interp_validPCperm with "Hinv_interp") as "%Hp"; first done.
-    iDestruct (interp_pc_in_registers with "Hinv_interp Hregs")
-      as (p' P Hflp Hpers) "(Hrela & Hzcond & Hrcond & Hwcond & HmonoR & %Hstate_a)"; eauto.
-    assert (∃ (ρ : region_type), (std W') !! LNonHeap a = Some ρ ∧ ρ ≠ Revoked)
-      as [ρ [Hρ Hne] ].
-    { destruct (isWL p), g; simplify_eq; eauto.
-      destruct Hstate_a as [Htemp | Hperm]; eauto. }
-    iDestruct (open_world_interp W' C (LNonHeap a) p' _ ρ with "[$Hrela] [$Hworld]")
-      as "(Hworld & Hstate & (%wa & WorldRes))";
-      [destruct ρ; auto; contradiction | exact Hρ |].
+    iDestruct (interp_pc_in_registers with "Hworld Hinv_interp Hregs")
+      as "[Hworld (%p' & %P & %Hflp & %Hpers & #Hrela & #Hzcond & #Hrcond & #Hwcond)]"; eauto.
+    iDestruct (region_rel_parts with "Hrela") as (ρ) "#Hinva".
+    (* A Global region of the PC is not a Temporary key of the local world. *)
+    iAssert (world_interp W' C ∗ ⌜ρ = InGlobal → std W' !! LNonHeap a ≠ Some Temporary⌝)%I
+      with "[Hworld]" as "[Hworld %HnT]".
+    { destruct ρ; [|by iFrame].
+      iDestruct (world_interp_rel_g_not_temporary_nonheap with "Hworld Hinva") as "[$ %HnT]".
+      done. }
+    rewrite open_world_interp_empty.
+    iAssert (world_interp_open W' C [LNonHeap a] ∗ ▷ ∃ wa, pc_open W' C (LNonHeap a) p' P wa ρ)%I
+      with "[Hworld]" as "[Hworld (%wa & WorldRes)]".
+    { destruct ρ; cbn.
+      - iDestruct (open_world_interp_permanent with "Hworld Hinva") as "[$ Hres]";
+          [set_solver|by apply HnT|].
+        iNext. iDestruct "Hres" as (wa) "Hres". iExists wa. by iApply pc_open_intro.
+      - iDestruct "Hinva" as "(Hrel & %HT & _)".
+        iDestruct (open_world_interp_temporary with "Hworld Hrel") as "[$ Hres]";
+          [set_solver|done|].
+        iNext. iDestruct "Hres" as (wa) "Hres". iExists wa. by iApply pc_open_intro. }
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
     { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P
-              with "[$IH $Hinv_interp $Hregs $Hrela $Hrcond $Hwcond $HmonoR $WorldRes
-                    $Hworld $Hstate $HPC $Hmap]"); eauto. }
+              with "[$IH $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
+                    $Hworld $HPC $Hmap]"); eauto. }
     (* 6. The hand-off goes back to the accessor. *)
     iIntros (v) "Hpost !>".
     iDestruct "Hpost" as (W'' Hrel') "[Hworld Hpost]".
