@@ -91,8 +91,8 @@ Definition cmdc_call_expected (c : cmdc_call) : Z :=
 Section CMDC_States.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}

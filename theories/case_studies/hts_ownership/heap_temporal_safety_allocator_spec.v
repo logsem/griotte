@@ -16,8 +16,8 @@ From griotte.allocators.ownership Require Export allocator_malloc_spec allocator
 Section Heap_Temporal_Safety_Allocator.
   Context
     {Σ : gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP : MachineParameters}

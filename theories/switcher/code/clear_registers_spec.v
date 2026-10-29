@@ -13,8 +13,8 @@ Section ClearRegistersMacro.
   Context
     {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {sealsg: sealStoreG Σ}
     {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}.

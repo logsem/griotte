@@ -8,8 +8,8 @@ From griotte Require Export kvs_preamble.
 Section KVS_getFullKey.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ}
     {kvsg:kvsG Σ}

@@ -12,8 +12,8 @@ From griotte.allocators.ownership Require Import allocator allocator_preamble.
 Section AllocatorOtype.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {allocator_ownerg : allocatorOwnerG Σ}

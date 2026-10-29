@@ -1681,8 +1681,8 @@ Definition fw_cleared_regs : LReg :=
 Section resources.
   Context
     {Σ : gFunctors}
-    {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
@@ -1866,8 +1866,8 @@ End memory_split.
 Section thread_trusted_stack_inv.
   Context
     {Σ : gFunctors}
-    {ceriseb : ceriseBaseG Σ} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.

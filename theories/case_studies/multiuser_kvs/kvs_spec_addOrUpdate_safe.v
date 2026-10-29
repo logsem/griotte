@@ -10,8 +10,8 @@ From iris.base_logic Require Import ghost_map.
 Section KVS_spec_addOrUpdate_safe.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ}

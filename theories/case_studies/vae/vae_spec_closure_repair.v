@@ -9,8 +9,8 @@ From griotte Require Import wp_rules_interp.
 Section VAE_Return_Repair.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseg : ceriseG Σ} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.

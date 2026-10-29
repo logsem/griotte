@@ -97,8 +97,8 @@ Qed.
 Section allocator_init.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {FA : FreeAuth Σ}
     {allocator_ownerg : allocatorOwnerG Σ}
-    {sealsg : sealStoreG Σ}
     {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.

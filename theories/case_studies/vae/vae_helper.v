@@ -4,8 +4,8 @@ From griotte Require Import region_invariants_allocation region_invariants_revoc
 Section VAE_helper.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
+    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
