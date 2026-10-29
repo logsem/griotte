@@ -112,24 +112,444 @@ Section Switcher_Exception.
 
   (** ** Small lemmas *)
 
+  (** The stores of [ws] through a safe capability of the object [ι], from
+      its cursor [a], in the world. The first cell is opened before the
+      stores, and stays open until the world closes: its status share
+      refutes the tombstones of the other cells of [ι]. When the first cell
+      is a tombstone, [ι] is quarantined. *)
+  (* TODO: move to logrel/wp_rules_interp.v *)
+  #[local] Lemma world_interp_cells_store_acc_heap (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e a : Addr) (ι : AId) (ws : list LWord) :
+    writeAllowed p = true →
+    (b <= a)%a →
+    (a < e)%a →
+    interp W C (Cap p g b e a @@? Some ι) -∗
+    ([∗ list] v ∈ ws, interp W C v) -∗
+    world_interp W C -∗
+    ◇ ((ι ⊒ AQuar ∗ world_interp W C) ∨
+       ∃ D : nat → iProp Σ,
+         D 0 ∗
+         cells_store_acc D p e a (Some ι) ws ∗
+         ▷ (∀ i, D i -∗ world_interp W C)).
+  Proof.
+    iIntros (Hwa Hb Hae) "#Hinterp_dst #Hws Hworld_interp".
+    assert (withinBounds b e (a ^+ 0) = true) as Hwb0
+      by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (write_allowed_inv _ _ (a ^+ 0) with "Hinterp_dst")
+      as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hwcond0 & _ & #Hmono0)";
+      [solve_addr | by rewrite Hwa |].
+    iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ (a ^+ 0) with "Hinterp_dst")
+      as %(ρ0 & Hρ0 & Hρ0_not_revoked); [done | done |].
+    assert (ρ0 = Temporary ∨ ρ0 = Permanent) as Hρ0_tp
+      by (destruct ρ0; auto; contradiction).
+    iDestruct (open_world_interp_cases W C (Some ι) (a ^+ 0) p0 (safeC P0) ρ0
+                 with "Hrel0 Hworld_interp")
+      as "[(Hworld_open & Hstate0 & Hres0) | (%ι' & %Hι' & #Hq & Hworld_interp)]";
+      [done | done | exact Hρ0 |..]; cycle 1.
+    { injection Hι' as <-. iModIntro. iLeft. by iFrame "Hq Hworld_interp". }
+    set (k0 := addr_key (Some ι) (a ^+ 0)).
+    iDestruct "Hres0" as (v0) "Hres0".
+    pose proof (Hpers0 (W, C, v0)) as Hpers_v0.
+    iDestruct "Hres0" as "(>%HnO0 & >Hk0 & #Hφ0 & #Hmono_v0)".
+    iModIntro. iRight.
+    iExists (λ i, world_interp_open W C [k0] ∗ sts_state_std C k0 ρ0 ∗
+      match i with
+      | 0 => k0 ↦ₖ v0
+      | S _ => ∃ v, WorldRes W C k0 p0 (safeC P0) v ρ0
+      end)%I.
+    iFrame "Hworld_open Hstate0 Hk0".
+    iSplitR.
+    - iIntros "!>" (i Hi Hie) "(Hworld_open & Hstate0 & Hk)".
+      set (ea := a ^+ i).
+      assert (withinBounds b e ea = true) as Hwb
+        by (apply withinBounds_true_iff; subst ea; solve_addr).
+      iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
+        [by apply writeAllowed_nonO | done |].
+      (* The store of [ws !!! i] into an open cell [k] of the world *)
+      iAssert (∀ (k : LAddr) p' (P : interpO Σ) ρ v,
+        ⌜k = addr_key (Some ι) ea⌝ -∗
+        ⌜PermFlowsTo p p'⌝ -∗
+        ⌜std W !! k = Some ρ⌝ -∗
+        ⌜ρ = Temporary ∨ ρ = Permanent⌝ -∗
+        ⌜isO p' = false⌝ -∗
+        ▷ wcond P C interp -∗
+        monoReq W C k p' P -∗
+        k ↦ₖ v -∗
+        ∃ q, ea ↦ₐ v ∗ deref_res (Some ι) q ∗
+          ▷ (ea ↦ₐ lstore_word p (ws !!! i) -∗ deref_res (Some ι) q -∗
+             ∃ v', WorldRes W C k p' (safeC P) v' ρ))%I as "Hstore".
+      { iIntros (k p' P ρ v -> Hflows Hρ Hρ_tp HnO) "#Hwcond #Hmono Hk".
+        iDestruct (addr_key_pointsto with "Hk") as "[Ha Hshare]".
+        iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+        iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
+        iExists (deref_share dw). iFrame "Ha Hdw".
+        iIntros "!> Ha Hdw".
+        iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
+        iDestruct ("Hshare" with "Hdw") as "Hshare".
+        set (v' := lstore_word p (ws !!! i)).
+        iAssert (P W C v') as "Hinterp'".
+        { iApply "Hwcond". iApply interp_lstore_word.
+          destruct (lookup_lt_is_Some_2 ws i) as [wi Hwi]; first lia.
+          rewrite (list_lookup_total_correct _ _ _ Hwi).
+          by iApply (big_sepL_lookup with "Hws"). }
+        iAssert (mono_invariant C p' (safeC P) v' ρ) as "Hmono'".
+        { destruct Hρ_tp as [-> | ->];
+            iEval (rewrite /monoReq Hρ) in "Hmono"; iEval (rewrite mono_invariant_eq /=).
+          - destruct (isWL p'); auto.
+            destruct (isDL p'); first done.
+            iApply "Hmono". iPureIntro.
+            rewrite lw_lstore_word. by eapply canStore_store_word_flowsto.
+          - iApply "Hmono". iPureIntro.
+            rewrite lw_lstore_word. by eapply canStore_store_word_flowsto. }
+        iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
+        iExists v'. by iFrame "Ha Hinterp' Hmono'". }
+      destruct i as [|j].
+      + iDestruct ("Hstore" $! k0 p0 P0 ρ0 v0 with "[//] [//] [//] [//] [//] Hwcond0 Hmono0 Hk")
+          as (q) "(Ha & Hdw & Hclose)".
+        iModIntro. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
+        iIntros "!> Ha Hdw". iModIntro. iFrame "Hworld_open Hstate0".
+        iApply ("Hclose" with "Ha Hdw").
+      + iDestruct "Hk" as (vk) "Hk".
+        iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
+          as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _ & #Hmono)";
+          [subst ea; solve_addr | by rewrite Hwa |].
+        iDestruct (writeAllowed_valid_cap_implies_at _ _ _ _ _ _ _ ea with "Hinterp_dst")
+          as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+        assert (ρ = Temporary ∨ ρ = Permanent) as Hρ_tp
+          by (destruct ρ; auto; contradiction).
+        assert (addr_key (Some ι) ea ∉ [k0]) as Hnotin.
+        { rewrite /k0 /ea !addr_key_Some list_elem_of_singleton.
+          intros Heq. injection Heq as Heq. solve_addr. }
+        iDestruct (open_world_interp_next_cases W C [k0] (Some ι) ea p' (safeC P) ρ
+                     with "Hrel Hworld_open")
+          as "[(Hworld_open & Hstate & Hres) | (%ι' & %Hι' & #Hq & _)]";
+          [done | exact Hnotin | done | exact Hρ |..]; cycle 1.
+        { injection Hι' as <-. iExFalso.
+          iDestruct "Hk" as "(_ & Hk & _)".
+          iEval (rewrite /k0 addr_key_Some) in "Hk".
+          iApply (heap_pointsto_quar_false with "Hk Hq"). }
+        iDestruct "Hres" as (v) "(>%HnO & >Hki & _ & _)".
+        iDestruct ("Hstore" $! (addr_key (Some ι) ea) p' P ρ v
+                    with "[//] [//] [//] [//] [//] Hwcond Hmono Hki")
+          as (q) "(Ha & Hdw & Hclose)".
+        iModIntro. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
+        iIntros "!> Ha Hdw".
+        iDestruct ("Hclose" with "Ha Hdw") as (v') "Hres".
+        iModIntro. iFrame "Hstate0 Hk".
+        iApply (close_world_interp_next with "Hworld_open Hstate Hrel Hres"); done.
+    - iIntros "!>" (i) "(Hworld_open & Hstate0 & Hk)".
+      destruct i as [|j].
+      + iApply (close_world_interp _ _ _ _ _ v0 with "Hworld_open Hstate0 Hrel0 [Hk]");
+          [done | exact Hρ0_tp |].
+        by iFrame "Hk Hφ0 Hmono_v0".
+      + iDestruct "Hk" as (v) "Hk".
+        iApply (close_world_interp with "Hworld_open Hstate0 Hrel0 Hk"); [done | exact Hρ0_tp].
+  Qed.
+
+  (** The loads of [n] cells through a safe capability of the object [ι],
+      from its cursor [a], in the world. As for the stores, the first cell
+      is opened before the loads and stays open: its status share refutes
+      the tombstones of the other cells of [ι]. The loaded words are
+      safe. *)
+  (* TODO: move to logrel/wp_rules_interp.v *)
+  #[local] Lemma world_interp_cells_load_acc_heap (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e a : Addr) (ι : AId) (n : nat) :
+    readAllowed p = true →
+    (b <= a)%a →
+    (a < e)%a →
+    interp W C (Cap p g b e a @@? Some ι) -∗
+    world_interp W C -∗
+    ◇ ((ι ⊒ AQuar ∗ world_interp W C) ∨
+       ∃ L : nat → list LWord → iProp Σ,
+         L 0 [] ∗
+         cells_load_acc L p e a (Some ι) n ∗
+         ▷ (∀ i ls, L i ls -∗ world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)).
+  Proof.
+    iIntros (Hra Hb Hae) "#Hinterp_src Hworld_interp".
+    assert (withinBounds b e (a ^+ 0) = true) as Hwb0
+      by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (read_allowed_inv _ _ (a ^+ 0) with "Hinterp_src")
+      as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hrcond0 & _ & _)";
+      [solve_addr | by rewrite Hra |].
+    iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ (a ^+ 0) with "Hinterp_src")
+      as %(ρ0 & Hρ0 & Hρ0_not_revoked); [done | done |].
+    assert (ρ0 = Temporary ∨ ρ0 = Permanent) as Hρ0_tp
+      by (destruct ρ0; auto; contradiction).
+    iDestruct (open_world_interp_cases W C (Some ι) (a ^+ 0) p0 (safeC P0) ρ0
+                 with "Hrel0 Hworld_interp")
+      as "[(Hworld_open & Hstate0 & Hres0) | (%ι' & %Hι' & #Hq & Hworld_interp)]";
+      [done | done | exact Hρ0 |..]; cycle 1.
+    { injection Hι' as <-. iModIntro. iLeft. by iFrame "Hq Hworld_interp". }
+    set (k0 := addr_key (Some ι) (a ^+ 0)).
+    iDestruct "Hres0" as (v0) "Hres0".
+    pose proof (Hpers0 (W, C, v0)) as Hpers_v0.
+    iDestruct "Hres0" as "(>%HnO0 & >Hk0 & #Hφ0 & #Hmono_v0)".
+    iModIntro. iRight.
+    iExists (λ _ ls, world_interp_open W C [k0] ∗ sts_state_std C k0 ρ0 ∗ k0 ↦ₖ v0 ∗
+      [∗ list] v ∈ ls, interp W C v)%I.
+    iFrame "Hworld_open Hstate0 Hk0". iSplitR; first done.
+    iSplitR.
+    - iIntros "!>" (i ls Hi Hie) "(Hworld_open & Hstate0 & Hk0 & #Hls)".
+      set (ea := a ^+ i).
+      assert (withinBounds b e ea = true) as Hwb
+        by (apply withinBounds_true_iff; subst ea; solve_addr).
+      iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
+        [by apply readAllowed_nonO | done |].
+      (* The load of an open cell [k] of the world *)
+      iAssert (∀ (k : LAddr) p' (P : interpO Σ) v,
+        ⌜k = addr_key (Some ι) ea⌝ -∗
+        ⌜PermFlowsTo p p'⌝ -∗
+        ⌜persistent_cond P⌝ -∗
+        ▷ rcond P C p' interp -∗
+        ▷ P W C v -∗
+        k ↦ₖ v -∗
+        ∃ dw, ⌜Some ι = deref_id dw⌝ ∗ ea ↦ₐ v ∗ deref_witness_res dw ∗
+          ▷ (∀ v', ⌜load_post (load_witness_of W v) p v v'⌝ -∗
+                   ea ↦ₐ v -∗ deref_witness_res dw -∗
+                   k ↦ₖ v ∗ interp W C v'))%I as "Hload".
+      { iIntros (k p' P v -> Hflows Hpers) "#Hrcond HφV Hk".
+        pose proof (Hpers (W, C, v)) as Hpers_v.
+        iDestruct "HφV" as "#HφV".
+        iDestruct (addr_key_pointsto with "Hk") as "[Ha Hshare]".
+        iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+        iExists dw. iFrame "Ha Hdw". iSplit; first done.
+        iIntros "!>" (v' Hpost) "Ha Hdw".
+        iDestruct ("Hshare" with "Hdw") as "Hshare".
+        iDestruct ("Hrcond" with "HφV") as "#Hnormal_p'".
+        iAssert (interp_in_mem p W C v)%I as "#Hnormal".
+        { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
+          iApply (interp_weakening_word_load W C p p' v); first exact Hflows.
+          iEval (rewrite /interp_in_mem_pre) in "Hnormal_p'".
+          iExact "Hnormal_p'". }
+        iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hv'"; first exact Hpost.
+        iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
+        by iFrame "Ha Hv'". }
+      destruct i as [|j].
+      + iDestruct ("Hload" $! k0 p0 P0 v0 with "[//] [//] [//] Hrcond0 Hφ0 Hk0")
+          as (dw Hdw) "(Ha & Hdw & Hclose)".
+        iPoseProof (load_witness_of_intro W v0) as "Hwit".
+        iModIntro. iExists v0, (DfracOwn 1), (load_witness_of W v0), dw.
+        iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
+        iIntros "!>" (v' Hpost) "Ha _ Hdw".
+        iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hk0 #Hv']".
+        iModIntro. iFrame "Hworld_open Hstate0 Hk0".
+        by iFrame "Hls Hv'".
+      + iDestruct (read_allowed_inv _ _ ea with "Hinterp_src")
+          as (p' P Hflows Hpers) "(#Hrel & _ & #Hrcond & _ & _)";
+          [subst ea; solve_addr | by rewrite Hra |].
+        iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ ea with "Hinterp_src")
+          as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
+        assert (ρ = Temporary ∨ ρ = Permanent) as Hρ_tp
+          by (destruct ρ; auto; contradiction).
+        assert (addr_key (Some ι) ea ∉ [k0]) as Hnotin.
+        { rewrite /k0 /ea !addr_key_Some list_elem_of_singleton.
+          intros Heq. injection Heq as Heq. solve_addr. }
+        iDestruct (open_world_interp_next_cases W C [k0] (Some ι) ea p' (safeC P) ρ
+                     with "Hrel Hworld_open")
+          as "[(Hworld_open & Hstate & Hres) | (%ι' & %Hι' & #Hq & _)]";
+          [done | exact Hnotin | done | exact Hρ |..]; cycle 1.
+        { injection Hι' as <-. iExFalso.
+          iEval (rewrite /k0 addr_key_Some) in "Hk0".
+          iApply (heap_pointsto_quar_false with "Hk0 Hq"). }
+        iDestruct "Hres" as (v) "Hres".
+        pose proof (Hpers (W, C, v)) as Hpers_v.
+        iDestruct "Hres" as "(>%HnO & >Hki & #Hφ & #Hmono)".
+        iDestruct ("Hload" $! (addr_key (Some ι) ea) p' P v with "[//] [//] [//] Hrcond Hφ Hki")
+          as (dw Hdw) "(Ha & Hdw & Hclose)".
+        iPoseProof (load_witness_of_intro W v) as "Hwit".
+        iModIntro. iExists v, (DfracOwn 1), (load_witness_of W v), dw.
+        iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
+        iIntros "!>" (v' Hpost) "Ha _ Hdw".
+        iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hki #Hv']".
+        iModIntro. iFrame "Hstate0 Hk0 Hls Hv'".
+        iApply (close_world_interp_next with "Hworld_open Hstate Hrel [Hki]");
+          [done | done | exact Hρ_tp |].
+        by iFrame "Hki Hφ Hmono".
+    - iIntros "!>" (i ls) "(Hworld_open & Hstate0 & Hk0 & $)".
+      iApply (close_world_interp _ _ _ _ _ v0 with "Hworld_open Hstate0 Hrel0 [Hk0]");
+        [done | exact Hρ0_tp |].
+      by iFrame "Hk0 Hφ0 Hmono_v0".
+  Qed.
+
   (** The destination of the [ErrorState] stores for an untrusted topmost
-      compartment: the world, through the safe faulting [csp]. *)
-  Lemma untrusted_error_state_acc (W : WORLD) (C : CmptName) (cstk : CSTK) (w : LWord)
-    (rmap : LReg) :
+      compartment: the world, through the safe faulting [csp]. A [csp] of
+      a heap object is checked first. If the object is quarantined, the
+      tag of [csp] is cleared, and the stores fault. Otherwise its first
+      cell stays open while the path runs. *)
+  Lemma untrusted_error_state_acc (W : WORLD) (C : CmptName) (cstk : CSTK)
+    (w : LWord) (rmap : LReg) :
     (∀ r, is_Some (rmap !! r)) →
     (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
-    path_es_acc cstk w rmap (λ _, world_interp W C).
+    registers_pointsto rmap -∗
+    world_interp W C -∗
+    (∀ (rmap' : LReg) (D : nat → iProp Σ),
+       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
+       (∀ (r : RegName) (v : LWord), ⌜rmap' !! r = Some v⌝ → interp W C v) -∗
+       registers_pointsto rmap' -∗
+       D 0 -∗
+       path_es_acc cstk w rmap' D -∗
+       ▷ (∀ k, D k -∗ world_interp W C) -∗
+       safe[th]) -∗
+    safe[th].
   Proof.
-    iIntros (Hfull) "#Hregs".
-    iIntros "!>" (eh p g b e a π _ _) "_ _ %Hcsp %Hok".
-    rewrite /error_state_first_store_ok Hcsp /= in Hok. destruct Hok as (Hwa & Hb & He).
-    iApply (world_interp_cells_store_acc _ _ _ g b e).
-    - done.
-    - rewrite /ErrorState_size in Hb |- *. solve_addr.
-    - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size)) a π).
-      rewrite -Hcsp. iApply "Hregs". iPureIntro.
-      destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv).
-    - by iApply interp_error_state_src.
+    iIntros (Hfull) "#Hregs Hrmap Hworld_interp Hcont".
+    destruct (Hfull csp) as [wcsp Hwcsp].
+    assert (rmap !!! csp = wcsp) as Hcsp by by rewrite (lookup_total_correct _ _ _ Hwcsp).
+    iAssert (interp W C wcsp) as "#Hcsp_interp"; first by iApply "Hregs".
+    (* The stores through [csp] in the world, as it is *)
+    iAssert (⌜∀ p g b e a ι, wcsp = Cap p g b e a @@? Some ι →
+               ¬ error_state_first_store_ok wcsp⌝ -∗
+             path_es_acc cstk w rmap (λ _, world_interp W C))%I as "#Hplain".
+    { iIntros (Hnoheap).
+      iIntros "!>" (eh p g b e a π _ _) "_ _ %Hcsp' %Hok".
+      rewrite Hcsp in Hcsp' Hok. rewrite Hcsp' in Hok Hnoheap.
+      destruct π as [ι|]; first by exfalso; eapply Hnoheap.
+      rewrite /error_state_first_store_ok /= in Hok. destruct Hok as (Hwa & Hb & He).
+      iApply (world_interp_cells_store_acc _ _ _ g b e).
+      - done.
+      - rewrite /ErrorState_size in Hb |- *. solve_addr.
+      - done.
+      - rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size)) a None).
+        by rewrite -Hcsp'.
+      - by iApply interp_error_state_src. }
+    destruct (decide (error_state_first_store_ok wcsp)) as [Hok|Hnok]; cycle 1.
+    { iApply ("Hcont" $! rmap (λ _, world_interp W C)
+               with "[//] Hregs Hrmap Hworld_interp [] []"); last by iIntros "!> % $".
+      iApply "Hplain". iPureIntro. by intros ? ? ? ? ? ? _. }
+    destruct wcsp as [wcsp [ι|] ]; cycle 1.
+    { iApply ("Hcont" $! rmap (λ _, world_interp W C)
+               with "[//] Hregs Hrmap Hworld_interp [] []"); last by iIntros "!> % $".
+      iApply "Hplain". iPureIntro. by intros ? ? ? ? ? ? [=]. }
+    assert (∃ p g b e a, wcsp = Cap p g b e a) as (p & g & b & e & a & ->).
+    { rewrite /error_state_first_store_ok /= in Hok.
+      destruct wcsp as [|[ [] p g b e a|]| |]; try done; by do 5 eexists. }
+    pose proof Hok as (Hwa & Hb & He).
+    rewrite /ErrorState_size in Hb He.
+    (* A heap [csp]: its first cell, or a tombstone *)
+    iMod (world_interp_cells_store_acc_heap W C p g b e (a ^+ (- ErrorState_size)) ι
+            (error_state_src w rmap) with "[] [] Hworld_interp")
+      as "[ [#Hq Hworld_interp] | (%D & HD0 & #Hacc & Hclose)]".
+    { done. }
+    { rewrite /ErrorState_size. solve_addr. }
+    { rewrite /ErrorState_size. solve_addr. }
+    { by rewrite (interp_cap_cur_addr W C true p g b e (a ^+ (- ErrorState_size)) a (Some ι)). }
+    { by iApply interp_error_state_src. }
+    - (* A tombstone: [ι] is quarantined, the tag of [csp] is cleared *)
+      iDestruct (interp_cap_has_authority W C p g b e a (a ^+ (- ErrorState_size)) ι
+                   with "Hcsp_interp") as %Hauth.
+      { by apply writeAllowed_nonO. }
+      { apply withinBounds_true_iff. rewrite /ErrorState_size. solve_addr. }
+      rewrite /registers_pointsto.
+      iDestruct (big_sepM_insert_acc with "Hrmap") as "[Hcspr Hrmap]"; first exact Hwcsp.
+      iMod (reg_refilter _ csp (Cap p g b e a @@? Some ι) ι Hauth eq_refl with "Hq Hcspr")
+        as "Hcspr".
+      iDestruct ("Hrmap" with "Hcspr") as "Hrmap".
+      iApply ("Hcont" $! _ (λ _, world_interp W C) with "[] [] Hrmap Hworld_interp [] []");
+        last by iIntros "!> % $".
+      + iPureIntro. intros r. rewrite lookup_insert_is_Some'. by right.
+      + iIntros (r v Hv). destruct (decide (r = csp)) as [-> | Hne].
+        * rewrite lookup_insert_eq in Hv. simplify_eq. iApply interp_clear_tag.
+        * rewrite lookup_insert_ne in Hv; last done. by iApply "Hregs".
+      + iIntros "!>" (eh p' g' b' e' a' π' _ _) "_ _ %Hcsp' _".
+        by rewrite lookup_total_insert_eq in Hcsp'.
+    - (* The first cell: the stores go through the open world *)
+      iApply ("Hcont" $! rmap D with "[//] Hregs [Hrmap] HD0 [] Hclose"); first done.
+      iIntros "!>" (eh p' g' b' e' a' π' _ _) "_ _ %Hcsp' _".
+      rewrite Hcsp in Hcsp'. injection Hcsp' as <- <- <- <- <- <-.
+      iExact "Hacc".
+  Qed.
+
+  (** The source of the context that the switcher installs for an
+      untrusted handler: the world, through the handler's safe [csp]. As
+      for the [ErrorState] stores, a [csp] of a quarantined object is
+      untagged first, and otherwise its first cell stays open. *)
+  #[local] Lemma untrusted_install_acc (W : WORLD) (C : CmptName) (rmap : LReg) (n : nat) :
+    (∀ r, is_Some (rmap !! r)) →
+    (∀ (r : RegName) (v : LWord), ⌜rmap !! r = Some v⌝ → interp W C v) -∗
+    registers_pointsto rmap -∗
+    world_interp W C -∗
+    (∀ (rmap' : LReg) (L : nat → list LWord → iProp Σ),
+       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
+       ⌜∀ r, r ≠ csp → rmap' !! r = rmap !! r⌝ -∗
+       (∀ (r : RegName) (v : LWord), ⌜rmap' !! r = Some v⌝ → interp W C v) -∗
+       registers_pointsto rmap' -∗
+       L 0 [] -∗
+       (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
+          ⌜rmap' !!! csp = Cap p g b e a @@? π⌝ -∗
+          ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
+          cells_load_acc L p e a π n) -∗
+       ▷ (∀ i ls, L i ls -∗ world_interp W C ∗ [∗ list] v ∈ ls, interp W C v) -∗
+       safe[th]) -∗
+    safe[th].
+  Proof.
+    iIntros (Hfull) "#Hregs Hrmap Hworld_interp Hcont".
+    destruct (Hfull csp) as [wcsp Hwcsp].
+    assert (rmap !!! csp = wcsp) as Hcsp by by rewrite (lookup_total_correct _ _ _ Hwcsp).
+    iAssert (interp W C wcsp) as "#Hcsp_interp"; first by iApply "Hregs".
+    set (Lw := λ (_ : nat) (ls : list LWord),
+                 (world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I).
+    (* The loads through [csp] in the world, as it is *)
+    iAssert (⌜∀ p g b e a ι, wcsp = Cap p g b e a @@? Some ι →
+               readAllowed p = true → (b <= a)%a → (e <= a)%a⌝ -∗
+             ∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
+               ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
+               ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
+               cells_load_acc Lw p e a π n)%I as "#Hplain".
+    { iIntros (Hnoheap p g b e a π Hcsp') "[%Hra %Hb]".
+      rewrite Hcsp in Hcsp'.
+      destruct π as [ι|].
+      - specialize (Hnoheap p g b e a ι Hcsp' Hra Hb).
+        iIntros "!>" (i ls _ Hie). exfalso. solve_addr.
+      - iApply (world_interp_cells_load_acc _ _ _ g b e); [done | done | done |].
+        by rewrite -Hcsp'. }
+    destruct wcsp as [wcsp [ι|] ]; cycle 1.
+    { iApply ("Hcont" $! rmap Lw with "[//] [//] Hregs Hrmap [Hworld_interp] [] []").
+      - by iFrame.
+      - iApply "Hplain". iPureIntro. by intros ? ? ? ? ? ? [=].
+      - by iIntros "!> % % $". }
+    assert ((∃ p g b e a, wcsp = Cap p g b e a ∧
+               readAllowed p = true ∧ (b <= a)%a ∧ (a < e)%a) ∨
+            (∀ p g b e a, wcsp = Cap p g b e a →
+               readAllowed p = true → (b <= a)%a → (e <= a)%a))
+      as [(p & g & b & e & a & -> & Hra & Hba & Hae) | Hnoheap].
+    { destruct wcsp as [z|[ [] p g b e a|]| |]; try (right; by intros ? ? ? ? ? [=]).
+      destruct (decide (readAllowed p = true ∧ (b <= a)%a ∧ (a < e)%a)) as [Hok|Hnok].
+      - left. by do 5 eexists.
+      - right. intros ? ? ? ? ? [= <- <- <- <- <-] Hra Hba.
+        destruct (decide (a < e)%a); [exfalso; by apply Hnok | solve_addr]. }
+    2: { iApply ("Hcont" $! rmap Lw with "[//] [//] Hregs Hrmap [Hworld_interp] [] []").
+         - by iFrame.
+         - iApply "Hplain". iPureIntro.
+           intros p g b e a ι' Heq. injection Heq as Heq _. by eapply Hnoheap.
+         - by iIntros "!> % % $". }
+    (* A heap [csp]: its first cell, or a tombstone *)
+    iMod (world_interp_cells_load_acc_heap W C p g b e a ι n Hra Hba Hae
+            with "Hcsp_interp Hworld_interp")
+      as "[ [#Hq Hworld_interp] | (%L & HL0 & #Hacc & Hclose)]".
+    - (* A tombstone: [ι] is quarantined, the tag of [csp] is cleared *)
+      iDestruct (interp_cap_has_authority W C p g b e a a ι with "Hcsp_interp") as %Hauth.
+      { by apply readAllowed_nonO. }
+      { apply withinBounds_true_iff. solve_addr. }
+      rewrite /registers_pointsto.
+      iDestruct (big_sepM_insert_acc with "Hrmap") as "[Hcspr Hrmap]"; first exact Hwcsp.
+      iMod (reg_refilter _ csp (Cap p g b e a @@? Some ι) ι Hauth eq_refl with "Hq Hcspr")
+        as "Hcspr".
+      iDestruct ("Hrmap" with "Hcspr") as "Hrmap".
+      iApply ("Hcont" $! _ Lw with "[] [] [] Hrmap [Hworld_interp] [] []").
+      + iPureIntro. intros r. rewrite lookup_insert_is_Some'. by right.
+      + iPureIntro. intros r Hr. by rewrite lookup_insert_ne.
+      + iIntros (r v Hv). destruct (decide (r = csp)) as [-> | Hne].
+        * rewrite lookup_insert_eq in Hv. simplify_eq. iApply interp_clear_tag.
+        * rewrite lookup_insert_ne in Hv; last done. by iApply "Hregs".
+      + by iFrame.
+      + iIntros (p' g' b' e' a' π' Hcsp') "_".
+        by rewrite lookup_total_insert_eq in Hcsp'.
+      + by iIntros "!> % % $".
+    - (* The first cell: the loads go through the open world *)
+      iApply ("Hcont" $! rmap L with "[//] [//] Hregs Hrmap HL0 [] Hclose").
+      iIntros (p' g' b' e' a' π' Hcsp') "_".
+      rewrite Hcsp in Hcsp'. injection Hcsp' as <- <- <- <- <- <-.
+      iExact "Hacc".
   Qed.
 
   (** A tagged capability that a [Lea] of a safe word gives is safe:
@@ -369,37 +789,38 @@ Section Switcher_Exception.
   Proof.
     iIntros (Hfull Hnz Hframe)
       "#Hinv_switcher #Hstatic #Htrap #Hregs #Htop HPC Hrmap Hworld_interp Hcont Hna Hcstk".
+    (* The source of the context, through [csp] *)
+    iApply (untrusted_install_acc W C rmap (Z.to_nat ErrorState_size)
+              with "Hregs Hrmap Hworld_interp"); first done.
+    iIntros (rmap' L Hfull' Hsame) "#Hregs' Hrmap HL0 #Hacc Hclose".
+    assert (nonZero (rmap' !!! ca0).(lw) = false) as Hnz'.
+    { by rewrite !lookup_total_alt Hsame. }
     (* The PCC of the topmost table is safe *)
     iDestruct (top_cmpt_untrusted_pcc_cgp with "Htop")
       as (wpcc wcgp) "(#Hpcc & _ & #Hpcc_interp & _)".
     iDestruct (top_cmpt_untrusted_header with "Htop") as "[%Htbl_set _]".
-    iAssert (interp W C (rmap !!! csp)) as "#Hcsp".
-    { iApply "Hregs". iPureIntro.
-      destruct (Hfull csp) as [v Hv]. by rewrite (lookup_total_correct _ _ _ Hv). }
-    iApply (switcher_install_context_spec ⊤ cstk rmap wpcc
-              (λ (_ : nat) (ls : list LWord), world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I
+    iApply (switcher_install_context_spec ⊤ cstk rmap' wpcc L
              with "[- ]"); [set_solver | set_solver | done | done | done |].
     iFrame "Hinv_switcher Hstatic HPC Hrmap Hna Hcstk Hpcc".
-    iSplitL "Hworld_interp"; first by iFrame.
-    iSplitR.
-    { iIntros (p g b e a π Hcsp_eq [Hra Hb]).
-      iApply world_interp_cells_load_acc; [done | done |].
-      iEval (rewrite Hcsp_eq) in "Hcsp". iExact "Hcsp". }
+    iSplitL "HL0"; first iExact "HL0".
+    iSplitR; first iExact "Hacc".
     iNext. iSplit.
     - (* A fault of the installation: the switcher unwinds *)
-      iIntros (_ off rmap' i ls Hno_resume Hfull') "Hrmap Hcstk [Hworld_interp _] Hna".
+      iIntros (_ off rmap'' i ls Hno_resume Hfull'') "Hrmap Hcstk HL Hna".
+      iDestruct ("Hclose" with "HL") as "[Hworld_interp _]".
       iApply (interp_trap_safe with "Htrap"); first done.
       iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
       iApply trap_handler_ok_switcher; [done | apply switcher_fault_pc_cap |].
       by iApply (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont").
     - (* The installed context runs through the FTLR *)
-      iIntros (ls Hls) "HPC Hrmap Hcstk [Hworld_interp #Hls_interp] Hna".
+      iIntros (ls Hls) "HPC Hrmap Hcstk HL Hna".
+      iDestruct ("Hclose" with "HL") as "[Hworld_interp #Hls_interp]".
       iAssert (interp W C (llegalise mepcc (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw)))))
         as "#Hwpc".
       { iApply interp_llegalise_mepcc. by iApply interp_resumed_pc. }
       iDestruct (fundamental (trap_handler_ok ⊤) with "Htrap Hwpc") as "Hexpr".
       iApply ("Hexpr" $! (cstack_set_top_count cstk (top_error_count cstk + 1)%Z) Ws Cs
-                (error_state_install rmap (drop 1 ls)) with "[- ]").
+                (error_state_install rmap' (drop 1 ls)) with "[- ]").
       iFrame "HPC Hrmap Hworld_interp Hna Hcstk".
       rewrite top_cmpt_untrusted_set_top_count interp_cont_set_top_count.
       iFrame "Htop Hcont".
@@ -407,15 +828,14 @@ Section Switcher_Exception.
       iApply interp_reg_intro; first by apply error_state_install_full.
       iIntros (r v Hv).
       rewrite /error_state_install lookup_union_Some_raw in Hv.
-      destruct Hv as [Hv | [_ Hv] ]; last by iApply "Hregs".
+      destruct Hv as [Hv | [_ Hv] ]; last by iApply "Hregs'".
       apply elem_of_list_to_map_2, elem_of_zip_r in Hv.
       iApply (big_sepL_elem_of with "Hls_interp").
       by apply (subseteq_drop 1 ls).
   Qed.
 
   (** The handler-return entry point is safe to execute, for a safe trap
-      vector: the registers are re-filtered; with [ca0] non-zero, the
-      switcher unwinds, and with [ca0] zero, it installs the context of the
+      vector: with [ca0] non-zero, the switcher unwinds, and with [ca0] zero, it installs the context of the
       [ErrorState]. *)
   Lemma interp_expr_handler_return_gen (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -424,11 +844,10 @@ Section Switcher_Exception.
     ⊢ interp_expr interp (interp_cont interp) W C
         (switcher_label_pc ".Lhandle_error_handler_return").
   Proof.
-    iIntros "(#Hinv_switcher & #Hstatic & #Htrap) %cstk %Ws %Cs %rmap0
+    iIntros "(#Hinv_switcher & #Hstatic & #Htrap) %cstk %Ws %Cs %rmap
              (Hregs & #Htop & HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hframe)".
-    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
-    iIntros (rmap) "%Hfull_rmap #Hregs Hrmap Hworld_interp". clear rmap0.
-    cbn in Hfull_rmap.
+    iDestruct "Hregs" as "[%Hfull_rmap #Hregs]".
+    cbn in Hfull_rmap. change LReg in rmap.
     destruct (nonZero (rmap !!! ca0).(lw)) eqn:Hnz.
     - (* [ca0] non-zero: the switcher unwinds *)
       iApply (switcher_handler_return_force_unwind with "Hstatic HPC Hrmap"); [done | done |].
@@ -599,10 +1018,10 @@ Section Switcher_Exception.
     iApply ("HU" with "Hes [//] [//] [//] HPC Hrmap Hcstk [//] Hna").
   Qed.
 
-  (** A fault in an untrusted compartment: the registers are re-filtered;
-      the switcher unwinds, resumes the caller, or invokes one of the
+  (** A fault in an untrusted compartment: the switcher unwinds, resumes the caller, or invokes one of the
       compartment's handlers, which runs through the FTLR. The [ErrorState]
-      of a stackful handler is stored in the world. The cause satisfies the
+      of a stackful handler is stored in the world, through [csp]: a [csp]
+      of a quarantined object is untagged first. The cause satisfies the
       cause predicate [P_mcause] of fault causes; the value is any. *)
   Lemma exception_entry_untrusted_safe (P_mcause P_mtval : Z → Prop)
     (cstk : CSTK) (rmap : LReg) (w : LWord) :
@@ -622,26 +1041,30 @@ Section Switcher_Exception.
   Proof.
     iIntros (HP_mcause Hfull_rmap)
       "#Hinv_switcher #Hstatic #Hsafe Huntrusted HPC Hout Hrmap Hna Hcstk".
-    iDestruct "Huntrusted" as (W C Ws Cs Hframe) "(#Hregs & #Htop & Hworld_interp & Hcont)".
-    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
-    iIntros (rmap') "%Hfull_rmap' #Hregs' Hrmap Hworld_interp".
+    iDestruct "Huntrusted" as (W C Ws Cs Hframe) "(Hregs & #Htop & Hworld_interp & Hcont)".
+    iDestruct "Hregs" as "[_ #Hregs]".
+    iApply (untrusted_error_state_acc W C cstk w rmap with "Hregs Hrmap Hworld_interp");
+      first done.
+    iIntros (rmap' D Hfull_rmap') "#Hregs' Hrmap HD0 #Hacc Hclose".
     iDestruct (top_cmpt_untrusted_header with "Htop") as "#Hheader".
     iApply (switcher_exception_path_spec P_mcause P_mtval ⊤ cstk (cstack_frag cstk)
-              (λ _, world_interp W C) with
-             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcstk Hworld_interp Hcont]");
+              D with
+             "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hout $Hna Hcstk HD0 Hcont Hclose]");
       [done | set_solver | set_solver | done |].
     iSplitL "Hcstk"; first by case_decide.
     iSplitR; first (iIntros "_"; iExact "Hheader").
-    iSplitL "Hworld_interp"; first iExact "Hworld_interp".
-    iSplitR; first by iApply untrusted_error_state_acc.
+    iSplitL "HD0"; first iExact "HD0".
+    iSplitR; first iExact "Hacc".
     iNext.
     iPoseProof (exception_entry_safe_vector with "Hsafe") as "#Htrap".
     iSplit; [|iSplit; [|iSplit] ].
     - (* The forced unwind *)
-      iApply unwind_cont_path_unwind_k. iIntros "Hworld_interp".
+      iApply unwind_cont_path_unwind_k. iIntros "HD".
+      iDestruct ("Hclose" with "HD") as "Hworld_interp".
       by iApply (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont").
     - (* The resumed caller returns to [cra], with safe registers *)
-      iIntros (_ rmap'' Hfull_rmap'' Hsame Hca0 Hca1) "HPC Hrmap Hcstk Hworld_interp Hna".
+      iIntros (_ rmap'' Hfull_rmap'' Hsame Hca0 Hca1) "HPC Hrmap Hcstk HD Hna".
+      iDestruct ("Hclose" with "HD") as "Hworld_interp".
       iApply (switcher_just_return_safe with
                "Htrap [] Htop Hstatic HPC Hrmap Hworld_interp Hcont Hna Hcstk"); [done | done |].
       iIntros (r v Hv).
@@ -654,11 +1077,13 @@ Section Switcher_Exception.
     - (* A fault of the path *)
       iIntros (_).
       iApply (exception_entry_safe_nested with "Hsafe"); [set_solver | set_solver |].
-      iIntros (k _) "Hworld_interp".
+      iIntros (k _) "HD".
+      iDestruct ("Hclose" with "HD") as "Hworld_interp".
       by iApply (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont").
     - (* A handler *)
       iIntros (kind wpcc wcgp wpc off mcause mtval regs _ _ Hstack _ _ _ Hentry Hinv_regs)
-        "_ Hpcc Hcgp _ HPC Hregs_h Hcstk Hworld_interp Hna".
+        "_ Hpcc Hcgp _ HPC Hregs_h Hcstk HD Hna".
+      iDestruct ("Hclose" with "HD") as "Hworld_interp".
       iApply (untrusted_handler_invoke_safe with
                "Hinv_switcher Hstatic Htrap Htop Hpcc Hcgp [] HPC Hregs_h Hworld_interp Hcont
                 Hcstk Hna"); [done | done | done | done |].
@@ -1249,19 +1674,19 @@ Section Switcher_Exception.
       iPureIntro. by apply error_state_install_full.
   Qed.
 
-  (** The return-to-switcher entry point is safe to execute: the registers
-      are re-filtered, then the return routine runs ([switcher_return_unwind]). *)
+  (** The return-to-switcher entry point is safe to execute: the return
+      routine runs ([switcher_return_unwind]). *)
   Lemma interp_expr_switcher_return (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp_expr interp (interp_cont interp) W C (Cap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof.
-    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %rmap0
+    iIntros "[#Hinv_switcher #Hstatic] %cstk %Ws %Cs %rmap
              (Hregs & _ & HPC & Hrmap & Hworld_interp & Hcont_K & Hna & Hcstk & %Hfreq)".
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hstatic]")
       as "#Htrap".
-    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
-    iIntros (rmap) "%Hfull_rmap #Hrmap_interp Hrmap Hworld_interp". clear rmap0.
+    iDestruct "Hregs" as "[%Hfull_rmap #Hrmap_interp]".
+    change LReg in rmap.
     cbn in Hfull_rmap.
     getRegValList [ca0;ca1].
     iApply (switcher_return_unwind with

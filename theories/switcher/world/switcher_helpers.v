@@ -94,7 +94,7 @@ Section switcher_helper.
           specialize (H1 W).
           apply _.
         }
-        rewrite /heap_key_status /if_later_P /temp_resources /=.
+        rewrite /heap_key_resource /if_later_P /temp_resources /=.
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplit.
         { erewrite isWL_flowsto;eauto.

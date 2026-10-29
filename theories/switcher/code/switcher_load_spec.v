@@ -119,19 +119,15 @@ Section Switcher_Restore_Interp.
 
   (** The witness of [Wval] for [raw], from the open world [Wworld]. *)
   Lemma world_interp_open_load_witness_eq Wworld Wval C opened raw :
-    heap_std Wworld = heap_std Wval ->
     world_interp_open Wworld C opened -∗
     world_interp_open Wworld C opened ∗ load_witness_res (load_witness_of Wval raw).
   Proof.
-    iIntros (Hheap_eq) "Hworld".
-    iDestruct (world_interp_open_heap_provenance with "Hworld") as "[$ #Hprov]".
-    rewrite Hheap_eq. by iApply heap_provenance_load_witness.
+    by iIntros "$".
   Qed.
 
   Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
-    heap_std Wworld = heap_std Wval ->
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
@@ -149,9 +145,9 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
-    iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+    iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw Hheap_eq with "Hworld")
+    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
       as "[Hworld Hwit]".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
@@ -163,7 +159,6 @@ Section Switcher_Restore_Interp.
   Lemma switcher_load_stack_restore_interp {dq : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
-    heap_std Wworld = heap_std Wval ->
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
     decodeInstrW wi.(lw) = CLoad dst src off ->
@@ -180,9 +175,9 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
-    iIntros (Hheap_eq Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+    iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw Hheap_eq with "Hworld")
+    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
       as "[Hworld Hwit]".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".

@@ -179,7 +179,6 @@ Section Callback_Path.
     (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
-    heap_std Wworld = heap_std Wval ->
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     switcher_stk_bounds b e a ->
@@ -244,7 +243,7 @@ Section Callback_Path.
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Hheap Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
       & #Hswitcher & Hmid)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
@@ -273,7 +272,7 @@ Section Callback_Path.
     iApply (switcher_restore_spill_world_spec Wworld Wval C opened ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld $Hmem
         $Hswitcher]");
-      [done|done|done|done|clear -Hba3; stk_unfold; solve_addr|].
+      [done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
       "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlc)".
     iEval (rewrite Hspill_top) in "Hcsp".

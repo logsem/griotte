@@ -146,7 +146,7 @@ Section Switcher.
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
       & Hrmap & Hstk & Hcont & %Hloaded)".
-    destruct Hloaded as ([Hgp _] & [Hra _] & [Hs0 _] & [Hs1 _]).
+    destruct Hloaded as (Hgp & Hra & Hs0 & Hs1).
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
       as Hloaded by (repeat split; assumption).

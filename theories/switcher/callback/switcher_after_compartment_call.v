@@ -322,7 +322,6 @@ Section Switcher_After_Compartment_Call.
     Wworld Wval C opened
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
-    heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
@@ -362,7 +361,7 @@ Section Switcher_After_Compartment_Call.
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & #Hnormal_gp & #Hnormal_ra
       & #Hnormal_s1 & #Hnormal_s0 & #Hswitcher & Hpost)".
@@ -430,7 +429,6 @@ Section Switcher_After_Compartment_Call.
     Wworld Wval C opened (ccrel : caller_callee_relation)
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
-    heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
@@ -475,13 +473,13 @@ Section Switcher_After_Compartment_Call.
     ⊢ safe[th].
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
-    { iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    { iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
         "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hworld
         & (Hnormal_gp & Hnormal_ra & Hnormal_s1 & Hnormal_s0) & #Hswitcher & Hpost)".
       iApply (switcher_restore_spill_interp_spec Wworld Wval C opened
         with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld
         $Hnormal_gp $Hnormal_ra $Hnormal_s1 $Hnormal_s0 $Hswitcher $Hpost]"); done. }
-    iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & _ & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.

@@ -54,19 +54,6 @@ Section switcher_helpers_cframe.
     exact Hrelated.
   Qed.
 
-  Lemma world_interp_rel_status_some W C a p φ :
-    world_interp W C -∗
-    rel C (LNonHeap a) p φ -∗
-    world_interp W C ∗
-    ⌜is_Some (heap_key_status (heap_std W) (LNonHeap a))⌝.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "@ Hrel".
-    iDestruct (region_rel_dom with "Hr Hrel") as "[Hr %Hdom]".
-    iDestruct (region_addr_status_some W C a Hdom with "Hr") as "[Hr %Hstatus]".
-    iFrame. iPureIntro. exact Hstatus.
-  Qed.
-
   (** Helper lemmas for switcher. The lemmas with the suffix [_aux] are
       stated on the literal layout of the spill area, at [s], below the
       cursor of the caller; the others on the stack layout of
@@ -506,10 +493,6 @@ Section switcher_helpers_cframe.
       apply Forall_cons in Hnonheap as [Hnonheap3 _].
       cbn.
       iDestruct "Hframe" as "(Hv0 & Hv1 & Hv2 & Hv3 & _)".
-      iEval (rewrite /heap_key_status /=) in "Hv0".
-      iEval (rewrite /heap_key_status /=) in "Hv1".
-      iEval (rewrite /heap_key_status /=) in "Hv2".
-      iEval (rewrite /heap_key_status /=) in "Hv3".
       iDestruct "Hv0" as (p_v0 P0 Hpers_P0) "(#Hrel0 & Hv0)".
       iDestruct "Hv1" as (p_v1 P1 Hpers_P1) "(#Hrel1 & Hv1)".
       iDestruct "Hv2" as (p_v2 P2 Hpers_P2) "(#Hrel2 & Hv2)".

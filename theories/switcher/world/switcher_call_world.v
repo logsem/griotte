@@ -130,10 +130,11 @@ Section Switcher_Call_World.
     interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hwl Hbe) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hok]";
       first (apply isWL_nonO; exact Hwl).
-    iPureIntro. specialize (Hheap Hbe). destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & _ & Hnotwl). congruence.
+    destruct π as [ι|]; last done.
+    iDestruct (heap_cap_ok_id with "Hok") as %(_ & _ & Hnotwl); first exact Hbe.
+    iPureIntro. congruence.
   Qed.
 
   (** Loading a safe word gives a safe word. *)
@@ -210,7 +211,6 @@ Section Switcher_Call_World.
   Lemma switcher_call_entry_registers W W' C (nargs : nat)
     (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) (mie : InterruptStatus) :
     related_sts_pub_world W W' ->
-    heap_std W = heap_std W' ->
     is_arg_rmap arg_rmap' 8 ->
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
@@ -226,7 +226,7 @@ Section Switcher_Call_World.
       registers_pointsto regs ∗
       execute_entry_point_register wcgp wstk nargs W' C regs.
   Proof.
-    iIntros (Hrelated Hheap Harg_rmap' Hrmap')
+    iIntros (Hrelated Harg_rmap' Hrmap')
       "(Hcgp & Hcra & Hcsp & #Hstk & Hargs & Hregs)".
     iDestruct (big_sepM_sep with "Hregs") as "[Hregs #Hnil]".
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs #Hval]".
@@ -272,8 +272,7 @@ Section Switcher_Call_World.
       destruct Hv as [Hv|Hv].
       + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
         destruct (decide (r ∈ _)) as [|Hcontra]; last set_solver+Hcontra Hr.
-        iApply (interp_monotone_same_heap with "[] Hv"); first done.
-        iPureIntro; done.
+        by iApply (interp_monotone_same_heap with "[%] Hv").
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
         iApply interp_int.
     - iIntros (r v Hr Hv).
@@ -558,7 +557,7 @@ Section Switcher_Call_World.
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption]. solve_addr. }
     iApply interp_unfold. iSimpl.
     iSplit; last first.
-    { iPureIntro. split; first exact Hshadow. by apply heap_cap_valid_disjoint. }
+    { iSplit; first (iPureIntro; exact Hshadow). by iApply heap_cap_ok_disjoint. }
     rewrite /StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
     iApply (big_sepL_impl with "Hstk_val'").
     iIntros "!>" (k a' Ha') "Hr".
@@ -674,7 +673,6 @@ Section Switcher_Call_World.
 
     iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
       as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
-    { apply Forall_forall; intros x Hx. apply heap_key_live_nonheap. }
     {
       apply Forall_forall; intros a Ha.
       eapply elem_of_mono_pub;eauto.

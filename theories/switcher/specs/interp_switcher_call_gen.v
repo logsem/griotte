@@ -596,9 +596,8 @@ Section fundamental.
        - [trusted_stack_inv_opened_push]: push the frame and close the trusted-stack
          invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
-    iIntros "#Hsafety %cstk %Ws %Cs %regs0 (Hregs & #Htop & HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)".
-    iApply (interp_reg_refilter with "Hregs Hrmap Hworld_interp").
-    iIntros (regs) "%Hfull_rmap #Hreg Hrmap Hworld_interp". clear regs0.
+    iIntros "#Hsafety %cstk %Ws %Cs %regs (Hregs & #Htop & HPC & Hrmap & Hworld_interp & Hcont & Hna & Hcstk & %Hframe)".
+    iDestruct "Hregs" as "[%Hfull_rmap #Hreg]".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iPoseProof (fundamental_ih with "Htrap") as "IH". (* used for weakening lemma later *)
@@ -827,7 +826,7 @@ Section fundamental.
     { clear -Hfull_rmap. apply lregmap_full_dom in Hfull_rmap as Hw'.
       rewrite /rmap' /call_regs_without !map_filter_delete !dom_delete_L.
       cut (dom (filter (λ v, ¬ Pf v) regs) = all_registers_s ∖ dom_arg_rmap 8).
-      { intros ->. clear. generalize (dom_arg_rmap 8); intros S. set_solver. }
+      { intros Heq. clear -Heq. rewrite Heq. generalize (dom_arg_rmap 8); intros S. set_solver. }
       apply (dom_filter_L _ (regs : gmap RegName LWord)).
       split.
       - intros [Hi Hni]%elem_of_difference.
@@ -870,7 +869,7 @@ Section fundamental.
         revert Hba Hba3 Ha4; stk_unfold; solve_addr. }
     iDestruct (switcher_call_entry_registers W W C nargs arg_rmap' rmap'' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
-      as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|done|].
+      as (regs') "[Hregs Hregs_interp]"; [apply related_sts_pub_refl_world|done|done|].
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W :: Ws) (C :: Cs) regs'
              (stk_callee_b b a) (stk_callee_e e a)).
     iSplitL "Hcont"; first iExact "Hcont".

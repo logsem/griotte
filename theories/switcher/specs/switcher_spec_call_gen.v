@@ -1001,8 +1001,7 @@ Section Switcher.
     (* Execute the entry point of the callee *)
     iDestruct (switcher_call_entry_registers W W' C nargs arg_rmap' rmap' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
-      as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
-    { symmetry. apply std_update_multiple_heap. }
+      as (regs) "[Hregs Hregs_interp]"; [done|done|done|].
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
               (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
     iSplitL "Hcont_frame"; first iExact "Hcont_frame".
@@ -1175,8 +1174,7 @@ Section Switcher.
       iSplitL "Hca0"; first (iExists _; iFrame "Hca0"; iApply interp_int).
       iSplitL "Hca1"; first (iExists _; iFrame "Hca1"; iApply interp_int).
       iPureIntro.
-      destruct Hrestored as ([Hgp Hgpf] & [Hra Hraf] & [Hs0 Hs0f] & [Hs1 Hs1f]).
-      rewrite /load_heap_in_world /filter_heap std_update_multiple_heap.
+      destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
       by repeat split.
   Qed.
 

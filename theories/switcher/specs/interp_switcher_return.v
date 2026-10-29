@@ -197,7 +197,7 @@ Section fundamental.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
       "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode]");
-      [done|done|done|done|done|done|done|].
+      [done|done|done|done|done|done|].
     iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)

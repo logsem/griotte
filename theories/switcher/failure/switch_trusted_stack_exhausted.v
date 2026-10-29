@@ -181,7 +181,6 @@ Section Switch_Trusted_Stack_Exhausted.
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs0 $Hcsp $Ha_stk0 $Hworld]"
       as (rcs0) "(%Hrcs0 & HPC & Hcs0 & Hcsp & Ha_stk0 & Hworld)".
-    { reflexivity. }
     { exact Ha0. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -191,7 +190,6 @@ Section Switch_Trusted_Stack_Exhausted.
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld]"
       as (rcs1) "(%Hrcs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
-    { reflexivity. }
     { exact Ha1. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -201,7 +199,6 @@ Section Switch_Trusted_Stack_Exhausted.
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hworld]"
       as (rcra) "(%Hrcra & HPC & Hcra & Hcsp & Ha_stk3 & Hworld)".
-    { reflexivity. }
     { exact Ha3. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -211,7 +208,6 @@ Section Switch_Trusted_Stack_Exhausted.
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld]"
       as (rcgp) "(%Hrcgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld)".
-    { reflexivity. }
     { exact Ha2. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
