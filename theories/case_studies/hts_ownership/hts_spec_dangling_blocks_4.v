@@ -78,8 +78,8 @@ Section HTS_Spec_Dangling.
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
                  $Hcstk $Hcode_main]"); [done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
-      & _ & %Hstd_rev & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
-      & [%stk Hstk] & Hworld_open & Hstate_b & Hstack_revoked_ret
+      & _ & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
+      & [%stk Hstk] & Hworld_open & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
@@ -102,16 +102,17 @@ Section HTS_Spec_Dangling.
 
     (* Quarantine b in the world and close its world entry. The dangling
        saved alias remains private. *)
-    iMod (hts_world_quarantine C _ ι b Wret Hbounds Hstd_rev
-      with "Hrel_b Hstate_b Hquar Hworld_open") as "Hworld".
+    iMod (hts_world_quarantine C _ ι b Wret Hbounds
+      with "Hrel_b Hquar Hworld_open") as "Hworld".
     iDestruct (StackRevokedResources_mono_priv Wret (hts_Wfree Wret ι) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) (hts_Wfree_related Wret ι)
       with "Hstack_revoked_ret") as "Hstack_revoked_free".
     assert (revoked_addresses (hts_Wfree Wret ι)
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))) as Hstack_revoked_free.
     { rewrite /hts_Wfree /revoked_addresses /=. exact Hstack_revoked_ret. }
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wfree Wret ι)
-      Hadv_nonheap with "Hadv") as "#Hinterp_adv_free".
+      Hadv_nonheap with "Hseal_switcher Hadv") as "#Hinterp_adv_free".
 
     (* Block 17: clear the second adversary argument. *)
     focus_block (hts_block ".Lhts_zero_arg") "Hcode_main" of hts_main_blocks at pc_a as a_zero Ha_zero "Hcode" "Hcont".

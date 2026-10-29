@@ -261,10 +261,10 @@ Section HTS_States.
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
 
-  (** The world shared with the first adversary call: the stack is revoked
-      and the buffer [b] of [ι] is [Permanent]. *)
+  (** The world shared with the first adversary call: the stack is revoked;
+      the buffer [b] of [ι] is a Global region, outside the local world. *)
   Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
-    <s[LHeap b ι := Permanent]s> (revoke W_init_C).
+    revoke W_init_C.
 
   (** The world after freeing [ι] in the revoked world [Wret]: the entry of
       [b] is a tombstone. *)
@@ -310,7 +310,7 @@ Section HTS_States.
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
-      rel C (LHeap b ι) RW interp_in_memC ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
       (∃ w, ca0 ↦ᵣ[th] w) ∗
       (∃ w, ca1 ↦ᵣ[th] w) ∗
@@ -332,8 +332,7 @@ Section HTS_States.
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       alloc_obj ι b (b ^+ 1) ∗
-      ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
-      rel C (LHeap b ι) RW interp_in_memC ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
@@ -341,7 +340,6 @@ Section HTS_States.
       (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
                 stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
-      sts_state_std C (LHeap b ι) Permanent ∗
       StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
       ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗
       interp_continuation cstk Ws Cs ∗

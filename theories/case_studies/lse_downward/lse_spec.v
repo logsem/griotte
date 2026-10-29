@@ -146,7 +146,8 @@ Section LSE.
       as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
     (* Revoke the world, to get the stack frame *)
-    iMod (lse_world_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+    iMod (lse_world_call with "Hseal_switcher Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
       as (stk_mem) "(%Hrevoked_stk & Hworld_interp_C & #Hinterp_W1_C_f
                      & Hstack_revoked & Hstk)".
 

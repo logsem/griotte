@@ -97,13 +97,11 @@ Section Error_Handling_Read_Safe.
     apply withinBounds_true_iff in Hwb as Hbounds.
     (* Open the region of [a], as [wp_load_interp_imm] *)
     iDestruct (read_allowed_inv _ _ a with "Hinterp_src")
-      as (p' P Hflows Hpers) "(Hrel & Hzcond & Hrcond & Hwcond & Hmono)"; [solve_addr | auto |..].
-    iDestruct (readAllowed_valid_cap_implies _ _ _ _ _ _ _ a with "Hinterp_src")
-      as %(ρ & Hρ & Hρ_not_revoked); [done | done |].
-    iDestruct (open_world_interp_next_cases W C s π a p' (safeC P) ρ
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |..].
+    iDestruct (open_world_interp_next_cases W C s π a p' P p g
                 with "Hrel Hworld_interp")
-      as "[(Hworld_interp & Hstate & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
-      [done | exact Hnin_s | destruct ρ; auto; contradiction | exact Hρ |..].
+      as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
+      [done | exact Hnin_s |..].
     2: { (* A tombstone: the load faults on the tag *)
          iDestruct (interp_cap_has_authority with "Hinterp_src") as %Hauth;
            [by eapply readAllowed_nonO | exact Hwb |].
@@ -112,7 +110,7 @@ Section Error_Handling_Read_Safe.
          iNext. iIntros "(HPC & Hi & Hsrc)".
          iApply "Hφ". iLeft. iFrame "HPC Hi". iSplit; first done.
          iRight. iFrame. }
-    iDestruct (WorldRes_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO | done |].
@@ -159,16 +157,17 @@ Section Error_Handling_Read_Safe.
          iIntros "Ha".
          iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
          iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-         iApply (close_world_interp_next with "Hworld_interp Hstate Hrel WorldRes"); eauto.
-         destruct ρ; auto; contradiction. }
+         iDestruct (pc_close_next with "Hworld_interp Hpart WorldRes") as "Hworld_interp";
+           [exact Hnin_s|done|].
+         iExact "Hworld_interp". }
     destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
     rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
     rewrite addr_add_0 in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
-    pose proof (Hpers (W, C, w)) as Hpers_w.
-    iDestruct "Hinterp" as "#HφV /=".
-    iDestruct ("Hrcond" with "HφV") as "#Hnormal_p'".
+    pose proof (pc_content_persistent ρ W C P w Hpers).
+    iDestruct "Hinterp" as "#HφV".
+    iDestruct (pc_content_rcond with "Hrcond HφV") as "#Hnormal_p'".
     iAssert (interp_in_mem p W C w)%I as "#Hnormal".
     { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
       iApply (interp_weakening_word_load W C p p' w); first exact Hflows.
@@ -185,9 +184,8 @@ Section Error_Handling_Read_Safe.
     iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
     iDestruct (addr_key_pointsto_join with "Ha Hshare") as "Ha".
     iDestruct ("WorldRes" with "[$Ha $HφV]") as "WorldRes".
-    iDestruct (close_world_interp_next with "Hworld_interp Hstate Hrel WorldRes")
-      as "Hworld_interp"; eauto.
-    { destruct ρ; auto; contradiction. }
+    iDestruct (pc_close_next with "Hworld_interp Hpart WorldRes") as "Hworld_interp";
+      [exact Hnin_s|done|].
     iApply "Hφ"; iRight. iExists loadv'. iFrame "∗#%". done.
   Qed.
 
@@ -560,7 +558,7 @@ Section Error_Handling_Read_Safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact STATS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact STATS_cgp_base_not_heap).
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %b_stk %e_stk".
+    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %b_stk %e_stk".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & %Hminstk & Hcstk & Hna)".
     iDestruct "Hregister_state" as

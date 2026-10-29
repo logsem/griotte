@@ -106,8 +106,8 @@ Section DROE.
        - [droe_init_blocks_1_spec]: block 0, initialise the data,
        - [droe_share_blocks_2_spec]: blocks 1-3, fetch the imports and jump to
          the switcher,
-       - [droe_world_share]: share the data in the world, as permanent
-         read-only addresses,
+       - [droe_world_share]: share the data in the world, as Global
+         read-only regions,
        - [switcher_cc_specification]: call to the adversary,
        - [droe_world_return]: open the world to get [b] back, still equal
          to 42,
@@ -157,7 +157,8 @@ Section DROE.
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
-    iMod (droe_world_share with "Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+    iMod (droe_world_share with "Hseal_switcher Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_b & #Hinterp_ca0 & #Hinterp_W3_C_f
            & #Hstack_revoked_W3 & %Hstack_revoked_W3)"; [done..|].
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].

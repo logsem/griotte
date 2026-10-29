@@ -137,7 +137,7 @@ Section HTS_Spec_Free.
        entry. *)
     iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ ι b Wret
       Hbounds Hrelated_share_ret with "Hrel_b Hright Hworld")
-      as (v_b) "(%Hstd_rev & Hworld_open & Hstate_b & Hright
+      as (v_b) "(Hworld_open & Hright
         & [Hb Hb_share])".
 
     codefrag_facts "Hcode_main". clear H0.

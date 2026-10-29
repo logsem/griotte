@@ -223,8 +223,9 @@ Section HTS_Spec_Share.
     { exact Hbounds. }
     { exact Hstk_heap. }
     { exact Hstack_revoked. }
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C ι b)
-      Hadv_nonheap with "Hadv") as "#Hinterp_adv_share".
+      Hadv_nonheap with "Hseal_switcher Hadv") as "#Hinterp_adv_share".
 
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].

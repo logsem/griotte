@@ -24,6 +24,7 @@ Section hts_obligations.
   Context {Σ : gFunctors}.
   Context {allocator_owner_preg : allocatorOwnerPreG Σ}.
   Context {cname : CmptNameG} {B : CmptName}.
+  Context {allocator_otype_preg : allocatorOtypePreG Σ}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the heap temporal safety
@@ -128,9 +129,6 @@ Section hts_obligations.
     iDestruct (big_sepS_insert with "Hids") as "[Hid_main Hid_adv]".
     { rewrite /hts_main_owner_id /hts_adv_owner_id. set_solver. }
     iEval (rewrite big_sepS_singleton) in "Hid_adv".
-    iMod (seal_store_update_alloc AllocOtype (allocator_otype_propC (th := UserThread 0))
-           with "Hseal_store_alloc")
-      as "#Hsealed_pred_alloc".
 
     (* 6 - The allocator: its service invariant owns the heap *)
     iMod (allocator_init img (fw_nth 1 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt)
@@ -171,10 +169,40 @@ Section hts_obligations.
       as (w_main_owner) "[Hmain_owner %Hw_main_owner]"; first exact Hmain_owner_size.
     injection Hw_main_owner as <-.
 
-    (* 8 - Seal the exported entries of the allocator in the world of B *)
-    iMod (seal_service_exports fw_world0 B [malloc_f; free_f]
-           with "Hseal_switcher [] Hworld_B")
-      as "(Hworld_B & #Hseal_alloc)"; [by repeat constructor | done | |].
+    (* 8 - The registry of the allocator capabilities: B's capability,
+       recorded for B, with its owner identifier; the seal predicate of the
+       allocator's otype *)
+    iMod (ghost_map_alloc (∅ : gmap LAddr CmptName)) as (γreg) "[Hreg_auth _]".
+    pose allocator_otypeg :=
+      {| allocator_otype_inG := allocator_otype_preg; allocator_otype_name := γreg |}.
+    iMod (ghost_map_insert_persist (LNonHeap adv_owner_a) B with "Hreg_auth")
+      as "[Hreg_auth #Hel_adv]"; first done.
+    iMod (na_inv_alloc (tpool (UserThread 0)) _ Nallocator_otype
+            (∃ M : gmap LAddr CmptName,
+               ghost_map_auth γreg 1 M ∗
+               [∗ map] k ↦ _ ∈ M, allocator_otype_contents (th := UserThread 0) k)
+           with "[Hreg_auth Hadv_owner Hid_adv]") as "#Hreg".
+    { iApply bi.later_intro. iExists _. iFrame "Hreg_auth".
+      rewrite insert_empty big_sepM_singleton /allocator_otype_contents.
+      iExists adv_owner_a, hts_adv_owner_id, ∅. iFrame "Hadv_owner Hid_adv".
+      iSplit; first done.
+      by rewrite /allocator_owned_rights big_sepS_empty. }
+    iAssert (allocator_otype_registry (th := UserThread 0) (allocator_otypeg := allocator_otypeg))
+      as "#Hregistry".
+    { iExact "Hreg". }
+    iMod (seal_store_update_alloc AllocOtype SealGlobal
+            (allocator_otype_propC (allocator_otypeg := allocator_otypeg))
+           with "Hseal_store_alloc")
+      as "#Hsealed_pred_alloc".
+
+    (* 9 - Seal the exported entries of the allocator: they are valid in
+       the world of B *)
+    iDestruct (seal_service_exports (th := UserThread 0) fw_world0 B [malloc_f; free_f]
+                with "Hseal_switcher []") as "#Hseal_alloc".
+    { by repeat constructor. }
+    { repeat apply Forall_cons_2; try apply Forall_nil_2;
+        intros ? ? ? ? ? Heq; injection Heq; intros; subst;
+        apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
@@ -182,75 +210,65 @@ Section hts_obligations.
       - iApply (free_entry_point_spec Global _ B);
           [exact Halloc_switcher |].
         iFrame "Hswitcher_static #". }
-    set (W1 := <o[ switcher.ot_switcher := exports_words [malloc_f; free_f] ]o> fw_world0).
 
-    (* 9 - Seal the allocator capability of B, with its owner identifier *)
+    (* 10 - The allocator capability of B, sealed with the allocator's
+       otype, is a safe import *)
     set (adv_alloc_sb := allocator_capability_scap Global adv_owner_a).
-    set (adv_alloc_words :=
-      ({[lword_of_word (WSealable adv_alloc_sb);
-         lword_of_word (borrow (WSealable adv_alloc_sb))]} : gset LWord)).
-    set (W1' := <o[AllocOtype := adv_alloc_words]o> W1).
-    iAssert (allocator_otype_propC (th := UserThread 0)
-               (W1', B, lword_of_word (WSealable adv_alloc_sb)))
-      with "[Hadv_owner Hid_adv]" as "Hadv_alloc_prop".
-    { iExists hts_adv_owner_id, adv_owner_a, ∅. iFrame "Hadv_owner Hid_adv".
-      rewrite /allocator_owned_rights big_sepS_empty.
-      iPureIntro. split; first reflexivity. split.
-      - apply withinBounds_true_iff. solve_addr+Hadv_owner_size.
-      - split; last done.
-        eapply disjoint_from_shadow_not_in.
+    iAssert (allocator_otype_prop (allocator_otypeg := allocator_otypeg) ∅ B
+               (lword_of_word (WSealable adv_alloc_sb)))
+      as "#Hadv_alloc_prop".
+    { iExists adv_owner_a.
+      iSplit; first done.
+      iSplit; first (iPureIntro; apply withinBounds_true_iff; solve_addr+Hadv_owner_size).
+      iSplit.
+      { iPureIntro. eapply disjoint_from_shadow_not_in.
         + exact (cmpt_static_sealed_disjoint_from_shadow B_cmpt).
         + apply withinBounds_true_iff. subst adv_owner_a.
           solve_addr+Hadv_owner_size. }
-    assert (AllocOtype ∉ dom (seal_std W1)) as Halloc_fresh.
-    { subst W1. rewrite dom_insert_L dom_empty_L.
-      apply not_elem_of_union. split; last set_solver+.
-      apply not_elem_of_singleton. intros Heq. by apply Hot_alloc_switcher. }
-    iMod (world_interp_salloc W1 B allocator_otype_propC AllocOtype adv_alloc_words
-           with "[$Hsealed_pred_alloc] [] [Hadv_alloc_prop] [$Hworld_B]")
-      as "(Hworld_B & #Hseal_alloc_adv)"; first exact Halloc_fresh.
-    { iIntros (w); iApply mono_priv_ot_allocator. }
-    { rewrite normalise_sealed_words_borrow big_sepS_singleton.
-      iNext. iExact "Hadv_alloc_prop". }
+      iExact "Hel_adv". }
 
-    (* 10 - Close the world of B: its compartment becomes permanent, and the
-       stack temporary, because main shares it with B; the imports of B are
-       safe; its export is safe to share. *)
+    (* 11 - Close the world of B: its compartment becomes Global regions,
+       and the stack temporary, because main shares it with B; the imports
+       of B are safe; its export is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
-            HB_l W1' B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
+            HB_l fw_world0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
                   (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt)
-                  _ _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
+                  _ (fw_cmpt_ok_at _ _ _ 2 _ Hok eq_refl)).
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports.
       iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
                                  with "Hswitcher Hswitcher_static").
+      iEval (rewrite !big_sepL_cons) in "Hseal_alloc".
+      iDestruct "Hseal_alloc" as "(Hinterp_malloc & Hinterp_free & _)".
       iSplit.
-      { iApply (sealed_import_safe with "Hseal_alloc"); [done | |].
-        - rewrite -Hsb0 /cmpt_export_sb /=. apply exports_words_elem_of. set_solver.
-        - intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-          apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
+      { iApply interp_to_in_mem.
+        rewrite -Hsb0 /cmpt_export_sb /=.
+        by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_malloc"). }
       iSplit.
-      { iApply (sealed_import_safe with "Hseal_alloc"); [done | |].
-        - rewrite -Hsb1 /cmpt_export_sb /=. apply exports_words_elem_of. set_solver.
-        - intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-          apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
+      { iApply interp_to_in_mem.
+        rewrite -Hsb1 /cmpt_export_sb /=.
+        by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_free"). }
       iSplit; last done.
-      iApply (sealed_import_safe with "Hseal_alloc_adv"); [done | done |].
-      intros ? ? ? ? ? Heq; injection Heq; intros; subst.
-      fw_fold_cmpt B_cmpt.
-      replace (cmpt_b_static_sealed B_cmpt ^+ 1) with (cmpt_e_static_sealed B_cmpt)
-        by (rewrite /adv_owner_a in Hadv_owner_size; solve_addr+Hadv_owner_size).
-      apply cmpt_static_sealed_disjoint_from_heap. }
+      iApply (sealed_import_safe B AllocOtype _ adv_alloc_sb with "Hsealed_pred_alloc []");
+        first done.
+      { intros ? ? ? ? ? Heq; rewrite /adv_alloc_sb /allocator_capability_scap in Heq.
+        injection Heq; intros; subst.
+        replace (adv_owner_a ^+ 1) with (cmpt_e_static_sealed B_cmpt)
+          by solve_addr+Hadv_owner_size.
+        apply cmpt_static_sealed_disjoint_from_heap. }
+      { iApply allocator_otype_kind_ok. }
+      iModIntro. rewrite /allocator_otype_propC. cbn [fst snd].
+      iApply bi.later_intro. iExact "Hadv_alloc_prop". }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_B".
     cbn [fc_name fw_nth fw_cmpts hts_firmware]. rewrite HsbB.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt.
 
-    (* 11 - We can apply the specification! *)
+    (* 12 - We can apply the specification! *)
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (hts_main_spec (swlayout := swl) (assertlayout := asl) (alloclayout := alloclayout)
@@ -273,7 +291,7 @@ Section hts_obligations.
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Temporary W1' swc main_cmpt B_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt B_cmpt); [done | done | | ].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
     { done. }
@@ -312,7 +330,8 @@ Proof.
   intros Hok Hstep.
   destruct (hts_initial_state_ok_start _ _ Hok)
     as (sw & asrt & t0 & main & allocator & B & ot_alloc & <- & Hfw).
-  eapply (firmware_adequacy_closed (Cname := CmptNames_hts_CmptNameG) allocator_ownerΣ
+  eapply (firmware_adequacy_closed (Cname := CmptNames_hts_CmptNameG)
+            #[allocator_ownerΣ; @allocator_otypeΣ CmptNames_hts_CmptNameG]
             (hts_firmware ot_alloc) (hts_img sw asrt t0 main allocator B));
     [| exact Hfw | exact Hstep].
   apply (hts_fw_obligations (B := hts_adv_B)).
