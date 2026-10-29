@@ -7,9 +7,9 @@ Import CoreWPNotations.
 (** * One step of the fundamental theorem
 
     The step lemma [ftlr_step] runs one instruction of a thread from a safe
-    PC: the head (the not-correct-PC branch, the re-filter of the registers,
-    the opening of the region of the PC), the case of the instruction, and
-    the handling of its value (the next instruction, a fault, a halt). The
+    PC: the head (the not-correct-PC branch, the opening of the region of
+    the PC), the case of the instruction, and the handling of its value
+    (the next instruction, a fault, a halt). The
     world is reached through a world accessor around the core step of the
     instruction; the cases never see it. *)
 
@@ -79,7 +79,7 @@ Section ftlr_step_generic.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
-    iDestruct "Hinv_interp" as "[_ [%Hcontra _]]". naive_solver.
+    iDestruct "Hinv_interp" as "[_ [%Hcontra _] ]". naive_solver.
   Qed.
 
   (** The region resources of the address pointed to by a safe, correct PC. *)
@@ -109,7 +109,7 @@ Section ftlr_step_generic.
     destruct (isO p) eqn: HnO.
     { destruct Hp as [Hexec _]; eapply executeAllowed_nonO in Hexec; congruence. }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
-    iDestruct "Hinv" as "[#Hinv [%Hpwl_cond _]]".
+    iDestruct "Hinv" as "[#Hinv [%Hpwl_cond _] ]".
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
     assert (readAllowed p = true) as Hra.
     { destruct Hp as [Hexec _]; by eapply executeAllowed_is_readAllowed. }

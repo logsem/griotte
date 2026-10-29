@@ -22,24 +22,6 @@ Section HTS_World_Buffer.
     {swlayout : switcherLayout}
   .
 
-  (* TODO: move to logrel/logrel.v, next to interp_global_world_free *)
-  (** A word sealed with a Global-kind otype is valid in every world: the
-      predicate of the otype does not depend on the world. *)
-  Lemma interp_sealed_global_kind_world_free W W' C o P sb π :
-    o ↪ₒ{SealGlobal} P -∗
-    interp W C (WSealed o sb @@? π) -∗
-    interp W' C (WSealed o sb @@? π).
-  Proof.
-    iIntros "#Hs #Hinterp".
-    destruct (get_tag_sealable sb) eqn:Htag;
-      last (rewrite !interp_untagged_eq //=; auto).
-    rewrite !interp_unfold /= Htag /interp_sb.
-    iDestruct "Hinterp" as "[(%κ & %P' & #Hs' & #Hok & #HP) $]".
-    iDestruct (seal_pred_agree with "Hs Hs'") as "[<- _]".
-    iExists SealGlobal, P'. iFrame "Hs' Hok".
-    iDestruct "Hok" as "[_ #Hc]". iNext. by iApply ("Hc" $! th th W W').
-  Qed.
-
   (** The adversary entry is sealed with the switcher's otype, whose
       predicate does not depend on the world, so its interpretation does not
       depend on the world. *)

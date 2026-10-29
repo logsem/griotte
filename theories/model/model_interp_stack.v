@@ -4,25 +4,6 @@ From griotte Require Import sts_multiple_updates region_invariants_revocation.
 From griotte Require Import memory_region proofmode map_simpl register_tactics.
 From griotte Require Export world_ghost_theory stack_world_resources.
 
-(* TODO: move to model/world_std_revocation.v *)
-Lemma close_list_std_update_multiple_revoked (W : WORLD) (la : list Addr) :
-  Forall (λ a, std W !! LNonHeap a = Some Revoked) la →
-  close_list (LNonHeap <$> la) W = std_update_multiple W la Temporary.
-Proof.
-  intros Hrev.
-  assert (∀ W1 W2 : WORLD, std W1 = std W2 → cus W1 = cus W2 → W1 = W2) as Hext.
-  { intros [] [] ? ?; simpl in *; by subst. }
-  apply Hext; last first.
-  { rewrite /close_list /=. clear. induction la as [|a la IH]; [done|]. by rewrite /= -IH. }
-  apply (map_eq (M:=gmap LAddr) (A:=region_type)). intros k.
-  destruct (decide (k ∈ LNonHeap <$> la)) as [Hk|Hk].
-  - rewrite std_sta_update_multiple_lookup_in_k //.
-    apply close_list_lookup_in; [|done].
-    apply list_elem_of_fmap in Hk as (x & -> & Hx).
-    by eapply Forall_forall in Hrev.
-  - rewrite close_list_lookup_not_in // std_sta_update_multiple_lookup_same_k //.
-Qed.
-
 Section WorldInterpStack.
   Context
     {Σ:gFunctors}

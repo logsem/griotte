@@ -139,7 +139,7 @@ Section KVS_spec_read_safe.
     - iEval (rewrite world_interp_eq /world_interp_def) in "Hworld".
       iApply KVS_read_spec_in_world; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
-      iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hct1 & Hct2 & Hctp
+      iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hct1 & Hct2 & Hctp
                 & Ha & HLUKVS & Hnkey)".
 
       iAssert (world_interp W C) with "[Hregion]" as "Hworld".
@@ -157,7 +157,7 @@ Section KVS_spec_read_safe.
         - right. reflexivity.
         - left. reflexivity. }
       iApply (monotone.interp_in_mem_monotone ∅ W with "Hinterp_nkey").
-      apply monotone.related_sts_pub_world_empty.
+      apply related_sts_pub_world_empty.
 
     - iApply KVS_read_spec_notin; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.

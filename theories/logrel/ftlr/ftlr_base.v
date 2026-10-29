@@ -88,6 +88,7 @@ Section fundamental.
     | InLocal => TmpRes W C k p' (safeC P) w
     end.
   #[local] Definition pc_open_aux : seal (@pc_open_def). Proof. by eexists. Qed.
+
   Definition pc_open := pc_open_aux.(unseal).
   #[local] Definition pc_open_unseal : @pc_open = @pc_open_def := pc_open_aux.(seal_eq).
 
@@ -134,6 +135,21 @@ Section fundamental.
     - iDestruct "Hrel" as "(Hrel & %HT & _)".
       iDestruct (close_world_interp_temporary W C [] k p' (safeC P) w
                    with "Hw Hrel Hres") as "[$ _]"; [set_solver|done].
+  Qed.
+
+  (** An opened region is rebuilt from its cell and its content, for any
+      word. *)
+  Lemma pc_open_rebuild ρ W C k p' P :
+    isO p' = false →
+    (ρ = InGlobal → std W !! k ≠ Some Temporary) →
+    region_rel_part ρ W C k p' P -∗
+    □ ∀ w, k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ.
+  Proof.
+    iIntros (HpO HnT) "#Hpart !>". iIntros (w) "[Hk HP]".
+    iApply (pc_open_intro with "[Hk HP]"); first done.
+    destruct ρ; cbn.
+    - by iFrame "∗%".
+    - iDestruct "Hpart" as "(_ & _ & #Hmono)". iFrame "∗%". iApply "Hmono".
   Qed.
 
   (** The cell of an opened region, with its content, for any new word. *)

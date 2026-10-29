@@ -282,7 +282,7 @@ Section HTS_Spec_Share.
        & Hstack_revoked_ret & %Hstack_revoked_ret
        & Hna & _ & Hworld & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-       & [%warg0 [Hca0 _]] & [%warg1 [Hca1 _]]
+       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
        & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hgp_ret & Hra_ret & Hs0_ret & _).
     apply load_heap_nonheap in Hs0_ret; [|exact thread_return_sentry_not_heap].

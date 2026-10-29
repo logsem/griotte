@@ -105,8 +105,8 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    odestruct (Hri src2) as [r2v [Hr2 _]]; first by set_solver+.
-    odestruct (Hri src1) as [r1v [Hr1 _]]; first by set_solver+.
+    odestruct (Hri src2) as [r2v [Hr2 _] ]; first by set_solver+.
+    odestruct (Hri src1) as [r1v [Hr1 _] ]; first by set_solver+.
     clear Hri.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr1) as (s1 & Hr1' & Hrel1).
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr2) as (s2 & Hr2' & Hrel2).
@@ -118,7 +118,7 @@ Section griotte_lang_rules.
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
       { rewrite -Hstep.
-        by destruct r1v as [[| [] | | ? []] ?], r2v as [[| [] | | ? []] ?], s1, s2. }
+        by destruct r1v as [[| [] | | ? [] ] ?], r2v as [[| [] | | ? [] ] ?], s1, s2. }
       { apply reg_phys_lclear_tag in Hrel2. by rewrite clear_tag_and_tag in Hrel2. }
       { intros. by eapply UnSeal_spec_untagged. }
       { intros. econstructor. by eapply UnSeal_fail_PC_untagged. }

@@ -68,9 +68,6 @@ Section VAE.
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
-    (exists b : bool, loc W !! i = Some (encode b)) ->
-    wrel W !! i =
-    Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -118,7 +115,7 @@ Section VAE.
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst a_vae_exp_tbl_cgp a_vae_entry_awkward.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hloc_i_W Hrel_i_W)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hvae_exp_PCC

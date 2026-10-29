@@ -234,7 +234,7 @@ Notation load_heap := lload_heap (only parsing).
 
 Lemma load_heap_nonheap `{HeapRegion} (saved actual : LWord) :
   is_heap_cap saved.(lw) = false -> load_heap saved actual -> actual = saved.
-Proof. intros Hheap [-> | [Hheap' ->]]; congruence. Qed.
+Proof. intros Hheap [-> | [Hheap' ->] ]; congruence. Qed.
 
 
 Definition is_untrusted_caller_frm (frm : cframe) :=

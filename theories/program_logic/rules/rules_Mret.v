@@ -136,7 +136,7 @@ Section griotte_lang_rules.
     iApply (wp_Mret_link with "[$HPC $Hsmap $Hpc_a $HT]"); eauto.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & Hsmap & HT)".
-    destruct Hspec as [p g b e a π Hpc Hx Hvepcc | -> [p g b e a π Hpc Hx]];
+    destruct Hspec as [p g b e a π Hpc Hx Hvepcc | -> [p g b e a π Hpc Hx] ];
       simplify_eq; last by rewrite Hxsr in Hx.
     simplify_map_eq.
     iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.

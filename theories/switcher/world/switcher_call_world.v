@@ -109,7 +109,7 @@ Section Switcher_Call_World.
     ([∗ list] k ↦ w ∈ lv', ⌜ lv !! k = Some w ⌝ ∨ interp W C w) -∗
     world_interp W C.
   Proof.
-    iIntros (Hlen) "[Hworld [Hsw Hst]] Hstk Hlv'".
+    iIntros (Hlen) "[Hworld [Hsw Hst] ] Hstk Hlv'".
     iDestruct (StackWorldResources_length with "Hsw") as "%Hlen_la".
     iDestruct (StackWorldResources_update with "Hsw Hlv'") as "Hsw"; first done.
     iEval (rewrite -(app_nil_r (finz.seq_between a e))) in "Hworld".
@@ -170,15 +170,7 @@ Section Switcher_Call_World.
     }
     destruct (get_tag_sealable wsb0) eqn:Htag; cycle 1.
     { iFrame; iIntros "!>" (wsb π Hwsb Htag'); simplify_eq; congruence. }
-    rewrite (interp_unfold _ _ (WSealed ot_switcher wsb0 @@? π0)).
-    iEval (cbn; rewrite Htag) in "Htarget_v".
-    rewrite /interp_sb.
-    iDestruct "Htarget_v" as "[(%κ & %P & #Hs & _ & #HP0) _]".
-    iDestruct (seal_pred_agree with "Hp_ot_switcher Hs") as "[<- #Heq]".
-    iAssert (▷ ot_switcher_propC (th, W, C, norm SealGlobal (WSealable wsb0 @@? π0)))%I
-      as "#HP".
-    { iNext. iRewrite ("Heq" $! (th, W, C, norm SealGlobal (WSealable wsb0 @@? π0))).
-      iExact "HP0". }
+    iDestruct (interp_sb_elim with "Hp_ot_switcher Htarget_v") as "[#HP _]"; first done.
     iFrame "Hworld_interp".
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.

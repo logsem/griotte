@@ -100,7 +100,7 @@ Section griotte_lang_rules.
         pose proof (load_filter_quarantined _ _ _ _ _ _ _ _ _ Hreg Hok Hpl Hι Hx Hle Hside) as Hpl'.
         exists (lclear_tag (lload_word p v)). split_and!.
         * destruct (get_tag v.(lw)) eqn:Ht.
-          -- destruct (Hside eq_refl) as [_ [b Hab]].
+          -- destruct (Hside eq_refl) as [_ [b Hab] ].
              split_and!; [right; split; last done | | |].
              ++ rewrite /= is_heap_cap_load_word /is_heap_cap.
                 by rewrite (heap_authority_base_heap_cap_base _ _ Hab).
@@ -302,8 +302,8 @@ Section griotte_lang_rules.
       iDestruct (big_sepM_lookup with "Hshadow") as "Ha"; first exact Hlookup.
       iApply (gen_heap_valid with "Hst Ha"). }
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
-    odestruct (Hri r2) as [r2v [Hr'2 _]]; first by set_solver+.
-    odestruct (Hri r1) as [r1v [Hr'1 _]]; first by set_solver+.
+    odestruct (Hri r2) as [r2v [Hr'2 _] ]; first by set_solver+.
+    odestruct (Hri r1) as [r1v [Hr'1 _] ]; first by set_solver+.
     clear Hri.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'2) as (s2 & Hr2 & Hrel2).
     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hmem_pc))
@@ -337,7 +337,7 @@ Section griotte_lang_rules.
       (* A stripped source under its witness is a heap capability without
          authority: its bounds are empty. *)
       exfalso.
-      destruct Hrel2 as [[Heq | [_ [[Hst _] | [Hna [base Hh]]]]] _]; cbn in *; try discriminate.
+      destruct Hrel2 as [[Heq | [_ [[Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
       { by apply (deref_witness_not_stale R dw (Cap p g b e a @@? π2)). }
       assert (is_heap_address b = true) as Hbh.
       { rewrite /heap_cap_base /= in Hh. by destruct (is_heap_address b). }
@@ -869,9 +869,9 @@ Section griotte_lang_rules.
     try (match goal with H : _ ∨ _ |- _ => destruct H; congruence end);
     try (match goal with H : load_post _ _ _ _ |- _ =>
            apply load_post_not_heap_cap in H;
-           [subst | first [done | assumption | by rewrite /is_heap_cap /=]] end);
+           [subst | first [done | assumption | by rewrite /is_heap_cap /=] ] end);
     try (match goal with H : incrementPC _ = None |- _ =>
-           eapply incrementPC_None_inv in H; [|first [reflexivity | by simplify_map_eq]]; congruence end);
+           eapply incrementPC_None_inv in H; [|first [reflexivity | by simplify_map_eq] ]; congruence end);
     try (match goal with H : incrementPC _ = None |- _ =>
            rewrite /incrementPC /incrementPC_gen in H; simplify_map_eq;
            rewrite /lload_word /lift_word /load_word /= in H;

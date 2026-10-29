@@ -116,7 +116,7 @@ Section rules_registry.
     iDestruct (st_lb_get with "Htok") as "#Hq".
     iModIntro. iExists _, C. iFrame "∗#". iPureIntro.
     eapply erasure_reg_step; eauto; try done.
-    intros _ v Hv Hauth. destruct Hv as [-> | [(x & Hx) | (x & Hx)]].
+    intros _ v Hv Hauth. destruct Hv as [-> | [(x & Hx) | (x & Hx)] ].
     - apply Hclean; [by left | done].
     - destruct (decide (x = cnull)) as [->|Hxn].
       { (* [cnull] holds the null word, which has no authority. *)

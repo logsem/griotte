@@ -363,7 +363,7 @@ Lemma lz_of_argument_Some_inv' (regs regs' : LReg) (arg : Z + RegName) (z : Z) :
                        regs' !!ₗ r = Some w ∧ get_a w.(lw) = z).
 Proof.
   intros Ha Hincl. apply lz_of_argument_Some_inv in Ha as [? | (r & w & -> & Hr & Hz)]; eauto.
-  right. exists r, w. split; [done|split; [done|split; [|done]]]. eapply llookup_reg_weaken; eauto.
+  right. exists r, w. split; [done|split; [done|split; [|done] ] ]. eapply llookup_reg_weaken; eauto.
 Qed.
 
 Lemma lz_of_arg_mono (regs r : LReg) arg argz :
@@ -386,7 +386,7 @@ Lemma lword_of_argument_Some_inv' (regs regs' : LReg) (arg : Z + RegName) (w : L
    (∃ r, arg = inr r ∧ regs !!ₗ r = Some w ∧ regs' !!ₗ r = Some w)).
 Proof.
   intros Ha Hincl. apply lword_of_argument_Some_inv in Ha as [? | (r & -> & Hr)]; eauto.
-  right. exists r. split; [done|split; [done|]]. eapply llookup_reg_weaken; eauto.
+  right. exists r. split; [done|split; [done|] ]. eapply llookup_reg_weaken; eauto.
 Qed.
 
 Lemma lword_of_arg_mono (regs r : LReg) arg w :

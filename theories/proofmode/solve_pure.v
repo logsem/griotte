@@ -177,7 +177,7 @@ Ltac solve_nonZero :=
    permissions or payloads while solving a side condition. *)
 #[export] Hint Extern 1 (canStore ?p ?w = true) =>
   (without_evars p; without_evars w;
-   rewrite (canStore_untagged p w); [reflexivity | first [reflexivity | apply get_tag_clear_tag]]) : solve_pure.
+   rewrite (canStore_untagged p w); [reflexivity | first [reflexivity | apply get_tag_clear_tag] ]) : solve_pure.
 #[export] Hint Resolve get_tag_clear_tag get_tag_clear_tag_sealable : solve_pure.
 
 (* store_word *)

@@ -46,16 +46,6 @@ Section monotone.
     eapply region_state_pub_temp in Hstate; eauto.
   Qed.
 
-  (** Every world is a public future of the empty world. *)
-  (* TODO: move to sts.v *)
-  Lemma related_sts_pub_world_empty W : related_sts_pub_world ∅ W.
-  Proof.
-    split; cbn.
-    - split; [rewrite dom_empty_L; set_solver|]. intros i x y Hx. by rewrite lookup_empty in Hx.
-    - split_and!; [rewrite dom_empty_L; set_solver|rewrite dom_empty_L; set_solver|].
-      intros i rpub rpriv rpub' rpriv' Hr. by rewrite lookup_empty in Hr.
-  Qed.
-
   (** A sealed word under a Global-kind otype is valid in every world. *)
   Lemma interp_monotone_sd W W' C ot sb π P :
     ⌜related_sts_priv_world W W'⌝ -∗
@@ -95,7 +85,7 @@ Section monotone.
       iExists κ, P; iFrame "Hs Hok";
       (destruct κ; cbn;
        [iDestruct "Hok" as "[_ #Hc]"; iNext; by iApply ("Hc" $! th th W W')
-       |by iDestruct "Hok" as "[_ []]"]).
+       |by iDestruct "Hok" as "[_ [] ]"]).
   Qed.
 
   Lemma interp_monotone_sentry W W' C k t p g b e a π :
@@ -161,6 +151,29 @@ Section monotone.
     iExists p, φ. iFrame "Hr %". iPureIntro. by eapply region_state_pub_temp.
   Qed.
 
+  (** A region reached through a capability stays valid in a world where
+      every Temporary key stays Temporary. *)
+  Lemma region_rel_temp_transfer W W' C k p' P p g :
+    (std W !! k = Some Temporary → std W' !! k = Some Temporary) →
+    region_rel W C k p' P p g -∗ region_rel W' C k p' P p g.
+  Proof.
+    iIntros (HT) "Hrel".
+    iAssert (□ (region_rel_l W C k p' P -∗ region_rel_l W' C k p' P))%I as "#Hl".
+    { iIntros "!> (Hr & %HTk & Hm)". iFrame. iPureIntro. by apply HT. }
+    rewrite /region_rel. destruct (isWL p); [by iApply "Hl"|].
+    destruct g; [done|]. iDestruct "Hrel" as "[$|Hrel]". iRight. by iApply "Hl".
+  Qed.
+
+  Lemma heap_cap_O_key_temp_transfer W W' C g k :
+    (std W !! k = Some Temporary → std W' !! k = Some Temporary) →
+    heap_cap_O_key W C g k -∗ heap_cap_O_key W' C g k.
+  Proof.
+    iIntros (HT) "[H|H]"; [by iLeft|iRight].
+    destruct g; [done|].
+    iDestruct "H" as (p φ Hpers) "[Hr %HTk]".
+    iExists p, φ. iFrame "Hr %". iPureIntro. by apply HT.
+  Qed.
+
   (** The region keys of a capability do not depend on the world: only the
       heap validity needs a premise. *)
   Lemma interp_monotone_cap_valid (W W' : WORLD) C t p g b e a π :
@@ -176,7 +189,7 @@ Section monotone.
       iIntros "!>" (n x Hx) "Hx %Hheap".
       iApply heap_cap_O_key_mono_pub; [done|]. by iApply "Hx". }
     destruct (has_sreg_access p); first done.
-    iDestruct "Hw" as "[Hw [%Hlocal #Hok]]".
+    iDestruct "Hw" as "[Hw [%Hlocal #Hok] ]".
     iFrame "Hok". iSplit; last (iPureIntro; naive_solver).
     iApply (big_sepL_mono with "Hw").
     iIntros (n y Hsome) "Hy".

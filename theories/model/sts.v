@@ -314,11 +314,20 @@ Section STS.
                 | apply related_sts_priv_refl].
   Qed.
 
+  (** Every world is a public future of the empty world. *)
+  Lemma related_sts_pub_world_empty W : related_sts_pub_world ∅ W.
+  Proof.
+    split; cbn.
+    - split; [rewrite dom_empty_L; set_solver|]. intros i x y Hx. by rewrite lookup_empty in Hx.
+    - split_and!; [rewrite dom_empty_L; set_solver|rewrite dom_empty_L; set_solver|].
+      intros i rpub rpriv rpub' rpriv' Hr. by rewrite lookup_empty in Hr.
+  Qed.
+
   Lemma related_sts_pub_priv fs fr gs gr :
     related_sts_pub fs gs fr gr → related_sts_priv fs gs fr gr.
   Proof.
     rewrite /related_sts_pub /related_sts_priv.
-    intros [Hf1 [Hf2 Hf3]].
+    intros [Hf1 [Hf2 Hf3] ].
     do 2 (split; auto). intros i rpub rpriv rpub' rpriv' H H0.
     specialize (Hf3 i rpub rpriv rpub' rpriv' H H0) as (Hrpub & Hrpriv & Hrtc); auto.
     subst. repeat (split;auto).
@@ -351,7 +360,7 @@ Section STS.
     related_sts_pub fs gs fr gr → related_sts_pub gs hs gr hr →
     related_sts_pub fs hs fr hr.
   Proof.
-    intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
+    intros [Hf1 [Hf2 Hf3] ] [Hg1 [Hg2 Hg3] ]; split; [|split]; try by etrans.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
@@ -381,7 +390,7 @@ Section STS.
     related_sts_priv fs gs fr gr → related_sts_pub gs hs gr hr →
     related_sts_priv fs hs fr hr.
   Proof.
-    intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
+    intros [Hf1 [Hf2 Hf3] ] [Hg1 [Hg2 Hg3] ]; split; [|split]; try by etrans.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i); revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
     destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
@@ -412,7 +421,7 @@ Section STS.
     related_sts_pub fs gs fr gr → related_sts_priv gs hs gr hr →
     related_sts_priv fs hs fr hr.
   Proof.
-    intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
+    intros [Hf1 [Hf2 Hf3] ] [Hg1 [Hg2 Hg3] ]; split; [|split]; try by etrans.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
@@ -444,7 +453,7 @@ Section STS.
     related_sts_priv fs gs fr gr → related_sts_priv gs hs gr hr →
     related_sts_priv fs hs fr hr.
   Proof.
-    intros [Hf1 [Hf2 Hf3]] [Hg1 [Hg2 Hg3]]; split; [|split]; try by etrans.
+    intros [Hf1 [Hf2 Hf3] ] [Hg1 [Hg2 Hg3] ]; split; [|split]; try by etrans.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
@@ -531,7 +540,7 @@ Section STS.
       iPureIntro.
     specialize (Hv i).
     revert HR. rewrite /= singleton_included_l;
-      intros [z [Hz HR]]; revert HR; rewrite Some_included_total; intros HR.
+      intros [z [Hz HR] ]; revert HR; rewrite Some_included_total; intros HR.
     rewrite lookup_fmap in Hz, Hv.
     destruct (fr !! i) as [p|] eqn:Heq; last by inversion Hz.
     revert Hv; rewrite Hz; intros [u Hu]%to_agree_uninj.
@@ -553,7 +562,7 @@ Section STS.
       iPureIntro.
     specialize (Hv i).
     revert HR; rewrite /= singleton_included_l;
-      intros [z [Hz HR]].
+      intros [z [Hz HR] ].
     rewrite lookup_fmap in Hz Hv.
     destruct (fs !! i) eqn:Heq; last by inversion Hz.
     apply leibniz_equiv in Hz; simplify_eq. rewrite -Hz in HR.

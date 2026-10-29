@@ -82,7 +82,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
-    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots] ]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
@@ -178,7 +178,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
-    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots] ]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".

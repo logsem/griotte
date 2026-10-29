@@ -330,6 +330,22 @@ Section region_maps.
   #[global] Instance rel_l_persistent t C k p φ : Persistent (rel_l t C k p φ).
   Proof. rewrite rel_l_unseal. apply _. Qed.
 
+  Lemma rel_g_agree C k p1 p2 φ1 φ2 :
+    rel_g C k p1 φ1 -∗ rel_g C k p2 φ2 -∗ ⌜p1 = p2⌝ ∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
+  Proof.
+    rewrite !rel_g_eq. iIntros "(%γ1 & H1 & S1) (%γ2 & H2 & S2)".
+    iDestruct (ghost_map_elem_agree with "H1 H2") as %[= <- <-].
+    iSplit; first done. iIntros (x). iApply (saved_pred_agree with "S1 S2").
+  Qed.
+
+  Lemma rel_l_agree t C k p1 p2 φ1 φ2 :
+    rel_l t C k p1 φ1 -∗ rel_l t C k p2 φ2 -∗ ⌜p1 = p2⌝ ∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
+  Proof.
+    rewrite !rel_l_eq. iIntros "(%γ1 & H1 & S1) (%γ2 & H2 & S2)".
+    iDestruct (ghost_map_elem_agree with "H1 H2") as %[= <- <-].
+    iSplit; first done. iIntros (x). iApply (saved_pred_agree with "S1 S2").
+  Qed.
+
   (** A Permanent body mentions no world. *)
   Definition body_g C (k : LAddr) (p : Perm) (φ : CmptName * LWord → iProp Σ) : iProp Σ :=
     heap_key_resource k (∃ v, ⌜isO p = false⌝ ∗ k ↦ₖ v ∗ ▷ φ (C, v)).
@@ -831,8 +847,8 @@ Section region_maps.
     induction S as [|x S Hx IH] using set_ind_L; intros HE HP.
     - rewrite !big_sepS_empty. iIntros "_". by iLeft.
     - rewrite !big_sepS_insert //. iIntros "[Ex ES]".
-      iDestruct (HE x ltac:(set_solver) with "Ex") as "[Px|[#HQ Ex]]".
-      + iDestruct (IH with "ES") as "[PS|[#HQ ES]]".
+      iDestruct (HE x ltac:(set_solver) with "Ex") as "[Px|[#HQ Ex] ]".
+      + iDestruct (IH with "ES") as "[PS|[#HQ ES] ]".
         { intros k Hk. apply HE. set_solver. }
         { intros k Hk. apply HP. set_solver. }
         * iLeft. iFrame.
@@ -883,7 +899,7 @@ Section region_maps.
     rewrite (rmap_split_set _ Ml _ Ol Sl HSl HlO).
     iDestruct "Hg" as "[Hg HEg]". iDestruct "Hm" as "[Hm HEl]".
     iDestruct (sepS_cases Sg (gentry C Mg) (gcell C Mg) (ι ⊒ AQuar) with "HEg")
-      as "[HPg|[#Hq HEg]]".
+      as "[HPg|[#Hq HEg] ]".
     { intros k Hk. destruct (HHg k Hk) as [a ->].
       iIntros "(%γp & %HM & %φ & %Hp & #Hsp & [Hc|#Hq])".
       - iLeft. iExists γp, φ. by iFrame "∗#%".
@@ -895,7 +911,7 @@ Section region_maps.
     2:{ iLeft. iFrame "Hq Hg". iSplitL "HEg"; [by rewrite /gentry|].
         rewrite /wil_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). by iFrame. }
     iDestruct (sepS_cases Sl (lentry W C Ml) (lcell W C Ml) (ι ⊒ AQuar) with "HEl")
-      as "[HPl|[#Hq HEl]]".
+      as "[HPl|[#Hq HEl] ]".
     { intros k Hk. destruct (HHl k Hk) as [a ->].
       iIntros "(%γp & %HM & %φ & %Hp & #Hsp & Hb)". rewrite /body_l HT //.
       iDestruct "Hb" as "[Hc|#Hq]".

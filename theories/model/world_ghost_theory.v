@@ -330,6 +330,102 @@ Section world_ghost_theory.
     iIntros (Hlookup) "Hw". iModIntro. by iApply world_interp_rel_get.
   Qed.
 
+  (** A Global region outside the heap is not a Temporary key of the local
+      world: both would own its cell. *)
+  Lemma world_interp_rel_g_not_temporary_nonheap W C a p φ :
+    world_interp W C -∗ LNonHeap a ↪ᵍ[C]{p} φ -∗
+    world_interp W C ∗ ⌜std W !! LNonHeap a ≠ Some Temporary⌝.
+  Proof.
+    iIntros "Hw #Hr".
+    destruct (decide (std W !! LNonHeap a = Some Temporary)) as [HT|HnT]; [|by iFrame].
+    iExFalso.
+    iDestruct (world_interp_rel_get with "Hw") as "[Hw (%p' & %φ' & _ & #Hl)]"; [exact HT|].
+    rewrite world_interp_gl. iDestruct "Hw" as "[Hg Hl']".
+    iDestruct (g_open with "Hg Hr") as "[_ (%φ'' & _ & _ & Hb & _)]"; [set_solver|].
+    iDestruct "Hb" as (v) "(_ & Hv & _)".
+    iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a ↦ₖ v) with "[] [] Hl' Hl Hv");
+      [set_solver|done| |].
+    - iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+    - iIntros "!>" (a' ι Heq). done.
+  Qed.
+
+  (** A Global region of a key Temporary in the local world: both parts would
+      own its cell, so the key is a heap key, with a tombstone. *)
+  Lemma world_interp_open_rel_g_temporary W C s k p φ :
+    k ∉ s → std W !! k = Some Temporary →
+    world_interp_open W C s -∗ k ↪ᵍ[C]{p} φ -∗
+    world_interp_open W C s ∗ ∃ a ι, ⌜k = LHeap a ι⌝ ∗ ι ⊒ AQuar.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
+      /open_region_many_def /world_interp_open_gl.
+    iIntros (Hks HT) "[Hg Hl] #Hr".
+    assert (k ∉ open_g W s) as Hkg by (by apply not_elem_of_open_g).
+    assert (k ∉ open_l W s) as Hkl by (by apply not_elem_of_open_l).
+    (* The local region of [k] *)
+    iDestruct "Hl" as (M) "Hw". iNamed "Hw".
+    assert (is_Some (M !! k)) as [ [γp p1] HM].
+    { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
+    iDestruct "Hm" as "(Ha & #Hks & Hb)".
+    iDestruct (big_sepM_lookup with "Hks") as "[#Hel _]"; [exact HM|].
+    iDestruct (big_sepM_lookup_acc with "Hb") as "[Hbk Hclose]"; [exact HM|].
+    rewrite decide_False //.
+    iDestruct "Hbk" as (φ1) "(%Hp1 & #Hsp & Hbody)".
+    iDestruct ("Hclose" with "[Hbody]") as "Hb".
+    { iExists φ1. by iFrame "∗#%". }
+    iAssert (world_interp_l_open th W C (open_l W s)) with "[Ha Hb Hloc]" as "Hl".
+    { iExists M. rewrite /wil_M /rmap. by iFrame "∗#%". }
+    iAssert (rel_l th C k p1 φ1) as "#Hrl".
+    { rewrite rel_l_eq. iExists γp. by iFrame "#". }
+    iDestruct (g_open with "Hg Hr") as "[Hg (%φ' & %Hp' & #Hr' & Hb & _)]"; [done|].
+    rewrite /body_g. destruct k as [a0|a0 ι]; cbn.
+    - iDestruct "Hb" as (v) "(_ & Hv & _)". iExFalso.
+      iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a0 ↦ₖ v) with "[] [] Hl Hrl Hv");
+        [done|done| |].
+      + iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+      + iIntros "!>" (a' ι Heq). done.
+    - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
+      + iExFalso.
+        iApply (l_excl_not_T _ _ _ _ _ _ _ (LHeap a0 ι ↦ₖ v) with "[] [] Hl Hrl Hv");
+          [done|done| |].
+        * iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+        * iIntros "!>" (a' ι' [= -> ->]) "Hq Hv". iApply (heap_pointsto_quar_false with "Hv Hq").
+      + iSplitL; [|iExists a0, ι; by iFrame "Hq"]. iFrame "Hl".
+        iApply (g_close with "Hg Hr' []"); [done|]. rewrite /body_g /=. by iRight.
+  Qed.
+
+  (** A Global region outside the heap whose key is Temporary in the local
+      world owns its cell, even with keys open. *)
+  Lemma world_interp_open_rel_g_temporary_cell W C s a p φ w :
+    std W !! LNonHeap a = Some Temporary →
+    world_interp_open W C s -∗ LNonHeap a ↪ᵍ[C]{p} φ -∗ a ↦ₐ w -∗ False.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
+      /open_region_many_def /world_interp_open_gl.
+    iIntros (HT) "[Hg _] #Hr Hw".
+    iDestruct (g_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
+    { rewrite elem_of_open_g. naive_solver. }
+    iDestruct "Hb" as (v) "(_ & Hv & _)".
+    iApply (heap_pointsto_valid_2 (LNonHeap a) (LNonHeap a) with "Hv Hw"). done.
+  Qed.
+
+  (** A Global region whose cell is held is not open: the world owns its
+      body. *)
+  Lemma world_interp_open_rel_g_cell_false W C s k p φ w :
+    k ∉ s → world_interp_open W C s -∗ k ↪ᵍ[C]{p} φ -∗ k ↦ₖ w -∗ False.
+  Proof.
+    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
+      /open_region_many_def /world_interp_open_gl.
+    iIntros (Hks) "[Hg _] #Hr Hw".
+    iDestruct (g_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
+    { by apply not_elem_of_open_g. }
+    rewrite /body_g. destruct k as [a|a ι]; cbn [heap_key_resource].
+    - iDestruct "Hb" as (v) "(_ & Hv & _)".
+      iApply (heap_pointsto_valid_2 (LNonHeap a) (LNonHeap a) with "Hv Hw"). done.
+    - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
+      + iApply (heap_pointsto_valid_2 (LHeap a ι) (LHeap a ι) with "Hv Hw"). done.
+      + iApply (heap_pointsto_quar_false with "Hw Hq").
+  Qed.
+
   (** ** Lemma for world Revocation and Restoration. *)
 
   (* [extract_temporaries_condition] states that [la] is the full set of addresses
@@ -802,6 +898,46 @@ Section world_ghost_theory.
     ([∗ list] k ∈ la, LNonHeap k ↪ᵍ[C]{p} φ) ∗
     ([∗ list] v ∈ lw, φ (C, v)).
   Proof. intros _. by apply world_interp_extend_perm_sepL2_open. Qed.
+
+  (** Global regions whose predicates need the region predicates, with a
+      frame: the keys enter the map open, then close with their bodies. *)
+  Lemma world_interp_extend_perm_sepL2_open_frame
+    {E : coPset}
+    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : CmptName * LWord → iProp Σ)
+    (R : iProp Σ) `{∀ Cv, Persistent (φ Cv)} :
+    NoDup la ->
+    isO p = false ->
+    world_interp W C -∗
+    ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
+    (
+      ([∗ list] k ∈ la, LNonHeap k ↪ᵍ[C]{p} φ)
+      -∗
+      ([∗ list] v ∈ lw, φ (C, v)) ∗ R
+    )
+
+    ={E}=∗
+
+    world_interp W C ∗
+    ([∗ list] k ∈ la, LNonHeap k ↪ᵍ[C]{p} φ) ∗
+    ([∗ list] v ∈ lw, φ (C, v)) ∗
+    R.
+  Proof.
+    iIntros (Hnd HpO) "Hw Hcells Hφ".
+    rewrite !world_interp_gl /world_interp_open_gl.
+    iDestruct "Hw" as "[(%M & Hm) $]".
+    assert (NoDup (LNonHeap <$> la)) as Hnd'.
+    { apply NoDup_fmap; [intros ?? [= ->]; done|done]. }
+    iMod (g_insert_open_list C M ∅ (LNonHeap <$> la) lw p φ with "Hm [Hcells]")
+      as (M') "(Hm & #Hrels & Hcells)"; [done|set_solver|by rewrite big_sepL2_fmap_l|].
+    iDestruct ("Hφ" with "[]") as "[#Hφs HR]"; [by rewrite big_sepL_fmap|].
+    iModIntro. rewrite big_sepL_fmap. iFrame "Hrels Hφs HR".
+    iExists M'. iApply (g_close_list with "Hm [Hcells]"); [done|set_solver|done|done|].
+    iDestruct (big_sepL2_length with "Hcells") as %Hlen.
+    iApply (big_sepL2_impl with "Hcells"). iIntros "!>" (i k v Hk Hv) "Hc".
+    iFrame "Hc". apply list_lookup_fmap_Some in Hk as (a & -> & Ha). iSplitR.
+    - iNext. by iApply (big_sepL_lookup with "Hφs").
+    - by iApply (big_sepL_lookup with "Hrels").
+  Qed.
 
   (** ** Custom STS *)
 

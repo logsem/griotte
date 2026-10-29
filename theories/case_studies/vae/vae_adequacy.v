@@ -142,8 +142,7 @@ Section vae_obligations.
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
-      { exact (cmpt_cgp_base_not_heap main_cmpt). }
-      { exists false. subst W1. by simplify_map_eq. } }
+      { exact (cmpt_cgp_base_not_heap main_cmpt). } }
     iDestruct (seal_main_export (th := UserThread 0) W1 C main_awk
                 with "Hseal_switcher Hot_switcher_main_awk") as "#Hinterp_main_awk"; [done| |].
     { intros ????? Heq; inversion Heq; subst.

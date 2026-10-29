@@ -188,11 +188,6 @@ The organisation of the `theories/` folder is as follows.
   Contains some lemmas for "opening" and "closing" the map,
   akin to opening and closing invariants.
 
-- `sealing_invariants.v`:
-  Definitions of the sealing part of the world.
-  Contains allocations, opening, and closing lemmas
-  for the sealing map.
-
 - `region_invariants_revocation.v`:
   Lemmas for revoking standard resources in the world interpretation.
 
@@ -461,8 +456,8 @@ In the model:
 # For CPP27
 For CPP27, we highlight more specifically:
 - The directory `theories/case_studies/multiser_kvs` containing the KVS example.
-- The file `theories/model/sealing_invariants.v` containing our adaptation of the world for
-  non-persistent sealing predicates.
+- The file `theories/logrel/seal_registry.v` containing the registries of trusted sealers,
+  which hold the non-persistent resources of their sealed objects.
 - The file `theories/model/world_ghost_theory.v:891` containing
   the interface used by the user to interact with Kripke worlds,
   and the lemmas specifics to sealing.

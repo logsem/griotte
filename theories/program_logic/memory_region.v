@@ -64,7 +64,7 @@ Section region.
         generalize (drop_S' _ _ _ _ _ H0). intros Hdws.
         rewrite <- H0. rewrite HWS. rewrite Hdws.
         iExists w. iFrame. by rewrite <- H0.
-    - iIntros "A". iDestruct "A" as (w Hws) "[A1 [B1 [A2 [B2 AB]]]]".
+    - iIntros "A". iDestruct "A" as (w Hws) "[A1 [B1 [A2 [B2 AB] ] ] ]".
       unfold region_pointsto. rewrite (finz_seq_between_decomposition b a e) //.
       iDestruct "AB" as "[A3 B3]".
       rewrite {5}Hws. iFrame. rewrite {3}Hws. iFrame.

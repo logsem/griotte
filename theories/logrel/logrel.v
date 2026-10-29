@@ -297,8 +297,7 @@ Section logrel.
   Qed.
 
   (** A saved register has the result of a CLoad in the current world.
-      The load outcome depends on the shadow, while the second conjunct
-      records the world fact needed when its tag is retained. *)
+      The load outcome depends on the shadow. *)
   Definition load_heap_in_world (W : WORLD) (saved actual : LWord) : Prop :=
     load_heap saved actual.
 
@@ -1342,7 +1341,7 @@ Section logrel.
     iIntros (HnonO) "Hinterp".
     rewrite interp_unfold interp1_eq HnonO.
     destruct (has_sreg_access p); first done.
-    iDestruct "Hinterp" as "[_ [%Hregions #Hok]]".
+    iDestruct "Hinterp" as "[_ [%Hregions #Hok] ]".
     iFrame "Hok". iPureIntro. naive_solver.
   Qed.
 
@@ -1371,7 +1370,7 @@ Section logrel.
     rewrite interp_unfold interp1_eq.
     destruct (isO p); first by iIntros "$".
     destruct (has_sreg_access p); first by iIntros "H".
-    iIntros "[#Hlist [%Hconditions #Hok]]".
+    iIntros "[#Hlist [%Hconditions #Hok] ]".
     rewrite /heap_cap_O_valid.
     iFrame "Hok".
     iApply (big_sepL_impl with "Hlist").
@@ -1452,7 +1451,7 @@ Section logrel.
     iIntros (HnO Hin) "Hinterp".
     rewrite interp_unfold interp1_eq HnO.
     destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp [%Hloc _]]".
+    iDestruct "Hinterp" as "[Hinterp [%Hloc _] ]".
     iDestruct (extract_from_region_inv with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)"; eauto.
     iExists p', P'. by iFrame "∗%".
@@ -1793,44 +1792,6 @@ Section logrel.
     congruence.
   Qed.
 
-  (* TODO: move to region_maps.v *)
-  Lemma rel_g_agree C k p1 p2 φ1 φ2 :
-    k ↪ᵍ[C]{p1} φ1 -∗ k ↪ᵍ[C]{p2} φ2 -∗ ⌜p1 = p2⌝ ∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
-  Proof.
-    rewrite !rel_g_eq. iIntros "(%γ1 & H1 & S1) (%γ2 & H2 & S2)".
-    iDestruct (ghost_map_elem_agree with "H1 H2") as %[= <- <-].
-    iSplit; first done. iIntros (x). iApply (saved_pred_agree with "S1 S2").
-  Qed.
-
-  (* TODO: move to region_maps.v *)
-  Lemma rel_l_agree t C k p1 p2 φ1 φ2 :
-    rel_l t C k p1 φ1 -∗ rel_l t C k p2 φ2 -∗ ⌜p1 = p2⌝ ∗ (∀ x, ▷ (φ1 x ≡ φ2 x)).
-  Proof.
-    rewrite !rel_l_eq. iIntros "(%γ1 & H1 & S1) (%γ2 & H2 & S2)".
-    iDestruct (ghost_map_elem_agree with "H1 H2") as %[= <- <-].
-    iSplit; first done. iIntros (x). iApply (saved_pred_agree with "S1 S2").
-  Qed.
-
-  (** A Global region outside the heap is not a Temporary key of the local
-      world: both would own its cell. *)
-  (* TODO: move to world_ghost_theory.v *)
-  Lemma world_interp_rel_g_not_temporary_nonheap W C a p φ :
-    world_interp W C -∗ LNonHeap a ↪ᵍ[C]{p} φ -∗
-    world_interp W C ∗ ⌜std W !! LNonHeap a ≠ Some Temporary⌝.
-  Proof.
-    iIntros "Hw #Hr".
-    destruct (decide (std W !! LNonHeap a = Some Temporary)) as [HT|HnT]; [|by iFrame].
-    iExFalso.
-    iDestruct (world_interp_rel_get with "Hw") as "[Hw (%p' & %φ' & _ & #Hl)]"; [exact HT|].
-    rewrite world_interp_gl. iDestruct "Hw" as "[Hg Hl']".
-    iDestruct (g_open with "Hg Hr") as "[_ (%φ'' & _ & _ & Hb & _)]"; [set_solver|].
-    iDestruct "Hb" as (v) "(_ & Hv & _)".
-    iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a ↦ₖ v) with "[] [] Hl' Hl Hv");
-      [set_solver|done| |].
-    - iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
-    - iIntros "!>" (a' ι Heq). done.
-  Qed.
-
   (** Two regions of the same key outside the heap have the same
       permission. *)
   Lemma region_rel_part_agree_nonheap W C a ρ1 ρ2 p1 p2 P1 P2 :
@@ -2006,7 +1967,24 @@ Section logrel.
       iExists κ, P. iFrame "Hs Hok".
       destruct κ; cbn.
       + iDestruct "Hok" as "[_ #Hc]". iNext. by iApply ("Hc" $! th th W W').
-      + by iDestruct "Hok" as "[_ []]".
+      + by iDestruct "Hok" as "[_ [] ]".
+  Qed.
+
+  (** A word sealed with a Global-kind otype is valid in every world: the
+      predicate of the otype does not depend on the world. *)
+  Lemma interp_sealed_global_kind_world_free W W' C o P sb π :
+    o ↪ₒ{SealGlobal} P -∗
+    interp W C (WSealed o sb @@? π) -∗
+    interp W' C (WSealed o sb @@? π).
+  Proof.
+    iIntros "#Hs #Hinterp".
+    destruct (get_tag_sealable sb) eqn:Htag;
+      last (rewrite !interp_untagged_eq //=; auto).
+    rewrite !interp_unfold /= Htag /interp_sb.
+    iDestruct "Hinterp" as "[(%κ & %P' & #Hs' & #Hok & #HP) $]".
+    iDestruct (seal_pred_agree with "Hs Hs'") as "[<- _]".
+    iExists SealGlobal, P'. iFrame "Hs' Hok".
+    iDestruct "Hok" as "[_ #Hc]". iNext. by iApply ("Hc" $! th th W W').
   Qed.
 
   (** ** Sealed words

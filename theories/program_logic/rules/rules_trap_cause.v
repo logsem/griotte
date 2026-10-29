@@ -137,7 +137,7 @@ Section trap_cause.
       (word_of_argument (reg φl) ρ) (word_of_argument (reg φp) ρ).
   Proof.
     intros Hrel. destruct ρ as [z|r]; cbn; first (constructor; by left).
-    destruct (lookup_reg_rel _ _ _ r Hrel) as [x y [-> | [-> _]] |]; constructor;
+    destruct (lookup_reg_rel _ _ _ r Hrel) as [x y [-> | [-> _] ] |]; constructor;
       [by left | by right].
   Qed.
 
@@ -219,7 +219,7 @@ Section trap_cause.
       destruct (data_cap_check writeAllowed PermitStoreViolation dst x imm) as [f|ea];
         first done.
       destruct (is_shadow_address ea).
-      { destruct Ht as [-> | ->]; first done. by destruct t as [| [] | | ? []]. }
+      { destruct Ht as [-> | ->]; first done. by destruct t as [| [] | | ? [] ]. }
       destruct (is_revoker_address ea); first done.
       by destruct (cr_mem _ _ _ Hrel ea).
     - (* Untagged physical copy: a tag violation; a stale capability writes
@@ -312,13 +312,13 @@ Section trap_cause.
     registry_ok R C st → lreg !! r = Some v → reg_word_ok R C v → reg_phys R v w →
     word_agree (reg_may_strip lreg r) v.(lw) w.
   Proof.
-    intros Hreg Hr Hok [[-> | [-> Hstrip]] _]; first by left.
+    intros Hreg Hr Hok [[-> | [-> Hstrip] ] _]; first by left.
     right. split; first done. split.
     { intros Htag. exists v. split; first done. split; first done.
-      destruct Hstrip as [[(ι & x & Hι & _) _] | [_ Hb]]; [left | right]; by eauto. }
+      destruct Hstrip as [[(ι & x & Hι & _) _] | [_ Hb] ]; [left | right]; by eauto. }
     intros p g b e a ea Hv Hwb.
     pose proof Hwb as Hwb'. apply withinBounds_true_iff in Hwb'.
-    destruct Hstrip as [[(ι & x & Hι & Hx & _) _] | [Hna [b' Hhb]]].
+    destruct Hstrip as [[(ι & x & Hι & Hx & _) _] | [Hna [b' Hhb] ] ].
     - destruct Hok as (Hprov & _ & _).
       destruct (Hprov ι b e) as (x' & Hx' & Hb & He);
         [by rewrite Hv | by rewrite Hv | solve_addr | done |].

@@ -50,7 +50,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
-    destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
+    destruct (Hri src) as [wsrc [H'src Hsrc] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc' & Hrel).
     assert (exec_opt (ClearTag dst src) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
       nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst

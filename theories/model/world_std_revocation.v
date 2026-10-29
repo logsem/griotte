@@ -661,6 +661,24 @@ Section world_std_revocation.
       by simplify_map_eq.
   Qed.
 
+  Lemma close_list_std_update_multiple_revoked (W : WORLD) (la : list Addr) :
+    Forall (λ a, std W !! LNonHeap a = Some Revoked) la →
+    close_list (LNonHeap <$> la) W = std_update_multiple W la Temporary.
+  Proof.
+    intros Hrev.
+    assert (∀ W1 W2 : WORLD, std W1 = std W2 → cus W1 = cus W2 → W1 = W2) as Hext.
+    { intros [] [] ? ?; simpl in *; by subst. }
+    apply Hext; last first.
+    { rewrite /close_list /=. clear. induction la as [|a la IH]; [done|]. by rewrite /= -IH. }
+    apply (map_eq (M:=gmap LAddr) (A:=region_type)). intros k.
+    destruct (decide (k ∈ LNonHeap <$> la)) as [Hk|Hk].
+    - rewrite std_sta_update_multiple_lookup_in_k //.
+      apply close_list_lookup_in; [|done].
+      apply list_elem_of_fmap in Hk as (x & -> & Hx).
+      by eapply Forall_forall in Hrev.
+    - rewrite close_list_lookup_not_in // std_sta_update_multiple_lookup_same_k //.
+  Qed.
+
 
   (* ---------------------------------------------------------------------------------------- *)
   (* ----------------- REVOKING ALL TEMPORARY REGIONS, KNOWN AND UNKNOWN  ------------------- *)
@@ -670,7 +688,7 @@ Section world_std_revocation.
   Lemma extract_temps W :
     ∃ l, NoDup l ∧ (forall (a : LAddr), (std W) !! a = Some Temporary <-> a ∈ l).
   Proof.
-    destruct W as [Wstd_sta Wloc].
+    destruct W as [Wstd_sta Wcus].
     induction Wstd_sta using (map_ind (M:=gmap LAddr) (A:=region_type)).
     - exists []. split;[by apply NoDup_nil|]. intros a. split; intros Hcontr; inversion Hcontr.
     - destruct IHWstd_sta as [l [Hdup Hiff] ].

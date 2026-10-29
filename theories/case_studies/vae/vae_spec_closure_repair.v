@@ -4,7 +4,7 @@ From griotte Require Import region_invariants_revocation interp_weakening monoto
 From griotte Require Import world_ghost_theory world_std_revocation.
 From griotte Require Import world_interp_stack.
 From griotte Require Import allocator_resources heap_region.
-From griotte Require Import wp_rules_interp.
+From griotte Require Import wp_rules_interp case_study_spec_helpers.
 
 Section VAE_Return_Repair.
   Context
@@ -14,25 +14,6 @@ Section VAE_Return_Repair.
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
-  (** Revoked keys whose resources hold their cells: no tombstone among
-      them. *)
-  (* TODO: move to case_studies/case_study_spec_helpers.v *)
-  Definition RevokedCells (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
-    [∗ list] a ∈ s,
-      ∃ pa Φa,
-        ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
-        a ↪ˡ[C]{pa} Φa ∗
-        ∃ wa, ⌜isO pa = false⌝ ∗ a ↦ₖ wa ∗ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa).
-
-  (* TODO: move to case_studies/case_study_spec_helpers.v *)
-  Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
-    RevokedCells W C s -∗ RevokedResources W C s.
-  Proof.
-    iIntros "H". iApply (big_sepL_impl with "H").
-    iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
-    iExists pa, Φa. iFrame "Hrel". iSplit; first done.
-    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
-  Qed.
 
   (** Tombstoned keys are heap keys: they are disjoint from the stack. *)
   Lemma vae_quarantined_disjoint_stack (l : list LAddr) (b e : Addr) :

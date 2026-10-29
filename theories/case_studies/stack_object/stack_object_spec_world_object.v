@@ -33,7 +33,7 @@ Section SO_World_List.
     setoid_rewrite addr_key_pointsto.
     rewrite big_sepL2_sep big_sepL2_const_sepL_l.
     iSplit.
-    - iIntros "[$ [_ $]]".
+    - iIntros "[$ [_ $] ]".
     - iIntros "[Hv $]". iDestruct (big_sepL2_length with "Hv") as %Hlen. by iFrame.
   Qed.
 
@@ -187,25 +187,6 @@ Section SO_World_List.
     - set_solver.
   Qed.
 
-  (** A Global region whose cell is held is not open: the world owns its
-      body. *)
-  (* TODO: move to model/world_ghost_theory.v *)
-  Lemma world_interp_open_rel_g_cell_false W C s k p φ w :
-    k ∉ s → world_interp_open W C s -∗ k ↪ᵍ[C]{p} φ -∗ k ↦ₖ w -∗ False.
-  Proof.
-    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
-      /open_region_many_def /world_interp_open_gl.
-    iIntros (Hks) "[Hg _] #Hr Hw".
-    iDestruct (g_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
-    { by apply not_elem_of_open_g. }
-    rewrite /body_g. destruct k as [a|a ι]; cbn [heap_key_resource].
-    - iDestruct "Hb" as (v) "(_ & Hv & _)".
-      iApply (heap_pointsto_valid_2 (LNonHeap a) (LNonHeap a) with "Hv Hw"). done.
-    - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
-      + iApply (heap_pointsto_valid_2 (LHeap a ι) (LHeap a ι) with "Hv Hw"). done.
-      + iApply (heap_pointsto_quar_false with "Hw Hq").
-  Qed.
-
 End SO_World_List.
 
 Section SO_World_Object.
@@ -216,31 +197,6 @@ Section SO_World_Object.
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
-
-  (** A region reached through a capability stays valid in a world where
-      every Temporary key stays Temporary. *)
-  (* TODO: move to logrel/monotone.v *)
-  Lemma region_rel_temp_transfer W W' C k p' P p g :
-    (std W !! k = Some Temporary → std W' !! k = Some Temporary) →
-    region_rel W C k p' P p g -∗ region_rel W' C k p' P p g.
-  Proof.
-    iIntros (HT) "Hrel".
-    iAssert (□ (region_rel_l W C k p' P -∗ region_rel_l W' C k p' P))%I as "#Hl".
-    { iIntros "!> (Hr & %HTk & Hm)". iFrame. iPureIntro. by apply HT. }
-    rewrite /region_rel. destruct (isWL p); [by iApply "Hl"|].
-    destruct g; [done|]. iDestruct "Hrel" as "[$|Hrel]". iRight. by iApply "Hl".
-  Qed.
-
-  (* TODO: move to logrel/monotone.v *)
-  Lemma heap_cap_O_key_temp_transfer W W' C g k :
-    (std W !! k = Some Temporary → std W' !! k = Some Temporary) →
-    heap_cap_O_key W C g k -∗ heap_cap_O_key W' C g k.
-  Proof.
-    iIntros (HT) "[H|H]"; [by iLeft|iRight].
-    destruct g; [done|].
-    iDestruct "H" as (p φ Hpers) "[Hr %HTk]".
-    iExists p, φ. iFrame "Hr %". iPureIntro. by apply HT.
-  Qed.
 
   (** The revoked Temporary keys whose cells are held, outside the open
       keys [s] of [W1]: the capability reaches them through their local

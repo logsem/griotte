@@ -5,13 +5,15 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_prea
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Export allocator_malloc_spec allocator_free_spec allocator_resource_spec allocator_switcher_spec.
 
-(** The trusted calls of [main] to [malloc] and [free] are instances of the
-    public switcher-call specifications: [malloc] at size one with the empty
-    freshness set, and [free] of the whole object. The allocator-entry
+(** The trusted call of [main] to [free] is an instance of the public
+    switcher-call specification, for the whole object. The allocator-entry
     condition of [free] is discharged inside [allocator_free_switcher_spec].
-    Neither call requires the private pointer to satisfy [interp]. Both take
-    the caller's allocator capability in [ca0], with its owner token and
-    owner word, which they give back; the argument is then in [ca1]. *)
+    The call does not require the private pointer to satisfy [interp]. It
+    takes the caller's allocator capability in [ca0], with its owner token
+    and owner word, which it gives back; the argument is then in [ca1]. The
+    call to [malloc] uses [allocator_malloc_switcher_spec] directly, with
+    the identifiers of the heap keys of the initial world as its freshness
+    set. *)
 
 Section Heap_Temporal_Safety_Allocator.
   Context
@@ -25,34 +27,6 @@ Section Heap_Temporal_Safety_Allocator.
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}.
 
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
-
-  Definition hts_malloc_result (a_owner : Addr) (id : Z) (Ω : gset AId)
-    : LWord -> LWord -> iProp Σ :=
-    allocator_malloc_result ∅ a_owner id Ω 1.
-
-  Lemma hts_malloc_known_function
-    (wcgp wcra wcs0 wcs1 : LWord)
-    (b_stk e_stk a_stk : Addr) (arg_rmap : LReg) (cstk : CSTK)
-    (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId) :
-    is_shadow_address a_owner = false ->
-    withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
-    arg_rmap !! ca0 = Some (lword_of_word (allocator_capability g_owner a_owner)) ->
-    arg_rmap !! ca1 = Some (lword_of_word (WInt 1)) ->
-    allocator_service_ctx ∗
-    allocator_service_static ⊢
-    switcher_cc_specification_known_to_known_function false
-      (allocator_owner_id id Ω ∗
-       a_owner ↦ₐ WInt id)
-      (hts_malloc_result a_owner id Ω) wcgp wcra wcs0 wcs1
-      b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
-      allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_malloc_pcc_off
-      (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
-         (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)).
-  Proof.
-    intros.
-    by apply (allocator_malloc_switcher_spec ∅ g_owner); [lia|..].
-  Qed.
 
   Definition hts_free_result (a_owner : Addr) (id : Z) (Ω : gset AId)
     (ι : AId) : LWord -> LWord -> iProp Σ :=

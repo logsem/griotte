@@ -47,12 +47,6 @@ Section Error_Handling_Read_Safe.
     ((∃ ea, data_cap_check readAllowed PermitLoadViolation ca0 wptr.(lw) 0 = inr ea) ∧
      f = fault_default).
 
-  (* TODO: move to opsem/griotte_opsem.v *)
-  Lemma data_cap_check_lclear_tag perm_ok perm_code r (w : LWord) imm :
-    data_cap_check perm_ok perm_code r (lclear_tag w).(lw) imm =
-      inl (FaultCheri TagViolation (CheriGPR r)).
-  Proof. destruct w as [w π]; by destruct w as [ | [ | ] | | ? [ | ] ]. Qed.
-
   (** [wp_load_interp_same_open] for a load whose checks pass: when it
       faults on a cell, the cell stays out of its region, so that the trap
       can read it; the region closes once the cell is given back. On a
@@ -105,6 +99,7 @@ Section Error_Handling_Read_Safe.
     2: { (* A tombstone: the load faults on the tag *)
          iDestruct (interp_cap_has_authority with "Hinterp_src") as %Hauth;
            [by eapply readAllowed_nonO | exact Hwb |].
+         (* CLoad r r 0. *)
          iApply (wp_load_quar_imm with "[$HPC $Hi $Hsrc $Hq]");
            [eauto | eauto | exact Hauth | done |].
          iNext. iIntros "(HPC & Hi & Hsrc)".
@@ -257,11 +252,11 @@ Section Error_Handling_Read_Safe.
         * (* The pointer of a freed object, untagged *)
           iApply (stats_load_trap _ _ (lclear_tag wptr) {[stats_load_addr := stats_load_instr]}
                    with "HPC Hca0 Hlm"); [by simplify_map_eq | | |].
-          { apply stats_load_lfault; [by simplify_map_eq | apply data_cap_check_lclear_tag]. }
+          { apply stats_load_lfault; [by simplify_map_eq | apply data_cap_check_clear_tag]. }
           { done. }
           iIntros "Hca0 _".
           iApply ("Hfailed" with "[%] [%] Hca0 Hworld");
-            [by right | left; apply data_cap_check_lclear_tag].
+            [by right | left; apply data_cap_check_clear_tag].
       + (* The load succeeds *)
         iDestruct "Hcont" as "[_ Hcont]".
         unfocus_block "Hcode" "Hcont_code" as "Hcode_stats".
@@ -343,11 +338,11 @@ Section Error_Handling_Read_Safe.
         iApply (stats_load_trap _ _ (lclear_tag (Cap p g b e a @@? π))
                  {[stats_load_addr := stats_load_instr]}
                  with "HPC Hca0 Hlm"); [by simplify_map_eq | | |].
-        { apply stats_load_lfault; [by simplify_map_eq | apply data_cap_check_lclear_tag]. }
+        { apply stats_load_lfault; [by simplify_map_eq | apply data_cap_check_clear_tag]. }
         { done. }
         iIntros "Hca0 _".
         iApply ("Hfailed" with "[%] [%] Hca0 Hworld");
-          [by right | left; apply data_cap_check_lclear_tag].
+          [by right | left; apply data_cap_check_clear_tag].
       + (* The load succeeds *)
         iDestruct "Hcont" as "[_ Hcont]".
         unfocus_block "Hcode" "Hcont_code" as "Hcode_stats".

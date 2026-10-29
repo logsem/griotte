@@ -109,7 +109,7 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[#A [%Hconditions #Hheap]]".
+    iDestruct "HA" as "[#A [%Hconditions #Hheap] ]".
     destruct Hconditions as [Hpwl_cond Hshadow].
     iSplit; cycle 1.
     { iSplit; last by iApply (heap_cap_ok_perm with "Hheap").
@@ -162,7 +162,7 @@ Section fundamental.
     rewrite /safe_to_unseal.
     destruct (decide (b' <= e')%ot).
     - rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr].
-      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _]]".
+      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _] ]".
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
@@ -176,7 +176,7 @@ Section fundamental.
     rewrite /safe_to_seal.
     destruct (decide (b' <= e')%ot).
     - rewrite /= (isWithin_finz_seq_between_decomposition b' e' b e); [|solve_addr].
-      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _]]".
+      rewrite !big_sepL_app; iDestruct "HA" as "[_ [$ _] ]".
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
@@ -206,7 +206,7 @@ Section fundamental.
       rewrite !interp_unfold /= /interp_sb /=; try done.
     all: iDestruct "Hinterp" as "[(%κ & %P & #Hs & #Hok & HP) $]".
     all: iExists κ, P; iFrame "Hs Hok".
-    all: destruct κ; cbn; [done|by iDestruct "Hok" as "[_ []]"].
+    all: destruct κ; cbn; [done|by iDestruct "Hok" as "[_ [] ]"].
   Qed.
 
   Lemma interp_deeplocal_word W C w : interp W C w ⊢ interp W C (ldeeplocal w).
@@ -525,7 +525,7 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[A [%Hconditions #Hok]]".
+    iDestruct "HA" as "[A [%Hconditions #Hok] ]".
     destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hshadow' : disjoint_from_mmio b' e').
     { eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
@@ -544,7 +544,7 @@ Section fundamental.
     destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
     { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
     rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
-    iEval (rewrite !big_sepL_app) in "A". iDestruct "A" as "[_ [A _]]".
+    iEval (rewrite !big_sepL_app) in "A". iDestruct "A" as "[_ [A _] ]".
     iApply (big_sepL_mono with "A").
     iIntros (k x Hx) "Hw".
     iDestruct "Hw" as (p'' φ Hflp'' Hpersφ) "(Hrel & Hzcond & Hrcond & Hwcond)".
@@ -576,7 +576,7 @@ Section fundamental.
       - destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
         { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
         rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
-        iEval (rewrite !big_sepL_app) in "Hcoverage". iDestruct "Hcoverage" as "[_ [Hcov _]]".
+        iEval (rewrite !big_sepL_app) in "Hcoverage". iDestruct "Hcoverage" as "[_ [Hcov _] ]".
         iApply (big_sepL_impl with "Hcov"). iIntros "!>" (k x Hx) "Hx %Hheap".
         iApply (heap_cap_O_key_weakening with "(Hx [//])"); done. }
     destruct (isO p) eqn:HpO.
@@ -601,7 +601,7 @@ Section fundamental.
     iEval (rewrite interp_unfold interp1_eq) in "HA".
     rewrite HpnotO.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
-    iDestruct "HA" as "[A [%Hconditions #Hok]]".
+    iDestruct "HA" as "[A [%Hconditions #Hok] ]".
     destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hregions' : disjoint_from_mmio b' e' ∧ disjoint_from_heap b' e').
     { split; last exact (proj2 Hsentry).
@@ -623,7 +623,7 @@ Section fundamental.
     destruct (decide (b' < e'))%a; cycle 1.
     { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
     rewrite (isWithin_finz_seq_between_decomposition b' e' b e); try solve_addr.
-    rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _]]".
+    rewrite !big_sepL_app. iDestruct "A" as "[_ [A2 _] ]".
     iClear "IH".
     iApply (big_sepL_impl with "A2").
     iModIntro; iIntros (k x Hx) "Hw".

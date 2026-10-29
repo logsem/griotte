@@ -595,7 +595,7 @@ Ltac2 layout_section (ls : pline list) : string list :=
         | [] => []
         | l :: rest =>
             if Int.le (Int.add (width l) 2) col then String.concat "" [pad l col; "-- "; c] :: rest
-            else List.append lines [String.concat "" [spaces col; "-- "; c]]
+            else List.append lines [String.concat "" [spaces col; "-- "; c] ]
         end
     end) items.
 
@@ -1145,7 +1145,7 @@ Section memory_map.
        "trusted stack" (String.append "thread " (nat_str i)) [];
      row (b_stack t) (Z.to_nat (e_stack t - b_stack t)%Z) "stack" (String.append "thread " (nat_str i)) [];
      row (b_hazard t) (Z.to_nat (e_hazard t - b_hazard t)%Z)
-       "hazard slots" (String.append "thread " (nat_str i)) []].
+       "hazard slots" (String.append "thread " (nat_str i)) [] ].
 
   Fixpoint insert_row (r : map_row) (rs : list map_row) : list map_row :=
     match rs with
@@ -1165,7 +1165,7 @@ Section memory_map.
            [CText "data words (sealing key), switcher_instrs"];
          row (b_assert asrt) (Z.to_nat (e_assert asrt - b_assert asrt)%Z) "code" "assert"
            [CText "assert_subroutine_instrs, flag capability"];
-         row (flag_assert asrt) 1 "flag" "assert" []]
+         row (flag_assert asrt) 1 "flag" "assert" [] ]
         (app (concat (map cmpt_rows (img_cmpts img)))
            (concat (imap thread_rows (img_threads img))))).
 End memory_map.

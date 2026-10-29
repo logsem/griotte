@@ -64,9 +64,9 @@ repeat (
     | |- (<[ ?reg := ?w ]> ?rmap) !! ?reg = Some _ =>
         rewrite lookup_insert_eq; reflexivity
     | |- (<[ ?reg := ?w ]> ?rmap) !! ?reg' = Some _ =>
-        rewrite lookup_insert_ne; [ | solve [auto]]
+        rewrite lookup_insert_ne; [ | solve [auto] ]
     | |- (delete ?reg ?rmap) !! ?reg' = Some _ =>
-        rewrite lookup_delete_ne; [ | solve [auto]]
+        rewrite lookup_delete_ne; [ | solve [auto] ]
     | |- _ !! ?reg = Some _ => exact
     end ); fail.
 

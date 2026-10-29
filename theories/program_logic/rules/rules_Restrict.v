@@ -122,7 +122,7 @@ Section griotte_lang_rules.
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of, operands_of in Hri, Dregs.
-    destruct (Hri src) as [wsrc [H'src _]]; first by set_solver+.
+    destruct (Hri src) as [wsrc [H'src _] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'src) as Hok.
     rewrite /exec /= Hsrc /= in Hstep.
@@ -135,7 +135,7 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
-      { rewrite -Hstep. by destruct wsrc as [[| [] | | ? []] ?], s. }
+      { rewrite -Hstep. by destruct wsrc as [[| [] | | ? [] ] ?], s. }
       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
       { intros lpc' Hi. eapply Restrict_spec_untagged; eauto. }
       { intros Hi. apply Restrict_spec_failure; [|done..]. eapply Restrict_fail_PC_overflow_other; eauto. }

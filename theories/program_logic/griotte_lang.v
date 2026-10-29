@@ -188,7 +188,7 @@ Proof.
     + destruct c; rewrite /Atomic; intros ????? Hstep;
         inversion Hstep.
       match goal with HH : step _ _ |- _ => inversion HH end; eauto.
-      destruct (instr_atomic i p σ) as [σstepped [Hst | [Hst | Hst]]];
+      destruct (instr_atomic i p σ) as [σstepped [Hst | [Hst | Hst] ] ];
           simplify_eq; rewrite Hst; simpl; eauto.
     + inversion Ha.
   - intros K e' -> Hval%eq_None_not_Some.

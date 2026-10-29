@@ -392,7 +392,7 @@ Section Switcher_preamble.
   Proof.
     destruct cstk as [ef [|frm frms] ]; rewrite /cstack_interp /=.
     - iIntros "Htf". iFrame "Htf". by iIntros (n) "Htf".
-    - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
+    - iIntros "[Hrest [Htf Hspill] ]". iFrame "Htf". iIntros (n) "Htf". iFrame.
   Qed.
 
   (** The store-only capability to the two hazard slots of the thread, in

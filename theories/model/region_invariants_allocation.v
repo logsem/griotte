@@ -102,7 +102,7 @@ Section region_alloc.
       iSplitR; [done|]. iApply (big_sepM_mono with "Hb"). iIntros (k' γp' Hk') "Hb".
       assert (k' ≠ k) by (intros ->; apply HkM; by eapply elem_of_dom_2).
       destruct (decide (k' ∈ O)) as [HO|HO];
-        [rewrite decide_True; [done|set_solver]|rewrite decide_False; [done|set_solver]].
+        [rewrite decide_True; [done|set_solver]|rewrite decide_False; [done|set_solver] ].
   Qed.
 
   (** Global regions enter the map open: each cell shows that its key is

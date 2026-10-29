@@ -49,47 +49,6 @@ Section region_alloc_cmpt.
     std (std_update_compartment W C_cmpt) !! LNonHeap a = None.
   Proof. by intros _ _ Ha_W. Qed.
 
-  (** Global regions whose predicates need the region predicates, with a
-      frame: the keys enter the map open, then close with their bodies. *)
-  (* TODO: move to model/world_ghost_theory.v *)
-  Lemma world_interp_extend_perm_sepL2_open_frame
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : CmptName * LWord → iProp Σ)
-    (R : iProp Σ) `{∀ Cv, Persistent (φ Cv)} :
-    NoDup la ->
-    isO p = false ->
-    world_interp W C -∗
-    ([∗ list] k;v ∈ la;lw, k ↦ₐ v) -∗
-    (
-      ([∗ list] k ∈ la, LNonHeap k ↪ᵍ[C]{p} φ)
-      -∗
-      ([∗ list] v ∈ lw, φ (C, v)) ∗ R
-    )
-
-    ={E}=∗
-
-    world_interp W C ∗
-    ([∗ list] k ∈ la, LNonHeap k ↪ᵍ[C]{p} φ) ∗
-    ([∗ list] v ∈ lw, φ (C, v)) ∗
-    R.
-  Proof.
-    iIntros (Hnd HpO) "Hw Hcells Hφ".
-    rewrite !world_interp_gl /world_interp_open_gl.
-    iDestruct "Hw" as "[(%M & Hm) $]".
-    assert (NoDup (LNonHeap <$> la)) as Hnd'.
-    { apply NoDup_fmap; [intros ?? [= ->]; done|done]. }
-    iMod (g_insert_open_list C M ∅ (LNonHeap <$> la) lw p φ with "Hm [Hcells]")
-      as (M') "(Hm & #Hrels & Hcells)"; [done|set_solver|by rewrite big_sepL2_fmap_l|].
-    iDestruct ("Hφ" with "[]") as "[#Hφs HR]"; [by rewrite big_sepL_fmap|].
-    iModIntro. rewrite big_sepL_fmap. iFrame "Hrels Hφs HR".
-    iExists M'. iApply (g_close_list with "Hm [Hcells]"); [done|set_solver|done|done|].
-    iDestruct (big_sepL2_length with "Hcells") as %Hlen.
-    iApply (big_sepL2_impl with "Hcells"). iIntros "!>" (i k v Hk Hv) "Hc".
-    iFrame "Hc". apply list_lookup_fmap_Some in Hk as (a & -> & Ha). iSplitR.
-    - iNext. by iApply (big_sepL_lookup with "Hφs").
-    - by iApply (big_sepL_lookup with "Hrels").
-  Qed.
-
   (** The PCC and CGP of a compartment are valid in every world, from the
       Global regions of their addresses. *)
   Lemma cmpt_caps_interp (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
