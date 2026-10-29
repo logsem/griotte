@@ -1,6 +1,7 @@
 From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
+From iris.base_logic.lib Require Import ghost_map.
 From griotte Require Export stdpp_extra griotte_lang.
 From griotte Require Export sts world_std_sts region_keys.
 Import uPred.
@@ -11,29 +12,26 @@ Import uPred.
 (** M_interp *)
 
 (** REL: saved predicates associating Address to gname and permission *)
-Definition relUR : ucmra :=
-  (gmapUR LAddr (agreeR (leibnizO (gname * Perm)))).
-Definition relT :=
-  (gmap LAddr (leibnizO (gname * Perm))).
+Definition relT := gmap LAddr (gname * Perm).
 
 Class relGpreS Σ {Cname : CmptNameG} :=
   RelGpreS {
       relPreG_invPreG : invGpreS Σ;
       relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
-      relPreG_rel :: inG Σ (authR relUR);
+      relPreG_rel :: ghost_mapG Σ LAddr (gname * Perm);
     }.
 #[export] Hint Mode relGpreS - - : typeclass_instances.
 
 Class relGS Σ {Cname : CmptNameG} :=
   RelGS {
-      relG_rel :: inG Σ (authR relUR);
+      relG_rel :: ghost_mapG Σ LAddr (gname * Perm);
       relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
       γrel : CmptName -> gname
     }.
 #[export] Hint Mode relGS - - : typeclass_instances.
 
 Definition relPreΣ {Cname : CmptNameG} :=
-  #[ GFunctor (authR relUR) ].
+  #[ ghost_mapΣ LAddr (gname * Perm) ].
 
 #[export] Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
   subG relPreΣ Σ →
@@ -46,13 +44,15 @@ Section REL_defs.
   Context {Σ:gFunctors} {Cname : CmptNameG} {relg : relGS Σ}.
 
   Definition REL_def (C : CmptName) (a : LAddr) (γ : gname) (p : Perm) : iProp Σ :=
-    own (γrel C) (◯ {[ a := to_agree (γ,p) ]}).
+    a ↪[γrel C]□ (γ, p).
   #[local] Definition REL_aux : seal (@REL_def). Proof. by eexists. Qed.
   Definition REL := REL_aux.(unseal).
   Definition REL_eq : @REL = @REL_def := REL_aux.(seal_eq).
 
+  (** The authority keeps a persistent element per entry, so that [REL] can
+      be read off it. *)
   Definition RELS_def  (C : CmptName) (M : relT) : iProp Σ :=
-   own (γrel C) (● (to_agree <$> M : relUR)).
+    ghost_map_auth (γrel C) 1 M ∗ [∗ map] a ↦ γp ∈ M, a ↪[γrel C]□ γp.
   #[local] Definition RELS_aux : seal (@RELS_def). Proof. by eexists. Qed.
   Definition RELS := RELS_aux.(unseal).
   Definition RELS_eq : @RELS = @RELS_def := RELS_aux.(seal_eq).
@@ -71,17 +71,16 @@ Section relPre.
 
 
   Lemma rel_rel_init :
-    ⊢ |==> (∃ γrelC, ([∗ set] C ∈ CNames, own (γrelC C) (● (to_agree <$> ∅)))).
+    ⊢ |==> (∃ γrelC, ([∗ set] C ∈ CNames, ghost_map_auth (γrelC C) 1 (∅ : relT))).
   Proof.
-    induction CNames using set_ind_L.
+    induction CNames as [|C' CNs HC' IHg] using set_ind_L.
     - iModIntro.
       iExists ( λ C, encode C).
       by iApply big_sepS_empty.
-    - iMod IHg as (?) "IH".
-      iMod (own_alloc (A:= (authR relUR)) (● (to_agree <$> (∅: relT) : relUR))) as (γrel') "Hrel"
-      ; first by apply auth_auth_valid.
+    - iMod IHg as (γrelC) "IH".
+      iMod (ghost_map_alloc_empty (K:=LAddr) (V:=gname * Perm)) as (γrel') "Hrel".
       iModIntro.
-      iExists (λ C, if (bool_decide (C = x)) then γrel' else γrelC C).
+      iExists (λ C, if (bool_decide (C = C')) then γrel' else γrelC C).
       iApply (big_sepS_union_2 with "[Hrel]").
       + iApply (big_sepS_singleton).
         by rewrite bool_decide_eq_true_2.
@@ -94,7 +93,9 @@ Section relPre.
     ⊢ |==> ∃ (relg: relGS Σ), [∗ set] C ∈ CNames, RELS C (∅ : relT).
   Proof.
     iMod rel_rel_init as (γ) "H".
-    iExists (RelGS _ _ _ _ _). rewrite RELS_eq /RELS_def. done.
+    iExists (RelGS _ _ _ _ _). rewrite RELS_eq /RELS_def.
+    iModIntro. iApply (big_sepS_mono with "H").
+    iIntros (C _) "$". by rewrite big_sepM_empty.
   Qed.
 
 End relPre.
@@ -128,25 +129,10 @@ Section rel.
     RELS C M ∗ REL C a γ p
     -∗ ⌜M = <[a := (γ,p)]>(delete a M)⌝.
   Proof.
-    iIntros "[H1 H2]".
-    rewrite REL_eq RELS_eq /REL_def /RELS_def.
-    iDestruct (own_valid_2 with "H1 H2") as %Hv.
-    iPureIntro.
-    apply auth_both_valid_discrete in Hv; destruct Hv as [Hv1 Hv2].
-    specialize (Hv2 a).
-    apply singleton_included_l in Hv1.
-    destruct Hv1 as (y & Heq & Hi).
-    revert Hv2; rewrite Heq => Hv2.
-    revert Hi; rewrite Some_included_total => Hi.
-    apply to_agree_uninj in Hv2 as [γp Hγp].
-    revert Hi Heq; rewrite -Hγp => Hi Heq.
-    apply to_agree_included in Hi; subst.
-    revert Heq; rewrite -Hi => Heq.
-    rewrite insert_delete_eq insert_id /leibniz_equiv_iff => //; auto.
-    revert Heq. rewrite lookup_fmap fmap_Some_equiv =>Hγp'.
-    destruct Hγp' as [γp' [? Hrγp'] ].
-    apply to_agree_inj, leibniz_equiv_iff in Hrγp' as <-.
-    done.
+    rewrite RELS_eq /RELS_def REL_eq /REL_def.
+    iIntros "[ [H1 _] H2]".
+    iDestruct (ghost_map_lookup with "H1 H2") as %Ha.
+    iPureIntro. by rewrite insert_delete_eq insert_id.
   Qed.
 
   Lemma reg_get (C : CmptName) (M : relT) (a : LAddr)
@@ -157,15 +143,9 @@ Section rel.
   Proof.
     iIntros "(HR & %Hγp)".
     rewrite RELS_eq /RELS_def REL_eq /REL_def.
-    iApply own_op.
-    iApply (own_update with "HR").
-    apply auth_update_dfrac_alloc; auto.
-    - apply gmap_core_id.
-      intros; apply agree_core_id.
-    - apply singleton_included_l.
-      exists (to_agree (γ,p)). split; auto.
-      rewrite lookup_fmap. apply fmap_Some_equiv.
-      exists (γ,p). split; auto.
+    iDestruct "HR" as "[HR #Hels]".
+    iDestruct (big_sepM_lookup with "Hels") as "#Hel"; first done.
+    by iFrame "∗#".
   Qed.
 
 
@@ -178,13 +158,10 @@ Section rel.
   Proof.
     iIntros (HMa) "HRELS".
     rewrite RELS_eq REL_eq /RELS_def /REL_def.
-    iMod (own_update _ _
-            (● (<[a:=to_agree (γ,p)]> (to_agree <$> M : relUR)) ⋅ ◯ ({[a:=to_agree (γ,p)]}))
-           with "HRELS") as "[HRELS HREL]".
-    - apply auth_update_alloc.
-      apply (alloc_singleton_local_update (to_agree <$> M)); last done.
-      rewrite lookup_fmap HMa; done.
-    - rewrite fmap_insert. by iFrame.
+    iDestruct "HRELS" as "[HRELS #Hels]".
+    iMod (ghost_map_insert_persist a (γ,p) with "HRELS") as "[HRELS #Hel]"; first done.
+    iModIntro. iFrame "∗#".
+    iApply big_sepM_insert; first done. by iFrame "#".
   Qed.
 
   Lemma rels_agree C a γ1 γ2 p1 p2 :
@@ -192,12 +169,8 @@ Section rel.
   Proof.
     rewrite REL_eq /REL_def.
     iIntros "[Hγ1 Hγ2]".
-    iDestruct (own_valid_2 with "Hγ1 Hγ2") as %Hval.
-    iPureIntro.
-    rewrite -auth_frag_op singleton_op in Hval.
-    apply pair_inj.
-    apply (to_agree_op_inv_L (A:=leibnizO _)).
-    eapply singleton_valid, auth_frag_valid, Hval.
+    iDestruct (ghost_map_elem_agree with "Hγ1 Hγ2") as %Heq.
+    by injection Heq as -> ->.
   Qed.
 
   Lemma rel_agree C a φ1 φ2 p1 p2 :
