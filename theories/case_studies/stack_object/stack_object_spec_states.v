@@ -95,7 +95,7 @@ Section SO_Object.
 
   Definition so_object_permanents (W : WORLD) (π : option AId) (b e : Addr) :=
     filter
-      (fun a => std W !! addr_key π a = Some Permanent)
+      (fun a => std W !! addr_key π a ≠ Some Temporary)
       (so_object_addresses b e).
 
   (** The revoked addresses [l] that are not temporary addresses of the
@@ -190,34 +190,18 @@ Section SO_Object.
   Qed.
 
   Lemma so_object_addresses_partition W π b e :
-    Forall
-      (fun a =>
-         std W !! addr_key π a = Some Permanent \/
-         std W !! addr_key π a = Some Temporary)
-      (so_object_addresses b e) ->
     so_object_addresses b e
       ≡ₚ so_object_permanents W π b e ++
           so_object_temporaries W π b e.
   Proof.
-    intros Hstates.
-    rewrite /so_object_permanents /so_object_temporaries
-      /so_object_addresses in Hstates |- *.
-    generalize (finz.seq_between b e), Hstates.
-    clear Hstates.
-    induction l; intros Hl; cbn; first done.
-    apply Forall_cons in Hl as [Ha Hl].
-    apply IHl in Hl.
-    destruct Ha as [Ha | Ha].
-    - assert (std W !! addr_key π a <> Some Temporary) as Ha'
-        by (intro; simplify_map_eq).
-      rewrite (decide_True _ _ Ha); auto.
-      rewrite (decide_False _ _ Ha'); auto.
-      cbn. rewrite -Hl. done.
-    - assert (std W !! addr_key π a <> Some Permanent) as Ha'
-        by (intro; simplify_map_eq).
-      rewrite (decide_True _ _ Ha); auto.
-      rewrite (decide_False _ _ Ha'); auto.
-      cbn. rewrite -Permutation_middle -Hl. done.
+    rewrite /so_object_permanents /so_object_temporaries /so_object_addresses.
+    generalize (finz.seq_between b e).
+    induction l as [|a l IHl]; cbn; first done.
+    destruct (decide (std W !! addr_key π a = Some Temporary)) as [Ha | Ha].
+    - rewrite decide_False; last by intros Hn.
+      cbn. rewrite -Permutation_middle -IHl. done.
+    - rewrite decide_True; last done.
+      cbn. rewrite -IHl. done.
   Qed.
 
   Lemma so_object_temporaries_NoDup W π b e :
@@ -237,7 +221,7 @@ End SO_Object.
 Section SO_States.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -272,8 +256,8 @@ Section SO_Revoked_Cells.
     [∗ list] a ∈ s,
       ∃ pa Φa,
         ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
-        rel C a pa Φa ∗
-        ∃ wa, TmpRes W C a pa Φa wa.
+        a ↪ˡ[C]{pa} Φa ∗
+        ∃ wa, ⌜isO pa = false⌝ ∗ a ↦ₖ wa ∗ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa).
 
   Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
     RevokedCells W C s -∗ RevokedResources W C s.
@@ -281,6 +265,6 @@ Section SO_Revoked_Cells.
     iIntros "H". iApply (big_sepL_impl with "H").
     iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
     iExists pa, Φa. iFrame "Hrel". iSplit; first done.
-    by iApply heap_key_resource_intro.
+    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
   Qed.
 End SO_Revoked_Cells.

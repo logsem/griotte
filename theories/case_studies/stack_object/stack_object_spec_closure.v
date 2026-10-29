@@ -166,7 +166,7 @@ Section SO.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_interp_C &
       %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk) ∗
@@ -337,8 +337,9 @@ Section SO.
       & Hcra & Hres & Hsecret & Hastk2 & Hstk & _ & _)".
 
     (* Reinstate [z] in the world of the call *)
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iMod (so_world_call with
-           "Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
+           "Hseal_switcher Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
             Hastk2 Hlc'")
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
            & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk2_W3)";
@@ -401,7 +402,12 @@ Section SO.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
-    (* Repair the world *)
+    (* Repair the world; the calls' laters were stripped from the cells'
+       contents. *)
+    iAssert (RevokedCells W0 C l0_live)%I with "[Hl0_live]" as "Hl0_live".
+    { iApply (big_sepL_mono with "Hl0_live").
+      iIntros (k ka _) "(%pa & %Φa & %Hpers & Hrel & %wa & HpO & Hk & Hmono & HΦ)".
+      iExists pa, Φa; iFrame "Hrel %"; iExists wa; iFrame "HpO Hk Hmono"; by iNext. }
     iMod (so_world_return W0 W4 C b e csp_b csp_e a_stk1 a_stk2 π
            l_revoked l0_live l0_quarantined l4 with
            "[$Hworld_interp_C $Hl0_live $Hl4 $Hsecret $Hres $Hstk]")

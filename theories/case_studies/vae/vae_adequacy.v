@@ -111,9 +111,9 @@ Section vae_obligations.
     rewrite /vae_main_data /= in Hv; simplify_eq.
     set (i := fresh_cus_name fw_world0).
     set (W1 := <l[i := false, (awk_rel_pub, awk_rel_priv)]l> fw_world0).
-    iMod (world_interp_alloc_loc _ C false awk_rel_pub awk_rel_priv with "Hworld_C")
+    iMod (world_interp_alloc_loc (th := UserThread 0) _ C false awk_rel_pub awk_rel_priv with "Hworld_C")
       as "(Hworld_C & %Hloc_fresh & %Hcus_fresh & Hst_i & #Hrel_i)".
-    iMod (inv_alloc Nawk _ (awk_inv (ceriseg := ceriseG_of (UserThread 0)) C i _)
+    iMod (inv_alloc Nawk _ (awk_inv (th := UserThread 0) C i _)
            with "[Hcgp_b Hst_i]") as "#Hawk_inv".
     { iExists false; iFrame. }
 
@@ -124,10 +124,7 @@ Section vae_obligations.
     set (main_awk := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                        (cmpt_exp_tbl_entries_end main_cmpt)
                        (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward)) in *.
-    set (W1' := <o[ switcher.ot_switcher :=
-                    {[ lword_of_word (WSealable main_awk);
-                       lword_of_word (borrow (WSealable main_awk)) ]} ]o> W1).
-    iAssert (ot_switcher_prop (th := UserThread 0) W1' C (WSealable main_awk))
+    iAssert (ot_switcher_prop (th := UserThread 0) W1 C (WSealable main_awk))
       as "#Hot_switcher_main_awk".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          length (@vae_main_imports swl asl C_f ++ VAE_main_code_init))%a)
@@ -137,7 +134,7 @@ Section vae_obligations.
         rewrite length_app.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (vae_awkward_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W1');
+                _ _ _ _ _ _ _ _ _ W1);
         last iFrame "Hswitcher_static #"; auto.
       { eapply disjoint_from_shadow_not_in;
           first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
@@ -146,10 +143,9 @@ Section vae_obligations.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
-      { exists false. subst W1' W1. by simplify_map_eq. } }
-    iMod (seal_main_export W1 C main_awk
-           with "Hseal_switcher Hot_switcher_main_awk Hworld_C")
-      as "(Hworld_C & #Hinterp_main_awk)"; [done| |done|].
+      { exists false. subst W1. by simplify_map_eq. } }
+    iDestruct (seal_main_export (th := UserThread 0) W1 C main_awk
+                with "Hseal_switcher Hot_switcher_main_awk") as "#Hinterp_main_awk"; [done| |].
     { intros ????? Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap main_cmpt). }
 
@@ -159,7 +155,7 @@ Section vae_obligations.
        the exports of C are safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts vae_firmware) default_fw_cmpt) _
-            HC_l W1' C Hok eq_refl eq_refl
+            HC_l W1 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
            with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
@@ -174,17 +170,8 @@ Section vae_obligations.
         change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
           with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward).
         fold main_awk.
-        iSplit.
-        + iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W1' with "[]").
-          { iPureIntro.
-            apply related_sts_pub_priv_world.
-            eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done). }
-          done.
-        + iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-          done.
+        iApply interp_to_in_mem.
+        by iApply (interp_global_world_free W1 ∅ with "Hinterp_main_awk").
       - (* C.g, the second export of C *)
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts vae_firmware
              fc_name fc_body ub_exports ue_name String.eqb Ascii.eqb Bool.eqb andb addr_off].
@@ -192,15 +179,11 @@ Section vae_obligations.
           as HC_len.
         cbv [fc_export_nargs fc_body fc_name fw_map ub_exports ue_nargs] in HC_len.
         fw_fold_cmpt C_cmpt.
-        iSplit.
-        + iApply interp_to_in_mem.
-          iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt vae_C_entry_g with "Hexports");
-            first done.
-          rewrite -HC_len /vae_C_entry_g /=; lia.
-        + iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-          done. }
+        iApply interp_to_in_mem.
+        iApply (interp_global_world_free (std_update_compartment W1 C_cmpt) ∅); first done.
+        iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt vae_C_entry_g with "Hexports");
+          first done.
+        rewrite -HC_len /vae_C_entry_g /=; lia. }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts vae_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
@@ -227,7 +210,7 @@ Section vae_obligations.
         first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
       apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { rewrite /std_update_compartment /W1' /W1.
+    { rewrite /std_update_compartment /W1.
       rewrite !std_update_multiple_loc_sta.
       by simplify_map_eq. }
     { done. }

@@ -9,7 +9,7 @@ From griotte Require Import wp_rules_interp.
 Section VAE_Return_Repair.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
@@ -21,8 +21,8 @@ Section VAE_Return_Repair.
     [∗ list] a ∈ s,
       ∃ pa Φa,
         ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
-        rel C a pa Φa ∗
-        ∃ wa, TmpRes W C a pa Φa wa.
+        a ↪ˡ[C]{pa} Φa ∗
+        ∃ wa, ⌜isO pa = false⌝ ∗ a ↦ₖ wa ∗ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa).
 
   (* TODO: move to case_studies/case_study_spec_helpers.v *)
   Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
@@ -31,7 +31,7 @@ Section VAE_Return_Repair.
     iIntros "H". iApply (big_sepL_impl with "H").
     iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
     iExists pa, Φa. iFrame "Hrel". iSplit; first done.
-    by iApply heap_key_resource_intro.
+    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
   Qed.
 
   (** Tombstoned keys are heap keys: they are disjoint from the stack. *)
@@ -58,9 +58,9 @@ Section VAE_Return_Repair.
   Proof.
     intros Hpriv Hcus Hcover Hrevoked.
     pose proof Hpriv as Hpriv_full.
-    destruct Hpriv as (Hstd & _ & Hseals).
+    destruct Hpriv as (Hstd & _).
     split; cycle 1.
-    { split; [exact Hcus|exact Hseals]. }
+    { exact Hcus. }
     cbn. split.
     - intros a Ha.
       rewrite -close_list_dom_eq -revoke_dom_eq.
@@ -72,12 +72,6 @@ Section VAE_Return_Repair.
         pose proof (Hrevoked a Hin) as Hrev.
         eapply close_list_std_sta_revoked in Hrev; eauto.
         rewrite Ha1 in Hrev; simplify_eq.
-        apply rtc_refl.
-      + assert (std Wcur !! a = Some Permanent) as Hperm.
-        { eapply region_state_priv_perm; eauto. }
-        apply revoke_lookup_Perm in Hperm.
-        rewrite -close_list_std_sta_same_alt in Ha1; [|congruence].
-        rewrite Hperm in Ha1; simplify_eq.
         apply rtc_refl.
       + destruct rho1; try apply rtc_refl;
           apply rtc_once; constructor.
@@ -182,7 +176,7 @@ Section VAE_Return_Repair.
     iIntros (Hdom) "[Hworld Hl]".
     iInduction l as [|k l] "IH"; first by iFrame.
     apply Forall_cons in Hdom as [Hk_dom Hdom].
-    iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & HΦ & Hmono) Hl]".
+    iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & Hmono & HΦ) Hl]".
     iMod ("IH" with "[//] Hworld Hl") as "(Hworld & Hl & %Hl_rev)".
     iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
                (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I

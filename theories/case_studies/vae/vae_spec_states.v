@@ -68,7 +68,7 @@ Ltac vae_unfold_code :=
 Section VAE_States.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}

@@ -352,15 +352,15 @@ Section VAE_World_Return.
       apply related_sts_pub_priv_world; exact Hrelated_pub_W5q_W6. }
     assert (related_sts_pub (loc W0) (loc W6)
       (wrel W0) (wrel W6)) as Hcus0_W6.
-    { destruct Hpub0_orig as (_ & Hcus & _).
+    { destruct Hpub0_orig as (_ & Hcus).
       exact Hcus. }
     assert (related_sts_pub (loc W3) (loc W6)
       (wrel W3) (wrel W6)) as Hcus3_W6.
     { assert (related_sts_pub (loc W3) (loc W5q)
         (wrel W3) (wrel W5q)) as Hcus3_W5q.
-      { destruct Hrelated_pub_W4_W5 as (_ & Hcus & _).
+      { destruct Hrelated_pub_W4_W5 as (_ & Hcus).
         subst W5q W5 W4. cbn in *. exact Hcus. }
-      destruct Hrelated_pub_W5q_W6 as (_ & Hcus5_W6 & _).
+      destruct Hrelated_pub_W5q_W6 as (_ & Hcus5_W6).
       eapply related_sts_pub_trans; eauto. }
     assert (related_sts_pub_world W0 (close_list closing W7))
       as Hpub0_fixed.

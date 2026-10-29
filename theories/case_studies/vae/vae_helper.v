@@ -4,7 +4,7 @@ From griotte Require Import region_invariants_allocation region_invariants_revoc
 Section VAE_helper.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -116,7 +116,6 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_priv_world /=.
     split; first apply related_sts_std_priv_refl.
-    split; last (apply related_sts_seals_std_refl).
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -138,7 +137,6 @@ Section VAE_helper.
     intros Hloc Hrel.
     rewrite /related_sts_pub_world /=.
     split; first apply related_sts_std_pub_refl.
-    split; last (apply related_sts_seals_std_refl).
     split; [set_solver|split;[set_solver|] ].
     intros d rpub rpriv rpub' rpriv' Hr Hr'; simplify_eq.
     repeat (split; first done).
@@ -159,7 +157,7 @@ Section VAE_helper.
     wrel W !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     exists b' : bool, loc W' !! i = Some (encode b').
   Proof.
-    intros (_ & (Hdom_loc & Hdom_rel & Hrtc) & _) Hloc Hrel.
+    intros (_ & Hdom_loc & Hdom_rel & Hrtc) Hloc Hrel.
     assert (is_Some (loc W' !! i)) as [d' Hloc'].
     { apply elem_of_dom, Hdom_loc, elem_of_dom. eauto. }
     assert (is_Some (wrel W' !! i)) as [rr Hrel'].
@@ -179,7 +177,7 @@ Section VAE_helper.
     wrel W !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     loc W' !! i = Some (encode true).
   Proof.
-    intros (_ & (Hdom_loc & Hdom_rel & Hrtc) & _) Hloc Hrel.
+    intros (_ & Hdom_loc & Hdom_rel & Hrtc) Hloc Hrel.
     assert (is_Some (loc W' !! i)) as [d' Hloc'].
     { apply elem_of_dom, Hdom_loc, elem_of_dom. eauto. }
     assert (is_Some (wrel W' !! i)) as [rr Hrel'].
@@ -227,9 +225,7 @@ Section VAE_helper.
     { eapply (related_sts_priv_trans_world _ W4); eauto.
       + apply revoke_related_sts_priv_world.
       + destruct Hrelated_pub_W2_W3 as
-          (HW2_W3_std &
-           (Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3) &
-           HW2_W3_seals).
+          (HW2_W3_std & Hdom_loc_2_3 & Hdom_rel_2_3 & Hrtc_loc_2_3).
         assert (exists d_W3, loc W3 !! i = Some d_W3) as [d_W3 Hd_W3].
         { apply elem_of_dom.
           apply Hdom_loc_2_3.
@@ -260,16 +256,13 @@ Section VAE_helper.
       + eapply (related_sts_priv_pub_trans_world _ W5); eauto.
     }
 
-    split; [|split]; cbn; cycle 1.
-    - destruct W0 as [W0_std [W0_loc W0_rel] W0_seals],
-          W3 as [W3_std [W3_loc W3_rel] W3_seals],
-          W6 as [W6_std [W6_loc W6_rel] W6_seals]; cbn.
-      destruct Hrelated_pub_W2_W3 as
-        (HW2_W3_std & HW2_W3_cus & HW2_W3_seals).
-      destruct Hrelated_pub_W5_W6 as
-        (HW5_W6_std & HW5_W6_cus & HW5_W6_seals).
-      destruct Hrelated_priv_W0_W6 as
-        (HW0_W6_std & HW0_W6_cus & HW0_W6_seals).
+    split; cbn; cycle 1.
+    - destruct W0 as [W0_std [W0_loc W0_rel] ],
+          W3 as [W3_std [W3_loc W3_rel] ],
+          W6 as [W6_std [W6_loc W6_rel] ]; cbn.
+      destruct Hrelated_pub_W2_W3 as (HW2_W3_std & HW2_W3_cus).
+      destruct Hrelated_pub_W5_W6 as (HW5_W6_std & HW5_W6_cus).
+      destruct Hrelated_priv_W0_W6 as (HW0_W6_std & HW0_W6_cus).
       destruct HW0_W6_cus as
         (Hdom_loc_0_6 & Hdom_rel_0_6 & Hrtc_loc_0_6); cbn in *.
       split; [|split]; auto.
@@ -314,7 +307,6 @@ Section VAE_helper.
           ospecialize (Hrtc_loc_5_6 d_W3 d_W6 _ Hd_W6);
             first by simplify_map_eq.
           done.
-    - by destruct Hrelated_priv_W0_W6 as (_ & _ & HW0_W6_seals).
     - cbn in *.
       split.
       { intros a Ha.
@@ -328,21 +320,6 @@ Section VAE_helper.
       }
       intros a rho0 rho2 Ha0 Ha2.
       destruct rho0; cycle 1.
-      + assert (a ∉ closing) as Ha_notin.
-        { destruct (Htemporaries_W0 a) as [_ Hnot].
-          intro Hcontra; apply Hnot in Hcontra.
-          by rewrite Ha0 in Hcontra.
-        }
-        apply revoke_lookup_Perm in Ha0.
-        assert (std W3 !! a = Some Permanent) as Ha0_W3.
-        { rewrite (region_state_pub_perm W2); eauto. }
-        assert (std W6 !! a = Some Permanent) as Ha0_W6.
-        { rewrite (region_state_pub_perm W5); eauto.
-          subst W5; cbn. rewrite revoke_lookup_Perm; eauto.
-        }
-        rewrite -close_list_std_sta_same in Ha2; eauto.
-        apply revoke_lookup_Perm in Ha0_W6.
-        simplify_map_eq. apply rtc_refl.
       + destruct rho2; last apply rtc_refl; apply rtc_once; constructor.
       + assert (a ∈ closing) as Ha_in.
         { destruct (Htemporaries_W0 a) as [Hin _].

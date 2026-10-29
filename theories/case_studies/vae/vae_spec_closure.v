@@ -146,7 +146,7 @@ Section VAE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
@@ -167,6 +167,9 @@ Section VAE.
     iAssert (interp W0 C wca0) as "#Hinterp_wca0".
     { iApply "Hinterp_rmap"; eauto. cbn; set_solver+. }
     iDestruct (world_interp_rel_loc_valid with "Hworld_interp_C Hsts_rel") as %Hrel_i_W0.
+    iMod (vae_world_flag_valid ⊤ W0 C i cgp_b with "Hawk_inv Hworld_interp_C")
+      as "[Hworld_interp_C %Hloc_i_W0]"; first done.
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
 
     (* Revoke the world, to get the stack frame *)
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -177,7 +180,7 @@ Section VAE.
 
     (* The flag can be set to [false] *)
     set (W2 := <l[i:=false]l>(revoke W0)).
-    destruct (vae_world_flag_false W W0 i Hpriv_W_W0 Hloc_i_W Hrel_i_W Hrel_i_W0)
+    destruct (vae_world_flag_false W0 i Hloc_i_W0 Hrel_i_W0)
       as ([b Hloc_i_W1] & Hrevoke_W1 & Hpriv_W1_W2 & Hpriv_W0_W2 & Hloc_i_W2 & Hrel_i_W2).
 
     (* Blocks 4-6: set the flag to [0], and jump to the switcher *)
@@ -213,7 +216,7 @@ Section VAE.
       as "[Hstack_revoked_W2q %Hstack_revoked_W2q]"; first done.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_addrs_W0_free.
       by eapply vae_quarantined_disjoint_nonheap. }
-    iDestruct (vae_world_callback W0 W2q C wca0 with "[]") as "#Hinterp_W2q_wca0";
+    iDestruct (vae_world_callback W0 W2q C wca0 with "Hseal_switcher []") as "#Hinterp_W2q_wca0";
       [done|by case_match|].
     iDestruct (vae_call_args W2q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
@@ -298,7 +301,7 @@ Section VAE.
       as "[Hstack_revoked_W5q %Hstack_revoked_W5q]"; first done.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W3.
       by eapply vae_quarantined_disjoint_nonheap. }
-    iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hinterp_W2q_wca0")
+    iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hseal_switcher Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
     iDestruct (vae_call_args W5q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
@@ -371,6 +374,13 @@ Section VAE.
       as Hstack_revoked_W6_full.
     { rewrite (stk_start_seq_split _ _ Hstk_res_size).
       apply revoked_addresses_app. split; [exact Hstack_revoked_W6|exact Hstk_res_W7]. }
+    (* The calls' laters were stripped from the cells' contents. *)
+    iAssert (RevokedCells W0 C l0_live ∗ RevokedCells W3 C l1_live)%I
+      with "[Hl0_live Hl1_live]" as "[Hl0_live Hl1_live]".
+    { iSplitL "Hl0_live";
+        [iApply (big_sepL_mono with "Hl0_live")|iApply (big_sepL_mono with "Hl1_live")].
+      all: iIntros (k a _) "(%pa & %Φa & %Hpers & Hrel & %wa & HpO & Hk & Hmono & HΦ)".
+      all: iExists pa, Φa; iFrame "Hrel %"; iExists wa; iFrame "HpO Hk Hmono"; by iNext. }
     iMod (vae_world_return W0 W3 W6 C i b l l0_live l0_quarantined l1 l1_live l1_quarantined l2
            csp_b csp_e
            with "Hsts_rel Hworld_interp_C Hl0_live Hl1_live Hrevoked_l2")

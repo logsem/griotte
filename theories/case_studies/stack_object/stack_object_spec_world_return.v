@@ -415,9 +415,8 @@ Section SO_World_Return.
           apply elem_of_finz_seq_between.
           stk_unfold; solve_addr+Hx Hfresh Hnext Hcsp_b_ret Hret_csp_e Hret_add.
       }
-      destruct W4 as [W4std W4cus W4seals]; cbn.
-      split; [|split];
-        [|apply related_sts_pub_refl|apply related_sts_seals_std_refl ]; cbn.
+      destruct W4 as [W4std W4cus]; cbn.
+      split; [|apply related_sts_pub_refl]; cbn.
       split.
       - setoid_rewrite <- close_list_dom_eq.
         setoid_rewrite <- revoke_dom_eq. done.
@@ -428,9 +427,6 @@ Section SO_World_Return.
           rewrite close_list_std_sta_revoked in Hx5; auto.
           * simplify_eq; apply rtc_refl.
           * by apply revoke_lookup_Monotemp.
-        + apply revoke_lookup_Perm in Hx4.
-          rewrite -close_list_std_sta_same_alt in Hx5; [|intro];
-            simplify_eq; apply rtc_refl.
         + destruct ρ5; try apply rtc_refl; apply rtc_once; econstructor.
     }
     (* The same repaired world must also be a public future of the switcher
@@ -441,20 +437,15 @@ Section SO_World_Return.
       { intros x Hx. apply elem_of_app in Hx as [Hx|Hx].
         - apply elem_of_app; left. by apply Hl0_closing_revoked.
         - by apply elem_of_app; right. }
-      destruct W0 as [W0std W0cus W0seals].
-      destruct W4 as [W4std W4cus W4seals]. cbn in *.
-      split; [|split]; cbn; cycle 1.
-      - destruct Hpriv as (_ & Hcus03 & _).
-        destruct Hpub as (_ & Hcus34 & _).
+      destruct W0 as [W0std W0cus].
+      destruct W4 as [W4std W4cus]. cbn in *.
+      split; cbn; cycle 1.
+      - destruct Hpriv as (_ & Hcus03).
+        destruct Hpub as (_ & Hcus34).
         clear -Hcus03 Hcus34.
         cbn in *.
         eapply related_sts_pub_trans; eauto.
         apply related_sts_pub_refl.
-      - destruct Hpriv as (_ & _ & Hseals03).
-        destruct Hpub as (_ & _ & Hseals34).
-        clear -Hseals03 Hseals34.
-        cbn in *.
-        eapply related_sts_seals_trans; eauto.
       - split.
         + destruct Hpriv as [ [Hdom03 _] _].
           destruct Hpub as [ [Hdom34 _] _].
@@ -468,16 +459,6 @@ Section SO_World_Return.
             specialize (Hinitial_W5 x Hx_close).
             rewrite close_list_std_sta_revoked in Hx5; auto.
             simplify_eq; apply rtc_refl.
-          * assert (std (MkWorld W4std W4cus W4seals) !! x = Some Permanent)
-              as Hx4.
-            { eapply region_state_priv_perm.
-              - eapply related_sts_priv_pub_trans_world; eauto.
-              - exact Hx0. }
-            apply revoke_lookup_Perm in Hx4.
-            rewrite -close_list_std_sta_same_alt in Hx5;
-              [|intro Hcontra]; cbn; simplify_eq.
-            { rewrite Hx4 in Hx5; simplify_eq; apply rtc_refl. }
-            rewrite Hx4 in Hcontra; done.
           * destruct ρ5; try apply rtc_refl; apply rtc_once; econstructor.
     }
     (* Every stack address is outside the heap.  The mixed revoked resources
