@@ -13,6 +13,7 @@ Section wp_interp.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
 
@@ -80,18 +81,40 @@ Section wp_interp.
 
   (** Writing a safe word into an opened region: a Global region is written
       through a capability that is not write-local. *)
-  Lemma pc_content_wcond {CL : CritLink Σ} ρ W C P p v :
-    (ρ = InGlobal → isWL p = false) →
-    wcond P C interp -∗ interp W C v -∗ pc_content ρ W C P (lstore_word p v).
+  (** A word stored through a capability that is not write-local is not
+      local. *)
+  Lemma lstore_word_nonlocal p v :
+    isWL p = false → isLocalWord (lstore_word p v).(lw) = false.
   Proof.
-    iIntros (Hwl) "#Hwc #Hv". destruct ρ; cbn.
-    - iApply "Hwc". iApply (interp_store_g with "Hv"). by apply Hwl.
-    - iApply "Hwc". by iApply interp_lstore_word.
+    intros Hwl. destruct (canStore p v.(lw)) eqn:Hcs.
+    - rewrite lstore_word_canStore //. by eapply canStore_global_nonisWL.
+    - assert (lstore_word p v = lclear_tag v) as ->.
+      { by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcs. }
+      rewrite lw_lclear_tag. destruct v as [v ?]; cbn.
+      destruct_word v; cbn; try done. by destruct sb.
   Qed.
 
-  Lemma pc_content_wcond_z {CL : CritLink Σ} ρ W C P z :
-    wcond P C interp -∗ pc_content ρ W C P (WInt z).
-  Proof. iIntros "#Hwc". destruct ρ; cbn; iApply "Hwc"; iApply interp_int. Qed.
+  Lemma pc_content_wcond {CL : CritLink Σ} ρ W C P p v :
+    (ρ = InGlobal → isWL p = false) →
+    (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
+    interp W C v -∗ pc_content ρ W C P (lstore_word p v).
+  Proof.
+    iIntros (Hwl) "#Hwc #Hv". destruct ρ; cbn.
+    - rewrite Hwl //. iApply ("Hwc" with "[%]").
+      { by apply lstore_word_nonlocal, Hwl. }
+      iApply (interp_store_g with "Hv"). by apply Hwl.
+    - destruct (isWL p) eqn:Hp.
+      + iApply "Hwc". by iApply interp_lstore_word.
+      + iApply ("Hwc" with "[%]"); first by apply lstore_word_nonlocal.
+        by iApply interp_lstore_word.
+  Qed.
+
+  Lemma pc_content_wcond_z {CL : CritLink Σ} ρ W C P p z :
+    (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗ pc_content ρ W C P (WInt z).
+  Proof.
+    iIntros "#Hwc". destruct (isWL p); destruct ρ; cbn;
+      iApply "Hwc"; try done; iApply interp_int.
+  Qed.
 
   (** Opening the key of a capability address, with keys [s] open: the
       region of its part, or a tombstone, in which case the world is
@@ -712,15 +735,16 @@ Section wp_interp.
     readAllowed p = true →
     (b <= a)%a →
     π = None →
+    thread_in th C -∗
     interp W C (Cap p g b e a @@? π) -∗
     cells_load_acc (λ _ ls, world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)%I p e a π n.
   Proof.
-    iIntros (Hra Hb ->) "#Hinterp_src".
+    iIntros (Hra Hb ->) "#Hth #Hinterp_src".
     iIntros "!>" (i ls Hi Hie) "[Hworld_interp #Hls]".
     set (ea := a ^+ i).
     assert (ea ∈ₐ [b, e)) as Hbounds by (subst ea; solve_addr).
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
-    iDestruct (read_allowed_inv _ _ ea with "Hinterp_src")
+    iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
       as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |].
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO | done |].
@@ -740,7 +764,7 @@ Section wp_interp.
     iDestruct (pc_content_rcond with "Hrcond HφV") as "#Hnormal_p'".
     iAssert (interp_in_mem p W C v)%I as "#Hnormal".
     { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
-      iApply (interp_weakening_word_load W C p p' v); first exact Hflows.
+      iApply (interp_weakening_word_load W C p p' v with "Hth"); first exact Hflows.
       iEval (rewrite /interp_in_mem_pre) in "Hnormal_p'".
       iExact "Hnormal_p'". }
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hv'"; first exact Hpost.
@@ -834,7 +858,7 @@ Section wp_interp.
       iAssert (∀ (k : LAddr) ρ (P : interpO Σ) v,
         ⌜k = addr_key (Some ι) ea⌝ -∗
         ⌜ρ = InGlobal → isWL p = false⌝ -∗
-        ▷ wcond P C interp -∗
+        ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
         k ↦ₖ v -∗
         ∃ q, ea ↦ₐ v ∗ deref_res (Some ι) q ∗
           ▷ (ea ↦ₐ lstore_word p (ws !!! i) -∗ deref_res (Some ι) q -∗
@@ -902,6 +926,7 @@ Section wp_interp.
     readAllowed p = true →
     (b <= a)%a →
     (a < e)%a →
+    thread_in th C -∗
     interp W C (Cap p g b e a @@? Some ι) -∗
     world_interp W C -∗
     ◇ ((ι ⊒ AQuar ∗ world_interp W C) ∨
@@ -910,10 +935,10 @@ Section wp_interp.
          cells_load_acc L p e a (Some ι) n ∗
          ▷ (∀ i ls, L i ls -∗ world_interp W C ∗ [∗ list] v ∈ ls, interp W C v)).
   Proof.
-    iIntros (Hra Hb Hae) "#Hinterp_src Hworld_interp".
+    iIntros (Hra Hb Hae) "#Hth #Hinterp_src Hworld_interp".
     assert (withinBounds b e (a ^+ 0) = true) as Hwb0
       by (apply withinBounds_true_iff; solve_addr).
-    iDestruct (read_allowed_inv _ _ (a ^+ 0) with "Hinterp_src")
+    iDestruct (read_allowed_inv _ _ (a ^+ 0) with "Hth Hinterp_src")
       as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hrcond0 & _)";
       [solve_addr | by rewrite Hra |].
     assert (isO p0 = false) as HnO0.
@@ -968,7 +993,7 @@ Section wp_interp.
         iDestruct (pc_content_rcond with "Hrcond HφV") as "#Hnormal_p'".
         iAssert (interp_in_mem p W C v)%I as "#Hnormal".
         { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
-          iApply (interp_weakening_word_load W C p p' v); first exact Hflows.
+          iApply (interp_weakening_word_load W C p p' v with "Hth"); first exact Hflows.
           iEval (rewrite /interp_in_mem_pre) in "Hnormal_p'".
           iExact "Hnormal_p'". }
         iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hv'"; first exact Hpost.
@@ -984,7 +1009,7 @@ Section wp_interp.
         iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hk0 #Hv']".
         iModIntro. iFrame "Hworld_open Hk0".
         by iFrame "Hls Hv'".
-      + iDestruct (read_allowed_inv _ _ ea with "Hinterp_src")
+      + iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
           as (p' P Hflows Hpers) "(#Hrel & _ & #Hrcond & _)";
           [subst ea; solve_addr | by rewrite Hra |].
         assert (addr_key (Some ι) ea ∉ [k0]) as Hnotin.
@@ -1262,7 +1287,8 @@ Section wp_interp.
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C wsrc
+     {{{ thread_in th C
+           ∗ interp W C wsrc
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ[th] wsrc
@@ -1292,7 +1318,7 @@ Section wp_interp.
        }}}.
   Proof.
     iIntros (Hdecode_wi Hcorrect_pc Hpca' Hsrc_null Hdst_null φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
+      "(#Hth & #Hinterp_src & HPC & Hi & Hsrc & Hdst & Hworld_interp)".
     iIntros "Hφ".
     destruct wsrc as [wsrc π].
     destruct (is_cap wsrc) eqn:Hcap;cycle 1.
@@ -1338,7 +1364,7 @@ Section wp_interp.
     }
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
 
-    iDestruct (read_allowed_inv _ _ ea with "Hinterp_src")
+    iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
       as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)";[solve_addr|auto|..].
     iDestruct (open_world_interp_cases W C π ea p' P p g with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
@@ -1398,7 +1424,7 @@ Section wp_interp.
     iDestruct (pc_content_rcond with "Hrcond HφV") as "#Hnormal_p'".
     iAssert (interp_in_mem p W C w)%I as "#Hnormal".
     { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
-      iApply (interp_weakening_word_load W C p p' w); first exact Hflows.
+      iApply (interp_weakening_word_load W C p p' w with "Hth"); first exact Hflows.
       iEval (rewrite /interp_in_mem_pre) in "Hnormal_p'".
       iExact "Hnormal_p'". }
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hload_interp"; first exact Hpost.
@@ -1427,7 +1453,8 @@ Section wp_interp.
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C wsrc
+     {{{ thread_in th C
+           ∗ interp W C wsrc
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ[th] wsrc
@@ -1488,7 +1515,7 @@ Section wp_interp.
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
     load_key_closed wsrc s →
-    {{{ interp W C wsrc ∗
+    {{{ thread_in th C ∗ interp W C wsrc ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
         r ↦ᵣ[th] wsrc ∗
@@ -1508,7 +1535,7 @@ Section wp_interp.
           world_interp_open W C s ) }}}.
   Proof.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr Hclosed φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
+      "(#Hth & #Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
     destruct wsrc as [wsrc π].
     (* The load faults unless [wsrc] is a tagged capability that allows it *)
     destruct wsrc as [z | [ [] p g b e a | ] | | ];
@@ -1520,7 +1547,7 @@ Section wp_interp.
     apply withinBounds_true_iff in Hwb as Hbounds.
     pose proof (Hclosed p g b e a eq_refl Hwb) as Hnin_s. cbn in Hnin_s.
     (* Open the region of [a], as [wp_load_interp_imm] *)
-    iDestruct (read_allowed_inv _ _ a with "Hinterp_src")
+    iDestruct (read_allowed_inv _ _ a with "Hth Hinterp_src")
       as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |..].
     iDestruct (open_world_interp_next_cases W C s π a p' P p g
                 with "Hrel Hworld_interp")
@@ -1588,7 +1615,7 @@ Section wp_interp.
     iDestruct (pc_content_rcond with "Hrcond HφV") as "#Hnormal_p'".
     iAssert (interp_in_mem p W C w)%I as "#Hnormal".
     { iEval (rewrite /interp_in_mem /= /interp_in_mem_pre).
-      iApply (interp_weakening_word_load W C p p' w); first exact Hflows.
+      iApply (interp_weakening_word_load W C p p' w with "Hth"); first exact Hflows.
       iEval (rewrite /interp_in_mem_pre) in "Hnormal_p'".
       iExact "Hnormal_p'". }
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hload_interp"; first exact Hpost.
@@ -1617,7 +1644,7 @@ Section wp_interp.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r ≠ cnull →
-    {{{ interp W C wsrc ∗
+    {{{ thread_in th C ∗ interp W C wsrc ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
         pc_a ↦ₐ{dq} wi ∗
         r ↦ᵣ[th] wsrc ∗
@@ -1637,9 +1664,9 @@ Section wp_interp.
           world_interp W C ) }}}.
   Proof.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr φ)
-      "(#Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
+      "(#Hth & #Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
     iApply (wp_load_interp_same_open _ _ _ []
-             with "[$HPC $Hi $Hsrc $Hinterp_src Hworld_interp]"); try done.
+             with "[$Hth $HPC $Hi $Hsrc $Hinterp_src Hworld_interp]"); try done.
     { intros ? ? ? ? ? _ _. apply not_elem_of_nil. }
     { by iApply open_world_interp_empty. }
     iNext.
@@ -1659,7 +1686,8 @@ Section wp_interp.
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C (Cap p g b e a @@? π)
+     {{{ thread_in th C
+           ∗ interp W C (Cap p g b e a @@? π)
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ[th] (Cap p g b e a @@? π)
@@ -1706,7 +1734,8 @@ Section wp_interp.
     rsrc ≠ cnull ->
     rdst ≠ cnull ->
 
-     {{{ interp W C (Cap p g b e a @@? π)
+     {{{ thread_in th C
+           ∗ interp W C (Cap p g b e a @@? π)
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
            ∗ pc_a ↦ₐ wi
            ∗ rsrc ↦ᵣ[th] (Cap p g b e a @@? π)

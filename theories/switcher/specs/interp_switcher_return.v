@@ -12,7 +12,7 @@ From griotte Require Export world_ghost_theory world_interp_stack switcher_helpe
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -108,6 +108,7 @@ Section fundamental.
     registers_pointsto rmap ∗
     interp W C wca0 ∗
     interp W C wca1 ∗
+    thread_in th C ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
@@ -131,7 +132,7 @@ Section fundamental.
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
-      "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hinv_switcher & #[Hcode _] & #Htrap
+      "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hthread & #Hinv_switcher & #[Hcode _] & #Htrap
         & Hworld_interp & Hcont_K & Hna & Hcstk)".
     iDestruct (ret_regs_extract_full with "Hrmap")
       as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
@@ -287,7 +288,7 @@ Section fundamental.
       stk_unfold.
       iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna]");
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
@@ -326,7 +327,7 @@ Section fundamental.
          untrusted *)
       iDestruct "Htopmost_frm" as "#Htop_caller".
       iApply (switcher_jump_to_caller_cases_spec with
-               "Htrap Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
+               "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 Htop_caller Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
                 Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|].
       iMod "Hupd" as "[Hna Hcstk_frag]".

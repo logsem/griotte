@@ -30,7 +30,10 @@ Section error_handling_obligations.
   Lemma error_handling_fw_obligations :
     fw_obligations Σ error_handling_firmware.
   Proof.
-    apply fw_obligations_of; first reflexivity.
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
+    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -113,6 +116,9 @@ Section error_handling_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
+    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hfamily_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [error_handling_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
@@ -168,6 +174,7 @@ Section error_handling_obligations.
       as "#Hot_switcher_read".
     { iApply (stats_read_entry_point_spec Global fw_world0 C).
       - exact Hstats_switcher.
+      - exact (Hpin C).
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
     iDestruct (seal_main_export (th := UserThread 0) fw_world0 C stats_read_sb
                 with "Hseal_switcher Hot_switcher_read") as "#Hinterp_read"; [done| |].
@@ -192,10 +199,10 @@ Section error_handling_obligations.
             _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
             _ Hadv_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
-           with "Hswitcher Hswitcher_static Hadv Hadv_pers Hstack [] Hworld_C")
+           with "Hfamily_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts error_handling_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts
@@ -203,8 +210,9 @@ Section error_handling_obligations.
            Bool.eqb andb addr_off].
       fw_fold_cmpt stats_cmpt.
       fold stats_read_sb.
-      iApply interp_to_in_mem.
-      by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_read"). }
+      iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+      rewrite -(interp_global_thread_world_free (UserThread 0) t' fw_world0 ∅ C); last done.
+      iExact "Hinterp_read". }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts error_handling_firmware]. rewrite Hsb_adv.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt adv_cmpt.
@@ -218,7 +226,7 @@ Section error_handling_obligations.
     iPoseProof (error_handling_main_spec (swlayout := swl) (assertlayout := asl)
                   (statslayout := statsl) (C := C)
                   _ _ _ _ _ _ _ _ adv_f _ [] [] _
-                 with "[$Hassert $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
+                 with "[$Hassert $Hthread_C $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
                         $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C]")
       as "Hspec".

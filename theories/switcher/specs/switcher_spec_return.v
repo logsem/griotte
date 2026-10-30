@@ -44,7 +44,7 @@ End Thread_Return_Sentry.
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -74,8 +74,10 @@ Section Switcher.
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
+    (* The thread runs in the callee's compartment *)
+    thread_in th C
     (* Trusted-stack invariant *)
-    na_inv (tpool th) Ntstack trusted_stack_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
@@ -94,9 +96,9 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hswitcher & #Hstatic & Hres)".
+      "(#Hthread & #Hswitcher & #Hstatic & Hres)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
-    by iApply (switcher_ret_specification_gen with "[$Hsafety $Hres]").
+    by iApply (switcher_ret_specification_gen with "[$Hthread $Hsafety $Hres]").
   Qed.
 
   (** A return through the switcher's return entry at the thread's entry call
@@ -167,6 +169,7 @@ Section Switcher.
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     trap_no_resume w ->
 
+    thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     no_handler (top_export_tbl cstk) ∗
@@ -187,7 +190,7 @@ Section Switcher.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
                Hno_resume)
-      "#Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
+      "#Hthread #Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
     iApply (trap_safe_exception_entry mcause_ok (λ _ : Z, True%type) ⊤
               with "Hswitcher Hstatic");
       [done | set_solver | set_solver |].
@@ -206,7 +209,7 @@ Section Switcher.
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
     iApply (switcher_ret_specification _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n) with
-             "[$Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
+             "[$Hthread $Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
                $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }
     { by apply frame_match_set_top_count. }

@@ -14,7 +14,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -30,11 +30,12 @@ Section fundamental.
     PermFlowsTo p' p = true →
     LocalityFlowsTo g' g = true →
     ftlr_IH -∗
+    thread_in th C -∗
     interp W C (WCap t p g b e a @@? π) -∗
     interp W C (WCap t p' g' b e a @@? π).
   Proof.
-    intros Hp Hg. iIntros "#IH HA".
-    iApply (interp_weakening with "IH HA");eauto;try solve_addr.
+    intros Hp Hg. iIntros "#IH #Hthread HA".
+    iApply (interp_weakening with "IH Hthread HA");eauto;try solve_addr.
   Qed.
 
   Lemma SealPermPairFlows_interp_preserved W C t p p' g g' b e a π :

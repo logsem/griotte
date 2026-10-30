@@ -13,7 +13,7 @@ From griotte Require Export switcher_preamble switcher_error_state.
 Section Switcher_error_handler.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}

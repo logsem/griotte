@@ -10,6 +10,7 @@ Section WorldInterpStack.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
 
@@ -37,13 +38,16 @@ Section WorldInterpStack.
         ▷ zcond P C ∗ ▷ rcond P C p' interp ∗ ▷ wcond P C interp.
   Proof.
     iIntros "#Hinterp".
+    (* A write-local capability is Local: a Global one is not valid. *)
+    destruct g.
+    { iEval (rewrite interp_unfold /=) in "Hinterp". done. }
     iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
-    iDestruct (read_allowed_inv_full_cap with "Hinterp") as "Hrels"; first done.
+    iDestruct (write_allowed_inv_full_cap with "Hinterp") as "Hrels"; first done.
     iApply (big_sepL_impl with "Hrels"). iIntros "!> %k %x %Hx".
     rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx).
     iIntros "(%p' & %P & %Hfl & %Hpers & Hrel & Hz & Hrc & Hwc)".
-    assert (writeAllowed p' = true) as ->.
-    { eapply writeAllowed_flowsto; eauto. }
+    assert (readAllowed p' = true) as ->.
+    { eapply readAllowed_flowsto; eauto. }
     rewrite /region_rel /=.
     iDestruct "Hrel" as "(Hrel & %HT & Hmono)".
     iExists p', P. by iFrame "∗%".

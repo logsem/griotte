@@ -14,7 +14,7 @@ Section SO.
 
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -99,6 +99,7 @@ Section SO.
     (pc_b + so_label ".Lso_run")%a = Some pc_a ->
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
+    cmpt_threads C ⊆ {[th]} ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -139,7 +140,7 @@ Section SO.
     intros imports a_so_exp_tbl_cgp a_so_entry_f.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
     iIntros (Hpc_switcher Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some)
+               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some Hpin)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hso_exp_PCC
@@ -166,9 +167,13 @@ Section SO.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
-    iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_interp_C &
-      %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iIntros "!>" (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
+    iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
+      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hso_exp_eh Hso_exp_ehs".
@@ -208,7 +213,7 @@ Section SO.
       iIntros (a_f Ha_f) "(Hca0 & Hca1 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcsp)".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
-               "Hswitcher Hswitcher_static [] [-]");
+               "Hthread Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
@@ -228,7 +233,7 @@ Section SO.
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
-               "Hswitcher Hswitcher_static [] [-]");
+               "Hthread Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame).
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
@@ -248,7 +253,7 @@ Section SO.
     }
 
     (* Revoke the world and open the region of [in] *)
-    iMod (so_world_open_object with "Hinterp_W0_csp Hinterp_wca0 Hworld_interp_C Hlc")
+    iMod (so_world_open_object with "Hthread Hinterp_W0_csp Hinterp_wca0 Hworld_interp_C Hlc")
       as (l_revoked stk_mem) "(%Hextract & Hstack_revoked & Hopen_object)";
       [done|done|done|].
 
@@ -274,7 +279,7 @@ Section SO.
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l_revoked stk_mem
-                cstk Ws Cs with "Hswitcher Hswitcher_static Hno_handler [-]").
+                cstk Ws Cs with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
       8: { iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
            iModIntro; iFrame. }
@@ -297,7 +302,7 @@ Section SO.
       iDestruct "Hclose_object" as "[_ Hclose_object]".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l_revoked stk_mem
-                cstk Ws Cs with "Hswitcher Hswitcher_static Hno_handler [-]").
+                cstk Ws Cs with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
       8: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
@@ -339,7 +344,7 @@ Section SO.
     (* Reinstate [z] in the world of the call *)
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iMod (so_world_call with
-           "Hseal_switcher Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
+           "Hthread Hseal_switcher Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
             Hastk2 Hlc'")
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
            & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk2_W3)";
@@ -352,7 +357,7 @@ Section SO.
 
     (* Call to [g] *)
     iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk
               $Hinterp_wct1 $HK]").
@@ -418,7 +423,7 @@ Section SO.
 
     (* Return to the caller of [f] *)
     iApply (switcher_ret_specification W0 (revoke W4) with
-             "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
+             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
               $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing]"); eauto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap''_dom; set_solver+. }
     { iSplit; iApply interp_int. }

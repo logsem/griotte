@@ -34,7 +34,10 @@ Section hts_obligations.
   Lemma hts_fw_obligations (ot_alloc : OType) :
     fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
-    apply fw_obligations_of; first reflexivity.
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
+    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -106,6 +109,9 @@ Section hts_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
+    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hfamily_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 7 in Hentry_min_stack.
@@ -205,10 +211,10 @@ Section hts_obligations.
         apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B);
-          [exact Halloc_switcher |].
+          [exact Halloc_switcher | exact (Hpin B) |].
         iFrame "Hswitcher_static #".
       - iApply (free_entry_point_spec Global _ B);
-          [exact Halloc_switcher |].
+          [exact Halloc_switcher | exact (Hpin B) |].
         iFrame "Hswitcher_static #". }
 
     (* 10 - The allocator capability of B, sealed with the allocator's
@@ -228,7 +234,7 @@ Section hts_obligations.
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
             HB_l fw_world0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
+           with "Hfamily_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
@@ -237,19 +243,22 @@ Section hts_obligations.
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports.
       iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
-                                 with "Hswitcher Hswitcher_static").
+                                 with "Hfamily_B Hswitcher_static").
       iEval (rewrite !big_sepL_cons) in "Hseal_alloc".
       iDestruct "Hseal_alloc" as "(Hinterp_malloc & Hinterp_free & _)".
       iSplit.
-      { iApply interp_to_in_mem.
-        rewrite -Hsb0 /cmpt_export_sb /=.
-        by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_malloc"). }
+      { rewrite -Hsb0 /cmpt_export_sb /=.
+        iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' fw_world0 ∅ B); last done.
+        iExact "Hinterp_malloc". }
       iSplit.
-      { iApply interp_to_in_mem.
-        rewrite -Hsb1 /cmpt_export_sb /=.
-        by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_free"). }
+      { rewrite -Hsb1 /cmpt_export_sb /=.
+        iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' fw_world0 ∅ B); last done.
+        iExact "Hinterp_free". }
       iSplit; last done.
-      iApply (sealed_import_safe B AllocOtype _ adv_alloc_sb with "Hsealed_pred_alloc []");
+      iApply (sealed_import_safe (th := UserThread 0) B AllocOtype _ adv_alloc_sb
+               with "Hsealed_pred_alloc []");
         first done.
       { intros ? ? ? ? ? Heq; rewrite /adv_alloc_sb /allocator_capability_scap in Heq.
         injection Heq; intros; subst.
@@ -272,7 +281,7 @@ Section hts_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (hts_main_spec (swlayout := swl) (assertlayout := asl) (alloclayout := alloclayout)
                   (C := B) _ _ _ _ _ _ _ _ B_f main_owner_a _ [] [] _
-                 with "[$Hassert $Hservice $Hservice_static $Hswitcher $Hswitcher_static
+                 with "[$Hassert $Hservice $Hservice_static $Hthread_B $Hswitcher $Hswitcher_static
                         $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
                         $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data

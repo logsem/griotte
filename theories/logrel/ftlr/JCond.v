@@ -14,7 +14,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -65,7 +65,7 @@ Section fundamental.
     iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
     iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp") ; eauto.
-    iApply "IH". iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
+    iApply "IH". iApply (interp_weakening with "IH Hthread Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 
 End fundamental.

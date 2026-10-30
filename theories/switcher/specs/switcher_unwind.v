@@ -14,7 +14,7 @@ From griotte.switcher.callback Require Import switcher_zero_callee_frame.
 Section Switcher_unwind.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -55,6 +55,7 @@ Section Switcher_unwind.
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
     registers_pointsto rmap ∗
+    thread_in th C ∗
     switcher_trap_safety ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
@@ -63,7 +64,7 @@ Section Switcher_unwind.
     ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
-      "(HPC & Hrmap & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".
+      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -75,7 +76,7 @@ Section Switcher_unwind.
     iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
     iApply (switcher_return_unwind with
-             "[$HPC $Hrmap $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");
+             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     iSplit; iApply interp_int.

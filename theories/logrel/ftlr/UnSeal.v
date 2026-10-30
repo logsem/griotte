@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -56,7 +56,7 @@ Section fundamental.
       iDestruct ("Hreg" $! r1 _ Hr1) as "HVsr".
       iDestruct ("Hreg" $! r2 _ Hr2) as "HVsd".
       (* Generate interp instance before step, so we get rid of the later *)
-      iDestruct (unsealing_preserves_interp with "HVsd HVsr Hworld_interp")
+      iDestruct (unsealing_preserves_interp with "Hthread HVsd HVsr Hworld_interp")
         as "(#HVsb & Hworld_interp)"; auto.
 
       iNext.

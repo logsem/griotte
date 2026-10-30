@@ -16,7 +16,7 @@ From griotte Require Export world_ghost_theory world_interp_stack switcher_helpe
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -46,8 +46,10 @@ Section Switcher.
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
 
+    (* The thread runs in the callee's compartment *)
+    thread_in th C
     (* Trap safety of the switcher, with its invariant *)
-    switcher_trap_safety
+    ∗ switcher_trap_safety
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
     ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
@@ -78,7 +80,7 @@ Section Switcher.
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
+      "(#Hthread & #Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_interp & Hna
     & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp)".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hswitcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -233,7 +235,7 @@ Section Switcher.
       stk_unfold.
       iApply ("Htopmost_frm" with
                "[] [%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
-      $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna]");
+      $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna $Hthread]");
         [done|exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
@@ -246,7 +248,7 @@ Section Switcher.
       iDestruct (top_cmpt_untrusted_mono_pub with "Htop_caller") as "#Htop";
         first exact Hrelated_pub_W0_Wfixed.
       iApply (switcher_jump_to_caller_cases_spec with
-               "Htrap Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
+               "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
                 Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
                 Hrmap Hcont_K [Hupd]"); first done.
       { eapply frame_match_mono; eauto. }

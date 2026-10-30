@@ -11,7 +11,7 @@ From griotte Require Import vae_spec_states vae_spec_world_call vae_spec_world_r
 Section VAE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -68,6 +68,7 @@ Section VAE.
     (pc_b + vae_label ".Lvae_init")%a = Some pc_a ->
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
+    cmpt_threads C ⊆ {[th]} ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -115,7 +116,7 @@ Section VAE.
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst a_vae_exp_tbl_cgp a_vae_entry_awkward.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hpin)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hvae_exp_PCC
@@ -143,8 +144,13 @@ Section VAE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
-    iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iIntros "!>" (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
+    iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
+      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /registers_pointsto.
@@ -223,7 +229,7 @@ Section VAE.
 
     (* First call to [g] *)
     iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
               $Hinterp_W2q_wca0 $HK]").
@@ -307,7 +313,7 @@ Section VAE.
 
     (* Second call to [g] *)
     iApply (switcher_cc_specification_alt with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
               $Hinterp_W5q_wca0 $HK]").
@@ -402,7 +408,7 @@ Section VAE.
     iDestruct (stk_start_region_join with "Hstk Hstk_res") as "Hstk";
       first exact Hstk_res_size.
     iApply (switcher_ret_specification W0 (revoke W6) with
-             "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap6_dom; set_solver+. }
     { iSplit; iApply interp_int. }

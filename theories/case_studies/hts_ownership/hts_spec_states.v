@@ -6,6 +6,7 @@ From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants region_keys.
+From griotte Require Import world_interp_allocation_compartments.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Export code_blocks.
 
@@ -161,7 +162,7 @@ End HTS_Layout.
 Section HTS_States.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -310,7 +311,7 @@ Section HTS_States.
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
-      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
       (∃ w, ca0 ↦ᵣ[th] w) ∗
       (∃ w, ca1 ↦ᵣ[th] w) ∗
@@ -332,7 +333,7 @@ Section HTS_States.
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       alloc_obj ι b (b ^+ 1) ∗
-      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗

@@ -10,7 +10,7 @@ From griotte Require Import cmdc_spec_states cmdc_spec_world
 Section CMDC.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -86,6 +86,8 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
+      ∗ thread_in th B
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
@@ -146,7 +148,7 @@ Section CMDC.
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
+      "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B
@@ -205,7 +207,7 @@ Section CMDC.
 
     (* Call to B.f *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread_B $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
               $Hinterp_B_f $HentryB_f $HK]").
@@ -294,7 +296,7 @@ Section CMDC.
 
     (* Call to C.g *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread_C $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
               $Hinterp_C_g $HentryC_g $HK]").
@@ -394,6 +396,8 @@ Section CMDC.
 
     (
       assert_static b_assert e_assert a_flag
+      ∗ thread_in th B
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
@@ -435,7 +439,7 @@ Section CMDC.
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
                Hrevoked_stack_B Hrevoked_stack_C)
-      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
+      "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
       & Hworld_interp_B

@@ -10,6 +10,7 @@ Section Stack_World_Resources.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
   Implicit Types W : WORLD.
@@ -116,7 +117,7 @@ Section Stack_World_Resources.
       iApply monotone.interp_in_mem_monotone; eauto.
     }
     iSplit; first (iApply zcond_interp_in_mem).
-    iSplit; first (iApply rcond_interp_in_mem).
+    iSplit; first (by iApply rcond_interp_in_mem_nodl).
     iSplit; first (iApply wcond_interp_in_mem).
     iPureIntro. apply persistent_cond_interp_in_mem.
   Qed.

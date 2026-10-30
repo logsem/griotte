@@ -13,7 +13,7 @@ From griotte Require Import dle_spec_states.
 Section DLE_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -39,6 +39,7 @@ Section DLE_World.
     LNonHeap cgp_b ∉ dom (std W0) ->
     LNonHeap (cgp_b ^+ 1) ∉ dom (std W0) ->
     revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e) ->
+    thread_in th C -∗
     ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     world_interp (revoke W0) C -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
@@ -54,7 +55,7 @@ Section DLE_World.
   Proof.
     intros W3.
     iIntros (Hcgp_contiguous Hcgp_mmio Hcgp_range Hcgp_b Hcgp_a Hstack_revoked)
-      "#Hseal_switcher Hworld_interp_C #Hstack_revoked_W0 #Hinterp_W0_C_f Hcgp_b Hcgp_a".
+      "#Hthread #Hseal_switcher Hworld_interp_C #Hstack_revoked_W0 #Hinterp_W0_C_f Hcgp_b Hcgp_a".
     destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     set (W1 := revoke W0).
 
@@ -95,8 +96,8 @@ Section DLE_World.
         iSplit; first (iPureIntro; subst W2; cbn; by rewrite lookup_insert_eq).
         iApply mono_pub_interp_in_mem. }
       iSplit; first iApply zcond_interp_in_mem.
-      iSplit; first iApply rcond_interp_in_mem.
-      iApply wcond_interp_in_mem.
+      iSplit; first iApply (rcond_interp_in_mem with "Hthread").
+      iNext; iApply wcond_wcond_nwl; iApply wcond_interp_in_mem.
     }
 
     assert (is_heap_address (cgp_b ^+ 1) = false) as Hcgp1_nonheap.
@@ -159,7 +160,7 @@ Section DLE_World.
         iApply mono_pub_interp_in_mem_dl. }
       iSplit; first iApply zcond_interp_in_mem_dl.
       iSplit; first (iApply rcond_interp_in_mem_dl; auto).
-      iApply wcond_interp_in_mem_dl.
+      iNext; iApply wcond_wcond_nwl; iApply (wcond_interp_in_mem_dl with "Hthread").
     }
     iSplit.
     { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").

@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -61,7 +61,7 @@ Section fundamental.
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
       iDestruct ("Hreg" $! r1 _ Hr1) as "HVsr".
-      iDestruct (sealing_preserves_interp with "HVsb HVsr") as "#HVsb'"; auto.
+      iDestruct (sealing_preserves_interp with "Hthread HVsb HVsr") as "#HVsb'"; auto.
       iModIntro. iNext.
       iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       + subst regs'. by apply full_map_linsert.

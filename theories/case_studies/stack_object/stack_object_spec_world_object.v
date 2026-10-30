@@ -192,7 +192,7 @@ End SO_World_List.
 Section SO_World_Object.
   Context
     {Σ : gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg : sealStoreG Σ} {CNames : gset CmptName}
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
@@ -255,7 +255,8 @@ Section SO_World_Object.
     object ## finz.seq_between csp_b csp_e ->
     readAllowed p = true ->
     (t = true ∨ (e <= b)%a) ->
-    interp W0 C (WCap t p g b e cur @@? π)
+    thread_in th C
+    ∗ interp W0 C (WCap t p g b e cur @@? π)
     ∗ world_interp W1 C
     ∗ ▷ RevokedResources W0 C l_revoked
     ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
@@ -289,7 +290,7 @@ Section SO_World_Object.
   Proof.
     intros W1 object temps perms rest.
     iIntros (Hextract Hobject_stack Hread Htag_or_empty)
-      "(#Hinterp_wca0_W0 & Hworld_interp_C & Hl_revoked & Hstk & Hlc)".
+      "(#Hthread & #Hinterp_wca0_W0 & Hworld_interp_C & Hl_revoked & Hstk & Hlc)".
     destruct t; cycle 1.
     { destruct Htag_or_empty as [Htag | Hempty]; first discriminate.
       assert (finz.seq_between b e = []) as Hrange by
@@ -371,7 +372,7 @@ Section SO_World_Object.
 
     (* The addresses of the object that are not Temporary in [W0] are
        Global regions: open them through the world interpretation. *)
-    iDestruct (read_allowed_inv_full_cap with "Hinterp_wca0_W0")
+    iDestruct (read_allowed_inv_full_cap with "Hthread Hinterp_wca0_W0")
       as "Hinterp_wca0_invs"; auto.
     iAssert (
         ∃ (wca0_invs : list (LAddr * Perm * (CmptName * LWord -> iProp Σ))),
@@ -760,6 +761,7 @@ Section SO_World_Object.
     readAllowed p = true ->
     (t = true ∨ (e <= b)%a) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
+    thread_in th C -∗
     interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WCap t p g b e a @@? π) -∗
     world_interp W0 C -∗
@@ -792,13 +794,13 @@ Section SO_World_Object.
            RevokedResources W0 C l_revoked ∗
            [[csp_b, csp_e]] ↦ₐ [[stk_mem]])).
   Proof.
-    iIntros (Hp Htag_or_empty Hno_overlap) "#Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
+    iIntros (Hp Htag_or_empty Hno_overlap) "#Hthread #Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
       as (l_revoked) "(%Hextract & Hworld_interp_C & Hstack_revoked & _
                        & >[%stk_mem Hstk] & Hl_revoked & _)".
     iMod (stack_object_open_region_for_checkints
             W0 C t p g b e a π csp_b csp_e l_revoked stk_mem
-           with "[$Hinterp_object $Hworld_interp_C $Hl_revoked $Hstk $Hlc]")
+           with "[$Hthread $Hinterp_object $Hworld_interp_C $Hl_revoked $Hstk $Hlc]")
       as "[(%object_mem & _ & %Hobject & Hobject & Hclose) | Htomb]";
       [done|done|done|done| |].
     - iModIntro.

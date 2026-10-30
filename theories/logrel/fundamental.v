@@ -14,7 +14,7 @@ Section fundamental_generic.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
-    {CL : CritLink Σ}
+    {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -100,14 +100,45 @@ Section fundamental_generic.
 
 End fundamental_generic.
 
+(** The fundamental theorem at every thread, by one Löb induction: a Global
+    sentry made by a step runs at every thread of its compartment. *)
+Section fundamental_threads.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
+    `{MP: MachineParameters}
+  .
+
+  Lemma fundamental_all_threads :
+    ⊢ ∀ (t : Thread) (W : WORLD) (C : CmptName) (w : LWord),
+        interp (th := t) W C w -∗ interp_expression (th := t) W C w.
+  Proof.
+    iLöb as "IH".
+    iIntros (t W C w) "#Hw".
+    iIntros (cstk Ws Cs regs)
+      "(#Hthread & #Htrap & #Hreg & #Htop & HPC & Hregs & Hwres & Hcred & Hcont & Hown & Hcstk & %Hframe)".
+    iApply (ftlr_step (th := t) (λ _, True)%I (λ _, True)%I W C InterruptEnabled w
+              cstk Ws Cs regs ftlr_instr_cases Hframe
+              with "[] Hthread Htrap [] Hw Hreg Htop HPC Hregs [$Hwres $Hcred] Hcont Hown Hcstk [] []").
+    - iApply world_accessor_exclusive.
+    - by iModIntro.
+    - done.
+    - done.
+  Qed.
+
+End fundamental_threads.
+
 Section fundamental.
   Context
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
-    (trusted_fault : CSTK → LWord → LReg → iProp Σ)
   .
 
   Implicit Types W : WORLD.
@@ -120,53 +151,32 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** The fundamental theorem, by Löb induction: its induction hypothesis
-      is [ftlr_IH]. Each step is the step lemma, with the world owned by
-      the thread. *)
+  (** The fundamental theorem: its induction hypothesis is [ftlr_IH], at
+      every thread. The trap vector's safety for an untrusted fault is a
+      premise of the safe execution. *)
   Theorem fundamental W C w :
-    ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      interp W C w -∗
+    ⊢ interp W C w -∗
       interp_expression W C w.
-  Proof.
-    iIntros "#Htrap".
-    iLöb as "IH" forall (W C w).
-    iIntros "#Hw".
-    iIntros (cstk Ws Cs regs)
-      "(#Hreg & #Htop & HPC & Hregs & Hworld & Hcont & Hown & Hcstk & %Hframe)".
-    iApply (ftlr_step (λ _, True)%I (λ _, True)%I trusted_fault W C InterruptEnabled w
-              cstk Ws Cs regs ftlr_instr_cases Hframe
-              with "[] Htrap [] Hw Hreg Htop HPC Hregs [Hworld] Hcont Hown Hcstk [] []").
-    - iApply world_accessor_exclusive.
-    - by iModIntro.
-    - rewrite world_resources_exclusive. iFrame "Hworld".
-      iApply shared_credit_exclusive.
-    - done.
-    - done.
-  Qed.
+  Proof. iApply fundamental_all_threads. Qed.
 
-  (* The premise [trap_vector_safe trusted_fault (lword_of_word mtcc_vec)] is discharged in
-     the switcher by [switcher_mtcc_vec_safe]
-     (switcher/switcher_exception.v). *)
   Theorem fundamental_cap
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality)
     (b e a : Addr) (π : option AId) :
-    ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      interp W C (Cap p g b e a @@? π) →
+    ⊢ interp W C (Cap p g b e a @@? π) →
       interp_expression W C (Cap p g b e a @@? π).
   Proof.
-    iIntros "#Htrap #Hinv_interp".
-    iApply (fundamental with "Htrap Hinv_interp").
+    iIntros "#Hinv_interp".
+    iApply (fundamental with "Hinv_interp").
   Qed.
 
   (* The fundamental theorem implies the exec_cond *)
   Lemma interp_exec_cond W C p g b e a π :
     executeAllowed p = true ->
-    ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      interp W C (Cap p g b e a @@? π) -∗
+    ⊢ interp W C (Cap p g b e a @@? π) -∗
       exec_cond W C p g b e π interp.
   Proof.
-    iIntros (Hp) "#Htrap #Hw".
+    iIntros (Hp) "#Hw".
     destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
     { iIntros (a0 W' Hin). exfalso. solve_addr. }
     iDestruct (interp_exec_noid with "Hw") as %->; [done|done|].
@@ -175,12 +185,12 @@ Section fundamental.
     iDestruct (interp_cap_disjoint with "Hw") as %[_ Hdisjoint]; first done.
     destruct g.
     - iDestruct (interp_global_world_free W W' with "Hw") as "Hw'"; first done.
-      iApply (fundamental W' with "Htrap"); eauto.
+      iApply (fundamental W'); eauto.
       iApply interp_lea; eauto.
     - iDestruct "Hfuture" as %Hrelated.
       iDestruct (interp_monotone_cap_nonheap with "Hw") as "Hw'";
         [exact Hdisjoint|exact Hrelated|].
-      iApply (fundamental W' with "Htrap"); eauto.
+      iApply (fundamental W'); eauto.
       iApply interp_lea; eauto.
   Qed.
 
@@ -206,18 +216,15 @@ Section fundamental.
   Qed.
 
   Lemma fundamental_ih :
-    ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-      ftlr_IH.
+    ⊢ ftlr_IH.
   Proof.
-    iIntros "#Htrap".
     iModIntro; iNext.
-    iIntros (W C w) "Hw".
-    iApply (fundamental with "Htrap Hw").
+    iIntros (t W C w) "Hw".
+    iApply (fundamental_all_threads with "Hw").
   Qed.
 
   Lemma jmp_or_fail_spec W C (w : LWord) φ :
-    ⊢ trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
-    (interp W C w
+    ⊢ (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))
          then
            (∃ p g b e a π,
@@ -227,7 +234,7 @@ Section fundamental.
          else trap_safe (lupdatePcPerm w) ⊤ φ ∗ PC ↦ₚ[th] lupdatePcPerm w
                           -∗ WP Exec @[th] {{ φ }} )).
   Proof.
-    iIntros "#Htrap #Hw".
+    iIntros "#Hw".
     destruct (decide (isCorrectPC (updatePcPerm w.(lw)))).
     - inversion i.
       destruct w as [w π]; cbn in H.
@@ -235,7 +242,7 @@ Section fundamental.
       + destruct p; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
         iSplit;[eauto|]. iModIntro.
-        iDestruct (interp_exec_cond with "Htrap Hw") as "Hexec";[auto|].
+        iDestruct (interp_exec_cond with "Hw") as "Hexec";[auto|].
         iApply exec_wp;auto.
       + destruct p0; cbn in * ; simplify_eq.
         iExists _,_,_,_,_,_.
@@ -244,9 +251,16 @@ Section fundamental.
         iDestruct "Hw" as "[%Hnonheap #Hw]".
         rewrite /enter_cond.
         iIntros (W') "Hfuture".
-        iSpecialize ("Hw" with "Hfuture").
-        iSpecialize ("Hw" $! g0 (LocalityFlowsToReflexive g0)).
-        iExact "Hw".
+        destruct g0; iEval (cbn) in "Hw".
+        * (* A Global sentry, at the running thread of its compartment. *)
+          iApply later_interp_expr_thread_in. iIntros "#Hth".
+          iSpecialize ("Hw" $! th with "Hth").
+          iSpecialize ("Hw" with "Hfuture").
+          iSpecialize ("Hw" $! Global (LocalityFlowsToReflexive Global)).
+          iExact "Hw".
+        * iSpecialize ("Hw" with "Hfuture").
+          iSpecialize ("Hw" $! Local (LocalityFlowsToReflexive Local)).
+          iExact "Hw".
     - iIntros "[Hfailed HPC]".
       by iApply (wp_notCorrectPC_trap with "HPC Hfailed").
   Qed.

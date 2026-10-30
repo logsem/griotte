@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening proofmode.
 From griotte Require Import sts_multiple_updates.
-From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import world_ghost_theory world_interp_stack world_interp_allocation_compartments.
 From griotte Require Import cmdc_spec_states.
 
 (** * Logical steps of the proof of [cmdc_spec]
@@ -13,7 +13,7 @@ From griotte Require Import cmdc_spec_states.
 Section CMDC_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -49,7 +49,7 @@ Section CMDC_World.
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
     ={⊤}=∗
     world_interp W' C ∗
-    (LNonHeap a) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
+    (LNonHeap a) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
     interp W' C (Cap RW Global a a_e a) ∗
     interp W' C (WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
@@ -63,9 +63,9 @@ Section CMDC_World.
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
 
     (* Relinquish [a] into the world, as a Global region *)
-    iDestruct (init_PermRes C (LNonHeap a) RW interp_in_mem_gC with "[$Ha] []") as "Ha".
+    iDestruct (init_PermRes C (LNonHeap a) RW (safeGC interp_nonlocal) with "[$Ha] []") as "Ha".
     { done. }
-    { iApply interp_int. }
+    { iApply interp_nonlocal_int. }
     iMod (world_interp_extend_perm_nonheap with "Hworld Ha") as "(Hworld & #Hrel_a)"; auto.
     iModIntro.
     subst W'; rewrite /cmdc_Wshare.
@@ -99,14 +99,14 @@ Section CMDC_World.
       rewrite (finz_seq_between_empty (a ^+ 1)); last solve_addr+Ha_e.
       iApply big_sepL_singleton.
       rewrite addr_key_None.
-      iExists RW, (interp_in_mem RWL).
+      iExists RW, interp_nonlocal.
       iEval (cbn).
       iSplit; first done.
-      iSplit; first (iPureIntro; by apply persistent_cond_interp_in_mem).
+      iSplit; first (iPureIntro; apply persistent_cond_interp_nonlocal).
       iSplit; first iFrame "Hrel_a".
-      iSplit; first (iNext; by iApply zcond_interp_in_mem).
-      iSplit; first (iNext; by iApply rcond_interp_in_mem).
-      iNext; by iApply wcond_interp_in_mem.
+      iSplit; first (iNext; iApply zcond_interp_nonlocal).
+      iSplit; first (iNext; by iApply rcond_g_interp_nonlocal).
+      iNext; iApply wcond_nwl_interp_nonlocal.
     }
     done.
   Qed.
@@ -123,7 +123,7 @@ Section CMDC_World.
     callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     related_sts_pub_world (std_update_multiple (cmdc_Wshare W a) stk' Temporary) Wret ->
     world_interp (revoke Wret) C -∗
-    (LNonHeap a) ↪ᵍ[C]{RW} interp_in_mem_gC -∗
+    (LNonHeap a) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
     ◇ ∃ v, a ↦ₐ v.
   Proof.
     intros stk'.

@@ -9,7 +9,7 @@ From griotte Require Import droe_spec_states droe_spec_world
 Section DROE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -75,6 +75,7 @@ Section DROE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     (
       assert_static b_assert e_assert a_flag
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
@@ -118,7 +119,7 @@ Section DROE.
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
+      "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -179,7 +180,7 @@ Section DROE.
 
     (* Call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]").

@@ -13,7 +13,7 @@ From griotte Require Import switcher_exception.
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -45,8 +45,10 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
+    (* The thread runs in the caller's compartment *)
+    thread_in th C
     (* Trusted-stack invariant *)
-    na_inv (tpool th) Ntstack trusted_stack_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
@@ -122,14 +124,14 @@ Section Switcher.
     ⊢ safe[th].
   Proof.
     iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
-      "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+      "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
     1-7: eauto.
-    iFrame "Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
+    iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont".
     iFrame "Hentry".
     iFrame "%".
@@ -175,8 +177,10 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
+    (* The thread runs in the caller's compartment *)
+    thread_in th C
     (* Trusted-stack invariant *)
-    na_inv (tpool th) Ntstack trusted_stack_inv
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
 
     (* PRE-CONDITION *)
@@ -250,14 +254,14 @@ Section Switcher.
     ⊢ safe[th].
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
-      "(#Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+      "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
     1-7: eauto.
-    iFrame "Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
+    iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
       Hstk Hworld_interp Hstk_val Hcstk Hcont Hpost".
     iFrame "Htarget_v".
     iFrame "%".

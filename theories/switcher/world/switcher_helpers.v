@@ -10,7 +10,7 @@ Section switcher_helper.
 
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -70,11 +70,11 @@ Section switcher_helper.
         iAssert (interp W0 C (Cap RWL Local b_stk a_stk cur)) as "Hvalid".
         {
           rewrite /is_untrusted_caller_frm /=; destruct (is_untrusted_caller ccrel); auto.
-          iApply (interp_weakening _ _ true _ _ _ _ b_stk b_stk e_stk a_stk
-                   with "[]Hinterp_callee_wstk"); auto using subseg_heap_base_noid.
+          iApply (interp_weakeningEO_gen _ _ true RWL RWL Local Local b_stk b_stk e_stk a_stk
+                   with "[] Hinterp_callee_wstk"); auto using subseg_heap_base_noid.
           + solve_addr+.
           + solve_addr+Ha_stk4 He_a1 Hb_a4.
-          + iApply (fundamental_ih with "Htrap").
+          + iIntros "!>" (Hg _); discriminate Hg.
         }
 
         iDestruct (interp_WL_addr_key with "Hvalid") as %Hkeys; first done.
@@ -278,6 +278,7 @@ Section switcher_helper.
       frame_match Ws Cs cstk W C ->
 
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+      thread_in th C -∗
       interp W C wret -∗
       interp W C wcgp -∗
       interp W C wcs0 -∗
@@ -302,9 +303,12 @@ Section switcher_helper.
       £ 1 -∗
       safe[th].
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
+      iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
-      iDestruct (jmp_or_fail_spec with "Htrap Hwret") as "Hcont".
+      iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
+      iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
+      iPoseProof (shared_credit_exclusive C) as "Hcred".
+      iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
       iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
       { apply not_elem_of_dom; rewrite Hdom; set_solver+. }
@@ -334,7 +338,7 @@ Section switcher_helper.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hcont"; iFrame "HPC".
         iApply (interp_trap_safe_untrusted with
-                 "Htrap Hregs_interp Htop [$Hrmap $Hworld_interp $HK $Hna $Hcstk]");
+                 "Htrap Hthread Hregs_interp Htop [$Hrmap $Hworld_interp $Hcred $HK $Hna $Hcstk]");
           done. }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
@@ -361,6 +365,7 @@ Section switcher_helper.
       frame_match Ws Cs cstk W C ->
 
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+      thread_in th C -∗
       interp W C wret -∗
       interp W C wcgp -∗
       interp W C wcs0 -∗
@@ -388,13 +393,13 @@ Section switcher_helper.
       ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ -∗
         trap_safe w ⊤ (HO th) ).
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
+      iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
         Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
       iSplit.
       - iIntros "[HPC Hlc]".
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         iApply (switcher_jump_to_caller_spec with
-                 "Htrap Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
+                 "Htrap Hthread Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
                   Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc"); done.
       - iIntros "_".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
@@ -419,9 +424,11 @@ Section switcher_helper.
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
         iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
-                 "Htrap Hregs_interp Htop [Hrmap HK Hres]");
+                 "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres]");
           [done | done |].
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
+        iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
+        iPoseProof (shared_credit_exclusive C) as "Hcred".
         by iFrame.
     Qed.
 

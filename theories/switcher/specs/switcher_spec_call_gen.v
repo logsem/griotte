@@ -15,7 +15,7 @@ From griotte Require Import switcher_load_spec switcher_trap_safety switcher_unw
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -378,7 +378,8 @@ Section Switcher.
       iApply (interp_lea with "Hstk4v"); done. }
     iIntros (W'' HW' rcgp rcra rcs0 rcs1 warg0 warg1 rmap' stk_mem_l stk_mem_h)
       "%Hrcgp %Hrcra %Hrcs0 %Hrcs1 (HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
-    & Hca1 & #Hv' & %Hdom' & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own)".
+    & Hca1 & #Hv' & %Hdom' & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own
+    & _)".
     iApply "Hpost"; iLeft.
     iFrame "Hcls Hworld_interp HPC Hgp Hcra Hcs0 Hcs1 Hcsp Hregs Hstk Hstk' Hcont Hcstk Own Hlc".
     iSplit; first (iPureIntro; exact HW').
@@ -577,6 +578,7 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
+    thread_in th C -∗
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
@@ -615,7 +617,7 @@ Section Switcher.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hstk_mmio Hstk_heap Hdom Hrdom Hstk_revoked Hret_jalr Hret_heap)
-      "#Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost
+      "#Hthread #Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost
        (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp
        & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Hframe_csp
        & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & Hlc)".
@@ -630,7 +632,7 @@ Section Switcher.
     iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
       as (regs) "[%Hfull_regs Hregs]"; first done.
     iApply (trap_safe_unwind_logrel_of_safety W' C (cstack_push frame cstk) (W' :: Ws) (C :: Cs)
-              regs with "Hsafety [] [-]"); [done | | | |].
+              regs with "Hthread Hsafety [] [-]"); [done | | | |].
     { simpl. split; first apply related_sts_pub_refl_world. done. }
     { (* The unsealing is not the first spill *)
       apply trap_no_resume_switcher_pc. by vm_compute. }
@@ -686,6 +688,7 @@ Section Switcher.
     (a_next + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     tf_export_tbl_ok (cf_tframe frame) ->
 
+    thread_in th C -∗
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
     world_interp W' C -∗
@@ -720,8 +723,8 @@ Section Switcher.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hstk_mmio Hstk_heap Hstk_bounds Hdom Hrdom Hret_jalr Hret_heap Ha_next Ha_next_e
                Htbl_cell)
-      "#Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset Hhazard Hframe_csp
-       Hframe_cnt Htstk
+      "#Hthread #Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset Hhazard
+       Hframe_csp Hframe_cnt Htstk
        (_ & HPC & [%wcs0' Hcs0] & [%wcs1' Hcs1] & [%wct1' Hct1] & [%wct2' Hct2] & [%wctp' Hctp]
        & [%wcgp' Hcgp] & [%wcra' Hcra] & Hcsp & Hframe_tbl & Hargs & Hregs)".
     iMod (trusted_stack_inv_opened_push frame cstk with
@@ -737,7 +740,7 @@ Section Switcher.
     iApply (switcher_call_stack_too_small_unwind_of_safety W' C (cstack_push frame cstk)
               (W' :: Ws) (C :: Cs) regs);
       [done|simpl; split; [apply related_sts_pub_refl_world|done]|].
-    iFrame "HPC Hregs Hsafety Hworld_interp Hcont_frame Hna Hcstk".
+    iFrame "HPC Hregs Hthread Hsafety Hworld_interp Hcont_frame Hna Hcstk".
   Qed.
 
   Lemma switcher_cc_specification_gen
@@ -760,8 +763,10 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
+    (* The thread runs in the caller's compartment *)
+    thread_in th C
     (* Trap safety of the switcher, with its invariant *)
-    switcher_trap_safety
+    ∗ switcher_trap_safety
 
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
@@ -893,7 +898,7 @@ Section Switcher.
          invariant;
        - [switcher_call_entry_registers]: execute the entry point. *)
     iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
-      "(#Hsafety & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+      "(#Hthread & #Hsafety & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & Hstk_val & %Hstk_revoked & Hcstk & Hcont & Hpost)".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hswitcher #Hstatic]".
     iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
@@ -925,7 +930,7 @@ Section Switcher.
       iIntros (g_tstk).
       iDestruct "Hpost" as "[Hpost _]".
       iApply (switcher_cc_unseal_fault with
-               "Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost"); done. }
+               "Hthread Hsafety Hopened Hargs Hregs Hworld_interp Hstk_val Hcstk Hcont Hpost"); done. }
     { (* The trusted stack is exhausted *)
       iIntros (g_tstk).
       iDestruct "Hpost" as "[Hpost _]".
@@ -960,6 +965,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
+    iSpecialize ("Hentry_cont" $! th with "Hthread").
     iSpecialize ("Hentry_cont" $! W').
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
                     b_stk e_stk a_stk (Cap RO g_tbl b_tbl e_tbl a_tbl)).
@@ -985,7 +991,7 @@ Section Switcher.
     iNext; iSplit; cycle 1.
     { (* The callee's stack is too small *)
       iApply (switcher_cc_stack_too_small with
-               "Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset
+               "Hthread Hsafety Hopened Hworld_interp Hcstk Hcont_frame Hcells Hmtdc Hframeoffset
                 Hhazard Hframe_csp Hframe_cnt Htstk"); done. }
     iIntros (mie arg_rmap' rmap')
       "(%Hbig & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
@@ -1001,14 +1007,19 @@ Section Switcher.
     iDestruct (switcher_call_entry_registers W W' C nargs arg_rmap' rmap' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done|done|done|].
+    iPoseProof (switcher_untrusted_vec_safe_of_safety with "Hsafety") as "#Htv".
+    iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
+    iPoseProof (shared_credit_exclusive C) as "Hcred".
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
               (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
+    iSplitR; first iExact "Hthread".
+    iSplitR; first iExact "Htv".
     iSplitL "Hcont_frame"; first iExact "Hcont_frame".
     iSplit.
     { iPureIntro; simpl; split; [|split]; auto.
       apply related_sts_pub_refl_world. }
     iSplit; first (iPureIntro; split_and!; [done | reflexivity | reflexivity | exact Htbl_cell]).
-    iFrame "HPC Hregs Hregs_interp Hworld_interp Hcstk Hna".
+    iFrame "HPC Hregs Hregs_interp Hworld_interp Hcred Hcstk Hna".
     iPureIntro; split; last exact Hbig.
     cbn. rewrite (tf_caller_a_saved _ true RWL Local b_stk e_stk a_stk); [by split | done | done].
   Qed.
@@ -1036,8 +1047,10 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
+    (* The thread runs in the caller's compartment *)
+    thread_in th C
     (* Trap safety of the switcher, with its invariant *)
-    switcher_trap_safety
+    ∗ switcher_trap_safety
 
     (* PRE-CONDITION *)
     ∗ na_own (tpool th) ⊤
@@ -1127,10 +1140,10 @@ Section Switcher.
        [switcher_cc_revoke_returned] when the callee returned, and with
        [switcher_cc_revoke_exhausted] when the trusted stack was exhausted. *)
     iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
-      "(#Hsafety & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
+      "(#Hthread & #Hsafety & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont & Hpost)".
     iApply (switcher_cc_specification_gen with
-             "[$Hsafety $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget_v $Hargs $Hcs0 $Hcs1 $Hregs $Hstk
+             "[$Hthread $Hsafety $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Htarget_v $Hargs $Hcs0 $Hcs1 $Hregs $Hstk
                $Hworld_interp $Hstk_val $Hcstk $Hcont Hpost]"); [done..|].
     iSplit; first done.
     iSplit; last by iDestruct "Hpost" as "[_ $]".

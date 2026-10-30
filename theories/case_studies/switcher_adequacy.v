@@ -5,10 +5,37 @@ From griotte Require Import compartment_layout.
 From griotte Require Import switcher_base_interp.
 From griotte Require Import switcher_spec_return.
 
+(** The projections of the header of an export table are the same at any
+    two threads. *)
+Section thread_indep_handlers.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
+
+  (* TODO: move to logrel/call_stack.v *)
+  Lemma handler_stackful_thread_indep (t t' : Thread) b z :
+    handler_stackful (ceriseg := ceriseG_of t) b z ⊣⊢
+    handler_stackful (ceriseg := ceriseG_of t') b z.
+  Proof.
+    iSplit; iIntros "H"; iApply handler_stackful_intro;
+      iDestruct (handler_stackful_elim with "H") as "H";
+      by rewrite pointsto_pers_thread_indep.
+  Qed.
+
+  (* TODO: move to logrel/call_stack.v *)
+  Lemma handler_stackless_thread_indep (t t' : Thread) b z :
+    handler_stackless (ceriseg := ceriseG_of t) b z ⊣⊢
+    handler_stackless (ceriseg := ceriseG_of t') b z.
+  Proof.
+    iSplit; iIntros "H"; iApply handler_stackless_intro;
+      iDestruct (handler_stackless_elim with "H") as "H";
+      by rewrite pointsto_pers_thread_indep.
+  Qed.
+
+End thread_indep_handlers.
+
 Section helpers_switcher_adequacy.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -37,8 +64,6 @@ Section helpers_switcher_adequacy.
     intros a_tbl_cgp Hcgp_heap.
     iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
       #Hinterp_pcc #Hinterp_cgp".
-    iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
-      as "#Htrap".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The PCC and the CGP of the table are Global, so safe in every world *)
     iAssert (□ ∀ W',
@@ -54,9 +79,10 @@ Section helpers_switcher_adequacy.
     iModIntro;iNext.
 
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "( Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _ & %Htbl_ok) & HPC & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
+      "(#Hthread & #Htv & Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _ & %Htbl_ok) & HPC
+                     & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hworld_interp & %Hcsp_sync & _ & Htframe & Hna)".
+                     & Hrmap & Hworld_res & Hcred & %Hcsp_sync & _ & Htframe & Hna)".
     (* The callee, whose export table is at [b_tbl], is the topmost
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
@@ -69,7 +95,7 @@ Section helpers_switcher_adequacy.
       iIntros "!>" (W'' _).
       iApply "Hinterp_tbl". }
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
-    iDestruct (fundamental with "Htrap Hinterp_PCC") as "H_jmp".
+    iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
@@ -113,6 +139,7 @@ Section helpers_switcher_adequacy.
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     b_tbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc -∗
@@ -130,10 +157,13 @@ Section helpers_switcher_adequacy.
     safe[th].
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
-    iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
+    iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
       #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk".
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
+    iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
+    iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
+    iPoseProof (shared_credit_exclusive C) as "Hcred".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The entry compartment, at the top of the call stack, is untrusted
        and holds the thread's stack *)
@@ -165,12 +195,27 @@ Section helpers_switcher_adequacy.
     iAssert (interp_continuation (entry_cstack ef) [] []) as "Hcont".
     { by rewrite /interp_continuation /interp_cont /=. }
     iDestruct (interp_lea with "Hinterp_pcc") as "Hinterp_PC"; first done.
-    iDestruct (fundamental with "Htrap Hinterp_PC") as "H_jmp".
+    iDestruct (fundamental with "Hinterp_PC") as "H_jmp".
     iSpecialize ("H_jmp" $! (entry_cstack ef) [] [] regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
     iFrame "∗ #".
   Qed.
+
+End helpers_switcher_adequacy.
+
+(** The sealing predicate of the switcher holds for an export of an
+    untrusted compartment, at every thread of the compartment. *)
+Section ot_switcher_adequacy.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
+  .
 
   Lemma ot_switcher_interp
     (W : WORLD) (C : CmptName) (C_cmpt : cmpt)
@@ -187,7 +232,7 @@ Section helpers_switcher_adequacy.
     (a_etbl ∈ₐ [entries_etbl, e_etbl))
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
-    → na_inv (tpool th) Ntstack trusted_stack_inv
+    → switcher_family C
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp
@@ -200,7 +245,7 @@ Section helpers_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hinv_switcher #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
+    iIntros "#Hfamily #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
@@ -257,12 +302,23 @@ Section helpers_switcher_adequacy.
     iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
     { subst b_etbl1 b_etbl. by rewrite Hcgp_addr. }
-    iApply (fundamental_execute_entry_point
-              with "Hinv_switcher Hswitcher_static Hetbl_pcc [] Hetbl_eh Hetbl_ehs
+    (* At a thread [t'] of [C]: the switcher's resources from the family,
+       the table and the validity of its Global words moved to [t'] *)
+    iIntros "!>" (t') "#Ht'".
+    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hinv_t' Hstatic_t']".
+    iEval (rewrite (pointsto_pers_thread_indep th t')) in "Hetbl_pcc Hetbl_cgp".
+    iEval (rewrite (handler_stackful_thread_indep th t')) in "Hetbl_eh".
+    iEval (rewrite (handler_stackless_thread_indep th t')) in "Hetbl_ehs".
+    iEval (rewrite (interp_global_thread_world_free th t' W W C
+             (Cap RX Global b_pcc e_pcc b_pcc) eq_refl)) in "Hinterp_pcc".
+    iEval (rewrite (interp_global_thread_world_free th t' W W C
+             (Cap RW Global b_cgp e_cgp b_cgp) eq_refl)) in "Hinterp_cgp".
+    iApply (fundamental_execute_entry_point (th := t')
+              with "Hinv_t' Hstatic_t' Hetbl_pcc [] Hetbl_eh Hetbl_ehs
                     Hinterp_pcc Hinterp_cgp");
       [exact (cmpt_cgp_disjoint_from_heap C_cmpt) |].
     subst b_etbl1 b_etbl.
     rewrite Hcgp_addr; iExact "Hetbl_cgp".
   Qed.
 
-End helpers_switcher_adequacy.
+End ot_switcher_adequacy.

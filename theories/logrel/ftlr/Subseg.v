@@ -14,7 +14,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -91,7 +91,7 @@ Section fundamental.
           by (eapply llookup_reg_not_zero_not_cnull; [exact Hsrc | done]).
         rewrite llookup_reg_not_cnull // in Hsrc.
         iSpecialize ("Hreg" $! src _ Hsrc).
-        iApply (interp_weakening with "IH Hreg"); auto; try solve_addr.
+        iApply (interp_weakening with "IH Hthread Hreg"); auto; try solve_addr.
         + intros ι -> _ Hlt.
           eapply (Hprovheap src _ ι b0 e0 Hsrc); [done|done|solve_addr|done|solve_addr].
         + apply PermFlowsToReflexive.

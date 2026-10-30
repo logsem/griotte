@@ -7,10 +7,10 @@ From griotte Require Import switcher clear_registers_spec.
     The register state and the WP rule of an entry point after the switcher's
     call routine, and the sealing predicate of the switcher's otype. *)
 
-Section Switcher_sealing.
+Section Switcher_entry_point.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -111,7 +111,9 @@ Section Switcher_sealing.
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs b_stk e_stk,
-       ( interp_continuation cstk Ws Cs
+       ( thread_in th C
+         ∗ untrusted_trap_safe interp interp_continuation
+         ∗ interp_continuation cstk Ws Cs
          ∗ ⌜frame_match Ws Cs cstk W C⌝
          (* The switcher pushed a frame for the call of the compartment of the
             export table at [b_tbl], with no fault yet and the unsealed entry
@@ -122,7 +124,8 @@ Section Switcher_sealing.
          ∗ (execute_entry_point_register wcgp
               (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
          ∗ registers_pointsto regs
-         ∗ world_interp W C
+         ∗ world_resources W C
+         ∗ shared_credit C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝
          (* The switcher checked that the callee's stack holds the minimum
             stack size of the entry point plus the space reserved at its
@@ -133,6 +136,19 @@ Section Switcher_sealing.
            -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
+
+End Switcher_entry_point.
+
+Section Switcher_sealing.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
 
   (** [ot_switcher_prop] is the sealing predicate for the switcher's otype, used for sealing entry points.
       Any (regular) compartment's are sealed with this otype, and must therefore respect this predicate.
@@ -161,7 +177,7 @@ Section Switcher_sealing.
       [PCC+off] in the [PC],
       and the callee knows that its stack has at least [minstk] words.
       It is guarded by a □-modality, because the entry point can be invoked at any time,
-      in any world.
+      in any world, and by any thread of the compartment [C].
    *)
   Program Definition ot_switcher_prop :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
@@ -193,8 +209,8 @@ Section Switcher_sealing.
            "#Htbl_entry" ∷
              a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
            "#Hentry_cont" ∷
-             □ ( ∀ W',
-                   ▷ (execute_entry_point b_tbl
+             □ ( ∀ (t' : Thread), thread_in t' C -∗ ∀ W',
+                   ▷ (execute_entry_point (th := t') b_tbl
                             (Cap RX Global bpcc epcc (bpcc ^+ off))
                             (Cap RW Global bcgp ecgp bcgp)
                             nargs minstk
