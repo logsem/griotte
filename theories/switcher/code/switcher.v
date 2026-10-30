@@ -270,6 +270,7 @@ Section Switcher.
         (* [deviation] MSHWM is not rounded down to 16 bytes *)
         (* csrr gp, CSR_MSHWM *)
         csrr cgp mshwm;
+        #".Lswitch_shwm_skip_zero";
         (* bge gp, sp, .Lswitch_after_zero *)
         jge (".Lswitch_after_zero")%asm cgp csp;
         (* csetaddr ct2, csp, gp *)
