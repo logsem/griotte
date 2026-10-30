@@ -10,7 +10,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 Section Heap_Temporal_Safety_Main.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -82,6 +82,7 @@ Section Heap_Temporal_Safety_Main.
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv ∗ switcher_static
       ∗ allocator_exp_tbl_b ↦ₐ□ Cap RX Global
           allocator_pcc_b allocator_pcc_e allocator_pcc_b
@@ -139,7 +140,7 @@ Section Heap_Temporal_Safety_Main.
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
       Himports_contiguous Hstk_min Hp_fresh Hframe_match)
-      "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
+      "(#Hassert & #Hservice & #Hservice_static & #Hthread & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hcra & Hrmap & Himports & Hcode & Hdata
        & Howner & Howner_word & Hworld & HK & Hcstk & #Hadv & #Hentry
@@ -165,7 +166,7 @@ Section Heap_Temporal_Safety_Main.
     (* (b) *)
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs cstk0
-      with "[$Hctx $Hmalloc_ret]"); try done.
+      with "[$Hthread $Hctx $Hmalloc_ret]"); try done.
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
@@ -175,7 +176,7 @@ Section Heap_Temporal_Safety_Main.
     (* (d) *)
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs cstk0
-      with "[$Hctx $Hfree_ret]"); try done.
+      with "[$Hthread $Hctx $Hfree_ret]"); try done.
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e

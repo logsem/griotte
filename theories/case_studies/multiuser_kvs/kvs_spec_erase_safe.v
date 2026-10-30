@@ -9,7 +9,7 @@ From griotte Require Import
 Section KVS_spec_erase.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
@@ -168,6 +168,7 @@ Section KVS_spec_erase.
 
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     KVS_pcc_b ≠ b_switcher ->
+    cmpt_threads C ⊆ {[th]} ->
     KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
     kvs_otype_registry ∗
     kvs_static ∗
@@ -182,7 +183,7 @@ Section KVS_spec_erase.
     -∗
     ot_switcher_prop W C (Cap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.
-    intros a_kvs_exp_tbl_cgp Hpc_switcher.
+    intros a_kvs_exp_tbl_cgp Hpc_switcher Hpin.
     subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hreg & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
@@ -226,9 +227,13 @@ Section KVS_spec_erase.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
-    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
-    iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
-      %Hsync_csp & _ & Hcstk & Hna)".
+    iIntros "!>" (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
+    iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
+      & Hworld_C & _ & %Hsync_csp & _ & Hcstk & Hna)".
+    iEval (rewrite world_resources_exclusive) in "Hworld_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hkvs_exp_eh Hkvs_exp_ehs".
@@ -328,7 +333,7 @@ Section KVS_spec_erase.
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
-               with "Hinv_switcher Hswitcher_static Hno_handler [-]");
+               with "Hthread Hinv_switcher Hswitcher_static Hno_handler [-]");
         last (iModIntro; iFrame).
       { exact Hrelated_pub_W0_Wfixed. }
       { apply lregmap_full_dom in Hrmap_init.

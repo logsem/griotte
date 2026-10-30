@@ -33,7 +33,11 @@ Section kvs_obligations.
     key_main ≠ key_B →
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
-    intros Hkeys. apply fw_obligations_of; first reflexivity.
+    intros Hkeys.
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
+    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -141,6 +145,9 @@ Section kvs_obligations.
 
     (* 5 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
+    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hfamily_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (kvs_firmware ot_kvs key_main key_B) 0) with 6 in Hentry_min_stack.
@@ -243,7 +250,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
-      iApply kvs_addOrUpdate_entry_point_spec; [exact Hkvs_switcher |].
+      iApply kvs_addOrUpdate_entry_point_spec; [exact Hkvs_switcher | exact (Hpin B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
@@ -254,7 +261,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
-      iApply kvs_read_entry_point_spec; [exact Hkvs_switcher |].
+      iApply kvs_read_entry_point_spec; [exact Hkvs_switcher | exact (Hpin B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
@@ -265,7 +272,7 @@ Section kvs_obligations.
       pose proof (cmpt_exp_tbl_pcc_size kvs_cmpt) as H0.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
-      iApply kvs_erase_entry_point_spec; [exact Hkvs_switcher |].
+      iApply kvs_erase_entry_point_spec; [exact Hkvs_switcher | exact (Hpin B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
     }
@@ -328,7 +335,7 @@ Section kvs_obligations.
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
             HB_l W0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static HB HB_pers Hstack [] Hworld_B")
+           with "Hfamily_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
@@ -338,21 +345,25 @@ Section kvs_obligations.
       rewrite B_imports'.
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
-      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher Hswitcher_static").
+      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hfamily_B Hswitcher_static").
         exact Hok. }
       (* The KVS entries and the sealed user key are Global: valid in every world *)
       iApply big_sepL_cons; iSplitL.
-      { iApply interp_to_in_mem.
-        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_addOrUpdate"). }
+      { iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' W0 ∅ B); last done.
+        iExact "Hinterp_kvs_addOrUpdate". }
       iApply big_sepL_cons; iSplitL.
-      { iApply interp_to_in_mem.
-        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_read"). }
+      { iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' W0 ∅ B); last done.
+        iExact "Hinterp_kvs_read". }
       iApply big_sepL_cons; iSplitL.
-      { iApply interp_to_in_mem.
-        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_erase"). }
+      { iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' W0 ∅ B); last done.
+        iExact "Hinterp_kvs_erase". }
       iApply big_sepL_cons; iSplitL.
-      { iApply interp_to_in_mem.
-        by iApply (interp_global_world_free W0 ∅ with "Hinterp_kvs_user_key_B"). }
+      { iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' W0 ∅ B); last done.
+        iExact "Hinterp_kvs_user_key_B". }
       done. }
 
     cbn [fc_name fw_nth fw_cmpts kvs_firmware]. rewrite HsbB.
@@ -374,7 +385,7 @@ Section kvs_obligations.
     iPoseProof (Spec _ _ _ _ _ _ _ _ _ _
                   _ _ _ _ _ _
                   [] [] _
-                 with "[ $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
+                 with "[ $Hassert $Hthread_B $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
                         $Hkvs_logical_user_K
                         $Hkvs_etbl_pcc $Hkvs_etbl_cgp $Hkvs_etbl_entries_addOrUpdate $Hkvs_etbl_entries_read
                         $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs

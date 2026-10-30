@@ -6,6 +6,7 @@ From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack region_invariants.
+From griotte Require Import world_interp_allocation_compartments.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 
 (** * Ghost-only steps between the segments of [hts_main_asm] *)
@@ -13,7 +14,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 Section HTS_World_Buffer.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -47,7 +48,7 @@ End HTS_World_Buffer.
 Section HTS_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -86,7 +87,7 @@ Section HTS_World.
     StackRevokedResources W_init_C C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))
     ={E}=∗
     world_interp (hts_Wshare W_init_C ι b) C ∗
-    (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
+    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
     interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι) ∗
     StackRevokedResources (hts_Wshare W_init_C ι b) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
@@ -98,11 +99,11 @@ Section HTS_World.
     set (stk_frame_addrs := stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)).
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
     pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
-    iDestruct (init_PermRes C (LHeap b ι) RW interp_in_mem_gC (WInt 0)
+    iDestruct (init_PermRes C (LHeap b ι) RW (safeGC interp_nonlocal) (WInt 0)
       with "Hb []") as "Hbuf_perm".
     { done. }
-    { iApply interp_int. }
-    iMod (world_interp_extend_perm (revoke W_init_C) C (LHeap b ι) (WInt 0) RW interp_in_mem_gC
+    { iApply interp_nonlocal_int. }
+    iMod (world_interp_extend_perm (revoke W_init_C) C (LHeap b ι) (WInt 0) RW (safeGC interp_nonlocal)
       with "Hworld Hbuf_perm") as "(Hworld & #Hrel_b)".
     iAssert (interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
     { iEval (rewrite /hts_buffer interp_unfold /=).
@@ -111,13 +112,13 @@ Section HTS_World.
         rewrite (finz_seq_between_cons b); last solve_addr.
         rewrite (finz_seq_between_empty _ (b ^+ 1)); last solve_addr.
         iApply big_sepL_singleton.
-        iExists RW, (interp_in_mem RWL). iEval (cbn).
-        iSplit; first done. iSplit.
-        { iPureIntro; intros WCv; tc_solve. }
+        iExists RW, interp_nonlocal. iEval (cbn).
+        iSplit; first done.
+        iSplit; first (iPureIntro; apply persistent_cond_interp_nonlocal).
         iSplit; first iFrame "Hrel_b".
-        iSplit; first iApply zcond_interp_in_mem.
-        iSplit; first iApply rcond_interp_in_mem.
-        iApply wcond_interp_in_mem. }
+        iSplit; first (iNext; iApply zcond_interp_nonlocal).
+        iSplit; first (iNext; by iApply rcond_g_interp_nonlocal).
+        iNext; iApply wcond_nwl_interp_nonlocal. }
       iSplit.
       { iPureIntro. split.
         { rewrite /disjoint_from_shadow elem_of_disjoint.
@@ -152,7 +153,7 @@ Section HTS_World.
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
         (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret ->
-    (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC -∗
+    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
     free_right ι -∗
     world_interp (revoke Wret) C
     ={E}=∗
@@ -164,7 +165,7 @@ Section HTS_World.
     iIntros (Hbounds Hrelated_share_ret) "#Hrel_b Hright Hworld".
     rewrite open_world_interp_empty.
     iDestruct (open_world_interp_permanent (revoke Wret) C [] (LHeap b ι) RW
-      interp_in_mem_gC with "Hworld Hrel_b")
+      (safeGC interp_nonlocal) with "Hworld Hrel_b")
       as "(Hworld_open & Hres_b)".
     { set_solver+. }
     { apply revoke_conditions_sat. }
@@ -179,7 +180,7 @@ End HTS_World.
 Section HTS_World_Free.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -199,7 +200,7 @@ Section HTS_World_Free.
       as a tombstone, with no resources. *)
   Lemma hts_world_quarantine E ι b Wret :
     hts_buffer_bounds b ->
-    (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC -∗
+    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
     ι ⊒ AQuar -∗
     world_interp_open (revoke Wret) C [LHeap b ι]
     ={E}=∗
@@ -209,7 +210,7 @@ Section HTS_World_Free.
     iModIntro.
     rewrite /hts_Wfree open_world_interp_empty.
     iApply (close_world_interp_next_quarantined_heap_g (revoke Wret) C [] b ι RW
-      interp_in_mem_gC with "Hquar Hworld_open Hrel_b").
+      (safeGC interp_nonlocal) with "Hquar Hworld_open Hrel_b").
     { set_solver+. }
     { apply revoke_conditions_sat. }
   Qed.

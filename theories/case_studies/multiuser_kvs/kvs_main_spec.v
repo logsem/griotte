@@ -15,7 +15,7 @@ From griotte Require Import case_study_spec_helpers.
 Section KVS_main_spec.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -82,6 +82,7 @@ Section KVS_main_spec.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     (
       assert_static b_assert e_assert a_flag ∗
+      thread_in th B ∗
       na_inv (tpool th) Ntstack trusted_stack_inv ∗
       switcher_static ∗
       kvs_static ∗
@@ -128,7 +129,7 @@ Section KVS_main_spec.
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
                Hframe_match
             )
-      "(#Hassert & #Hswitcher & #Hswitcher_static
+      "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Hkvs_static & #Hkvs & #Hkvs_logical
       & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
@@ -278,7 +279,7 @@ Section KVS_main_spec.
            repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L);
            rewrite Hdom_rmap_ret; set_solver+
          | ].
-    iFrame "Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
+    iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
       Hstack_revoked_W1_free Hinterp_W1_B_f HentryB_f HK".
     iFrame "%".

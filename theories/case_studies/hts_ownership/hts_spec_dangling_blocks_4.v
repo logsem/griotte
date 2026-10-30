@@ -18,7 +18,7 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
 Section HTS_Spec_Dangling.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
@@ -48,6 +48,7 @@ Section HTS_Spec_Dangling.
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    thread_in th C ∗
     hts_ctx ∗
     free_ret ∗
     (adv2_ret -∗
@@ -55,7 +56,7 @@ Section HTS_Spec_Dangling.
     ⊢ safe[th].
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
-      HsubBounds Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
+      HsubBounds Himports_contiguous) "(#Hthread & #Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
@@ -210,7 +211,7 @@ Section HTS_Spec_Dangling.
       (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f stk
       adv_arg adv_other cstk Ws Cs 1
-      with "[- $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
+      with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
         $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free]").
     { exact Hstk_shadow. }

@@ -31,7 +31,7 @@ From griotte Require Import map_simpl register_tactics proofmode.
 Section Error_Handling_Main_Spec.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -592,6 +592,7 @@ Section Error_Handling_Main_Spec.
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     assert_static b_assert e_assert a_flag ∗
+    thread_in th C ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
@@ -620,7 +621,7 @@ Section Error_Handling_Main_Spec.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
                Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match)
-      "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
+      "(#Hassert & #Hthread & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & #Himports & #Hcode_main & Hdata
       & Hworld & HK & Hcstk & #Hinterp_adv & #Hentry_adv & #Hinterp_csp)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
@@ -684,7 +685,7 @@ Section Error_Handling_Main_Spec.
                  "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
     iApply (switcher_cc_specification W1 C _ _ _ _ csp_b csp_e (stk_start_a csp_b csp_e) adv_f
               stk_mem_free main_adv_arg_rmap _ cstk0 Ws Cs 0 with
-             "[$Hinv_switcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
+             "[$Hthread $Hinv_switcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
                $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hstack_revoked_W1_free $Hcstk $HK
                $Hinterp_W1_adv Hargs Hx]").
     all: [> exact Hstk_mmio | exact Hstk_heap | apply stk_start_cursor_ok, Hstk_res_size
