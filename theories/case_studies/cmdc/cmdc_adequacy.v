@@ -95,7 +95,7 @@ Section cmdc_obligations.
     { apply elem_of_difference. split; last set_solver+HBC.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* 4 - Close the worlds of B and C: their compartments become permanent,
+    (* 4 - Close the worlds of B and C: their compartments become Global regions,
        and the stack is revoked, because main keeps it; their exports are
        safe to share. *)
     iMod (fw_close_adv_world_revoked (th := UserThread 0)

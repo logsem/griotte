@@ -10,9 +10,9 @@ From griotte Require Import stack_object_spec_states stack_object_spec_world_cal
 Section SO.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -140,7 +140,8 @@ Section SO.
       as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
     (* Revoke the world, to get the stack frame *)
-    iMod (so_world_run_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+    iMod (so_world_run_call with "Hseal_switcher Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
       as (stk_mem) "(Hworld_interp_C & #Hinterp_W1_C_f & Hstack_revoked & %Hrevoked_stk & Hstk)".
 
     (* Blocks 0-2: fetch the imports and jump to the switcher *)

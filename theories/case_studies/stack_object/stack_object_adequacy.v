@@ -108,10 +108,7 @@ Section so_obligations.
     set (main_f := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                      (cmpt_exp_tbl_entries_end main_cmpt)
                        (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)) in *.
-    set (W0' := <o[ switcher.ot_switcher :=
-                    {[ lword_of_word (WSealable main_f);
-                       lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable main_f))
+    iAssert (ot_switcher_prop (th := UserThread 0) fw_world0 C (WSealable main_f))
       as "#Hot_switcher_main_f".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          length (@so_main_imports swl asl C_f ++ SO_main_code_run))%a)
@@ -121,7 +118,7 @@ Section so_obligations.
         rewrite length_app.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (stack_object_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0');
+                _ _ _ _ _ _ _ _ _ fw_world0);
         last iFrame "Hswitcher_static #"; auto.
       { (* The code of main is outside the switcher's: its PCC holds the
            imports *)
@@ -133,9 +130,8 @@ Section so_obligations.
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       { exact (cmpt_pcc_base_not_heap main_cmpt). }
       { exact (cmpt_cgp_base_not_heap main_cmpt). } }
-    iMod (seal_main_export fw_world0 C main_f
-           with "Hseal_switcher Hot_switcher_main_f Hworld_C")
-      as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
+    iDestruct (seal_main_export (th := UserThread 0) fw_world0 C main_f
+                with "Hseal_switcher Hot_switcher_main_f") as "#Hinterp_main_f"; [done| |].
     { intros ????? Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap main_cmpt). }
 
@@ -145,7 +141,7 @@ Section so_obligations.
        exports of C are safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts so_firmware) default_fw_cmpt) _
-            HC_l W0' C Hok eq_refl eq_refl
+            HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
            with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
@@ -160,18 +156,8 @@ Section so_obligations.
         change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
           with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f).
         fold main_f.
-        iSplit.
-        + iApply interp_to_in_mem.
-          iApply (interp_monotone_sd_same_heap W0' with "[]").
-          { by rewrite std_update_compartment_heap. }
-          { iPureIntro.
-            apply related_sts_pub_priv_world.
-            eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done). }
-          done.
-        + iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-          done.
+        iApply interp_to_in_mem.
+        by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_main_f").
       - (* C.g, the second export of C *)
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts so_firmware
              fc_name fc_body ub_exports ue_name String.eqb Ascii.eqb Bool.eqb andb addr_off].
@@ -179,15 +165,11 @@ Section so_obligations.
           as HC_len.
         cbv [fc_export_nargs fc_body fc_name fw_map ub_exports ue_nargs] in HC_len.
         fw_fold_cmpt C_cmpt.
-        iSplit.
-        + iApply interp_to_in_mem.
-          iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt so_C_entry_g with "Hexports");
-            first done.
-          rewrite -HC_len /so_C_entry_g /=; lia.
-        + iIntros (W2 W3) "!> %Hrelated Hinterp".
-          iEval (cbn) in "Hinterp".
-          iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-          done. }
+        iApply interp_to_in_mem.
+        iApply (interp_global_world_free (std_update_compartment fw_world0 C_cmpt) ∅); first done.
+        iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt so_C_entry_g with "Hexports");
+          first done.
+        rewrite -HC_len /so_C_entry_g /=; lia. }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts so_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.

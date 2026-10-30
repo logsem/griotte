@@ -157,7 +157,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of, operands_of in Hri, Dregs.
-    destruct (Hri src) as [wsrc [Hsrc _]]; first by set_solver+.
+    destruct (Hri src) as [wsrc [Hsrc _] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s & Hsrc' & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hsrc) as Hoksrc.
     pose proof (lz_of_argument_phys R regs r arg1 Hregs ltac:(intros ? ->; set_solver)) as Hz1.
@@ -181,7 +181,7 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hroot]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
-      { rewrite -Hstep. by destruct wd as [| [] | | ? []], s. }
+      { rewrite -Hstep. by destruct wd as [| [] | | ? [] ], s. }
       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
       { intros lpc' Hi. eapply Subseg_spec_untagged; eauto. }
       { intros Hi. constructor. eapply Subseg_fail_incrPC_other; eauto. }
@@ -913,7 +913,7 @@ Section griotte_lang_rules.
     { destruct sd.
       - apply reg_phys_exact. intros ι' x Ha Hι Hx. rewrite /v /= in Hι. simplify_eq.
         cbn. by intros [-> | ->]; destruct Hs.
-      - destruct Hreld as [[Heq | [_ [[(? & ? & ? & _) _] | [Hna [base Hh]]]]] _];
+      - destruct Hreld as [[Heq | [_ [[(? & ? & ? & _) _] | [Hna [base Hh] ] ] ] ] _];
           cbn in *; try discriminate.
         split; last done. right. split; first done. right.
         assert (is_heap_address b = true) as Hbh.
@@ -924,7 +924,7 @@ Section griotte_lang_rules.
         apply isWithin_implies in Hwb.
         assert (b' = b) as -> by solve_addr. assert (e' = b) as -> by solve_addr.
         split.
-        + intros [_ [b' Hab]]. apply heap_authority_base_memory_cap_bounds in Hab as (? & [= <- <-] & ? & _).
+        + intros [_ [b' Hab] ]. apply heap_authority_base_memory_cap_bounds in Hab as (? & [= <- <-] & ? & _).
           solve_addr.
         + rewrite /heap_cap_base /= Hbh. eauto. }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
@@ -936,7 +936,7 @@ Section griotte_lang_rules.
     { eapply reg_word_ok_rebase; eauto. by destruct Hs as [-> | ->]. } { exact Hstep. }
     { exact Hpv. }
     { intros. by left. } { intros. by right. }
-    iIntros (lpc' regs' retv [(-> & Hincr & ->) | [-> Hincr]]) "HPC Hmap"; subst regs v.
+    iIntros (lpc' regs' retv [(-> & Hincr & ->) | [-> Hincr] ]) "HPC Hmap"; subst regs v.
     - iApply "Hφ". iFrame "∗#". try incrementPC_inv; simplify_map_eq.
       try rewrite /linsert_reg; try (rewrite decide_False; [|done]).
       iRegsMap "Hmap"; eauto; iFrame.

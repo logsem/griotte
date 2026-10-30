@@ -10,9 +10,9 @@ From griotte Require Import dle_spec_states dle_spec_world
 Section DLE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -157,7 +157,8 @@ Section DLE.
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
-    iMod (dle_world_share with "Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+    iMod (dle_world_share with "Hseal_switcher Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
       as "(Hworld_interp_C & #Hinterp_ca0 & #Hinterp_W3_C_f & #Hstack_revoked_W3
            & %Hstack_revoked_W3)"; [done..|].
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].
@@ -217,7 +218,7 @@ Section DLE.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
 
     (* Revoke the world to get b back *)
-    iMod (dle_world_return with "Hrevoked_l' Hinterp_W3_C_f Hstack_revoked_W4")
+    iMod (dle_world_return with "Hseal_switcher Hrevoked_l' Hinterp_W3_C_f Hstack_revoked_W4")
       as "([%wcgp_b Hcgp_b] & #Hinterp_W5_C_f & #Hstack_revoked_W5)"; eauto.
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2] as ["Hct0"; "Hct1"; "Hct2"].

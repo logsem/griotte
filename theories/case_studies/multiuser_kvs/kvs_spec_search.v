@@ -661,7 +661,7 @@ Section KVS_search.
       with "[$HPC $HcgpReg $Hrkey $Hridx $Hridx_empty $HscratchReg $HKVS $Hcode Hpost]").
     iNext. iIntros "Houtcome".
     rewrite /kvs_search_outcome_resources.
-    iDestruct "Houtcome" as "[Hfound | [%Hnotin Hmissing]]".
+    iDestruct "Houtcome" as "[Hfound | [%Hnotin Hmissing] ]".
     - iDestruct "Hfound" as (idx' w') "(%Hlookup' & Hfound)".
       destruct (decide (idx = idx')) as [-> | Hidxneq].
       2: { exfalso.
@@ -753,7 +753,7 @@ Section KVS_search.
       with "[$HPC $HcgpReg $Hrkey $Hridx $Hridx_empty $HscratchReg $HKVS $Hcode Hpost]").
     iNext. iIntros "Houtcome".
     rewrite /kvs_search_outcome_resources.
-    iDestruct "Houtcome" as "[Hfound | [_ Hmissing]]".
+    iDestruct "Houtcome" as "[Hfound | [_ Hmissing] ]".
     - iDestruct "Hfound" as (idx' w') "(%Hlookup & _)".
       exfalso. apply Hnotin. apply elem_of_kvs_keys.
       eexists w', idx'; exact Hlookup.

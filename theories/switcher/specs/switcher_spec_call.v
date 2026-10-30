@@ -13,9 +13,9 @@ From griotte Require Import switcher_exception.
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -146,7 +146,7 @@ Section Switcher.
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
       & Hrmap & Hstk & Hcont & %Hloaded)".
-    destruct Hloaded as ([Hgp _] & [Hra _] & [Hs0 _] & [Hs1 _]).
+    destruct Hloaded as (Hgp & Hra & Hs0 & Hs1).
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
       as Hloaded by (repeat split; assumption).

@@ -496,7 +496,7 @@ Section heap_pointsto_lemmas.
         ι ↦st{share (finz.dist b e)} ALive)%I with "[H]" as "H".
       { iApply (big_sepL2_impl with "H"). iIntros "!>" (k a w _ _) "Ha".
         iApply (heap_pointsto_split with "Hobj Ha"). }
-      rewrite big_sepL2_sep big_sepL2_const_sepL_l. iDestruct "H" as "[$ [_ $]]".
+      rewrite big_sepL2_sep big_sepL2_const_sepL_l. iDestruct "H" as "[$ [_ $] ]".
     - iIntros "[Hmem Hs]".
       iDestruct (big_sepL2_length with "Hmem") as %Hlen.
       iAssert ([∗ list] a;w ∈ finz.seq_between b e; ws,

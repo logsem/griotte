@@ -4,80 +4,28 @@ From griotte Require Import region_invariants_revocation interp_weakening monoto
 From griotte Require Import world_ghost_theory world_std_revocation.
 From griotte Require Import world_interp_stack.
 From griotte Require Import allocator_resources heap_region.
-From griotte Require Import wp_rules_interp.
+From griotte Require Import wp_rules_interp case_study_spec_helpers.
 
 Section VAE_Return_Repair.
   Context
     {Σ : gFunctors}
-    {ceriseg : ceriseG Σ} {sealsg : sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
+    {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
-  Lemma vae_framed_resources_live
-      (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (λ a, heap_key_live (heap_std Worig) a) l ->
-    Forall (fun a => is_Some (heap_key_status (heap_std Wcur) a)) l ->
-    world_interp Wcur C ∗ RevokedResources Worig C l
-    ={⊤}=∗
-      world_interp Wcur C ∗ RevokedResources Worig C l ∗
-      ⌜Forall (λ a, heap_key_live (heap_std Wcur) a) l⌝.
-  Proof.
-    intros Hlive Hsome. iIntros "(Hworld & Hl)".
-    iDestruct (counter_framed_resources_live Worig Wcur C l Hlive Hsome
-      with "[$Hworld $Hl]") as "(Hworld & Hl & %Hcur)".
-    by iFrame "∗#%".
-  Qed.
 
-  Lemma vae_restore_quarantined
-      (Wbase Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    heap_std Wbase = heap_std Wcur ->
-    Forall
-      (fun a => heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined)
-      l ->
-    world_interp Wcur C ∗ RevokedResources Wbase C l
-    ==∗
-    world_interp (close_list l Wcur) C.
-  Proof.
-    intros Hheap Hq.
-    assert (Forall
-      (fun a => heap_key_status (heap_std (close_list l Wcur)) a =
-        Some AllocObjectQuarantined) l) as Hq_closed.
-    { rewrite close_list_heap -Hheap. exact Hq. }
-    rewrite (RevokedResources_quarantined Wbase C l Hq).
-    rewrite -(RevokedResources_quarantined (close_list l Wcur) C l Hq_closed).
-    iIntros "[Hworld Hres]".
-    iApply (world_interp_restore with "[$Hworld $Hres]").
-  Qed.
-
-  Lemma vae_world_status_some
-      (W : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (fun a => a ∈ dom (std W)) l ->
-    world_interp W C -∗
-    world_interp W C ∗
-      ⌜Forall (fun a => is_Some (heap_key_status (heap_std W) a)) l⌝.
-  Proof.
-    intros Hdom.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "@".
-    iDestruct (region_addrs_status_some W C l Hdom with "Hr")
-      as "[Hr %Hstatuses]".
-    iFrame. iPureIntro. exact Hstatuses.
-  Qed.
-
-  Lemma vae_quarantined_disjoint_stack
-      (W : WORLD) (l : list LAddr) (b e : Addr) :
+  (** Tombstoned keys are heap keys: they are disjoint from the stack. *)
+  Lemma vae_quarantined_disjoint_stack (l : list LAddr) (b e : Addr) :
     disjoint_from_heap b e ->
-    Forall
-      (fun a => heap_key_status (heap_std W) a = Some AllocObjectQuarantined)
-      l ->
+    Forall (λ a, ∃ x ι, a = LHeap x ι) l ->
     l ## (LNonHeap <$> finz.seq_between b e).
   Proof.
-    intros Hstack Hq.
+    intros _ Hq.
     rewrite elem_of_disjoint. intros a Ha Hstack_a.
-    apply list_elem_of_fmap in Hstack_a as [a' [-> Hstack_a] ].
+    apply list_elem_of_fmap in Hstack_a as [a' [-> _] ].
     rewrite Forall_forall in Hq.
-    specialize (Hq _ Ha). discriminate.
+    by destruct (Hq _ Ha) as (x & ι & ?).
   Qed.
 
   Lemma vae_repair_public_world
@@ -91,10 +39,9 @@ Section VAE_Return_Repair.
   Proof.
     intros Hpriv Hcus Hcover Hrevoked.
     pose proof Hpriv as Hpriv_full.
-    destruct Hpriv as (Hstd & _ & Hseals & Hheap).
+    destruct Hpriv as (Hstd & _).
     split; cycle 1.
-    { split; first exact Hcus.
-      split; [exact Hseals|exact Hheap]. }
+    { exact Hcus. }
     cbn. split.
     - intros a Ha.
       rewrite -close_list_dom_eq -revoke_dom_eq.
@@ -106,12 +53,6 @@ Section VAE_Return_Repair.
         pose proof (Hrevoked a Hin) as Hrev.
         eapply close_list_std_sta_revoked in Hrev; eauto.
         rewrite Ha1 in Hrev; simplify_eq.
-        apply rtc_refl.
-      + assert (std Wcur !! a = Some Permanent) as Hperm.
-        { eapply region_state_priv_perm; eauto. }
-        apply revoke_lookup_Perm in Hperm.
-        rewrite -close_list_std_sta_same_alt in Ha1; [|congruence].
-        rewrite Hperm in Ha1; simplify_eq.
         apply rtc_refl.
       + destruct rho1; try apply rtc_refl;
           apply rtc_once; constructor.
@@ -190,28 +131,48 @@ Section VAE_Return_Repair.
     - by iApply IH.
   Qed.
 
+  (** Discard cells for addresses already covered by a framed list. *)
+  Lemma vae_revoked_cells_filter (W : WORLD) (C : CmptName)
+      (l excluded : list LAddr) :
+    RevokedCells W C l -∗
+    RevokedCells W C (filter (fun a => a ∉ excluded) l).
+  Proof.
+    induction l as [|a l IH]; simpl; first (iIntros "$").
+    rewrite filter_cons. case_decide; simpl; iIntros "[Ha Hl]".
+    - iFrame "Ha". by iApply IH.
+    - by iApply IH.
+  Qed.
+
   (** Framed live resources force their current world entries to be revoked. *)
   Lemma vae_framed_resources_revoked
       (Worig Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    Forall (λ a, heap_key_live (heap_std Worig) a) l ->
     Forall (fun a => a ∈ dom (std Wcur)) l ->
     world_interp Wcur C ∗
-    RevokedResources Worig C l
+    RevokedCells Worig C l
     ={⊤}=∗
     world_interp Wcur C ∗
-    RevokedResources Worig C l ∗
+    RevokedCells Worig C l ∗
     ⌜Forall (fun a => std Wcur !! a = Some Revoked) l⌝.
   Proof.
-    intros Hlive Hdom.
-    iIntros "(Hworld & Hl)".
-    iDestruct (vae_world_status_some Wcur C l Hdom with "Hworld")
-      as "[Hworld %Hstatuses]".
-    iMod (vae_framed_resources_live Worig Wcur C l Hlive Hstatuses
-      with "[$Hworld $Hl]") as "(Hworld & Hl & %Hlive_cur)".
-    iMod (world_interp_revoked_by_separation_many_with_RevokedResources
-      Worig Wcur C l Hlive Hlive_cur Hdom with "[$Hworld $Hl]")
-      as "(Hworld & Hl & %Hrevoked)".
-    iModIntro. iFrame. done.
+    iIntros (Hdom) "[Hworld Hl]".
+    iInduction l as [|k l] "IH"; first by iFrame.
+    apply Forall_cons in Hdom as [Hk_dom Hdom].
+    iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & Hmono & HΦ) Hl]".
+    iMod ("IH" with "[//] Hworld Hl") as "(Hworld & Hl & %Hl_rev)".
+    iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
+               (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I
+      with "[Hk]" as (q) "(Hshare & Hk & Hk_back)".
+    { destruct k as [a|a ι]; cbn.
+      - iExists 1%Qp. iFrame "Hk". by iIntros "_ $".
+      - iDestruct "Hk" as "[Ha (%b & %e & %Hin & #Hobj & Hst)]".
+        iExists _. iFrame "Hst Ha". iIntros "Hst Ha". iFrame "Ha".
+        iExists b, e. by iFrame "Hobj Hst". }
+    iMod (world_interp_revoked_by_separation with "[$Hshare $Hworld $Hk]")
+      as "(Hshare & Hworld & Hk & %Hk_rev)"; first done.
+    iDestruct ("Hk_back" with "Hshare Hk") as "Hk".
+    iModIntro. iFrame "Hworld". iSplitL; [|iPureIntro; by constructor].
+    iFrame "Hl". iExists pa, Φa. iFrame "Hrel". iSplit; first done.
+    iExists wa. iFrame.
   Qed.
 
 End VAE_Return_Repair.

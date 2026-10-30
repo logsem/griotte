@@ -18,9 +18,9 @@ From griotte Require Import clear_hazard_slots_spec switcher_zero_callee_frame.
 Section Switcher_After_Compartment_Call.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -82,7 +82,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
-    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots] ]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
@@ -178,7 +178,7 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ctp ct2 *)
-    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots] ]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ctp ct2 with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".
@@ -322,7 +322,6 @@ Section Switcher_After_Compartment_Call.
     Wworld Wval C opened
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
-    heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
@@ -362,7 +361,7 @@ Section Switcher_After_Compartment_Call.
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & #Hnormal_gp & #Hnormal_ra
       & #Hnormal_s1 & #Hnormal_s0 & #Hswitcher & Hpost)".
@@ -430,7 +429,6 @@ Section Switcher_After_Compartment_Call.
     Wworld Wval C opened (ccrel : caller_callee_relation)
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
-    heap_std Wworld = heap_std Wval ->
     disjoint_from_mmio b_stk e_stk ->
     (a_stk + SpillSlot_size)%a = Some (a_stk ^+ SpillSlot_size) ->
     (b_stk <= a_stk)%a ->
@@ -475,13 +473,13 @@ Section Switcher_After_Compartment_Call.
     ⊢ safe[th].
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
-    { iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    { iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
         "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hworld
         & (Hnormal_gp & Hnormal_ra & Hnormal_s1 & Hnormal_s0) & #Hswitcher & Hpost)".
       iApply (switcher_restore_spill_interp_spec Wworld Wval C opened
         with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld
         $Hnormal_gp $Hnormal_ra $Hnormal_s1 $Hnormal_s0 $Hswitcher $Hpost]"); done. }
-    iIntros (Hheap_eq Hstk_mmio Ha_stk4 Hb_a He_a3)
+    iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
       & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & _ & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.

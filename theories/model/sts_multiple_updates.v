@@ -11,11 +11,9 @@ Section std_updates.
 
   Context {Σ:gFunctors}
     {Cname : CmptNameG}
-    {Wd : Type} {eqWd : EqDecision Wd} {countWd : Countable Wd}
     `{MP: MachineParameters}.
 
-  (* The lemmas of this file do not depend on the type of sealed words. *)
-  #[local] Notation WORLD := (prodO (prodO (prodO STS_STD STS) (leibnizO (seals_std OType Wd))) (leibnizO Heap)).
+  #[local] Notation WORLD := (leibnizO (World LAddr region_type)).
 
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -37,16 +35,6 @@ Section std_updates.
    Proof.
      induction l; auto.
    Qed.
-
-   Lemma std_update_multiple_seals W l ρ :
-     seal_std (std_update_multiple W l ρ) = seal_std W.
-   Proof.
-     induction l; auto.
-   Qed.
-
-   Lemma std_update_multiple_heap W l ρ :
-     heap_std (std_update_multiple W l ρ) = heap_std W.
-   Proof. induction l; simpl; auto. Qed.
 
    Lemma std_update_multiple_swap_head W l a1 a2 ρ :
      std_update_multiple W (a1 :: a2 :: l) ρ = std_update_multiple W (a2 :: a1 :: l) ρ.
@@ -161,7 +149,7 @@ Section std_updates.
        { rewrite (_: <s[a:=ρ]s>(std_update_multiple W l ρ) = std_update_multiple W l ρ) /=.
          { by apply related_sts_pub_refl_world. }
          rewrite /std_update insert_id /=.
-         { by destruct (std_update_multiple W l ρ) as [ [ [] ] ]. }
+         { by destruct (std_update_multiple W l ρ) as []. }
          by apply std_sta_update_multiple_lookup_in_i.
        }
        apply related_sts_pub_world_fresh; auto.
@@ -186,14 +174,13 @@ Section std_updates.
      related_sts_pub_world (std_update_multiple W l ρ) (std_update_multiple W' l ρ).
    Proof.
      intros Hrelated.
-     destruct W as [ [ [Wstd_sta [Wloc_sta Wloc_rel] ] Wseals ] W_heap ].
-     destruct W' as [ [ [ Wstd_sta' [Wloc_sta' Wloc_rel']  ] Wseals' ] W_heap' ].
-     destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related & Wseals_related).
+     destruct W as [Wstd_sta [Wloc_sta Wloc_rel] ].
+     destruct W' as [Wstd_sta' [Wloc_sta' Wloc_rel'] ].
+     destruct Hrelated as ([Hstd_dom1 Hstd_related ] & Hcus_related).
      simpl in *.
-     split;[|split]
+     split
      ; [clear Hcus_related
-       |by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta
-       |by repeat rewrite std_update_multiple_seals std_update_multiple_heap].
+       |by repeat rewrite std_update_multiple_loc_rel std_update_multiple_loc_sta].
      split.
      - apply std_update_multiple_std_sta_dom_monotone. auto.
      - intros i x y Hx Hy.
@@ -225,7 +212,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|split];[|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
+     split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -246,7 +233,7 @@ Section std_updates.
    Proof.
      intros Ha.
      rewrite /related_sts_pub_world /=.
-     split;[|split];[|apply related_sts_pub_refl|split; [apply related_sts_seals_std_refl|apply related_sts_heap_std_refl]].
+     split;[|apply related_sts_pub_refl].
      rewrite /related_sts_pub. split.
      - rewrite dom_insert_L. set_solver.
      - intros i x y Hx Hy.
@@ -271,10 +258,10 @@ Section std_updates.
        destruct (decide (a ∈ l)).
        { rewrite (_: <s[a:=Temporary]s>(std_update_multiple W l Temporary) = std_update_multiple W l Temporary) /=
          ; first by apply related_sts_pub_refl_world.
-         rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [ [ [] ] ].
+         rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [].
          by apply std_sta_update_multiple_lookup_in_i.
        }
-       destruct W as [ [Hstd Hloc] W_heap ].
+       destruct W as [Hstd Hcus Hloc].
        apply related_sts_pub_world_revoked_temporary in Ha_std.
        eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.
@@ -307,13 +294,6 @@ Section std_updates.
      std_update_keys W (LNonHeap <$> l) ρ = std_update_multiple W l ρ.
    Proof. induction l as [|a l IH]; first done. by rewrite fmap_cons /= IH. Qed.
 
-   Lemma std_update_keys_heap W l ρ :
-     heap_std (std_update_keys W l ρ) = heap_std W.
-   Proof. induction l; simpl; auto. Qed.
-
-   Lemma std_update_keys_seals W l ρ :
-     seal_std (std_update_keys W l ρ) = seal_std W.
-   Proof. induction l; simpl; auto. Qed.
 
    Lemma std_update_keys_loc W l ρ :
      loc (std_update_keys W l ρ) = loc W.
@@ -360,7 +340,7 @@ Section std_updates.
        { rewrite (_: <s[k:=ρ]s>(std_update_keys W l ρ) = std_update_keys W l ρ) /=.
          { by apply related_sts_pub_refl_world. }
          rewrite /std_update insert_id /=.
-         { by destruct (std_update_keys W l ρ) as [ [ [] ] ]. }
+         { by destruct (std_update_keys W l ρ) as []. }
          by apply std_update_keys_lookup_in.
        }
        apply related_sts_pub_world_fresh.

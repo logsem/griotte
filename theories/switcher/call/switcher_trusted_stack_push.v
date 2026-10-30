@@ -49,7 +49,7 @@ Section Switcher_Trusted_Stack_Push.
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
     (* clear_hazard_slots_asm ct2 ctp *)
-    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots]]".
+    iDestruct "Hhazard" as "[Hhazard_cell [%ws Hslots] ]".
     iDestruct (codefrag_pers_clear_hazard_slots _ _ 1 ct2 ctp with "Hcode") as "Hcode_hz";
       [done | cbn; lia |].
     iEval (rewrite /tstack_hazard_cell /hazard_slots_cap) in "Hhazard_cell".

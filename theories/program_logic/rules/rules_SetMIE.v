@@ -136,7 +136,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Htr φ) "(>HPC & >Hpc_a & HT) Hφ".
     iApply (wp_SetMIE_link with "[$HPC $Hpc_a $HT]"); eauto.
     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & HT)".
-    destruct Hspec as [p g b e a π Hpc Hx Hi | -> [p g b e a π Hpc Hx | Hi]];
+    destruct Hspec as [p g b e a π Hpc Hx Hi | -> [p g b e a π Hpc Hx | Hi] ];
       simplify_eq.
     - rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi. simplify_eq.
       iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.

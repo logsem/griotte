@@ -8,9 +8,9 @@ From griotte Require Export kvs_preamble.
 Section KVS_getFullKey.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
     {relg : relGS Σ}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ}
@@ -143,7 +143,7 @@ Section KVS_getFullKey.
     iIntros "!>" (ret)
       "[(-> & HPC & Hi & Hrdst & Hrsealkey & %Hnot_sealed) | [(% & % & % & % & % & % & %o & %wsb & %π & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & % & %spec & %Htag & %Hrange)
       | (%tsr & %psr & %gsr & %bsr & %esr & %asr & %πsr & %ot & %sb & %π
-         & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & %Hsealed & %Hinvalid)]]".
+         & -> & HPC & Hi & Hrdst & Hrsealkey & %Heq & %Hsealed & %Hinvalid)] ]".
     { (* Not a sealing range and a sealed word: the result is untagged, and
          the next instruction fails. *)
       wp_pure.

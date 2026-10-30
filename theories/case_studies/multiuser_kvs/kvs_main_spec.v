@@ -15,9 +15,9 @@ From griotte Require Import case_study_spec_helpers.
 Section KVS_main_spec.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -243,8 +243,8 @@ Section KVS_main_spec.
     set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iApply (monotone.interp_monotone_sd_same_heap W0 W1 B with "[] [Hinterp_W0_B_f]").
-      { subst W1. reflexivity. }
+    { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+      iApply (monotone.interp_monotone_sd W0 W1 B with "[] Hseal_switcher [Hinterp_W0_B_f]").
       { iPureIntro. exact Hrelared_priv_W0_W1. }
       iExact "Hinterp_W0_B_f". }
 

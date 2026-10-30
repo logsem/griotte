@@ -10,9 +10,9 @@ From griotte Require Import lse_spec_states lse_spec_world
 Section LSE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -146,7 +146,8 @@ Section LSE.
       as ["Hct0"; "Hct1"; "Hcs0"; "Hcs1"].
 
     (* Revoke the world, to get the stack frame *)
-    iMod (lse_world_call with "Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
+    iMod (lse_world_call with "Hseal_switcher Hinterp_W0_csp Hinterp_W0_C_f Hworld_interp_C")
       as (stk_mem) "(%Hrevoked_stk & Hworld_interp_C & #Hinterp_W1_C_f
                      & Hstack_revoked & Hstk)".
 

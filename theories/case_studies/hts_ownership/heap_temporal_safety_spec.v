@@ -10,9 +10,9 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 Section Heap_Temporal_Safety_Main.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -77,7 +77,6 @@ Section Heap_Temporal_Safety_Main.
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
 
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
-    heap_std W_init_C = ∅ ->
 
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     (
@@ -139,7 +138,7 @@ Section Heap_Temporal_Safety_Main.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hstk_min Hp_fresh Hheap_empty Hframe_match)
+      Himports_contiguous Hstk_min Hp_fresh Hframe_match)
       "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hcra & Hrmap & Himports & Hcode & Hdata

@@ -15,7 +15,7 @@ Ltac iRegsMap H :=
   repeat (
     iDestruct (big_sepM_insert_delete with "Hregs_map") as "[? Hregs_map]";
     repeat first [ rewrite delete_insert_eq
-                 | rewrite delete_insert_ne; [|first [done | by apply not_eq_sym]]
+                 | rewrite delete_insert_ne; [|first [done | by apply not_eq_sym] ]
                  | rewrite delete_empty ]);
   iClear "Hregs_map".
 

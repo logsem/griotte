@@ -10,9 +10,9 @@ From griotte Require Import switcher clear_registers_spec.
 Section Switcher_sealing.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -160,8 +160,8 @@ Section Switcher_sealing.
       Finally, [execute_entry_point] is called with the table base [b_tbl],
       [PCC+off] in the [PC],
       and the callee knows that its stack has at least [minstk] words.
-      It is guarded by a □-modality, because the entry point can be invoked at any time.
-      Similarly, [related_sts_priv_world].
+      It is guarded by a □-modality, because the entry point can be invoked at any time,
+      in any world.
    *)
   Program Definition ot_switcher_prop :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ):=
@@ -193,7 +193,7 @@ Section Switcher_sealing.
            "#Htbl_entry" ∷
              a_tbl ↦ₐ□ WInt (encode_entry_point posture (Z.of_nat nargs) (Z.of_nat minstk) off) ∗
            "#Hentry_cont" ∷
-             □ ( ∀ W', ⌜related_sts_priv_world W W'⌝ →
+             □ ( ∀ W',
                    ▷ (execute_entry_point b_tbl
                             (Cap RX Global bpcc epcc (bpcc ^+ off))
                             (Cap RW Global bcgp ecgp bcgp)
@@ -202,16 +202,18 @@ Section Switcher_sealing.
       )%I.
   Solve All Obligations with solve_proper.
 
-  Definition ot_switcher_propC : (WORLD * CmptName * LWord) -> iPropI Σ :=
-    safeC ot_switcher_prop.
+  Definition ot_switcher_propC : (Thread * WORLD * CmptName * LWord) -> iPropI Σ :=
+    λ x, ot_switcher_prop x.1.1.2 x.1.2 x.2.
 
-  (** Monotonicity of [ot_switcher_prop] in the world, and its stability
+  #[global] Instance ot_switcher_prop_persistent W C w :
+    Persistent (ot_switcher_prop W C w).
+  Proof. rewrite /ot_switcher_prop /=. apply _. Qed.
+
+  (** [ot_switcher_prop] does not depend on the world, and it is stable
       under [lborrow]. *)
-  Lemma mono_priv_ot_switcher (C : CmptName) (w : LWord) :
-    ⊢ future_priv_mono C ot_switcher_propC w.
+  Lemma ot_switcher_prop_world_free (W W' : WORLD) (C : CmptName) (w : LWord) :
+    ot_switcher_prop W C w -∗ ot_switcher_prop W' C w.
   Proof.
-    iIntros (W W' Hrelated_W_W').
-    iModIntro.
     iIntros "Hot_switcher".
     iEval (cbn) in "Hot_switcher".
     iEval (cbn).
@@ -219,11 +221,15 @@ Section Switcher_sealing.
     iExists g_tbl, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture,
       eh, ehs.
     repeat (iSplitR; [iPureIntro; assumption|]).
-    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry".
-    iIntros "!>" (W'' Hrelated_W'_W'').
-    iApply "Hentry_cont".
-    iPureIntro.
-    by eapply related_sts_priv_trans_world.
+    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry Hentry_cont".
+  Qed.
+
+  Lemma ot_switcher_kind_ok (C : CmptName) :
+    ⊢ seal_kind_ok SealGlobal C ot_switcher_propC.
+  Proof.
+    iSplit; first (iPureIntro; intros x; apply _).
+    iIntros "!>" (t t' W W' w) "Hot_switcher".
+    iApply (ot_switcher_prop_world_free W W' with "Hot_switcher").
   Qed.
 
   Lemma ot_switcher_prop_borrow (W : WORLD) (C : CmptName) (w : LWord) :

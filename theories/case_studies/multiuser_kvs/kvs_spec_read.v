@@ -8,9 +8,9 @@ From griotte Require Import
 Section KVS_spec_read.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
@@ -263,7 +263,7 @@ Section KVS_spec_read.
              "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -349,7 +349,7 @@ Section KVS_spec_read.
     {  solve_ndisj. }
 
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+                     & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
 
@@ -430,7 +430,7 @@ Section KVS_spec_read.
                     $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
                     $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hna
-                    & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+                    & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                     & Ha_user_key & Hm)".
 
     iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.
@@ -489,7 +489,7 @@ Section KVS_spec_read.
           cra ↦ᵣ[th] - ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ[th] - ∗ (* scratch *)
           ct1 ↦ᵣ[th] - ∗ (* scratch *)
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -629,7 +629,7 @@ Section KVS_spec_read.
           cra ↦ᵣ[th] - ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
            (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
           ctp ↦ᵣ[th] - ∗ (* scratch *)
           ct1 ↦ᵣ[th] - ∗ (* scratch *)
           ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -687,7 +687,7 @@ Section KVS_spec_read.
              "[- $Hregion $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(Hregion & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+    iNext; iIntros "(Hregion & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -746,7 +746,7 @@ Section KVS_spec_read.
          cra ↦ᵣ[th] - ∗
          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
          ctp ↦ᵣ[th] - ∗ (* scratch *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
          ct2 ↦ᵣ[th] - ∗ (* scratch *)
@@ -776,7 +776,7 @@ Section KVS_spec_read.
     {  solve_ndisj. }
 
     iNext; iIntros "(Hregion & Hna
-                     & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+                     & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
 
@@ -831,7 +831,7 @@ Section KVS_spec_read.
          cra ↦ᵣ[th] - ∗
          ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map *)
           (∃ actual, ca1 ↦ᵣ[th] actual ∗
-             ⌜load_heap w actual ∧ filter_heap W actual = actual⌝) ∗ (* result of the read *)
+             ⌜load_heap w actual⌝) ∗ (* result of the read *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
          ct2 ↦ᵣ[th] - ∗ (* scratch *)
          ctp ↦ᵣ[th] - ∗ (* scratch *)
@@ -859,7 +859,7 @@ Section KVS_spec_read.
                     $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hctp $Hct1 $Hct2
                     $Ha_user_key $Hm]"); eauto.
     iNext; iIntros "(Hregion & Hna
-                    & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual]] & Hctp & Hct1 & Hct2
+                    & HPC & Hcgp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hctp & Hct1 & Hct2
                     & Ha_user_key & Hm)".
 
     iAssert (user_kvs_inv user_key)%I with "[$Hm $Hukvs_auth]" as "Hlukvs"; auto.

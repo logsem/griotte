@@ -117,7 +117,7 @@ Proof.
   - intros Hb. unfold translate_region. rewrite Hb.
     apply withinBounds_true_iff in Hb.
     destruct (finz_incr_spec MemNum target (a - b)%Z)
-      as [(a' & Ha' & _)|[Hnone Hbad]].
+      as [(a' & Ha' & _)|[Hnone Hbad] ].
     + by exists a'.
     + solve_addr.
 Qed.

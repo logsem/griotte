@@ -680,9 +680,9 @@ Module Asm_Griotte.
     label_offset (l1 ++ ASM_Label s :: l2) s = asm_words l1.
   Proof.
     rewrite /label_offset /asm_env asm_env_aux_app.
-    destruct (asm_env_aux l1 0 []) as [env1|msg]; cbn; [|by intros []].
+    destruct (asm_env_aux l1 0 []) as [env1|msg]; cbn; [|by intros [] ].
     destruct (asm_lookup s env1); [by intros []|].
-    destruct (asm_env_aux l2 _ _) as [env'|msg] eqn:Henv; [|by intros []]. intros _.
+    destruct (asm_env_aux l2 _ _) as [env'|msg] eqn:Henv; [|by intros [] ]. intros _.
     erewrite asm_env_aux_lookup; [done|done|]. cbn. by rewrite String.eqb_refl.
   Qed.
 
@@ -692,9 +692,9 @@ Module Asm_Griotte.
     ∃ env, assemble_blocks P env 0 = Ok (assemble_block P).
   Proof.
     rewrite /assemble_block /assemble_block_check.
-    destruct (asm_symbols_check (concat P)); cbn; [|by intros []].
-    destruct (asm_env (concat P)) as [env|]; cbn; [|by intros []].
-    destruct (assemble_blocks P env 0) eqn:HP; cbn; [|by intros []].
+    destruct (asm_symbols_check (concat P)); cbn; [|by intros [] ].
+    destruct (asm_env (concat P)) as [env|]; cbn; [|by intros [] ].
+    destruct (assemble_blocks P env 0) eqn:HP; cbn; [|by intros [] ].
     intros _. split; [done|]. by exists env.
   Qed.
 

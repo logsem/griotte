@@ -164,17 +164,13 @@ Section error_handling_obligations.
        [adv] *)
     set (stats_read_sb :=
            SCap true RO Global b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
-    set (W0' := <o[ switcher.ot_switcher :=
-                    {[ lword_of_word (WSealable stats_read_sb);
-                       lword_of_word (borrow (WSealable stats_read_sb)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable stats_read_sb))
+    iAssert (ot_switcher_prop (th := UserThread 0) fw_world0 C (WSealable stats_read_sb))
       as "#Hot_switcher_read".
-    { iApply (stats_read_entry_point_spec Global W0' C).
+    { iApply (stats_read_entry_point_spec Global fw_world0 C).
       - exact Hstats_switcher.
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
-    iMod (seal_main_export fw_world0 C stats_read_sb
-           with "Hseal_switcher Hot_switcher_read Hworld_C")
-      as "(Hworld_C & #Hinterp_read)"; [done | | done |].
+    iDestruct (seal_main_export (th := UserThread 0) fw_world0 C stats_read_sb
+                with "Hseal_switcher Hot_switcher_read") as "#Hinterp_read"; [done| |].
     { intros p g b e a Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap stats_cmpt). }
 
@@ -189,12 +185,12 @@ Section error_handling_obligations.
       by (rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack; lia).
     apply Hmin_bridge in Hstk_size; clear Hmin_bridge.
 
-    (* 7 - Close the world of [adv]: its compartment becomes permanent, and
+    (* 7 - Close the world of [adv]: its compartment becomes Global regions, and
        the stack temporary; [stats_read] is safe to import; the export of
        [adv] is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
-            _ Hadv_l W0' C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
+            _ Hadv_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
            with "Hswitcher Hswitcher_static Hadv Hadv_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
@@ -207,18 +203,8 @@ Section error_handling_obligations.
            Bool.eqb andb addr_off].
       fw_fold_cmpt stats_cmpt.
       fold stats_read_sb.
-      iSplit.
-      - iApply interp_to_in_mem.
-        iApply (interp_monotone_sd_same_heap W0' with "[]").
-        { by rewrite std_update_compartment_heap. }
-        { iPureIntro.
-          apply related_sts_pub_priv_world.
-          eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done). }
-        done.
-      - iIntros (W2 W3) "!> %Hrelated Hinterp".
-        iEval (cbn) in "Hinterp".
-        iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-        done. }
+      iApply interp_to_in_mem.
+      by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_read"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts error_handling_firmware]. rewrite Hsb_adv.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt adv_cmpt.

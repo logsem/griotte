@@ -122,7 +122,7 @@ Section trap_entry_windows.
     trap_entry_out_cause P_mcause' P_mtval' w.
   Proof.
     rewrite trap_entry_out_unseal.
-    iIntros (HP_mcause HP_mtval) "[$ [(%c & %Hc & Hmcause) (%v & %Hv & Hmtval)]]".
+    iIntros (HP_mcause HP_mtval) "[$ [(%c & %Hc & Hmcause) (%v & %Hv & Hmtval)] ]".
     iSplitL "Hmcause"; [iExists c | iExists v]; iFrame; iPureIntro;
       [by apply HP_mcause | by apply HP_mtval].
   Qed.
@@ -140,7 +140,7 @@ Section trap_entry_windows.
   Proof.
     rewrite trap_vcsr_res_unseal.
     iIntros "Hsys Htok". iNamed "Hsys". iDestruct "Hwins" as "[Hwin Hwin_tval]".
-    iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause]] | Htok']"; last first.
+    iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause] ] | Htok']"; last first.
     { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
     iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.

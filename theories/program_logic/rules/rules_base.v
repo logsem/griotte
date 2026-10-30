@@ -52,7 +52,7 @@ Section griotte_lang_rules.
     - iNext. iIntros (? ? ?) "H".
       iDestruct "H" as %Hs1.
       iDestruct "H1" as %Hs2.
-      destruct (griotte_lang_determ _ _ _ _ _ _ _ _ _ _ Hs1 Hs2) as [Heq1 [Heq2 [Heq3 Heq4]]].
+      destruct (griotte_lang_determ _ _ _ _ _ _ _ _ _ _ Hs1 Hs2) as [Heq1 [Heq2 [Heq3 Heq4] ] ].
       subst. iMod "H2". iIntros "_".
       iModIntro. iFrame. inv Hs1; auto.
   Qed.

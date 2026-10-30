@@ -14,9 +14,9 @@ From griotte Require Import switcher_call_states.
 Section Switcher_Call_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -41,9 +41,7 @@ Section Switcher_Call_World.
     iDestruct "Hvalid" as "(#Hmono & #Hzcond & #Hrcond & #Hwcond & %Hpers)".
     iExists φ, p.
     iSplitR; first iApply ("Hwcond" with "Hv'").
-    iSplitR.
-    { rewrite /mono_temporary decide_True; first iApply "Hmono".
-      left; by eapply isWL_flowsto. }
+    iSplitR; first iApply "Hmono".
     iSplitL "Hrel"; first iExact "Hrel".
     iSplitR; last (iPureIntro; exact Hflow).
     iFrame "Hmono Hzcond Hrcond Hwcond"; iPureIntro; exact Hpers.
@@ -111,7 +109,7 @@ Section Switcher_Call_World.
     ([∗ list] k ↦ w ∈ lv', ⌜ lv !! k = Some w ⌝ ∨ interp W C w) -∗
     world_interp W C.
   Proof.
-    iIntros (Hlen) "[Hworld [Hsw Hst]] Hstk Hlv'".
+    iIntros (Hlen) "[Hworld [Hsw Hst] ] Hstk Hlv'".
     iDestruct (StackWorldResources_length with "Hsw") as "%Hlen_la".
     iDestruct (StackWorldResources_update with "Hsw Hlv'") as "Hsw"; first done.
     iEval (rewrite -(app_nil_r (finz.seq_between a e))) in "Hworld".
@@ -130,10 +128,11 @@ Section Switcher_Call_World.
     interp W C (Cap p g b e a @@? π) -∗ ⌜π = None⌝.
   Proof.
     iIntros (Hwl Hbe) "Hinterp".
-    iDestruct (interp_cap_regions with "Hinterp") as %[_ Hheap];
+    iDestruct (interp_cap_regions with "Hinterp") as "[_ #Hok]";
       first (apply isWL_nonO; exact Hwl).
-    iPureIntro. specialize (Hheap Hbe). destruct π as [ι|]; last done.
-    destruct Hheap as (_ & o & _ & _ & _ & _ & _ & Hnotwl). congruence.
+    destruct π as [ι|]; last done.
+    iDestruct (heap_cap_ok_id with "Hok") as %(_ & _ & Hnotwl); first exact Hbe.
+    iPureIntro. congruence.
   Qed.
 
   (** Loading a safe word gives a safe word. *)
@@ -147,26 +146,10 @@ Section Switcher_Call_World.
 
   (** ** Entry point of the callee *)
 
-  (** Since [Po] is persistent, the world interpretation is given back
-      immediately: only the sealing predicate is under a later. *)
-  Lemma world_interp_seal_pred_singleton_persistent
-    (W : WORLD) (C : CmptName) (o : OType) Po `{Hpers: ∀ WCv, Persistent (Po WCv)} (w : LWord) :
-    seal_pred o Po -∗
-    sts_seals_std C o {[ w ]} -∗
-    world_interp W C -∗
-    world_interp W C ∗ ▷ Po (W, C, lforce_global w).
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "#Hspred Hseal ($ & Hsts & Hseals)".
-    iDestruct (sealing_map_seal_pred_persistent with "Hspred Hseal Hseals Hsts")
-      as "($ & $ & H)"; eauto.
-    by rewrite normalise_sealed_words_singleton big_sepS_singleton.
-  Qed.
-
   (** The sealing predicate of [ot_switcher] describes the entry point of
       the callee, once unsealed. *)
   Lemma switcher_entry_point_prop W C (wct1 : LWord) :
-    seal_pred ot_switcher ot_switcher_propC -∗
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wct1.(lw) ot_switcher then interp W C wct1 else True) -∗
     world_interp W C -∗
     world_interp W C ∗
@@ -187,14 +170,8 @@ Section Switcher_Call_World.
     }
     destruct (get_tag_sealable wsb0) eqn:Htag; cycle 1.
     { iFrame; iIntros "!>" (wsb π Hwsb Htag'); simplify_eq; congruence. }
-    rewrite (interp_unfold _ _ (WSealed ot_switcher wsb0 @@? π0)).
-    iEval (cbn; rewrite Htag) in "Htarget_v".
-    rewrite /interp_sb.
-    iDestruct "Htarget_v" as "[#Htarget_v _]".
-    iAssert (sts_seals_std C ot_switcher {[WSealable wsb0 @@? π0]}) as "#Htarget_v'".
-    { iApply sts_seals_std_weaken; last iFrame "Htarget_v"; last set_solver+. }
-    iDestruct (world_interp_seal_pred_singleton_persistent with
-                "Hp_ot_switcher Htarget_v' Hworld_interp") as "($ & HP)".
+    iDestruct (interp_sb_elim with "Hp_ot_switcher Htarget_v") as "[#HP _]"; first done.
+    iFrame "Hworld_interp".
     iNext; iIntros (wsb π Hwsb _); simplify_eq.
     destruct wsb as [t p g b e a | t sp g b e a]; cycle 1.
     { iEval (cbn) in "HP".
@@ -210,7 +187,6 @@ Section Switcher_Call_World.
   Lemma switcher_call_entry_registers W W' C (nargs : nat)
     (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) (mie : InterruptStatus) :
     related_sts_pub_world W W' ->
-    heap_std W = heap_std W' ->
     is_arg_rmap arg_rmap' 8 ->
     dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ->
 
@@ -226,7 +202,7 @@ Section Switcher_Call_World.
       registers_pointsto regs ∗
       execute_entry_point_register wcgp wstk nargs W' C regs.
   Proof.
-    iIntros (Hrelated Hheap Harg_rmap' Hrmap')
+    iIntros (Hrelated Harg_rmap' Hrmap')
       "(Hcgp & Hcra & Hcsp & #Hstk & Hargs & Hregs)".
     iDestruct (big_sepM_sep with "Hregs") as "[Hregs #Hnil]".
     iDestruct (big_sepM_sep with "Hargs") as "[Hargs #Hval]".
@@ -272,8 +248,7 @@ Section Switcher_Call_World.
       destruct Hv as [Hv|Hv].
       + iDestruct (big_sepM_lookup with "Hval") as "Hv";[apply Hv|].
         destruct (decide (r ∈ _)) as [|Hcontra]; last set_solver+Hcontra Hr.
-        iApply (interp_monotone_same_heap with "[] Hv"); first done.
-        iPureIntro; done.
+        by iApply (interp_monotone with "[%] Hv").
       + iDestruct (big_sepM_lookup with "Hnil") as "%";eauto; simplify_eq.
         iApply interp_int.
     - iIntros (r v Hr Hv).
@@ -558,29 +533,22 @@ Section Switcher_Call_World.
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption]. solve_addr. }
     iApply interp_unfold. iSimpl.
     iSplit; last first.
-    { iPureIntro. split; first exact Hshadow. by apply heap_cap_valid_disjoint. }
+    { iSplit; first (iPureIntro; exact Hshadow). by iApply heap_cap_ok_disjoint. }
     rewrite /StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
     iApply (big_sepL_impl with "Hstk_val'").
     iIntros "!>" (k a' Ha') "Hr".
     rewrite ?addr_key_None.
-    iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & Hpers) & %Hperm_flow)".
+    iDestruct "Hr" as (φ p) "(Hφ & Hmono & Hrel & (HmonoR & Hzcond & Hrcond & Hwcond & %Hpers) & %Hperm_flow)".
     iExists p,φ.
     iSplit; first (iPureIntro; exact Hperm_flow).
-    iFrame "Hpers Hrel Hzcond".
+    iSplit; first (iPureIntro; exact Hpers).
+    iSplit.
+    { rewrite /region_rel /= /region_rel_l. iFrame "Hrel HmonoR". iPureIntro.
+      subst W'. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto. }
+    iSplit; first iFrame "Hzcond".
     iSplit.
     { erewrite readAllowed_flowsto; eauto. }
-    iSplit.
     { erewrite writeAllowed_flowsto; eauto. }
-    iSplitL "Hmono HmonoR".
-    {
-      rewrite /monoReq /monotonicity_guarantees_region.
-      erewrite isWL_flowsto; eauto.
-      subst W'.
-      rewrite std_sta_update_multiple_lookup_in_i.
-      2: { apply list_elem_of_lookup. eauto. }
-      done.
-    }
-    iPureIntro. apply std_sta_update_multiple_lookup_in_i. apply list_elem_of_lookup. eauto.
   Qed.
 
   (** Collect the registers cleared on the exhausted path of the
@@ -674,7 +642,6 @@ Section Switcher_Call_World.
 
     iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
       as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
-    { apply Forall_forall; intros x Hx. apply heap_key_live_nonheap. }
     {
       apply Forall_forall; intros a Ha.
       eapply elem_of_mono_pub;eauto.

@@ -268,9 +268,9 @@ Notation "a ↦ₑ□{irq} ie" := (entry_irq a ie)
 Section Switcher_preamble.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
@@ -392,7 +392,7 @@ Section Switcher_preamble.
   Proof.
     destruct cstk as [ef [|frm frms] ]; rewrite /cstack_interp /=.
     - iIntros "Htf". iFrame "Htf". by iIntros (n) "Htf".
-    - iIntros "[Hrest [Htf Hspill]]". iFrame "Htf". iIntros (n) "Htf". iFrame.
+    - iIntros "[Hrest [Htf Hspill] ]". iFrame "Htf". iIntros (n) "Htf". iFrame.
   Qed.
 
   (** The store-only capability to the two hazard slots of the thread, in
@@ -549,7 +549,7 @@ Section Switcher_preamble.
       entries, at the section's thread. *)
   Definition switcher_sealing_inv : iProp Σ :=
     "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
-    "#Hp_ot_switcher" ∷ seal_pred ot_switcher ot_switcher_propC.
+    "#Hp_ot_switcher" ∷ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
 
   #[global] Instance switcher_sealing_inv_persistent : Persistent switcher_sealing_inv.
   Proof. apply _. Qed.
@@ -572,7 +572,7 @@ Section Switcher_preamble.
 
   (** The predicate of the sealed export entries, from [switcher_static]. *)
   Lemma switcher_static_seal_pred :
-    switcher_static ⊢ seal_pred ot_switcher ot_switcher_propC.
+    switcher_static ⊢ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
   Proof. iIntros "(_ & _ & _ & Hsealing)". iNamed "Hsealing". iExact "Hp_ot_switcher". Qed.
 
 End Switcher_preamble.
@@ -620,9 +620,9 @@ End Switcher_Hazard.
 Section Switcher_Stack_Traps.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}

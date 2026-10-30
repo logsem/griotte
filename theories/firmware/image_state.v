@@ -115,7 +115,7 @@ Definition canon_word (w : Word) : Word :=
   end.
 
 Lemma canon_word_id w : canon_word w = w.
-Proof. destruct w as [| [] | |o []]; cbn; rewrite ?canon_finz_id; done. Qed.
+Proof. destruct w as [| [] | |o [] ]; cbn; rewrite ?canon_finz_id; done. Qed.
 
 Lemma canon_word_eq (w1 w2 : Word) : canon_word w1 = canon_word w2 → w1 = w2.
 Proof. by rewrite !canon_word_id. Qed.

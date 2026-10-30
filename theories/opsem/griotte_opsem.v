@@ -201,7 +201,7 @@ Proof.
   destruct (get_tag w) eqn:Ht.
   - by destruct (Hok eq_refl) as [-> ->].
   - destruct (is_sealb w && executable_word w); first done.
-    destruct w as [| [] | | ? []]; cbn in *; by subst.
+    destruct w as [| [] | | ? [] ]; cbn in *; by subst.
 Qed.
 
 Lemma legalise_mstatus w :
@@ -215,13 +215,13 @@ Proof. by rewrite legalise_mstatus /= mie_of_mstatus_enc mpie_of_mstatus_enc. Qe
 Lemma legalise_clear_tag sr w : legalise sr (clear_tag w) = clear_tag (legalise sr w).
 Proof.
   destruct sr; cbn; rewrite ?get_a_clear_tag //.
-  all: rewrite /legalise_pc; destruct w as [| [] | | ? []]; cbn; by repeat case_match.
+  all: rewrite /legalise_pc; destruct w as [| [] | | ? [] ]; cbn; by repeat case_match.
 Qed.
 
 Lemma legalise_idemp sr w : legalise sr (legalise sr w) = legalise sr w.
 Proof.
   destruct sr; cbn; try done.
-  1,2: rewrite /legalise_pc; destruct w as [| [] | | ? []]; cbn;
+  1,2: rewrite /legalise_pc; destruct w as [| [] | | ? [] ]; cbn;
        repeat case_match; cbn in *; congruence.
   by rewrite mie_of_mstatus_enc mpie_of_mstatus_enc.
 Qed.
@@ -683,6 +683,12 @@ Section opsem.
         inl (FaultCheri SealViolation (CheriGPR r))
     | _ => inl (FaultCheri TagViolation (CheriGPR r))
     end.
+
+  (** An untagged capability fails the first check. *)
+  Lemma data_cap_check_clear_tag perm_ok perm_code r (w : Word) imm :
+    data_cap_check perm_ok perm_code r (clear_tag w) imm =
+      inl (FaultCheri TagViolation (CheriGPR r)).
+  Proof. by destruct w as [ | [ | ] | | ? [ | ] ]. Qed.
 
   (** The fault of [CLoad _ src imm], in cheriot-sail's order of checks: the
       checks of the capability in [src], and then an access fault at the

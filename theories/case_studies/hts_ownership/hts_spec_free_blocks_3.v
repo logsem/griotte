@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost.
+From griotte Require Import world_interp_stack region_invariants.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
 
@@ -17,9 +17,9 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_
 Section HTS_Reload.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}.
 
   Definition hts_reload_buffer_instrs : list Word :=
@@ -71,9 +71,9 @@ End HTS_Reload.
 Section HTS_Spec_Free.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -137,7 +137,7 @@ Section HTS_Spec_Free.
        entry. *)
     iMod (hts_world_reopen_live C csp_b csp_e W_init_C _ ι b Wret
       Hbounds Hrelated_share_ret with "Hrel_b Hright Hworld")
-      as (v_b) "(%Hι_ret & %Hstd_rev & Hworld_open & Hstate_b & Hright
+      as (v_b) "(Hworld_open & Hright
         & [Hb Hb_share])".
 
     codefrag_facts "Hcode_main". clear H0.

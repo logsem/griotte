@@ -8,9 +8,9 @@ From griotte Require Import switcher_spec_return.
 Section helpers_switcher_adequacy.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -30,8 +30,7 @@ Section helpers_switcher_adequacy.
     interp W C (Cap RX Global b_pcc e_pcc b_pcc) -∗
     interp W C (Cap RW Global b_cgp e_cgp b_cgp) -∗
     □ ∀ (W' : WORLD),
-    ⌜related_sts_priv_world W W'⌝
-    → ▷ execute_entry_point b_tbl
+    ▷ execute_entry_point b_tbl
         (Cap RX Global b_pcc e_pcc (b_pcc ^+ off)) (Cap RW Global b_cgp e_cgp b_cgp)
         args minstk W' C.
   Proof.
@@ -41,19 +40,16 @@ Section helpers_switcher_adequacy.
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
-    (* The PCC and the CGP of the table are safe in every private future world *)
-    iAssert (□ ∀ W', ⌜related_sts_priv_world W W'⌝ →
+    (* The PCC and the CGP of the table are Global, so safe in every world *)
+    iAssert (□ ∀ W',
                interp W' C (Cap RX Global b_pcc e_pcc b_pcc) ∗
                interp W' C (Cap RW Global b_cgp e_cgp b_cgp))%I
       as "#Hinterp_tbl".
-    { iIntros "!>" (W' Hrelated).
-      iSplit.
-      - iApply (interp_monotone_nl_cap_nonheap W W' C true RX Global
-                  b_pcc e_pcc b_pcc Hpcc_heap Hrelated eq_refl with "Hinterp_pcc").
-      - iApply (interp_monotone_nl_cap_nonheap W W' C true RW Global
-                  b_cgp e_cgp b_cgp Hcgp_heap Hrelated eq_refl with "Hinterp_cgp"). }
-    iIntros (W' Hrelated).
-    iDestruct ("Hinterp_tbl" $! W' Hrelated) as "[Hinterp_pcc' Hinterp_cgp']".
+    { iIntros "!>" (W').
+      iSplit; [iApply (interp_global_world_free W W' with "Hinterp_pcc")
+              |iApply (interp_global_world_free W W' with "Hinterp_cgp")]; done. }
+    iIntros (W').
+    iDestruct ("Hinterp_tbl" $! W') as "[Hinterp_pcc' Hinterp_cgp']".
     iDestruct (interp_lea with "Hinterp_pcc'") as "Hinterp_PCC"; first done.
     iModIntro;iNext.
 
@@ -70,16 +66,15 @@ Section helpers_switcher_adequacy.
       iSplit; last done.
       iExists _, _, eh, ehs. iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs".
       iSplit; last (iPureIntro; by apply tf_export_tbl_ok_nonzero).
-      iIntros "!>" (W'' Hrelated').
-      iApply "Hinterp_tbl". iPureIntro.
-      by eapply related_sts_priv_trans_world. }
+      iIntros "!>" (W'' _).
+      iApply "Hinterp_tbl". }
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Htrap Hinterp_PCC") as "H_jmp".
     iSpecialize ("H_jmp" $! cstk Ws Cs regs).
     iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
     iApply "H_jmp".
     iFrame "∗%#".
-    iIntros (r v Hr). iApply interp_filter_heap.
+    iIntros (r v Hr).
     destruct (decide (r = cgp)) as [-> | Hrcgp].
     { rewrite Hregs_cgp in Hr ; simplify_eq.
       iExact "Hinterp_cgp'".

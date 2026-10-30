@@ -23,9 +23,9 @@ From griotte Require Export code_blocks.
 Section Switcher_call_args.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -170,9 +170,9 @@ End Switcher_call_args.
 Section Fresh_stack.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -256,9 +256,9 @@ Qed.
 Section Register_maps.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -401,3 +401,32 @@ Ltac solve_not_shadow H :=
 
 Ltac solve_not_heap H :=
   eapply disjoint_from_heap_not_in; [exact H | rewrite /withinBounds; solve_addr].
+
+(** ** Revoked keys that hold their cells *)
+Section Revoked_Cells.
+  Context
+    {Σ : gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    `{MP : MachineParameters}.
+
+  (** Revoked keys whose resources hold their cells: no tombstone among
+      them. *)
+  Definition RevokedCells (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
+    [∗ list] a ∈ s,
+      ∃ pa Φa,
+        ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
+        a ↪ˡ[C]{pa} Φa ∗
+        ∃ wa, ⌜isO pa = false⌝ ∗ a ↦ₖ wa ∗ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa).
+
+  Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
+    RevokedCells W C s -∗ RevokedResources W C s.
+  Proof.
+    iIntros "H". iApply (big_sepL_impl with "H").
+    iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
+    iExists pa, Φa. iFrame "Hrel". iSplit; first done.
+    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
+  Qed.
+End Revoked_Cells.

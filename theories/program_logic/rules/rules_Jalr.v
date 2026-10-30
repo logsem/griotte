@@ -64,7 +64,7 @@ Section griotte_lang_rules.
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of, operands_of in Hri, Dregs.
-    destruct (Hri rsrc) as [wsrc [H'rsrc _]]; first by set_solver+.
+    destruct (Hri rsrc) as [wsrc [H'rsrc _] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'rsrc) as (s & Hrsrc & Hrel).
     pose proof (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs H'rsrc) as Hoksrc.
     pose proof (er_pc_word _ _ _ _ _ _ _ Her) as HokPC.

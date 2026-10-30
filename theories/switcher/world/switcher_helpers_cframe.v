@@ -9,9 +9,9 @@ Section switcher_helpers_cframe.
 
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
   .
@@ -24,47 +24,18 @@ Section switcher_helpers_cframe.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma temp_resources_mono_pub W W' C φ a p :
-    related_sts_pub_world W W' ->
-    temp_resources W C φ a p -∗
-    temp_resources W' C φ a p.
-  Proof.
-    iIntros (Hrelated) "Htemp".
-    iDestruct "Htemp" as (v) "(%Hp & Ha & #Hmono & Hφ)".
-    iExists v. iFrame "Ha Hmono %".
-    destruct (isWL p); last destruct (isDL p);
-      iApply ("Hmono" with "[] Hφ").
-    all: try (iPureIntro; exact Hrelated).
-    iPureIntro. by apply related_sts_pub_priv_world.
-  Qed.
-
   Lemma world_interp_close_resources_to_RevokedResources Wcur Wsrc C lfull l :
     related_sts_pub_world Wsrc (close_list lfull Wcur) ->
     world_interp Wcur C -∗
-    close_list_resources C Wsrc l false -∗
+    RevokedResources Wsrc C l -∗
     world_interp Wcur C ∗
     RevokedResources (close_list lfull Wcur) C l.
   Proof.
     iIntros (Hrelated) "Hworld Hres".
     iSplitL "Hworld"; first done.
-    iAssert (RevokedResources Wsrc C l) with "[Hres]" as "Hres".
-    { rewrite (RevokedResources_eq_all Wsrc C l). iExact "Hres". }
     iApply (RevokedResources_mono_pub Wsrc (close_list lfull Wcur) C l l
       with "Hres").
     exact Hrelated.
-  Qed.
-
-  Lemma world_interp_rel_status_some W C a p φ :
-    world_interp W C -∗
-    rel C (LNonHeap a) p φ -∗
-    world_interp W C ∗
-    ⌜is_Some (heap_key_status (heap_std W) (LNonHeap a))⌝.
-  Proof.
-    rewrite world_interp_eq /world_interp_def.
-    iIntros "@ Hrel".
-    iDestruct (region_rel_dom with "Hr Hrel") as "[Hr %Hdom]".
-    iDestruct (region_addr_status_some W C a Hdom with "Hr") as "[Hr %Hstatus]".
-    iFrame. iPureIntro. exact Hstatus.
   Qed.
 
   (** Helper lemmas for switcher. The lemmas with the suffix [_aux] are
@@ -288,12 +259,9 @@ Section switcher_helpers_cframe.
                  ∃ (p : Perm) (φ : WORLD * CmptName * LWord → iPropI Σ),
                    ⌜∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)⌝
                                                     ∗ (⌜isO p = false⌝
-                                                       ∗ (if isWL p
-                                                          then future_pub_mono C φ (WInt 0)
-                                                          else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
-                                                         )
+                                                       ∗ future_pub_mono C φ (WInt 0)
                                                        ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, lword_of_word (WInt 0))))
-                                                    ∗ rel C (LNonHeap a) p φ
+                                                    ∗ (LNonHeap a) ↪ˡ[C]{p} φ
               )
         )
       else
@@ -411,28 +379,28 @@ Section switcher_helpers_cframe.
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C a_stk cur b_stk e_stk RWL Local None
           Hbound0 I with "Hinterp_callee_wstk")
-          as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & Hrel_astk0 & _ & Hwcond_astk0 & Hrcond_astk0 & _)".
+          as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & (#Hrel_astk0 & _ & _) & _ & Hwcond_astk0 & Hrcond_astk0)".
         assert (addr_key None a_stk = LNonHeap a_stk) as Hkey_astk0 by done.
         rewrite Hkey_astk0.
         assert ((a_stk ^+1) ∈ₐ [b_stk, e_stk)) as Hbound1
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+1) cur b_stk e_stk RWL Local None
           Hbound1 I with "Hinterp_callee_wstk")
-          as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & Hrel_astk1 & _ & Hwcond_astk1 & Hrcond_astk1 & _)".
+          as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & (#Hrel_astk1 & _ & _) & _ & Hwcond_astk1 & Hrcond_astk1)".
         assert (addr_key None (a_stk ^+1) = LNonHeap (a_stk ^+1)) as Hkey_astk1 by done.
         rewrite Hkey_astk1.
         assert ((a_stk ^+2) ∈ₐ [b_stk, e_stk)) as Hbound2
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+2) cur b_stk e_stk RWL Local None
           Hbound2 I with "Hinterp_callee_wstk")
-          as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & Hrel_astk2 & _ & Hwcond_astk2 & Hrcond_astk2 & _)".
+          as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & (#Hrel_astk2 & _ & _) & _ & Hwcond_astk2 & Hrcond_astk2)".
         assert (addr_key None (a_stk ^+2) = LNonHeap (a_stk ^+2)) as Hkey_astk2 by done.
         rewrite Hkey_astk2.
         assert ((a_stk ^+3) ∈ₐ [b_stk, e_stk)) as Hbound3
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+3) cur b_stk e_stk RWL Local None
           Hbound3 I with "Hinterp_callee_wstk")
-          as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & Hrel_astk3 & _ & Hwcond_astk3 & Hrcond_astk3 & _)".
+          as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & (#Hrel_astk3 & _ & _) & _ & Hwcond_astk3 & Hrcond_astk3)".
         assert (addr_key None (a_stk ^+3) = LNonHeap (a_stk ^+3)) as Hkey_astk3 by done.
         rewrite Hkey_astk3.
 
@@ -454,13 +422,10 @@ Section switcher_helpers_cframe.
                    ∃ (p : Perm) (φ : WORLD * CmptName * LWord → iPropI Σ),
                      ⌜∀ Wv : WORLD * CmptName * LWord, Persistent (φ Wv)⌝
                                                       ∗ (⌜isO p = false⌝
-                                                         ∗ (if isWL p
-                                                            then future_pub_mono C φ (WInt 0)
-                                                            else if isDL p then future_pub_mono C φ (WInt 0) else future_priv_mono C φ (WInt 0)
-                                                           )
+                                                         ∗ future_pub_mono C φ (WInt 0)
                                                          ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ φ (W0', C, lword_of_word (WInt 0)))
                                                         )
-                                                      ∗ rel C (LNonHeap a) p φ
+                                                      ∗ (LNonHeap a) ↪ˡ[C]{p} φ
                 )
           ))%I with "[Hclose_list_res]" as "H".
     { apply NoDup_app in Hnodup_revoked as (Hnodup_revoked & ? & ?).
@@ -506,39 +471,30 @@ Section switcher_helpers_cframe.
       apply Forall_cons in Hnonheap as [Hnonheap3 _].
       cbn.
       iDestruct "Hframe" as "(Hv0 & Hv1 & Hv2 & Hv3 & _)".
-      iEval (rewrite /heap_key_status /=) in "Hv0".
-      iEval (rewrite /heap_key_status /=) in "Hv1".
-      iEval (rewrite /heap_key_status /=) in "Hv2".
-      iEval (rewrite /heap_key_status /=) in "Hv3".
       iDestruct "Hv0" as (p_v0 P0 Hpers_P0) "(#Hrel0 & Hv0)".
       iDestruct "Hv1" as (p_v1 P1 Hpers_P1) "(#Hrel1 & Hv1)".
       iDestruct "Hv2" as (p_v2 P2 Hpers_P2) "(#Hrel2 & Hv2)".
       iDestruct "Hv3" as (p_v3 P3 Hpers_P3) "(#Hrel3 & Hv3)".
       iClear "Hinterp_callee_wstk".
       iFrame "Hrel0". iFrame "Hrel1". iFrame "Hrel2". iFrame "Hrel3".
-      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & H0' & #H0)".
-      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & H1' & #H1)".
-      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & H2' & #H2)".
-      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & H3' & #H3)".
-      iEval (rewrite !mono_temporary_eq) in "H0 H1 H2 H3".
+      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & #H0 & H0')".
+      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & #H1 & H1')".
+      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & #H2 & H2')".
+      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & #H3 & H3')".
       pose (W0' := Wfixed). pose (W1' := Wfixed).
       pose (W2' := Wfixed). pose (W3' := Wfixed).
       assert (related_sts_pub_world W0' Wfixed) as HW0' by apply related_sts_pub_refl_world.
       assert (related_sts_pub_world W1' Wfixed) as HW1' by apply related_sts_pub_refl_world.
       assert (related_sts_pub_world W2' Wfixed) as HW2' by apply related_sts_pub_refl_world.
       assert (related_sts_pub_world W3' Wfixed) as HW3' by apply related_sts_pub_refl_world.
-      iDestruct (rel_agree _ _ (safeC φ_astk0) P0 with "[$Hrel_astk0 $Hrel0]") as "[<- HP0]".
-      iDestruct (rel_agree _ _ (safeC φ_astk1) P1 with "[$Hrel_astk1 $Hrel1]") as "[<- HP1]".
-      iDestruct (rel_agree _ _ (safeC φ_astk2) P2 with "[$Hrel_astk2 $Hrel2]") as "[<- HP2]".
-      iDestruct (rel_agree _ _ (safeC φ_astk3) P3 with "[$Hrel_astk3 $Hrel3]") as "[<- HP3]".
+      iDestruct (rel_l_agree with "Hrel_astk0 Hrel0") as "[<- HP0]".
+      iDestruct (rel_l_agree with "Hrel_astk1 Hrel1") as "[<- HP1]".
+      iDestruct (rel_l_agree with "Hrel_astk2 Hrel2") as "[<- HP2]".
+      iDestruct (rel_l_agree with "Hrel_astk3 Hrel3") as "[<- HP3]".
       rewrite (readAllowed_flowsto RWL p_astk0 Hp_astk0 eq_refl)
         (readAllowed_flowsto RWL p_astk1 Hp_astk1 eq_refl)
         (readAllowed_flowsto RWL p_astk2 Hp_astk2 eq_refl)
-        (readAllowed_flowsto RWL p_astk3 Hp_astk3 eq_refl)
-        (isWL_flowsto RWL p_astk0 Hp_astk0 eq_refl)
-        (isWL_flowsto RWL p_astk1 Hp_astk1 eq_refl)
-        (isWL_flowsto RWL p_astk2 Hp_astk2 eq_refl)
-        (isWL_flowsto RWL p_astk3 Hp_astk3 eq_refl).
+        (readAllowed_flowsto RWL p_astk3 Hp_astk3 eq_refl).
       iNext.
       iRewrite - ("HP0" $! (Wfixed,C,v0)) in "H0'".
       iRewrite - ("HP1" $! (Wfixed,C,v1)) in "H1'".

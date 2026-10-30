@@ -110,17 +110,17 @@ Lemma get_tag_clear_tag_sealable sb :
 Proof. by destruct sb. Qed.
 
 Lemma get_tag_clear_tag w : get_tag (clear_tag w) = false.
-Proof. destruct w as [| [] | | ? []]; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; done. Qed.
 
 Lemma clear_tag_sealable_idempotent sb :
   clear_tag_sealable (clear_tag_sealable sb) = clear_tag_sealable sb.
 Proof. by destruct sb. Qed.
 
 Lemma clear_tag_idempotent w : clear_tag (clear_tag w) = clear_tag w.
-Proof. destruct w as [| [] | | ? []]; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; done. Qed.
 
 Lemma clear_tag_untagged w : get_tag w = false -> clear_tag w = w.
-Proof. destruct w as [| [] | | ? []]; cbn; intros; subst; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; cbn; intros; subst; done. Qed.
 
 
 (* EqDecision instances *)
@@ -220,15 +220,15 @@ Proof. done. Qed.
 
 (** The field reads ignore the tag. *)
 Lemma get_a_clear_tag w : get_a (clear_tag w) = get_a w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 Lemma get_b_clear_tag w : get_b (clear_tag w) = get_b w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 Lemma get_e_clear_tag w : get_e (clear_tag w) = get_e w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 Lemma get_p_clear_tag w : get_p (clear_tag w) = get_p w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 Lemma get_l_clear_tag w : get_l (clear_tag w) = get_l w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
 (* Z <-> Word *)
 Definition is_z (w : Word) : bool :=
@@ -369,11 +369,11 @@ Definition executable_word (w : Word) : bool :=
   end.
 
 Lemma executable_word_clear_tag w : executable_word (clear_tag w) = executable_word w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
 Lemma executable_word_updatePcPerm w :
   executable_word (updatePcPerm w) = executable_word w.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
 (** A backward (return) sentry kind. *)
 Definition is_backward_kind (k : SentryKind) : bool :=
@@ -433,7 +433,7 @@ Proof.
 Qed.
 
 Lemma jalr_target_ok_clear_tag rdst rsrc w : jalr_target_ok rdst rsrc (clear_tag w) = false.
-Proof. by destruct w as [| [] | | ? []]. Qed.
+Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
 (** A PC word that is tagged is an unsealed executable capability. *)
 Definition pc_ok (w : Word) : Prop :=
@@ -452,7 +452,7 @@ Lemma jalr_target_ok_pc_ok rdst rsrc w :
 Proof.
   rewrite /jalr_target_ok /pc_ok.
   intros [[Ht Hs]%andb_prop Hx]%andb_prop _.
-  destruct w as [| [] | | ? []]; cbn in *; try done; by split.
+  destruct w as [| [] | | ? [] ]; cbn in *; try done; by split.
 Qed.
 
 (** Branches test the address of their condition, as in cheriot-sail. *)
@@ -581,13 +581,13 @@ Lemma get_tag_deeplocal w : get_tag (deeplocal w) = get_tag w.
 Proof. destruct w as [| [] | |]; done. Qed.
 
 Lemma get_tag_borrow w : get_tag (borrow w) = get_tag w.
-Proof. destruct w as [| [] | | ? []]; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; done. Qed.
 
 Lemma get_tag_readonly w : get_tag (readonly w) = get_tag w.
 Proof. destruct w as [| [] | |]; done. Qed.
 
 Lemma get_tag_force_global w : get_tag (force_global w) = get_tag w.
-Proof. destruct w as [| [] | | ? []]; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; done. Qed.
 
 Lemma get_tag_load_word p w : get_tag (load_word p w) = get_tag w.
 Proof.
@@ -597,10 +597,10 @@ Proof.
 Qed.
 
 Lemma isLocalWord_untagged w : get_tag w = false -> isLocalWord w = false.
-Proof. destruct w as [| [] | | ? []]; cbn; intros; subst; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; cbn; intros; subst; done. Qed.
 
 Lemma isGlobalWord_untagged w : get_tag w = false -> isGlobalWord w = false.
-Proof. destruct w as [| [] | | ? []]; cbn; intros; subst; done. Qed.
+Proof. destruct w as [| [] | | ? [] ]; cbn; intros; subst; done. Qed.
 
 Lemma readAllowedWord_tag w : readAllowedWord w -> get_tag w = true.
 Proof. destruct w as [| [ [] p g b e a | ] | |]; done. Qed.

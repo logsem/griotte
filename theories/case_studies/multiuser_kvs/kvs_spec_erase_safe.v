@@ -9,10 +9,11 @@ From griotte Require Import
 Section KVS_spec_erase.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
+    {seal_registryg : sealRegistryG LAddr Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
@@ -34,7 +35,8 @@ Section KVS_spec_erase.
     related_sts_priv_world Wca0 W ->
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    ( seal_pred KVS_OTYPE kvs_otype_propC ∗
+    ( KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
+      kvs_otype_registry ∗
       kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
       na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
@@ -82,7 +84,7 @@ Section KVS_spec_erase.
       ⊢ safe[th])%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E'  Hnkvs_otype_E Hrelated_Wca0_W Htgt)
-      "(#Hspred & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
+      "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
       & Hca1 & Hct1 & Hct2 & Hctp & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -122,55 +124,34 @@ Section KVS_spec_erase.
     }
     (* The inputs are valid. *)
     iDestruct "Hpost" as "[Hpost _]".
-    rewrite /is_sealed_with_o in Hwca0_sealed_with_kvs_ot.
-    destruct wca0 as [ [ | | | ot wsb ] π0]; try done.
-    rewrite Z.eqb_eq in Hwca0_sealed_with_kvs_ot.
-    assert (ot = KVS_OTYPE) by solve_addr+Hwca0_sealed_with_kvs_ot; simplify_eq.
-
-    cbn in Hwca0_tag.
-
-    (* Open sealing predicate of sealed user key *)
-    iEval (rewrite interp_unfold /= /interp_sb Hwca0_tag) in "Hinterp_wca0".
-    iDestruct "Hinterp_wca0" as "[#Hinterp_wca0 %Hvalid_wca0]".
-    iAssert (sts_seals_std C KVS_OTYPE {[WSealable wsb @@? π0]})%I as "#Hinterp_wca0'".
-    { iApply sts_seals_std_weaken; last iFrame "Hinterp_wca0"; last set_solver+. }
-
-    iDestruct (sopen_world_interp_singleton with "Hspred Hinterp_wca0' Hworld")
-                as "(Hworld & Hres_open & HP)".
-    iDestruct "HP" as "(%uk & %a & >%Heq_sb & >%Hbounds & >%Huser_key_shadow & >Ha & HLUKVS & Hinterp)".
-    rewrite /lforce_global /lift_word in Heq_sb.
-    destruct wsb as [ t_user_key p_user_key l_user_key | ] ; cbn in * ; simplify_eq.
+    (* Open the registry entry of the sealed user key *)
+    iMod (kvs_otype_acc ⊤ F Wca0 C wca0 with "Hreg Hspred Hinterp_wca0 Hna")
+      as (l_user_key a uk) "(%Heq_sb & %Hbounds & %Huser_key_shadow & Ha & HLUKVS & Hinterp & Hna & Hclose)";
+      [done|solve_ndisj|done|done|].
+    subst wca0.
 
     assert (nkey ∈ kvs_all_map_keys) as Hnkey_is_map_key by rewrite -is_uint16_in_kvs_all_map_keys //.
     iDestruct (big_sepS_delete with "Hinterp") as "[Hinterp_nkey Hinterp]"; eauto.
 
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
-    - iApply KVS_erase_spec_in; last iFrame "∗#"; eauto.
+    - iApply KVS_erase_spec_in; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
                 & Ha & HLUKVS & Hnkey)".
 
       iDestruct (big_sepS_delete with "[$Hinterp $Hnkey]") as "Hinterp"; eauto.
-      iAssert (kvs_otype_propC (W, C, (lforce_global (lword_of_word (WSealable (kvs_user_seal_key_scap l_user_key a))))))
-        with "[$Ha $HLUKVS $Hinterp]"
-        as "HP".
-      { iFrame "∗%"; auto. }
-      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+      iMod ("Hclose" with "[$Ha $HLUKVS $Hinterp $Hna]") as "Hna".
 
       iApply "Hpost"; iFrame.
 
-    - iApply KVS_erase_spec_notin; last iFrame "∗#"; eauto.
+    - iApply KVS_erase_spec_notin; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
       iIntros "(Hna & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp
                 & Ha & HLUKVS & Hnkey)".
 
       iDestruct (big_sepS_delete with "[$Hinterp $Hnkey]") as "Hinterp"; eauto.
-      iAssert (kvs_otype_propC (W, C, (lforce_global (lword_of_word (WSealable (kvs_user_seal_key_scap l_user_key a))))))
-        with "[$Ha $HLUKVS $Hinterp]"
-        as "HP".
-      { iFrame "∗%"; iPureIntro; auto. }
-      iDestruct (sclose_world_interp_singleton with "Hspred Hres_open HP Hworld") as "Hworld".
+      iMod ("Hclose" with "[$Ha $HLUKVS $Hinterp $Hna]") as "Hna".
 
       iApply "Hpost"; iFrame.
   Qed.
@@ -187,7 +168,8 @@ Section KVS_spec_erase.
 
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     KVS_pcc_b ≠ b_switcher ->
-    seal_pred KVS_OTYPE kvs_otype_propC ∗
+    KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
+    kvs_otype_registry ∗
     kvs_static ∗
     na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
     na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
@@ -203,7 +185,7 @@ Section KVS_spec_erase.
     intros a_kvs_exp_tbl_cgp Hpc_switcher.
     subst a_kvs_exp_tbl_cgp.
     iIntros
-      "(#Hspred & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
+      "(#Hspred & #Hreg & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
       & #Hkvs_exp_PCC
       & #Hkvs_exp_CGP
       & [#Hkvs_exp_eh #Hkvs_exp_ehs]
@@ -244,7 +226,7 @@ Section KVS_spec_erase.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
-    iIntros "!> %W0 %Hpriv_W_W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap & Hworld_C &
       %Hsync_csp & _ & Hcstk & Hna)".
     iAssert (no_handler (top_export_tbl cstk) ∗
@@ -296,7 +278,7 @@ Section KVS_spec_erase.
     iApply (KVS_erase_spec_safe W0 (revoke W0) C
               (Sentry (ret_kind mie_ret) XSRW_ Local b_switcher e_switcher a_switcher_return)
               wca0 wca1 ⊤ Hunsealing_shadow
-             with "[$Hspred $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
+             with "[$Hspred $Hreg $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
                     $Hca0 $Hinterp_wca0 $Hca1 $Hct1 $Hct2 $Hctp $Hworld_C
                     Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
       [solve_ndisj | solve_ndisj | solve_ndisj | exact Hrelared_priv_W0_W1

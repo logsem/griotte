@@ -79,7 +79,7 @@ Section dle_obligations.
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* 4 - Close the world of C: its compartment becomes permanent, and the
+    (* 4 - Close the world of C: its compartment becomes Global regions, and the
        stack temporary, because main shares it with C; its export is safe
        to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)

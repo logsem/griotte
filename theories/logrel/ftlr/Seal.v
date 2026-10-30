@@ -10,9 +10,9 @@ Import CoreWPNotations.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
@@ -27,15 +27,14 @@ Section fundamental.
 
   Lemma seal_case (W : WORLD)(C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (dst r1 r2 : RegName) (P:D) :
+    (w : LWord) (ρ : region_part) (dst r1 r2 : RegName) (P:D) :
     ftlr_instr W C regs p p' g b e a w (Seal dst r1 r2) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
 
-    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    (* The sealing update of the world runs before the hand-off. *)
     iApply wp_fupd.
     iApply (wp_Seal (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -59,36 +58,29 @@ Section fundamental.
       { iApply "Hreg"; eauto. }
 
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-      { destruct ρ;auto;contradiction. }
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
       iDestruct ("Hreg" $! r1 _ Hr1) as "HVsr".
-      iMod (sealing_preserves_interp with "HVsb HVsr Hworld_interp") as
-        "(%W' & %Hrelated & %Hheap & Hworld_interp & #HVsb')"; auto.
+      iDestruct (sealing_preserves_interp with "HVsb HVsr") as "#HVsb'"; auto.
       iModIntro. iNext.
-      iApply ftlr_post_future; first exact Hrelated.
       iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       + subst regs'. by apply full_map_linsert.
       + iIntros (ri wi Hregs_ri).
         subst regs'. rewrite /linsert_reg in Hregs_ri.
         case_decide as Hdst_null.
-        { iApply (interp_monotone_same_heap with "[] []"); eauto.
-          by iApply "Hreg". }
+        { by iApply "Hreg". }
         destruct (decide (ri = dst)) as [->|Hne'].
         { rewrite lookup_insert_eq in Hregs_ri. injection Hregs_ri as <-.
           iExact "HVsb'". }
         rewrite !lookup_insert_ne // in Hregs_ri.
-        iApply (interp_monotone_same_heap with "[] []"); eauto.
         by iApply "Hreg".
-      + iApply "IH". iApply (interp_monotone_same_heap with "[] []"); eauto.
-        iApply (interp_next_PC with "Hinv_interp"); eauto.
+      + iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
 
     - apply incrementPC_Some_inv in HincrPC as (t''&p''&g''&b''&e''&a''& a_next & π'' & HPC & Ha_next & ->).
       injection HPC as <- <- <- <- <- <- <-.
       iModIntro. iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-      { destruct ρ;auto;contradiction. }
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
       iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       + subst regs'. by apply full_map_linsert.
@@ -102,8 +94,7 @@ Section fundamental.
       injection HPC as <- <- <- <- <- <- <-.
       iModIntro. iNext.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-      { destruct ρ; auto; contradiction. }
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
       iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
       - subst regs'. by apply full_map_linsert.
       - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (_).
@@ -112,8 +103,7 @@ Section fundamental.
     }
     - assert (regs' = regs) as -> by (destruct Hfail; done).
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-      { destruct ρ; auto; contradiction. }
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
       iModIntro. iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
   Qed.
 

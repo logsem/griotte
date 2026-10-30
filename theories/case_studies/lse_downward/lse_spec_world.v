@@ -20,9 +20,9 @@ From griotte Require Import lse_spec_states.
 Section LSE_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
@@ -32,6 +32,7 @@ Section LSE_World.
   Implicit Types C : CmptName.
 
   Lemma lse_world_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
@@ -43,7 +44,7 @@ Section LSE_World.
       ▷ StackRevokedResources (revoke W0) C (finz.seq_between csp_b csp_e) ∗
       [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
   Proof.
-    iIntros "#Hinterp_csp #Hinterp_C_f Hworld_interp_C".
+    iIntros "#Hseal_switcher #Hinterp_csp #Hinterp_C_f Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
       as (l) "(_ & Hworld_interp_C & Hstack_revoked & >%Hstack_revoked
                & >[%stk_mem Hstk] & _)".
@@ -53,7 +54,7 @@ Section LSE_World.
     iFrame "Hworld_interp_C Hstk".
     iSplit; first done.
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f"); first done.
+    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_C_f").
       by iPureIntro. }
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

@@ -18,9 +18,9 @@ From griotte Require Import vae_spec_states vae_spec_closure_repair.
 Section VAE_World_Return.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -75,13 +75,11 @@ Section VAE_World_Return.
     extract_temporaries_condition W0 (l ++ (LNonHeap <$> stk_frame_addrs)) ->
     revoked_keys (revoke W0) l ->
     l ≡ₚ l0_live ++ l0_quarantined ->
-    Forall (λ a, heap_key_live (heap_std W0) a) l0_live ->
-    Forall (λ a, heap_key_status (heap_std W0) a = Some AllocObjectQuarantined) l0_quarantined ->
+    Forall (λ a, ∃ x ι, a = LHeap x ι) l0_quarantined ->
     extract_temporaries_condition W3 (l1 ++ (LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e))) ->
     revoked_keys (revoke W3) l1 ->
     l1 ≡ₚ l1_live ++ l1_quarantined ->
-    Forall (λ a, heap_key_live (heap_std W3) a) l1_live ->
-    Forall (λ a, heap_key_status (heap_std W3) a = Some AllocObjectQuarantined) l1_quarantined ->
+    Forall (λ a, ∃ x ι, a = LHeap x ι) l1_quarantined ->
     extract_temporaries_condition W6 (l2 ++ (LNonHeap <$> callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e))) ->
     revoked_keys (revoke W6) l2 ->
     revoked_addresses (revoke W6) stk_frame_addrs ->
@@ -93,10 +91,10 @@ Section VAE_World_Return.
     loc (revoke W0) !! i = Some (encode b) ->
     wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     wrel W3 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
-    sts_rel_loc (A:=LAddr) C i awk_rel_pub awk_rel_priv -∗
+    sts_rel_loc C i awk_rel_pub awk_rel_priv -∗
     world_interp (revoke W6) C -∗
-    RevokedResources W0 C l0_live -∗
-    RevokedResources W3 C l1_live -∗
+    RevokedCells W0 C l0_live -∗
+    RevokedCells W3 C l1_live -∗
     RevokedResources W6 C l2
     ={⊤}=∗
     ∃ closing_revoked,
@@ -112,8 +110,8 @@ Section VAE_World_Return.
             a ∈ closing_revoked ++ (LNonHeap <$> stk_frame_addrs)⌝.
   Proof.
     intros stk_frame_addrs W2 W2q W5 W5q.
-    iIntros (Hstk_heap Hcsp_bounds Hl_unk Hrevoked_l Hl0_partition Hl0_live Hl0_quarantined
-             Hl1_unk Hl1_revoked_W4 Hl1_partition Hl1_live Hl1_quarantined
+    iIntros (Hstk_heap Hcsp_bounds Hl_unk Hrevoked_l Hl0_partition Hl0_quarantined
+             Hl1_unk Hl1_revoked_W4 Hl1_partition Hl1_quarantined
              Hl2_unk Hl2_revoked_W7 Hstack_revoked_W6
              Hrelated_priv_W0_W2 Hrelated_pub_W2q_W3 Hrelated_pub_W4_W5 Hrelated_priv_W3_W5
              Hrelated_pub_W5q_W6 Hwst_i Hwrel_i Hwrel_i_W3)
@@ -156,11 +154,9 @@ Section VAE_World_Return.
     set (W7 := revoke W6).
 
     assert (l0_quarantined ## (LNonHeap <$> stk_frame_addrs)) as Hq0_stack.
-    { apply (vae_quarantined_disjoint_stack W0 l0_quarantined csp_b csp_e);
-        assumption. }
+    { by apply vae_quarantined_disjoint_stack. }
     assert (l1_quarantined ## (LNonHeap <$> stk_frame_addrs)) as Hq1_stack.
-    { apply (vae_quarantined_disjoint_stack W3 l1_quarantined csp_b csp_e);
-        assumption. }
+    { by apply vae_quarantined_disjoint_stack. }
     assert (l0_quarantined ⊆ l1) as Hq0_l1.
     { intros a Ha.
       assert (std W2q !! a = Some Temporary) as Htemp2q.
@@ -204,7 +200,7 @@ Section VAE_World_Return.
 
     set (l1_unique :=
       filter (fun a => a ∉ l0_live ++ (LNonHeap <$> stk_frame_addrs)) l1_live).
-    iDestruct (vae_revoked_resources_filter W3 C l1_live
+    iDestruct (vae_revoked_cells_filter W3 C l1_live
       (l0_live ++ (LNonHeap <$> stk_frame_addrs)) with "Hl1_live") as "Hl1_unique".
 
     set (l2_unique :=
@@ -223,16 +219,9 @@ Section VAE_World_Return.
       apply Hl_revoked_W6.
       rewrite Hl0_partition. apply elem_of_app; left; exact Ha. }
     iMod (vae_framed_resources_revoked W0 W7 C l0_live
-      Hl0_live Hl0_dom_W7 with "[$Hworld_interp_C $Hl0_live]")
+      Hl0_dom_W7 with "[$Hworld_interp_C $Hl0_live]")
       as "(Hworld_interp_C & Hl0_live & %Hl0_live_revoked_W7)".
 
-    assert (Forall (λ a, heap_key_live (heap_std W3) a) l1_unique)
-      as Hl1_unique_live_W3.
-    { apply Forall_forall; intros a Ha.
-      subst l1_unique.
-      apply list_elem_of_filter in Ha as [_ Ha].
-      rewrite Forall_forall in Hl1_live.
-      by apply Hl1_live. }
     assert (Forall (λ a, a ∈ dom (std W7)) l1_unique)
       as Hl1_unique_dom_W7.
     { apply Forall_forall; intros a Ha.
@@ -247,7 +236,7 @@ Section VAE_World_Return.
       rewrite Hl1_partition. apply elem_of_app; left.
       subst l1_unique. by apply list_elem_of_filter in Ha as [_ Ha]. }
     iMod (vae_framed_resources_revoked W3 W7 C l1_unique
-      Hl1_unique_live_W3 Hl1_unique_dom_W7
+      Hl1_unique_dom_W7
       with "[$Hworld_interp_C $Hl1_unique]")
       as "(Hworld_interp_C & Hl1_unique & %Hl1_unique_revoked_W7)".
 
@@ -363,15 +352,15 @@ Section VAE_World_Return.
       apply related_sts_pub_priv_world; exact Hrelated_pub_W5q_W6. }
     assert (related_sts_pub (loc W0) (loc W6)
       (wrel W0) (wrel W6)) as Hcus0_W6.
-    { destruct Hpub0_orig as (_ & Hcus & _).
+    { destruct Hpub0_orig as (_ & Hcus).
       exact Hcus. }
     assert (related_sts_pub (loc W3) (loc W6)
       (wrel W3) (wrel W6)) as Hcus3_W6.
     { assert (related_sts_pub (loc W3) (loc W5q)
         (wrel W3) (wrel W5q)) as Hcus3_W5q.
-      { destruct Hrelated_pub_W4_W5 as (_ & Hcus & _).
+      { destruct Hrelated_pub_W4_W5 as (_ & Hcus).
         subst W5q W5 W4. cbn in *. exact Hcus. }
-      destruct Hrelated_pub_W5q_W6 as (_ & Hcus5_W6 & _).
+      destruct Hrelated_pub_W5q_W6 as (_ & Hcus5_W6).
       eapply related_sts_pub_trans; eauto. }
     assert (related_sts_pub_world W0 (close_list closing W7))
       as Hpub0_fixed.
@@ -389,6 +378,8 @@ Section VAE_World_Return.
       - apply related_sts_pub_refl.
       - exact Hclosing_covers_W6.
       - exact Hclosing_revoked_W7. }
+    iDestruct (RevokedCells_RevokedResources with "Hl0_live") as "Hl0_live".
+    iDestruct (RevokedCells_RevokedResources with "Hl1_unique") as "Hl1_unique".
     iDestruct (RevokedResources_mono_pub W0 (close_list closing W7)
       C l0_live [] Hpub0_fixed with "Hl0_live")
       as "Hl0_fixed".

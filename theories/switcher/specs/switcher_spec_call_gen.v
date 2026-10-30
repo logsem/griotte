@@ -15,9 +15,9 @@ From griotte Require Import switcher_load_spec switcher_trap_safety switcher_unw
 Section Switcher.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
@@ -960,8 +960,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
-    iSpecialize ("Hentry_cont" $! W' with "[]").
-    { iPureIntro. by apply related_sts_pub_priv_world. }
+    iSpecialize ("Hentry_cont" $! W').
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
                     b_stk e_stk a_stk (Cap RO g_tbl b_tbl e_tbl a_tbl)).
     iDestruct (switcher_cc_cont_frame W C _ _ _ _ _ _ _ _ _ _ _
@@ -1001,8 +1000,7 @@ Section Switcher.
     (* Execute the entry point of the callee *)
     iDestruct (switcher_call_entry_registers W W' C nargs arg_rmap' rmap' with
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
-      as (regs) "[Hregs Hregs_interp]"; [done| |done|done|].
-    { symmetry. apply std_update_multiple_heap. }
+      as (regs) "[Hregs Hregs_interp]"; [done|done|done|].
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
               (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
     iSplitL "Hcont_frame"; first iExact "Hcont_frame".
@@ -1175,8 +1173,7 @@ Section Switcher.
       iSplitL "Hca0"; first (iExists _; iFrame "Hca0"; iApply interp_int).
       iSplitL "Hca1"; first (iExists _; iFrame "Hca1"; iApply interp_int).
       iPureIntro.
-      destruct Hrestored as ([Hgp Hgpf] & [Hra Hraf] & [Hs0 Hs0f] & [Hs1 Hs1f]).
-      rewrite /load_heap_in_world /filter_heap std_update_multiple_heap.
+      destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
       by repeat split.
   Qed.
 

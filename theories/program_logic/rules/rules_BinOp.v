@@ -93,7 +93,7 @@ Section griotte_lang_rules.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     rewrite /regs_of in Dregs.
     erewrite operands_of_is_BinOp in Hri, Dregs; eauto.
-    destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
+    destruct (Hri dst) as [wdst [H'dst Hdst] ]; first by set_solver+.
     destruct (lz_of_argument_dom regs arg1) as [n1 Hn1].
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn1 as Hn1'.

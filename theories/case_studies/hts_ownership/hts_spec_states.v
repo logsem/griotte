@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost region_keys.
+From griotte Require Import world_interp_stack region_invariants region_keys.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Export code_blocks.
 
@@ -161,9 +161,9 @@ End HTS_Layout.
 Section HTS_States.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -261,20 +261,22 @@ Section HTS_States.
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
 
-  (** The world shared with the first adversary call: the stack is revoked
-      and the buffer [b] of [ι] is allocated and [Permanent]. *)
+  (** The world shared with the first adversary call: the stack is revoked;
+      the buffer [b] of [ι] is a Global region, outside the local world. *)
   Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
-    <s[LHeap b ι := Permanent]s>
-      (heap_std_update (revoke W_init_C) (heap_allocate ∅ ι b (b ^+ 1))).
+    revoke W_init_C.
 
-  (** The world after freeing [ι] in the revoked world [Wret]. *)
+  (** The world after freeing [ι] in the revoked world [Wret]: the entry of
+      [b] is a tombstone. *)
   Definition hts_Wfree (Wret : WORLD) (ι : AId) : WORLD :=
-    heap_std_update (revoke Wret) (heap_quarantine (heap_std (revoke Wret)) ι).
+    revoke Wret.
 
-  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι]. *)
+  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι], whose key
+      is not in the revoked world. *)
   Definition hts_malloc_ok (a_ret : Addr) : iProp Σ :=
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
+      ⌜LHeap b ι ∉ dom (std (revoke W_init_C))⌝ ∗
       hts_frame a_ret (stk_start_a csp_b csp_e) ∗
       ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
@@ -308,7 +310,7 @@ Section HTS_States.
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
-      rel C (LHeap b ι) RW interp_in_memC ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
       (∃ w, ca0 ↦ᵣ[th] w) ∗
       (∃ w, ca1 ↦ᵣ[th] w) ∗
@@ -329,9 +331,8 @@ Section HTS_States.
     ∃ (ι : AId) (b : Addr) (Wret : WORLD),
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
-      ⌜heap_std (revoke Wret) !! ι = Some (MkAllocObject b (b ^+ 1) AllocObjectLive)⌝ ∗
-      ⌜std (revoke Wret) !! LHeap b ι = Some Permanent⌝ ∗
-      rel C (LHeap b ι) RW interp_in_memC ∗
+      alloc_obj ι b (b ^+ 1) ∗
+      (LHeap b ι) ↪ᵍ[C]{RW} interp_in_mem_gC ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
@@ -339,7 +340,6 @@ Section HTS_States.
       (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
                 stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
-      sts_state_std C (LHeap b ι) Permanent ∗
       StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
       ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗
       interp_continuation cstk Ws Cs ∗

@@ -10,9 +10,9 @@ Import CoreWPNotations.
 Section fundamental.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
@@ -29,13 +29,13 @@ Section fundamental.
 
   Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_type) (rdst rsrc : RegName) (P:V):
+    (w : LWord) (ρ : region_part) (rdst rsrc : RegName) (P:V):
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hpwl Hregion Hnotrevoked Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
 
-    iDestruct (WorldRes_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     iApply (wp_Jalr with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -43,9 +43,8 @@ Section fundamental.
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
     destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
-    1,2: assert (ρ = Temporary ∨ ρ = Permanent) as Hρ by (destruct ρ; auto; contradiction);
-      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
-      iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto;
+    1,2: iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto;
       iNext; iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
@@ -90,8 +89,7 @@ Section fundamental.
         iApply "Hreg"; eauto. }
 
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-    iDestruct (close_world_interp with "Hworld_interp Hstate Hinva WorldRes") as "Hworld_interp"; eauto.
-    { destruct ρ;auto;contradiction. }
+    iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
     (* The next-PC witness: the enter condition of a sentry, the induction
        hypothesis otherwise. *)

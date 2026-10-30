@@ -114,10 +114,7 @@ Section lse_obligations.
     set (main_f := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                      (cmpt_exp_tbl_entries_end main_cmpt)
                        (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry lse_entry_f)) in *.
-    set (W0' := <o[ switcher.ot_switcher :=
-                    {[ lword_of_word (WSealable main_f);
-                       lword_of_word (borrow (WSealable main_f)) ]} ]o> fw_world0).
-    iAssert (ot_switcher_prop (th := UserThread 0) W0' C (WSealable main_f))
+    iAssert (ot_switcher_prop (th := UserThread 0) fw_world0 C (WSealable main_f))
       as "#Hot_switcher_main_f".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
                          (length_lse_main_imports + length LSE_main_code_run))%a)
@@ -128,7 +125,7 @@ Section lse_obligations.
         rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
         solve_addr+Hmain_imports_size Hcode_size. }
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
-                _ _ _ _ _ _ _ _ _ W0');
+                _ _ _ _ _ _ _ _ _ fw_world0);
         last iFrame "Hswitcher_static #"; auto.
       { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
       { eapply disjoint_from_shadow_not_in;
@@ -137,18 +134,17 @@ Section lse_obligations.
       { exact (cmpt_cgp_base_not_heap main_cmpt). }
       { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
       exact (cmpt_pcc_base_not_heap main_cmpt). }
-    iMod (seal_main_export fw_world0 C main_f
-           with "Hseal_switcher Hot_switcher_main_f Hworld_C")
-      as "(Hworld_C & #Hinterp_main_f)"; [done| |done|].
+    iDestruct (seal_main_export (th := UserThread 0) fw_world0 C main_f
+                with "Hseal_switcher Hot_switcher_main_f") as "#Hinterp_main_f"; [done| |].
     { intros ????? Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap main_cmpt). }
 
-    (* 6 - Close the world of C: its compartment becomes permanent, and the
+    (* 6 - Close the world of C: its compartment becomes Global regions, and the
        stack temporary, because main shares it with C; the exported entry
        [f] of main is safe to import; the export of C is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts lse_firmware) default_fw_cmpt) _
-            HC_l W0' C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
+            HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
            with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts lse_firmware].
@@ -161,18 +157,8 @@ Section lse_obligations.
       change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
         with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry lse_entry_f).
       fold main_f.
-      iSplit.
-      - iApply interp_to_in_mem.
-        iApply (interp_monotone_sd_same_heap W0' with "[]").
-        { by rewrite std_update_compartment_heap. }
-        { iPureIntro.
-          apply related_sts_pub_priv_world.
-          eapply std_update_compartment_pub; eauto; (apply Forall_true; intros; done). }
-        done.
-      - iIntros (W2 W3) "!> %Hrelated Hinterp".
-        iEval (cbn) in "Hinterp".
-        iApply (interp_in_mem_monotone_nl W2 W3 C RWL with "Hinterp"); first exact Hrelated.
-        done. }
+      iApply interp_to_in_mem.
+      by iApply (interp_global_world_free fw_world0 ∅ with "Hinterp_main_f"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts lse_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.

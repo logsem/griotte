@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants heap_ghost.
+From griotte Require Import world_interp_stack region_invariants.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
 From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
@@ -19,9 +19,9 @@ From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
 Section HTS_Spec_Share.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {allocator_ownerg : allocatorOwnerG Σ}
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout} {allocwf : allocatorLayoutWf}
@@ -49,7 +49,6 @@ Section HTS_Spec_Share.
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
-    heap_std W_init_C = ∅ ->
     hts_ctx ∗
     malloc_ret ∗
     (adv1_ret -∗
@@ -57,7 +56,7 @@ Section HTS_Spec_Share.
     ⊢ safe[th].
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
-      HsubBounds Himports_contiguous Hheap_empty) "(#Hctx & Hret & Hcontinue)".
+      HsubBounds Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
@@ -79,7 +78,7 @@ Section HTS_Spec_Share.
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
                  $Hcstk $Hcode_main]"); [done | done]. }
-    iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
+    iDestruct "Hok" as (ι b) "(%Hbounds & %Hb_fresh & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
@@ -220,12 +219,13 @@ Section HTS_Spec_Share.
       with "Hobj Hb Hworld Hstack_revoked_W0")
       as "(Hworld & #Hrel_b & #Hinterp_buf & Hstack_revoked_share
         & %Hstack_revoked_share)".
-    { exact Hheap_empty. }
+    { exact Hb_fresh. }
     { exact Hbounds. }
     { exact Hstk_heap. }
     { exact Hstack_revoked. }
+    iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C ι b)
-      Hadv_nonheap with "Hadv") as "#Hinterp_adv_share".
+      Hadv_nonheap with "Hseal_switcher Hadv") as "#Hinterp_adv_share".
 
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
       ["[Hca2 %Hca2]";"[Hca3 %Hca3]";"[Hca4 %Hca4]";"[Hca5 %Hca5]"].
@@ -282,7 +282,7 @@ Section HTS_Spec_Share.
        & Hstack_revoked_ret & %Hstack_revoked_ret
        & Hna & _ & Hworld & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-       & [%warg0 [Hca0 _]] & [%warg1 [Hca1 _]]
+       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
        & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hgp_ret & Hra_ret & Hs0_ret & _).
     apply load_heap_nonheap in Hs0_ret; [|exact thread_return_sentry_not_heap].

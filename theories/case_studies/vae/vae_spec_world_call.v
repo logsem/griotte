@@ -16,8 +16,8 @@ From griotte Require Import vae_spec_states vae_spec_closure_repair.
       call to [g],
     - [vae_world_stack] and [vae_revoked_addresses_close_list]: the stack
       frame stays revoked in the world of the call,
-    - [vae_world_quarantine]: the revoked keys are split at their heap
-      status, and the quarantined ones are closed,
+    - [vae_world_quarantine]: the revoked keys are split into cells and
+      tombstones, and the tombstones are closed,
     - [vae_world_callback] and [vae_world_callback_restored]: the callback
       [g] stays safe in the world of the call, when it is a sealed entry
       point,
@@ -30,9 +30,9 @@ From griotte Require Import vae_spec_states vae_spec_closure_repair.
 Section VAE_World_Call.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {sealsg: sealStoreG Σ}
-    {Cname : CmptNameG}
-    {stsg : STSG LAddr region_type OType LWord Σ} {relg : relGS Σ}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
@@ -41,13 +41,28 @@ Section VAE_World_Call.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
+  (** The flag's custom location is in every world of [C]: the exclusive
+      fragment in the invariant agrees with the world's authority. *)
+  Lemma vae_world_flag_valid (E : coPset) (W : WORLD) (C : CmptName) (i : positive) (a : Addr) :
+    ↑Nawk ⊆ E →
+    inv Nawk (awk_inv C i a) -∗
+    world_interp W C
+    ={E}=∗
+    world_interp W C ∗
+    ⌜∃ b : bool, loc W !! i = Some (encode b)⌝.
+  Proof.
+    iIntros (HE) "#Hinv Hw".
+    iInv "Hinv" as (x) "[>Hst Hcell]" "Hclose".
+    iDestruct (world_interp_loc_valid with "Hw Hst") as %Hloc.
+    iMod ("Hclose" with "[Hst Hcell]") as "_"; first (iExists x; iFrame).
+    iModIntro. iFrame. eauto.
+  Qed.
+
   (** Before the first call to [g]: the flag is set to [false] in the
       revoked world [W1 = revoke W0]. *)
-  Lemma vae_world_flag_false (W W0 : WORLD) (i : positive) :
+  Lemma vae_world_flag_false (W0 : WORLD) (i : positive) :
     let W2 := <l[i:=false]l>(revoke W0) in
-    related_sts_priv_world W W0 ->
-    (∃ b : bool, loc W !! i = Some (encode b)) ->
-    wrel W !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
+    (∃ b : bool, loc W0 !! i = Some (encode b)) ->
     wrel W0 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv) ->
     (∃ b0 : bool, loc (revoke W0) !! i = Some (encode b0)) ∧
     revoke_condition (revoke W0) ∧
@@ -56,8 +71,7 @@ Section VAE_World_Call.
     loc W2 !! i = Some (encode false) ∧
     wrel W2 !! i = Some (convert_rel awk_rel_pub, convert_rel awk_rel_priv).
   Proof.
-    intros W2 Hpriv [b Hloc] Hrel Hrel0.
-    destruct (awk_loc_is_bool_mono_priv W W0 i b Hpriv Hloc Hrel) as [b0 Hloc0].
+    intros W2 [b0 Hloc0] Hrel0.
     assert (related_sts_priv_world (revoke W0) W2) as Hpriv12.
     { subst W2; eapply awk_loc_update_false_related_priv; eauto. }
     split; first by exists b0.
@@ -130,67 +144,79 @@ Section VAE_World_Call.
     by apply elem_of_LNonHeap_fmap.
   Qed.
 
-  (** Split the revoked keys [l] at their heap status in [Wbase], and close
-      the quarantined ones in [Wcur]. The quarantined keys own no memory. *)
+  (** Split the revoked keys [l] into cells and tombstones, and close the
+      tombstones in [Wcur]. The tombstones own no memory. *)
   Lemma vae_world_quarantine (Wbase Wcur : WORLD) (C : CmptName) (l : list LAddr) :
-    heap_std Wbase = heap_std Wcur ->
     world_interp Wcur C -∗
     RevokedResources Wbase C l
     ==∗
     ∃ l_live l_q,
       ⌜l ≡ₚ l_live ++ l_q⌝ ∗
-      ⌜Forall (λ a, heap_key_live (heap_std Wbase) a) l_live⌝ ∗
-      ⌜Forall (λ a, heap_key_status (heap_std Wbase) a = Some AllocObjectQuarantined) l_q⌝ ∗
+      ⌜Forall (λ a, ∃ x ι, a = LHeap x ι) l_q⌝ ∗
       world_interp (close_list l_q Wcur) C ∗
-      RevokedResources Wbase C l_live.
+      RevokedCells Wbase C l_live.
   Proof.
-    iIntros (Hheap) "Hworld_interp_C Hrevoked_l".
-    iDestruct (revoked_status_some with "Hrevoked_l") as "[Hrevoked_l %Hstatuses]".
-    destruct (heap_status_partition (heap_std Wbase) l Hstatuses)
-      as (l_live & l_q & Hpartition & Hlive & Hq).
-    iEval (rewrite Hpartition RevokedResources_app) in "Hrevoked_l".
-    iDestruct "Hrevoked_l" as "[Hl_live Hl_q]".
-    iMod (vae_restore_quarantined Wbase Wcur C l_q with "[$Hworld_interp_C $Hl_q]")
-      as "Hworld_interp_C"; [done|done|].
+    iIntros "Hworld_interp_C Hrevoked_l".
+    iAssert (∃ l_live l_q,
+      ⌜l ≡ₚ l_live ++ l_q⌝ ∗
+      ⌜Forall (λ a, ∃ x ι, a = LHeap x ι) l_q⌝ ∗
+      RevokedResources Wcur C l_q ∗
+      RevokedCells Wbase C l_live)%I
+      with "[Hrevoked_l]" as (l_live l_q) "(%Hpartition & %Hq & Hl_q & Hl_live)".
+    { iInduction l as [|k l] "IH".
+      { iExists [], []. rewrite /RevokedResources /RevokedCells /=. by iFrame. }
+      iDestruct "Hrevoked_l" as "[(%pa & %Φa & %Hpers & #Hrel & Hk) Hl]".
+      iDestruct ("IH" with "Hl") as (l_live l_q) "(%Hpartition & %Hq & Hl_q & Hl_live)".
+      iDestruct (heap_key_open_cases with "Hk") as "[Hk | (%x & %ι & -> & #Hquar)]".
+      - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
+        iSplit; first (iPureIntro; by rewrite Hpartition).
+        iSplit; first done.
+        iExists pa, Φa. rewrite /temp_body. by iFrame "Hrel Hk".
+      - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
+        iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
+        iSplit; first (iPureIntro; constructor; eauto).
+        iExists pa, Φa. iFrame "Hrel". iSplit; first done.
+        by iApply heap_key_close_tomb. }
+    iMod (world_interp_restore_world Wcur Wcur C l_q
+           with "Hworld_interp_C Hl_q") as "Hworld_interp_C".
+    { apply close_list_related_sts_pub. }
     iModIntro. iExists l_live, l_q. by iFrame.
   Qed.
 
-  (** The callback [g] is safe in a private future world with the same
-      heap, when it is a sealed entry point. *)
+  (** The callback [g] is safe in a private future world, when it is a
+      sealed entry point. *)
   Lemma vae_world_callback (W W' : WORLD) (C : CmptName) (wg : LWord) :
-    heap_std W = heap_std W' ->
     related_sts_priv_world W W' ->
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗
     (if is_sealed_with_o wg.(lw) ot_switcher then interp W' C wg else True).
   Proof.
-    iIntros (Hheap Hpriv) "Hg".
+    iIntros (Hpriv) "#Hseal Hg".
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:Hsealed; last done.
     destruct wg as [ [| [|] | |] π]; try discriminate.
-    iApply (interp_monotone_sd_same_heap W W'); eauto.
+    simpl in Hsealed; apply Z.eqb_eq, finz_to_z_eq in Hsealed as ->.
+    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
   Qed.
 
   (** The callback [g], restored by the switcher after a call in the world
-      [Wret], is safe in a private future world [W'] with the heap of
-      [Wret]. *)
+      [Wret], is safe in a private future world [W']. *)
   Lemma vae_world_callback_restored (W Wret W' : WORLD) (C : CmptName) (wg wg' : LWord) :
     load_heap_in_world Wret wg wg' ->
-    heap_std W' = heap_std Wret ->
     related_sts_priv_world W W' ->
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗
     (if is_sealed_with_o wg'.(lw) ot_switcher then interp W' C wg' else True).
   Proof.
-    iIntros ([Hcallback Hretained] Hheap Hpriv) "#Hg".
+    iIntros (Hcallback Hpriv) "#Hseal #Hg".
     destruct Hcallback as [Hsame | Hcleared]; last first.
     { destruct Hcleared as [_ ->].
       destruct (is_sealed_with_o (lclear_tag wg).(lw) ot_switcher); last done.
       iApply interp_clear_tag. }
     rewrite Hsame.
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:His_sealed; last done.
-    destruct (get_tag wg.(lw)) eqn:Htag; last by iApply interp_untagged.
     destruct wg as [ [| [|] | |] π]; try discriminate.
-    iApply (interp_monotone_sd_retained W W' C); [exact Hpriv|exact Htag| |iExact "Hg"].
-    rewrite Hsame in Hretained.
-    rewrite /filter_heap Hheap. exact Hretained.
+    simpl in His_sealed; apply Z.eqb_eq, finz_to_z_eq in His_sealed as ->.
+    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
   Qed.
 
   (** The world [W'] after a call is a public future world of the world [W]
@@ -293,6 +319,7 @@ Section VAE_World_Call.
       frame. The entry point of [B.adv] is still safe in the revoked
       world. *)
   Lemma vae_world_run_call W0 C (csp_b csp_e : Addr) (C_f : Sealable) :
+    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C (WSealed ot_switcher C_f) -∗
     world_interp W0 C
@@ -304,7 +331,7 @@ Section VAE_World_Call.
       ⌜revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e)⌝ ∗
       [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
   Proof.
-    iIntros "#Hinterp_csp #Hinterp_C_f Hworld_interp_C".
+    iIntros "#Hseal #Hinterp_csp #Hinterp_C_f Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
       as (l) "(_ & Hworld_interp_C & Hstack_revoked & >%Hstack_revoked
                & >[%stk_mem Hstk] & _ & _)".
@@ -313,8 +340,7 @@ Section VAE_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd_same_heap with "[] Hinterp_C_f"); last by iPureIntro.
-      by rewrite revoke_heap. }
+    { iApply (interp_monotone_sd with "[] Hseal Hinterp_C_f"); by iPureIntro. }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

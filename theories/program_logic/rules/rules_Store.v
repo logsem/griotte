@@ -336,7 +336,7 @@ Section griotte_lang_rules.
        (* A stripped destination under its witness is a heap capability
           without authority: its bounds are empty. *)
        exfalso.
-       destruct Hrel1 as [[Heq | [_ [[Hst _] | [Hna [base Hh]]]]] _]; cbn in *; try discriminate.
+       destruct Hrel1 as [[Heq | [_ [[Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
        { by apply (deref_witness_not_stale R dw (Cap p g b e a @@? π1)). }
        assert (is_heap_address b = true) as Hbh.
        { rewrite /heap_cap_base /= in Hh. by destruct (is_heap_address b). }

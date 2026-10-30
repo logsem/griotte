@@ -80,7 +80,7 @@ Section griotte_lang_rules.
   Lemma reg_phys_tag_strippable R (v : LWord) :
     reg_phys R v (clear_tag v.(lw)) → get_tag v.(lw) = true → tag_strippable v.
   Proof.
-    intros [[Heq | [_ [[(ι & _ & Hι & _) _] | Hh]]] _] Ht; split; try done.
+    intros [[Heq | [_ [[(ι & _ & Hι & _) _] | Hh] ] ] _] Ht; split; try done.
     - by rewrite -Heq get_tag_clear_tag in Ht.
     - left. by rewrite Hι.
     - by right.
@@ -118,7 +118,7 @@ Section griotte_lang_rules.
       end.
   Proof.
     intros Hi Hs. destruct_or! Hi; subst i; cbn; rewrite Hs /=.
-    all: destruct wsrc as [| [] | | ? []]; cbn; done.
+    all: destruct wsrc as [| [] | | ? [] ]; cbn; done.
   Qed.
 
   Lemma denote_and_tag i s (w : Word) :
@@ -129,9 +129,9 @@ Section griotte_lang_rules.
       end.
   Proof.
     destruct i; cbn; try done.
-    all: try (by destruct s, w as [| [] | | ? []]).
+    all: try (by destruct s, w as [| [] | | ? [] ]).
     f_equal. pose proof (encodeWordType_correct (and_tag s w) w) as Heq.
-    by destruct w as [| [] | | ? []].
+    by destruct w as [| [] | | ? [] ].
   Qed.
 
   Lemma wp_Get Ep pc_p pc_g pc_b pc_e pc_a pc_π w get_i dst src regs dq :
@@ -156,7 +156,7 @@ Section griotte_lang_rules.
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite operands_of_is_Get in Hri; eauto.
-    destruct (Hri src) as [wsrc [H'src _]]; first by set_solver+.
+    destruct (Hri src) as [wsrc [H'src _] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
     rewrite (exec_opt_Get _ _ _ _ _ _ _ _ _ _ Hinstr Hsrc) denote_and_tag in Hstep.
     destruct (decide (get_i = GetTag dst src ∧ s = false ∧ get_tag wsrc.(lw) = true))
@@ -452,7 +452,7 @@ Section griotte_lang_rules.
     iDestruct (HP with "HC HPr") as %HΦc.
     rewrite Hdecode /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
-    destruct (Hri src) as [v [Hv Hv']]; first by set_solver+.
+    destruct (Hri src) as [v [Hv Hv'] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv) as (s & Hsrc & Hrel).
     rewrite (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ ltac:(unfold is_Get; tauto)
                Hsrc) /= in Hstep.
