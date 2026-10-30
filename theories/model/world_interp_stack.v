@@ -11,6 +11,7 @@ Section WorldInterpStack.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
 
