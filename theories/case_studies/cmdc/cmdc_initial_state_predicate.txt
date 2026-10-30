@@ -102,6 +102,8 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   sreg σ !! mepcc   = Some (WInt 0)
   sreg σ !! mcause  = Some (WInt 0)
   sreg σ !! mtval   = Some (WInt 0)
+  sreg σ !! mshwm   = Some (WInt 0)
+  sreg σ !! mshwmb  = Some (WInt 0)
 ── switcher, layout ────────────────────────────────────────────────────────
   b_switcher sw + 5                                 = Some (a_switcher_call sw)
   a_switcher_call sw + length switcher_instrs       = Some (e_switcher sw)

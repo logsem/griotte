@@ -11,7 +11,7 @@ Section state_interp.
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ,
-            !mtdcG Σ, !mieG Σ, !mpieG Σ}.
+            !mtdcG Σ, !mieG Σ, !mpieG Σ, !hwmG Σ}.
 
   Lemma SI_close σ lpc lreg ls lmem R C :
     erasure R C σ lpc lreg (ls_join ls) lmem →
@@ -20,11 +20,12 @@ Section state_interp.
     cerise_state_interp σ.
   Proof.
     iIntros (Her) "HPCa Hr Hsys Hm Hst HR HC". iNamed "Hsys".
-    destruct Hlsh as [Hn1 Hn2].
-    destruct (erasure_split _ _ _ _ _ _ _ _ _ _ Hn1 Hn2 Her) as [Hsh Hth].
-    iExists R, C. iSplitR "HPCa Hr Hmtdc Hmie Hmie_f Hwins".
+    destruct Hlsh as [Hn1 Hn2]. destruct Hlsh_hwm as [Hn3 Hn4].
+    destruct (erasure_split _ _ _ _ _ _ _ _ _ _ _ _ Hn1 Hn2 Hn3 Hn4 Her) as [Hsh Hth].
+    iExists R, C. iSplitR "HPCa Hr Hmtdc Hmie Hmie_f Hwins Hmshwmb_a Hmshwm_a Hzone".
     - iExists (ls_sh ls), lmem, (ls_mpie ls). iFrame. done.
-    - iExists lpc, lreg, (ls_mtdc ls), (ls_vmtdc ls), (ls_mie ls). iFrame. done.
+    - iExists lpc, lreg, (ls_mtdc ls), (ls_vmtdc ls), (ls_mie ls), (ls_hwmb ls), (ls_hwm ls).
+      iFrame. done.
   Qed.
 
   Lemma SI_open σ :
@@ -41,9 +42,11 @@ Section state_interp.
       "HC" ∷ addr_alloc_auth C.
   Proof.
     iIntros "(%R & %C & Hsh & Hth)". iNamed "Hsh". iNamed "Hth".
-    iExists lpc, lreg, (MkLSys lsh m vm mie mpie), lmem, R, C. iFrame.
-    iPureIntro. split_and!; [|done|apply Hersh|apply Hersh].
-    by apply erasure_join.
+    iExists lpc, lreg, (MkLSys lsh m vm mie mpie hb h), lmem, R, C.
+    iFrame "HPCa Hr Hm Hst HR HC". iSplitR; first (iPureIntro; by apply erasure_join).
+    rewrite /sys_interp /=.
+    iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Hwins Hmshwmb_a Hmshwm_a Hzone".
+    iPureIntro. split_and!; try done; apply Hersh.
   Qed.
 
   (** No points-to of the shared heap is at MTDC or mstatus. *)
@@ -53,6 +56,25 @@ Section state_interp.
     iIntros "Hsys Hp". iNamed "Hsys". destruct Hlsh as [Hn1 Hn2].
     iDestruct (gen_heap_valid with "Hsr Hp") as %Hv.
     iPureIntro. split; intros ->; congruence.
+  Qed.
+
+  (** No points-to of the shared heap is at MSHWM or MSHWMB. *)
+  Lemma sys_interp_not_hwm ls sr dq v :
+    sys_interp ls -∗ sr ↦ₓ{dq} v -∗ ⌜sr ≠ mshwm ∧ sr ≠ mshwmb⌝.
+  Proof.
+    iIntros "Hsys Hp". iNamed "Hsys". destruct Hlsh_hwm as [Hn1 Hn2].
+    iDestruct (gen_heap_valid with "Hsr Hp") as %Hv.
+    iPureIntro. split; intros ->; congruence.
+  Qed.
+
+  (** A full points-to is outside [[MSHWMB, MSHWM)]: the zone covers it and
+      holds half of each of its cells. *)
+  Lemma sys_interp_pointsto_outside ls (a : Addr) w :
+    sys_interp ls -∗ a ↦ₐ w -∗ ⌜¬ (ls_hwmb ls ≤ a < ls_hwm ls)%Z⌝.
+  Proof.
+    iIntros "Hsys Ha". iNamed "Hsys". iNamed "Hzone".
+    iDestruct (zone_cells_not_elem with "Hzone_cells Ha") as %Ha.
+    iPureIntro. intros Hin. by apply Ha, Hzone_cover.
   Qed.
 
   Lemma SI_sreg_not_sys σ sr dq v :
@@ -69,6 +91,7 @@ Section state_interp.
     ⌜sregs ⊆ ls_join ls ∧ ∀ sr, sr ∈ dom sregs → sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hsys Hmap". iNamed "Hsys". destruct Hlsh as [Hn1 Hn2].
+    destruct Hlsh_hwm as [Hn3 Hn4].
     iAssert (⌜∀ l v, sregs !! l = Some v → ls_sh ls !! l = Some v⌝)%I as %Hincl.
     { iIntros (l v Hl). iDestruct (big_sepM_lookup with "Hmap") as "Hl"; first exact Hl.
       iApply (gen_heap_valid with "Hsr Hl"). }
@@ -83,6 +106,7 @@ Section state_interp.
     sys_interp ls -∗ sr ↦ₓ v -∗ ⌜ls_join ls !! sr = Some v ∧ sr ≠ mtdc ∧ sr ≠ mstatus⌝.
   Proof.
     iIntros "Hsys Hp". iDestruct (sys_interp_not_sys with "Hsys Hp") as %[H1 H2].
+    iDestruct (sys_interp_not_hwm with "Hsys Hp") as %[H3 H4].
     iNamed "Hsys". iDestruct (gen_heap_valid with "Hsr Hp") as %Hv.
     iPureIntro. by rewrite /ls_join lsregs_join_ne.
   Qed.
@@ -96,12 +120,14 @@ Section state_interp.
     iIntros ([v0 Hv0]) "Hsys Hmap".
     iDestruct (big_sepM_lookup_acc with "Hmap") as "[Hp Hback]"; first exact Hv0.
     iDestruct (sys_interp_not_sys with "Hsys Hp") as %[H1 H2].
+    iDestruct (sys_interp_not_hwm with "Hsys Hp") as %[H3 H4].
     iDestruct ("Hback" with "Hp") as "Hmap".
-    iNamed "Hsys". destruct Hlsh as [Hn1 Hn2].
+    iNamed "Hsys". destruct Hlsh as [Hn1 Hn2]. destruct Hlsh_hwm as [Hn3 Hn4].
     rewrite (big_sepM_delete _ sregs sr) //. iDestruct "Hmap" as "[Hp Hmap]".
     iMod (gen_heap_update with "Hsr Hp") as "[Hsr Hp]".
     iModIntro. iSplitR "Hp Hmap".
-    - iFrame. iPureIntro. rewrite /ls_insert_sh /= !lookup_insert_ne //.
+    - iFrame. iPureIntro. rewrite /ls_insert_sh /=.
+      split_and!; try done; rewrite lookup_insert_ne //.
     - rewrite big_sepM_insert_delete. iFrame.
   Qed.
 
@@ -178,7 +204,8 @@ Section ghost_init.
       has closed bounds that avoid the heap; a tagged PC, MTCC or MEPCC is an
       unsealed executable capability; the system registers that the state
       interpretation reserves exist, MTCC holds the trap vector, mtval an
-      integer and mstatus an encoding of MIE and MPIE. *)
+      integer and mstatus an encoding of MIE and MPIE; MSHWMB and MSHWM hold
+      the same integer. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -202,6 +229,7 @@ Section ghost_init.
     gi_mtcc : sreg σ !! mtcc = Some mtcc_vec;
     gi_mtval : ∃ z, sreg σ !! mtval = Some (WInt z);
     gi_mstatus : ∃ mie mpie, sreg σ !! mstatus = Some (WInt (mstatus_enc mie mpie));
+    gi_hwm : ∃ z, sreg σ !! mshwmb = Some (WInt z) ∧ sreg σ !! mshwm = Some (WInt z);
   }.
 
   Lemma lookup_init_claims H a :
@@ -293,7 +321,8 @@ Section ghost_init.
   (** The generic ghost initialisation of every adequacy theorem. It returns
       the state interpretation, the logical PC, register, mtdc, memory and
       shadow points-to, and the address claims. mtdc receives a ghost value
-      [m0] that stands for its initial word. *)
+      [m0] that stands for its initial word. MSHWMB and MSHWM start equal,
+      with an empty zone; their fragments are dropped. *)
   Lemma cerise_ghost_init σ H (m0 : mtdc_val) (wmtdc : Word) :
     ghost_init_cond σ H →
     sreg σ !! mtdc = Some wmtdc →
@@ -302,7 +331,7 @@ Section ghost_init.
              (pg : pcG Σ)
              (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName LWord Σ)
              (regg : allocRegistryG Σ) (ag : addrAllocG Σ)
-             (mtg : mtdcG Σ) (mieg : mieG Σ) (mpieg : mpieG Σ),
+             (mtg : mtdcG Σ) (mieg : mieG Σ) (mpieg : mpieG Σ) (hwmg : hwmG Σ),
       cerise_state_interp σ ∗
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
@@ -313,7 +342,9 @@ Section ghost_init.
   Proof.
     iIntros (Hinit Hmtdc Hm0).
     destruct (gi_mstatus _ _ Hinit) as (mie0 & mpie0 & Hmst).
-    set (lsh := delete mtdc (delete mstatus (init_lsregs (sreg σ)))).
+    destruct (gi_hwm _ _ Hinit) as (z0 & Hhwmb & Hhwm).
+    set (lsh := delete mshwm (delete mshwmb (delete mtdc (delete mstatus
+                  (init_lsregs (sreg σ)))))).
     iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
     iMod (gen_heap_init (init_lregs (reg σ))) as (rg) "(Hr & Hrs & _)".
     iMod (gen_heap_init lsh) as (srg) "(Hsr & Hsrs & _)".
@@ -324,10 +355,12 @@ Section ghost_init.
     iMod (mtdc_init m0) as (mtg) "[Hmtdc Hmtdc_f]".
     iMod (MIE_init mie0) as (mieg) "[Hmie Hmie_f]".
     iMod (MPIE_init mpie0) as (mpieg) "[Hmpie Hmpie_f]".
-    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag, mtg, mieg, mpieg.
-    assert (∀ sr, sr ≠ mtdc → sr ≠ mstatus → lsh !! sr = lword_of_word <$> sreg σ !! sr)
+    iMod (hwm_init z0) as (hwmg) "(Hmshwmb_a & _ & Hmshwm_a & _ & Hzone_auth)".
+    iModIntro. iExists mg, sg, pg, rg, srg, regg, ag, mtg, mieg, mpieg, hwmg.
+    assert (∀ sr, sr ≠ mtdc → sr ≠ mstatus → sr ≠ mshwm → sr ≠ mshwmb →
+              lsh !! sr = lword_of_word <$> sreg σ !! sr)
       as Hlsh.
-    { intros sr H1 H2. rewrite /lsh !lookup_delete_ne; [|congruence..].
+    { intros sr H1 H2 H3 H4. rewrite /lsh !lookup_delete_ne; [|congruence..].
       by rewrite /init_lsregs lookup_fmap. }
     destruct (gi_reserved_sregs _ _ Hinit mepcc) as [wepcc Hwepcc]; first set_solver.
     destruct (gi_reserved_sregs _ _ Hinit mcause) as [wcause Hwcause]; first set_solver.
@@ -341,7 +374,7 @@ Section ghost_init.
     { rewrite lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtval //. }
     iDestruct (big_sepM_delete _ _ mtcc with "Hsrs") as "[Hmtcc Hsrs]".
     { rewrite lookup_delete_ne // lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtcc //. }
-    set (ls := MkLSys lsh m0 (lword_of_word wmtdc) mie0 mpie0).
+    set (ls := MkLSys lsh m0 (lword_of_word wmtdc) mie0 mpie0 z0 z0).
     assert (ls_join ls = init_lsregs (sreg σ)) as Hjoin.
     { apply map_eq. intros i. rewrite /ls_join /lsregs_join /=.
       destruct (decide (i = mstatus)) as [->|H1].
@@ -350,13 +383,27 @@ Section ghost_init.
       destruct (decide (i = mtdc)) as [->|H2].
       { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hmtdc. }
       rewrite lookup_insert_ne; last congruence.
+      destruct (decide (i = mshwmb)) as [->|H3].
+      { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hhwmb. }
+      rewrite lookup_insert_ne; last congruence.
+      destruct (decide (i = mshwm)) as [->|H4].
+      { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hhwm. }
+      rewrite lookup_insert_ne; last congruence.
       rewrite Hlsh //. by rewrite /init_lsregs lookup_fmap. }
+    iAssert (hwm_zone z0 z0) with "[Hzone_auth]" as "Hzone".
+    { iExists ∅. iFrame "Hzone_auth". rewrite big_sepS_empty.
+      iSplit; last done. iPureIntro. intros a Ha. lia. }
     iAssert (sys_interp ls)
-      with "[Hsr Hmtcc Hmepcc Hmcause Hmtval Hmtdc Hmie Hmie_f Hmpie Hmpie_f]" as "Hsys".
-    { iFrame "Hsr Hmtcc Hmtdc Hmie Hmie_f Hmpie Hmpie_f". iSplit; first done.
+      with "[Hsr Hmtcc Hmepcc Hmcause Hmtval Hmtdc Hmie Hmie_f Hmpie Hmpie_f
+             Hmshwmb_a Hmshwm_a Hzone]" as "Hsys".
+    { iFrame "Hsr Hmtcc Hmtdc Hmie Hmie_f Hmpie Hmpie_f Hmshwmb_a Hmshwm_a Hzone".
+      iSplit; first done.
       iSplitL "Hmepcc Hmcause Hmtval".
       - iSplitL "Hmepcc Hmcause"; iLeft; iFrame.
-      - iPureIntro. rewrite /ls /lsh /=. split.
+      - iPureIntro. rewrite /ls /lsh /=. split_and!.
+        + rewrite lookup_delete_ne // lookup_delete_ne //. by rewrite lookup_delete_eq.
+        + rewrite lookup_delete_ne // lookup_delete_ne // lookup_delete_ne //.
+          by rewrite lookup_delete_eq.
         + by rewrite lookup_delete_eq.
         + rewrite lookup_delete_ne //. by rewrite lookup_delete_eq. }
     iFrame "Hpcs Hrs Hmtdc_f Hms Hsts HCs".

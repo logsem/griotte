@@ -146,8 +146,8 @@ Section trap_entry_windows.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
     iExists wepcc, wcause. iSplit.
     { iPureIntro. by rewrite /ls_join !lsregs_join_ne. }
-    iFrame "Hmepcc Hmcause Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f".
-    iSplit; first done. iSplitL "Htok Hwin_tval"; last (iPureIntro; done).
+    iFrame "Hmepcc Hmcause Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Hmshwmb_a Hmshwm_a Hzone".
+    iSplit; first done. iSplitL "Htok Hwin_tval"; last (iPureIntro; split; done).
     iFrame "Hwin_tval". by iRight.
   Qed.
 
@@ -170,8 +170,8 @@ Section trap_entry_windows.
     iSplit.
     { iPureIntro. by rewrite /ls_join !lsregs_join_ne. }
     iSplitR "Htok"; last done.
-    iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f".
-    iSplit; first done. iSplitL "Hmepcc Hmcause Hwin_tval"; last (iPureIntro; done).
+    iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Hmshwmb_a Hmshwm_a Hzone".
+    iSplit; first done. iSplitL "Hmepcc Hmcause Hwin_tval"; last (iPureIntro; split; done).
     iFrame "Hwin_tval". iLeft. iSplitL "Hmepcc"; by iExists _.
   Qed.
 
@@ -188,8 +188,8 @@ Section trap_entry_windows.
     iDestruct "Hwin_tval" as "[[%z' Hmtval'] | Htok]".
     { iDestruct (pointsto_ne with "Hmtval Hmtval'") as %Hne. by exfalso; apply Hne. }
     iSplitR "Htok"; last done.
-    iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f".
-    iSplit; first done. iSplitL "Hmtval Hwin"; last (iPureIntro; done).
+    iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Hmshwmb_a Hmshwm_a Hzone".
+    iSplit; first done. iSplitL "Hmtval Hwin"; last (iPureIntro; split; done).
     iFrame "Hwin". iLeft. by iExists z.
   Qed.
 
@@ -362,7 +362,8 @@ Section griotte_lang_traps.
     (* mstatus: MIE is disabled and MPIE receives MIE. *)
     set (mie_old := mie_of (get_a (sreg_word σ1 mstatus))).
     iMod (sys_interp_set_mstatus _ InterruptDisabled mie_old with "Hsr") as "Hsr".
-    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2]. iDestruct "Hwins" as "[Hwin Hwin_tval]".
+    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2]. destruct Hlsh_hwm as [Hn3 Hn4].
+    iDestruct "Hwins" as "[Hwin Hwin_tval]".
     (* With the token in hand, MEPCC, mcause and mtval are held. *)
     iDestruct (trap_token_split with "Htok") as "[Htok Htok_tval]".
     iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
@@ -382,7 +383,7 @@ Section griotte_lang_traps.
       (<[mtval := lword_of_word (WInt (trap_tval σ1))]>
         (<[mcause := lword_of_word (WInt (trap_cause σ1))]>
           (<[mepcc := lmepcc_of_pc w]> (ls_sh lsreg))))
-      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
+      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old (ls_hwmb lsreg) (ls_hwm lsreg)).
     assert (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w (ls_join lsreg) = ls_join ls')
       as Hjoin.
     { apply map_eq. intros i.
@@ -390,12 +391,15 @@ Section griotte_lang_traps.
       destruct i; by simplify_map_eq. }
     rewrite Hjoin in Her'.
     iAssert (sys_interp ls')
-      with "[Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Htok Htok_tval]" as "Hsys".
-    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
-      iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f". iSplit; first done.
+      with "[Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Htok Htok_tval Hmshwmb_a Hmshwm_a Hzone]"
+      as "Hsys".
+    { rewrite /sys_interp /ls'.
+      cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_hwmb ls_hwm ls_set_mstatus] in *.
+      iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f Hmshwmb_a Hmshwm_a Hzone".
+      iSplit; first done.
       iSplitL "Htok Htok_tval".
       - iSplitL "Htok"; by iRight.
-      - iPureIntro. split; by simplify_map_eq. }
+      - iPureIntro. split_and!; by simplify_map_eq. }
     iPoseProof (SI_close (enter_exc (trap_cause σ1, trap_tval σ1) σ1) mtcc_vec lreg ls' lmem R C
                   Her' with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
     iModIntro. iSplitL "HSI"; first by iFrame "HSI".

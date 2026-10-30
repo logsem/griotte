@@ -1068,6 +1068,9 @@ Section entry.
     | mstatus => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
     | mtcc => fw_mtcc img
     | mepcc | mcause | mtval => WInt 0
+    (* Temporary: an empty stack high-water-mark zone. The loader sets MSHWM and
+       MSHWMB to the top and base of the thread's stack. *)
+    | mshwm | mshwmb => WInt 0
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1086,7 +1089,7 @@ Section entry.
       /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
     destruct (fw_threads fw) as [|ft fts]; first done.
     intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause
-            & Hmtval).
+            & Hmtval & Hmshwm & Hmshwmb).
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub] eqn:Hbody.
     - destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
       split_and!; [by exists fts | done..|].
@@ -1520,6 +1523,7 @@ Section ghost_init.
     - exact (Hsreg mtcc).
     - exists 0%Z. exact (Hsreg mtval).
     - exists InterruptDisabled, InterruptDisabled. exact (Hsreg mstatus).
+    - exists 0%Z. split; [exact (Hsreg mshwmb) | exact (Hsreg mshwm)].
   Qed.
 End ghost_init.
 

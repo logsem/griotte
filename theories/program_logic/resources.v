@@ -6,8 +6,9 @@ From griotte Require Export logical_words alloc_registry.
 (** * The resources of Griotte
 
     The ghost state of the machine (the PC, the per-thread system registers
-    mtdc and MIE, and MPIE), the classes of a thread's instance and of the
-    resources shared by the threads, and the points-to notations. *)
+    mtdc, MIE, MSHWMB and MSHWM with the zone, and MPIE), the classes of a
+    thread's instance and of the resources shared by the threads, and the
+    points-to notations. *)
 
 (** Non-atomic invariants: the pool of the running thread, which holds the
     tokens of trap entry in the state interpretation. Thread-level code names
@@ -203,6 +204,120 @@ Proof.
   iModIntro. iExists (MpieG _ _ γ). iFrame.
 Qed.
 
+(** * The stack high-water mark of a thread
+
+    MSHWMB and MSHWM are per thread: each has an exclusive ghost value, the
+    integer of its logical value. The zone of the thread is a ghost set of
+    addresses with an exclusive token per address. *)
+Definition hwmUR := excl_authUR (leibnizO Z).
+
+Class hwmG Σ := HwmG {
+  hwm_inG :: inG Σ hwmUR;
+  hwm_zone_mapG :: ghost_mapG Σ Addr unit;
+  mshwmb_name : gname;
+  mshwm_name : gname;
+  zone_name : gname;
+}.
+#[export] Hint Mode hwmG - : typeclass_instances.
+
+Class hwmGpreS Σ := {
+  hwm_preG_inG :: inG Σ hwmUR;
+  hwm_preG_zone :: ghost_mapG Σ Addr unit;
+}.
+#[export] Hint Mode hwmGpreS - : typeclass_instances.
+Definition hwmΣ : gFunctors := #[GFunctor hwmUR; ghost_mapΣ Addr unit].
+#[global] Instance subG_hwmGpreS {Σ} : subG hwmΣ Σ → hwmGpreS Σ.
+Proof. solve_inG. Qed.
+
+Section hwm_resource.
+  Context `{!hwmG Σ}.
+
+  Definition mshwmb_auth (hb : Z) : iProp Σ := own mshwmb_name (●E (hb : leibnizO Z)).
+  Definition mshwmb_frag (hb : Z) : iProp Σ := own mshwmb_name (◯E (hb : leibnizO Z)).
+  Definition mshwm_auth (h : Z) : iProp Σ := own mshwm_name (●E (h : leibnizO Z)).
+  Definition mshwm_frag (h : Z) : iProp Σ := own mshwm_name (◯E (h : leibnizO Z)).
+
+  #[global] Instance mshwmb_auth_timeless hb : Timeless (mshwmb_auth hb).
+  Proof. apply _. Qed.
+  #[global] Instance mshwmb_frag_timeless hb : Timeless (mshwmb_frag hb).
+  Proof. apply _. Qed.
+  #[global] Instance mshwm_auth_timeless h : Timeless (mshwm_auth h).
+  Proof. apply _. Qed.
+  #[global] Instance mshwm_frag_timeless h : Timeless (mshwm_frag h).
+  Proof. apply _. Qed.
+
+  Lemma mshwmb_agree hb hb' : mshwmb_auth hb -∗ mshwmb_frag hb' -∗ ⌜hb = hb'⌝.
+  Proof. iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv. by apply excl_auth_agree_L in Hv. Qed.
+
+  Lemma mshwmb_update hb hb' hb'' :
+    mshwmb_auth hb -∗ mshwmb_frag hb' ==∗ mshwmb_auth hb'' ∗ mshwmb_frag hb''.
+  Proof.
+    iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
+    apply excl_auth_update.
+  Qed.
+
+  Lemma mshwmb_frag_excl hb hb' : mshwmb_frag hb -∗ mshwmb_frag hb' -∗ False.
+  Proof. iIntros "H1 H2". iCombine "H1 H2" gives %Hv. by apply excl_auth_frag_op_valid in Hv. Qed.
+
+  Lemma mshwm_agree h h' : mshwm_auth h -∗ mshwm_frag h' -∗ ⌜h = h'⌝.
+  Proof. iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv. by apply excl_auth_agree_L in Hv. Qed.
+
+  Lemma mshwm_update h h' h'' :
+    mshwm_auth h -∗ mshwm_frag h' ==∗ mshwm_auth h'' ∗ mshwm_frag h''.
+  Proof.
+    iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
+    apply excl_auth_update.
+  Qed.
+
+  Lemma mshwm_frag_excl h h' : mshwm_frag h -∗ mshwm_frag h' -∗ False.
+  Proof. iIntros "H1 H2". iCombine "H1 H2" gives %Hv. by apply excl_auth_frag_op_valid in Hv. Qed.
+
+  (** The exclusive token of the address [a] of the zone. *)
+  Definition zone_token (a : Addr) : iProp Σ := a ↪[zone_name] ().
+
+  (** The authoritative part of the zone [Z]. *)
+  Definition zone_auth (Z : gset Addr) : iProp Σ :=
+    ghost_map_auth zone_name 1 (gset_to_gmap () Z).
+
+  #[global] Instance zone_token_timeless a : Timeless (zone_token a).
+  Proof. apply _. Qed.
+
+  Lemma zone_token_excl a : zone_token a -∗ zone_token a -∗ False.
+  Proof. iIntros "H1 H2". by iDestruct (ghost_map_elem_ne with "H1 H2") as %?. Qed.
+
+  Lemma zone_auth_elem Z a : zone_auth Z -∗ zone_token a -∗ ⌜a ∈ Z⌝.
+  Proof.
+    iIntros "Hauth Htok".
+    iDestruct (ghost_map_lookup with "Hauth Htok") as %Hlookup.
+    iPureIntro. by apply lookup_gset_to_gmap_Some in Hlookup as [? _].
+  Qed.
+
+  Lemma zone_auth_insert Z a : a ∉ Z → zone_auth Z ==∗ zone_auth ({[a]} ∪ Z) ∗ zone_token a.
+  Proof.
+    iIntros (HaZ) "Hauth". rewrite /zone_auth /zone_token gset_to_gmap_union_singleton.
+    iApply (ghost_map_insert with "Hauth").
+    by rewrite lookup_gset_to_gmap_None.
+  Qed.
+
+  Lemma zone_auth_delete Z a : zone_auth Z -∗ zone_token a ==∗ zone_auth (Z ∖ {[a]}).
+  Proof.
+    iIntros "Hauth Htok". rewrite /zone_auth /zone_token gset_to_gmap_difference_singleton.
+    iApply (ghost_map_delete with "Hauth Htok").
+  Qed.
+End hwm_resource.
+
+Lemma hwm_init `{!hwmGpreS Σ} (z : Z) :
+  ⊢ |==> ∃ g : hwmG Σ,
+    mshwmb_auth z ∗ mshwmb_frag z ∗ mshwm_auth z ∗ mshwm_frag z ∗ zone_auth ∅.
+Proof.
+  iMod (own_alloc (●E (z : leibnizO Z) ⋅ ◯E (z : leibnizO Z))) as (γb) "[Hba Hbf]".
+  { apply excl_auth_valid. }
+  iMod (own_alloc (●E (z : leibnizO Z) ⋅ ◯E (z : leibnizO Z))) as (γh) "[Hha Hhf]".
+  { apply excl_auth_valid. }
+  iMod (ghost_map_alloc_empty (K:=Addr) (V:=unit)) as (γz) "Hzauth".
+  iModIntro. iExists (HwmG _ _ _ γb γh γz). rewrite /zone_auth gset_to_gmap_empty. iFrame.
+Qed.
+
 (** The trap vector: the word that MTCC holds in every state, the
     capability of the exception entry of the switcher. It is tagged, so a
     fault never stops the machine. *)
@@ -228,7 +343,8 @@ Class ceriseG Σ :=
       cerise_trapVector :: trapVector; (* trap vector *)
       cerise_mtdcG :: mtdcG Σ; (* mtdc of the thread *)
       cerise_mieG :: mieG Σ; (* MIE of the thread *)
-      cerise_mpieG :: mpieG Σ (* MPIE *)
+      cerise_mpieG :: mpieG Σ; (* MPIE *)
+      cerise_hwmG :: hwmG Σ (* MSHWMB, MSHWM and zone of the thread *)
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
@@ -267,8 +383,8 @@ Definition thread_map {A} (x0 : A) (xs : list A) (xc d : A) (th : Thread) : A :=
   end.
 
 (** The resources shared by the threads, and the per-thread ones as maps
-    from threads: the PC, the general registers, the ghost state of mtdc and
-    MIE, and the non-atomic pool [tpool th]. The other system registers and
+    from threads: the PC, the general registers, the ghost state of mtdc,
+    MIE, MSHWMB, MSHWM and the zone, and the non-atomic pool [tpool th]. The other system registers and
     MPIE are shared. The shared fields are [::]
     fields, the per-thread maps are not, so typeclass search finds a
     per-thread heap only through [ceriseG_of]. The shared fields other than
@@ -291,6 +407,7 @@ Class ceriseBaseG Σ := CeriseBaseG {
   cb_regs_of : Thread → gen_heapGS RegName LWord Σ;
   cb_mtdc_of : Thread → mtdcG Σ;
   cb_mie_of : Thread → mieG Σ;
+  cb_hwm_of : Thread → hwmG Σ;
   tpool : Thread → na_inv_pool_name;
 }.
 #[export] Hint Mode ceriseBaseG - : typeclass_instances.
@@ -306,7 +423,8 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
     (@Build_cerise_na_invs Σ (@cb_na_invG Σ base) (@tpool Σ base th))
     (@cb_mem Σ base) (@cb_shadow Σ base) (@cb_pc_of Σ base th) (@cb_regs_of Σ base th)
     (@cb_sreg Σ base) (@cb_registry Σ base) (@cb_addr_alloc Σ base) (@cb_trapVector Σ base)
-    (@cb_mtdc_of Σ base th) (@cb_mie_of Σ base th) (@cb_mpie Σ base).
+    (@cb_mtdc_of Σ base th) (@cb_mie_of Σ base th) (@cb_mpie Σ base)
+    (@cb_hwm_of Σ base th).
 #[global] Existing Instance ceriseG_of.
 
 (* Goals keep the thread: [simpl] does not unfold the instance of a thread
@@ -327,6 +445,7 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
 #[global] Arguments cerise_mtdcG : simpl never.
 #[global] Arguments cerise_mieG : simpl never.
 #[global] Arguments cerise_mpieG : simpl never.
+#[global] Arguments cerise_hwmG : simpl never.
 
 (** The namespace of the non-atomic token of trap entry: a fault hands it
     to the state interpretation, in exchange for MEPCC, mcause and mtval.
@@ -381,6 +500,18 @@ Notation "'mtdc' ↦ₜ m" := (mtdc_frag m)
 Notation "'mtdc' ↦ₜ[ th ] m" := (@mtdc_frag _ (@cerise_mtdcG _ (ceriseG_of th)) m)
   (at level 0, th custom thread, m at level 10, format "'mtdc'  ↦ₜ[ th ]  m") : bi_scope.
 
+(** The MSHWMB and MSHWM fragments of a thread: [mshwm ↦ₜ h] in proofs and
+    in instance-generic files, [mshwm ↦ₜ[th] h] for thread [th]. [mshwm] and
+    [mshwmb] are keywords at level 0, as [mtdc]. *)
+Notation "'mshwmb' ↦ₜ hb" := (mshwmb_frag hb)
+  (at level 0, hb at level 10, format "'mshwmb'  ↦ₜ  hb") : bi_scope.
+Notation "'mshwmb' ↦ₜ[ th ] hb" := (@mshwmb_frag _ (@cerise_hwmG _ (ceriseG_of th)) hb)
+  (at level 0, th custom thread, hb at level 10, format "'mshwmb'  ↦ₜ[ th ]  hb") : bi_scope.
+Notation "'mshwm' ↦ₜ h" := (mshwm_frag h)
+  (at level 0, h at level 10, format "'mshwm'  ↦ₜ  h") : bi_scope.
+Notation "'mshwm' ↦ₜ[ th ] h" := (@mshwm_frag _ (@cerise_hwmG _ (ceriseG_of th)) h)
+  (at level 0, th custom thread, h at level 10, format "'mshwm'  ↦ₜ[ th ]  h") : bi_scope.
+
 (* Points to predicates for memory *)
 Notation "a ↦ₐ dq w" := (pointsto (L:=Addr) (V:=LWord) a dq w)
   (at level 20, dq custom dfrac at level 1, format "a  ↦ₐ dq  w") : bi_scope.
@@ -393,6 +524,53 @@ Notation "a ↦ₛ dq s" := (pointsto (L:=Addr) (V:=AllocStatus) a dq s)
 Notation "a ↦ₛ dq -" := (∃ s, pointsto (L:=Addr) (V:=AllocStatus) a dq s)%I
   (at level 20, dq custom dfrac at level 1, format "a  ↦ₛ dq  -") : bi_scope.
 
+(** * The zone of a thread *)
+Section zone.
+  Context `{!gen_heapGS Addr LWord Σ, !hwmG Σ}.
+
+  (** A cell of the zone: its token, and half of its points-to, which holds
+      zero. The state interpretation holds the other half. *)
+  Definition zone_cell_def (a : Addr) : iProp Σ :=
+    zone_token a ∗ a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0).
+  #[local] Definition zone_cell_aux : seal (@zone_cell_def). Proof. by eexists. Qed.
+  Definition zone_cell := zone_cell_aux.(unseal).
+  #[local] Definition zone_cell_unseal : @zone_cell = @zone_cell_def :=
+    zone_cell_aux.(seal_eq).
+
+  Lemma zone_cell_unfold a :
+    zone_cell a ⊣⊢ zone_token a ∗ a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0).
+  Proof. by rewrite zone_cell_unseal. Qed.
+
+  #[global] Instance zone_cell_timeless a : Timeless (zone_cell a).
+  Proof. rewrite zone_cell_unseal. apply _. Qed.
+
+  Lemma zone_cell_excl a : zone_cell a -∗ zone_cell a -∗ False.
+  Proof.
+    rewrite !zone_cell_unfold. iIntros "[H1 _] [H2 _]".
+    iApply (zone_token_excl with "H1 H2").
+  Qed.
+
+  (** A full points-to is not in the zone. *)
+  Lemma zone_cells_not_elem (zone : gset Addr) a w :
+    ([∗ set] a' ∈ zone, a' ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0)) -∗
+    a ↦ₐ w -∗
+    ⌜a ∉ zone⌝.
+  Proof.
+    iIntros "Hcells Ha". destruct (decide (a ∈ zone)) as [Ha|Ha]; last done.
+    iDestruct (big_sepS_elem_of with "Hcells") as "Ha'"; first exact Ha.
+    iDestruct (pointsto_valid_2 with "Ha Ha'") as %[Hv _].
+    iPureIntro. rewrite dfrac_op_own dfrac_valid_own in Hv.
+    by apply Qp.not_add_le_l in Hv.
+  Qed.
+End zone.
+
+(** A cell of the zone of thread [th]; plain [zone_cell a] in proofs and in
+    instance-generic files. The memory and the zone are those of
+    [ceriseG_of th]. *)
+Notation "'zone_cell[' th ] a" :=
+  (@zone_cell _ (@mem_gen_memG _ (ceriseG_of th)) (@cerise_hwmG _ (ceriseG_of th)) a)
+  (at level 20, th custom thread, a at level 9, format "'zone_cell[' th ]  a") : bi_scope.
+
 (** The classes of the ghost state before its allocation. *)
 Class ceriseGpreS Σ := {
   cerise_preG_mem :: gen_heapGpreS Addr LWord Σ;
@@ -404,12 +582,13 @@ Class ceriseGpreS Σ := {
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
   cerise_preG_mtdc :: mtdcGpreS Σ;
   cerise_preG_intst :: intstGpreS Σ;
+  cerise_preG_hwm :: hwmGpreS Σ;
 }.
 #[export] Hint Mode ceriseGpreS - : typeclass_instances.
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
-    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ; mtdcΣ; intstΣ].
+    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ; mtdcΣ; intstΣ; hwmΣ].
 
 #[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.

@@ -165,13 +165,14 @@ Definition legalise_pc (w : Word) : Word :=
 
 (** The value a system register stores when [w] is written to it: MTCC and
     MEPCC are legalised, MTDC stores [w], and the CSRs store the integer view
-    of [w], mstatus keeping only its MIE and MPIE bits. *)
+    of [w], mstatus keeping only its MIE and MPIE bits. MSHWM and MSHWMB are
+    not rounded. *)
 Definition legalise (sr : SRegName) (w : Word) : Word :=
   match sr with
   | mtcc | mepcc => legalise_pc w
   | mtdc => w
   | mstatus => WInt (mstatus_enc (mie_of (get_a w)) (mpie_of (get_a w)))
-  | mcause | mtval => WInt (get_a w)
+  | mcause | mtval | mshwm | mshwmb => WInt (get_a w)
   end.
 
 (** The system registers that hold a PC: [mret] and trap entry jump to them
@@ -259,6 +260,21 @@ Qed.
     its tag; any other PC is kept as it is. *)
 Definition mepcc_of_pc (w : Word) : Word :=
   if get_tag w && negb (isCorrectPCb w) then clear_tag w else w.
+
+(** The stack high-water mark: a write to memory at [ea] in
+    [[MSHWMB, MSHWM)] lowers MSHWM to [ea], as cheriot-sail's
+    [ext_check_phys_mem_write], without its rounding to 16 bytes. *)
+Definition hwm_update (ea : Addr) (sr : SReg) : SReg :=
+  match sr !! mshwmb, sr !! mshwm with
+  | Some wb, Some wh =>
+      if decide (get_a wb ≤ ea < get_a wh)%Z then <[mshwm := WInt ea]> sr else sr
+  | _, _ => sr
+  end.
+Arguments hwm_update : simpl never.
+
+(** The machine after the high-water-mark update of a write at [ea]. *)
+Definition hwm_store (ea : Addr) (φ : ExecConf) : ExecConf :=
+  (pcc φ, reg φ, hwm_update ea (sreg φ), mem φ, shadowtbl φ).
 
 Section opsem.
   Context `{MachineParameters}.
@@ -377,9 +393,11 @@ Section opsem.
             revoker_sweep φ |> nextPC
           else
             (* A store to an address absent from memory faults, after the
-               capability checks. *)
+               capability checks. A store to memory updates the stack
+               high-water mark; the memory-mapped shadow region and revoker
+               do not. *)
             match (mem φ) !! ea with
-            | Some _ => φ .[ea :=ₐ store_word p tostore] |> nextPC
+            | Some _ => (hwm_store ea φ) .[ea :=ₐ store_word p tostore] |> nextPC
             | None => None
             end
       | _ => None
@@ -774,7 +792,7 @@ Section opsem.
     | mtcc => CheriMTCC
     | mtdc => CheriMTDC
     | mepcc => CheriMEPCC
-    | mstatus | mcause | mtval => CheriPCC
+    | mstatus | mcause | mtval | mshwm | mshwmb => CheriPCC
     end.
 
   (** The fault of the instruction [i], executed with the PC permission

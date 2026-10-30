@@ -282,6 +282,44 @@ Qed.
   Lemma dom_revoker_sweep_mem φ : dom (mem (revoker_sweep φ)) = dom (mem φ).
   Proof. apply dom_sweep_mem. Qed.
 
+  (*--- The stack high-water mark ---*)
+
+  Lemma lookup_hwm_update_ne (ea : Addr) (sr : SReg) x :
+    x ≠ mshwm → hwm_update ea sr !! x = sr !! x.
+  Proof.
+    intros Hx. rewrite /hwm_update. repeat case_match; try done.
+    by rewrite lookup_insert_ne.
+  Qed.
+
+  (** The update writes MSHWM only, an integer at [ea], when [ea] is in
+      [[MSHWMB, MSHWM)]. *)
+  Lemma hwm_update_cases (ea : Addr) (sr : SReg) :
+    (hwm_update ea sr = sr ∧
+       ∀ wb wh, sr !! mshwmb = Some wb → sr !! mshwm = Some wh →
+         ¬ (get_a wb ≤ ea < get_a wh)%Z) ∨
+    (∃ wb wh, sr !! mshwmb = Some wb ∧ sr !! mshwm = Some wh ∧
+       (get_a wb ≤ ea < get_a wh)%Z ∧ hwm_update ea sr = <[mshwm := WInt ea]> sr).
+  Proof.
+    rewrite /hwm_update.
+    destruct (sr !! mshwmb) as [wb|] eqn:Hb; destruct (sr !! mshwm) as [wh|] eqn:Hh.
+    - case_decide as Hin.
+      + right. by eexists _, _.
+      + left. split; first done. intros wb' wh' Hb' Hh'. by simplify_eq.
+    - left. split; first done. intros wb' wh' Hb' Hh'. by simplify_eq.
+    - left. split; first done. intros wb' wh' Hb' Hh'. by simplify_eq.
+    - left. split; first done. intros wb' wh' Hb' Hh'. by simplify_eq.
+  Qed.
+
+  Lemma hwm_update_id (ea : Addr) (sr : SReg) :
+    (∀ wb wh, sr !! mshwmb = Some wb → sr !! mshwm = Some wh →
+       ¬ (get_a wb ≤ ea < get_a wh)%Z) →
+    hwm_update ea sr = sr.
+  Proof.
+    intros Hout. destruct (hwm_update_cases ea sr) as [[? _] | (wb & wh & Hb & Hh & Hin & _)];
+      first done.
+    by destruct (Hout _ _ Hb Hh).
+  Qed.
+
   (*--- The tagged-PC invariant ---*)
 
   (** A tagged PC, MTCC or MEPCC is an unsealed executable capability. *)
@@ -300,6 +338,13 @@ Qed.
     intros sr' w' Hsr'. cbn. destruct (decide (sr = sr')) as [<-|Hne].
     - rewrite lookup_insert_eq. intros [= <-]. by apply legalise_pc_sreg_pc_ok.
     - rewrite lookup_insert_ne //. by apply Hsr.
+  Qed.
+
+  Lemma sys_pc_ok_hwm_store (ea : Addr) φ : sys_pc_ok φ → sys_pc_ok (hwm_store ea φ).
+  Proof.
+    intros [Hpc Hsr]. split; first done.
+    intros sr' w' Hsr'. cbn. rewrite lookup_hwm_update_ne; first by apply Hsr.
+    by intros ->.
   Qed.
 
   Lemma sys_pc_ok_update_sreg_not_pc φ sr w :
@@ -345,6 +390,8 @@ Qed.
     (* MTCC and MEPCC change only by a legalised write. *)
     all: try (eapply sys_pc_ok_ext; [| |exact Hinv]; done).
     all: try (eapply sys_pc_ok_ext; [| |apply sys_pc_ok_update_sreg, Hinv]; done).
+    (* A store to memory updates MSHWM. *)
+    all: try (eapply sys_pc_ok_ext; [| |apply sys_pc_ok_hwm_store, Hinv]; done).
     (* SetMIE and Mret write mstatus; Mret jumps to MEPCC. *)
     all: try (apply sys_pc_ok_update_sreg_not_pc; [done|]).
     all: try exact Hinv.
