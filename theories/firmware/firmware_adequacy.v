@@ -1681,7 +1681,7 @@ Definition fw_cleared_regs : LReg :=
 Section resources.
   Context
     {Σ : gFunctors}
-    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -1951,13 +1951,15 @@ Section thread_trusted_stack_inv.
 End thread_trusted_stack_inv.
 
 (** The obligations of the trusted code of a firmware, for the ghost state
-    [Σ]: for every image and initial state satisfying [firmware_ok], the
-    first thread, the user thread [0], runs safely from the resources of
-    the image. A case study with its own ghost state proves them for every
+    [Σ]: for some assignment [cthreads] of threads to the compartments, for
+    every image and initial state satisfying [firmware_ok], the first
+    thread, the user thread [0], runs safely from the resources of the
+    image. A case study with its own ghost state proves them for every
     [Σ] with its [subG] assumptions, and allocates its ghost state inside
     the proof. *)
 Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
     (fw : firmware) : Prop :=
+  ∃ (cthreads : CmptThreads),
   ∀ (img : fw_image) (σ : ExecConf)
     (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
     (stsg : STSG Σ) (relg : relGS Σ)
@@ -1988,7 +1990,7 @@ Theorem firmware_adequacy (Σ : gFunctors)
   rtc erased_step ([Exec], σ) (es, σ') →
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
 Proof.
-  intros Hobl Hok Hstep.
+  intros [cthreads Hobl] Hok Hstep.
   destruct σ as [ [ [ [w_pc regs] sregs] m] sh].
   destruct σ' as [ [ [ [w_pc' regs'] sregs'] m'] sh'].
   pose proof Hok as (_ & [_ Hsh] & Hregs & Hwf).
@@ -2014,7 +2016,7 @@ Proof.
   iEval (rewrite big_sepL_fw_imap_from) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
   (* The seal store, the call stacks and the worlds. *)
-  iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0)
+  iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0))
           (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0)
           (fw_imap_from (λ i _, fw_entry_frame fw img i) 1 fts))

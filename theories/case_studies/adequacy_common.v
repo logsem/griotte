@@ -314,11 +314,12 @@ Section world_init.
     {seal_store_preg : sealStorePreG Σ}
     {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
     {cstack_preg : CSTACK_preG Σ}
-    `{MP: MachineParameters} {th : Thread}.
+    `{MP: MachineParameters}.
 
   (** The call stack of the user thread [0] starts with its entry frame
       [ef] only, that of the user thread [S k] with the entry frame
-      [efs !! k] only. *)
+      [efs !! k] only. The worlds are those of the user thread [0]; the
+      local maps of the other threads are empty. *)
   Lemma initialise_world (Cs : list CmptName) (ots : gset OType) (ef : trusted_frame)
       (efs : list trusted_frame) :
     CNames = list_to_set Cs →
@@ -330,13 +331,14 @@ Section world_init.
       ◯(CSTK)[u 0] (entry_cstack ef) ∗
       ([∗ list] k ↦ ef' ∈ efs,
          ●(CSTK)[u (S k)] (entry_cstack ef') ∗ ◯(CSTK)[u (S k)] (entry_cstack ef')) ∗
-      [∗ list] C ∈ Cs, world_interp (MkWorld ∅ (∅,∅)) C.
+      [∗ list] C ∈ Cs, world_interp (th := UserThread 0) (MkWorld ∅ (∅,∅)) C.
   Proof.
     intros HCNames HNoDup.
     iMod (gen_cstack_init (entry_cstack ef) ((λ ef', entry_cstack ef') <$> efs))
       as (cstackg) "(Hcstk_full & Hcstk_frag & Hcstks)".
     iEval (rewrite big_sepL_fmap) in "Hcstks".
-    iMod (world_interp_init ots) as (relg stsg seal_storeg) "(Hworld_interp & Hseal_store)".
+    iMod (world_interp_init ots (S (length efs))) as (relg stsg seal_storeg)
+      "(Hworld_interp & _ & Hseal_store)"; first lia.
     rewrite HCNames big_sepS_list_to_set //.
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
   Qed.
@@ -347,7 +349,7 @@ End world_init.
 Section adversary_world.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -420,7 +422,7 @@ Section adversary_world.
         iDestruct (big_sepL_lookup with "Hrel") as "$"; first done.
         iSplit; first done. iApply mono_pub_interp_in_mem. }
       iSplit; first (iNext ; by iApply zcond_interp_in_mem).
-      iSplit; first (iNext ; by iApply rcond_interp_in_mem).
+      iSplit; first (iNext ; by iApply rcond_interp_in_mem_nodl).
       iNext ; by iApply wcond_interp_in_mem. }
     iSplit; first done.
     by iApply heap_cap_ok_disjoint.
@@ -555,7 +557,8 @@ Section adversary_world.
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem_gC (C, v)) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) -∗
+    thread_in th C -∗
     world_interp W C
     ={E}=∗
     world_interp W' C ∗
@@ -564,7 +567,7 @@ Section adversary_world.
     [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v.
   Proof.
     intros W' Hfree Hcode Hdata.
-    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
+    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports #Hthread Hworld".
     destruct (adv_world_free_cmpt W C_cmpt Hfree) as (Hfree_imports & Hfree_code & Hfree_data).
     iAssert (□ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W' C v) -∗
                [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v)%I as "Hto_interp".
@@ -573,7 +576,7 @@ Section adversary_world.
       destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hbase & _).
       iApply (interp_in_mem_load_result with "Hv").
       by right. }
-    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hworld")
+    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hthread Hworld")
       as "($ & $ & $ & _ & #Hexp)"; [done..| |].
     { iIntros "(#Hpcc & #Hcgp)".
       iDestruct (exported_entries_sealed_interp W' with "Hseal_pred []") as "#Hexp".
@@ -612,7 +615,8 @@ Section adversary_world.
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem_gC (C, v)) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) -∗
+    thread_in th C -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -622,9 +626,9 @@ Section adversary_world.
     [∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wadv C v.
   Proof.
     intros W' Wadv Hsw Hfree Hcode Hdata Hstack.
-    iIntros "#Hseal_pred HC_imports HC_code HC_data Hstack #Hexports Himports Hworld".
+    iIntros "#Hseal_pred HC_imports HC_code HC_data Hstack #Hexports Himports #Hthread Hworld".
     iMod (alloc_adversary_compartment with
-           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
+           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hthread Hworld")
       as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
     iMod (world_interp_extend_temp_sepL2_nonheap _ _ (stack_addrs sw)
             (lword_of_word <$> stack_content sw) RWL interp_in_memC
@@ -687,7 +691,8 @@ Section adversary_world.
         ot_switcher_prop W' C (WSealable (cmpt_export C_cmpt a))) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗ interp W' C (cmpt_cgp_cap C_cmpt) ∗
       [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W' C v) -∗
-     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem_gC (C, v)) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) -∗
+    thread_in th C -∗
     world_interp W C
     ={E}=∗
     world_interp Wadv C ∗
@@ -697,9 +702,9 @@ Section adversary_world.
     [∗ set] v ∈ exported_entries_sealed C_cmpt, interp Wadv C v.
   Proof.
     intros W' Wadv Hsw Hfree Hcode Hdata.
-    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports Hworld".
+    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports #Hthread Hworld".
     iMod (alloc_adversary_compartment with
-           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hworld")
+           "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hthread Hworld")
       as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
     iMod (world_interp_extend_revoked_sepL2_nonheap _ _ (stack_addrs sw) RWL interp_in_memC
            with "Hworld")
@@ -731,7 +736,7 @@ Notation adv_world_revoked := (adv_world_with Revoked).
 Section adversary_exports.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -747,7 +752,7 @@ Section adversary_exports.
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i) = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
-    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
+    switcher_family C ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -802,7 +807,7 @@ Section adversary_exports.
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
-    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
+    switcher_family C ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -839,7 +844,7 @@ End adversary_exports.
 Section adversary_imports.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -849,14 +854,16 @@ Section adversary_imports.
   Lemma switcher_call_import_safe (C : CmptName) :
     let w := lword_of_word (Sentry FwdDisable XSRW_ Local
                switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
-    na_inv (tpool th) Ntstack trusted_stack_inv ⊢
+    switcher_family C ⊢
     switcher_static -∗
-    interp_in_mem_gC (C, w).
+    safeGC interp_cmpt_threads (C, w).
   Proof.
     intros w; subst w.
-    iIntros "#Hswitcher #Hswitcher_static".
-    iEval (cbn; rewrite /interp_in_mem_pre /=).
-    by iApply (interp_switcher_call with "[$Hswitcher $Hswitcher_static]").
+    iIntros "#Hfamily #_".
+    iEval (cbn; rewrite /interp_cmpt_threads /=).
+    iIntros "!>" (t') "#Ht'".
+    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
+    by iApply (interp_switcher_call (th := t') with "[$Hswitcher $Hswitcher_static]").
   Qed.
 
   (** A word sealed with [o] is safe once the Global-kind predicate of [o]
@@ -884,11 +891,16 @@ Section adversary_imports.
     o ↪ₒ{SealGlobal} Pc -∗
     seal_kind_ok SealGlobal C Pc -∗
     □ ▷ Pc (th, ∅, C, lword_of_word (WSealable sb)) -∗
-    interp_in_mem_gC (C, w).
+    safeGC interp_cmpt_threads (C, w).
   Proof.
     intros w Hglobal Hheap; subst w.
     iIntros "#Hseal #Hok #HP".
-    iApply interp_to_in_mem.
+    iEval (cbn; rewrite /interp_cmpt_threads /=).
+    iIntros "!>" (t') "_".
+    (* A Global sealed word is valid at every thread *)
+    assert (isLocalWord (lword_of_word (WSealed o sb)).(lw) = false) as Hnl
+      by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
+    rewrite -(interp_global_thread_world_free th t' ∅ ∅ C _ Hnl).
     iApply (interp_sealed_of_seals ∅ C o Pc sb Hheap with "Hseal Hok").
     assert (lforce_global (lword_of_word (WSealable sb)) = lword_of_word (WSealable sb)) as Heq
       by (destruct sb as [ [] ? [] | [] ? [] ]; by cbn in * ).
@@ -901,7 +913,7 @@ End adversary_imports.
 Section service_exports.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -972,7 +984,7 @@ End initial_heap.
 Section main_exports.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
