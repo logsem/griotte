@@ -29,7 +29,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w Fail ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros (hb) "@".
+    iIntros (hb f h) "@".
     iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_fail (CL := link_core) with "[$HPC $Ha]"); eauto.
     iNext. iIntros "[HPC Ha] /=".
@@ -44,7 +44,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w Halt ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros (hb) "@".
+    iIntros (hb f h) "@".
     iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_halt (CL := link_core) with "[HPC Ha]"); eauto; iFrame.
     iNext. iIntros "[HPC Ha] /=".

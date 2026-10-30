@@ -57,17 +57,6 @@ Section fundamental.
     regs !! r = Some (Cap p0 g0 b0 e0 a0 @@? π).
   Proof. intros (Hinr0 & _) Hπ. by apply read_reg_prov_cap. Qed.
 
-  Lemma store_inr_eq (imm : Z) {regs r p0 g0 b0 e0 a0 ea t1 p1 g1 b1 e1 a1}:
-    reg_allows_store_imm regs r imm p0 g0 b0 e0 a0 ea →
-    read_reg_inr regs r t1 p1 g1 b1 e1 a1 →
-    p0 = p1 ∧ g0 = g1 ∧ b0 = b1 ∧ e0 = e1 ∧ a0 = a1.
-  Proof.
-    intros Hrar H3.
-    destruct Hrar as (Hinr0 & _).
-    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hinr0) as (_ & π & Hr).
-    rewrite /read_reg_inr Hr in H3. by inversion H3.
-  Qed.
-
   Lemma interp_hpf_eq {dq : dfrac} (imm : Z) (W : WORLD) (C : CmptName) P (regs : leibnizO LReg)
     (r1 : RegName) p g b e a pc_a pc_p pc_p' ρ w_pc :
     read_reg_prov regs r1 None
@@ -112,6 +101,17 @@ Section fundamental.
     rewrite Hadd1 in Hadd2. by injection Hadd2 as <-.
   Qed.
 
+  (** A post-state with a lower bound on MSHWM, after a public world
+      change. *)
+  #[local] Lemma ftlr_post_ex_le W C (hb f : Addr) (h h' : Z) v :
+    (h' <= h)%Z →
+    (∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb f h' v) -∗
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb f h v.
+  Proof.
+    iIntros (Hh) "(%W' & %Hrel & Hw & Hpost)". iExists W'. iFrame "Hw".
+    iSplit; first done. by iApply (ftlr_post_le with "Hpost").
+  Qed.
+
   (** The store case. The target's region holds a points-to, stored by the
       ordinary rule, or a zone cell, stored by the zone store, which moves
       MSHWM. The fetch uses half of the PC's cell, except for a store to
@@ -122,7 +122,7 @@ Section fundamental.
      ftlr_instr W C regs p p' g b e a w (Store dst src imm) ρ P.
    Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros (hb) "@".
+    iIntros (hb f h) "@".
 
     iDestruct (pc_open_acc_forall with "Hinva WorldRes") as "[ (>Hpc & Hinterp) WorldRes ]".
 
@@ -202,7 +202,7 @@ Section fundamental.
       iDestruct ("Hrest" with "Ha") as "Hpc".
       iAssert (▷ pc_content ρ W C P (lstore_word p0 storev))%I as "HPstored".
       { iNext. by iApply "Hstcond". }
-      iDestruct (region_cell_cases ρ None a w with "Hpc") as "[Ha | ([_ [-> ->]] & Hcell)]".
+      iDestruct (region_cell_cases ρ None a w with "Hpc") as "[Ha | ([_ [-> ->] ] & Hcell)]".
       + (* The PC's region holds the points-to *)
         iEval (rewrite addr_key_None key_pointsto_nonheap) in "Ha".
         iApply (wp_store_imm (CL := link_core) _ _ _ _ _ _ _ _ _ _ _ (<[a:=w]> ∅)
@@ -235,8 +235,9 @@ Section fundamental.
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
           iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto.
       + (* The PC's region holds a zone cell: the zone store to the instruction's own cell *)
+        iDestruct "Hhwm" as "(Hb & Hh & %Hord & Hlocked)".
+        iDestruct (hwm_locked_zone_cell with "Hlocked Hcell") as %Hnotlocked.
         iDestruct (zone_cell_unfold with "Hcell") as "[Htok Hhalf]".
-        iDestruct "Hhwm" as (h) "[Hb Hh]".
         iDestruct (key_share_deref None a with "[]") as (dw Hdw) "[Hdw _]"; first done.
         iApply (wp_store_zone_pc_gen with "[$HPC $Hhalf $Htok $Hb $Hh $Hdw $Hmap]");
           eauto.
@@ -257,7 +258,9 @@ Section fundamental.
           iDestruct ("WorldRes" with "[Hmem $HPstored]") as "WorldRes".
           { iApply (region_cell_nonheap InLocal a with "Hmem"). }
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-          iDestruct (hwm_res_at_after with "Hb Hh") as "Hhwm".
+          iDestruct (hwm_res_at_after with "[//] Hlocked Hb Hh") as (h') "[Hhwm %Hh']";
+            first done.
+          iApply (ftlr_post_ex_le _ _ _ _ _ h'); first done.
           iApply (ftlr_post_next with "HPC Hmap Hhwm [] [] Hworld_interp"); auto.
           iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
         * exfalso. by rewrite (Hnonshadow _ _ _ _ _ _ Hallow1) in Hsh1.
@@ -265,8 +268,8 @@ Section fundamental.
           iDestruct ("WorldRes" with "[Hhalf Htok $Hinterp]") as "WorldRes".
           { iApply region_cell_zone. rewrite zone_cell_unfold. iFrame. }
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-          iNext. iApply (ftlr_post_fault with "HPC Hmap [Hb Hh] Hreg Hworld_interp"); eauto.
-          iExists h. iFrame.
+          iNext. iApply (ftlr_post_fault with "HPC Hmap [Hb Hh Hlocked] Hreg Hworld_interp"); eauto.
+          iFrame "Hb Hh Hlocked". by iPureIntro.
     - (* A store to another key: open its region *)
       iAssert (interp W C (Cap p0 g0 b0 e0 a0 @@? π0)) as "#Hvdst".
       { iApply ("Hreg" $! dst _ Hdst). }
@@ -301,7 +304,7 @@ Section fundamental.
       iAssert (▷ pc_content ρ' W C P'' (lstore_word p0 storev))%I as "HP''stored".
       { iNext. by iApply (pc_content_wcond with "Hwcond'' HVstorev"). }
       assert (addr_key π0 ea ∉ [LNonHeap a]) as Hnin by set_solver.
-      iDestruct (region_cell_cases with "Hea") as "[Hea | ([-> [-> ->]] & Hcell)]".
+      iDestruct (region_cell_cases with "Hea") as "[Hea | ([-> [-> ->] ] & Hcell)]".
       + (* The target's region holds the points-to *)
         iDestruct (addr_key_pointsto with "Hea") as "[Hea Hshare]".
         iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
@@ -343,7 +346,8 @@ Section fundamental.
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
           iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto.
       + (* The target's region holds a zone cell: the zone store *)
-        iDestruct "Hhwm" as (h) "[Hb Hh]".
+        iDestruct "Hhwm" as "(Hb & Hh & %Hord & Hlocked)".
+        iDestruct (hwm_locked_zone_cell with "Hlocked Hcell") as %Hnotlocked.
         iDestruct (key_share_deref None ea with "[]") as (dw Hdw) "[Hdw _]"; first done.
         iApply (wp_store_zone_gen with "[$HPC $Ha $Hcell $Hb $Hh $Hdw $Hmap]");
           eauto.
@@ -367,7 +371,9 @@ Section fundamental.
           iDestruct ("Hrest" with "Ha") as "Hpc".
           iDestruct ("WorldRes" with "[$Hpc $Hinterp]") as "WorldRes".
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-          iDestruct (hwm_res_at_after with "Hb Hh") as "Hhwm".
+          iDestruct (hwm_res_at_after with "[//] Hlocked Hb Hh") as (h') "[Hhwm %Hh']";
+            first done.
+          iApply (ftlr_post_ex_le _ _ _ _ _ h'); first done.
           iApply (ftlr_post_next with "HPC Hmap Hhwm [] [] Hworld_interp"); auto.
           iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
         * exfalso. by rewrite (Hnonshadow _ _ _ _ _ _ Hallow1) in Hsh1.
@@ -378,8 +384,8 @@ Section fundamental.
           iDestruct ("Hrest" with "Ha") as "Hpc".
           iDestruct ("WorldRes" with "[$Hpc $Hinterp]") as "WorldRes".
           iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-          iNext. iApply (ftlr_post_fault with "HPC Hmap [Hb Hh] Hreg Hworld_interp"); eauto.
-          iExists h. iFrame.
+          iNext. iApply (ftlr_post_fault with "HPC Hmap [Hb Hh Hlocked] Hreg Hworld_interp"); eauto.
+          iFrame "Hb Hh Hlocked". by iPureIntro.
   Qed.
 
 End fundamental.

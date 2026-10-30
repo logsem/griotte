@@ -26,7 +26,7 @@ Section world_ghost_theory.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {thwmg : threadHwmG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -576,9 +576,9 @@ Section world_ghost_theory.
       world: a Temporary key would own a cell at [a]. *)
   Lemma world_interp_revoked_by_zone_cell (W : WORLD) (C : CmptName) (a : Addr) :
     LNonHeap a ∈ dom (std W) →
-    world_interp W C ∗ @zone_cell _ _ (hwm_of th) a
+    world_interp W C ∗ zone_cell[th] a
     ==∗
-    world_interp W C ∗ @zone_cell _ _ (hwm_of th) a ∗ ⌜std W !! LNonHeap a = Some Revoked⌝.
+    world_interp W C ∗ zone_cell[th] a ∗ ⌜std W !! LNonHeap a = Some Revoked⌝.
   Proof.
     iIntros (Hin) "[Hw Hc]".
     pose proof Hin as [ρ Hρ]%elem_of_dom_std.
@@ -1111,9 +1111,8 @@ End world_ghost_theory.
 
 (** ** The shared resources at two threads
 
-    The memory and the registry of the instance of a thread are those of
-    the base, so a persistent points-to and the map of Global regions are
-    the same at any two threads. *)
+    The memory of the instance of a thread is that of the base, so a
+    persistent points-to is the same at any two threads. *)
 Section thread_indep.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {relg : relGS Σ}.
 
@@ -1123,20 +1122,13 @@ Section thread_indep.
     pointsto (hG := @mem_gen_memG Σ (ceriseG_of t')) (L := Addr) (V := LWord) a DfracDiscarded w.
   Proof. rewrite /ceriseG_of. reflexivity. Qed.
 
-  Lemma world_interp_g_open_thread_indep (t t' : Thread) C s :
-    world_interp_g_open (allocRegistryG0 := @cerise_registryG Σ (ceriseG_of t))
-      (gen_heapGS0 := @mem_gen_memG Σ (ceriseG_of t)) C s ⊣⊢
-    world_interp_g_open (allocRegistryG0 := @cerise_registryG Σ (ceriseG_of t'))
-      (gen_heapGS0 := @mem_gen_memG Σ (ceriseG_of t')) C s.
-  Proof. rewrite /ceriseG_of. reflexivity. Qed.
-
 End thread_indep.
 
 (** ** Initialise the world in the adequacy theorem *)
 Section world_interp_Pre.
   Context {Σ:gFunctors} `{MP : MachineParameters}
           {Cname : CmptNameG}
-          {ceriseg : ceriseG Σ} {thwmg : threadHwmG Σ}
+          {ceriseb : ceriseBaseG Σ}
           {sts_preg: STS_preG Σ}
           {relpreg : relGpreS Σ}
           {sealstorepreg: sealStorePreG Σ}

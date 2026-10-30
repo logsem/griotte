@@ -34,6 +34,36 @@ Section Callback_Path.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (* TODO: move to switcher/common/switcher_preamble.v *)
+  (** The cells of a spill area give half of their points-to, enough to load
+      from them, and get them back. *)
+  Lemma stack_region_spill_half (s : Addr) (w0 w1 w2 w3 : LWord) :
+    (s + SpillSlot_size)%a = Some (s ^+ SpillSlot_size) ->
+    stack_region s (s ^+ SpillSlot_size) [w0; w1; w2; w3] -∗
+    switcher_stk_cells_dq (DfracOwn (1/2)) s w0 w1 w2 w3 ∗
+    (switcher_stk_cells_dq (DfracOwn (1/2)) s w0 w1 w2 w3 -∗
+     stack_region s (s ^+ SpillSlot_size) [w0; w1; w2; w3]).
+  Proof.
+    rewrite /SpillSlot_size /SpillSlot_cs1 /SpillSlot_cgp /SpillSlot_pcc /switcher_stk_cells_dq.
+    iIntros (Hs4) "Hcells".
+    rewrite (stack_region_cons s (s ^+ 1)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 1) (s ^+ 2)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 2) (s ^+ 3)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 3) (s ^+ 4)); [|solve_addr|solve_addr].
+    iDestruct "Hcells" as "(H0 & H1 & H2 & H3 & Hnil)".
+    iDestruct (stack_cell_half with "H0") as "[H0 Hc0]".
+    iDestruct (stack_cell_half with "H1") as "[H1 Hc1]".
+    iDestruct (stack_cell_half with "H2") as "[H2 Hc2]".
+    iDestruct (stack_cell_half with "H3") as "[H3 Hc3]".
+    iFrame "H0 H1 H2 H3".
+    iIntros "(H0 & H1 & H2 & H3)".
+    iDestruct ("Hc0" with "H0") as "$".
+    iDestruct ("Hc1" with "H1") as "$".
+    iDestruct ("Hc2" with "H2") as "$".
+    iDestruct ("Hc3" with "H3") as "$".
+    iFrame.
+  Qed.
+
   (** From [switcher_after_compartment_call], when the frame to pop is the
       entry frame: the thread exits. *)
   Lemma switcher_return_exit_path_spec
@@ -156,7 +186,8 @@ Section Callback_Path.
           ct1 ↦ᵣ[th] WInt a ∗
           (∃ wct2, ct2 ↦ᵣ[th] wct2) ∗
           (∃ wca2, ca2 ↦ᵣ[th] wca2) ∗
-          switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
+          stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+            [wcs0'; wcs1'; wcgp'; wcra'] ∗
           stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
           hwm_regs hb h ∗
           regs[th] rmap' -∗
@@ -192,6 +223,8 @@ Section Callback_Path.
       [done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & _)".
+    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "Hcells"; first done.
+    iDestruct (stack_region_of_pointsto with "Hcells") as "Hcells".
     iEval (rewrite Hspill_top) in "Hcsp".
     (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
@@ -256,7 +289,8 @@ Section Callback_Path.
         £ 1
         ={⊤}=∗
         ∃ opened (wcs0' wcs1' wcgp' wcra' : LWord) (stk_mem : list LWord),
-        switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
+        stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+          [wcs0'; wcs1'; wcgp'; wcra'] ∗
         stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
         world_interp_open Wworld C opened ∗
         (if is_untrusted_caller ccrel then
@@ -321,7 +355,8 @@ Section Callback_Path.
             ct1 ↦ᵣ[th] WInt a ∗
             (∃ wct2, ct2 ↦ᵣ[th] wct2) ∗
             (∃ wca2, ca2 ↦ᵣ[th] wca2) ∗
-            switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
+            stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+              [wcs0'; wcs1'; wcgp'; wcra'] ∗
             stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
             hwm_regs hb h ∗
             regs[th] rmap' ∗
@@ -356,12 +391,14 @@ Section Callback_Path.
       as (opened wcs0' wcs1' wcgp' wcra' stk_mem) "(Hcells & Hstk & Hworld & Hmem & Hpost)".
     (* [.Lswitch_callee_save_restore]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
+    iDestruct (stack_region_spill_half with "Hcells") as "[Hcells Hcells_close]"; first done.
     iApply (switcher_restore_spill_world_spec Wworld Wval C opened ccrel with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld $Hmem
         $Hswitcher]");
       [done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
       "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlc)".
+    iDestruct ("Hcells_close" with "Hcells") as "Hcells".
     iEval (rewrite Hspill_top) in "Hcsp".
     (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)

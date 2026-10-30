@@ -289,10 +289,7 @@ Section Switcher_Zero_Callee_Frame.
       with "[$HPC $Hcsp $Hhwm $Hnil]" as "Hres";
     [ done | solve_addr | right; split; [done | lia] | lia | ];
     iDestruct "Hres" as "(HPC & Hcsp & Hhwm & _)";
-    zero_frame_dead_zeros Hdom;
-    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "Hcells";
-    [ rewrite /SpillSlot_size; solve_addr | ];
-    iDestruct (stack_region_of_pointsto with "Hcells") as "Hcells".
+    zero_frame_dead_zeros Hdom.
 
   (** From [.Lswitch_callee_stack_zero]: clear the caller's free part, the
       spill area and the callee's stack, from the value [h] of MSHWM to the
@@ -321,7 +318,7 @@ Section Switcher_Zero_Callee_Frame.
     ca2 ↦ᵣ[th] wca2 ∗
     ctp ↦ᵣ[th] wctp ∗
     csp ↦ᵣ[th] Cap RWL Local b e a ∗
-    switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
+    stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size) [wcs0; wcs1; wcgp; wcra] ∗
     stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
     hwm_regs hb h ∗
     regs[th] rmap ∗
@@ -361,7 +358,7 @@ Section Switcher_Zero_Callee_Frame.
           ca2 ↦ᵣ[th] wca2 ∗
           ctp ↦ᵣ[th] WInt h ∗
           csp ↦ᵣ[th] Cap RWL Local b e a ∗
-          switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
+          stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size) [wcs0; wcs1; wcgp; wcra] ∗
           stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
           hwm_regs hb h ∗
           regs[th] rmap -∗
@@ -438,9 +435,6 @@ Section Switcher_Zero_Callee_Frame.
       { solve_addr. }
       { apply trap_no_resume_switcher_pc; by vm_compute. } }
     (* The free part, from [va] to the cursor, is zeroed *)
-    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "Hcells";
-      first (rewrite /SpillSlot_size; solve_addr).
-    iDestruct (stack_region_of_pointsto with "Hcells") as "Hcells".
     iEval (rewrite (_ : (a ^- 4) ^+ SpillSlot_size = a);
            last (rewrite /SpillSlot_size; solve_addr)) in "Hcells".
     iAssert (stack_region b a (stk_mem ++ [wcs0; wcs1; wcgp; wcra])) with "[Hstk Hcells]"

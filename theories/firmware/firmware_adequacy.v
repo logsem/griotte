@@ -1710,7 +1710,7 @@ Section resources.
       ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷
-      ([∗ set] C ∈ CNames, world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 C) ∗
+      ([∗ set] C ∈ CNames, world_interp (th := UserThread 0) fw_world0 C) ∗
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
@@ -2020,7 +2020,7 @@ Proof.
   iEval (rewrite big_sepL_fw_imap_from) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
   (* The seal store, the call stacks and the worlds. *)
-  iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0))
+  iMod (initialise_world
           (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0)
           (fw_imap_from (λ i _, fw_entry_frame fw img i) 1 fts))

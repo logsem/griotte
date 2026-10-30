@@ -96,4 +96,12 @@ Section stack_cells.
     iApply (stack_cell_zone_cell_false with "Hx Hcell").
   Qed.
 
+  (** The locked cells split at any address between their bounds. *)
+  Lemma hwm_locked_app (hb f b : Addr) :
+    (hb <= f)%a → (f <= b)%a → hwm_locked hb f ∗ hwm_locked f b ⊣⊢ hwm_locked hb b.
+  Proof.
+    intros Hf Hb. rewrite /hwm_locked (finz_seq_between_split hb f b); last solve_addr.
+    by rewrite big_sepL_app.
+  Qed.
+
 End stack_cells.

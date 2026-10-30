@@ -88,7 +88,7 @@ End open_keys.
 Section standard_world_interp.
 
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {thwmg : threadHwmG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -162,7 +162,7 @@ Section standard_world_interp.
     isO p = false →
     open_region_many W C ({[LNonHeap a]} ∪ l) -∗
     rel_l th C (LNonHeap a) p φ -∗
-    @zone_cell _ _ (hwm_of th) a -∗
+    zone_cell[th] a -∗
     future_pub_mono C φ (WInt 0) -∗
     ▷ φ (W, C, lword_of_word (WInt 0)) -∗
     open_region_many W C l.
@@ -268,7 +268,7 @@ Section standard_world_interp.
   Proof.
     destruct ρ; cbn [region_cell]; last iApply temp_cell_fetch.
     iIntros "Hk".
-    iDestruct (key_pointsto_eq with "Hk") as "[[Hk1 Hk2] Hshare]".
+    iDestruct (key_pointsto_eq with "Hk") as "[ [Hk1 Hk2] Hshare]".
     iFrame "Hk1"; iIntros "Hk1".
     iApply key_pointsto_eq; iFrame "Hshare"; by iCombine "Hk1 Hk2" as "Hk".
   Qed.

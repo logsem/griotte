@@ -37,12 +37,32 @@ Section wp_interp.
     iApply interp_untagged. rewrite /lload_word /lift_word /load_word /=. by repeat case_match.
   Qed.
 
-  (** The registers after a store to a cell of the zone. *)
-  Lemma hwm_res_at_after (hb h : Z) (x : Addr) :
+  (** A cell of the zone that the world holds is not one of the locked
+      cells. *)
+  Lemma hwm_locked_zone_cell (hb f x : Addr) :
+    hwm_locked hb f -∗ zone_cell[th] x -∗ ⌜¬ (hb <= x < f)%a⌝.
+  Proof.
+    iIntros "Hlocked Hx %Hx".
+    iDestruct (big_sepL_elem_of _ _ x with "Hlocked") as "Hcell".
+    { apply elem_of_finz_seq_between. solve_addr. }
+    iApply (zone_cell_excl with "Hx Hcell").
+  Qed.
+
+  (** The registers after a store to a cell of the zone outside the locked
+      cells: MSHWM does not grow, and stays at or above the floor. *)
+  Lemma hwm_res_at_after (hb f x : Addr) (h : Z) :
+    ¬ (hb <= x < f)%a →
+    ⌜(hb <= f)%a ∧ (f <= h)%Z⌝ -∗
+    hwm_locked hb f -∗
     mshwmb ↦ₜ[th] hb -∗
     mshwm ↦ₜ[th] hwm_after x hb h -∗
-    hwm_res_at hb.
-  Proof. iIntros "Hb Hh". rewrite /hwm_after. case_decide; iExists _; iFrame. Qed.
+    ∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝.
+  Proof.
+    iIntros (Hx [Hhbf Hfh]) "Hlocked Hb Hh".
+    rewrite /hwm_after. case_decide as Hcase.
+    - iExists x. iFrame. iPureIntro. split_and!; [done|solve_addr|lia].
+    - iExists h. iFrame. iPureIntro. split_and!; [done|done|lia].
+  Qed.
 
   (** Accesses retain the original current address and report their checked
       effective address. *)
@@ -191,7 +211,7 @@ Section wp_interp.
     - iRight. iExists ι. iFrame "H1 H2". by rewrite open_world_interp_empty.
   Qed.
 
-  Lemma wp_store_interp_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb : Z) (rsrc rdst : RegName)
+  Lemma wp_store_interp_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
@@ -208,7 +228,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -218,7 +238,7 @@ Section wp_interp.
              rsrc ↦ᵣ[th] wsrc ∗
              (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = Cap p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -227,7 +247,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
            ∗ ⌜ea ∈ₐ [b, e) ⌝
@@ -297,7 +317,7 @@ Section wp_interp.
       [by eapply writeAllowed_nonO|done|].
     iAssert (▷ pc_content ρ W C P (lstore_word p wsrc))%I as "Hinterp'".
     { iNext. by iApply (pc_content_wcond with "Hwcond Hinterp_src"). }
-    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->]] & Hcell)]".
+    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->] ] & Hcell)]".
     - (* The region holds the points-to *)
       iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
       iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
@@ -311,21 +331,22 @@ Section wp_interp.
         first by iApply region_cell_pointsto.
       iDestruct (pc_close with "Hworld_interp Hpart WorldRes") as "Hworld_interp"; first done.
       iApply "Hφ"; iRight. iExists p, g, b, e, a, π, ea. iFrame "∗%".
-      iPureIntro. split; first done. solve_addr.
+      iPureIntro. split_and!; try done; try lia; solve_addr.
     - (* The region holds a zone cell: the zone store *)
-      iDestruct "Hhwm" as (h) "[Hb Hh]".
+      iDestruct "Hhwm" as "(Hb & Hh & %Hord & Hlocked)".
+      iDestruct (hwm_locked_zone_cell with "Hlocked Hcell") as %Hnotlocked.
       iAssert (deref_res None 1%Qp)%I as "Hdw"; first by rewrite /deref_res.
       iApply (wp_store_zone_reg_imm with "[$HPC $Hi $Hsrc $Hdst $Hcell $Hb $Hh $Hdw]"); eauto.
       iNext; iIntros "(HPC & Hi & Hsrc & Hdst & Ha & Hb & Hh & _)".
       iDestruct ("WorldRes" with "[Ha $Hinterp']") as "WorldRes";
         first by iApply region_cell_nonheap.
       iDestruct (pc_close with "Hworld_interp Hpart WorldRes") as "Hworld_interp"; first done.
-      iDestruct (hwm_res_at_after with "Hb Hh") as "Hhwm".
+      iDestruct (hwm_res_at_after with "[//] Hlocked Hb Hh") as "Hhwm"; first done.
       iApply "Hφ"; iRight. iExists p, g, b, e, a, None, ea. iFrame "∗%".
-      iPureIntro. split; first done. solve_addr.
+      iPureIntro. split_and!; try done; try lia; solve_addr.
   Qed.
 
-  Lemma wp_store_interp {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb : Z) (rsrc rdst : RegName)
+  Lemma wp_store_interp {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc wdst : LWord)
     :
@@ -342,7 +363,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -352,7 +373,7 @@ Section wp_interp.
              rsrc ↦ᵣ[th] wsrc ∗
              (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           ( ∃ p g b e a π,
            ⌜ wdst = Cap p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -361,7 +382,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜a ∈ₐ [b, e) ⌝
           )
@@ -376,7 +397,7 @@ Section wp_interp.
     iExists p, g, b, e, a, π. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb : Z) (rsrc rdst : RegName)
+  Lemma wp_store_interp_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wsrc : LWord)
@@ -394,7 +415,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -404,14 +425,14 @@ Section wp_interp.
              rsrc ↦ᵣ[th] wsrc ∗
              (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
            ∗ ⌜ea ∈ₐ [b, e) ⌝
@@ -426,7 +447,7 @@ Section wp_interp.
     simplify_eq. iRight. iExists ea. iExact "Hrest".
   Qed.
 
-  Lemma wp_store_interp_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb : Z) (rsrc rdst : RegName)
+  Lemma wp_store_interp_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi wsrc : LWord)
@@ -444,7 +465,7 @@ Section wp_interp.
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -454,14 +475,14 @@ Section wp_interp.
              rsrc ↦ᵣ[th] wsrc ∗
              (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rsrc ↦ᵣ[th] wsrc
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p = true ⌝
            ∗ ⌜a ∈ₐ [b, e) ⌝
           )
@@ -475,7 +496,7 @@ Section wp_interp.
     rewrite addr_add_0 in Hea. injection Hea as <-. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_z_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb : Z) (rdst : RegName)
+  Lemma wp_store_interp_z_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wdst : LWord) (z : Z)
     :
@@ -489,7 +510,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -498,7 +519,7 @@ Section wp_interp.
              pc_a ↦ₐ{dq} wi ∗
              (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           ( ∃ p g b e a π ea,
            ⌜ wdst = Cap p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -506,7 +527,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
            ∗ ⌜ea ∈ₐ [b, e) ⌝
@@ -576,7 +597,7 @@ Section wp_interp.
       [by eapply writeAllowed_nonO|done|].
     iAssert (▷ pc_content ρ W C P (WInt z))%I as "Hinterp'".
     { iNext. by iApply pc_content_wcond_z. }
-    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->]] & Hcell)]".
+    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->] ] & Hcell)]".
     - (* The region holds the points-to *)
       iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
       iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
@@ -590,21 +611,22 @@ Section wp_interp.
         first by iApply region_cell_pointsto.
       iDestruct (pc_close with "Hworld_interp Hpart WorldRes") as "Hworld_interp"; first done.
       iApply "Hφ"; iRight. iExists p, g, b, e, a, π, ea. iFrame "∗%".
-      iPureIntro. split; first done. solve_addr.
+      iPureIntro. split_and!; try done; try lia; solve_addr.
     - (* The region holds a zone cell: the zone store *)
-      iDestruct "Hhwm" as (h) "[Hb Hh]".
+      iDestruct "Hhwm" as "(Hb & Hh & %Hord & Hlocked)".
+      iDestruct (hwm_locked_zone_cell with "Hlocked Hcell") as %Hnotlocked.
       iAssert (deref_res None 1%Qp)%I as "Hdw"; first by rewrite /deref_res.
       iApply (wp_store_zone_z_imm with "[$HPC $Hi $Hdst $Hcell $Hb $Hh $Hdw]"); eauto.
       iNext; iIntros "(HPC & Hi & Hdst & Ha & Hb & Hh & _)".
       iDestruct ("WorldRes" with "[Ha $Hinterp']") as "WorldRes";
         first by iApply region_cell_nonheap.
       iDestruct (pc_close with "Hworld_interp Hpart WorldRes") as "Hworld_interp"; first done.
-      iDestruct (hwm_res_at_after with "Hb Hh") as "Hhwm".
+      iDestruct (hwm_res_at_after with "[//] Hlocked Hb Hh") as "Hhwm"; first done.
       iApply "Hφ"; iRight. iExists p, g, b, e, a, None, ea. iFrame "∗%".
-      iPureIntro. split; first done. solve_addr.
+      iPureIntro. split_and!; try done; try lia; solve_addr.
   Qed.
 
-  Lemma wp_store_interp_z {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb : Z) (rdst : RegName)
+  Lemma wp_store_interp_z {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wdst : LWord) (z : Z)
     :
@@ -618,7 +640,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] wdst
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -627,7 +649,7 @@ Section wp_interp.
              pc_a ↦ₐ{dq} wi ∗
              (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           ( ∃ p g b e a π,
            ⌜ wdst = Cap p g b e a @@? π ⌝
            ∗ ⌜ retv = NextIV ⌝
@@ -635,7 +657,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜a ∈ₐ [b, e) ⌝
           )
@@ -650,7 +672,7 @@ Section wp_interp.
     iExists p, g, b, e, a, π. by iFrame.
   Qed.
 
-  Lemma wp_store_interp_z_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb : Z) (rdst : RegName)
+  Lemma wp_store_interp_z_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi : LWord) (z : Z)
@@ -665,7 +687,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -674,13 +696,13 @@ Section wp_interp.
              pc_a ↦ₐ{dq} wi ∗
              (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           (∃ ea, ⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜(a + imm)%a = Some ea⌝
            ∗ ⌜ea ∈ₐ [b, e) ⌝
@@ -695,7 +717,7 @@ Section wp_interp.
     simplify_eq. iRight. iExists ea. iExact "Hrest".
   Qed.
 
-  Lemma wp_store_interp_z_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb : Z) (rdst : RegName)
+  Lemma wp_store_interp_z_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (hb f : Addr) (h : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (wi : LWord) (z : Z)
@@ -710,7 +732,7 @@ Section wp_interp.
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ hwm_res_at hb f h
      }}}
        Instr Executable @[th] E
        {{{ retv, RET retv;
@@ -719,13 +741,13 @@ Section wp_interp.
              pc_a ↦ₐ{dq} wi ∗
              (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
              world_interp W C ∗
-             hwm_res_at hb ) ∨
+             (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝) ) ∨
           (⌜ retv = NextIV ⌝
            ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
            ∗ pc_a ↦ₐ{dq} wi
            ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
            ∗ world_interp W C
-           ∗ hwm_res_at hb
+           ∗ (∃ h', hwm_res_at hb f h' ∗ ⌜(h' <= h)%Z⌝)
            ∗ ⌜ writeAllowed p ⌝
            ∗ ⌜a ∈ₐ [b, e) ⌝
           )
@@ -765,7 +787,7 @@ Section wp_interp.
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%v & WorldRes)) | (%ι & % & _)]";
       [done | | done].
     iDestruct (pc_open_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes]".
-    iDestruct (region_cell_cases with "Ha") as "[Ha | ([_ [-> ->]] & Hcell)]"; cycle 1.
+    iDestruct (region_cell_cases with "Ha") as "[Ha | ([_ [-> ->] ] & Hcell)]"; cycle 1.
     { (* The region holds a zone cell, which holds 0: the load reads half of it *)
       iDestruct (zone_cell_unfold with "Hcell") as "[Htok Hhalf]".
       iPoseProof (load_witness_of_intro W (lword_of_word (WInt 0))) as "Hwit".
@@ -1419,7 +1441,7 @@ Section wp_interp.
          iNext. iIntros "(HPC & Hi & Hsrc)".
          iApply "Hφ". iLeft. by iFrame. }
     iDestruct (pc_open_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
-    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->]] & Hcell)]"; cycle 1.
+    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->] ] & Hcell)]"; cycle 1.
     { (* The region holds a zone cell, which holds 0: the load reads half of it *)
       iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
         [by eapply readAllowed_nonO|done|].
@@ -1615,7 +1637,7 @@ Section wp_interp.
          iNext. iIntros "(HPC & Hi & Hsrc)".
          iApply "Hφ". iLeft. by iFrame. }
     iDestruct (pc_open_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes ]".
-    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->]] & Hcell)]"; cycle 1.
+    iDestruct (region_cell_cases with "Ha") as "[Ha | ([-> [-> ->] ] & Hcell)]"; cycle 1.
     { (* The region holds a zone cell, which holds 0: the load reads half of it *)
       iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow;
         [by eapply readAllowed_nonO|done|].

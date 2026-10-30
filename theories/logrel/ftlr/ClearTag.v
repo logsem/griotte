@@ -32,7 +32,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (ClearTag dst src) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros (hb) "@".
+    iIntros (hb f h) "@".
     iDestruct (pc_open_acc_fetch with "WorldRes") as "[(Ha & Hinterp) WorldRes]".
     iApply (wp_ClearTag (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.

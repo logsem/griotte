@@ -9,7 +9,7 @@ Section Switcher_Restore.
   (** Restore one saved register, at the offset [off] from the stack
       pointer, under a load witness. The load does not fail, and its result
       satisfies [load_post] for that witness. *)
-  Lemma switcher_load_stack_restore_witness {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore_witness {dq dq' : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (off : Z) (ea : Addr) (raw : LWord) wit :
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
@@ -19,27 +19,42 @@ Section Switcher_Restore.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_post wit RWL raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗ load_witness_res wit }}}.
+        ea ↦ₐ{dq'} raw ∗ load_witness_res wit }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
-    iDestruct (pointsto_ne with "Ha Hi") as %Hpc_a.
-    iDestruct (memMap_resource_2ne_dq pc_a ea dq (DfracOwn 1) wi raw with "[$Hi $Ha]")
-      as "Hmem"; first done.
+    (* The loaded cell may be the cell of the instruction *)
+    iAssert (∃ (mem : gmap Addr LWord) (dfracs : gmap Addr dfrac),
+        ⌜mem !! pc_a = Some wi ∧ mem !! ea = Some raw ∧ dom mem = dom dfracs⌝ ∗
+        ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
+        (([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) -∗
+         pc_a ↦ₐ{dq} wi ∗ ea ↦ₐ{dq'} raw))%I
+      with "[Hi Ha]" as (mem dfracs (Hmem_pc & Hmem_ea & Hdom)) "[Hmem Hclose]".
+    { destruct (decide (pc_a = ea)) as [<- | Hpc_a].
+      - iDestruct (pointsto_agree with "Hi Ha") as %<-.
+        iExists (<[pc_a:=wi]> ∅), (<[pc_a:=dq]> ∅).
+        iSplit; first (iPureIntro; rewrite !lookup_insert_eq !dom_insert_L; done).
+        rewrite /prod_merge -(insert_merge _ _ _ _ (dq, wi)) // merge_empty.
+        rewrite big_sepM_singleton /=.
+        iFrame "Hi". iIntros "Hi". iFrame.
+      - iExists (<[pc_a:=wi]> (<[ea:=raw]> ∅)), (<[pc_a:=dq]> (<[ea:=dq']> ∅)).
+        rewrite memMap_resource_2ne_dq //. iFrame.
+        iSplit; last by iIntros "$".
+        iPureIntro. rewrite lookup_insert_eq lookup_insert_ne // lookup_insert_eq.
+        by rewrite !dom_insert_L. }
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ□ revoked))%I
       as "Hshadow".
     { by rewrite big_sepM_empty. }
     iApply (wp_load_general_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
               with "[$HPC $Hmem $Hshadow $Hwit $Hmap //]"); eauto.
     { by rewrite !dom_insert; set_solver+. }
-    { by simplify_map_eq. }
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -47,8 +62,7 @@ Section Switcher_Restore.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       destruct (is_revoker_address ea); first done.
-      eexists. by simplify_map_eq. }
-    { by rewrite !dom_insert_L. }
+      by eexists. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
@@ -68,7 +82,7 @@ Section Switcher_Restore.
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
     rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
     rewrite Hea in Haddr. injection Haddr as <-.
-    rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
+    rewrite Hmem_ea in Hl. injection Hl as <-.
     rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc
       as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
@@ -76,14 +90,14 @@ Section Switcher_Restore.
     rewrite Hpc in Hapc. injection Hapc as <-.
     rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
     iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
-    iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; first done.
+    iDestruct ("Hclose" with "Hmem") as "[Hi Ha]".
     iApply "HΦ". by iFrame.
   Qed.
 
   (** Restore one saved register without a witness. Success exposes
       [load_heap], so subsequent loads need not observe the same tag, even
       for an aliased base. *)
-  Lemma switcher_load_stack_restore {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore {dq dq' : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (off : Z) (ea : Addr) (raw : LWord) :
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
@@ -93,12 +107,12 @@ Section Switcher_Restore.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw }}}
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
-        ea ↦ₐ raw }}}.
+        ea ↦ₐ{dq'} raw }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) HΦ".
@@ -125,7 +139,7 @@ Section Switcher_Restore_Interp.
     by iIntros "$".
   Qed.
 
-  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_world {dq dq' : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -136,14 +150,14 @@ Section Switcher_Restore_Interp.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         world_interp_open Wworld C opened }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV;
         ⌜load_heap_in_world Wval raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
+        ea ↦ₐ{dq'} raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld) HΦ".
@@ -156,7 +170,7 @@ Section Switcher_Restore_Interp.
     iApply "HΦ". by iFrame.
   Qed.
 
-  Lemma switcher_load_stack_restore_interp {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_interp {dq dq' : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -167,13 +181,13 @@ Section Switcher_Restore_Interp.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
+        ea ↦ₐ{dq'} raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal) HΦ".

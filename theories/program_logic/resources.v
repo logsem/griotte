@@ -318,6 +318,22 @@ Proof.
   iModIntro. iExists (HwmG _ _ _ γb γh γz). rewrite /zone_auth gset_to_gmap_empty. iFrame.
 Qed.
 
+(** The high-water-mark ghost state of a thread whose zone starts as [zone]:
+    MSHWMB at [hb], MSHWM at [h], and the token of every address of [zone]. *)
+Lemma hwm_init_zone `{!hwmGpreS Σ} (hb h : Z) (zone : gset Addr) :
+  ⊢ |==> ∃ g : hwmG Σ,
+    mshwmb_auth hb ∗ mshwmb_frag hb ∗ mshwm_auth h ∗ mshwm_frag h ∗
+    zone_auth zone ∗ [∗ set] a ∈ zone, zone_token a.
+Proof.
+  iMod (own_alloc (●E (hb : leibnizO Z) ⋅ ◯E (hb : leibnizO Z))) as (γb) "[Hba Hbf]".
+  { apply excl_auth_valid. }
+  iMod (own_alloc (●E (h : leibnizO Z) ⋅ ◯E (h : leibnizO Z))) as (γh) "[Hha Hhf]".
+  { apply excl_auth_valid. }
+  iMod (ghost_map_alloc (gset_to_gmap () zone)) as (γz) "[Hzauth Hztoks]".
+  iModIntro. iExists (HwmG _ _ _ γb γh γz). rewrite /zone_auth /zone_token.
+  rewrite big_sepM_gset_to_gmap. iFrame.
+Qed.
+
 (** The trap vector: the word that MTCC holds in every state, the
     capability of the exception entry of the switcher. It is tagged, so a
     fault never stops the machine. *)
@@ -548,6 +564,43 @@ Section zone.
   Proof.
     rewrite !zone_cell_unfold. iIntros "[H1 _] [H2 _]".
     iApply (zone_token_excl with "H1 H2").
+  Qed.
+
+  (** A zone cell excludes a full points-to of its address. *)
+  Lemma zone_cell_pointsto_false (a : Addr) (w : LWord) :
+    zone_cell a -∗ a ↦ₐ w -∗ False.
+  Proof.
+    rewrite zone_cell_unfold. iIntros "[_ Hhalf] Ha".
+    iDestruct (pointsto_valid_2 with "Ha Hhalf") as %[Hv _].
+    rewrite dfrac_op_own dfrac_valid_own in Hv.
+    by apply Qp.not_add_le_l in Hv.
+  Qed.
+
+  (** The initial zone [zone] of a memory [m] that holds zero on [zone]: with the
+      tokens of [zone], the points-to of an address of [zone] becomes a cell of
+      the zone, and the other half of its points-to. *)
+  Lemma zone_cells_init (zone : gset Addr) (m : gmap Addr LWord) :
+    (∀ a, a ∈ zone → m !! a = Some (lword_of_word (WInt 0))) →
+    ([∗ map] a ↦ w ∈ m, a ↦ₐ w) -∗
+    ([∗ set] a ∈ zone, zone_token a) -∗
+    ([∗ map] a ↦ w ∈ m, if decide (a ∈ zone) then zone_cell a else a ↦ₐ w) ∗
+    ([∗ set] a ∈ zone, a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0)).
+  Proof.
+    iIntros (Hzone) "Hm Htoks".
+    assert (∀ Φ : Addr → iProp Σ,
+              ([∗ set] a ∈ zone, Φ a) ⊣⊢
+              [∗ map] a ↦ _ ∈ m, if decide (a ∈ zone) then Φ a else emp)
+      as Hsplit.
+    { intros Φ. rewrite big_sepM_dom -big_sepS_filter'.
+      f_equiv. apply set_eq. intros a. rewrite elem_of_filter elem_of_dom.
+      split; [|naive_solver]. intros Ha. split; first done. eexists. by apply Hzone. }
+    rewrite (Hsplit (λ a, a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0))%I) -big_sepM_sep.
+    iEval (rewrite (Hsplit zone_token)) in "Htoks". iCombine "Hm Htoks" as "Hm".
+    rewrite -big_sepM_sep.
+    iApply (big_sepM_mono with "Hm"). iIntros (a w Hw) "[Ha Htok]".
+    case_decide as Ha; last by iFrame.
+    rewrite Hzone // in Hw. simplify_eq.
+    iDestruct "Ha" as "[Ha1 Ha2]". rewrite zone_cell_unfold. iFrame.
   Qed.
 
   (** A full points-to is not in the zone. *)

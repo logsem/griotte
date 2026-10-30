@@ -124,6 +124,10 @@ Section Switcher_entry_point.
          ∗ (execute_entry_point_register wcgp
               (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
          ∗ registers_pointsto regs
+         (* MSHWM is the callee's initial stack pointer; the stack addresses
+            between the floor and it are Temporary *)
+         ∗ hwm_res cstk (stk_start_a b_stk e_stk)
+         ∗ ⌜zone_temporary W (cstk_hwm_floor cstk) (stk_start_a b_stk e_stk)⌝
          ∗ world_resources W C
          ∗ shared_credit C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝

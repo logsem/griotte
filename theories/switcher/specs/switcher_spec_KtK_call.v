@@ -28,6 +28,127 @@ Section Switcher_KtK_Call.
   Implicit Types C : CmptName.
   #[local] Notation V := (interpO Σ).
 
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** Zeroing twice from the same address is zeroing once. *)
+  #[local] Lemma stack_zeroed_from_idemp (b : Addr) (v : Z) (ws : list LWord) :
+    stack_zeroed_from b v (stack_zeroed_from b v ws) = stack_zeroed_from b v ws.
+  Proof.
+    rewrite /stack_zeroed_from length_app length_take length_replicate.
+    destruct (decide (Z.to_nat (v - b) <= length ws)%nat) as [Hle | Hgt].
+    - rewrite take_app_le; last (rewrite length_take; lia).
+      rewrite take_take Nat.min_id.
+      f_equal. f_equal. lia.
+    - rewrite take_ge; last (rewrite length_app length_take length_replicate; lia).
+      rewrite (_ : Nat.min (Z.to_nat (v - b)) (length ws) + (length ws - Z.to_nat (v - b))
+                   - Z.to_nat (v - b) = 0)%nat; last lia.
+      by rewrite app_nil_r.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v (a copy of the lemma of
+     switcher_spec_KtK_return.v) *)
+  (** Everything is zeroed from an address below the cells. *)
+  #[local] Lemma stack_zeroed_from_below (b : Addr) (v : Z) (ws : list LWord) :
+    (v <= b)%Z →
+    stack_zeroed_from b v ws = replicate (length ws) (lword_of_word (WInt 0)).
+  Proof.
+    intros Hv. rewrite /stack_zeroed_from Z2Nat.nonpos; last lia.
+    by rewrite take_0 Nat.sub_0_r.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v (a copy of the lemma of
+     switcher_spec_KtK_return.v) *)
+  (** The cells of a stack region above MSHWMB and below MSHWM are cells of
+      the zone, which hold 0: zeroing them from MSHWM zeroes them all. *)
+  #[local] Lemma stack_region_below_hwm E (b e : Addr) (ws : list LWord) (hb h : Z) :
+    (hb <= b)%Z →
+    stack_region b e ws -∗
+    hwm_regs hb h -∗
+    |~{E}~>
+    ⌜stack_zeroed_from b h ws = replicate (length ws) (lword_of_word (WInt 0))⌝ ∗
+    stack_region b e ws ∗
+    hwm_regs hb h.
+  Proof.
+    iInduction ws as [|w ws] "IH" forall (b); iIntros (Hhb) "Hstk Hhwm".
+    { iModIntro. iFrame. iPureIntro. by rewrite /stack_zeroed_from take_nil. }
+    destruct (decide (h <= b)%Z) as [Hh | Hh].
+    { iModIntro. iFrame. iPureIntro. by apply stack_zeroed_from_below. }
+    iDestruct (stack_region_length with "Hstk") as %Hlen.
+    rewrite finz_seq_between_length /= in Hlen.
+    assert (b < e)%a as Hbe by (rewrite /finz.dist in Hlen; solve_addr).
+    destruct (b + 1)%a as [b'|] eqn:Hb'; last solve_addr.
+    iDestruct (stack_region_cons b b' e with "Hstk") as "[[Hb | [Hb ->]] Hstk]"; [done|done|..].
+    - (* A full points-to is outside the zone *)
+      iDestruct "Hhwm" as "[Hhb Hh]".
+      iMod (hwm_pointsto_outside with "Hb Hhb Hh") as "(%Hout & _)".
+      exfalso; lia.
+    - iMod ("IH" $! b' with "[%] Hstk Hhwm") as "(%Hz & Hstk & Hhwm)"; first solve_addr.
+      iModIntro. iFrame "Hhwm".
+      iSplit.
+      + iPureIntro. revert Hz. rewrite /stack_zeroed_from.
+        rewrite (_ : Z.to_nat (h - b) = S (Z.to_nat (h - b'))); last solve_addr.
+        cbn. by intros ->.
+      + iApply (stack_region_cons b b' e); [done|done|]. iFrame.
+        by iApply stack_cell_of_zone.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** A stack region zeroed from MSHWM, above MSHWMB, holds only zeros. *)
+  #[local] Lemma stack_region_zeroed_from_hwm E (b e : Addr) (ws : list LWord) (hb h : Z) :
+    (hb <= b)%Z →
+    stack_region b e (stack_zeroed_from b h ws) -∗
+    hwm_regs hb h -∗
+    |~{E}~>
+    stack_region b e (region_addrs_zeroes b e) ∗
+    hwm_regs hb h.
+  Proof.
+    iIntros (Hhb) "Hstk Hhwm".
+    iDestruct (stack_region_length with "Hstk") as %Hlen.
+    iMod (stack_region_below_hwm with "Hstk Hhwm") as "(%Hz & Hstk & Hhwm)"; first done.
+    rewrite stack_zeroed_from_idemp in Hz.
+    rewrite Hz /region_addrs_zeroes -Hlen finz_seq_between_length.
+    iModIntro. iFrame.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** Cells of the zone are zeroed stack cells. *)
+  #[local] Lemma stack_region_of_zone (b e : Addr) :
+    ([∗ list] a ∈ finz.seq_between b e, zone_cell a) ⊢
+    stack_region b e (region_addrs_zeroes b e).
+  Proof.
+    rewrite /stack_region /region_addrs_zeroes -finz_seq_between_length big_sepL2_replicate_r //.
+    iIntros "H". iApply (big_sepL_mono with "H"). iIntros (k a _) "Ha".
+    by iApply stack_cell_of_zone.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** The zeroed cells of [[lo, s)], inside a zeroed stack region, join the
+      zone, and come back. *)
+  #[local] Lemma stack_region_zeroes_zone_acc E (b lo s e : Addr) :
+    (b <= lo)%a → (b <= s)%a → (s <= e)%a →
+    stack_region b e (region_addrs_zeroes b e) ⊢
+    |~{E}~> ([∗ list] a ∈ finz.seq_between lo s, zone_cell a) ∗
+            (([∗ list] a ∈ finz.seq_between lo s, zone_cell a) -∗
+             stack_region b e (region_addrs_zeroes b e)).
+  Proof.
+    iIntros (Hblo Hbs Hse) "Hstk".
+    destruct (decide (lo <= s)%a) as [Hlos | Hslo]; cycle 1.
+    { rewrite finz_seq_between_empty; last solve_addr.
+      iModIntro. iSplitR; first done. iIntros "_". iExact "Hstk". }
+    rewrite (region_addrs_zeroes_split b lo e); last solve_addr.
+    rewrite (region_addrs_zeroes_split lo s e); last solve_addr.
+    iDestruct (stack_region_split b lo e with "Hstk") as "[Hlo Hhi]"; [solve_addr|solve_addr|].
+    rewrite take_app_length'; last (by rewrite /region_addrs_zeroes length_replicate).
+    rewrite drop_app_length'; last (by rewrite /region_addrs_zeroes length_replicate).
+    iDestruct (stack_region_split lo s e with "Hhi") as "[Hmid Hhi]"; [solve_addr|solve_addr|].
+    rewrite take_app_length'; last (by rewrite /region_addrs_zeroes length_replicate).
+    rewrite drop_app_length'; last (by rewrite /region_addrs_zeroes length_replicate).
+    iMod (stack_region_zeroes_zone with "Hmid") as "Hmid".
+    iModIntro. iFrame "Hmid". iIntros "Hmid".
+    iDestruct (stack_region_of_zone with "Hmid") as "Hmid".
+    iApply (stack_region_join with "[$Hlo Hmid Hhi]"); [solve_addr|solve_addr|].
+    iApply (stack_region_join with "[$Hmid $Hhi]"); solve_addr.
+  Qed.
+
   (** Failure path of [switcher_cc_specification_known_to_known]: the
       trusted stack is exhausted. *)
   Lemma switcher_cc_spec_tstack_exhausted_known_to_known
@@ -37,7 +158,7 @@ Section Switcher_KtK_Call.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk cstk' : CSTK)
-    (a_tstk : Addr) (save_area tstk_next : list LWord) :
+    (a_tstk : Addr) (save_area tstk_next : list LWord) (h : Z) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
@@ -73,7 +194,8 @@ Section Switcher_KtK_Call.
     ct1 ↦ᵣ[th] wct1_caller ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller ∗
-    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]] ∗
+    stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) (stk_mem_callee stk_mem) ∗
+    hwm_res cstk h ∗
     regs[th] arg_rmap ∗
     regs[th] delete ctp (delete ct2 rmap) ∗
     ◯(CSTK)[th] cstk ∗
@@ -89,7 +211,8 @@ Section Switcher_KtK_Call.
             ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK ∗
             ca1 ↦ᵣ[th] WInt 0 ∗
             regs₀[th] rmap' ∗
-            [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
+            stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem' ∗
+            (∃ h', hwm_res cstk h') ∗
             ◯(CSTK)[th] cstk ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
@@ -106,7 +229,7 @@ Section Switcher_KtK_Call.
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hsave_hazard Hret_jalr Hret_heap)
       "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hhazard_slots & Hframeoffset & HthreadID
       & Htstk & #Hstatic & Hcstk_full & Hstk_interp
-      & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
+      & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk & Hhwm
       & Hargs & Hregs & Hcstk & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
@@ -129,7 +252,13 @@ Section Switcher_KtK_Call.
       "[$Hna $Hcstk_full Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hstk_interp]")
       as "Hna".
     { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
-    iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
+    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "Hcells";
+      first (stk_unfold; solve_addr).
+    iDestruct (stack_region_of_pointsto with "Hcells") as "Hcells".
+    iEval (rewrite /stk_spill_a /SpillSlot_size (_ : (a_stk ^+ - (4)) ^+ 4 = a_stk);
+           last solve_addr) in "Hcells".
+    iDestruct (stack_region_join b_stk (a_stk ^+ - (4)) a_stk with "[$Hstk $Hcells]") as "Hstk";
+      [solve_addr|solve_addr|].
     iApply "Hpost"; iFrame.
     iPureIntro; split; last done. rewrite Hrmap'; set_solver.
   Qed.
@@ -147,7 +276,7 @@ Section Switcher_KtK_Call.
     (bpcc_tgt epcc_tgt : Addr)
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z) (posture_tgt : InterruptStatus)
-
+    (h : Z)
     :
     let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp) in
     let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless) in
@@ -178,6 +307,8 @@ Section Switcher_KtK_Call.
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
+    (* The caller's stack starts at the floor *)
+    b_stk = cstk_hwm_floor cstk ->
     ↑Ntstack ⊆ F ->
 
     (* Well formed entry point *)
@@ -224,7 +355,9 @@ Section Switcher_KtK_Call.
     ∗ regs[th] rmap
 
     (* Stack frame *)
-    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+    (* The high-water-mark registers *)
+    ∗ hwm_res cstk h
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ ◯(CSTK)[th] cstk
@@ -250,7 +383,11 @@ Section Switcher_KtK_Call.
             ∗ regs₀[th] rmap'
 
             (* Stack frame *)
-            ∗ ([[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]])
+            ∗ stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
+                (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))
+            (* MSHWM is the callee's stack pointer *)
+            ∗ hwm_res (cstack_push frame cstk)
+                (stk_start_a (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
             ∗ ◯(CSTK)[th] (cstack_push frame cstk)
@@ -273,7 +410,8 @@ Section Switcher_KtK_Call.
               ∗ regs₀[th] rmap'
 
               (* Stack frame *)
-              ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[stk_mem']]
+              ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem'
+              ∗ (∃ h', hwm_res cstk h')
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
@@ -300,10 +438,14 @@ Section Switcher_KtK_Call.
     intros a_tbl_cgp a_tbl_ehs wct1_caller frame.
     subst a_tbl_cgp a_tbl_ehs.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
+             Hb_a Hfloor HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
-        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
+        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hhwm
+        & Hcstk & Hpost)".
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hhwm_ord & Hlocked) #Hts]".
+    iAssert (hwm_regs (cstk_hwm_base cstk) h) with "[$Hmshwmb $Hmshwm]" as "Hhwm_regs".
+    rewrite -Hfloor in Hhwm_ord.
     stk_unfold.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -334,18 +476,18 @@ Section Switcher_KtK_Call.
     (* [.Lswitch_csp_check] to [.Lswitcher_decode_entry] *)
     iEval (rewrite -switcher_call_entry_label) in "HPC".
     iApply (switcher_call_path_spec with
-      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard
-          $Htstk $Hb_switcher $Hcode]"); [done..|].
+      "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hhwm_regs $Hmtdc
+          $Hframeoffset $Hhazard $Htstk $Hb_switcher $Hcode]"); [done..| solve_addr |].
     iNext.
-    iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
+    iSplit; [ |iSplit; [ |iSplit; [ |iSplit] ] ]; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
          fault *)
-      iIntros (g_tstk) "(%Hnot_entry & _)"; exfalso.
+      iIntros (g_tstk h') "(%Hnot_entry & _)"; exfalso.
       apply Hnot_entry; subst wct1_caller.
       by eexists _, None. }
     { (* The trusted stack is exhausted *)
-      iIntros (g_tstk) "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
-        & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Htstk)".
+      iIntros (g_tstk h') "(%Hstk_bounds & %Hh' & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra
+        & Hcgp & Hct1 & Hcells & Hstk & [Hmshwmb Hmshwm] & Hmtdc & Hframeoffset & Hhazard & Htstk)".
       iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
       iSpecialize ("Hsave_area" with "Hhazard_cell").
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
@@ -353,17 +495,49 @@ Section Switcher_KtK_Call.
           $Hstatic
           $Hcstk_full $Hstk_interp
           $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
-          $Hargs $Hregs $Hcstk Hpost]"); [done..|].
+          $Hargs $Hregs $Hcstk Hpost Hmshwmb Hmshwm Hlocked]"); [done..|].
+      iSplitL "Hmshwmb Hmshwm Hlocked".
+      { (* MSHWM is unchanged by the spill, or lowered to a spilled cell *)
+        iFrame "Hmshwmb Hmshwm Hts". rewrite -Hfloor. iFrame "Hlocked".
+        iPureIntro. pose proof Hstk_bounds as (Hb4 & _ & _). revert Hb4. stk_unfold.
+        intros. solve_addr. }
       iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H". }
+    { (* The caller's stack starts at the floor, at or below MSHWM: the
+         zeroing of the callee's stack does not fault *)
+      iIntros (g_tstk h' off) "(%Hstk_bounds & _ & _ & %Hh' & %Hlt & _)"; exfalso.
+      pose proof Hstk_bounds as (Hb4 & _ & _). revert Hb4 Hlt. stk_unfold. intros. solve_addr. }
     { (* The callee-save registers fit on the caller's stack: the spill does
          not fault *)
       iIntros "(%Hnfits & _)". exfalso. apply Hnfits.
       by apply (stk_callee_fits_spill_fits _ _ _ minstk_tgt); [lia|]. }
-    iNext; iIntros (g_tstk wsb π)
-      "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & HPC & Hcs0 & [%wcs1' Hcs1]
-      & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
-      & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".
+    iNext; iIntros (g_tstk wsb π h')
+      "(%Hwsb & _ & %Hstk_bounds & %Ha_frame & %Ha_frame_e & %Hh' & %Hcallee_h' & HPC & Hcs0
+      & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk
+      & Hhwm_regs & Hmtdc & Hframeoffset & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt
+      & [%tstk_next' Htstk] & _)".
     subst wct1_caller; rewrite /lword_of_word in Hwsb; simplify_eq.
+
+    (* The cells of the callee's stack below MSHWM are cells of the zone,
+       which hold 0 *)
+    iMod (stack_region_zeroed_from_hwm with "Hstk Hhwm_regs") as "[Hstk [Hmshwmb Hmshwm]]".
+    { rewrite /stk_callee_b. solve_addr. }
+    (* MSHWM is at or below the spill area, which is full points-to *)
+    iDestruct "Hcells" as "(Hc0 & Hc1 & Hc2 & Hc3)".
+    iMod (hwm_pointsto_outside with "Hc0 Hmshwmb Hmshwm") as "(%Hout & Hc0 & Hmshwmb & Hmshwm)".
+    iAssert (switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller)
+      with "[$Hc0 $Hc1 $Hc2 $Hc3]" as "Hcells".
+    pose proof Hstk_bounds as (Hb4 & Hb4' & Ha4).
+    revert Hb4 Hb4' Ha4 Hcallee_h' Hout. stk_unfold. intros Hb4 Hb4' Ha4 Hcallee_h' Hout.
+    assert (h' <= a_stk ^- 4)%Z as Hh'_spill by solve_addr.
+    (* The cells between MSHWM and the callee's stack pointer join the zone,
+       for the raise of MSHWM *)
+    set (lo := (cstk_hwm_floor cstk ^+ (h' - cstk_hwm_floor cstk))%a).
+    assert (lo = h' :> Z) as Hlo by (subst lo; clear -Hcallee_h' Hh'_spill Hb4; solve_addr).
+    iMod (stack_region_zeroes_zone_acc _ _ lo ((a_stk ^- 4) ^+ (- StackEntry_reserved_space))
+           with "Hstk") as "[Hzone Hzone_close]";
+      [ clear -Hlo Hcallee_h' Hh'_spill Hb4; solve_addr
+      | rewrite /StackEntry_reserved_space; clear -Hminstk Ha4 Hb4; solve_addr
+      | rewrite /StackEntry_reserved_space; clear -Hminstk Ha4 Hb4; solve_addr |].
 
     (* [.Lswitcher_decode_entry]: load the callee and jump to it; only the low byte of the
        minimum stack size is encoded *)
@@ -379,21 +553,24 @@ Section Switcher_KtK_Call.
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hinv_exp_tbl_entry".
     iApply (switcher_decode_entry_path_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
-        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
-      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |].
+        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hmshwmb $Hmshwm $Hzone $Hargs $Hregs $Hcode]");
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| | |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
     { tstack_unfold; solve_addr. }
     { rewrite !dom_delete_L Hdom. set_solver. }
+    { rewrite Hlo. clear -Hhwm_ord Hcallee_h'; solve_addr. }
     iNext; iSplit; cycle 1.
     { (* The callee's stack is at least its minimum stack size plus the
          reserved space *)
       iIntros "(%Hsmall & _)"; exfalso.
-      pose proof Hstk_bounds as (_ & _ & Ha4). stk_unfold.
-      solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }
+      clear -Hsmall Hminstk Hminstk8_le Ha4.
+      rewrite /StackEntry_reserved_space in Hsmall. clearbody minstk8. solve_addr. }
     iIntros (mie arg_rmap' rmap')
-      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
+      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & [Hmshwmb Hmshwm] & Hzone
+      & Hframe_tbl & Hargs & Hregs)".
+    iDestruct ("Hzone_close" with "Hzone") as "Hstk".
 
     (* Push the frame and close the trusted-stack invariant *)
     (* The table cell holds the unsealed entry *)
@@ -409,6 +586,12 @@ Section Switcher_KtK_Call.
       |right; split; [done | exact Htbl_cell]|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
+    (* MSHWM is the callee's stack pointer; the floor is the caller's stack
+       base *)
+    iAssert (hwm_res (cstack_push frame cstk) ((a_stk ^- 4) ^+ (- StackEntry_reserved_space)))
+      with "[Hmshwmb Hmshwm Hlocked]" as "Hhwm".
+    { rewrite hwm_res_push_ktk //. iFrame "Hmshwmb Hmshwm Hlocked Hts".
+      iPureIntro. rewrite /StackEntry_reserved_space. clear -Hhwm_ord Hminstk Ha4. solve_addr. }
     iApply "Hpost"; iLeft; iFrame "∗ %".
     iPureIntro; rewrite Hrmap' Hdom; set_solver.
   Qed.

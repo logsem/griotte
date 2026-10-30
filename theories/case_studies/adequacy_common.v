@@ -323,7 +323,7 @@ End flag_adequacy.
 
 (** ** Initial world, seal store and call stack *)
 Section world_init.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {thwmg : threadHwmG Σ} {Cname : CmptNameG}
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
     {seal_store_preg : sealStorePreG Σ}
     {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
     {cstack_preg : CSTACK_preG Σ}

@@ -362,10 +362,34 @@ Proof.
     iSplit; first done.
     iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
   - destruct (is_untrusted_caller_frm frm).
-    { by iApply (top_cmpt_untrusted_mono_pub with "Htopmost_frm"). }
-    iIntros (W'' Hrel'). iApply "Htopmost_frm". iPureIntro.
+    { iDestruct "Htopmost_frm" as "(Htop & %Hzone & %Hfloor)".
+      iSplitL "Htop"; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+      iPureIntro. split; last done. by eapply zone_temporary_mono_pub. }
+    iDestruct "Htopmost_frm" as "[%Hfloor Hexec]". iSplit; first done.
+    iIntros (W'' Hrel'). iApply "Hexec". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.
 Qed.
+
+  (** The weak continuation, in a public future world of the topmost
+      frame's world. *)
+  Lemma interp_cont_weak_mono_pub (W W' : WORLD) (C : CmptName)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (h : Z) :
+    related_sts_pub_world W W' ->
+    interp_cont_weak cstk (W :: Ws) (C :: Cs) h -∗ interp_cont_weak cstk (W' :: Ws) (C :: Cs) h.
+  Proof.
+    iIntros (Hrel) "Hcont".
+    destruct cstk as [ef [|frm frms] ].
+    { rewrite /interp_cont_weak /=. iDestruct "Hcont" as "[]". }
+    rewrite /interp_cont_weak. cbn [cstk_frames cstk_entry].
+    destruct (is_untrusted_caller_frm frm) eqn:Hfrm.
+    2: by iApply (interp_monotone_continuation with "Hcont").
+    iDestruct "Hcont" as "(Hrest & [%Hheap Hcallee] & Htop & %Hfloor & %Hzone)".
+    iFrame "Hrest". iSplitL "Hcallee".
+    { iSplit; first done. iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver. }
+    iSplitL "Htop"; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+    iPureIntro. split; first done.
+    destruct Hzone as [Hzone|Hh]; [left; by eapply zone_temporary_mono_pub|by right].
+  Qed.
 
 Lemma elem_of_mono_pub W W' a :
   related_sts_pub_world W W' -> a ∈ dom (std W) -> a ∈ dom (std W').

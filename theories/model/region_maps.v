@@ -295,25 +295,11 @@ Section rmap.
 
 End rmap.
 
-(** ** The zones of the threads
-
-    The local map of thread [t] holds cells of the zone of [t]. [hwm_of t]
-    is the high-water-mark instance of [t]; it is a field of a record, not
-    an instance of [hwmG]. With a base instance, it is the instance of
-    [ceriseG_of t], so that [zone_cell[t] a] is the zone cell of [t]. *)
-Class threadHwmG Σ := ThreadHwmG { hwm_of : Thread → hwmG Σ }.
-#[export] Hint Mode threadHwmG - : typeclass_instances.
-#[global] Arguments hwm_of {Σ _} t : rename.
-
-#[global] Instance threadHwmG_base {Σ} {base : ceriseBaseG Σ} : threadHwmG Σ :=
-  ThreadHwmG Σ (λ t, @cerise_hwmG Σ (@ceriseG_of Σ base t)).
-
 (** ** The two maps of a compartment *)
 
 Section region_maps.
   Context {Σ : gFunctors} {Cname : CmptNameG}
-    `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ, !threadHwmG Σ}
-    {stsg : STSG Σ} {relg : relGS Σ}.
+    {ceriseb : ceriseBaseG Σ} {stsg : STSG Σ} {relg : relGS Σ}.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Implicit Types t : Thread.
@@ -367,7 +353,7 @@ Section region_maps.
       points-to of [k], or, for a non-heap key, a cell of the zone of [t],
       which holds 0. *)
   Definition temp_cell t (k : LAddr) (v : LWord) : iProp Σ :=
-    (k ↦ₖ v ∨ ∃ a : Addr, ⌜k = LNonHeap a⌝ ∗ @zone_cell _ _ (hwm_of t) a ∗ ⌜v = WInt 0⌝)%I.
+    (k ↦ₖ v ∨ ∃ a : Addr, ⌜k = LNonHeap a⌝ ∗ zone_cell[t] a ∗ ⌜v = WInt 0⌝)%I.
 
   #[global] Instance temp_cell_timeless t k v : Timeless (temp_cell t k v).
   Proof. apply _. Qed.
@@ -376,7 +362,7 @@ Section region_maps.
   Proof. iIntros "Hk". by iLeft. Qed.
 
   Lemma temp_cell_zone t (a : Addr) :
-    @zone_cell _ _ (hwm_of t) a -∗ temp_cell t (LNonHeap a) (WInt 0).
+    zone_cell[t] a -∗ temp_cell t (LNonHeap a) (WInt 0).
   Proof. iIntros "Hcell". iRight. iExists a. by iFrame. Qed.
 
   (** A heap key rules out the zone cell. *)
@@ -388,7 +374,7 @@ Section region_maps.
 
   (** At a non-heap key, the cell is a points-to or a zone cell. *)
   Lemma temp_cell_nonheap t (a : Addr) v :
-    temp_cell t (LNonHeap a) v ⊣⊢ a ↦ₐ v ∨ (@zone_cell _ _ (hwm_of t) a ∗ ⌜v = WInt 0⌝).
+    temp_cell t (LNonHeap a) v ⊣⊢ a ↦ₐ v ∨ (zone_cell[t] a ∗ ⌜v = WInt 0⌝).
   Proof.
     rewrite /temp_cell key_pointsto_nonheap. iSplit.
     - iIntros "[$ | (%a' & %Hk & Hrest)]". simplify_eq. iRight. iFrame.
@@ -398,16 +384,6 @@ Section region_maps.
   Lemma temp_cell_known t k v : temp_cell t k v -∗ heap_key_known k.
   Proof.
     iIntros "[Hk | (%a & -> & _)]"; [by iApply key_pointsto_known|done].
-  Qed.
-
-  (** A zone cell excludes a full points-to of its address. *)
-  Lemma zone_cell_pointsto_false `{!hwmG Σ} (a : Addr) (w : LWord) :
-    zone_cell a -∗ a ↦ₐ w -∗ False.
-  Proof.
-    rewrite zone_cell_unfold. iIntros "[_ Hhalf] Ha".
-    iDestruct (pointsto_valid_2 with "Ha Hhalf") as %[Hv _].
-    rewrite dfrac_op_own dfrac_valid_own in Hv.
-    by apply Qp.not_add_le_l in Hv.
   Qed.
 
   (** The cell of a Temporary key excludes a full points-to of its
@@ -447,7 +423,7 @@ Section region_maps.
     (laddr_addr k ↦ₐ{DfracOwn (1/2)} v -∗ temp_cell t k v).
   Proof.
     iIntros "[Hk | (%a & -> & Hcell & ->)]".
-    - iDestruct (key_pointsto_eq with "Hk") as "[[Hk1 Hk2] Hshare]".
+    - iDestruct (key_pointsto_eq with "Hk") as "[ [Hk1 Hk2] Hshare]".
       iFrame "Hk1". iIntros "Hk1". iLeft.
       iApply key_pointsto_eq. iFrame "Hshare". by iCombine "Hk1 Hk2" as "Hk".
     - iDestruct (zone_cell_unfold with "Hcell") as "[Htok Hhalf]".
@@ -856,7 +832,7 @@ Section region_maps.
 
   (** A zone cell excludes the cell of a Temporary key at its address. *)
   Lemma temp_cell_zone_cell_false t k v :
-    temp_cell t k v -∗ @zone_cell _ _ (hwm_of t) (laddr_addr k) -∗ False.
+    temp_cell t k v -∗ zone_cell[t] (laddr_addr k) -∗ False.
   Proof.
     iIntros "[Hk | (%a & -> & Hc' & _)] Hc".
     - iDestruct (key_pointsto_eq with "Hk") as "[Hk _]".
@@ -868,14 +844,14 @@ Section region_maps.
       would own a cell at [a]. *)
   Lemma revoked_by_zone_cell_l t W C O (a : Addr) p φ :
     LNonHeap a ∉ O → LNonHeap a ∈ dom (std W) →
-    world_interp_l_open t W C O -∗ rel_l t C (LNonHeap a) p φ -∗ @zone_cell _ _ (hwm_of t) a -∗
-    world_interp_l_open t W C O ∗ @zone_cell _ _ (hwm_of t) a ∗
+    world_interp_l_open t W C O -∗ rel_l t C (LNonHeap a) p φ -∗ zone_cell[t] a -∗
+    world_interp_l_open t W C O ∗ zone_cell[t] a ∗
     ⌜std W !! LNonHeap a = Some Revoked⌝.
   Proof.
     iIntros (Hk [ρ Hρ]%elem_of_dom_std) "Hw #Hr Hc".
     destruct ρ; [|iFrame "Hw Hc"; by iPureIntro].
     iExFalso.
-    iApply (l_excl_not_T _ _ _ _ _ _ _ (@zone_cell _ _ (hwm_of t) a) with "[] [] Hw Hr Hc"); [done|done| |].
+    iApply (l_excl_not_T _ _ _ _ _ _ _ (zone_cell[t] a) with "[] [] Hw Hr Hc"); [done|done| |].
     - iIntros "!>" (v) "Hb Hc". iApply (temp_cell_zone_cell_false with "Hb Hc").
     - iIntros "!>" (a' ι Heq). done.
   Qed.

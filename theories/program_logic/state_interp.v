@@ -205,7 +205,7 @@ Section ghost_init.
       unsealed executable capability; the system registers that the state
       interpretation reserves exist, MTCC holds the trap vector, mtval an
       integer and mstatus an encoding of MIE and MPIE; MSHWMB and MSHWM hold
-      the same integer. *)
+      two addresses in order, and memory holds zero between them. *)
   Record ghost_init_cond (σ : ExecConf) (H : gset Addr) : Prop := {
     gi_roots_heap a : a ∈ H → is_heap_address a = true;
     gi_roots_unpainted a : a ∈ H → shadowtbl σ !! a = Some ShadowLive;
@@ -229,8 +229,27 @@ Section ghost_init.
     gi_mtcc : sreg σ !! mtcc = Some mtcc_vec;
     gi_mtval : ∃ z, sreg σ !! mtval = Some (WInt z);
     gi_mstatus : ∃ mie mpie, sreg σ !! mstatus = Some (WInt (mstatus_enc mie mpie));
-    gi_hwm : ∃ z, sreg σ !! mshwmb = Some (WInt z) ∧ sreg σ !! mshwm = Some (WInt z);
+    gi_hwm : ∃ zb zh : Addr,
+      sreg σ !! mshwmb = Some (WInt zb) ∧ sreg σ !! mshwm = Some (WInt zh) ∧
+      (zb <= zh)%a ∧
+      ∀ a : Addr, (zb <= a < zh)%a → mem σ !! a = Some (WInt 0);
   }.
+
+  (** The initial zone: the addresses between MSHWMB and MSHWM. *)
+  Definition init_zone (sregs : SReg) : gset Addr :=
+    match sregs !! mshwmb, sregs !! mshwm with
+    | Some (WInt zb), Some (WInt zh) =>
+        match z_to_addr zb, z_to_addr zh with
+        | Some b, Some e => list_to_set (finz.seq_between b e)
+        | _, _ => ∅
+        end
+    | _, _ => ∅
+    end.
+
+  Lemma init_zone_eq (sregs : SReg) (zb zh : Addr) :
+    sregs !! mshwmb = Some (WInt zb) → sregs !! mshwm = Some (WInt zh) →
+    init_zone sregs = list_to_set (finz.seq_between zb zh).
+  Proof. intros Hb Hh. by rewrite /init_zone Hb Hh !finz_of_z_to_z. Qed.
 
   Lemma lookup_init_claims H a :
     init_claims H !! a =
@@ -321,8 +340,10 @@ Section ghost_init.
   (** The generic ghost initialisation of every adequacy theorem. It returns
       the state interpretation, the logical PC, register, mtdc, memory and
       shadow points-to, and the address claims. mtdc receives a ghost value
-      [m0] that stands for its initial word. MSHWMB and MSHWM start equal,
-      with an empty zone; their fragments are dropped. *)
+      [m0] that stands for its initial word. The zone starts as
+      [init_zone], the addresses between MSHWMB and MSHWM, whose memory
+      points-to are cells of the zone; the fragments of MSHWMB and MSHWM
+      are dropped. *)
   Lemma cerise_ghost_init σ H (m0 : mtdc_val) (wmtdc : Word) :
     ghost_init_cond σ H →
     sreg σ !! mtdc = Some wmtdc →
@@ -336,13 +357,14 @@ Section ghost_init.
       PC ↦ₚ lword_of_word (pcc σ) ∗
       ([∗ map] r ↦ w ∈ init_lregs (reg σ), r ↦ᵣ w) ∗
       mtdc ↦ₜ m0 ∗
-      ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
+      ([∗ map] a ↦ w ∈ init_lmem (mem σ),
+         if decide (a ∈ init_zone (sreg σ)) then zone_cell a else a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
       ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
   Proof.
     iIntros (Hinit Hmtdc Hm0).
     destruct (gi_mstatus _ _ Hinit) as (mie0 & mpie0 & Hmst).
-    destruct (gi_hwm _ _ Hinit) as (z0 & Hhwmb & Hhwm).
+    destruct (gi_hwm _ _ Hinit) as (zb & zh & Hhwmb & Hhwm & Hzbh & Hzero).
     set (lsh := delete mshwm (delete mshwmb (delete mtdc (delete mstatus
                   (init_lsregs (sreg σ)))))).
     iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
@@ -355,7 +377,12 @@ Section ghost_init.
     iMod (mtdc_init m0) as (mtg) "[Hmtdc Hmtdc_f]".
     iMod (MIE_init mie0) as (mieg) "[Hmie Hmie_f]".
     iMod (MPIE_init mpie0) as (mpieg) "[Hmpie Hmpie_f]".
-    iMod (hwm_init z0) as (hwmg) "(Hmshwmb_a & _ & Hmshwm_a & _ & Hzone_auth)".
+    iMod (hwm_init_zone zb zh (init_zone (sreg σ)))
+      as (hwmg) "(Hmshwmb_a & _ & Hmshwm_a & _ & Hzone_auth & Hzone_toks)".
+    iDestruct (zone_cells_init (init_zone (sreg σ)) with "Hms Hzone_toks")
+      as "[Hms Hzone_cells]".
+    { intros a. rewrite (init_zone_eq _ zb zh) // elem_of_list_to_set elem_of_finz_seq_between.
+      intros Ha. rewrite /init_lmem lookup_fmap Hzero //. }
     iModIntro. iExists mg, sg, pg, rg, srg, regg, ag, mtg, mieg, mpieg, hwmg.
     assert (∀ sr, sr ≠ mtdc → sr ≠ mstatus → sr ≠ mshwm → sr ≠ mshwmb →
               lsh !! sr = lword_of_word <$> sreg σ !! sr)
@@ -374,7 +401,7 @@ Section ghost_init.
     { rewrite lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtval //. }
     iDestruct (big_sepM_delete _ _ mtcc with "Hsrs") as "[Hmtcc Hsrs]".
     { rewrite lookup_delete_ne // lookup_delete_ne // lookup_delete_ne // Hlsh // Hwtcc //. }
-    set (ls := MkLSys lsh m0 (lword_of_word wmtdc) mie0 mpie0 z0 z0).
+    set (ls := MkLSys lsh m0 (lword_of_word wmtdc) mie0 mpie0 zb zh).
     assert (ls_join ls = init_lsregs (sreg σ)) as Hjoin.
     { apply map_eq. intros i. rewrite /ls_join /lsregs_join /=.
       destruct (decide (i = mstatus)) as [->|H1].
@@ -390,9 +417,10 @@ Section ghost_init.
       { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hhwm. }
       rewrite lookup_insert_ne; last congruence.
       rewrite Hlsh //. by rewrite /init_lsregs lookup_fmap. }
-    iAssert (hwm_zone z0 z0) with "[Hzone_auth]" as "Hzone".
-    { iExists ∅. iFrame "Hzone_auth". rewrite big_sepS_empty.
-      iSplit; last done. iPureIntro. intros a Ha. lia. }
+    iAssert (hwm_zone zb zh) with "[Hzone_auth Hzone_cells]" as "Hzone".
+    { iExists _. iFrame "Hzone_auth Hzone_cells". iPureIntro. intros a Ha.
+      rewrite (init_zone_eq _ zb zh) // elem_of_list_to_set elem_of_finz_seq_between.
+      solve_addr. }
     iAssert (sys_interp ls)
       with "[Hsr Hmtcc Hmepcc Hmcause Hmtval Hmtdc Hmie Hmie_f Hmpie Hmpie_f
              Hmshwmb_a Hmshwm_a Hzone]" as "Hsys".

@@ -35,7 +35,7 @@ Section WorldInterpStack.
     -∗
 
     world_interp_open W C (LNonHeap <$> (la++la')) ∗
-    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+    (∃ lv, ([∗ list] a;v ∈ la;lv, temp_cell th (LNonHeap a) v) ∗
            ▷ StackOpenWorldResources interp W C la lv)
   .
   Proof.
@@ -52,7 +52,7 @@ Section WorldInterpStack.
     length lv = length la ->
 
     world_interp_open W C (LNonHeap <$> (la++la')) ∗
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+    ([∗ list] a;v ∈ la;lv, temp_cell th (LNonHeap a) v) ∗
     StackOpenWorldResources interp W C la lv
     -∗
    world_interp_open W C (LNonHeap <$> la').
@@ -72,7 +72,7 @@ Section WorldInterpStack.
       world_interp (revoke W) C ∗
       ▷ StackRevokedResources W C la ∗
       ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
-      ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
+      ▷ (∃ stk_mem, stack_region b e stk_mem) ∗
       ▷ RevokedResources W C l_unk_temp ∗
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
@@ -90,14 +90,14 @@ Section WorldInterpStack.
     interp W C (Cap RWL Local b e a) ∗
     world_interp_open W C (LNonHeap <$> ls) ∗
     ▷ StackOpenWorldResources interp W C ls lv ∗
-    [[ bs , es ]] ↦ₐ [[ ws ]]
+    stack_region bs es ws
     ={E}=∗
     ∃ l_unk_temp,
       ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
       world_interp (revoke W) C ∗
       ▷ StackRevokedResources W C la ∗
       ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
-      ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
+      ▷ (∃ stk_mem, stack_region b e stk_mem) ∗
       ▷ RevokedResources W C l_unk_temp ∗
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
@@ -113,7 +113,7 @@ Section WorldInterpStack.
 
     world_interp W C -∗
     StackRevokedResources W C la -∗
-    ([∗ list] a;v ∈ la;lv,  a ↦ₐ v)
+    ([∗ list] a;v ∈ la;lv, temp_cell th (LNonHeap a) v)
 
     ={E}=∗
 

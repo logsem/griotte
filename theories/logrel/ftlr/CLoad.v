@@ -446,7 +446,7 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (CLoad dst src imm) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros (hb) "@".
+    iIntros (hb f h) "@".
 
     iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
 

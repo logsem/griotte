@@ -4,7 +4,7 @@ From griotte Require Export
 
 Section region_alloc.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {thwmg : threadHwmG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -20,7 +20,8 @@ Section region_alloc.
     iIntros "H1 H2".
     iDestruct (key_pointsto_eq with "H1") as "[H1 _]".
     iDestruct (key_pointsto_eq with "H2") as "[H2 _]".
-    iApply (addr_dupl_false with "H1 H2").
+    iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv%dfrac_full_exclusive _].
+    done.
   Qed.
 
   (** A cell refutes a closed body of the map of Permanent regions at its
@@ -29,7 +30,8 @@ Section region_alloc.
     body_g C k p φ -∗ k ↦ₖ v -∗ False.
   Proof.
     iIntros "Hb Hv". rewrite /body_g. destruct k as [a|a ι]; simpl.
-    - iDestruct "Hb" as (v') "(_ & Hv' & _)". iApply (addr_dupl_false with "Hv Hv'").
+    - iDestruct "Hb" as (v') "(_ & Hv' & _)".
+      iApply (key_pointsto_dupl_false (LNonHeap a) with "Hv Hv'").
     - iDestruct "Hb" as "[(%v' & _ & Hv' & _)|Hq]".
       + iApply (key_pointsto_dupl_false (LHeap a ι) with "Hv Hv'").
       + iApply (heap_pointsto_quar_false with "Hv Hq").

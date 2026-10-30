@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
       ccrel
@@ -191,7 +191,7 @@ Section switcher_helper.
     (** At the return, fix the world on the callee's stack and on the spill
         area of the topmost frame, whose caller's cursor is [a_stk], once
         both are zeroed. *)
-    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (Wcur W0 : WORLD) (C : CmptName)
       (b_stk e_stk a_stk : Addr) (l : list LAddr)
       ccrel
@@ -271,7 +271,7 @@ Section switcher_helper.
     (** Jump to a safe return address [wret], with safe callee-save
         registers [cgp], [cs0], [cs1], [csp], safe return values [ca0],
         [ca1], and cleared registers. *)
-    Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
@@ -297,6 +297,7 @@ Section switcher_helper.
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
       world_interp W C -∗
+      hwm_res_untrusted W cstk -∗
       interp_continuation cstk Ws Cs -∗
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
@@ -304,7 +305,7 @@ Section switcher_helper.
       safe[th].
     Proof.
       iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
-        HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
+        HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp Hhwm HK Hcstk Hna Hlc".
       iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
       iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
       iPoseProof (shared_credit_exclusive C) as "Hcred".
@@ -338,7 +339,7 @@ Section switcher_helper.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hcont"; iFrame "HPC".
         iApply (interp_trap_safe_untrusted with
-                 "Htrap Hthread Hregs_interp Htop [$Hrmap $Hworld_interp $Hcred $HK $Hna $Hcstk]");
+                 "Htrap Hthread Hregs_interp Htop [$Hrmap $Hworld_interp $Hhwm $Hcred $HK $Hna $Hcstk]");
           done. }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
@@ -358,7 +359,7 @@ Section switcher_helper.
         not a valid target of [Jalr cnull cra]: the fault unwinds the frame
         of the caller. The world, the token and the call stack are only
         needed after the jump or the exception entry. *)
-    Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 w : LWord) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
@@ -382,6 +383,7 @@ Section switcher_helper.
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
+      hwm_res_untrusted W cstk -∗
       interp_continuation cstk Ws Cs -∗
       (|={⊤}=>
          world_interp W C ∗
@@ -394,13 +396,13 @@ Section switcher_helper.
         trap_safe w ⊤ (HO th) ).
     Proof.
       iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
-        Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
+        Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hhwm HK Hres".
       iSplit.
       - iIntros "[HPC Hlc]".
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         iApply (switcher_jump_to_caller_spec with
                  "Htrap Hthread Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
-                  Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc"); done.
+                  Hca0 Hca1 Hrmap Hworld_interp Hhwm HK Hcstk Hna Hlc"); done.
       - iIntros "_".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
         iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
@@ -424,7 +426,7 @@ Section switcher_helper.
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
         iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
-                 "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres]");
+                 "Htrap Hthread Hregs_interp Htop [Hrmap Hhwm HK Hres]");
           [done | done |].
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         iEval (rewrite -world_resources_exclusive) in "Hworld_interp".

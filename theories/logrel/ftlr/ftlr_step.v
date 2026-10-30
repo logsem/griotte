@@ -157,16 +157,17 @@ Section ftlr_step.
       fault in an untrusted compartment at the running thread. *)
   Lemma ftlr_trap_later
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (regs : LReg) (w : LWord) :
+    (regs : LReg) (w : LWord) (h : Z) :
     (∀ x : RegName, is_Some (regs !! x)) →
     untrusted_trap_safe interp interp_continuation -∗
     PC ↦ₚ[th] w -∗
     regs[th] regs -∗
-    hwm_res cstk -∗
+    hwm_res cstk h -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
     ▷ (⌜frame_match Ws Cs cstk W C⌝ ∗
+       ⌜zone_temporary W (cstk_hwm_floor cstk) h⌝ ∗
        thread_in th C ∗
        interp_reg interp W C regs ∗
        top_cmpt_untrusted interp W C cstk ∗
@@ -179,29 +180,33 @@ Section ftlr_step.
     iSplit; last by iIntros "!> %Hv".
     iDestruct (trap_entry_res_split ⊤ with "Hown") as "[Htok Hown]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    iDestruct "Hlater" as "(%Hframe & Hth & Hreg & Htop & Hworld & Hcred)".
-    iApply ("Htrap" $! cstk regs with "[//] [Hth Hreg Htop Hworld Hcred Hcont] HPC Hout Hregs Hhwm Hown Hcstk").
+    iDestruct "Hlater" as "(%Hframe & %Hzone & Hth & Hreg & Htop & Hworld & Hcred)".
+    iApply ("Htrap" $! cstk regs _ h
+             with "[//] [Hth Hreg Htop Hworld Hcred Hcont] HPC Hout Hregs Hhwm Hown Hcstk").
     iLeft. iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
   (** The value of an instruction: the next instruction runs from the
       next-PC witness, a fault traps, a halt gives back the thread's
-      non-atomic token. *)
+      non-atomic token. The stack addresses between the floor and MSHWM
+      [h] are Temporary before the step; MSHWM does not grow. *)
   Lemma ftlr_value
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (v : griotte_lang.val) :
+    (h : Z) (v : griotte_lang.val) :
     frame_match Ws Cs cstk W C →
+    zone_temporary W (cstk_hwm_floor cstk) h →
     thread_in th C -∗
     untrusted_trap_safe interp interp_continuation -∗
     top_cmpt_untrusted interp W C cstk -∗
+    thread_stack (cstk_hwm_base cstk) (cstk_hwm_top cstk) -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
     (▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_resources W' C ∗
-       ftlr_post W' C (cstk_hwm_base cstk) v) -∗
+       ftlr_post W' C (cstk_hwm_base cstk) (cstk_hwm_floor cstk) h v) -∗
     WP Seq (of_val v) @[th] {{ HO th }}.
   Proof.
-    iIntros (Hframe) "#Hth #Htrap #Htop Hcont Hown Hcstk Hpost".
+    iIntros (Hframe Hzone) "#Hth #Htrap #Htop #Hts Hcont Hown Hcstk Hpost".
     destruct v; rewrite /ftlr_post; cbn [of_val].
     - (* HaltedV *)
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
@@ -209,10 +214,15 @@ Section ftlr_step.
     - (* FaultedV *)
       iDestruct "Hpost" as (W') "(>%Hrel & Hwres & Hpost)".
       iDestruct "Hpost" as (regs pc) "(>HPC & >Hregs & >Hhwm & Hreg)".
+      iDestruct "Hhwm" as (h') "[Hhwm %Hh']".
       iDestruct "Hreg" as "[>%Hfull Hreg]".
-      iApply (ftlr_trap_later with "Htrap HPC Hregs Hhwm Hcont Hown Hcstk"); first done.
+      iApply (ftlr_trap_later _ _ _ _ _ _ _ h' with "Htrap HPC Hregs [$Hhwm $Hts] Hcont Hown Hcstk");
+        first done.
       iNext. iFrame "Hreg Hwres Hth".
       iSplit; first (iPureIntro; by eapply frame_match_mono).
+      iSplit.
+      { iPureIntro. eapply zone_temporary_mono_pub; first done.
+        by eapply zone_temporary_lower. }
       iSplit; first (iPureIntro; done).
       iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
       (* The trap step gives no credit: the exclusive regime needs none, the
@@ -222,11 +232,15 @@ Section ftlr_step.
       iApply wp_pure_step_later; auto. iNext; iIntros "Hlc".
       (* The credit of the collapse is the next carried credit. *)
       iDestruct (shared_credit_refill C with "Hlc") as "Hcred".
-      iDestruct "Hpost" as (W' Hrel) "(Hwres & %regs & %pc & %Hfull & HPC & Hregs & Hhwm & #Hreg & Hpc)".
+      iDestruct "Hpost" as (W' Hrel)
+        "(Hwres & %regs & %pc & %Hfull & HPC & Hregs & (%h' & Hhwm & %Hh') & #Hreg & Hpc)".
       iApply ("Hpc" $! cstk Ws Cs regs
-               with "[$Hth $Htrap $HPC $Hregs $Hhwm $Hwres $Hcred $Hcont $Hown $Hcstk]").
-      iSplit; first by iApply (interp_reg_intro with "Hreg").
-      iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+               with "[$Hth $Htrap $HPC $Hregs Hhwm $Hwres $Hcred $Hcont $Hown $Hcstk]").
+      iSplitR; first by iApply (interp_reg_intro with "Hreg").
+      iSplitR; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+      iSplitL "Hhwm".
+      { iExists h'. iFrame "Hhwm Hts". iPureIntro. eapply zone_temporary_mono_pub; first done.
+        by eapply zone_temporary_lower. }
       iPureIntro. by eapply frame_match_mono.
   Qed.
 
@@ -247,7 +261,7 @@ Section ftlr_step.
     top_cmpt_untrusted interp W C cstk -∗
     PC ↦ₚ[th] w -∗
     registers_pointsto regs -∗
-    hwm_res cstk -∗
+    hwm_res_untrusted W cstk -∗
     world_resources W C ∗ shared_credit C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
@@ -256,21 +270,23 @@ Section ftlr_step.
     mie m -∗
     safe[th].
   Proof.
-    iIntros (Hcases Hframe) "Hacc #Hthread #Htrap #IH #Hw #Hreg #Htop HPC Hregs Hhwm [Hwres Hcred]
-      Hcont Hown Hcstk Hthr Hmie".
+    iIntros (Hcases Hframe) "Hacc #Hthread #Htrap #IH #Hw #Hreg #Htop HPC Hregs
+      (%h & [Hhwm #Hts] & %Hzone) [Hwres Hcred] Hcont Hown Hcstk Hthr Hmie".
     iApply (wp_bind (fill [SeqCtx])).
     iApply (wp_wand _ _ _
               (λ v, ▷ ∃ W'' m', world_resources W'' C ∗ thr m' ∗ mie m' ∗
-                       ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C (cstk_hwm_base cstk) v)%I
+                       ⌜related_sts_pub_world W W''⌝ ∗
+                       ftlr_post W'' C (cstk_hwm_base cstk) (cstk_hwm_floor cstk) h v)%I
              with "[- Hcont Hown Hcstk] [Hcont Hown Hcstk]").
     2: { (* 7. The value, after the accessor closes. *)
       iIntros (v) "Hpost".
-      iApply (ftlr_value with "Hthread Htrap Htop Hcont Hown Hcstk"); first done.
+      iApply (ftlr_value with "Hthread Htrap Htop Hts Hcont Hown Hcstk"); [done|done|].
       iNext. iDestruct "Hpost" as (W'' m') "(Hwres & _ & _ & Hrel & Hpost)".
       iExists W''. iFrame. }
     (* 1. The accessor opens. *)
     iApply ("Hacc" $! W C m
-              (λ W'' _ v, ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C (cstk_hwm_base cstk) v)%I
+              (λ W'' _ v, ⌜related_sts_pub_world W W''⌝ ∗
+                 ftlr_post W'' C (cstk_hwm_base cstk) (cstk_hwm_floor cstk) h v)%I
              with "Hwres Hthr Hmie Hcred").
     iIntros (W' Hrel) "Hworld Hmie".
     iDestruct (interp_reg_monotone with "Hreg") as "#Hreg'"; first done.
@@ -319,7 +335,7 @@ Section ftlr_step.
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
     { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P Hp Hfull' HcorrectPC
-                Hbae Hflp Hpers eq_refl (cstk_hwm_base cstk)
+                Hbae Hflp Hpers eq_refl (cstk_hwm_base cstk) (cstk_hwm_floor cstk) h
               with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
                     $Hworld $HPC $Hmap $Hhwm]"). }
     (* 6. The hand-off goes back to the accessor. *)

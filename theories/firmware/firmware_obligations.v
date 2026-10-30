@@ -878,7 +878,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
      ⊢ fw_setup_res (th := UserThread 0) fw img
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
-         world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) W C ∗
+         world_interp (th := UserThread 0) W C ∗
          interp (th := UserThread 0) W C (fw_entry_pcc fw img 0) ∗
          interp (th := UserThread 0) W C (fw_entry_cgp fw img 0) ∗
          interp (th := UserThread 0) W C (fw_thread_csp img 0)) →
