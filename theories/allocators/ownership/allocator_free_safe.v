@@ -11,7 +11,7 @@ From griotte.allocators.ownership Require Export allocator_malloc_spec allocator
 Section Heap_Temporal_Safety_Interp.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -94,8 +94,9 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (Hpc_b)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "(Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & %Hsync & _ &
-        Hcstk & Hna)".
+      "(#Hthread & #Htv & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
+        & %Hsync & _ & Hcstk & Hna)".
+    iEval (rewrite world_resources_exclusive) in "Hworld".
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & [%mie %Hcra] & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs %Hzeros]".
@@ -120,7 +121,7 @@ Section Heap_Temporal_Safety_Interp.
       (* Unwind to the caller: nothing was revoked or changed yet. *)
       iInsertRegs "Hrmap" ["Hcgpr";"Hcrar";"Hca0";"Hca1";"Hca2";
                            "Hct0";"Hct1";"Hct2";"Hct3";"Hct4";"Hctp";"Hcnull"].
-      iApply (trap_safe_unwind_logrel with "Hswitcher Hswitcher_static [] [-]");
+      iApply (trap_safe_unwind_logrel with "Hthread Hswitcher Hswitcher_static [] [-]");
         [|exact Hframe| | |]; cycle 1.
       { (* The fault is outside the switcher's code: it is not resumed *)
         by apply trap_no_resume_cap. }
@@ -244,7 +245,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -324,7 +325,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W (revoke W) C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_INVALID) (WInt 0)
-          with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
           repeat rewrite dom_insert_L.
@@ -441,7 +442,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_OK) (WInt 0)
-        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -497,7 +498,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_insert_L.
@@ -515,6 +516,7 @@ Section Heap_Temporal_Safety_Interp.
     (W : WORLD)
     (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
+    cmpt_threads C ⊆ {[th]} ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
     let a_alloc_entry_free := (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off) in
     allocator_service_ctx ∗
@@ -535,7 +537,7 @@ Section Heap_Temporal_Safety_Interp.
       (Cap RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_free).
   Proof.
-    intros Hpc_b a_alloc_exp_tbl_cgp a_alloc_entry_free.
+    intros Hpc_b Hpin a_alloc_exp_tbl_cgp a_alloc_entry_free.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_free.
     iIntros "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -619,6 +621,9 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
+    iIntros (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
     iIntros (W').
     iNext.
     change (allocator_pcc_b ^+ allocator_free_pcc_off) with allocator_free_pcc_addr.

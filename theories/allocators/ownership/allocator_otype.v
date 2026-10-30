@@ -16,7 +16,7 @@ Definition Nallocator_otype : namespace := nroot .@ "allocator_otype".
 Section AllocatorOtype.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
