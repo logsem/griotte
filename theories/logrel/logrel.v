@@ -30,6 +30,45 @@ Notation interpO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> i
 Notation regsO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
 Notation contO Σ := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
 
+(* TODO: move to program_logic/resources.v *)
+#[global] Instance Thread_countable : Countable Thread.
+Proof.
+  refine (inj_countable'
+    (λ th, match th with UserThread n => Some n | CtxSwitch => None end)
+    (λ o, match o with Some n => UserThread n | None => CtxSwitch end) _).
+  by intros [n|].
+Qed.
+
+(** The threads that may run in a compartment. *)
+Class CmptThreads {Cname : CmptNameG} := {
+  cmpt_threads : CmptName → gset Thread;
+}.
+#[export] Hint Mode CmptThreads - : typeclass_instances.
+
+(** [thread_in t C]: the thread [t] may run in the compartment [C]. *)
+Section thread_in.
+  Context {Σ : gFunctors} {Cname : CmptNameG} {cthreads : CmptThreads}.
+
+  Definition thread_in_def (t : Thread) (C : CmptName) : iProp Σ := ⌜t ∈ cmpt_threads C⌝.
+  #[local] Definition thread_in_aux : seal (@thread_in_def). Proof. by eexists. Qed.
+  Definition thread_in := thread_in_aux.(unseal).
+  #[local] Definition thread_in_unseal : @thread_in = @thread_in_def :=
+    thread_in_aux.(seal_eq).
+
+  #[global] Instance thread_in_persistent t C : Persistent (thread_in t C).
+  Proof. rewrite thread_in_unseal. apply _. Qed.
+  #[global] Instance thread_in_plain t C : Plain (thread_in t C).
+  Proof. rewrite thread_in_unseal. apply _. Qed.
+  #[global] Instance thread_in_timeless t C : Timeless (thread_in t C).
+  Proof. rewrite thread_in_unseal. apply _. Qed.
+
+  Lemma thread_in_elim t C : thread_in t C ⊢ ⌜t ∈ cmpt_threads C⌝.
+  Proof. by rewrite thread_in_unseal. Qed.
+
+  Lemma thread_in_intro t C : t ∈ cmpt_threads C → ⊢ thread_in t C.
+  Proof. intros Ht. rewrite thread_in_unseal. by iPureIntro. Qed.
+End thread_in.
+
 (** The world premise of a thread under the regime of the compartment [C]
     ([world_resources W C]), and the credit it carries from one step to the
     next ([shared_credit C]). A compartment in exclusive mode owns its world
@@ -76,8 +115,14 @@ Section world_resources.
 
 End world_resources.
 
-(** interp : is a unary logical relation. *)
-Section logrel.
+(** interp : is a unary logical relation.
+
+    The definitions that take the thread are in sections with a thread
+    [th]; they are taken at another thread with [(th := t)]. The fixpoint
+    [interp1] is over the family of the threads' relations, in a section
+    without thread. The definitions about the trap vector are at the core
+    link, the others at the section's link. *)
+Section logrel_pre.
 
   Context
     {Σ:gFunctors}
@@ -86,7 +131,7 @@ Section logrel.
     {stsg : STSG Σ}
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    {CL : CritLink Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
   #[local] Notation E := (interpO Σ).
@@ -140,6 +185,8 @@ Section logrel.
       (full_map reg ∧
        ∀ (r : RegName) (v : LWord), (⌜reg !! r = Some v⌝ → interp W C v))%I.
   Solve All Obligations with solve_proper.
+  #[global] Instance interp_reg_ne n : Proper (dist n ==> dist n) interp_reg.
+  Proof. intros I1 I2 HI W C regs. cbn. repeat f_equiv. apply HI. Qed.
 
   (** [frame_match] expresses that the call stack [cstk], the stack of worlds [Ws] and compartments [Cs],
       match with the current world [W] and compartment [C].
@@ -270,16 +317,126 @@ Section logrel.
     top_cmpt_untrusted interp W C cstk.
   Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 
-  (** Safe execution from [wpc]: with safe registers, in an untrusted topmost
-      compartment ([top_cmpt_untrusted]), and the continuation of [cstk]. *)
+  (** A fault in an untrusted compartment, for the relation [interp] and
+      the continuation [interp_cont]: the topmost frame's compartment is
+      untrusted, the faulting registers are safe, and the logical
+      relation's resources go to the trap vector. *)
+  Definition untrusted_fault_pre (interp : V) (interp_cont : K)
+      (cstk : CSTK) (regs : LReg) : iProp Σ :=
+    ∃ (W : WORLD) (C : CmptName) (Ws : list WORLD) (Cs : list CmptName),
+      ⌜frame_match Ws Cs cstk W C⌝ ∗
+      interp_reg interp W C regs ∗
+      top_cmpt_untrusted interp W C cstk ∗
+      world_resources W C ∗
+      shared_credit C ∗
+      thread_in th C ∗
+      interp_cont cstk Ws Cs.
+
+  #[global] Instance untrusted_fault_pre_ne n :
+    Proper (dist n ==> dist n ==> (=) ==> (=) ==> dist n) untrusted_fault_pre.
+  Proof.
+    intros interp interp' Heq K K' HK cstk ? <- regs ? <-.
+    rewrite /untrusted_fault_pre. repeat f_equiv.
+    all: try apply interp_reg_ne; try apply top_cmpt_untrusted_ne; try apply HK; done.
+  Qed.
+
+  (** The trap vector [wvec] is safe, at the core link: after trap entry
+      from any PC [w], with any call stack [cstk] and registers [regs],
+      execution from [wvec] is safe, for a fault in an untrusted compartment
+      ([untrusted_fault_pre]) or a fault that [trusted_fault] accepts. Trap
+      entry lends MEPCC, mcause and mtval to the trap vector
+      ([trap_entry_out w]) and holds the trap-entry part [Ntrap] of the
+      non-atomic token. *)
+  Definition trap_vector_safe_pre (interp : V) (interp_cont : K)
+      (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
+    □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
+      ⌜∀ r, is_Some (regs !! r)⌝ -∗
+      (untrusted_fault_pre interp interp_cont cstk regs ∨ trusted_fault cstk w regs) -∗
+      PC ↦ₚ[th] wvec -∗
+      trap_entry_out w -∗
+      registers_pointsto regs -∗
+      na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
+      ◯(CSTK)[th] cstk -∗
+      safe[th].
+
+  #[global] Instance trap_vector_safe_pre_persistent interp interp_cont trusted_fault wvec :
+    Persistent (trap_vector_safe_pre interp interp_cont trusted_fault wvec).
+  Proof. rewrite /trap_vector_safe_pre. apply _. Qed.
+
+  #[global] Instance trap_vector_safe_pre_ne n trusted_fault wvec :
+    Proper (dist n ==> dist n ==> dist n)
+      (λ interp interp_cont, trap_vector_safe_pre interp interp_cont trusted_fault wvec).
+  Proof.
+    intros interp interp' Heq K K' HK. rewrite /trap_vector_safe_pre.
+    repeat f_equiv; done.
+  Qed.
+
+  (** The safety of the trap vector [mtcc_vec] for a fault in an untrusted
+      compartment: a premise of the safe execution of the running thread. *)
+  Definition untrusted_trap_safe (interp : V) (interp_cont : K) : iProp Σ :=
+    trap_vector_safe_pre interp interp_cont (λ _ _ _, False%I) (lword_of_word mtcc_vec).
+
+  #[global] Instance untrusted_trap_safe_persistent interp interp_cont :
+    Persistent (untrusted_trap_safe interp interp_cont).
+  Proof. apply _. Qed.
+
+  #[global] Instance untrusted_trap_safe_ne n :
+    Proper (dist n ==> dist n ==> dist n) untrusted_trap_safe.
+  Proof.
+    intros I1 I2 HI K1 K2 HK. exact (trap_vector_safe_pre_ne n _ _ I1 I2 HI K1 K2 HK).
+  Qed.
+
+  (** A safe trap vector is safe for a fault in an untrusted compartment. *)
+  Lemma trap_vector_safe_pre_untrusted interp interp_cont trusted_fault :
+    trap_vector_safe_pre interp interp_cont trusted_fault (lword_of_word mtcc_vec) -∗
+    untrusted_trap_safe interp interp_cont.
+  Proof.
+    iIntros "#Hsafe !>" (cstk regs w Hfull) "[Hfault|[]]".
+    iApply ("Hsafe" with "[//]"). by iLeft.
+  Qed.
+
+End logrel_pre.
+
+Section logrel_expr.
+
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
+  Implicit Types w : (leibnizO LWord).
+  Implicit Types interp : (V).
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  Notation safeC P :=
+    (λ WCv : WORLD * CmptName * (leibnizO LWord), P WCv.1.1 WCv.1.2 WCv.2).
+
+  (** Safe execution from [wpc] by the thread [th] in the compartment [C]:
+      with the thread in [C], a trap vector safe for its faults, safe
+      registers, in an untrusted topmost compartment
+      ([top_cmpt_untrusted]), and the continuation of [cstk]. *)
   Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
     (λne (W : WORLD) (C : CmptName) (wpc : LWord),
        ∀ cstk Ws Cs regs,
-       ( interp_reg interp W C regs
+       ( thread_in th C
+        ∗ untrusted_trap_safe interp interp_cont
+        ∗ interp_reg interp W C regs
         ∗ top_cmpt_untrusted interp W C cstk
         ∗ PC ↦ₚ[th] wpc
         ∗ registers_pointsto regs
-        ∗ world_interp W C
+        ∗ world_resources W C
+        ∗ shared_credit C
         ∗ interp_cont cstk Ws Cs
         ∗ na_own (tpool th) ⊤
         ∗ ◯(CSTK)[th] cstk
@@ -294,6 +451,20 @@ Section logrel.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_expr. intros ???. simpl.
     by repeat f_equiv.
+  Qed.
+
+  (** A safe execution that needs the thread in its compartment: the
+      thread is in it, or the execution has a false premise. *)
+  Lemma later_interp_expr_thread_in (interp : V) (interp_cont : K) W C w :
+    (thread_in th C -∗ ▷ interp_expr interp interp_cont W C w) ⊢
+    ▷ interp_expr interp interp_cont W C w.
+  Proof.
+    iIntros "H".
+    destruct (decide (th ∈ cmpt_threads C)) as [Hin|Hnin].
+    { iApply "H". by iApply thread_in_intro. }
+    iClear "H". rewrite /interp_expr /=. iNext.
+    iIntros (cstk Ws Cs regs) "(Hth & _)".
+    iDestruct (thread_in_elim with "Hth") as %Hin. done.
   Qed.
 
   (** A saved register has the result of a CLoad in the current world.
@@ -365,6 +536,20 @@ Section logrel.
     Contractive (λ interp, ▷ wcond P C interp)%I.
   Proof. solve_contractive. Qed.
 
+  (** [wcond_nwl] is [wcond] on the words that are not local: a capability
+      that is not write-local stores only such words. *)
+  Definition wcond_nwl (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+    (□ ∀ (W: WORLD) (w : LWord), ⌜isLocalWord w.(lw) = false⌝ → interp W C w -∗ P W C w).
+  #[global] Instance wcond_nwl_ne n :
+    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond_nwl.
+  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  #[global] Instance wcond_nwl_contractive (P : V) (C : CmptName) :
+    Contractive (λ interp, ▷ wcond_nwl P C interp)%I.
+  Proof. solve_contractive. Qed.
+
+  Lemma wcond_wcond_nwl P C interp : wcond P C interp -∗ wcond_nwl P C interp.
+  Proof. iIntros "#H !>" (W w _) "Hw". by iApply "H". Qed.
+
   (** [persistent_cond] states that the safety predicate [P] is persistent. *)
   Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
@@ -386,7 +571,7 @@ Section logrel.
     ∃ (φ : V) (p : Perm),
       φ W C w ∗
       future_pub_mono C (safeC φ) w ∗
-      (LNonHeap a) ↪ˡ[C]{p} (safeC φ) ∗
+      (LNonHeap a) ↪ˡ[th, C]{p} (safeC φ) ∗
       valid_stk_interp interp C φ p ∗
       ⌜ PermFlowsTo RWL p ⌝.
   #[global] Instance StackWorldResource_ne n :
@@ -402,7 +587,7 @@ Section logrel.
                    (∃ (φ : V) (p : Perm) (_ : Persistent (φ W C v)),
                        ((φ W C v)
                         ∗ (future_pub_mono C (safeC φ) v)
-                        ∗ (LNonHeap a) ↪ˡ[C]{p} (safeC φ)
+                        ∗ (LNonHeap a) ↪ˡ[th, C]{p} (safeC φ)
                         ∗ valid_stk_interp interp C φ p
                         ∗ ⌜ PermFlowsTo RWL p ⌝
                        )%I
@@ -522,6 +707,7 @@ Section logrel.
          ∗ interp_cont
          ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
+         ∗ thread_in th C
            -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
@@ -773,7 +959,7 @@ Section logrel.
     k ↪ᵍ[C]{p} (safeGC P).
 
   Definition region_rel_l (W : WORLD) (C : CmptName) (k : LAddr) (p : Perm) (P : V) : iProp Σ :=
-    k ↪ˡ[C]{p} (safeC P) ∗ ⌜std W !! k = Some Temporary⌝ ∗ mono_pub C (safeC P).
+    k ↪ˡ[th, C]{p} (safeC P) ∗ ⌜std W !! k = Some Temporary⌝ ∗ mono_pub C (safeC P).
 
   (** A write-local capability reaches Temporary regions only, a Global one
       Global regions only, and a Local one either. *)
@@ -875,7 +1061,7 @@ Section logrel.
   Definition heap_cap_O_key (W : WORLD) (C : CmptName) (g : Locality) (k : LAddr) : iProp Σ :=
     (∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵍ[C]{p} φ) ∨
     (if g is Local
-     then ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝
+     then ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[th, C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝
      else False)%I.
 
   #[global] Instance heap_cap_O_key_persistent W C g k : Persistent (heap_cap_O_key W C g k).
@@ -925,116 +1111,6 @@ Section logrel.
     apply list_elem_of_lookup_2, elem_of_finz_seq_between in Hx. solve_addr.
   Qed.
 
-  (** Interp for sentry in [enter_cond]. *)
-  Program Definition interp_sentry (interp : V) : V :=
-    λne W C w, (match w.(lw) with
-                | WSentry k t p g b e a =>
-                    ⌜not_heap_range b e⌝ ∗
-                    □ enter_cond W C p g b e a w.(lprov) interp
-                | _ => False
-                end)%I.
-  Solve All Obligations with solve_proper.
-
-  (** The per-address part of a memory capability's validity. *)
-  Definition interp_cap_body (interp : V)
-      (W : WORLD) (C : CmptName) (p : Perm) (g : Locality)
-      (b e : Addr) (π : option AId) : iProp Σ :=
-    ([∗ list] a ∈ finz.seq_between b e,
-      ∃ (p' : Perm) (P : V),
-        ⌜PermFlowsTo p p'⌝
-        ∧ ⌜persistent_cond P⌝
-        ∧ region_rel W C (addr_key π a) p' P p g
-        ∧ ▷ zcond P C
-        ∧ (if readAllowed p' then ▷ rcond P C p' interp else True)
-        ∧ (if writeAllowed p' then ▷ wcond P C interp else True))%I.
-
-  #[global] Instance interp_cap_body_contractive W C p g b e π :
-    Contractive (λ interp, interp_cap_body interp W C p g b e π).
-  Proof.
-    rewrite /interp_cap_body.
-    solve_contractive.
-  Qed.
-
-  #[global] Instance interp_cap_body_ne n :
-    Proper (dist n ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n)
-      interp_cap_body.
-  Proof. rewrite /interp_cap_body. solve_proper. Qed.
-
-  #[global] Instance interp_cap_body_persistent interp W C p g b e π :
-    Persistent (interp_cap_body interp W C p g b e π).
-  Proof. apply _. Qed.
-
-  Lemma interp_cap_body_eq interp W C p g b e π :
-    interp_cap_body interp W C p g b e π ≡
-    ([∗ list] a ∈ finz.seq_between b e,
-      ∃ (p' : Perm) (P : V),
-        ⌜PermFlowsTo p p'⌝
-        ∗ ⌜persistent_cond P⌝
-        ∗ region_rel W C (addr_key π a) p' P p g
-        ∗ ▷ zcond P C
-        ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
-        ∗ (if writeAllowed p' then ▷ wcond P C interp else True))%I.
-  Proof.
-    rewrite /interp_cap_body.
-    apply big_sepL_proper; intros k a' Ha'.
-    do 3 f_equiv. intros P.
-    by rewrite !bi.persistent_and_sep.
-  Qed.
-
-  (** Interp for memory capability. *)
-  Program Definition interp_cap (interp : V) : V :=
-    λne W C w, (match w.(lw) with
-              | WCap t (O _ _) _ _ _ _
-              | WCap t (BPerm XSR _ _ _) _ _ _ _ (* XRS capabilities are never safe-to-share *)
-              | WCap t (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
-                => False
-              | WCap t p g b e a =>
-                  interp_cap_body interp W C p g b e w.(lprov)
-                  ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov)
-              | _ => False
-              end)%I.
-  Solve All Obligations with auto;solve_proper.
-
-  (** The conditions of a seal range on the predicate [P] of an otype of
-      kind [κ]: sealing a safe word gives the predicate of its normal form,
-      and unsealing gives back a safe word. Both hold in every world. *)
-  Definition seal_cond (κ : seal_kind) (P : Thread * WORLD * CmptName * LWord → iProp Σ)
-      (C : CmptName) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : LWord), interp W C w -∗ P (th, W, C, norm κ w)).
-  #[global] Instance seal_cond_ne κ P C n :
-    Proper (dist n ==> dist n) (seal_cond κ P C).
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  #[global] Instance seal_contractive κ P C :
-    Contractive (λ interp, ▷ seal_cond κ P C interp)%I.
-  Proof. solve_contractive. Qed.
-
-  Definition unseal_cond (κ : seal_kind) (P : Thread * WORLD * CmptName * LWord → iProp Σ)
-      (C : CmptName) (interp : V) : iProp Σ :=
-    (□ ∀ (W: WORLD) (w : LWord), P (th, W, C, norm κ w) -∗ interp W C w).
-  #[global] Instance unseal_cond_ne κ P C n :
-    Proper (dist n ==> dist n) (unseal_cond κ P C).
-  Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  #[global] Instance unseal_contractive κ P C :
-    Contractive (λ interp, ▷ unseal_cond κ P C interp)%I.
-  Proof. solve_contractive. Qed.
-
-  (* (un)seal permission definitions *)
-  Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
-    ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ seal_cond κ P C interp)%I.
-  Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : V) (b e : OType) : iPropO Σ :=
-    ([∗ list] a ∈ (finz.seq_between b e),
-       ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ unseal_cond κ P C interp)%I.
-
-  (** Interp for sealing capability. *)
-  Program Definition interp_sr (interp : V) : V :=
-    λne W C w, (match w.(lw) with
-    | WSealRange t p g b e a =>
-    (if permit_seal p then safe_to_seal W C interp b e else True)
-    ∗ (if permit_unseal p then safe_to_unseal W C interp b e else True)
-    | _ => False end ) %I.
-  Solve All Obligations with solve_proper.
-
   (** The payload side condition of a sealed word: its heap authority. *)
   Definition sealed_payload_ok (w : LWord) : iProp Σ :=
     match w.(lw) with
@@ -1060,37 +1136,210 @@ Section logrel.
     iDestruct "HP" as "#HP". iModIntro. iFrame "Hw". iExists κ, P. by iFrame "#".
   Qed.
 
-  (** Definition of interp, pre-fixpoint. Untagged words are safe data.
-      Only tagged words use the structural authority predicates above. *)
-  Program Definition interp1 (interp : V) : V :=
+End logrel_expr.
+
+(** The fixpoint of the logical relation, over the family of the threads'
+    relations. A Global word's validity holds for every thread of its
+    compartment: its sentries run, and its read conditions hold, at each
+    such thread [t']. A Local word's validity is at the holder's thread. *)
+Section logrel_fix.
+
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation TV := (Thread -d> interpO Σ).
+  Implicit Types w : (leibnizO LWord).
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  #[local] Lemma dist_later_app n (I1 I2 : TV) (t : Thread) :
+    dist_later n I1 I2 → dist_later n (I1 t) (I2 t).
+  Proof. intros [HI]. constructor. intros m Hm. apply (HI m Hm). Qed.
+
+  (** The read condition of a Global capability: at every thread of [C]. *)
+  Definition rcond_g (P : V) (C : CmptName) (p : Perm) (interp : TV) : iProp Σ :=
+    □ ∀ t', thread_in t' C -∗ rcond P C p (interp t').
+  #[global] Instance rcond_g_ne n :
+    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond_g.
+  Proof.
+    intros P ? <- C ? <- p ? <- I1 I2 HI. rewrite /rcond_g.
+    by repeat f_equiv.
+  Qed.
+  #[global] Instance rcond_g_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp : TV, ▷ rcond_g P C p interp)%I.
+  Proof.
+    intros n I1 I2 HI. f_contractive_fin. rewrite /rcond_g.
+    repeat f_equiv. apply dist_later_S in HI. apply HI.
+  Qed.
+
+  (** The per-address part of a memory capability's validity, at the
+      holder's thread [th]. The read condition is by the capability's
+      locality, the write condition by its write-local permission. *)
+  Definition interp_cap_body (interp : TV) (th : Thread)
+      (W : WORLD) (C : CmptName) (p : Perm) (g : Locality)
+      (b e : Addr) (π : option AId) : iProp Σ :=
+    ([∗ list] a ∈ finz.seq_between b e,
+      ∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝
+        ∧ ⌜persistent_cond P⌝
+        ∧ region_rel (th := th) W C (addr_key π a) p' P p g
+        ∧ ▷ zcond P C
+        ∧ (if readAllowed p'
+           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond P C p' (interp th))
+           else True)
+        ∧ (if writeAllowed p'
+           then ▷ (if isWL p then wcond P C (interp th) else wcond_nwl P C (interp th))
+           else True))%I.
+
+  #[global] Instance interp_cap_body_contractive th W C p g b e π :
+    Contractive (λ interp : TV, interp_cap_body interp th W C p g b e π).
+  Proof.
+    intros n I1 I2 HI. rewrite /interp_cap_body. solve_contractive.
+  Qed.
+
+  #[global] Instance interp_cap_body_persistent interp th W C p g b e π :
+    Persistent (interp_cap_body interp th W C p g b e π).
+  Proof. apply _. Qed.
+
+  Lemma interp_cap_body_eq interp th W C p g b e π :
+    interp_cap_body interp th W C p g b e π ≡
+    ([∗ list] a ∈ finz.seq_between b e,
+      ∃ (p' : Perm) (P : V),
+        ⌜PermFlowsTo p p'⌝
+        ∗ ⌜persistent_cond P⌝
+        ∗ region_rel (th := th) W C (addr_key π a) p' P p g
+        ∗ ▷ zcond P C
+        ∗ (if readAllowed p'
+           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond P C p' (interp th))
+           else True)
+        ∗ (if writeAllowed p'
+           then ▷ (if isWL p then wcond P C (interp th) else wcond_nwl P C (interp th))
+           else True))%I.
+  Proof.
+    rewrite /interp_cap_body.
+    apply big_sepL_proper; intros k a' Ha'.
+    do 3 f_equiv. intros P.
+    by rewrite !bi.persistent_and_sep.
+  Qed.
+
+  (** Interp for memory capability. *)
+  Program Definition interp_cap (interp : TV) (th : Thread) : V :=
+    λne W C w, (match w.(lw) with
+              | WCap t (O _ _) _ _ _ _
+              | WCap t (BPerm XSR _ _ _) _ _ _ _ (* XRS capabilities are never safe-to-share *)
+              | WCap t (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
+                => False
+              | WCap t p g b e a =>
+                  interp_cap_body interp th W C p g b e w.(lprov)
+                  ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov)
+              | _ => False
+              end)%I.
+  Solve All Obligations with auto;solve_proper.
+
+  (** Interp for sentry in [enter_cond]: a Global sentry runs at every
+      thread of [C], a Local one at the holder's thread [th]. *)
+  Program Definition interp_sentry (interp : TV) (th : Thread) : V :=
+    λne W C w, (match w.(lw) with
+                | WSentry k t p g b e a =>
+                    ⌜not_heap_range b e⌝ ∗
+                    (if isGlobal g
+                     then □ ∀ t', thread_in t' C -∗
+                            enter_cond (th := t') W C p g b e a w.(lprov) (interp t')
+                     else □ enter_cond (th := th) W C p g b e a w.(lprov) (interp th))
+                | _ => False
+                end)%I.
+  Solve All Obligations with solve_proper.
+
+  (** The conditions of a seal range on the predicate [P] of an otype of
+      kind [κ], at every thread of [C]: sealing a safe word gives the
+      predicate of its normal form, and unsealing gives back a safe word.
+      Both hold in every world. *)
+  Definition seal_cond (κ : seal_kind) (P : Thread * WORLD * CmptName * LWord → iProp Σ)
+      (C : CmptName) (interp : TV) : iProp Σ :=
+    (□ ∀ t', thread_in t' C -∗
+       ∀ (W: WORLD) (w : LWord), interp t' W C w -∗ P (t', W, C, norm κ w)).
+  #[global] Instance seal_cond_ne κ P C n :
+    Proper (dist n ==> dist n) (seal_cond κ P C).
+  Proof. intros I1 I2 HI. rewrite /seal_cond. by repeat f_equiv. Qed.
+  #[global] Instance seal_contractive κ P C :
+    Contractive (λ interp : TV, ▷ seal_cond κ P C interp)%I.
+  Proof. intros n I1 I2 HI. f_contractive_fin. by apply seal_cond_ne, dist_later_S. Qed.
+
+  Definition unseal_cond (κ : seal_kind) (P : Thread * WORLD * CmptName * LWord → iProp Σ)
+      (C : CmptName) (interp : TV) : iProp Σ :=
+    (□ ∀ t', thread_in t' C -∗
+       ∀ (W: WORLD) (w : LWord), P (t', W, C, norm κ w) -∗ interp t' W C w).
+  #[global] Instance unseal_cond_ne κ P C n :
+    Proper (dist n ==> dist n) (unseal_cond κ P C).
+  Proof. intros I1 I2 HI. rewrite /unseal_cond. by repeat f_equiv. Qed.
+  #[global] Instance unseal_contractive κ P C :
+    Contractive (λ interp : TV, ▷ unseal_cond κ P C interp)%I.
+  Proof. intros n I1 I2 HI. f_contractive_fin. by apply unseal_cond_ne, dist_later_S. Qed.
+
+  (* (un)seal permission definitions *)
+  Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
+    ([∗ list] a ∈ (finz.seq_between b e),
+       ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ seal_cond κ P C interp)%I.
+  Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
+    ([∗ list] a ∈ (finz.seq_between b e),
+       ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ unseal_cond κ P C interp)%I.
+
+  (** Interp for sealing capability: its conditions take no thread. *)
+  Program Definition interp_sr (interp : TV) : V :=
+    λne W C w, (match w.(lw) with
+    | WSealRange t p g b e a =>
+    (if permit_seal p then safe_to_seal W C interp b e else True)
+    ∗ (if permit_unseal p then safe_to_unseal W C interp b e else True)
+    | _ => False end ) %I.
+  Solve All Obligations with solve_proper.
+
+  (** Definition of interp, pre-fixpoint, at the thread [th] that holds the
+      word. Untagged words are safe data. Only tagged words use the
+      structural authority predicates above. *)
+  Program Definition interp1 (interp : TV) : TV := λ th,
     (λne W C w,
     if get_tag w.(lw) then match w.(lw) return _ with
     | WInt _ => interp_z W C w
-    | WCap t (O _ _) g b e a => interp_cap_O W C w
-    | WCap t _ g b e a => interp_cap interp W C w
-    | WSentry k t p g b e a => interp_sentry interp W C w
+    | WCap t (O _ _) g b e a => interp_cap_O (th := th) W C w
+    | WCap t _ g b e a => interp_cap interp th W C w
+    | WSentry k t p g b e a => interp_sentry interp th W C w
     | WSealRange t p g b e a => interp_sr interp W C w
-    | WSealed o sb => interp_sb W C o (WSealable sb @@? w.(lprov))
+    | WSealed o sb => interp_sb (th := th) W C o (WSealable sb @@? w.(lprov))
     end else True)%I.
   Solve All Obligations with solve_proper.
 
   (** To be able to use the fixpoint combinator to define [interp],
       we need to show that all case of [interp] are contractive. *)
-  #[global] Instance interp_sentry_contractive :
-    Contractive (interp_sentry).
+  #[global] Instance interp_sentry_contractive th :
+    Contractive (λ interp : TV, interp_sentry interp th).
   Proof.
     intros n x y Hdist W C [w π].
-    destruct_word w; cbn [interp_sentry]; try reflexivity.
+    destruct_word w; [reflexivity..| |reflexivity].
     change (dist n
       (⌜not_heap_range b e⌝ ∗
-        □ enter_cond W C sd g b e a π x)%I
+        (if isGlobal g
+         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') W C sd g b e a π (x t')
+         else □ enter_cond (th := th) W C sd g b e a π (x th)))%I
       (⌜not_heap_range b e⌝ ∗
-        □ enter_cond W C sd g b e a π y)%I).
-    f_equiv. f_equiv. by apply enter_cond_contractive.
+        (if isGlobal g
+         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') W C sd g b e a π (y t')
+         else □ enter_cond (th := th) W C sd g b e a π (y th)))%I).
+    f_equiv. destruct (isGlobal g).
+    - do 4 f_equiv. by apply enter_cond_contractive, dist_later_app.
+    - f_equiv. by apply enter_cond_contractive, dist_later_app.
   Qed.
 
-  #[global] Instance interp_cap_contractive :
-    Contractive (interp_cap).
+  #[global] Instance interp_cap_contractive th :
+    Contractive (λ interp : TV, interp_cap interp th).
   Proof.
     intros n x y Hdist W C [w π].
     destruct_word w; try reflexivity.
@@ -1099,11 +1348,11 @@ Section logrel.
     all: match goal with
     | |- context [WCap _ ?p ?g _ _ _] =>
         change (dist n
-          (interp_cap_body x W C p g b e π ∗
+          (interp_cap_body x th W C p g b e π ∗
             ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I
-          (interp_cap_body y W C p g b e π ∗
+          (interp_cap_body y th W C p g b e π ∗
             ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I);
-        f_equiv; exact (interp_cap_body_contractive W C p g b e π n x y Hdist)
+        f_equiv; exact (interp_cap_body_contractive th W C p g b e π n x y Hdist)
     end.
   Qed.
 
@@ -1112,36 +1361,151 @@ Section logrel.
   Proof.
     intros n x y Hdist W C [w π].
     destruct_word w; try reflexivity.
-    simpl. destruct (permit_seal sr), (permit_unseal sr);
-    rewrite /safe_to_seal /safe_to_unseal;
-    solve_contractive.
+    change (dist n
+      ((if permit_seal sr then safe_to_seal W C x b e else True) ∗
+       (if permit_unseal sr then safe_to_unseal W C x b e else True))%I
+      ((if permit_seal sr then safe_to_seal W C y b e else True) ∗
+       (if permit_unseal sr then safe_to_unseal W C y b e else True))%I).
+    apply bi.sep_ne.
+    - destruct (permit_seal sr); last done. rewrite /safe_to_seal.
+      apply big_sepL_ne; intros i o Ho. do 2 (apply bi.exist_ne; intros ?).
+      do 2 (apply bi.sep_ne; [done|]). by apply seal_contractive.
+    - destruct (permit_unseal sr); last done. rewrite /safe_to_unseal.
+      apply big_sepL_ne; intros i o Ho. do 2 (apply bi.exist_ne; intros ?).
+      do 2 (apply bi.sep_ne; [done|]). by apply unseal_contractive.
   Qed.
 
   #[global] Instance interp1_contractive :
     Contractive (interp1).
   Proof.
-    intros n x y Hdistn W C [w π].
+    intros n x y Hdistn th W C [w π].
     rewrite /interp1 /=.
     destruct (get_tag w); last reflexivity.
     destruct_word w; [reflexivity|..].
-    - pose proof (interp_cap_contractive n x y Hdistn W C (WCap t c g b e a @@? π)) as Hcap.
+    - pose proof (interp_cap_contractive th n x y Hdistn W C (WCap t c g b e a @@? π)) as Hcap.
       destruct c as [rx wp dl dro].
       destruct rx, wp; try reflexivity;
         exact Hcap.
     - exact (interp_sr_contractive n x y Hdistn W C (WSealRange t sr g b e a @@? π)).
-    - exact (interp_sentry_contractive n x y Hdistn W C (WSentry k t sd g b e a @@? π)).
+    - exact (interp_sentry_contractive th n x y Hdistn W C (WSentry k t sd g b e a @@? π)).
     - reflexivity.
   Qed.
 
-  (** Definition of [interp] via the fixpoint combinator. *)
-  Definition interp_def : V := fixpoint interp1.
+  (** Definition of the family [interp_fam] via the fixpoint combinator. *)
+  Definition interp_def : TV := fixpoint interp1.
   #[local] Definition interp_aux : seal (@interp_def). Proof. by eexists. Qed.
-  Definition interp := interp_aux.(unseal).
-  #[local] Definition interp_unseal : @interp = @interp_def := interp_aux.(seal_eq).
+  Definition interp_fam := interp_aux.(unseal).
+  #[local] Definition interp_fam_unseal : @interp_fam = @interp_def := interp_aux.(seal_eq).
+
+  Lemma interp_fam_unfold (th : Thread) (W : WORLD) (C : CmptName) (w : leibnizO LWord) :
+    interp_fam th W C w ≡ interp1 interp_fam th W C w.
+  Proof. rewrite interp_fam_unseal. exact: (fixpoint_unfold interp1 th W C w). Qed.
+
+  (** The pre-fixpoint is persistent for any family: its recursive
+      occurrences are under [□]. *)
+  #[global] Instance interp1_persistent (interp : TV) th W C w :
+    Persistent (interp1 interp th W C w).
+  Proof.
+    destruct w as [w π].
+    rewrite /interp1 /=.
+    destruct (get_tag w); last apply _.
+    destruct_word w.
+    - apply _.
+    - destruct c as [rx wp dl dro]; destruct t, rx, wp, g; cbn; apply _.
+    - destruct (permit_seal sr), (permit_unseal sr);
+        rewrite /safe_to_seal /safe_to_unseal; apply _.
+    - apply _.
+    - apply _.
+  Qed.
+
+  Lemma interp1_eq (interp : TV) (th : Thread) (W: WORLD) (C : CmptName) p g b e a π :
+    ((interp1 interp th W C (Cap p g b e a @@? π)) ≡
+       (if (isO p)
+        then interp_cap_O (th := th) W C (Cap p g b e a @@? π)
+        else
+          if (has_sreg_access p)
+          then False
+          else ([∗ list] a ∈ finz.seq_between b e,
+                  ∃ (p' : Perm) (P:V),
+                    ⌜PermFlowsTo p p'⌝
+                    ∗ ⌜persistent_cond P⌝
+                    ∗ region_rel (th := th) W C (addr_key π a) p' P p g
+                    ∗ ▷ zcond P C
+                    ∗ (if readAllowed p'
+                       then ▷ (if isGlobal g then rcond_g P C p' interp
+                             else rcond P C p' (interp th))
+                       else True)
+                    ∗ (if writeAllowed p'
+                       then ▷ (if isWL p then wcond P C (interp th)
+                             else wcond_nwl P C (interp th))
+                       else True))
+               ∗ ⌜(if isWL p then g = Local else True) ∧
+                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I).
+  Proof.
+    pose proof (interp_cap_body_eq interp th W C p g b e π) as Hbody.
+    destruct p as [rx wp dl dro].
+    destruct rx, wp, g; cbn [isO has_sreg_access isWL].
+    all: rewrite -?Hbody.
+    all: rewrite ?bi.pure_and ?bi.persistent_and_sep.
+    all: rewrite ?(bi.pure_True (Local = Local) eq_refl).
+    all: try
+      (rewrite (bi.pure_False (Global = Local)); [|discriminate]).
+    all: rewrite ?bi.sep_True ?bi.True_sep ?bi.False_sep.
+    all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
+    all: rewrite ?bi.sep_False ?bi.False_sep.
+    all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
+      ⌜revoker_addr ∉ finz.seq_between b e⌝) -?bi.pure_and.
+    all: reflexivity.
+  Qed.
+
+End logrel_fix.
+
+(** The relation at the thread [th]: the family at [th]. *)
+Section interp.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+  Definition interp : interpO Σ := interp_fam th.
+End interp.
+#[global] Arguments interp : simpl never.
+
+Section logrel.
+
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+  #[local] Notation E := (interpO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation K := (contO Σ).
+  #[local] Notation R := (regsO Σ).
+  Implicit Types w : (leibnizO LWord).
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  Notation safeC P :=
+    (λ WCv : WORLD * CmptName * (leibnizO LWord), P WCv.1.1 WCv.1.2 WCv.2).
+  Notation safeGC P := (λ Cv : CmptName * LWord, P ∅ Cv.1 Cv.2).
 
   Lemma interp_unfold (W : WORLD) (C : CmptName) (w : leibnizO LWord) :
-    interp W C w ≡ interp1 interp W C w.
-  Proof. rewrite interp_unseal. exact: (fixpoint_unfold interp1 W C w). Qed.
+    interp W C w ≡ interp1 (λ t, interp (th := t)) th W C w.
+  Proof. exact: interp_fam_unfold. Qed.
+
   Program Definition interp_in_mem (p : Perm) : V :=
     λne W C w, interp_in_mem_pre W C p interp w.
   Solve All Obligations with solve_proper.
@@ -1192,34 +1556,7 @@ Section logrel.
 
   (** We have, and we _WANT_, [interp] to be Persistent *)
   #[global] Instance interp_persistent W C w : Persistent (interp W C w).
-  Proof.
-    destruct (get_tag w.(lw)) eqn:Htag.
-    2: { rewrite (interp_untagged_eq W C w Htag). apply _. }
-    rewrite interp_unfold.
-    destruct w as [w π]; cbn in Htag.
-    destruct_word w; try destruct t; cbn in Htag; try discriminate.
-    - destruct c as [rx wp dl dro].
-      destruct rx, wp, g;
-        first [ apply bi.pure_persistent
-              | match goal with
-                | |- context [WCap _ ?p ?g _ _ _] =>
-                    change (Persistent
-                      (interp_cap_body interp W C p g b e π ∗
-                        ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I);
-                    apply _
-                end
-              | (cbn; apply _) ].
-    - change (Persistent
-        ((if permit_seal sr
-          then safe_to_seal W C interp b e else True) ∗
-         (if permit_unseal sr
-          then safe_to_unseal W C interp b e else True))%I).
-      destruct (permit_seal sr), (permit_unseal sr);
-        rewrite /safe_to_seal /safe_to_unseal; apply _.
-    - apply _.
-    - destruct sb as [t p g b e' a | t p g b e' a];
-        destruct t; cbn in Htag; try discriminate; apply _.
-  Qed.
+  Proof. rewrite /Persistent interp_unfold. apply interp1_persistent. Qed.
 
   (** A full register file of safe words is safe. *)
   Lemma interp_reg_intro W C (regs : LReg) :
@@ -1297,41 +1634,6 @@ Section logrel.
   (* Non-curried version of interp *)
   Notation interpC := (safeC interp).
   Notation interp_in_memC := (safeC (interp_in_mem RWL)).
-
-  Lemma interp1_eq interp (W: WORLD) (C : CmptName) p g b e a π :
-    ((interp1 interp W C (Cap p g b e a @@? π)) ≡
-       (if (isO p)
-        then interp_cap_O W C (Cap p g b e a @@? π)
-        else
-          if (has_sreg_access p)
-          then False
-          else ([∗ list] a ∈ finz.seq_between b e,
-                  ∃ (p' : Perm) (P:V),
-                    ⌜PermFlowsTo p p'⌝
-                    ∗ ⌜persistent_cond P⌝
-                    ∗ region_rel W C (addr_key π a) p' P p g
-                    ∗ ▷ zcond P C
-                    ∗ (if readAllowed p' then ▷ (rcond P C p' interp) else True)
-                    ∗ (if writeAllowed p' then ▷ (wcond P C interp) else True))
-               ∗ ⌜(if isWL p then g = Local else True) ∧
-                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I).
-  Proof.
-    pose proof (interp_cap_body_eq interp W C p g b e π) as Hbody.
-    destruct p as [rx wp dl dro].
-    destruct rx, wp, g; cbn [isO has_sreg_access isWL].
-    all: rewrite -?Hbody.
-    all: rewrite ?bi.pure_and ?bi.persistent_and_sep.
-    all: rewrite ?(bi.pure_True (Local = Local) eq_refl).
-    all: try
-      (rewrite (bi.pure_False (Global = Local)); [|discriminate]).
-    all: rewrite ?bi.sep_True ?bi.True_sep ?bi.False_sep.
-    all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
-    all: rewrite ?bi.sep_False ?bi.False_sep.
-    all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
-      ⌜revoker_addr ∉ finz.seq_between b e⌝) -?bi.pure_and.
-    all: reflexivity.
-  Qed.
-
 
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a π :
     isO p = false →
@@ -1445,8 +1747,10 @@ Section logrel.
       ∗ ⌜persistent_cond P⌝
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
-      ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
-      ∗ (if writeAllowed p' then ▷ wcond P C interp else True).
+      ∗ (if readAllowed p'
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp)
+         else True)
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True).
   Proof.
     iIntros (HnO Hin) "Hinterp".
     rewrite interp_unfold interp1_eq HnO.
@@ -1455,6 +1759,16 @@ Section logrel.
     iDestruct (extract_from_region_inv with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)"; eauto.
     iExists p', P'. by iFrame "∗%".
+  Qed.
+
+  (** The read condition of a capability at the running thread. *)
+  Lemma rcond_sel_here g P C p' :
+    thread_in th C -∗
+    ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) -∗
+    ▷ rcond P C p' interp.
+  Proof.
+    iIntros "#Hth H". destruct g; cbn; [|done].
+    iNext. iApply ("H" $! th with "Hth").
   Qed.
 
   (* Inversion lemmas about about when R-capability *)
@@ -1486,30 +1800,33 @@ Section logrel.
   Lemma read_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
     (b ≤ a' ∧ a' < e)%Z →
     readAllowed p →
-    ⊢ (interp W C (Cap p g b e a @@? π)) →
+    ⊢ thread_in th C -∗
+    (interp W C (Cap p g b e a @@? π)) →
     ∃ (p' : Perm) (P:V),
       ⌜ PermFlowsTo p p'⌝
       ∗ ⌜persistent_cond P⌝
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
       ∗ ▷ rcond P C p' interp
-      ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
   .
   Proof.
-    iIntros (Hin Ra) "Hinterp".
+    iIntros (Hin Ra) "#Hth #Hinterp".
     apply Is_true_eq_true in Ra.
     iDestruct (interp_cap_addr with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)";
       [by eapply readAllowed_nonO|done|].
     pose proof (readAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
+    iDestruct (rcond_sel_here with "Hth Hrcond") as "Hrcond_here".
     iExists p',P'; iFrame "#∗%".
   Qed.
 
   Lemma read_allowed_inv_many (W : WORLD) (C : CmptName) (a b e: Addr) p g l π :
     readAllowed p →
     Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
-    ⊢ (interp W C (Cap p g b e a @@? π)) →
+    ⊢ thread_in th C -∗
+    (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l,
           (
             ∃ (p' : Perm) (P:V),
@@ -1518,22 +1835,23 @@ Section logrel.
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
+              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
+    induction l; iIntros (Hra Hin) "#Hth #Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
-    iDestruct (read_allowed_inv _ _ a0 with "Hinterp")
+    iDestruct (read_allowed_inv _ _ a0 with "Hth Hinterp")
       as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P)"
     ; auto.
     iFrame "%#".
-    iApply (IHl with "Hinterp"); eauto.
+    iApply (IHl with "Hth Hinterp"); eauto.
   Qed.
 
   Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g π :
     readAllowed p →
-    ⊢ (interp W C (Cap p g b e a @@? π)) →
+    ⊢ thread_in th C -∗
+    (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e),
           (
             ∃ (p' : Perm) (P:V),
@@ -1542,11 +1860,11 @@ Section logrel.
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
               ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then (▷ wcond P C interp) else True)
+              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
-    iIntros (Hra) "Hinterp".
-    iApply (read_allowed_inv_many with "Hinterp"); eauto.
+    iIntros (Hra) "Hth Hinterp".
+    iApply (read_allowed_inv_many with "Hth Hinterp"); eauto.
     apply Forall_forall.
     intros a' Ha'.
     by apply elem_of_finz_seq_between.
@@ -1562,11 +1880,11 @@ Section logrel.
       ∗ ⌜persistent_cond P⌝
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
-      ∗ ▷ wcond P C interp
-      ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
+      ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+      ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
   .
   Proof.
-    iIntros (Hin Ra) "Hinterp".
+    iIntros (Hin Ra) "#Hinterp".
     apply Is_true_eq_true in Ra.
     iDestruct (interp_cap_addr with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)";
@@ -1587,15 +1905,15 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
+              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
+              ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
     iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
-      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P)"
+      as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hwcond_P & Hrcond_P)"
     ; auto.
     iFrame "%#".
     iApply (IHl with "Hinterp"); eauto.
@@ -1611,8 +1929,8 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then (▷ rcond P C p' interp) else True)
-              ∗ (▷ wcond P C interp)
+              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
+              ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -1814,15 +2132,16 @@ Section logrel.
   Lemma interp_in_registers
     (W : WORLD) (C : CmptName)
     (regs : leibnizO LReg) (p : Perm) (g : Locality) (b e a : Addr):
-      world_interp W C
+      thread_in th C
+    -∗ world_interp W C
     -∗ (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)%I
     -∗ (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝
         ∗ ⌜persistent_cond P⌝
         ∗ region_rel W C (LNonHeap a) p' P p g
         ∗ ▷ zcond P C
-        ∗ (if readAllowed p' then ▷ rcond P C p' interp else True)
-        ∗ (if writeAllowed p' then ▷ wcond P C interp else True)
+        ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
+        ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
        )
     -∗ world_interp W C ∗
        (∃ (p' : Perm) (P : V),
@@ -1834,11 +2153,11 @@ Section logrel.
             then ▷ (rcond P C p' interp)
             else emp)
         ∗ (if decide (writeAllowed_a_in_lregs regs a)
-            then ▷ wcond P C interp
+            then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
             else emp)
        ).
   Proof.
-    iIntros "Hw #Hreg #H".
+    iIntros "#Hth Hw #Hreg #H".
     iDestruct "H" as (p0 P0 Hflp0 Hperscond_P0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)".
     iDestruct (region_rel_parts with "Hrel0") as (ρ0) "#Hpart0".
     (* A register reaching [a] without identifier reaches the region of the PC. *)
@@ -1872,7 +2191,7 @@ Section logrel.
       iPureIntro. intros _. eapply writeAllowed_flowsto; eauto. }
     iFrame "Hw". iExists p0, P0. iFrame "%#". iSplit.
     - destruct (decide (readAllowed_a_in_lregs regs a)) as [Hra'|]; [|done].
-      by rewrite (HR Hra').
+      rewrite (HR Hra'). iApply (rcond_sel_here with "Hth Hrcond0").
     - destruct (decide (writeAllowed_a_in_lregs regs a)) as [Hwa'|]; [|done].
       by rewrite (HW Hwa').
   Qed.
@@ -2055,6 +2374,177 @@ Section logrel.
 
 End logrel.
 
+(** Validity across threads: a word that is not local has the same
+    validity at every thread and in every world. *)
+Section logrel_threads.
+
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation TV := (Thread -d> interpO Σ).
+  Implicit Types w : (leibnizO LWord).
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+  Notation safeGC P := (λ Cv : CmptName * LWord, P ∅ Cv.1 Cv.2).
+
+  (** The per-address part of a Global capability that is not write-local
+      moves from the thread [t] to the thread [t'], given the validity of
+      the words that are not local from [t'] to [t] one step later. *)
+  Lemma interp_cap_body_global_thread (I : TV) (t t' : Thread) W W' C p b e π :
+    isWL p = false →
+    ▷ (□ ∀ W0 w0, ⌜isLocalWord w0.(lw) = false⌝ → I t' W0 C w0 -∗ I t W0 C w0) -∗
+    interp_cap_body I t W C p Global b e π -∗
+    interp_cap_body I t' W' C p Global b e π.
+  Proof.
+    iIntros (Hwl) "#IH #Hbody". rewrite !interp_cap_body_eq.
+    iApply (big_sepL_impl with "Hbody").
+    iIntros "!>" (k a Ha) "(%p' & %P & %Hfl & %Hpers & Hrel & Hz & Hr & Hw)".
+    iExists p', P. rewrite /region_rel Hwl /=. iFrame "Hrel Hz Hr %".
+    destruct (writeAllowed p'); last done.
+    iNext. iDestruct "Hw" as "#Hw". iIntros "!>" (W0 w0 Hl0) "Hw0".
+    iApply ("Hw" $! W0 w0 Hl0). iApply ("IH" $! W0 w0 Hl0 with "Hw0").
+  Qed.
+
+  (** Factorisation, as a persistent entailment between any two threads and
+      worlds, by Löb induction: the write condition of a Global capability
+      is at the holder's thread. *)
+  Lemma interp_nonlocal_thread_world_free_later C :
+    ⊢ □ ∀ (t t' : Thread) (W W' : WORLD) (w : LWord),
+        ⌜isLocalWord w.(lw) = false⌝ →
+        interp (th := t) W C w -∗ interp (th := t') W' C w.
+  Proof.
+    iLöb as "IH".
+    iIntros "!>" (t t' W W' w Hloc) "#Hw".
+    destruct (get_tag w.(lw)) eqn:Htag.
+    2: { by rewrite (interp_untagged_eq (th := t')). }
+    rewrite (interp_unfold (th := t)) (interp_unfold (th := t')).
+    destruct w as [w π]; cbn in Htag, Hloc |- *.
+    destruct_word w; cbn in Htag, Hloc.
+    - discriminate.
+    - subst t0. destruct g; cbn in Hloc; [|discriminate].
+      destruct c as [rx wp dl dro]; destruct rx, wp; cbn.
+      (* O *)
+      1: { iDestruct "Hw" as "[Hok Hl]". iFrame "Hok". iApply (big_sepL_impl with "Hl").
+           iIntros "!>" (k x _) "H %Hh". iDestruct ("H" with "[//]") as "[H|[]]".
+           by iLeft. }
+      (* The other permissions, one goal each, with explicit arguments. *)
+      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+           iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
+                     (BPerm Orx permissions.W dl dro) b e π eq_refl with "[] Hbody").
+           iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
+           iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
+      1: iDestruct "Hw" as "[]".
+      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+           iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
+                     (BPerm R Ow dl dro) b e π eq_refl with "[] Hbody").
+           iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
+           iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
+      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+           iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
+                     (BPerm R permissions.W dl dro) b e π eq_refl with "[] Hbody").
+           iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
+           iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
+      1: iDestruct "Hw" as "[]".
+      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+           iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
+                     (BPerm X Ow dl dro) b e π eq_refl with "[] Hbody").
+           iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
+           iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
+      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+           iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
+                     (BPerm X permissions.W dl dro) b e π eq_refl with "[] Hbody").
+           iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
+           iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
+      all: iDestruct "Hw" as "[]".
+    - subst t0. cbn. iExact "Hw".
+    - subst t0. destruct g; cbn in Hloc; [|discriminate]. cbn. iExact "Hw".
+    - rewrite /= Htag /interp_sb.
+      iDestruct "Hw" as "[(%κ & %P & #Hs & #Hok & HP) $]".
+      iExists κ, P. iFrame "Hs Hok".
+      destruct κ; cbn.
+      + iDestruct "Hok" as "[_ #Hc]". iNext. iApply ("Hc" $! t t' W W' with "HP").
+      + by iDestruct "Hok" as "[_ [] ]".
+  Qed.
+
+  (** Factorisation: the validity of a word that is not local is the same
+      at any two threads and in any two worlds. *)
+  Lemma interp_global_thread_world_free (t t' : Thread) W W' C w :
+    isLocalWord w.(lw) = false →
+    interp (th := t) W C w ⊣⊢ interp (th := t') W' C w.
+  Proof.
+    intros Hloc. iPoseProof (interp_nonlocal_thread_world_free_later C) as "#H".
+    iSplit; iIntros "Hw".
+    - iApply ("H" $! t t' W W' w Hloc with "Hw").
+    - iApply ("H" $! t' t W' W w Hloc with "Hw").
+  Qed.
+
+  (** [interp_g] at a thread agrees with the validity at every thread, on
+      the words that are not local. *)
+  Lemma interp_g_agree (th t : Thread) W C w :
+    isLocalWord w.(lw) = false →
+    interp_g (th := th) C w ⊣⊢ interp (th := t) W C w.
+  Proof.
+    intros Hloc. rewrite /interp_g. exact (interp_global_thread_world_free th t ∅ W C w Hloc).
+  Qed.
+
+  (** The table part of [top_cmpt_untrusted] does not depend on the
+      thread, for words that are not local. *)
+  Lemma top_cmpt_untrusted_tbl_thread_free (t t' : Thread) W C pcc cgp :
+    isLocalWord pcc.(lw) = false → isLocalWord cgp.(lw) = false →
+    (□ ∀ W', ⌜related_sts_priv_world W W'⌝ →
+       interp (th := t) W' C pcc ∗ interp (th := t) W' C cgp) ⊣⊢
+    (□ ∀ W', ⌜related_sts_priv_world W W'⌝ →
+       interp (th := t') W' C pcc ∗ interp (th := t') W' C cgp).
+  Proof.
+    intros Hpcc Hcgp. iPoseProof (interp_nonlocal_thread_world_free_later C) as "#Hf".
+    iSplit; iIntros "#H !>" (W' HW'); iDestruct ("H" $! W' HW') as "[H1 H2]".
+    - iSplit; [iApply ("Hf" $! t t' W' W' pcc Hpcc with "H1")
+              |iApply ("Hf" $! t t' W' W' cgp Hcgp with "H2")].
+    - iSplit; [iApply ("Hf" $! t' t W' W' pcc Hpcc with "H1")
+              |iApply ("Hf" $! t' t W' W' cgp Hcgp with "H2")].
+  Qed.
+
+  (** A holder of a Global capability that is not write-local, at any
+      thread [t], in the compartment's threads or not, writes a word that
+      is not local into a Global region through the map of Global regions
+      alone. *)
+  Lemma wg_holder_write (t : Thread) W C p (b e a a' : Addr) w :
+    isWL p = false → writeAllowed p = true → (b ≤ a' ∧ a' < e)%Z →
+    isLocalWord w.(lw) = false →
+    interp (th := t) W C (Cap p Global b e a) -∗
+    interp (th := t) W C w -∗
+    world_interp_g_open C ∅ -∗
+    ▷ ∃ v, LNonHeap a' ↦ₖ v ∗
+      (LNonHeap a' ↦ₖ w -∗ world_interp_g_open C ∅).
+  Proof.
+    iIntros (Hwl Hwa Hin Hloc) "#Hcap #Hw Hg".
+    iDestruct (interp_cap_addr (th := t) W C p Global b e a a' None with "Hcap")
+      as (p' P Hfl Hpers) "(Hrel & _ & _ & Hwcond)";
+      [by apply writeAllowed_nonO|done|].
+    rewrite (writeAllowed_flowsto _ _ Hfl Hwa) /region_rel Hwl /= /region_rel_g.
+    iDestruct (open_world_interp_g C ∅ (LNonHeap a') p' with "Hg Hrel") as "[Hg Hres]";
+      first set_solver.
+    iNext. iDestruct "Hres" as (v) "(%HpO & Hv & _)".
+    iExists v. iFrame "Hv". iIntros "Hv".
+    assert (∀ Cv : CmptName * LWord, Persistent (P ∅ Cv.1 Cv.2)) as HpersG
+      by (intros Cv; apply (Hpers (∅, Cv.1, Cv.2))).
+    iApply (close_world_interp_g C ∅ (LNonHeap a') p' (safeGC P) w with "Hg Hrel");
+      first set_solver.
+    iFrame "Hv %". iApply ("Hwcond" $! ∅ w Hloc).
+    iApply (interp_global_world_free (th := t) W ∅ C w Hloc with "Hw").
+  Qed.
+
+End logrel_threads.
+
 (** The trap path of the logical relation, at the core link: trap entry
     and the trap vector are stated with core WPs. *)
 Section logrel_trap.
@@ -2065,6 +2555,7 @@ Section logrel_trap.
     {stsg : STSG Σ}
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
   Implicit Types w : (leibnizO LWord).
@@ -2076,22 +2567,20 @@ Section logrel_trap.
       relation's resources go to the trap vector, which may resume the
       faulting context or run an untrusted error handler through the FTLR. *)
   Definition untrusted_fault (cstk : CSTK) (regs : LReg) : iProp Σ :=
-    ∃ (W : WORLD) (C : CmptName) (Ws : list WORLD) (Cs : list CmptName),
-      ⌜frame_match Ws Cs cstk W C⌝ ∗
-      interp_reg interp W C regs ∗
-      top_cmpt_untrusted interp W C cstk ∗
-      world_interp W C ∗
-      interp_continuation cstk Ws Cs.
+    untrusted_fault_pre interp interp_continuation cstk regs.
 
   Lemma untrusted_fault_intro (W : WORLD) (C : CmptName) (cstk : CSTK)
     (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
     frame_match Ws Cs cstk W C →
+    thread_in th C -∗
     interp_reg interp W C regs -∗
     top_cmpt_untrusted interp W C cstk -∗
-    world_interp W C -∗
+    world_resources W C ∗ shared_credit C -∗
     interp_continuation cstk Ws Cs -∗
     untrusted_fault cstk regs.
-  Proof. iIntros (Hframe) "Hreg Htop Hworld Hcont". iExists W, C, Ws, Cs. by iFrame. Qed.
+  Proof.
+    iIntros (Hframe) "Hth Hreg Htop [Hworld Hcred] Hcont". iExists W, C, Ws, Cs. by iFrame.
+  Qed.
 
   (** The trap vector [wvec] is safe: after trap entry from any PC [w], with
       any call stack [cstk] and registers [regs], execution from [wvec] is
@@ -2103,19 +2592,18 @@ Section logrel_trap.
       holds the trap-entry part [Ntrap] of the non-atomic token. *)
   Definition trap_vector_safe
       (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
-    □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
-      ⌜∀ r, is_Some (regs !! r)⌝ -∗
-      (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
-      PC ↦ₚ[th] wvec -∗
-      trap_entry_out w -∗
-      registers_pointsto regs -∗
-      na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
-      ◯(CSTK)[th] cstk -∗
-      safe[th].
+    trap_vector_safe_pre interp interp_continuation trusted_fault wvec.
 
   #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
     Persistent (trap_vector_safe trusted_fault wvec).
   Proof. rewrite /trap_vector_safe. apply _. Qed.
+
+  (** A safe trap vector [mtcc_vec] is safe for a fault in an untrusted
+      compartment. *)
+  Lemma trap_vector_safe_untrusted (trusted_fault : CSTK → LWord → LReg → iProp Σ) :
+    trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+    untrusted_trap_safe interp interp_continuation.
+  Proof. apply trap_vector_safe_pre_untrusted. Qed.
 
   (** A fault closes through a safe trap vector: after exception entry, the
       PC holds the trap vector and execution is safe, for a fault in an
@@ -2168,21 +2656,22 @@ Section logrel_trap.
     (∀ r, is_Some (regs !! r)) ->
     frame_match Ws Cs cstk W C ->
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
+    thread_in th C -∗
     interp_reg interp W C regs -∗
     top_cmpt_untrusted interp W C cstk -∗
     (|={⊤}=>
        registers_pointsto regs ∗
-       world_interp W C ∗
+       (world_resources W C ∗ shared_credit C) ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
-    iIntros (Hfull Hframe) "Hsafe Hreg Htop Hres".
+    iIntros (Hfull Hframe) "Hsafe Hth Hreg Htop Hres".
     iApply (interp_trap_safe with "Hsafe"); first done.
     iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
     iModIntro. iFrame "Hregs Hna Hcstk". iLeft.
-    iApply (untrusted_fault_intro with "Hreg Htop Hworld Hcont"); done.
+    iApply (untrusted_fault_intro with "Hth Hreg Htop Hworld Hcont"); done.
   Qed.
 
 End logrel_trap.

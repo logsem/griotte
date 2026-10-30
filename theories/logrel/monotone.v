@@ -10,7 +10,7 @@ Section monotone.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -96,10 +96,11 @@ Section monotone.
     destruct t; last (iApply interp_untagged; done).
     rewrite !interp_unfold /=.
     iDestruct "Hw" as "[$ Hw]".
-    iModIntro. iIntros (W'').
-    destruct g.
-    + iIntros "_". iApply "Hw". done.
-    + iIntros "#Hrelated'".
+    destruct g; cbn.
+    + iDestruct "Hw" as "#Hw". iIntros "!>" (t') "#Ht'".
+      iSpecialize ("Hw" $! t' with "Ht'").
+      iIntros (W'') "_". iApply ("Hw" $! W''). done.
+    + iDestruct "Hw" as "#Hw". iIntros "!>" (W'') "#Hrelated'".
       rewrite /future_world.
       iDestruct "Hrelated'" as "%Hrelated'".
       iAssert (future_world Local W W'')%I as "Hrelated".
@@ -126,14 +127,24 @@ Section monotone.
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
         region_rel W C k p' P p g ∗ ▷ zcond P C ∗
-        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
-        (if writeAllowed p' then ▷ wcond P C interp else True))
+        (if readAllowed p'
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
+               else rcond P C p' interp)
+         else True) ∗
+        (if writeAllowed p'
+         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         else True))
     -∗
     (∃ (p' : Perm) (P : V),
         ⌜PermFlowsTo p p'⌝ ∗ ⌜persistent_cond P⌝ ∗
         region_rel W' C k p' P p g ∗ ▷ zcond P C ∗
-        (if readAllowed p' then ▷ rcond P C p' interp else True) ∗
-        (if writeAllowed p' then ▷ wcond P C interp else True)).
+        (if readAllowed p'
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
+               else rcond P C p' interp)
+         else True) ∗
+        (if writeAllowed p'
+         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         else True)).
   Proof.
     iIntros (Hrelated) "Hw".
     iDestruct "Hw" as (p' P Hpfl' Hpers) "(Hrel & Hzcond & Hrcond & Hwcond)".
@@ -199,14 +210,14 @@ Section monotone.
 
   Lemma safe_to_seal_monotone C W W' b e :
     related_sts_priv_world W W' ->
-    safe_to_seal W C interp b e -∗
-    safe_to_seal W' C interp b e.
+    safe_to_seal W C (λ t, interp (th := t)) b e -∗
+    safe_to_seal W' C (λ t, interp (th := t)) b e.
   Proof. by iIntros (Hrelated) "#Hw". Qed.
 
   Lemma safe_to_unseal_monotone C W W' b e :
     related_sts_priv_world W W' ->
-    safe_to_unseal W C interp b e -∗
-    safe_to_unseal W' C interp b e.
+    safe_to_unseal W C (λ t, interp (th := t)) b e -∗
+    safe_to_unseal W' C (λ t, interp (th := t)) b e.
   Proof. by iIntros (Hrelated) "#Hw". Qed.
 
   Lemma interp_monotone_sealrange (W W' : WORLD) C t p g b e a π :

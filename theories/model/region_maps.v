@@ -1056,3 +1056,7 @@ Notation "k ↪ᵍ[ C ]{ p } φ" := (rel_g C k p φ)
   (at level 20, format "k  ↪ᵍ[ C ]{ p }  φ") : bi_scope.
 Notation "k ↪ˡ[ C ]{ p } φ" := (rel_l _ C k p φ)
   (at level 20, format "k  ↪ˡ[ C ]{ p }  φ") : bi_scope.
+(** The same with the thread explicit, for statements with several threads
+    in scope. *)
+Notation "k ↪ˡ[ t , C ]{ p } φ" := (rel_l t C k p φ)
+  (at level 20, format "k  ↪ˡ[ t ,  C ]{ p }  φ") : bi_scope.
