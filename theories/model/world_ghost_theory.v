@@ -237,6 +237,37 @@ Section world_ghost_theory.
     iApply heap_key_resource_intro. iExists w. by iFrame "∗%".
   Qed.
 
+  (** The map of Global regions alone, without the local map: a thread
+      outside the compartment's threads opens and closes a Global region
+      through it. *)
+  Lemma open_world_interp_g (C : CmptName) (s : gset LAddr) (a : LAddr) (p : Perm) Φ :
+    a ∉ s ->
+    world_interp_g_open C s -∗
+    a ↪ᵍ[C]{p} Φ
+    -∗
+    world_interp_g_open C ({[ a ]} ∪ s) ∗
+    heap_key_resource a (▷ (∃ w, PermRes C a p Φ w)).
+  Proof.
+    iIntros (Ha) "Hg Hrel".
+    iDestruct (g_open_transport with "Hg Hrel") as "[$ Hres]"; first done.
+    iApply (heap_key_resource_mono with "[] Hres").
+    iIntros "(%w & %HpO & Ha & HΦ)". iNext. iExists w. by iFrame "∗%".
+  Qed.
+
+  Lemma close_world_interp_g (C : CmptName) (s : gset LAddr) (a : LAddr) (p : Perm) Φ
+    (w : LWord) `{forall Cv, Persistent (Φ Cv)} :
+    a ∉ s ->
+    world_interp_g_open C ({[ a ]} ∪ s) -∗
+    a ↪ᵍ[C]{p} Φ -∗
+    PermRes C a p Φ w
+    -∗
+    world_interp_g_open C s.
+  Proof.
+    iIntros (Ha) "Hg #Hrel (%HpO & Ha & HΦ)".
+    iApply (g_close with "Hg Hrel"); [done..|].
+    iApply heap_key_resource_intro. iExists w. by iFrame "∗%".
+  Qed.
+
   (** A heap region can be opened, dropping its resource; a tombstone closes
       it again. *)
   Lemma open_world_interp_next_quarantined_heap_l W C s a ι p φ :
@@ -1058,27 +1089,45 @@ Section world_interp_Pre.
           {sts_preg: STS_preG Σ}
           {relpreg : relGpreS Σ}
           {sealstorepreg: sealStorePreG Σ}
-          {th : Thread}
 .
 
-  Lemma world_interp_init (oset : gset OType) :
+  (** For the user threads [k < nthreads], with [0 < nthreads]: a world for
+      the user thread 0, empty local maps for the others. *)
+  Lemma world_interp_init (oset : gset OType) (nthreads : nat) :
+    0 < nthreads →
     ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Σ) (sstoreg : sealStoreG Σ),
-            ([∗ set] C ∈ CNames, world_interp (MkWorld ∅ (∅,∅)) C) ∗
+            ([∗ set] C ∈ CNames, world_interp (th := UserThread 0) (MkWorld ∅ (∅,∅)) C) ∗
+            ([∗ list] k ∈ seq 1 (nthreads - 1), [∗ set] C ∈ CNames,
+               world_interp_l_open (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
             ([∗ set] o ∈ oset, can_alloc_pred o)).
   Proof.
-    iMod (gen_sts_init (A:=LAddr) (B:=region_type) (th:=th)) as (stsg) "Hsts".
-    iMod (rel_init (th:=th)) as (relg) "HRELS".
+    intros Hn.
+    iMod (gen_sts_init (A:=LAddr) (B:=region_type) nthreads) as (stsg) "Hsts".
+    iMod (rel_init nthreads) as (relg) "[Hg HRELS]".
     iMod (seal_store_init) as (sstoreg) "Hseals".
     iExists relg, stsg, sstoreg; iFrame "Hseals".
-    iCombine "HRELS" "Hsts" as "H".
-    rewrite -big_sepS_sep.
-    iModIntro.
-    iApply (big_sepS_impl with "H").
-    iModIntro; iIntros (C HC) "[ [Hg Hl] Hsts]".
-    rewrite world_interp_gl /world_interp_open_gl.
-    iSplitL "Hg".
-    - iExists ∅. rewrite /wig_M /rmap !big_sepM_empty. by iFrame.
-    - iExists ∅. rewrite /wil_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.
+    assert (seq 0 nthreads = 0 :: seq 1 (nthreads - 1)) as Hseq.
+    { destruct nthreads as [|n]; [lia|]. by rewrite /= Nat.sub_0_r. }
+    rewrite Hseq !big_sepL_cons.
+    iDestruct "Hsts" as "[Hsts0 Hsts]". iDestruct "HRELS" as "[Hl0 HRELS]".
+    iModIntro. iSplitL "Hg Hl0 Hsts0".
+    - iCombine "Hg Hl0 Hsts0" as "H".
+      rewrite -!big_sepS_sep.
+      iApply (big_sepS_impl with "H").
+      iModIntro; iIntros (C HC) "(Hg & Hl & Hsts)".
+      rewrite world_interp_gl /world_interp_open_gl.
+      iSplitL "Hg".
+      + iExists ∅. rewrite /wig_M /rmap !big_sepM_empty. by iFrame.
+      + iExists ∅. rewrite /wil_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.
+    - iCombine "HRELS" "Hsts" as "H".
+      rewrite -big_sepL_sep.
+      iApply (big_sepL_impl with "H").
+      iModIntro; iIntros (i k Hk) "[Hl Hsts]".
+      iCombine "Hl" "Hsts" as "H".
+      rewrite -big_sepS_sep.
+      iApply (big_sepS_impl with "H").
+      iModIntro; iIntros (C HC) "[Hl Hsts]".
+      iExists ∅. rewrite /wil_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.
   Qed.
 
 End world_interp_Pre.

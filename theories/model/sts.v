@@ -174,6 +174,27 @@ Lemma convert_rel_of_rel {A} `{EqDecision A, Countable A} (R: A -> A -> Prop) x 
   R x y → convert_rel R (encode x) (encode y).
 Proof. rewrite /convert_rel. eauto. Qed.
 
+(** One name per user thread: [nth k xs d] names the user thread [k], for
+    [k < nthreads]. *)
+Lemma alloc_thread_names {Σ : gFunctors} {X : Type} (P : X → iProp Σ) (d : X) (nthreads : nat) :
+  (⊢ |==> ∃ x, P x) →
+  ⊢ |==> ∃ xs : list X, [∗ list] k ∈ seq 0 nthreads, P (nth k xs d).
+Proof.
+  intros Halloc.
+  assert (⊢ |==> ∃ xs : list X, ⌜length xs = nthreads⌝ ∗ [∗ list] k ∈ seq 0 nthreads, P (nth k xs d))
+    as Hn; last first.
+  { iMod Hn as (xs) "[_ Hxs]". by iExists xs. }
+  induction nthreads as [|nthreads IH].
+  - iModIntro. iExists []. by iSplit.
+  - iMod IH as (xs Hlen) "Hxs".
+    iMod Halloc as (x) "Hx".
+    iModIntro. iExists (xs ++ [x]).
+    rewrite length_app Hlen (seq_S nthreads 0) big_sepL_app big_sepL_singleton /=.
+    iSplit; first (iPureIntro; lia).
+    rewrite -{3}Hlen nth_middle. iFrame "Hx".
+    iApply (big_sepL_impl with "Hxs"). iIntros "!>" (i k Hk) "H".
+    apply lookup_seq in Hk as [-> Hi]. rewrite app_nth1 //; lia.
+Qed.
 
 Section pre_STS.
   Context {A B E D : Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}
@@ -227,23 +248,31 @@ Section pre_STS.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  (** The custom STSs of every thread share the names allocated here: in use,
-      only the section's thread has a world. *)
-  Lemma gen_sts_init {th : Thread} :
+  (** The custom STSs of the user threads [k], for [k < nthreads]: one
+      pair of names each. The context-switch thread and the other user
+      threads share a pair of names that is allocated and dropped. *)
+  Lemma gen_sts_init (nthreads : nat) :
     ⊢ |==> ∃ (stsg : STSG Σ),
-      [∗ set] C ∈ CNames, sts_full_world (MkWorld ∅ (∅,∅) : World A B) C.
+      [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
+        sts_full_world (th := UserThread k) (MkWorld ∅ (∅,∅) : World A B) C.
   Proof.
-    iMod gen_sts_state_init as (γs) "Hs".
-    iMod gen_sts_rel_init as (γr) "Hr".
+    set (Pn := λ γ : (CmptName → gname) * (CmptName → gname),
+      ([∗ set] C ∈ CNames, own (γ.1 C) (● ∅ : sts_stateUR) ∗ own (γ.2 C) (● ∅ : sts_relUR))%I).
+    assert (⊢ |==> ∃ γ, Pn γ) as Halloc.
+    { iMod gen_sts_state_init as (γs) "Hs".
+      iMod gen_sts_rel_init as (γr) "Hr".
+      iModIntro. iExists (γs, γr). rewrite /Pn /=.
+      iApply big_sepS_sep. iFrame. }
+    iMod Halloc as ([γsd γrd]) "_".
+    iMod (alloc_thread_names Pn (γsd, γrd) nthreads Halloc) as (γss) "Hn".
     iModIntro.
     iExists {| sts_state_inG := _; sts_rel_inG := _;
-               γs_loc := λ _, γs; γr_loc := λ _, γr |}.
-    rewrite /sts_full_world sts_full_unseal /sts_full_def /=.
-    iDestruct (big_sepS_sep with "[$Hr $Hs]") as "H".
-    iApply (big_sepS_impl with "H"). iModIntro.
-    iIntros (C HC) "(Hr & Hs)".
-    rewrite !fmap_empty.
-    iFrame.
+               γs_loc := λ th, match th with UserThread k => nth k (map fst γss) γsd | CtxSwitch => γsd end;
+               γr_loc := λ th, match th with UserThread k => nth k (map snd γss) γrd | CtxSwitch => γrd end |}.
+    iApply (big_sepL_impl with "Hn"). iIntros "!>" (i k _) "Hk".
+    rewrite /sts_full_world sts_full_unseal /sts_full_def /Pn /=.
+    rewrite -(map_nth fst γss (γsd, γrd) k) -(map_nth snd γss (γsd, γrd) k) /= !fmap_empty.
+    done.
   Qed.
 
 End pre_STS.

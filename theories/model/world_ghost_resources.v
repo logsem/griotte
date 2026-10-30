@@ -68,17 +68,22 @@ Section relPre.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  (** The local maps of every thread share the names allocated here: in use,
-      only the section's thread has a world. *)
-  Lemma rel_init {th : Thread} :
-    ⊢ |==> ∃ (relg: relGS Σ), [∗ set] C ∈ CNames,
-        ghost_map_auth (γrel_g C) 1 (∅ : gmap LAddr (gname * Perm)) ∗
-        ghost_map_auth (γrel_l th C) 1 (∅ : gmap LAddr (gname * Perm)).
+  (** The Permanent maps, and the local maps of the user threads [k], for
+      [k < nthreads]: one name each per compartment. The context-switch
+      thread and the other user threads share names that are allocated and
+      dropped. *)
+  Lemma rel_init (nthreads : nat) :
+    ⊢ |==> ∃ (relg: relGS Σ),
+        ([∗ set] C ∈ CNames, ghost_map_auth (γrel_g C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
+        [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
+          ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
   Proof.
     iMod rel_rel_init as (γg) "Hg".
-    iMod rel_rel_init as (γl) "Hl".
-    iExists (RelGS _ _ _ _ _ γg (λ _, γl)).
-    iModIntro. iApply big_sepS_sep. iFrame.
+    iMod rel_rel_init as (γd) "_".
+    iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
+    iExists (RelGS _ _ _ _ _ γg
+      (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γd end)).
+    iModIntro. iFrame.
   Qed.
 
 End relPre.
