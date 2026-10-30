@@ -17,7 +17,7 @@ From griotte Require Export switcher_error_handler.
 Section Switcher_trap_safety.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {cstackg : CSTACKG Σ} {relg : relGS Σ}
@@ -113,6 +113,7 @@ Section Switcher_trap_safety.
   Lemma logrel_unwind_cont_gen (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
+    thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
@@ -120,11 +121,11 @@ Section Switcher_trap_safety.
     interp_continuation cstk Ws Cs -∗
     unwind_cont ⊤ cstk True.
   Proof.
-    iIntros (Hframe) "#Hinv #Hstatic #Htrap Hworld Hcont".
+    iIntros (Hframe) "#Hthread #Hinv #Hstatic #Htrap Hworld Hcont".
     iIntros (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna".
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "Hcont".
     iApply (switcher_return_unwind _ W C (cstack_set_top_count cstk n) Ws Cs
-             with "[$HPC $Hrmap $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk]");
+             with "[$HPC $Hrmap $Hthread $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk]");
       [done | done | done | by apply frame_match_set_top_count |].
     iSplit; iApply interp_int.
   Qed.
@@ -138,6 +139,17 @@ Section Switcher_trap_safety.
   Proof.
     iIntros "#Hsafety". iNamed "Hsafety".
     by iApply exception_entry_safe_vector.
+  Qed.
+
+  (** The trap vector of the machine is safe for a fault in an untrusted
+      compartment. *)
+  Lemma switcher_untrusted_vec_safe_of_safety :
+    switcher_trap_safety
+    ⊢ untrusted_trap_safe interp interp_continuation.
+  Proof.
+    iIntros "#Hsafety".
+    iApply trap_vector_safe_untrusted.
+    by iApply switcher_mtcc_vec_safe_of_safety.
   Qed.
 
   (** A fault closes through the exception path of the switcher: after
@@ -230,6 +242,7 @@ Section Switcher_trap_safety.
     frame_match Ws Cs cstk W C ->
     trap_no_resume w ->
 
+    thread_in th C -∗
     switcher_trap_safety -∗
     (⌜switcher_fault_pc w⌝ ∨
      (no_handler (top_export_tbl cstk) ∗
@@ -242,13 +255,13 @@ Section Switcher_trap_safety.
        ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
-    iIntros (Hfull_rmap Hframe Hno_resume) "#Hsafety Hcase Hres".
+    iIntros (Hfull_rmap Hframe Hno_resume) "#Hthread #Hsafety Hcase Hres".
     iApply (trap_safe_unwind_of_safety with "Hsafety"); [done |].
     iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk)".
     iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iNamed "Hsafety".
-    iPoseProof (logrel_unwind_cont_gen with "Hinv_switcher Hstatic Htrap Hworld_interp Hcont")
+    iPoseProof (logrel_unwind_cont_gen with "Hthread Hinv_switcher Hstatic Htrap Hworld_interp Hcont")
       as "HU"; [done |].
     iDestruct "Hcase" as "[%Hpc | [Hnh %Hset] ]".
     - by iApply (trap_handler_ok_switcher with "HU").
@@ -256,3 +269,43 @@ Section Switcher_trap_safety.
   Qed.
 
 End Switcher_trap_safety.
+
+(** * The switcher at every thread of a compartment
+
+    The trusted-stack invariant and the static resources of the switcher,
+    at every thread of the compartment [C]: the switcher's entry points are
+    safe at each of them. *)
+Section Switcher_family.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {cstackg : CSTACKG Σ} {relg : relGS Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+  .
+
+  Definition switcher_family (C : CmptName) : iProp Σ :=
+    □ ∀ (t' : Thread), thread_in t' C -∗
+      na_inv (tpool t') Ntstack (trusted_stack_inv (th := t')) ∗
+      switcher_static (th := t').
+
+  #[global] Instance switcher_family_persistent C : Persistent (switcher_family C).
+  Proof. rewrite /switcher_family. apply _. Qed.
+
+  (** A compartment that runs at most on the thread [th] has the family of
+      the switcher at [th]. *)
+  Lemma switcher_family_pinned (th : Thread) (C : CmptName) :
+    cmpt_threads C ⊆ {[th]} →
+    na_inv (tpool th) Ntstack (trusted_stack_inv (th := th)) -∗
+    switcher_static (th := th) -∗
+    switcher_family C.
+  Proof.
+    iIntros (Hpin) "#Hinv #Hstatic !>". iIntros (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
+    iFrame "Hinv Hstatic".
+  Qed.
+
+End Switcher_family.

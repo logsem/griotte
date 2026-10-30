@@ -112,7 +112,7 @@ End Switcher_Restore.
 
 Section Switcher_Restore_Interp.
   Context
-    {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
