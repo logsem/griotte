@@ -29,7 +29,11 @@ Section vae_untrusted_entry_obligations.
   Lemma vae_untrusted_entry_fw_obligations :
     fw_obligations Σ vae_untrusted_entry_firmware.
   Proof.
-    apply fw_obligations_of_untrusted; first exact I.
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
+    apply (fw_obligations_of_untrusted Σ (cthreads := cthreads));
+      [exact I | intros C'; reflexivity |].
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -72,6 +76,9 @@ Section vae_untrusted_entry_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
+    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hfamily_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [vae_untrusted_entry_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & #Hmain_pers) & (HC & _ & #HC_pers) & _)".
@@ -160,11 +167,11 @@ Section vae_untrusted_entry_obligations.
             (fw_nth 1 (fw_cmpts vae_untrusted_entry_firmware) default_fw_cmpt) _
             HC_l W1 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
+           with "Hfamily_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & _)".
     { iIntros "(_ & _ & #Hexports)".
       cbn [fc_name fc_imports fw_nth fw_cmpts vae_untrusted_entry_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.awkward *)
@@ -175,8 +182,9 @@ Section vae_untrusted_entry_obligations.
         change (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry 0)
           with (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry vae_entry_awkward).
         fold main_awk.
-        iApply interp_to_in_mem.
-        by iApply (interp_global_world_free W1 ∅ with "Hinterp_main_awk").
+        iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t' W1 ∅ C); last done.
+        iExact "Hinterp_main_awk".
       - (* C.g, the second export of C *)
         cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts
              vae_untrusted_entry_firmware fc_name fc_body ub_exports ue_name
@@ -185,10 +193,11 @@ Section vae_untrusted_entry_obligations.
           as HC_len.
         cbv [fc_export_nargs fc_body fc_name fw_map ub_exports ue_nargs] in HC_len.
         fw_fold_cmpt C_cmpt.
-        iApply interp_to_in_mem.
-        iApply (interp_global_world_free (std_update_compartment W1 C_cmpt) ∅); first done.
-        iApply (adversary_export_interp (swlayout := swl) _ _ C_cmpt vae_C_entry_g
-                 with "Hexports");
+        iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
+        rewrite -(interp_global_thread_world_free (UserThread 0) t'
+                    (std_update_compartment W1 C_cmpt) ∅ C); last done.
+        iApply (adversary_export_interp (th := UserThread 0) (swlayout := swl) _ _ C_cmpt
+                  vae_C_entry_g with "Hexports");
           first done.
         rewrite -HC_len /vae_C_entry_g /=; lia. }
 

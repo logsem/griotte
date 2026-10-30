@@ -20,7 +20,7 @@ From griotte Require Import stack_object_spec_states.
 Section SO_World_Call.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -42,7 +42,8 @@ Section SO_World_Call.
     std W0 !! LNonHeap a_stk1 = Some Temporary ->
     std W2 !! LNonHeap a_stk1 = Some Revoked ->
     related_sts_priv_world W0 W2 ->
-    interp W0 C (Cap RWL Local stack_b stack_e stack_a)
+    thread_in th C
+    ∗ interp W0 C (Cap RWL Local stack_b stack_e stack_a)
     ∗ world_interp W2 C
     ∗ a_stk1 ↦ₐ WInt 0
     ∗ £ 1
@@ -53,7 +54,7 @@ Section SO_World_Call.
       ∗ interp W3 C (Cap RWL Local a_stk1 a_stk2 a_stk1).
   Proof.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
-    iIntros "(#Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
+    iIntros "(#Hthread & #Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
     destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
     assert (addr_key None a_stk1 = LNonHeap a_stk1) as Hkey_stk1 by done.
 
@@ -62,7 +63,7 @@ Section SO_World_Call.
        later. *)
     iAssert (RevokedResources W2 C [LNonHeap a_stk1])%I
       with "[Ha_stk1]" as "Hclosing_resources".
-    { iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp_stack")
+    { iDestruct (read_allowed_inv _ _ a_stk1 with "Hthread Hinterp_stack")
         as "(%pastk1 & %Pastk1 & %Hpastk1_rwl & %Hpers_Pastk1
              & #Hrel_astk1 & _ & _ & Hwcond_Pastk1)"; auto.
       { solve_addr+Ha_stk2 Hstack_b_stk1 Hastk1_stk2 Hastk2_stack_e. }
@@ -133,8 +134,8 @@ Section SO_World_Call.
       cbn.
       iSplit; last done.
       iClear "∗".
-      iDestruct "Hinterp_stack" as "-#Hinterp"; iClear "#".
-      iDestruct (read_allowed_inv _ _ a_stk1 with "Hinterp")
+      iDestruct "Hinterp_stack" as "-#Hinterp"; iDestruct "Hthread" as "-#Hthread"; iClear "#".
+      iDestruct (read_allowed_inv _ _ a_stk1 with "Hthread Hinterp")
         as "(%px & %Px & %Hpx_flow & %HPx_pers & Hrelx
              & Hzcondx & Hrcondx & Hwcondx)"; auto.
       { solve_addr+Ha_stk2 Hstack_b_stk1 Hastk1_stk2 Hastk2_stack_e. }
@@ -209,6 +210,7 @@ Section SO_World_Call.
     (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (csp_b <= a_stk2)%a ->
+    thread_in th C -∗
     ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) -∗
     interp W0 C wct1 -∗
@@ -229,7 +231,7 @@ Section SO_World_Call.
   Proof.
     intros W2 W2q W3.
     iIntros (Hextract Hq_stack Hno_overlap Hastk1 Hastk2 Hcsp_b_astk2)
-      "#Hseal #Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2 Hlc".
+      "#Hthread #Hseal #Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2 Hlc".
     unfold StackEntry_reserved_space in Hastk1.
     destruct Hextract as [Hl_revoked_nodup Hl_revoked_temporaries].
     set (temps := so_object_temporaries W0 π b e) in *.
@@ -274,7 +276,7 @@ Section SO_World_Call.
     (* Insert the allocated stack object [a_stk2] in the world *)
     iMod (stack_object_reinstate_fresh_object
             W0 W2q C csp_b csp_e (stk_start_a csp_b csp_e) a_stk2 a_stk1
-           with "[$Hinterp_csp $Hworld_interp_C $Hastk2 $Hlc]")
+           with "[$Hthread $Hinterp_csp $Hworld_interp_C $Hastk2 $Hlc]")
       as "(Hworld_interp_C & %Hpub_W2q_W3 & %Ha_stk2_W3 & #Hinterp_z)"; eauto.
     { split; first exact Hcsp_b_astk2.
       split; solve_addr+Hastk1 Hastk2. }
