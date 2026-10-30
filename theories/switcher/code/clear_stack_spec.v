@@ -90,33 +90,6 @@ Section stack_cells_extra.
     iIntros "Hl". iModIntro. iFrame.
   Qed.
 
-  (** The locked cells of [[hb, f)]: cells of the zone, between MSHWMB [hb]
-      and the floor [f]. *)
-  Definition hwm_locked (hb f : Addr) : iProp Σ :=
-    [∗ list] a ∈ finz.seq_between hb f, zone_cell a.
-
-  #[global] Instance hwm_locked_timeless hb f : Timeless (hwm_locked hb f).
-  Proof. apply _. Qed.
-
-  (** A stack cell excludes a zone cell at the same address. *)
-  Lemma stack_cell_zone_cell_false (x : Addr) (w : LWord) :
-    stack_cell x w -∗ zone_cell x -∗ False.
-  Proof.
-    iIntros "[Hx | [Hcell _]] Hzone".
-    - iApply (zone_cell_pointsto_false with "Hzone Hx").
-    - iApply (zone_cell_excl with "Hcell Hzone").
-  Qed.
-
-  (** A stack cell is not one of the locked cells. *)
-  Lemma hwm_locked_not_stack_cell (hb f x : Addr) (w : LWord) :
-    hwm_locked hb f -∗ stack_cell x w -∗ ⌜¬ (hb <= x < f)%a⌝.
-  Proof.
-    iIntros "Hlocked Hx %Hx".
-    iDestruct (big_sepL_elem_of _ _ x with "Hlocked") as "Hcell".
-    { apply elem_of_finz_seq_between. solve_addr. }
-    iApply (stack_cell_zone_cell_false with "Hx Hcell").
-  Qed.
-
   (** The logical MSHWM after a store at [x] to a cell of the zone is the old
       one, or [x] between MSHWMB and the old one. *)
   Lemma hwm_after_cases (x : Addr) (hb h : Z) :
