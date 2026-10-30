@@ -43,7 +43,7 @@ Qed.
 Class CmptThreads {Cname : CmptNameG} := {
   cmpt_threads : CmptName → gset Thread;
 }.
-#[export] Hint Mode CmptThreads - : typeclass_instances.
+#[export] Hint Mode CmptThreads ! : typeclass_instances.
 
 (** [thread_in t C]: the thread [t] may run in the compartment [C]. *)
 Section thread_in.
@@ -391,7 +391,7 @@ Section logrel_pre.
     trap_vector_safe_pre interp interp_cont trusted_fault (lword_of_word mtcc_vec) -∗
     untrusted_trap_safe interp interp_cont.
   Proof.
-    iIntros "#Hsafe !>" (cstk regs w Hfull) "[Hfault|[]]".
+    iIntros "#Hsafe !>" (cstk regs w Hfull) "[Hfault|[] ]".
     iApply ("Hsafe" with "[//]"). by iLeft.
   Qed.
 
@@ -2428,13 +2428,13 @@ Section logrel_threads.
     2: { by rewrite (interp_untagged_eq (th := t')). }
     rewrite (interp_unfold (th := t)) (interp_unfold (th := t')).
     destruct w as [w π]; cbn in Htag, Hloc |- *.
-    destruct_word w; cbn in Htag, Hloc.
+    destruct w as [z | [tg c | tg sr] | k tg sd | e]; cbn in Htag, Hloc.
     - discriminate.
-    - subst t0. destruct g; cbn in Hloc; [|discriminate].
+    - subst tg. destruct g; cbn in Hloc; [|discriminate].
       destruct c as [rx wp dl dro]; destruct rx, wp; cbn.
       (* O *)
       1: { iDestruct "Hw" as "[Hok Hl]". iFrame "Hok". iApply (big_sepL_impl with "Hl").
-           iIntros "!>" (k x _) "H %Hh". iDestruct ("H" with "[//]") as "[H|[]]".
+           iIntros "!>" (k x _) "H %Hh". iDestruct ("H" with "[//]") as "[H|[] ]".
            by iLeft. }
       (* The other permissions, one goal each, with explicit arguments. *)
       1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
@@ -2465,8 +2465,8 @@ Section logrel_threads.
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
       all: iDestruct "Hw" as "[]".
-    - subst t0. cbn. iExact "Hw".
-    - subst t0. destruct g; cbn in Hloc; [|discriminate]. cbn. iExact "Hw".
+    - subst tg. cbn. iExact "Hw".
+    - subst tg. destruct g; cbn in Hloc; [|discriminate]. cbn. iExact "Hw".
     - rewrite /= Htag /interp_sb.
       iDestruct "Hw" as "[(%κ & %P & #Hs & #Hok & HP) $]".
       iExists κ, P. iFrame "Hs Hok".
