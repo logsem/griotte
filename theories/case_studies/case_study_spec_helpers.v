@@ -427,6 +427,6 @@ Section Revoked_Cells.
     iIntros "H". iApply (big_sepL_impl with "H").
     iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
     iExists pa, Φa. iFrame "Hrel". iSplit; first done.
-    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
+    iApply heap_key_resource_intro. rewrite /temp_cell. by iFrame.
   Qed.
 End Revoked_Cells.

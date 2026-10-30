@@ -32,9 +32,9 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Mov dst src) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
+    iIntros (hb) "@".
 
-    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     iApply (wp_Mov (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -45,14 +45,14 @@ Section fundamental.
     - subst regs'.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto.
     - incrementPC_inv as (t0 & p0 & g0 & b0 & e0 & a0 & a0' & π0 & ? & ? & ?); simplify_map_eq.
       iNext.
 
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
-      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
+      iApply (ftlr_post_next with "HPC Hmap Hhwm [] [] Hworld_interp").
       + by apply full_map_linsert.
       + iApply (interp_linsert with "Hreg"). iIntros (_).
         by iApply (interp_lword_of_argument with "Hreg").

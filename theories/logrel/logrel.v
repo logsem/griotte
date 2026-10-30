@@ -4,6 +4,7 @@ From griotte Require Export griotte_lang memory_region region_invariants.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export state_interp rules_base rules_trap_entry rules_Load machine_instructions call_stack.
+From griotte Require Export stack_cells.
 From griotte Require Export world_ghost_theory.
 From griotte Require Import rules_registry.
 Import uPred.
@@ -179,6 +180,29 @@ Section logrel_pre.
     (regs[th] r)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
+
+  (** The two high-water-mark registers: MSHWMB holds [hb], and MSHWM some
+      integer. *)
+  Definition hwm_res_at (hb : Z) : iProp Σ :=
+    ∃ h : Z,
+      mshwmb ↦ₜ[th] hb ∗
+      mshwm ↦ₜ[th] h.
+
+  (** The two high-water-mark registers of the thread of [cstk]: MSHWMB holds
+      the base of the thread's initial stack. *)
+  Definition hwm_res (cstk : CSTK) : iProp Σ := hwm_res_at (cstk_hwm_base cstk).
+
+  #[global] Instance hwm_res_at_timeless hb : Timeless (hwm_res_at hb).
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_timeless cstk : Timeless (hwm_res cstk).
+  Proof. apply _. Qed.
+
+  (** The count of the topmost frame does not change the registers' values. *)
+  Lemma hwm_res_set_top_count (cstk : CSTK) (n : Z) :
+    hwm_res (cstack_set_top_count cstk n) ⊣⊢ hwm_res cstk.
+  Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+
   (** Each register is safe. *)
   Program Definition interp_reg (interp : V) : R :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
@@ -355,6 +379,7 @@ Section logrel_pre.
       PC ↦ₚ[th] wvec -∗
       trap_entry_out w -∗
       registers_pointsto regs -∗
+      hwm_res cstk -∗
       na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
       ◯(CSTK)[th] cstk -∗
       safe[th].
@@ -435,6 +460,7 @@ Section logrel_expr.
         ∗ top_cmpt_untrusted interp W C cstk
         ∗ PC ↦ₚ[th] wpc
         ∗ registers_pointsto regs
+        ∗ hwm_res cstk
         ∗ world_resources W C
         ∗ shared_credit C
         ∗ interp_cont cstk Ws Cs
@@ -696,9 +722,12 @@ Section logrel_expr.
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ regs₀[th] regs
-         (* points-to predicate of the stack region *)
-         ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
-         ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
+         (* the high-water mark is the caller's stack pointer *)
+         ∗ mshwmb ↦ₜ[th] cstk_hwm_base cstk
+         ∗ mshwm ↦ₜ[th] a_stk
+         (* cells of the stack region *)
+         ∗ stack_region (stk_spill_a a_stk) (stk_spill_a a_stk ^+ SpillSlot_size) stk_mem_l
+         ∗ stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) stk_mem_h
          (* World interpretation *)
          ∗ world_interp_open W C (LNonHeap <$> shared_stk_region)
          (* Bookkeeping resources for the opened world *)
@@ -943,6 +972,64 @@ Section logrel_expr.
       iExists (DerefLive ι _). iFrame "Htok". iSplit; first done.
       iIntros "Htok". iExists b, e. by iFrame "∗#".
     - iExists DerefNoId. iSplit; first done. iSplit; first done. by iIntros.
+  Qed.
+
+  (** The cell of a region at a capability's address: the key's points-to,
+      or, for a Temporary region without identifier, a zone cell holding 0. *)
+  Lemma region_cell_cases ρ π (a : Addr) w :
+    region_cell ρ (addr_key π a) w -∗
+    addr_key π a ↦ₖ w ∨
+    (⌜π = None ∧ ρ = InLocal ∧ w = lword_of_word (WInt 0)⌝ ∗ zone_cell[th] a).
+  Proof.
+    destruct ρ; cbn [region_cell]; [by iIntros "$"|].
+    iIntros "[$ | (%a' & %Hk & Hcell & ->)]".
+    destruct π; cbn in Hk; simplify_eq. iRight. by iFrame.
+  Qed.
+
+  (** A zone cell is the cell of a Temporary region without identifier. *)
+  Lemma region_cell_zone (a : Addr) :
+    zone_cell[th] a -∗ region_cell InLocal (addr_key None a) (lword_of_word (WInt 0)).
+  Proof. iIntros "Hcell". by iApply temp_cell_zone. Qed.
+
+  (** A full points-to is the cell of any region without identifier. *)
+  Lemma region_cell_nonheap ρ (a : Addr) w :
+    a ↦ₐ w -∗ region_cell ρ (addr_key None a) w.
+  Proof. iIntros "Ha". by iApply region_cell_pointsto. Qed.
+
+  (** The cell of a region at a capability's address, for a load: a
+      fraction of the address's points-to, full unless the region holds a
+      zone cell (then the key has no identifier), and the cell back. *)
+  Lemma region_cell_load_acc ρ π (ea : Addr) w :
+    region_cell ρ (addr_key π ea) w -∗
+    ∃ dq, ea ↦ₐ{dq} w ∗ ⌜π = None ∨ dq = DfracOwn 1⌝ ∗
+      (ea ↦ₐ{dq} w -∗ region_cell ρ (addr_key π ea) w).
+  Proof.
+    iIntros "Hc". iDestruct (region_cell_cases with "Hc") as "[Hk | ([-> [-> ->]] & Hcell)]".
+    - iDestruct (addr_key_pointsto with "Hk") as "[Ha Hshare]".
+      iExists (DfracOwn 1). iFrame "Ha". iSplit; first by iRight.
+      iIntros "Ha". iApply region_cell_pointsto. iApply (addr_key_pointsto_join with "Ha Hshare").
+    - iDestruct (zone_cell_unfold with "Hcell") as "[Htok Hhalf]".
+      iExists (DfracOwn (1/2)). iFrame "Hhalf". iSplit; first by iLeft.
+      iIntros "Hhalf". iApply region_cell_zone. rewrite zone_cell_unfold. iFrame.
+  Qed.
+
+  (** A full points-to and half of one are at different addresses. *)
+  Lemma pointsto_full_half_ne (a a' : Addr) w w' :
+    a ↦ₐ w -∗ a' ↦ₐ{DfracOwn (1/2)} w' -∗ ⌜a ≠ a'⌝.
+  Proof.
+    iIntros "Ha Ha'". destruct (decide (a = a')) as [->|Hne]; last done.
+    iDestruct (pointsto_valid_2 with "Ha Ha'") as %[Hv _].
+    rewrite dfrac_op_own dfrac_valid_own in Hv. by apply Qp.not_add_le_l in Hv.
+  Qed.
+
+  (** A memory map of one cell, with a fraction. *)
+  Lemma memMap_resource_1_merge (a : Addr) (dq : dfrac) (w : LWord) :
+    a ↦ₐ{dq} w ⊣⊢
+    [∗ map] a0↦dw ∈ prod_merge (<[a:=dq]> ∅) (<[a:=w]> ∅), a0 ↦ₐ{dw.1} dw.2.
+  Proof.
+    rewrite /prod_merge -(insert_merge _ _ _ _ (dq,w)); last done.
+    rewrite merge_empty big_sepM_insert; last done.
+    rewrite big_sepM_empty right_id. done.
   Qed.
 
   Definition region_state_pwl (W : WORLD) (k : LAddr) : Prop :=
@@ -2614,13 +2701,14 @@ Section logrel_trap.
     trap_vector_safe trusted_fault wvec -∗
     (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
+    hwm_res cstk -∗
     na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
     ◯(CSTK)[th] cstk -∗
     trap_entry_out w -∗
     (PC ↦ₚ[th] wvec -∗ safe[th]).
   Proof.
-    iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hout HPC".
-    iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hna Hcstk").
+    iIntros (Hfull) "#Hsafe Hfault Hregs Hhwm Hna Hcstk Hout HPC".
+    iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hhwm Hna Hcstk").
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
@@ -2634,6 +2722,7 @@ Section logrel_trap.
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
     (|={⊤}=>
        registers_pointsto regs ∗
+       hwm_res cstk ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
        (untrusted_fault cstk regs ∨ trusted_fault cstk w regs)) -∗
@@ -2642,10 +2731,10 @@ Section logrel_trap.
     iIntros (Hfull) "#Hsafe Hres".
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    iMod "Hres" as "(Hregs & Hna & Hcstk & Hfault)".
+    iMod "Hres" as "(Hregs & Hhwm & Hna & Hcstk & Hfault)".
     iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    by iApply (interp_trap with "Hsafe Hfault Hregs Hna Hcstk Hout HPC").
+    by iApply (interp_trap with "Hsafe Hfault Hregs Hhwm Hna Hcstk Hout HPC").
   Qed.
 
   (** A fault in an untrusted compartment, from the logical relation: the
@@ -2661,6 +2750,7 @@ Section logrel_trap.
     top_cmpt_untrusted interp W C cstk -∗
     (|={⊤}=>
        registers_pointsto regs ∗
+       hwm_res cstk ∗
        (world_resources W C ∗ shared_credit C) ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
@@ -2669,8 +2759,8 @@ Section logrel_trap.
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hth Hreg Htop Hres".
     iApply (interp_trap_safe with "Hsafe"); first done.
-    iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
-    iModIntro. iFrame "Hregs Hna Hcstk". iLeft.
+    iMod "Hres" as "(Hregs & Hhwm & Hworld & Hcont & Hna & Hcstk)".
+    iModIntro. iFrame "Hregs Hhwm Hna Hcstk". iLeft.
     iApply (untrusted_fault_intro with "Hth Hreg Htop Hworld Hcont"); done.
   Qed.
 

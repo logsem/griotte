@@ -181,6 +181,27 @@ Section hwm.
     iIntros "(Hl & Hb & Hh)". iModIntro. iFrame.
   Qed.
 
+  (** A full points-to is outside [[MSHWMB, MSHWM)]: the zone covers that
+      range, and holds half of the points-to of each of its cells. *)
+  Lemma hwm_pointsto_outside E (a : Addr) w (hb h : Z) :
+    a ↦ₐ w -∗
+    mshwmb ↦ₜ hb -∗
+    mshwm ↦ₜ h -∗
+    |~{E}~>
+    ⌜¬ (hb ≤ a < h)%Z⌝ ∗
+    a ↦ₐ w ∗
+    mshwmb ↦ₜ hb ∗
+    mshwm ↦ₜ h.
+  Proof.
+    iIntros "Ha Hb Hh".
+    iApply (si_upd_sys _ (a ↦ₐ w ∗ mshwmb ↦ₜ hb ∗ mshwm ↦ₜ h)%I with "[$Ha $Hb $Hh]").
+    iIntros (ls) "Hsys (Ha & Hb & Hh)".
+    iDestruct (sys_interp_mshwmb_agree with "Hsys Hb") as %<-.
+    iDestruct (sys_interp_mshwm_agree with "Hsys Hh") as %<-.
+    iDestruct (sys_interp_pointsto_outside with "Hsys Ha") as %Hout.
+    iModIntro. iFrame "Hsys Ha Hb Hh". done.
+  Qed.
+
   (** ** Stores to a cell of the zone *)
 
   (** A store to a cell [x] of the zone: on success the cell leaves the zone
@@ -329,6 +350,148 @@ Section hwm.
     rewrite insert_singleton_eq big_sepM_singleton. iFrame.
   Qed.
 
+  (** A store to the cell of the zone that holds the instruction itself: the
+      fetch uses the cell's half of the points-to. On success the cell leaves
+      the zone with a full points-to, and MSHWM is lowered to [pc_a] if
+      [pc_a] is in [[MSHWMB, MSHWM)]. *)
+  Lemma wp_store_zone_pc_gen Ep pc_p pc_g pc_b pc_e pc_a pc_π
+      r1 (r2 : Z + RegName) (imm : Z) w regs (hb h : Z) dw :
+    decodeInstrW w.(lw) = Store r1 r2 imm →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    regs_of (Store r1 r2 imm) ⊆ dom regs →
+    (∀ p g b e a ea, reg_allows_store_imm regs r1 imm p g b e a ea → ea = pc_a) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{DfracOwn (1/2)} w ∗
+        zone_token pc_a ∗
+        ▷ mshwmb ↦ₜ hb ∗
+        ▷ mshwm ↦ₜ h ∗
+        deref_witness_res dw ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ Ep
+    {{{ lpc' mem' retv, RET retv;
+        ⌜Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc'
+           {[pc_a := w]} mem' ∅ ∅ dw retv⌝ ∗
+        PC ↦ₚ lpc' ∗
+        mshwmb ↦ₜ hb ∗
+        (match retv with
+         | NextIV => ([∗ map] a↦v ∈ mem', a ↦ₐ v) ∗ mshwm ↦ₜ hwm_after pc_a hb h
+         | _ => pc_a ↦ₐ{DfracOwn (1/2)} w ∗ zone_token pc_a ∗ mshwm ↦ₜ h
+         end) ∗
+        deref_witness_res dw ∗
+        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Dregs Hx φ) "(>HPC & >Hfetch & Htok & >Hb & >Hh & Hdw & >Hmap) Hφ".
+    iApply (wp_instr_step with "HPC Hfetch Hmap"); first done.
+    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
+    pose proof (er_mmio _ _ _ _ _ _ _ Her) as Hmmio; cbn in Hmmio.
+    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
+    odestruct (Hri r1) as [r1v [Hr1l _] ]; first by set_solver+.
+    rewrite Hinstr in Hstep.
+    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr1l) as (s1 & Hr1 & Hrel1).
+    rewrite /exec /= Hr1 /= in Hstep.
+    destruct (lword_of_argument regs r2) as [ storev | ] eqn:HSV.
+    2: {
+      destruct r2 as [z | r2].
+      - cbn in HSV; inversion HSV.
+      - destruct (Hri r2) as [r0v [Hr0 _] ]; first by set_solver+.
+        cbn in HSV. rewrite Hr0 in HSV. inversion HSV.
+    }
+    destruct (lword_of_argument_phys _ _ _ _ _ Hregs HSV) as (sv & HSV' & Hrelv).
+    rewrite HSV' in Hstep. cbn in Hstep.
+    assert (reg_word_ok R C storev) as Hstore_ok by by eapply erasure_lword_of_argument_word.
+    destruct (is_cap r1v.(lw)) eqn:Hr1v.
+    2: {
+      assert ((Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, psr, m, st)) = (c, σ')) as Hstep'.
+      { unfold is_cap in Hr1v. destruct r1v as [r1v ?]. cbn in *.
+        destruct_word r1v; by simplify_pair_eq. }
+      instr_fail Hstep'. apply Store_spec_fail. by eapply Store_fail_const.
+    }
+    destruct r1v as [ [ | [t p g b e a | ] | | ] π1]; try inversion Hr1v. clear Hr1v. cbn in Hstep.
+    destruct t.
+    2: { rewrite ?andb_false_r in Hstep.
+         instr_fail Hstep. apply Store_spec_fail. eapply Store_fail_tag. by rewrite Hr1l. }
+    destruct s1.
+    2: { (* The physical copy of the destination is untagged. *)
+      cbn in Hstep. instr_fail Hstep. apply Store_spec_fail.
+      destruct (decide (π1 = deref_id dw)) as [Hπ|Hπ]; last by eapply Store_fail_revoked.
+      destruct (a + imm)%a as [ea|] eqn:Hadd.
+      2: by eapply Store_fail_addr; [rewrite Hr1l | done].
+      destruct (withinBounds b e ea) eqn:Hwb.
+      2: by eapply Store_fail_bounds; [rewrite Hr1l | done | right].
+      exfalso.
+      destruct Hrel1 as [[Heq | [_ [[Hst _] | [Hna [base Hh']]]]] _]; cbn in *; try discriminate.
+      { by apply (deref_witness_not_stale R dw (Cap p g b e a @@? π1)). }
+      assert (is_heap_address b = true) as Hbh.
+      { rewrite /heap_cap_base /= in Hh'. by destruct (is_heap_address b). }
+      apply withinBounds_true_iff in Hwb. apply Hna. split; first done. exists b.
+      apply heap_authority_base_memory_cap_bounds. exists e. split; first done.
+      split; [solve_addr | done]. }
+    cbn in Hstep.
+    destruct (a + imm)%a as [ea|] eqn:Hadd.
+    2: { instr_fail Hstep. apply Store_spec_fail.
+           eapply Store_fail_addr; last done. by rewrite Hr1l. }
+    cbn in Hstep.
+    destruct (writeAllowed p && withinBounds b e ea) eqn:HWA.
+    2 : {
+      apply andb_false_iff in HWA.
+      instr_fail Hstep. apply Store_spec_fail. eapply Store_fail_bounds; eauto. by rewrite Hr1l.
+    }
+    apply andb_true_iff in HWA; destruct HWA as (Hwa & Hwb).
+    assert (Hallow : reg_allows_store_imm regs r1 imm p g b e a ea)
+      by (repeat split; auto; by rewrite Hr1l).
+    pose proof (Hx _ _ _ _ _ _ Hallow) as Hea. subst ea.
+    (* The cell of the zone *)
+    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hpc_a) as (pwx & Hmx & _).
+    rewrite (mem_avoids_mmio_not_shadow _ _ _ Hmmio Hmx)
+      (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmx) Hmx in Hstep.
+    rewrite /update_mem /hwm_store /= in Hstep.
+    destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
+    2: {
+      pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
+      unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
+      instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
+    (* The system registers and the zone *)
+    iMod (sys_interp_zone_store with "Hsr Htok Hb Hh") as "([%Hhb %Hh] & Hsr & Hx1 & Hb & Hh)".
+    subst hb h.
+    iCombine "Hx1 Hpc_a" as "Hxm" gives %[_ <-].
+    iEval (rewrite ?dfrac_op_own ?Qp.half_half) in "Hxm".
+    (* The erasure *)
+    assert (erasure R C (Cap pc_p pc_g pc_b pc_e pc_a, r, hwm_update pc_a psr, m, st)
+              (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg
+              (ls_join (ls_set_hwm lsreg (hwm_after pc_a (ls_hwmb lsreg) (ls_hwm lsreg))))
+              lmem) as Her0.
+    { rewrite ls_join_set_hwm /hwm_after. case_decide as Hin.
+      - eapply erasure_hwm_update_lower;
+          [exact Her | apply ls_join_mshwmb | apply ls_join_mshwm | exact Hin].
+      - rewrite insert_id; last apply ls_join_mshwm.
+        eapply erasure_hwm_update;
+          [exact Her | apply ls_join_mshwmb | apply ls_join_mshwm | exact Hin]. }
+    pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ pc_a (lstore_word p storev) _ _ Her0 Hpc_a
+      (reg_phys_mem_word_ok _ _ _ _ (reg_word_ok_lstore_word _ _ p _ Hstore_ok)
+         (reg_phys_lstore_word _ p _ _ Hrelv))) as Her1.
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
+    pose proof Hregs' as Ha'.
+    apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
+    injection Heq as <- <- <- <- <- <- <-.
+    rewrite /nextPC /advancePC /= Ha'1 in Hu. simplify_eq.
+    unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
+    simplify_pair_eq.
+    iMod (gen_heap_update with "Hm Hxm") as "[Hm Hxm]".
+    iMod (PC_update _ _ (Cap pc_p pc_g pc_b pc_e a'1 @@? pc_π) with "HPCa HPC")
+      as "[HPCa HPC]".
+    iModIntro. iSplit.
+    { iPureIntro. rewrite /sys_kept /mie_st /= !lookup_hwm_update_ne //. }
+    iSplitR "Hφ HPC Hb Hh Hxm Hdw Hmap".
+    { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
+    iApply "Hφ". iFrame "HPC Hb Hdw Hmap".
+    iSplit.
+    { iPureIntro. eapply Store_spec_success; eauto.
+      - by apply mem_avoids_mmio_not_shadow in Hmx.
+      - by rewrite lookup_singleton_eq. }
+    rewrite insert_singleton_eq big_sepM_singleton. iFrame.
+  Qed.
+
   (** A store of an immediate to a cell of the zone, as [zero_stack] does. *)
   Lemma wp_store_zone_z_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z
       p g b e a ea (imm : Z) (hb h : Z) dq q :
@@ -383,6 +546,69 @@ Section hwm.
     - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a ea); eauto.
       + by rewrite llookup_reg_not_cnull // lookup_singleton_eq.
       + intros v Hv. rewrite llookup_reg_not_cnull // lookup_singleton_eq in Hv. by simplify_eq.
+      + by rewrite lookup_singleton_eq.
+      + by rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca').
+  Qed.
+
+  (** A store of a register to a cell of the zone. *)
+  Lemma wp_store_zone_reg_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src wsrc
+      p g b e a ea (imm : Z) (hb h : Z) dq q :
+    is_shadow_address ea = false →
+    decodeInstrW w.(lw) = Store dst (inr src) imm →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    writeAllowed p = true → withinBounds b e ea = true →
+    (a + imm)%a = Some ea →
+    src ≠ cnull →
+    dst ≠ cnull →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ wsrc ∗
+        ▷ dst ↦ᵣ Cap p g b e a @@? π ∗
+        zone_cell ea ∗
+        ▷ mshwmb ↦ₜ hb ∗
+        ▷ mshwm ↦ₜ h ∗
+        deref_res π q }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        src ↦ᵣ wsrc ∗
+        dst ↦ᵣ Cap p g b e a @@? π ∗
+        ea ↦ₐ lstore_word p wsrc ∗
+        mshwmb ↦ₜ hb ∗
+        mshwm ↦ₜ hwm_after ea hb h ∗
+        deref_res π q }}}.
+  Proof.
+    rewrite deref_res_witness.
+    generalize (deref_id_witness_of π q). generalize (deref_witness_of π q).
+    intros dw <-.
+    iIntros (Hsh Hdecode Hvpc Hpca' Hwa Hwb Hadd Hsrc Hdst φ)
+      "(HPC & Hi & >Hsrc & >Hdst & Hcell & Hb & Hh & Hdw) Hφ".
+    iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hne]".
+    iApply (wp_store_zone_gen with "[$HPC $Hi $Hcell $Hb $Hh $Hdw $Hmap]"); eauto.
+    { rewrite /regs_of /operands_of /regs_of_argument !dom_insert_L. set_solver+. }
+    { intros p0 g0 b0 e0 a0 ea0 (Hd & Ha' & _).
+      rewrite llookup_reg_not_cnull // lookup_insert_ne // lookup_insert_eq /= in Hd.
+      simplify_eq; congruence. }
+    iIntros "!>" (lpc' mem' retv) "(%Hspec & HPC & Hi & Hb & Hres & Hdw & Hmap)".
+    destruct Hspec as [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hd & Ha' & _) Hsh0 Hl0 -> _ Hinc0
+                      | p0 g0 b0 e0 a0 ea0 ????? (Hd & Ha' & _) Hsh0
+                      | _ _ Hfail].
+    - rewrite llookup_reg_not_cnull // lookup_insert_ne // lookup_insert_eq /= in Hd. simplify_eq.
+      try rewrite Hadd in Ha'. simplify_eq.
+      rewrite /lword_of_argument llookup_reg_not_cnull // lookup_insert_eq in Harg0. simplify_eq.
+      rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hinc0. simplify_eq.
+      iSimpl in "Hres". iDestruct "Hres" as "[Hmem Hh]".
+      iEval (rewrite insert_singleton_eq big_sepM_singleton) in "Hmem".
+      iDestruct (regs_of_map_2 with "Hmap") as "[Hsrc Hdst]"; first done.
+      iApply "Hφ". iFrame.
+    - by simplify_map_eq.
+    - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a ea); eauto.
+      + by rewrite llookup_reg_not_cnull // lookup_insert_ne // lookup_insert_eq.
+      + intros v Hv. rewrite llookup_reg_not_cnull // lookup_insert_ne // lookup_insert_eq in Hv.
+        by simplify_eq.
       + by rewrite lookup_singleton_eq.
       + by rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca').
   Qed.
@@ -586,6 +812,36 @@ Section hwm.
     iApply (wp_csrw_mshwm_cells _ _ _ _ _ _ _ _ _ _ _ hb h []
              with "[$HPC $Hpc_a $Hsrc $Hb $Hh]"); try done.
     { intros a Ha. left. lia. }
+    iNext. iIntros "(HPC & Hpc_a & Hsrc & Hb & Hh & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** [csrw mshwm, src] with a value below MSHWMB: the zone needs to cover
+      nothing. *)
+  Lemma wp_csrw_mshwm_below E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src vsrc (hb h : Z) dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mshwm (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    (get_a vsrc.(lw) < hb)%Z →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ vsrc ∗
+        ▷ mshwmb ↦ₜ hb ∗
+        ▷ mshwm ↦ₜ h }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        src ↦ᵣ vsrc ∗
+        mshwmb ↦ₜ hb ∗
+        mshwm ↦ₜ get_a vsrc.(lw) }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hlt φ) "(HPC & Hpc_a & Hsrc & Hb & Hh) Hφ".
+    iApply (wp_csrw_mshwm_cells _ _ _ _ _ _ _ _ _ _ _ hb h []
+             with "[$HPC $Hpc_a $Hsrc $Hb $Hh]"); try done.
+    { intros a Ha. lia. }
     iNext. iIntros "(HPC & Hpc_a & Hsrc & Hb & Hh & _)". iApply "Hφ". iFrame.
   Qed.
 

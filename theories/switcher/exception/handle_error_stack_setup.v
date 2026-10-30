@@ -50,13 +50,17 @@ Section Handle_Error_Stack_Setup.
       and [ca0] are the handler's stack, at the [ErrorState], [ca1] the
       cause (word 18 of the register save area) and [ca2] the value [tval]
       of the trap, and the PC is at the invocation of the handler. Either
-      way, the lent mtval has gone back to the state interpretation. *)
+      way, the lent mtval has gone back to the state interpretation. The
+      cells of the [ErrorState] are stack cells: the stores keep MSHWM at
+      or above the floor [f], since the locked cells of [[hb, f)] are
+      framed. *)
   Lemma handle_error_stack_setup_spec (g_tstk : Locality)
     (save : list LWord) (wcsp wct0 wcs1 wca0 wca1 wca2 wca3 wca4 : LWord)
-    (error_state_written : nat → iProp Σ) (tval : Z) :
+    (error_state_written : nat → iProp Σ) (tval : Z) (hb f : Addr) (h : Z) :
     length save = 21%nat ->
     lea_result wcsp (- ErrorState_size) = Some wct0 ->
     error_state_fits wcsp ->
+    (f <= h)%Z ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_stack_setup" ∗
     csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -72,14 +76,17 @@ Section Handle_Error_Stack_Setup.
     vcsr_frag mtval (lword_of_word (WInt tval)) ∗
     switcher_code ∗
     error_state_written 0 ∗
+    hwm_regs hb h ∗
+    hwm_locked hb f ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
        ⌜wcsp = Cap p g b e a @@? π⌝ -∗
        ⌜error_state_first_store_ok wcsp⌝ -∗
-       cells_store_acc error_state_written p e (a ^+ (- ErrorState_size)) π
+       cells_store_acc_cell error_state_written p e (a ^+ (- ErrorState_size)) π
          (lclear_tag (save !!! 0%nat) :: take 15 (drop 1 save))) ∗
     ▷ ( ( ⌜¬ error_state_stores_ok wcsp⌝ -∗
-          ∀ (k : nat) (off : Z),
+          ∀ (k : nat) (h' : Z) (off : Z),
           ⌜(k < Z.to_nat ErrorState_size)%nat⌝ -∗
+          ⌜(f <= h')%Z⌝ -∗
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
           csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
           ct0 ↦ᵣ[th] wct0 ∗
@@ -91,10 +98,13 @@ Section Handle_Error_Stack_Setup.
           ca4 ↦ᵣ[th] - ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written k ∗
+          hwm_regs hb h' ∗
+          hwm_locked hb f ∗
           trap_entry_res -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜error_state_stores_ok wcsp⌝ -∗
-          ∀ (wcs1' wca3' wca4' : LWord),
+          ∀ (wcs1' wca3' wca4' : LWord) (h' : Z),
+          ⌜(f <= h')%Z⌝ -∗
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
           csp ↦ᵣ[th] wct0 ∗
           ct0 ↦ᵣ[th] wct0 ∗
@@ -106,13 +116,15 @@ Section Handle_Error_Stack_Setup.
           ca4 ↦ᵣ[th] wca4' ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written (Z.to_nat ErrorState_size) ∗
+          hwm_regs hb h' ∗
+          hwm_locked hb f ∗
           trap_entry_res -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hlen Hlea Hfits)
+    iIntros (Hlen Hlea Hfits Hfh)
       "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave & Htok & Hmtval
-       & #Hswitcher & HES & Hacc & Hpost)".
+       & #Hswitcher & HES & Hhwm & Hlocked & Hacc & Hpost)".
     switcher_open_label ".Lhandle_error_stack_setup" "Hswitcher" as "Hcode" pc_a Hpc_a.
     switcher_hide "Hpost" as hpost.
     iAssert (codefrag_pers pc_a handle_error_stack_setup_instrs) as "Hcode_all";
@@ -146,7 +158,8 @@ Section Handle_Error_Stack_Setup.
         iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
         iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
-        iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
+        iSpecialize ("Hfailed" $! 0%nat h with "[%] [//]");
+          first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute.
@@ -157,7 +170,8 @@ Section Handle_Error_Stack_Setup.
         iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
         iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
-        iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
+        iSpecialize ("Hfailed" $! 0%nat h with "[%] [//]");
+          first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute.
@@ -168,7 +182,8 @@ Section Handle_Error_Stack_Setup.
         iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
         iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
-        iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
+        iSpecialize ("Hfailed" $! 0%nat h with "[%] [//]");
+          first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
         iTrap with "Hfailed".
         apply trap_no_resume_switcher_pc. by vm_compute. }
@@ -186,21 +201,23 @@ Section Handle_Error_Stack_Setup.
     rewrite /ErrorState_size in Ha16 Hba Hae.
     rewrite (_ : a ^+ - ErrorState_size = a16); last (rewrite /ErrorState_size; solve_addr).
     iDestruct "Hacc_es" as "#Hacc_es".
-    iDestruct (cells_store_acc_tail error_state_written p e a16 π (lclear_tag (save !!! 0%nat))
-                 (take 15 (drop 1 save))
+    iDestruct (cells_store_acc_cell_tail error_state_written p e a16 π
+                 (lclear_tag (save !!! 0%nat)) (take 15 (drop 1 save))
                 with "[]") as "Hacc_tail".
-    { rewrite /cells_store_acc. iModIntro. iExact "Hacc_es". }
+    { rewrite /cells_store_acc_cell. iModIntro. iExact "Hacc_es". }
     iMod ("Hacc_es" $! 0%nat with "[%] [%] HES") as (v q) "(%Hsh & Hcell & Hderef & Hclose)".
     { cbn; lia. }
     { solve_addr. }
     rewrite (_ : a16 ^+ 0%nat = a16) in Hsh |- *; last solve_addr.
+    iDestruct (hwm_locked_not_stack_cell with "Hlocked Hcell") as %Hnot_locked.
     (* Store ct0 cs1 TrustedStack_offset_mepcc *)
     iInstrApply "Hcode"
-      (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-      with "[$HPC $Hcs1 $Hct0 $Hcell $Hderef]"
-      as "(HPC & Hcs1 & Hct0 & Hcell & Hderef)".
+      (wp_store_stack_cell_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
+      with "[$HPC $Hcs1 $Hct0 $Hcell $Hhwm $Hderef]"
+      as (h1) "(%Hh1 & HPC & Hcs1 & Hct0 & Hcell & Hhwm & Hderef)".
     { rewrite /withinBounds; solve_addr. }
     { solve_addr. }
+    pose proof (hwm_after_floor _ _ _ _ _ Hnot_locked Hfh Hh1) as Hfh1.
     rewrite (list_lookup_total_correct _ _ _ Hw0).
     iMod ("Hclose" with "Hcell Hderef") as "HES".
     (* Lea ca2 csp TrustedStack_offset_cra *)
@@ -231,7 +248,7 @@ Section Handle_Error_Stack_Setup.
     (* copy_context_asm ca3 ca2 cs1 ca4 *)
     iApply (copy_context_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
               (take 15 (drop 1 save)) _ _ (λ i, error_state_written (S i))
-             with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HES $Hacc_tail $Hsrc]").
+             with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HES $Hacc_tail $Hsrc $Hhwm $Hlocked]").
     all: try done.
     all: try (rewrite length_take length_drop Hlen; done).
     all: try (lazymatch goal with
@@ -263,7 +280,7 @@ Section Handle_Error_Stack_Setup.
     iNext. iSplit.
     { (* A store of the copy faults, after [S j] words: the cursor of the
          faulting [csp] is past its end *)
-      iIntros (j Hj Hout) "Hca2 Hca3 Hcs1 Hca4 Hsrc HES HPC".
+      iIntros (j h' Hj Hout) "Hca2 Hca3 Hcs1 Hca4 Hsrc HES %Hfh' Hhwm Hlocked HPC".
       iDestruct ("Hsave_join" with "[//] Hs0 Hsrc Hrest") as "Hsave".
       iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
       iIntros "Htok".
@@ -273,11 +290,11 @@ Section Handle_Error_Stack_Setup.
       iSpecialize ("Hfailed" with "[%]").
       { rewrite /error_state_stores_ok /=. intros (_ & _ & Hle). solve_addr. }
       switcher_merge_pc.
-      iApply ("Hfailed" $! (S j) with "[%] [%] [$Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3
-                                           $Hca4 $Hsave $HES $Htok]").
+      iApply ("Hfailed" $! (S j) h' with "[%] [//] [%] [$Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2
+                                           $Hca3 $Hca4 $Hsave $HES $Hhwm $Hlocked $Htok]").
       - rewrite /ErrorState_size; lia.
       - apply trap_no_resume_switcher_pc. by vm_compute. }
-    iIntros (wscratch' Hin) "HPC Hca2 Hca3 Hcs1 Hca4 Hsrc HES".
+    iIntros (wscratch' h' Hin) "HPC Hca2 Hca3 Hcs1 Hca4 Hsrc HES %Hfh' Hhwm Hlocked".
     iDestruct ("Hsave_join" with "[//] Hs0 Hsrc Hrest") as "Hsave".
     assert (length (copy_context_instrs ca3 ca2 cs1 ca4) = 7%nat) as Hlen_cc by reflexivity.
     rewrite Hlen_cc.
@@ -304,10 +321,10 @@ Section Handle_Error_Stack_Setup.
     subst hpost.
     rewrite (list_lookup_total_correct _ _ _ Hw18).
     iDestruct "Hpost" as "[_ Hpost]".
-    iApply ("Hpost" with "[%]").
+    iApply ("Hpost" with "[%] [//]").
     { rewrite /error_state_stores_ok /=.
       split_and!; [done | rewrite /ErrorState_size; solve_addr | solve_addr]. }
-    iFrame "HPC Hcsp Hct0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hsave HES Htok".
+    iFrame "HPC Hcsp Hct0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hsave HES Hhwm Hlocked Htok".
   Qed.
 
 End Handle_Error_Stack_Setup.

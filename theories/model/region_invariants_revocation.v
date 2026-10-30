@@ -39,7 +39,7 @@ End bridge.
 
 Section revoked_resources.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {thwmg : threadHwmG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}

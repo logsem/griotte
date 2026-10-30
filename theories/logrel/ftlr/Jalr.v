@@ -33,9 +33,9 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
+    iIntros (hb) "@".
 
-    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     iApply (wp_Jalr with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -45,7 +45,7 @@ Section fundamental.
     destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
     1,2: iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto;
-      iNext; iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
+      iNext; iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto.
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
@@ -109,7 +109,7 @@ Section fundamental.
              apply LocalityFlowsToReflexive. }
       all: iNext; iApply "IH"; iExact "Hwsrc". }
     iNext.
-    iApply (ftlr_post_next with "HPC Hmap Hreg' Hnext Hworld_interp"); first done.
+    iApply (ftlr_post_next with "HPC Hmap Hhwm Hreg' Hnext Hworld_interp"); first done.
   Qed.
 
 End fundamental.

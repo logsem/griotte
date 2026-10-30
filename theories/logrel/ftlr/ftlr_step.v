@@ -162,6 +162,7 @@ Section ftlr_step.
     untrusted_trap_safe interp interp_continuation -∗
     PC ↦ₚ[th] w -∗
     regs[th] regs -∗
+    hwm_res cstk -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
@@ -172,14 +173,14 @@ Section ftlr_step.
        world_resources W C ∗ shared_credit C) -∗
     WP Seq (Instr Faulted) @[th] {{ HO th }}.
   Proof.
-    iIntros (Hfull) "#Htrap HPC Hregs Hcont Hown Hcstk Hlater".
+    iIntros (Hfull) "#Htrap HPC Hregs Hhwm Hcont Hown Hcstk Hlater".
     iApply (wp_trap with "HPC").
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
     iDestruct (trap_entry_res_split ⊤ with "Hown") as "[Htok Hown]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
     iDestruct "Hlater" as "(%Hframe & Hth & Hreg & Htop & Hworld & Hcred)".
-    iApply ("Htrap" $! cstk regs with "[//] [Hth Hreg Htop Hworld Hcred Hcont] HPC Hout Hregs Hown Hcstk").
+    iApply ("Htrap" $! cstk regs with "[//] [Hth Hreg Htop Hworld Hcred Hcont] HPC Hout Hregs Hhwm Hown Hcstk").
     iLeft. iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
@@ -196,7 +197,8 @@ Section ftlr_step.
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
-    (▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_resources W' C ∗ ftlr_post W' C v) -∗
+    (▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_resources W' C ∗
+       ftlr_post W' C (cstk_hwm_base cstk) v) -∗
     WP Seq (of_val v) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframe) "#Hth #Htrap #Htop Hcont Hown Hcstk Hpost".
@@ -206,9 +208,9 @@ Section ftlr_step.
       iApply wp_value. iIntros (_). iFrame.
     - (* FaultedV *)
       iDestruct "Hpost" as (W') "(>%Hrel & Hwres & Hpost)".
-      iDestruct "Hpost" as (regs pc) "(>HPC & >Hregs & Hreg)".
+      iDestruct "Hpost" as (regs pc) "(>HPC & >Hregs & >Hhwm & Hreg)".
       iDestruct "Hreg" as "[>%Hfull Hreg]".
-      iApply (ftlr_trap_later with "Htrap HPC Hregs Hcont Hown Hcstk"); first done.
+      iApply (ftlr_trap_later with "Htrap HPC Hregs Hhwm Hcont Hown Hcstk"); first done.
       iNext. iFrame "Hreg Hwres Hth".
       iSplit; first (iPureIntro; by eapply frame_match_mono).
       iSplit; first (iPureIntro; done).
@@ -220,9 +222,9 @@ Section ftlr_step.
       iApply wp_pure_step_later; auto. iNext; iIntros "Hlc".
       (* The credit of the collapse is the next carried credit. *)
       iDestruct (shared_credit_refill C with "Hlc") as "Hcred".
-      iDestruct "Hpost" as (W' Hrel) "(Hwres & %regs & %pc & %Hfull & HPC & Hregs & #Hreg & Hpc)".
+      iDestruct "Hpost" as (W' Hrel) "(Hwres & %regs & %pc & %Hfull & HPC & Hregs & Hhwm & #Hreg & Hpc)".
       iApply ("Hpc" $! cstk Ws Cs regs
-               with "[$Hth $Htrap $HPC $Hregs $Hwres $Hcred $Hcont $Hown $Hcstk]").
+               with "[$Hth $Htrap $HPC $Hregs $Hhwm $Hwres $Hcred $Hcont $Hown $Hcstk]").
       iSplit; first by iApply (interp_reg_intro with "Hreg").
       iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
       iPureIntro. by eapply frame_match_mono.
@@ -245,6 +247,7 @@ Section ftlr_step.
     top_cmpt_untrusted interp W C cstk -∗
     PC ↦ₚ[th] w -∗
     registers_pointsto regs -∗
+    hwm_res cstk -∗
     world_resources W C ∗ shared_credit C -∗
     interp_continuation cstk Ws Cs -∗
     na_own (tpool th) ⊤ -∗
@@ -253,12 +256,12 @@ Section ftlr_step.
     mie m -∗
     safe[th].
   Proof.
-    iIntros (Hcases Hframe) "Hacc #Hthread #Htrap #IH #Hw #Hreg #Htop HPC Hregs [Hwres Hcred]
+    iIntros (Hcases Hframe) "Hacc #Hthread #Htrap #IH #Hw #Hreg #Htop HPC Hregs Hhwm [Hwres Hcred]
       Hcont Hown Hcstk Hthr Hmie".
     iApply (wp_bind (fill [SeqCtx])).
     iApply (wp_wand _ _ _
               (λ v, ▷ ∃ W'' m', world_resources W'' C ∗ thr m' ∗ mie m' ∗
-                       ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C v)%I
+                       ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C (cstk_hwm_base cstk) v)%I
              with "[- Hcont Hown Hcstk] [Hcont Hown Hcstk]").
     2: { (* 7. The value, after the accessor closes. *)
       iIntros (v) "Hpost".
@@ -266,7 +269,8 @@ Section ftlr_step.
       iNext. iDestruct "Hpost" as (W'' m') "(Hwres & _ & _ & Hrel & Hpost)".
       iExists W''. iFrame. }
     (* 1. The accessor opens. *)
-    iApply ("Hacc" $! W C m (λ W'' _ v, ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C v)%I
+    iApply ("Hacc" $! W C m
+              (λ W'' _ v, ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post W'' C (cstk_hwm_base cstk) v)%I
              with "Hwres Hthr Hmie Hcred").
     iIntros (W' Hrel) "Hworld Hmie".
     iDestruct (interp_reg_monotone with "Hreg") as "#Hreg'"; first done.
@@ -277,7 +281,7 @@ Section ftlr_step.
       iIntros "!> HPC !>". iExists W', m. iFrame "Hworld Hmie".
       iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
       iSplit; first done.
-      iExists regs, w. by iFrame "HPC Hregs Hreg'". }
+      iExists regs, w. by iFrame "HPC Hregs Hhwm Hreg'". }
     destruct w as [ [ | [ [] p g b e a | ] | | ] π]; try by inversion HcorrectPC.
     (* 3. The registers. *)
     iDestruct "Hreg'" as "[%Hfull #Hsafe]".
@@ -314,9 +318,10 @@ Section ftlr_step.
         iNext. iDestruct "Hres" as (wa) "Hres". iExists wa. by iApply pc_open_intro. }
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
-    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P
+    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P Hp Hfull' HcorrectPC
+                Hbae Hflp Hpers eq_refl (cstk_hwm_base cstk)
               with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
-                    $Hworld $HPC $Hmap]"); eauto. }
+                    $Hworld $HPC $Hmap $Hhwm]"). }
     (* 6. The hand-off goes back to the accessor. *)
     iIntros (v) "Hpost !>".
     iDestruct "Hpost" as (W'' Hrel') "[Hworld Hpost]".

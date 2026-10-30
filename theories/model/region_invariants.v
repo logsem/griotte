@@ -88,7 +88,7 @@ End open_keys.
 Section standard_world_interp.
 
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {thwmg : threadHwmG Σ}
     {Cname : CmptNameG} {CNames : gset CmptName}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -134,7 +134,7 @@ Section standard_world_interp.
     open_region_many W C l -∗ rel_l th C k p φ -∗
     open_region_many W C ({[k]} ∪ l) ∗
     heap_key_resource k
-      (∃ v, ⌜isO p = false⌝ ∗ k ↦ₖ v ∗ ▷ future_pub_mono C φ v ∗ ▷ φ (W, C, v)).
+      (∃ v, ⌜isO p = false⌝ ∗ temp_cell th k v ∗ ▷ future_pub_mono C φ v ∗ ▷ φ (W, C, v)).
   Proof.
     iIntros (Hkl HT) "Hr Hrel".
     rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
@@ -145,7 +145,7 @@ Section standard_world_interp.
 
   Lemma region_close_temp W C l k p φ :
     k ∉ l → std W !! k = Some Temporary → (∀ x, Persistent (φ x)) →
-    open_region_many W C ({[k]} ∪ l) -∗ rel_l th C k p φ -∗ temp_res W C k p φ -∗
+    open_region_many W C ({[k]} ∪ l) -∗ rel_l th C k p φ -∗ temp_res th W C k p φ -∗
     open_region_many W C l.
   Proof.
     iIntros (Hkl HT Hp) "Hr Hrel Hb".
@@ -153,6 +153,24 @@ Section standard_world_interp.
     rewrite open_l_add_T // open_g_add_T //.
     iDestruct "Hr" as "[$ Hl]".
     iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
+  Qed.
+
+  (** A Temporary key outside the heap can be closed with a zone cell,
+      which holds 0. *)
+  Lemma region_close_temp_zone W C l (a : Addr) p φ :
+    LNonHeap a ∉ l → std W !! LNonHeap a = Some Temporary → (∀ x, Persistent (φ x)) →
+    isO p = false →
+    open_region_many W C ({[LNonHeap a]} ∪ l) -∗
+    rel_l th C (LNonHeap a) p φ -∗
+    @zone_cell _ _ (hwm_of th) a -∗
+    future_pub_mono C φ (WInt 0) -∗
+    ▷ φ (W, C, lword_of_word (WInt 0)) -∗
+    open_region_many W C l.
+  Proof.
+    iIntros (Hkl HT Hp HpO) "Hr Hrel Hcell Hmono Hφ".
+    iApply (region_close_temp with "Hr Hrel"); [done..|].
+    rewrite /temp_res /=. iExists (WInt 0). iFrame "Hmono Hφ %".
+    by iApply temp_cell_zone.
   Qed.
 
   (** ** Opening and closing a key of the map of Permanent regions *)
@@ -220,5 +238,39 @@ Section standard_world_interp.
   #[global] Instance monotonicity_guarantees_region_Persistent C P p w ρ :
     Persistent (monotonicity_guarantees_region C P p w ρ).
   Proof. destruct ρ; apply _. Qed.
+
+  (** ** The cell of a region, by its part
+
+      A Temporary key holds a [temp_cell], a key of the map of Permanent
+      regions its points-to. *)
+  Definition region_cell (ρ : region_part) (k : LAddr) (v : LWord) : iProp Σ :=
+    match ρ with
+    | InLocal => temp_cell th k v
+    | InGlobal => k ↦ₖ v
+    end.
+
+  #[global] Instance region_cell_timeless ρ k v : Timeless (region_cell ρ k v).
+  Proof. destruct ρ; apply _. Qed.
+
+  Lemma region_cell_pointsto ρ k v : k ↦ₖ v -∗ region_cell ρ k v.
+  Proof. destruct ρ; [auto|iApply temp_cell_pointsto]. Qed.
+
+  (** At a heap key, the cell of a region is its points-to. *)
+  Lemma region_cell_heap ρ a ι v : region_cell ρ (LHeap a ι) v ⊣⊢ LHeap a ι ↦ₖ v.
+  Proof. destruct ρ; [done|apply temp_cell_heap]. Qed.
+
+  (** The cell of a region gives half of the points-to of its address,
+      enough to fetch or load from it, and gets it back. *)
+  Lemma region_cell_fetch ρ k v :
+    region_cell ρ k v -∗
+    laddr_addr k ↦ₐ{DfracOwn (1/2)} v ∗
+    (laddr_addr k ↦ₐ{DfracOwn (1/2)} v -∗ region_cell ρ k v).
+  Proof.
+    destruct ρ; cbn [region_cell]; last iApply temp_cell_fetch.
+    iIntros "Hk".
+    iDestruct (key_pointsto_eq with "Hk") as "[[Hk1 Hk2] Hshare]".
+    iFrame "Hk1"; iIntros "Hk1".
+    iApply key_pointsto_eq; iFrame "Hshare"; by iCombine "Hk1 Hk2" as "Hk".
+  Qed.
 
 End standard_world_interp.

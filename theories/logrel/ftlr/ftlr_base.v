@@ -51,23 +51,26 @@ Section fundamental.
            interp (th := t) W C w -∗ interp_expression (th := t) W C w).
 
   (** The post-state of an instruction step in a case of the fundamental
-      theorem, at the post-world [W]: after [NextIV], the PC and the
+      theorem, at the post-world [W], with MSHWMB holding [hb]: after
+      [NextIV], the PC, the registers and the two high-water-mark
       registers, the registers safe and the PC safe to execute; after
-      [FaultedV], the PC and the registers, safe up to the world's filter;
-      after [HaltedV], nothing. *)
-  Definition ftlr_post (W : WORLD) (C : CmptName) (v : griotte_lang.val) : iProp Σ :=
+      [FaultedV], the PC, the registers and the two high-water-mark
+      registers, safe up to the world's filter; after [HaltedV], nothing. *)
+  Definition ftlr_post (W : WORLD) (C : CmptName) (hb : Z) (v : griotte_lang.val) : iProp Σ :=
     match v with
     | NextIV =>
         ∃ (regs : LReg) (pc : LWord),
           ⌜∀ r, is_Some (regs !! r)⌝ ∗
           PC ↦ₚ[th] pc ∗
           regs[th] regs ∗
+          hwm_res_at hb ∗
           (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
           interp_expression W C pc
     | FaultedV =>
         ∃ (regs : LReg) (pc : LWord),
           PC ↦ₚ[th] pc ∗
           regs[th] regs ∗
+          hwm_res_at hb ∗
           interp_reg interp W C regs
     | HaltedV => True
     end.
@@ -96,12 +99,26 @@ Section fundamental.
   (** The cell of the PC, with its content. *)
   Lemma pc_open_acc W C k p' P w ρ :
     pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ).
+    (region_cell ρ k w ∗ pc_content ρ W C P w) ∗
+    (region_cell ρ k w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ).
   Proof.
     rewrite pc_open_unseal. destruct ρ; cbn.
     - iIntros "($ & %HpO & $ & $)". iIntros "[$ $]". done.
     - iIntros "(%HpO & $ & $ & #Hmono)". iIntros "[$ $]". by iFrame "#".
+  Qed.
+
+  (** Half of the points-to of the PC's address, enough to fetch from it,
+      whether its region holds a points-to or a zone cell, with its
+      content. *)
+  Lemma pc_open_acc_fetch W C (a : Addr) p' P w ρ :
+    pc_open W C (LNonHeap a) p' P w ρ -∗
+    (a ↦ₐ{DfracOwn (1/2)} w ∗ pc_content ρ W C P w) ∗
+    (a ↦ₐ{DfracOwn (1/2)} w ∗ pc_content ρ W C P w -∗ pc_open W C (LNonHeap a) p' P w ρ).
+  Proof.
+    iIntros "Hopen". iDestruct (pc_open_acc with "Hopen") as "[[Hcell HP] Hclose]".
+    iDestruct (region_cell_fetch with "Hcell") as "[Ha Hrest]".
+    iFrame "Ha HP". iIntros "[Ha HP]". iApply "Hclose". iFrame "HP".
+    by iApply "Hrest".
   Qed.
 
   (** Opening the region of the PC. *)
@@ -150,15 +167,16 @@ Section fundamental.
     iApply (pc_open_intro with "[Hk HP]"); first done.
     destruct ρ; cbn.
     - by iFrame "∗%".
-    - iDestruct "Hpart" as "(_ & _ & #Hmono)". iFrame "∗%". iApply "Hmono".
+    - iDestruct "Hpart" as "(_ & _ & #Hmono)".
+      iDestruct (temp_cell_pointsto th with "Hk") as "Hk". iFrame "∗%". iApply "Hmono".
   Qed.
 
   (** The cell of an opened region, with its content, for any new word. *)
   Lemma pc_open_acc_forall W C k p' P w ρ :
     region_rel_part ρ W C k p' P -∗
     pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (∀ w', k ↦ₖ w' ∗ pc_content ρ W C P w' -∗ pc_open W C k p' P w' ρ).
+    (region_cell ρ k w ∗ pc_content ρ W C P w) ∗
+    (∀ w', region_cell ρ k w' ∗ pc_content ρ W C P w' -∗ pc_open W C k p' P w' ρ).
   Proof.
     rewrite pc_open_unseal. iIntros "#Hrel". destruct ρ; cbn.
     - iIntros "(%HnT & %HpO & Hc & HP)". iFrame "Hc HP".
@@ -205,7 +223,7 @@ Section fundamental.
     → PermFlowsTo p p'
     → (persistent_cond P)
     → Pinstr
-    -> ("#IH" ∷ ftlr_IH ∗
+    -> ∀ hb : Z, ("#IH" ∷ ftlr_IH ∗
         "#Hthread" ∷ thread_in th C ∗
         "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
@@ -219,9 +237,10 @@ Section fundamental.
         "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
         "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
-        "Hmap" ∷ regs[th] regs)
+        "Hmap" ∷ regs[th] regs ∗
+        "Hhwm" ∷ hwm_res_at hb)
     -∗ WP Instr Executable @core[th]
-       {{ v, ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C v }}.
+       {{ v, ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb v }}.
 
   Definition ftlr_instr
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -231,38 +250,40 @@ Section fundamental.
     ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i).
 
   (** The hand-off of a case, after the next instruction. *)
-  Lemma ftlr_post_next W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_next W C hb (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_at hb -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     interp_expression W C pc -∗
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C NextIV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb NextIV.
   Proof.
-    iIntros (Hfull) "HPC Hregs Hreg Hpc Hworld".
+    iIntros (Hfull) "HPC Hregs Hhwm Hreg Hpc Hworld".
     iExists W. iFrame. iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
     by iPureIntro.
   Qed.
 
   (** The hand-off of a case, after a fault. *)
-  Lemma ftlr_post_fault W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_fault W C hb (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_at hb -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C FaultedV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb FaultedV.
   Proof.
-    iIntros (Hfull) "HPC Hregs Hreg Hworld".
-    iExists W. iFrame "HPC Hregs Hworld". iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iIntros (Hfull) "HPC Hregs Hhwm Hreg Hworld".
+    iExists W. iFrame "HPC Hregs Hhwm Hworld". iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
     by iApply (interp_reg_intro with "Hreg").
   Qed.
 
   (** The hand-off of a case, after a halt. *)
-  Lemma ftlr_post_halt W C :
+  Lemma ftlr_post_halt W C hb :
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C HaltedV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C hb HaltedV.
   Proof.
     iIntros "Hworld". iExists W. iFrame. iPureIntro.
     apply related_sts_pub_refl_world.
@@ -270,10 +291,10 @@ Section fundamental.
 
   (** The hand-off of a case that changes the world to a public future
       world [W']. *)
-  Lemma ftlr_post_future W W' C v :
+  Lemma ftlr_post_future W W' C hb v :
     related_sts_pub_world W W' →
-    (∃ W'', ⌜related_sts_pub_world W' W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C v) -∗
-    ∃ W'', ⌜related_sts_pub_world W W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C v.
+    (∃ W'', ⌜related_sts_pub_world W' W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C hb v) -∗
+    ∃ W'', ⌜related_sts_pub_world W W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C hb v.
   Proof.
     iIntros (Hrel) "(%W'' & %Hrel' & Hworld & Hpost)".
     iExists W''. iFrame. iPureIntro. by eapply related_sts_pub_trans_world.

@@ -29,13 +29,13 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w Fail ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
-    iDestruct (pc_open_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
+    iIntros (hb) "@".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_fail (CL := link_core) with "[$HPC $Ha]"); eauto.
     iNext. iIntros "[HPC Ha] /=".
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-    iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
+    iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto.
   Qed.
 
   Lemma halt_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -44,8 +44,8 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w Halt ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
-    iDestruct (pc_open_acc with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
+    iIntros (hb) "@".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (>Ha & Hinterp) WorldRes ]".
     iApply (wp_halt (CL := link_core) with "[HPC Ha]"); eauto; iFrame.
     iNext. iIntros "[HPC Ha] /=".
     assert ( ∀ Wv : WORLD * CmptName * LWord, Persistent (safeC P Wv) ) as Hperscond_safeP.

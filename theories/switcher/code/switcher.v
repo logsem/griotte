@@ -266,8 +266,14 @@ Section Switcher.
         gete cs0 ct2;
         (* [deviation] word memory: no andi s0, s0, 0xfffffff0 *)
         (* csetaddr csp, ct2, s0 *)
-        seta csp ct2 cs0
-        (* [deviation] no stack high-water mark: no CONFIG_MSHWM skip *)
+        seta csp ct2 cs0;
+        (* [deviation] MSHWM is not rounded down to 16 bytes *)
+        (* csrr gp, CSR_MSHWM *)
+        csrr cgp mshwm;
+        (* bge gp, sp, .Lswitch_after_zero *)
+        jge (".Lswitch_after_zero")%asm cgp csp;
+        (* csetaddr ct2, csp, gp *)
+        seta ct2 csp cgp
       ] ++
       (* zero_stack t2, s0, gp *)
       clear_stack_asm ct2 cs0
@@ -300,7 +306,8 @@ Section Switcher.
         jgt (".Lswitch_stack_too_small")%asm ctp ct2;
         (* cincoffset csp, csp, -STACK_ENTRY_RESERVED_SPACE *)
         lea csp csp (- StackEntry_reserved_space)%Z;
-        (* [deviation] no stack high-water mark: no csrw CSR_MSHWM *)
+        (* csrw CSR_MSHWM, sp *)
+        csrw mshwm csp;
         (* clbu tp, ExportEntry_offset_flags(ct1) *)
         load ctp ct1;
         land ctp ctp ExportEntry_byte_mask;
@@ -381,16 +388,17 @@ Section Switcher.
         (* cincoffset csp, csp, SPILL_SLOT_SIZE *)
         lea csp csp SpillSlot_size;
         #".Lswitch_callee_stack_zero";
-        (* [deviation] no stack high-water mark: the #else branch *)
-        (* cgetbase tp, csp *)
-        getb ctp csp;
+        (* csrr tp, CSR_MSHWM *)
+        csrr ctp mshwm;
         (* cgetaddr t1, csp *)
         geta ct1 csp;
         (* csetaddr ct2, csp, tp *)
         seta ct2 csp ctp
       ] ++
       (* zero_stack t2, t1, tp *)
-      clear_stack_asm ct2 ct1
+      clear_stack_asm ct2 ct1 ++
+      [ (* csrw CSR_MSHWM, sp *)
+        csrw mshwm csp ]
       ; (#".Lswitch_callee_dead_zeros" ::
        (* zeroAllRegistersExcept ra, sp, gp, s0, s1, a0, a1 *)
        clear_registers_post_call_asm)
@@ -449,7 +457,14 @@ Section Switcher.
         csrr ct1 mstatus;
         (* csw t1, TrustedStack_offset_mstatus(csp) *)
         store_imm csp ct1 TrustedStack_offset_mstatus;
-        (* [deviation] no stack high-water mark: no CONFIG_MSHWM spill *)
+        (* csrr t1, CSR_MSHWM *)
+        csrr ct1 mshwm;
+        (* csw t1, TrustedStack_offset_mshwm(csp) *)
+        store_imm csp ct1 TrustedStack_offset_mshwm;
+        (* csrr t1, CSR_MSHWMB *)
+        csrr ct1 mshwmb;
+        (* csw t1, TrustedStack_offset_mshwmb(csp) *)
+        store_imm csp ct1 TrustedStack_offset_mshwmb;
         (* csrr t1, mcause *)
         csrr ct1 mcause;
         (* csw t1, TrustedStack_offset_mcause(csp) *)
@@ -473,7 +488,14 @@ Section Switcher.
          load_imm cra csp TrustedStack_offset_mstatus ::
          (* csrw mstatus, ra *)
          csrw mstatus cra ::
-         (* [deviation] no stack high-water mark: no CONFIG_MSHWM restore *)
+         (* clw ra, TrustedStack_offset_mshwm(csp) *)
+         load_imm cra csp TrustedStack_offset_mshwm ::
+         (* csrw CSR_MSHWM, ra *)
+         csrw mshwm cra ::
+         (* clw ra, TrustedStack_offset_mshwmb(csp) *)
+         load_imm cra csp TrustedStack_offset_mshwmb ::
+         (* csrw CSR_MSHWMB, ra *)
+         csrw mshwmb cra ::
          (* cspecialw mepcc, ct2 *)
          writesr mepcc ct2 ::
          (* trustedReloadRegisters cra, cgp, ctp, ct0, ct1, ct2, cs0, cs1, ca0, ca1, ca2, ca3, ca4, ca5, csp *)
@@ -662,7 +684,10 @@ Section Switcher.
       ; ([ #".Lhandle_error_install_context";
          (* cspecialr ct1, mtdc *)
          readsr ct1 mtdc;
-         (* [deviation] no stack high-water mark: no CONFIG_MSHWM save *)
+         (* csrr t0, CSR_MSHWM *)
+         csrr ct0 mshwm;
+         (* csw t0, TrustedStack_offset_mshwm(ct1) *)
+         store_imm ct1 ct0 TrustedStack_offset_mshwm;
          (* clhu tp, TrustedStack_offset_frameoffset(ct1) *)
          load_imm ctp ct1 TrustedStack_offset_frameoffset;
          (* addi tp, tp, -TrustedStackFrame_size *)

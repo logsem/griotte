@@ -8,8 +8,9 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
 
     [.Lhandle_error_install_context] installs the context that the error
     handler returns, its [ErrorState], read at the handler's stack pointer
-    [csp]. The resumed PC is the PCC of the export table of the topmost
-    frame, with the address of word 0 of the [ErrorState]: the handler
+    [csp]. It first saves MSHWM in the register save area. The resumed PC
+    is the PCC of the export table of the topmost frame, with the address
+    of word 0 of the [ErrorState]: the handler
     chooses an address, not the bounds or permissions. Words 1-15 of the
     [ErrorState] are copied to the register save area ([copy_context_asm]),
     the error handler count of the topmost frame is incremented, and the
@@ -20,6 +21,41 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
     of the export table in the frame is cleared, the load of word 0 of the
     [ErrorState] through [csp], and a load of the copy past the end of
     [csp]. *)
+
+(* TODO: move to common/switcher_exception_states.v *)
+Section tstack_save_area_insert.
+  Context
+    {Σ:gFunctors}
+    {ceriseg:ceriseG Σ}
+    `{MP: MachineParameters}
+    {th : Thread}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
+  .
+
+  (** The word [k] of the register save area, to overwrite. *)
+  Lemma tstack_save_area_insert_acc (save : list LWord) (k : nat) (wk : LWord) :
+    save !! k = Some wk →
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
+    (b_trusted_stack ^+ k) ↦ₐ wk ∗
+    (∀ w, (b_trusted_stack ^+ k) ↦ₐ w -∗
+          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ <[k := w]> save ]]).
+  Proof.
+    iIntros (Hk) "Hsave".
+    iDestruct (tstack_save_area_length with "Hsave") as %Hlen.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    rewrite /region_pointsto.
+    assert (finz.seq_between b_trusted_stack tstack_save_end !! k = Some (b_trusted_stack ^+ k))
+      as Hak.
+    { eapply finz_seq_between_lookup with (n := 21%nat).
+      - apply lookup_lt_Some in Hk. lia.
+      - rewrite /tstack_save_end. tstack_unfold. solve_addr. }
+    iDestruct (big_sepL2_insert_acc _ _ _ k with "Hsave") as "[Hw Hcont]"; [exact Hak|exact Hk|].
+    iFrame "Hw". iIntros (w) "Hw".
+    iSpecialize ("Hcont" with "Hw").
+    by rewrite list_insert_id.
+  Qed.
+
+End tstack_save_area_insert.
 
 Section Handle_Error_Install_Context.
   Context
@@ -32,6 +68,8 @@ Section Handle_Error_Install_Context.
   (** The code of [.Lhandle_error_install_context], around the copy. *)
   #[local] Definition handle_error_install_context_instrs : list Word :=
       encodeInstrsW [ SpecialRW ct1 mtdc (inr cnull);
+                      SpecialRW ct0 mshwm (inr cnull);
+                      Store ct1 (inr ct0) TrustedStack_offset_mshwm;
                       CLoad ctp ct1 TrustedStack_offset_frameoffset;
                       machine_instructions.Add ctp (inr ctp) (inl (- TrustedStackFrame_size)%Z);
                       Lea ctp ct1 (inr ctp);
@@ -49,7 +87,7 @@ Section Handle_Error_Install_Context.
                       machine_instructions.Add cs1 (inr cs1) (inl 1%Z);
                       Store ctp (inr cs1) TrustedStackFrame_offset_errorHandlerCount;
                       Mov csp (inr ct1);
-                      Jmp (inl (-130)%Z) ].
+                      Jmp (inl (-136)%Z) ].
 
   (** The loads of the [ErrorState] succeed through a tagged readable
       capability, with the [ErrorState] in bounds from its cursor. *)
@@ -72,7 +110,8 @@ Section Handle_Error_Install_Context.
       [b_tbl], whose PCC is [wpcc]) and whose error handler count is [n].
       [L i ls] holds once the first [i] words [ls] of the [ErrorState] are
       loaded, through the accessor given for the [ErrorState] at the
-      handler's stack pointer [wcsp]. Outcomes:
+      handler's stack pointer [wcsp]. MSHWM, [h], is saved first in the
+      register save area, as [save1]. Outcomes:
       - a load faults at a switcher PC that does not resume, for one of two
         reasons: the cell of the export table is cleared, or [wcsp] does not
         allow the loads of the [ErrorState];
@@ -83,10 +122,11 @@ Section Handle_Error_Install_Context.
   Lemma handle_error_install_context_spec
     (d : nat) (a_tstk b_tbl : Addr) (n : Z) (save : list LWord)
     (wpcc wcell wcsp wcra wctp wct0 wct1 wct2 wcs0 wcs1 wca2 wca3 wca4 : LWord)
-    (dq : dfrac) (L : nat → list LWord → iProp Σ) :
+    (dq : dfrac) (L : nat → list LWord → iProp Σ) (hb h : Z) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_tbl_cell := (a_tstk ^+ TrustedStackFrame_offset_calleeExportTable) in
     let a_cnt_cell := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
+    let save1 := <[Z.to_nat TrustedStack_offset_mshwm := lword_of_word (WInt h)]> save in
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     length save = 21%nat ->
@@ -110,6 +150,7 @@ Section Handle_Error_Install_Context.
     a_cnt_cell ↦ₐ WInt n ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₐ□ wpcc) ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
+    hwm_regs hb h ∗
     switcher_code ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
@@ -138,6 +179,7 @@ Section Handle_Error_Install_Context.
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt n ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] ∗
+          hwm_regs hb h ∗
           L i ls -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ (g_tstk : Locality) (ls : list LWord),
@@ -160,15 +202,17 @@ Section Handle_Error_Install_Context.
           a_tbl_cell ↦ₐ{dq} wcell ∗
           a_cnt_cell ↦ₐ WInt (n + 1) ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
-            [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save ]] ∗
+            [[ save !!! 0%nat :: drop 1 ls ++ drop 16 save1 ]] ∗
+          hwm_regs hb h ∗
           L (Z.to_nat ErrorState_size) ls -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
-    intros a_frameoffset a_tbl_cell a_cnt_cell.
+    intros a_frameoffset a_tbl_cell a_cnt_cell save1.
     iIntros (Ha_tstk Ha_tstk_end Hlen Hwcell)
       "(HPC & Hcsp & Hcra & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca2 & Hca3 & Hca4
-       & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & #Hswitcher & HL & Hacc & Hpost)".
+       & Hmtdc & Hframeoffset & Hcell & Hcnt & #Hpcc & Hsave & [Hmshwmb Hmshwm] & #Hswitcher
+       & HL & Hacc & Hpost)".
     pose proof trusted_stack_frames_fit as [nfit Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     switcher_open_label ".Lhandle_error_install_context" "Hswitcher" as "Hcode" pc_a Hpc_a.
@@ -176,7 +220,7 @@ Section Handle_Error_Install_Context.
        [.Lcommon_context_install], and the faulting loads *)
     switcher_jump_in_block ".Lhandle_error_install_context" ".Lcommon_context_install"
       as Hjmp.
-    assert (∀ k : Z, k = 7%Z ∨ k = 8%Z ∨ k = 14%Z →
+    assert (∀ k : Z, k = 9%Z ∨ k = 10%Z ∨ k = 16%Z →
               (pc_a ^+ k) =
                 (a_switcher_call ^+ (switcher_label_offset ".Lhandle_error_install_context" + k)) ∧
               trap_no_resume (switcher_pc (switcher_label_offset ".Lhandle_error_install_context" + k)))
@@ -200,6 +244,26 @@ Section Handle_Error_Install_Context.
     (* SpecialRW ct1 mtdc cnull *)
     iInstr "Hcode".
     destruct (mtdc_match_TStack_cap _ _ _ _ _ Hpost_pure) as [g_tstk ->].
+    (* SpecialRW ct0 MSHWM cnull *)
+    iInstrApply "Hcode" wp_csrr_mshwm with "[$HPC $Hct0 $Hmshwm]" as "(HPC & Hct0 & Hmshwm)".
+    destruct (lookup_lt_is_Some_2 save 19%nat) as [w19 Hw19]; first lia.
+    pose proof (tstack_save_cell_ok TrustedStack_offset_mshwm
+                  ltac:(unfold TrustedStack_offset_mshwm; lia))
+      as (Hts_19 & Hts_19_bounds & Hts_19_shadow).
+    iDestruct (tstack_save_area_insert_acc _ _ _ Hw19 with "Hsave") as "[Hs19 Hsave]".
+    (* Store ct1 ct0 TrustedStack_offset_mshwm *)
+    iInstr "Hcode".
+    iEval (rewrite lstore_word_isWL //) in "Hs19".
+    iDestruct ("Hsave" with "Hs19") as "Hsave".
+    (* From here on, the register save area is [save1] *)
+    iEval (change (<[19:=WInt h @@? None]> save) with save1) in "Hsave".
+    assert (length save1 = 21%nat) as Hlen1 by (subst save1; by rewrite length_insert).
+    assert (save1 !! Z.to_nat TrustedStack_offset_hazardPointers
+            = save !! Z.to_nat TrustedStack_offset_hazardPointers) as Hhaz
+      by (subst save1; by rewrite list_lookup_insert_ne).
+    assert (save1 !!! 0%nat = save !!! 0%nat) as Hsave1_0
+      by (subst save1; by rewrite list_lookup_total_insert_ne).
+    clearbody save1.
     assert ((b_trusted_stack + TrustedStack_offset_frameoffset)%a = Some a_frameoffset) as Hfo
       by (subst a_frameoffset; tstack_unfold; solve_addr).
     (* CLoad ctp ct1 TrustedStack_offset_frameoffset *)
@@ -240,9 +304,9 @@ Section Handle_Error_Install_Context.
       iDestruct (regs_of_map_1 with "Hmap") as "Hct0".
       iDestruct "Hpost" as "[Hfailed _]".
       iSpecialize ("Hfailed" with "[%]"); first by left.
-      destruct (Hfault 7%Z ltac:(lia)) as [Hpc_k Htnr].
+      destruct (Hfault 9%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 7)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 9)%Z 0%nat (@nil LWord) save1 with "[//] [//] [//] [-]"). }
     destruct Htbl as (p_tbl & g_tbl & e_tbl & a_tbl & Hw & Hread_tbl & Hbnd & Hshadow_tbl
                       & Hdl & Hdro).
     destruct wcell as [w_cell π_cell]; cbn in Hw, Hprov; subst w_cell π_cell.
@@ -269,9 +333,9 @@ Section Handle_Error_Install_Context.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; by subst wsp. }
-      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      destruct (Hfault 10%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 10)%Z 0%nat (@nil LWord) save1 with "[//] [//] [//] [-]"). }
     destruct wsp as [|[tag p g b e a|] | |]; try done.
     destruct tag; cycle 1.
     { iDestruct (map_of_regs_2 with "Hcra Hcsp") as "[Hmap %Hne]".
@@ -287,9 +351,9 @@ Section Handle_Error_Install_Context.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         by cbn in Hw'. }
-      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      destruct (Hfault 10%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 10)%Z 0%nat (@nil LWord) save1 with "[//] [//] [//] [-]"). }
     assert ((a + TrustedStack_offset_mepcc)%a = Some a) as Hea
       by (rewrite /TrustedStack_offset_mepcc; solve_addr).
     destruct (readAllowed p) eqn:Hra; cycle 1.
@@ -301,9 +365,9 @@ Section Handle_Error_Install_Context.
       { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq. congruence. }
-      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      destruct (Hfault 10%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 10)%Z 0%nat (@nil LWord) save1 with "[//] [//] [//] [-]"). }
     destruct (decide (a ∈ₐ [b, e))) as [Hin | Hout]; cycle 1.
     { (* CLoad cra csp TrustedStack_offset_mepcc *)
       iInstrApply "Hcode" (wp_load_fail_not_withinbounds_imm _ cra csp)
@@ -315,9 +379,9 @@ Section Handle_Error_Install_Context.
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq.
         rewrite /ErrorState_size in He'. solve_addr. }
-      destruct (Hfault 8%Z ltac:(lia)) as [Hpc_k Htnr].
+      destruct (Hfault 10%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iTrap with ("Hfailed" $! (off_eic + 8)%Z 0%nat (@nil LWord) save with "[//] [//] [//] [-]"). }
+      iTrap with ("Hfailed" $! (off_eic + 10)%Z 0%nat (@nil LWord) save1 with "[//] [//] [//] [-]"). }
     (* The accessor of the [ErrorState], at [csp] *)
     iPoseProof ("Hacc" $! p g b e a π with "[%] [%]") as "#Hacc_es".
     { done. }
@@ -355,16 +419,16 @@ Section Handle_Error_Install_Context.
     { rewrite /tstack_save_end. tstack_unfold. solve_addr. }
     pose proof (tstack_save_cell_ok 20 ltac:(lia)) as (_ & Hts_20 & _).
     rewrite /withinBounds in Hts_20.
-    destruct (lookup_lt_is_Some_2 save 0%nat) as [w0 Hw0]; first lia.
-    assert (save = w0 :: take 15 (drop 1 save) ++ drop 16 save) as Hsave_eq.
-    { destruct save as [|w0' rest]; first done.
+    destruct (lookup_lt_is_Some_2 save1 0%nat) as [w0 Hw0]; first lia.
+    assert (save1 = w0 :: take 15 (drop 1 save1) ++ drop 16 save1) as Hsave_eq.
+    { destruct save1 as [|w0' rest]; first done.
       cbn in Hw0 |- *. injection Hw0 as ->. by rewrite take_drop. }
     iEval (rewrite {1}Hsave_eq) in "Hsave".
     iEval (rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr])
       in "Hsave".
     iDestruct "Hsave" as "[Hs0 Hsave]".
     iEval (rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
-           [|solve_addr|rewrite length_take length_drop Hlen /finz.dist; solve_addr])
+           [|solve_addr|rewrite length_take length_drop Hlen1 /finz.dist; solve_addr])
       in "Hsave".
     iDestruct "Hsave" as "[Hdst Hrest]".
     iEval (rewrite (_ : b_trusted_stack ^+ 16 = (b_trusted_stack ^+ 1) ^+ 15);
@@ -373,10 +437,10 @@ Section Handle_Error_Install_Context.
     { rewrite /cells_load_acc. iModIntro. iExact "Hacc_es". }
     (* copy_context_asm ca3 ca2 cs1 ca4 *)
     iApply (copy_context_load_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-              (take 15 (drop 1 save)) _ _ (λ i ls, L (S i) (v0 :: ls))
+              (take 15 (drop 1 save1)) _ _ (λ i ls, L (S i) (v0 :: ls))
              with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HL $Hacc_tail $Hdst]").
     all: try done.
-    all: try (rewrite length_take length_drop Hlen; done).
+    all: try (rewrite length_take length_drop Hlen1; done).
     all: try (lazymatch goal with
               | |- environments.envs_entails _ _ => fail
               | |- disjoint_from_shadow _ _ => fail
@@ -396,21 +460,22 @@ Section Handle_Error_Install_Context.
           %error_state_loads_ok_inv.
         cbn in Hw'; simplify_eq.
         rewrite /ErrorState_size in He'. solve_addr. }
-      rewrite (_ : (pc_a ^+ 13%nat) ^+ 1 = pc_a ^+ 14); last solve_addr.
-      destruct (Hfault 14%Z ltac:(lia)) as [Hpc_k Htnr].
+      rewrite (_ : (pc_a ^+ 15%nat) ^+ 1 = pc_a ^+ 16); last solve_addr.
+      destruct (Hfault 16%Z ltac:(lia)) as [Hpc_k Htnr].
       rewrite Hpc_k.
-      iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
+      iApply ("Hfailed" $! (off_eic + 16)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save1)
                with "[//] [%] [%] [-]").
-      { rewrite /= length_app length_drop Hwd' Hlen. lia. }
-      { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r Hwd' // lookup_drop //. }
+      { rewrite /= length_app length_drop Hwd' Hlen1. lia. }
+      { rewrite -Hhaz.
+        rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r Hwd' // lookup_drop //. }
       rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
       rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
         [|solve_addr|rewrite Hwd' /finz.dist; solve_addr].
       rewrite (_ : (b_trusted_stack ^+ 1) ^+ 15 = b_trusted_stack ^+ 16); last solve_addr.
       iFrame.
     - iIntros (ls wscratch' Hls) "HPC Hca2 Hca3 Hcs1 Hca4 Hdst HL".
-      rewrite (_ : (pc_a ^+ 13%nat) ^+ length (copy_context_instrs ca3 ca2 cs1 ca4) =
-                   pc_a ^+ 20); last (cbn; solve_addr).
+      rewrite (_ : (pc_a ^+ 15%nat) ^+ length (copy_context_instrs ca3 ca2 cs1 ca4) =
+                   pc_a ^+ 22); last (cbn; solve_addr).
       assert ((a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell)
         as Ha_cnt by (subst a_cnt_cell; tstack_unfold; solve_addr).
       (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
@@ -435,7 +500,7 @@ Section Handle_Error_Install_Context.
       iApply ("Hpost" $! g_tstk (v0 :: ls) with "[%] [%] [-]").
       { cbn; rewrite Hls; done. }
       { eexists _, _, _, _; split_and!; done. }
-      rewrite /= Hresumed (list_lookup_total_correct _ _ _ Hw0) drop_0.
+      rewrite -Hsave1_0 /= Hresumed (list_lookup_total_correct _ _ _ Hw0) drop_0.
       rewrite (list_fmap_ext (lstore_word RWL) id ls); last (intros; by apply lstore_word_isWL).
       rewrite list_fmap_id.
       rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].

@@ -71,14 +71,17 @@ Section Callback_Path.
       entry frame: pop the topmost frame, at [a_tstk], whose stack pointer
       is the one of the caller, with the cursor [a]; restore the
       callee-save registers from the spill area by loads from the memory;
-      clear the stack frame and the registers; and jump back to the
+      clear the stack frame from the value [h] of MSHWM and the registers,
+      and set MSHWM to the caller's stack pointer; and jump back to the
       caller. The spill area may come under a later, which the pop
       removes. The continuation has two exits: the jump, and its fault
-      when the return address is not a valid target. *)
+      when the return address is not a valid target. A second continuation
+      takes the fault of the first store of the clearing, when [h] is below
+      the base of the stack, with MSHWM unchanged. *)
   Lemma switcher_return_path_spec
     (d : nat) (a_tstk b e a : Addr) (stk_mem : list LWord)
     (wcs0' wcs1' wcgp' wcra' : LWord)
-    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
+    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) (hb h : Z) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
@@ -87,6 +90,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    (0 <= hb <= h)%Z ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     csp ↦ᵣ[th] wcsp ∗
@@ -100,36 +104,69 @@ Section Callback_Path.
     switcher_hazard ∗
     a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
     ▷ switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
-    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
+    stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
+    hwm_regs hb h ∗
     switcher_code ∗
-    ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
-        ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
-          load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
-        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
-        a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
-        switcher_hazard ∗
-        a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
-        cra ↦ᵣ[th] rcra ∗
-        cgp ↦ᵣ[th] rcgp ∗
-        cs0 ↦ᵣ[th] rcs0 ∗
-        cs1 ↦ᵣ[th] rcs1 ∗
-        csp ↦ᵣ[th] Cap RWL Local b e a ∗
-        [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
-        regs₀[th] rmap' -∗
-        ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
-          £ 1 -∗
-          safe[th] ) ∧
-        ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-            (HO th) ) )
+    ▷ ( ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
+          ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
+            load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
+          (* the zeroing, from the value [h] read from MSHWM, did not fault *)
+          ⌜ (b <= h)%Z ⌝ ∗
+          ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+          switcher_hazard ∗
+          a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
+          cra ↦ᵣ[th] rcra ∗
+          cgp ↦ᵣ[th] rcgp ∗
+          cs0 ↦ᵣ[th] rcs0 ∗
+          cs1 ↦ᵣ[th] rcs1 ∗
+          csp ↦ᵣ[th] Cap RWL Local b e a ∗
+          stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+            (stack_zeroed_from (stk_spill_a a) h [wcs0'; wcs1'; wcgp'; wcra']) ∗
+          stack_region (stk_callee_b b a) (stk_callee_e e a)
+            (stack_zeroed_from (stk_callee_b b a) h stk_mem) ∗
+          hwm_regs hb a ∗
+          regs₀[th] rmap' -∗
+          ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
+            £ 1 -∗
+            safe[th] ) ∧
+          ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+            trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
+              (HO th) ) ) ∧
+        (* the first store of the zeroing faults: [h] is below the base *)
+        ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0 (off : Z),
+          ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
+            load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
+          ⌜ (h < b)%Z ⌝ ∗
+          ⌜ trap_no_resume (switcher_pc off) ⌝ ∗
+          ⌜ dom rmap' = all_registers_s ∖
+              {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ⌝ ∗
+          mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
+          a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
+          switcher_hazard ∗
+          a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
+          cra ↦ᵣ[th] rcra ∗
+          cgp ↦ᵣ[th] rcgp ∗
+          cs0 ↦ᵣ[th] rcs0 ∗
+          cs1 ↦ᵣ[th] rcs1 ∗
+          csp ↦ᵣ[th] Cap RWL Local b e a ∗
+          ctp ↦ᵣ[th] WInt h ∗
+          (∃ wct0, ct0 ↦ᵣ[th] wct0) ∗
+          ct1 ↦ᵣ[th] WInt a ∗
+          (∃ wct2, ct2 ↦ᵣ[th] wct2) ∗
+          (∃ wca2, ca2 ↦ᵣ[th] wca2) ∗
+          switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
+          stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
+          hwm_regs hb h ∗
+          regs[th] rmap' -∗
+          trap_safe (switcher_pc off) ⊤ (HO th) ) )
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hhwm)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
-      & Hcells & Hstk & #Hswitcher & Hpost)".
+      & Hcells & Hstk & Hhwm_regs & #Hswitcher & Hpost)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
     assert (is_heap_address b = false) as Hb_heap.
@@ -160,11 +197,23 @@ Section Callback_Path.
        and return *)
     iApply (switcher_zero_callee_frame_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher]"); [done|done|done|].
-    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
-    iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
-      "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap]").
-    iPureIntro; split; done.
+        $Hcells $Hstk $Hhwm_regs $Hrmap $Hswitcher]"); [done|done|done|done|].
+    iSplit.
+    - iNext; iIntros (rmap' Hbh)
+        "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hhwm_regs & Hrmap)".
+      iDestruct "Hpost" as "[Hpost _]".
+      iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
+        "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk
+          $Hhwm_regs $Hrmap]").
+      iPureIntro; done.
+    - iIntros (off Hhb Hoff)
+        "(Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp & Hcells & Hstk
+          & Hhwm_regs & Hrmap)".
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" $! rmap0 rcgp rcra rcs1 rcs0 off with
+        "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hctp $Hct0 $Hct1
+          $Hct2 $Hca2 $Hcells $Hstk $Hhwm_regs $Hrmap]").
+      iPureIntro; done.
   Qed.
 
   (** [switcher_return_path_spec], where the restored registers are loaded
@@ -176,7 +225,7 @@ Section Callback_Path.
   Lemma switcher_return_path_world_spec
     Wworld Wval C (ccrel : caller_callee_relation)
     (d : nat) (a_tstk b e a : Addr)
-    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
+    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) (hb h : Z) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
@@ -185,6 +234,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    (0 <= hb <= h)%Z ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     csp ↦ᵣ[th] wcsp ∗
@@ -197,6 +247,7 @@ Section Callback_Path.
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (S d)) ∗
     switcher_hazard ∗
     a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
+    hwm_regs hb h ∗
     switcher_code ∗
     ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
@@ -206,7 +257,7 @@ Section Callback_Path.
         ={⊤}=∗
         ∃ opened (wcs0' wcs1' wcgp' wcra' : LWord) (stk_mem : list LWord),
         switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
+        stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
         world_interp_open Wworld C opened ∗
         (if is_untrusted_caller ccrel then
            interp_in_mem RWL Wval C wcgp' ∗
@@ -214,38 +265,74 @@ Section Callback_Path.
            interp_in_mem RWL Wval C wcs1' ∗
            interp_in_mem RWL Wval C wcs0'
          else True) ∗
-        ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
-          ⌜ load_heap_in_world Wval wcgp' rcgp ∧ load_heap_in_world Wval wcra' rcra ∧
-            load_heap_in_world Wval wcs1' rcs1 ∧ load_heap_in_world Wval wcs0' rcs0 ⌝ ∗
-          world_interp_open Wworld C opened ∗
-          (if is_untrusted_caller ccrel then
-             interp Wval C rcgp ∗
-             interp Wval C rcra ∗
-             interp Wval C rcs1 ∗
-             interp Wval C rcs0
-           else True) ∗
-          ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-          cra ↦ᵣ[th] rcra ∗
-          cgp ↦ᵣ[th] rcgp ∗
-          cs0 ↦ᵣ[th] rcs0 ∗
-          cs1 ↦ᵣ[th] rcs1 ∗
-          csp ↦ᵣ[th] Cap RWL Local b e a ∗
-          [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
-          [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
-          regs₀[th] rmap' ∗
-          £ 2 -∗
-          ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
-            £ 1 -∗
-            safe[th] ) ∧
-          ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-            trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-              (HO th) ) ) )
+        ▷ ( ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
+            ⌜ load_heap_in_world Wval wcgp' rcgp ∧ load_heap_in_world Wval wcra' rcra ∧
+              load_heap_in_world Wval wcs1' rcs1 ∧ load_heap_in_world Wval wcs0' rcs0 ⌝ ∗
+            (* the zeroing, from the value [h] read from MSHWM, did not fault *)
+            ⌜ (b <= h)%Z ⌝ ∗
+            world_interp_open Wworld C opened ∗
+            (if is_untrusted_caller ccrel then
+               interp Wval C rcgp ∗
+               interp Wval C rcra ∗
+               interp Wval C rcs1 ∗
+               interp Wval C rcs0
+             else True) ∗
+            ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+            cra ↦ᵣ[th] rcra ∗
+            cgp ↦ᵣ[th] rcgp ∗
+            cs0 ↦ᵣ[th] rcs0 ∗
+            cs1 ↦ᵣ[th] rcs1 ∗
+            csp ↦ᵣ[th] Cap RWL Local b e a ∗
+            stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+              (stack_zeroed_from (stk_spill_a a) h [wcs0'; wcs1'; wcgp'; wcra']) ∗
+            stack_region (stk_callee_b b a) (stk_callee_e e a)
+              (stack_zeroed_from (stk_callee_b b a) h stk_mem) ∗
+            hwm_regs hb a ∗
+            regs₀[th] rmap' ∗
+            £ 2 -∗
+            ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
+              £ 1 -∗
+              safe[th] ) ∧
+            ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+              trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
+                (HO th) ) ) ∧
+          (* the first store of the zeroing faults: [h] is below the base *)
+          ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0 (off : Z),
+            ⌜ load_heap_in_world Wval wcgp' rcgp ∧ load_heap_in_world Wval wcra' rcra ∧
+              load_heap_in_world Wval wcs1' rcs1 ∧ load_heap_in_world Wval wcs0' rcs0 ⌝ ∗
+            ⌜ (h < b)%Z ⌝ ∗
+            ⌜ trap_no_resume (switcher_pc off) ⌝ ∗
+            world_interp_open Wworld C opened ∗
+            (if is_untrusted_caller ccrel then
+               interp Wval C rcgp ∗
+               interp Wval C rcra ∗
+               interp Wval C rcs1 ∗
+               interp Wval C rcs0
+             else True) ∗
+            ⌜ dom rmap' = all_registers_s ∖
+                {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ⌝ ∗
+            cra ↦ᵣ[th] rcra ∗
+            cgp ↦ᵣ[th] rcgp ∗
+            cs0 ↦ᵣ[th] rcs0 ∗
+            cs1 ↦ᵣ[th] rcs1 ∗
+            csp ↦ᵣ[th] Cap RWL Local b e a ∗
+            ctp ↦ᵣ[th] WInt h ∗
+            (∃ wct0, ct0 ↦ᵣ[th] wct0) ∗
+            ct1 ↦ᵣ[th] WInt a ∗
+            (∃ wct2, ct2 ↦ᵣ[th] wct2) ∗
+            (∃ wca2, ca2 ↦ᵣ[th] wca2) ∗
+            switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
+            stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
+            hwm_regs hb h ∗
+            regs[th] rmap' ∗
+            £ 2 -∗
+            trap_safe (switcher_pc off) ⊤ (HO th) ) ) )
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hhwm)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
-      & #Hswitcher & Hmid)".
+      & Hhwm_regs & #Hswitcher & Hmid)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
     assert (is_heap_address b = false) as Hb_heap.
@@ -280,11 +367,22 @@ Section Callback_Path.
        and return *)
     iApply (switcher_zero_callee_frame_spec with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher]"); [done|done|done|].
-    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
-    iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
-      "[$Hworld $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap $Hlc]").
-    iPureIntro; split; done.
+        $Hcells $Hstk $Hhwm_regs $Hrmap $Hswitcher]"); [done|done|done|done|].
+    iSplit.
+    - iNext; iIntros (rmap' Hbh)
+        "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hhwm_regs & Hrmap)".
+      iDestruct "Hpost" as "[Hpost _]".
+      iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
+        "[$Hworld $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hhwm_regs $Hrmap $Hlc]").
+      iPureIntro; done.
+    - iIntros (off Hhb Hoff)
+        "(Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp & Hcells & Hstk
+          & Hhwm_regs & Hrmap)".
+      iDestruct "Hpost" as "[_ Hpost]".
+      iApply ("Hpost" $! rmap0 rcgp rcra rcs1 rcs0 off with
+        "[$Hworld $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hca2
+          $Hcells $Hstk $Hhwm_regs $Hrmap $Hlc]").
+      iPureIntro; done.
   Qed.
 
 End Callback_Path.

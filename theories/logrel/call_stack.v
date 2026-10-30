@@ -276,6 +276,10 @@ Definition top_tframe (cstk : cstack) : trusted_frame :=
   | [] => cstk.(cstk_entry)
   end.
 
+(** The base of the stack high-water mark of the thread of [cstk]: the base
+    of its initial stack, which the entry frame holds. *)
+Definition cstk_hwm_base (cstk : cstack) : Addr := tf_stk_b cstk.(cstk_entry).
+
 (** The base of the export table of the callee of the topmost frame. *)
 Definition top_export_tbl (cstk : cstack) : Addr := tf_export_tbl_b (top_tframe cstk).
 

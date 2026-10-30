@@ -119,10 +119,10 @@ Section fundamental_threads.
     iLöb as "IH".
     iIntros (t W C w) "#Hw".
     iIntros (cstk Ws Cs regs)
-      "(#Hthread & #Htrap & #Hreg & #Htop & HPC & Hregs & Hwres & Hcred & Hcont & Hown & Hcstk & %Hframe)".
+      "(#Hthread & #Htrap & #Hreg & #Htop & HPC & Hregs & Hhwm & Hwres & Hcred & Hcont & Hown & Hcstk & %Hframe)".
     iApply (ftlr_step (th := t) (λ _, True)%I (λ _, True)%I W C InterruptEnabled w
               cstk Ws Cs regs ftlr_instr_cases Hframe
-              with "[] Hthread Htrap [] Hw Hreg Htop HPC Hregs [$Hwres $Hcred] Hcont Hown Hcstk [] []").
+              with "[] Hthread Htrap [] Hw Hreg Htop HPC Hregs Hhwm [$Hwres $Hcred] Hcont Hown Hcstk [] []").
     - iApply world_accessor_exclusive.
     - by iModIntro.
     - done.

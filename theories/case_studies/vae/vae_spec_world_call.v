@@ -171,7 +171,7 @@ Section VAE_World_Call.
       - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
         iSplit; first (iPureIntro; by rewrite Hpartition).
         iSplit; first done.
-        iExists pa, Φa. rewrite /temp_body. by iFrame "Hrel Hk".
+        iExists pa, Φa. rewrite /temp_cell. by iFrame "Hrel Hk".
       - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
         iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
         iSplit; first (iPureIntro; constructor; eauto).

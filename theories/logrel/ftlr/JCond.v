@@ -33,9 +33,9 @@ Section fundamental.
     ftlr_instr W C regs p p' g b e a w i ρ P.
   Proof.
     intros HJCond Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
+    iIntros (hb) "@".
 
-    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     iApply (wp_JCond (CL := link_core) with "[$HPC $Ha $Hmap]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
@@ -45,7 +45,7 @@ Section fundamental.
     destruct HSpec as [ lpc' n1 n2 Hn1 Hn2 Htest Hincr | lpc' n1 n2 imm Hn1 Hn2 Htest Himm HincrPC | ]; cycle 2.
     { iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto. }
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); eauto. }
 
     {
       incrementPC_inv; simplify_map_eq.
@@ -54,7 +54,7 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
-      iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp"); eauto.
+      iApply (ftlr_post_next with "HPC Hmap Hhwm [] [] Hworld_interp"); eauto.
       iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
 
@@ -64,7 +64,7 @@ Section fundamental.
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
-    iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp") ; eauto.
+    iApply (ftlr_post_next with "HPC Hmap Hhwm [] [] Hworld_interp") ; eauto.
     iApply "IH". iApply (interp_weakening with "IH Hthread Hinv_interp"); eauto; try solve_addr; try reflexivity; try apply subseg_heap_base_same.
   Qed.
 

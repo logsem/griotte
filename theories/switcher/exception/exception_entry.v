@@ -11,7 +11,8 @@ From griotte Require Import switcher_exception_states trusted_spill_registers_sp
     registers of the interrupted context in the register save area, but the
     stack pointer.
     [.Lexception_exiting_threads_rejoin] spills the stack pointer, from
-    mtdc, which is cleared, the PC (MEPCC), mstatus and the cause (mcause),
+    mtdc, which is cleared, the PC (MEPCC), mstatus, MSHWM, MSHWMB and the
+    cause (mcause),
     and gives MEPCC and mcause back to the state interpretation before the
     store of the cause; mtval stays lent until the handler set-up reads it.
     A cause of the range of trap entry is handled by the compartments: the
@@ -74,12 +75,12 @@ Section Exception_Entry.
   Qed.
 
   (** [.Lexception_exiting_threads_rejoin]: the stack pointer, MEPCC,
-      mstatus and mcause, then the dispatch on the cause, which satisfies
+      mstatus, MSHWM, MSHWMB and mcause, then the dispatch on the cause, which satisfies
       the cause predicate [P_mcause] of fault causes. mtval, with a value
       that satisfies the value predicate [P_mtval], stays lent. *)
   #[local] Lemma exception_exiting_threads_rejoin_spec
     (g_tstk : Locality) (P_mcause P_mtval : Z → Prop)
-    (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 : LWord) :
+    (w wcsp wct0 wct1 wca0 ws0 ws2 ws17 ws18 ws19 ws20 : LWord) (hb h : Z) :
     (∀ c, P_mcause c → mcause_ok c) →
     PC ↦ₚ[th] switcher_label_pc ".Lexception_exiting_threads_rejoin" ∗
     csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -91,6 +92,9 @@ Section Exception_Entry.
     (b_trusted_stack ^+ 2) ↦ₐ ws2 ∗
     (b_trusted_stack ^+ 17) ↦ₐ ws17 ∗
     (b_trusted_stack ^+ 18) ↦ₐ ws18 ∗
+    (b_trusted_stack ^+ 19) ↦ₐ ws19 ∗
+    (b_trusted_stack ^+ 20) ↦ₐ ws20 ∗
+    hwm_regs hb h ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     switcher_code ∗
     ▷ ( ∀ (wst : LWord) (cause zca0 tval : Z),
@@ -106,14 +110,17 @@ Section Exception_Entry.
           (b_trusted_stack ^+ 2) ↦ₐ wcsp ∗
           (b_trusted_stack ^+ 17) ↦ₐ wst ∗
           (b_trusted_stack ^+ 18) ↦ₐ WInt cause ∗
+          (b_trusted_stack ^+ 19) ↦ₐ WInt h ∗
+          (b_trusted_stack ^+ 20) ↦ₐ WInt hb ∗
+          hwm_regs hb h ∗
           trap_vcsr_res ∗
           vcsr_frag mtval (lword_of_word (WInt tval)) -∗
           safe[th] )
     ⊢ safe[th].
   Proof.
     iIntros (HP_mcause)
-      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hout & #Hswitcher
-       & Hpost)".
+      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hs19 & Hs20
+       & [Hmshwmb Hmshwm] & Hout & #Hswitcher & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert (∀ k : Z, (0 <= k <= 21)%Z →
@@ -153,6 +160,18 @@ Section Exception_Entry.
     pose proof (Hts_k 17 ltac:(lia)) as Hts_17.
     (* Store csp ct1 17 *)
     iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    (* SpecialRW ct1 MSHWM cnull *)
+    iInstrApply "Hcode" wp_csrr_mshwm with "[$HPC $Hct1 $Hmshwm]"
+      as "(HPC & Hct1 & Hmshwm)".
+    pose proof (Hts_k 19 ltac:(lia)) as Hts_19.
+    (* Store csp ct1 19 *)
+    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    (* SpecialRW ct1 MSHWMB cnull *)
+    iInstrApply "Hcode" wp_csrr_mshwmb with "[$HPC $Hct1 $Hmshwmb]"
+      as "(HPC & Hct1 & Hmshwmb)".
+    pose proof (Hts_k 20 ltac:(lia)) as Hts_20.
+    (* Store csp ct1 20 *)
+    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
     (* SpecialRW ct1 mcause cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hct1 $Hmcause]" as "(HPC & Hct1 & Hmcause)".
     (* MEPCC and mcause go back to the state interpretation *)
@@ -177,7 +196,8 @@ Section Exception_Entry.
     { iIntros (zca0) "HPC Hca0 Hct1".
       subst hpost.
       iApply ("Hpost" $! wst cause zca0 tval with "[//] [//]").
-      iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Htok Hmtval". }
+      iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Hs19 Hs20 Hmshwmb Hmshwm
+              Htok Hmtval". }
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].
     - (* Jeq .Lhandle_error ca0 ct1 *)
       iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hca0 $Hct1]"
@@ -207,7 +227,8 @@ Section Exception_Entry.
       [.Lhandle_error], with mtval lent. *)
   Lemma exception_entry_asm_spec (P_mcause P_mtval : Z → Prop)
     (w : LWord) (save_area : list LWord)
-    (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord)
+    (hb h : Z) :
     (∀ c, P_mcause c → mcause_ok c) ->
     length save_area = 21%nat ->
 
@@ -229,6 +250,7 @@ Section Exception_Entry.
     ca5 ↦ᵣ[th] wca5 ∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
+    hwm_regs hb h ∗
     trap_entry_out_cause P_mcause P_mtval w ∗
     switcher_code ∗
     ▷ ( ∀ (g_tstk : Locality) (wst : LWord) (cause zca0 tval : Z),
@@ -251,11 +273,17 @@ Section Exception_Entry.
           ca4 ↦ᵣ[th] wca4 ∗
           ca5 ↦ᵣ[th] wca5 ∗
           mtdc ↦ₜ[th] ExceptionScratch (WInt 0) ∗
+          (* MSHWM and MSHWMB are saved at their offsets *)
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ
-            [[ exception_spill save_area (lmepcc_of_pc w)
+            [[ exception_spill
+                 (<[Z.to_nat TrustedStack_offset_mshwm := lword_of_word (WInt h)]>
+                    (<[Z.to_nat TrustedStack_offset_mshwmb := lword_of_word (WInt hb)]>
+                       save_area))
+                 (lmepcc_of_pc w)
                  [wcra; wcsp; wcgp; wctp; wct0; wct1; wct2; wcs0; wcs1;
                   wca0; wca1; wca2; wca3; wca4; wca5]
                  wst (WInt cause) ]] ∗
+          hwm_regs hb h ∗
           trap_vcsr_res ∗
           vcsr_frag mtval (lword_of_word (WInt tval)) -∗
           safe[th] )
@@ -263,7 +291,8 @@ Section Exception_Entry.
   Proof.
     iIntros (HP_mcause Hlen)
       "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave & Hout & #Hswitcher & Hpost)".
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hmtdc & Hsave & Hhwm & Hout & #Hswitcher
+       & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     destruct save_area as
       [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
@@ -295,15 +324,17 @@ Section Exception_Entry.
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & _)".
 
     (* The stack pointer, MEPCC, mstatus, mcause and the dispatch *)
-    iApply (exception_exiting_threads_rejoin_spec g_tstk P_mcause P_mtval _ _ _ _ _ _ _ _ _
+    iApply (exception_exiting_threads_rejoin_spec g_tstk P_mcause P_mtval _ _ _ _ _ _ _ _ _ _ _ _ _
               HP_mcause with
-             "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hout $Hswitcher]").
+             "[- $HPC $Hcsp $Hct0 $Hct1 $Hca0 $Hmtdc $Hs0 $Hs2 $Hs17 $Hs18 $Hs19 $Hs20 $Hhwm
+                 $Hout $Hswitcher]").
     iNext; iIntros (wst cause zca0 tval Hcause Htval)
-      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Htok & Hmtval)".
+      "(HPC & Hcsp & Hct0 & Hct1 & Hca0 & Hmtdc & Hs0 & Hs2 & Hs17 & Hs18 & Hs19 & Hs20 & Hhwm
+        & Htok & Hmtval)".
     iApply ("Hpost" $! g_tstk wst cause zca0 tval).
     iSplit; first done. iSplit; first done.
     iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5
-            Hmtdc Htok Hmtval".
+            Hmtdc Hhwm Htok Hmtval".
     iClear "Hswitcher".
     rewrite /exception_spill /=.
     iRegionMerge.

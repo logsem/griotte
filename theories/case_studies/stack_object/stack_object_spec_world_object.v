@@ -368,7 +368,7 @@ Section SO_World_Object.
       iApply (heap_key_resource_mono with "[] Hres").
       iIntros "(%wa & %HpO & Hv & Hmono & HΦ)". iExists pa, Φa. iFrame "Hrel".
       iSplit; first done.
-      iExists wa. rewrite /temp_body. by iFrame. }
+      iExists wa. rewrite /temp_cell. by iFrame. }
 
     (* The addresses of the object that are not Temporary in [W0] are
        Global regions: open them through the world interpretation. *)
@@ -614,7 +614,7 @@ Section SO_World_Object.
         iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
         iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
         { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
-          iApply heap_key_resource_intro. iExists v. rewrite /temp_body. by iFrame. }
+          iApply heap_key_resource_intro. iExists v. rewrite /temp_cell. by iFrame. }
         iApply ("IH" $! lφ lp lv with
           "[%] [%] [%] [$] [$] [$] [$] [$] [$] [$]"); eauto.
       }
@@ -700,7 +700,7 @@ Section SO_World_Object.
       iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
       iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
       { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
-        iApply heap_key_resource_intro. iExists v. rewrite /temp_body. by iFrame. }
+        iApply heap_key_resource_intro. iExists v. rewrite /temp_cell. by iFrame. }
       iApply ("IH" $! lφ lp lv with
         "[%] [%] [%] [$] [$] [$] [$] [$] [$] [$]"); eauto.
     }
