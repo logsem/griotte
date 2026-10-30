@@ -10,7 +10,7 @@ From griotte Require Import lse_spec_states lse_spec_world
 Section LSE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -52,6 +52,7 @@ Section LSE.
     (pc_b + lse_label ".Llse_run")%a = Some pc_a ->
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
+    cmpt_threads C ⊆ {[th]} ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -78,7 +79,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
-               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some)
+               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some Hpin)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hlse_code
@@ -106,8 +107,13 @@ Section LSE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!> %W0 !> %cstk %Ws %Cs %rmap %csp_b %csp_e".
-    iIntros "(HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap & Hworld_interp_C & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iIntros "!>" (t') "#Ht'".
+    iDestruct (thread_in_elim with "Ht'") as %Ht'.
+    assert (t' = th) as -> by set_solver.
+    iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
+    iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
+      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /registers_pointsto.
@@ -153,7 +159,7 @@ Section LSE.
     (* Return to the caller of [f] *)
     iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     iApply (switcher_ret_specification W0 (revoke W0) with
-             "[$Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
     { destruct Hextract; auto. }

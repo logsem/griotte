@@ -10,7 +10,7 @@ From griotte Require Import dle_spec_states dle_spec_world
 Section DLE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -73,6 +73,7 @@ Section DLE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ na_own (tpool th) ⊤
@@ -118,7 +119,7 @@ Section DLE.
                HsubBounds Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap
                Hframe_match
             )
-      "(#Hassert & #Hswitcher & #Hswitcher_static & Hna
+      "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main
       & Hworld_interp_C
@@ -158,7 +159,7 @@ Section DLE.
 
     (* Share the data in the world *)
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-    iMod (dle_world_share with "Hseal_switcher Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
+    iMod (dle_world_share with "Hthread Hseal_switcher Hworld_interp_C Hstack_revoked_W0 Hinterp_W0_C_f Hcgp_b Hcgp_a")
       as "(Hworld_interp_C & #Hinterp_ca0 & #Hinterp_W3_C_f & #Hstack_revoked_W3
            & %Hstack_revoked_W3)"; [done..|].
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].
@@ -179,7 +180,7 @@ Section DLE.
 
     (* First call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK]").
@@ -238,7 +239,7 @@ Section DLE.
 
     (* Second call to the adversary *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK]").

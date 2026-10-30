@@ -27,7 +27,10 @@ Section droe_obligations.
   Lemma droe_fw_obligations :
     fw_obligations Σ droe_firmware.
   Proof.
-    apply fw_obligations_of; first reflexivity.
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
+    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -63,6 +66,9 @@ Section droe_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
+    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hfamily_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack droe_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [droe_firmware fw_cmpts]) in "Hcmpts".
@@ -85,10 +91,10 @@ Section droe_obligations.
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts droe_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher Hswitcher_static HC HC_pers Hstack [] Hworld_C")
+           with "Hfamily_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts droe_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
@@ -98,7 +104,7 @@ Section droe_obligations.
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
     iPoseProof (droe_spec (swlayout := swl) (assertlayout := asl) (C := C)
                   _ _ _ _ _ _ _ _ _ _ [] [] _
-                 with "[ $Hassert $Hswitcher $Hswitcher_static $Hna
+                 with "[ $Hassert $Hthread_C $Hswitcher $Hswitcher_static $Hna
                         $Hworld_C
                         $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data

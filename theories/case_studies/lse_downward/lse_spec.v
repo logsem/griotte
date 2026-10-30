@@ -10,7 +10,7 @@ From griotte Require Import lse_spec_states lse_spec_world
 Section LSE.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -75,6 +75,7 @@ Section LSE.
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     (
       assert_static b_assert e_assert a_flag
+      ∗ thread_in th C
       ∗ na_inv (tpool th) Ntstack trusted_stack_inv
       ∗ switcher_static
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
@@ -119,7 +120,7 @@ Section LSE.
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
             )
-      "(#Hassert & #Hswitcher & #Hswitcher_static
+      "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hlse
       & #Hlse_exp_tbl_PCC
@@ -177,7 +178,7 @@ Section LSE.
 
     (* Call to [C_f] *)
     iApply (switcher_cc_specification with
-             "[- $Hswitcher $Hswitcher_static $Hna
+             "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
               $Hinterp_W1_C_f $HK]").

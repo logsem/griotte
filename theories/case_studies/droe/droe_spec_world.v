@@ -13,7 +13,7 @@ From griotte Require Import droe_spec_states.
 Section DROE_World.
   Context
     {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
@@ -101,9 +101,10 @@ Section DROE_World.
         iApply interp_int.
       }
       iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (w') "[-> H]".
-        done.
+      { iNext. iIntros "!>" (t') "_".
+        iIntros "!>" (W1' w') "[-> _]".
+        rewrite /interp_in_mem_pre /=.
+        iApply interp_int.
       }
       done.
     }
@@ -148,9 +149,11 @@ Section DROE_World.
         iIntros "!>" (W1'' z π) "[% H]"; done.
       }
       iSplit.
-      { iIntros "!>" (W1').
-        iIntros "!>" (w') "[-> H]".
-        done.
+      { iNext. iIntros "!>" (t') "_".
+        iIntros "!>" (W1' w') "[-> _]".
+        rewrite /interp_in_mem_pre /=.
+        rewrite -(interp_global_thread_world_free th t' W1' W1' C); last done.
+        iApply "Hinterp_cgp_b".
       }
       done.
     }
