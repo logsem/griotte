@@ -29,7 +29,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -45,9 +45,10 @@ Section fundamental.
     executeAllowed p = true ∧ (isWL p = true -> g = Local).
 
   (** The induction hypothesis of the fundamental theorem: later, every safe
-      word is safe to execute. *)
+      word is safe to execute, at every thread. *)
   Definition ftlr_IH : iProp Σ :=
-    □ ▷ (∀ (W : WORLD) (C : CmptName) (w : LWord), interp W C w -∗ interp_expression W C w).
+    □ ▷ (∀ (t : Thread) (W : WORLD) (C : CmptName) (w : LWord),
+           interp (th := t) W C w -∗ interp_expression (th := t) W C w).
 
   (** The post-state of an instruction step in a case of the fundamental
       theorem, at the post-world [W]: after [NextIV], the PC and the
@@ -205,6 +206,7 @@ Section fundamental.
     → (persistent_cond P)
     → Pinstr
     -> ("#IH" ∷ ftlr_IH ∗
+        "#Hthread" ∷ thread_in th C ∗
         "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
         "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
@@ -212,7 +214,7 @@ Section fundamental.
                        then ▷ (rcond P C p' interp)
                        else emp) ∗
         "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
-                       then ▷ wcond P C interp
+                       then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
                        else emp) ∗
         "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗

@@ -15,7 +15,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -27,12 +27,23 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  Definition wcond' (P : D) C (a : Addr) (regs : LReg) : iProp Σ
-    := (if decide (writeAllowed_a_in_lregs regs a)
-        then □ (∀ W0 (w : LWord), interp W0 C w -∗ P W0 C w)
-        else emp)%I.
-  #[local] Instance wcond'_pers P C a r: Persistent (wcond' P C a r).
-  Proof. intros. rewrite /wcond'. case_decide;apply _. Qed.
+  (** Two regions of the same key outside the heap, in the same part, have
+      the same contents, one step later. *)
+  Lemma region_rel_part_pc_content_agree ρ W C a p1 p2 P1 P2 :
+    region_rel_part ρ W C (LNonHeap a) p1 P1 -∗
+    region_rel_part ρ W C (LNonHeap a) p2 P2 -∗
+    ∀ v, ▷ (pc_content ρ W C P1 v ≡ pc_content ρ W C P2 v).
+  Proof.
+    iIntros "#H1 #H2" (v). destruct ρ; rewrite /region_rel_part /region_rel_g /region_rel_l /pc_content.
+    - iDestruct (rel_g_agree with "H1 H2") as "[_ Heq]". iApply ("Heq" $! (C, v)).
+    - iDestruct "H1" as "(H1 & _)". iDestruct "H2" as "(H2 & _)".
+      iDestruct (rel_l_agree with "H1 H2") as "[_ Heq]". iApply ("Heq" $! (W, C, v)).
+  Qed.
+
+  (** The write condition of a store into the PC's region through a
+      register: the region's predicate holds of the stored word. *)
+  Definition pc_store_cond W C ρ (P : D) (p : Perm) : iProp Σ :=
+    □ ∀ v, interp W C v -∗ pc_content ρ W C P (lstore_word p v).
 
   (* A decision procedure that does not unfold [reg_allows_store_imm], so that
      the definitions below can be rewritten under [(a + imm)%a]. *)
@@ -67,7 +78,8 @@ Section fundamental.
     -∗ world_interp_open W C [LNonHeap pc_a]
     -∗ pc_a ↦ₐ w_pc
     -∗ world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ w_pc ∗
-       ⌜PermFlowsTo p pc_p' ∧ (ρ = InGlobal → isWL p = false)⌝.
+       ⌜PermFlowsTo p pc_p' ∧ (ρ = InGlobal → isWL p = false)⌝ ∗
+       ▷ pc_store_cond W C ρ P p.
   Proof.
     intros Hπ Hrar Hfl.
     pose proof (store_prov_eq imm Hrar Hπ) as Hr1.
@@ -75,13 +87,18 @@ Section fundamental.
     iIntros "Hreg #Hinva Hw Ha".
     iDestruct ("Hreg" $! r1 _ Hr1) as "Hr1".
     iDestruct (write_allowed_inv _ _ pc_a with "Hr1")
-      as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & Hrcond'' & Hwcond'')"; auto.
+      as (p'' P'' Hflp'' Hcond_pers'') "(Hrel'' & Hzcond'' & #Hwcond'' & Hrcond'')"; auto.
     { apply andb_true_iff in Hwb as [Hle Hge].
       split; [apply Zle_is_le_bool | apply Zlt_is_lt_bool]; auto. }
-    iDestruct (region_rel_part_of with "Hrel''") as (ρ'' Hρ'') "Hpart''".
+    iDestruct (region_rel_part_of with "Hrel''") as (ρ'' Hρ'') "#Hpart''".
     iDestruct (region_rel_part_agree_open _ _ _ pc_a with "Hw Ha Hinva Hpart''")
       as "($ & $ & %Heq)".
-    destruct Heq as [<- ->]. done.
+    destruct Heq as [<- ->].
+    iDestruct (region_rel_part_pc_content_agree with "Hpart'' Hinva") as "#Heq".
+    iSplit; first done.
+    iNext. iIntros "!>" (v) "#Hv".
+    iDestruct (pc_content_wcond with "Hwcond'' Hv") as "HP"; first exact Hρ''.
+    by iRewrite ("Heq" $! (lstore_word p v)) in "HP".
   Qed.
 
   (** The stored word is valid: it is an immediate or a register's word. *)
@@ -102,7 +119,7 @@ Section fundamental.
             (∀ v', k ↦ₖ v' ∗ pc_content ρ W C P v' -∗ pc_open W C k p P v' ρ))%I.
 
   Definition allow_store_res (imm : Z) W C r1 r2 (regs : LReg) pc_a (pc_p : Perm) (ρ : region_part)
-    (has_later : bool) :=
+    (P : D) (has_later : bool) :=
     (∃ t p g b e a π storev,
         ⌜read_reg_inr regs r1 t p g b e a⌝
         ∗ ⌜read_reg_prov regs r1 π⌝
@@ -112,7 +129,8 @@ Section fundamental.
           | Some ea => if decide (reg_allows_store_imm regs r1 imm p g b e a ea)
           then (if decide (addr_key π ea = LNonHeap pc_a)
                 then world_interp_open W C [LNonHeap pc_a] ∗ ⌜PermFlowsTo p pc_p⌝ ∗
-                       ⌜ρ = InGlobal → isWL p = false⌝
+                       ⌜ρ = InGlobal → isWL p = false⌝ ∗
+                       if_later_P has_later (pc_store_cond W C ρ P p)
                 else ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
@@ -120,17 +138,15 @@ Section fundamental.
                     ∗ ▷ ea ↦ₐ w
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
-                       then if_later_P has_later (wcond P' C interp)
-                       else True)
-                    ∗ (if readAllowed p
-                       then if_later_P has_later (rcond P' C p' interp)
+                       then if_later_P has_later
+                              (if isWL p then wcond P' C interp else wcond_nwl P' C interp)
                        else True)
                     ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p p' w P' has_later))
           else world_interp_open W C [LNonHeap pc_a]
           end)%I.
 
   Definition allow_store_mem (imm : Z) W C r1 r2 (regs : LReg) pc_a (pc_p : Perm) (ρ : region_part)
-    pc_w (mem : LMem) (has_later : bool) :=
+    (P : D) pc_w (mem : LMem) (has_later : bool) :=
     (∃ t p g b e a π storev,
         ⌜read_reg_inr regs r1 t p g b e a⌝
         ∗ ⌜read_reg_prov regs r1 π⌝
@@ -140,17 +156,16 @@ Section fundamental.
           | Some ea => if decide (reg_allows_store_imm regs r1 imm p g b e a ea)
           then (if decide (addr_key π ea = LNonHeap pc_a)
                 then ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [LNonHeap pc_a] ∗ ⌜PermFlowsTo p pc_p⌝ ∗
-                       ⌜ρ = InGlobal → isWL p = false⌝
+                       ⌜ρ = InGlobal → isWL p = false⌝ ∗
+                       if_later_P has_later (pc_store_cond W C ρ P p)
                 else ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜ persistent_cond P' ⌝
                     ∗ ⌜ea ≠ pc_a⌝
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
-                       then if_later_P  has_later (wcond P' C interp)
-                       else True)
-                    ∗ (if readAllowed p
-                       then if_later_P  has_later (rcond P' C p' interp)
+                       then if_later_P  has_later
+                              (if isWL p then wcond P' C interp else wcond_nwl P' C interp)
                        else True)
                     ∗ ⌜mem = <[ea:=w]> (<[pc_a:=pc_w]> ∅)⌝
                     ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p p' w P' has_later))
@@ -172,7 +187,7 @@ Section fundamental.
     -∗ region_rel_part ρ W C (LNonHeap a) p' P
     -∗ world_interp_open W C [LNonHeap a]
     -∗ a ↦ₐ w_pc
-    -∗ ◇ ((allow_store_res imm W C r1 r2 regs a p' ρ true
+    -∗ ◇ ((allow_store_res imm W C r1 r2 regs a p' ρ P true
           ∗ a ↦ₐ w_pc)
          ∨ (∃ ι wd, ⌜regs !! r1 = Some wd⌝ ∗ ⌜has_authority wd.(lw)⌝ ∗
               ⌜wd.(lprov) = Some ι⌝ ∗ ι ⊒ AQuar ∗
@@ -193,7 +208,7 @@ Section fundamental.
       destruct (addr_key_pc _ _ _ Hkey) as [-> ->].
       iDestruct (interp_hpf_eq imm W C P regs r1 p0 g0 b0 e0 a0 a
         p p' ρ w_pc with "Hreg Hinva Hworld_interp Hapc")
-        as "(Hworld_interp & Hapc & %Hflp & %Hwlp)"; eauto.
+        as "(Hworld_interp & Hapc & [%Hflp %Hwlp] & Hcond)"; eauto.
       iModIntro. iLeft. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,None,storev. iFrame "%".
       rewrite Hea decide_True // decide_True //. by iFrame. }
     pose proof Hallows as (Hrinr & Hadd & Hwa & Hwb).
@@ -201,7 +216,7 @@ Section fundamental.
     iAssert (interp W C (Cap p0 g0 b0 e0 a0 @@? π0)) as "#Hvsrc".
     { iApply ("Hreg" $! r1 _ Hsrc). }
     iDestruct (write_allowed_inv _ _ ea0 with "Hvsrc")
-      as (p'' P'' Hflp'' Hcond_pers'') "(#Hrel'' & Hzcond'' & Hwcond'' & Hrcond'')"; auto
+      as (p'' P'' Hflp'' Hcond_pers'') "(#Hrel'' & Hzcond'' & Hwcond'' & _)"; auto
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
     assert (withinBounds b0 e0 ea0 = true) as Hbounds.
     { by rewrite /withinBounds Hle Hge. }
@@ -224,23 +239,18 @@ Section fundamental.
     rewrite decide_True // decide_False //.
     iExists p'',P'',w0.
     rewrite Hwa.
-    iAssert (if readAllowed p0 then ▷ rcond P'' C p'' interp else True)%I as "Hrcond0".
-    { destruct (readAllowed p0) eqn:Hra''; last done.
-      eapply readAllowed_flowsto in Hflp''; eauto.
-      destruct (readAllowed p''); try done.
-    }
-    iFrame "Hea0 Hzcond'' Hwcond'' Hrcond0".
+    iFrame "Hea0 Hzcond'' Hwcond''".
     iSplit; first done. iSplit; first done. iSplit; first done.
     iExists ρ'. by iFrame "Hpart' Hworld Hshare HP0 Hclose0 %".
   Qed.
 
   Lemma store_res_implies_mem_map (imm : Z)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p' : Perm) (ρ : region_part) (a : Addr) (w : LWord) (r1 : RegName) (r2 : Z + RegName) :
-    allow_store_res imm W C r1 r2 regs a p' ρ true
+    (p' : Perm) (ρ : region_part) (P : D) (a : Addr) (w : LWord) (r1 : RegName) (r2 : Z + RegName) :
+    allow_store_res imm W C r1 r2 regs a p' ρ P true
     -∗ a ↦ₐ w
     -∗ ∃ mem0 : LMem,
-        allow_store_mem imm W C r1 r2 regs a p' ρ w mem0 true
+        allow_store_mem imm W C r1 r2 regs a p' ρ P w mem0 true
         ∗ ▷ ([∗ map] a0↦w0 ∈ mem0, a0 ↦ₐ w0).
   Proof.
     iIntros "HStoreRes Ha".
@@ -258,7 +268,7 @@ Section fundamental.
         iExists t1,p1,g1,b1,e1,a1,π1,storev. iFrame "%". rewrite Hea.
         rewrite decide_True // decide_True //. by iFrame.
       + iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0' Hne)
-          "(HStoreCh & #Hzcond & #Hwcond & #Hrcond & HStoreRest)".
+          "(HStoreCh & #Hzcond & #Hwcond & HStoreRest)".
         iExists (<[ea1:=w0]> (<[a:=w]> ∅)).
         iSplitL "HStoreRest".
         { iExists t1,p1,g1,b1,e1,a1,π1,storev. iFrame "%". rewrite Hea.
@@ -273,9 +283,9 @@ Section fundamental.
 
   Lemma mem_map_implies_pure_conds (imm : Z)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p' : Perm) (ρ : region_part) (a : Addr)
+    (p' : Perm) (ρ : region_part) (P : D) (a : Addr)
     (w : LWord) (r1 : RegName) (r2 : Z + RegName) (mem0 : LMem) :
-    allow_store_mem imm W C r1 r2 regs a p' ρ w mem0 true
+    allow_store_mem imm W C r1 r2 regs a p' ρ P w mem0 true
     -∗ ⌜mem0 !! a = Some w⌝
     ∗ ⌜allow_store_map_or_true_imm r1 r2 imm regs mem0⌝.
   Proof.
@@ -295,7 +305,7 @@ Section fundamental.
         iPureIntro. exists t1,p1,g1,b1,e1,a1,storev. repeat split; auto.
         rewrite /reg_allows_store_imm Hea.
         case_decide; last done. exists w. by simplify_map_eq.
-      + iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0' Hne) "(_ & _ & _ & -> & _)".
+      + iDestruct "HStoreRes" as (p0' P0' w0 Hflp' HpersP0' Hne) "(_ & _ & -> & _)".
         iSplitR; first by simplify_map_eq.
         iPureIntro. exists t1,p1,g1,b1,e1,a1,storev. repeat split; auto.
         rewrite /reg_allows_store_imm Hea.
@@ -317,11 +327,10 @@ Section fundamental.
      lword_of_argument regs r2 = Some storev
     → reg_allows_store_imm regs r1 imm p0 g0 b0 e0 a0 ea0
     → mem0 !! ea0 = Some oldv
-    → allow_store_mem imm W C r1 r2 regs pc_a pc_p' ρ pc_w mem0 false
+    → allow_store_mem imm W C r1 r2 regs pc_a pc_p' ρ P pc_w mem0 false
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ interp W C (Cap pc_p pc_g pc_b pc_e pc_a @@? None)
     -∗ pc_content ρ W C P pc_w
-    -∗ wcond' P C pc_a regs
     -∗ ([∗ map] a0↦w0 ∈ <[ea0 := lstore_word p0 storev]> mem0, a0 ↦ₐ w0)
     -∗ ∃ v,
         world_interp_open W C [LNonHeap pc_a]
@@ -329,7 +338,7 @@ Section fundamental.
         ∗ pc_content ρ W C P v.
    Proof.
     iIntros (Hwoa Hras Ha0)
-      "HStoreMem #Hreg #HVPCr Hpc_w #Hwcond Hmem".
+      "HStoreMem #Hreg #HVPCr Hpc_w Hmem".
     iDestruct "HStoreMem" as (t1 p1 g1 b1 e1 a1 π1 storev1) "(%Hread & %Hπ & %Harg & HStoreRes)".
     destruct (store_inr_eq imm Hras Hread) as (<- & <- &<- &<- &<-).
     rewrite Hwoa in Harg; injection Harg as <-.
@@ -341,19 +350,13 @@ Section fundamental.
     { iApply (interp_lword_of_argument with "Hreg"); eauto. }
     case_decide as Hkey.
     + destruct (addr_key_pc _ _ _ Hkey) as [-> ->].
-      iDestruct "HStoreRes" as "(-> & HStoreRes & % & %Hwlp)".
+      iDestruct "HStoreRes" as "(-> & HStoreRes & % & %Hwlp & #Hcond)".
       rewrite insert_insert_eq -memMap_resource_1.
-      iExists (lstore_word p0 storev). iFrame. rewrite /wcond'.
-      rewrite decide_True.
-      2:{ eexists r1, _.
-          split; first exact Hsrc.
-          split; first done.
-          split; first done. cbn. done.
-      }
-      by iApply (pc_content_wcond with "Hwcond HVstorev").
+      iExists (lstore_word p0 storev). iFrame.
+      by iApply "Hcond".
     + iExists pc_w.
       iDestruct "HStoreRes"
-        as (p' P' w' Hflp' HpersP' Hne) "(#Hzcond' & #Hwcond' & #Hrcond' & -> & HStoreRes)".
+        as (p' P' w' Hflp' HpersP' Hne) "(#Hzcond' & #Hwcond' & -> & HStoreRes)".
       rewrite lookup_insert_eq in Ha0; inversion Ha0; clear Ha0; subst.
       iDestruct "HStoreRes" as (ρ1 Hρ1) "(#Hpart1 & Hworld_interp & _ & Hshare & Hclose1)".
       rewrite insert_insert_eq memMap_resource_2ne; last auto.
@@ -372,8 +375,8 @@ Section fundamental.
   #[local] Lemma mem_map_recover_res_fault (imm : Z)
     (W : WORLD) (C : CmptName) (regs : LReg)
     (pc_w : LWord) (r1 : RegName) (r2 : Z + RegName) (pc_p' : Perm) (ρ : region_part)
-    (pc_a : Addr) (mem0 : LMem) :
-    allow_store_mem imm W C r1 r2 regs pc_a pc_p' ρ pc_w mem0 false -∗
+    (P : D) (pc_a : Addr) (mem0 : LMem) :
+    allow_store_mem imm W C r1 r2 regs pc_a pc_p' ρ P pc_w mem0 false -∗
     ([∗ map] a0↦w0 ∈ mem0, a0 ↦ₐ w0) -∗
     world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ pc_w.
   Proof.
@@ -386,7 +389,7 @@ Section fundamental.
     case_decide as Hkey.
     - iDestruct "HStoreRes" as "(-> & $ & _)". rewrite -memMap_resource_1. iFrame.
     - iDestruct "HStoreRes"
-        as (p' P' w' Hflp' HpersP' Hne) "(_ & _ & _ & -> & HStoreRes)".
+        as (p' P' w' Hflp' HpersP' Hne) "(_ & _ & -> & HStoreRes)".
       iDestruct "HStoreRes"
         as (ρ1 Hρ1) "(#Hpart1 & Hworld_interp & HV & Hshare & Hclose1)".
       rewrite memMap_resource_2ne; last auto.
@@ -399,9 +402,9 @@ Section fundamental.
 
   Lemma allow_store_mem_later (imm : Z)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (a : Addr) (w : LWord) r1 r2 (p' : Perm) (ρ : region_part) (mem0 : LMem) :
-    allow_store_mem imm W C r1 r2 regs a p' ρ w mem0 true
-    -∗ ▷ allow_store_mem imm W C r1 r2 regs a p' ρ w mem0 false.
+    (a : Addr) (w : LWord) r1 r2 (p' : Perm) (ρ : region_part) (P : D) (mem0 : LMem) :
+    allow_store_mem imm W C r1 r2 regs a p' ρ P w mem0 true
+    -∗ ▷ allow_store_mem imm W C r1 r2 regs a p' ρ P w mem0 false.
   Proof.
     iIntros "HStoreMem".
     iDestruct "HStoreMem" as (t1 p1 g1 b1 e1 a1 π1 storev1) "(% & % & % & HStoreRes)".
@@ -409,12 +412,12 @@ Section fundamental.
     do 3 (iApply later_sep_2; iSplitR; auto).
     destruct (a1 + imm)%a; last by iFrame.
     case_decide; last iFrame.
-    case_decide; first iFrame.
-    iDestruct "HStoreRes" as (p0 P w0 Hp'O Hpers Hne) "(#Hzcond & #Hwcond & #Hrcond & -> & HStoreMem)".
+    case_decide.
+    { iDestruct "HStoreRes" as "(-> & Hw & % & % & Hcond)". iNext. by iFrame. }
+    iDestruct "HStoreRes" as (p0 P0 w0 Hp'O Hpers Hne) "(#Hzcond & #Hwcond & -> & HStoreMem)".
     repeat (iApply later_exist_2; iExists _).
     repeat (iApply later_sep_2; iSplitR; auto).
-    + iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
-    + iDestruct (if_later with "Hrcond") as "Hrcond'"; eauto.
+    iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
   Qed.
 
    Lemma store_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -489,7 +492,6 @@ Section fundamental.
     iApply (wp_store_imm (CL := link_core) with "[$HPC $Hmap $HMemRes]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
-    iDestruct (if_dec_later with "Hwcond") as "Hwcond'";auto.
     iDestruct (allow_store_mem_later imm with "HStoreMem") as "HStoreMem".
 
     iNext. iIntros (lpc' mem' retv). iDestruct 1 as (HSpec) "(HPC & Hmem & Hmap)".
@@ -506,7 +508,7 @@ Section fundamental.
       (* Step 4: return all the resources we had in order to close the second location
          in the region, in the cases where we need to *)
       iDestruct (mem_map_recover_res imm
-                  with "HStoreMem Hreg Hinv_interp Hinterp [Hwcond'] Hmem")
+                  with "HStoreMem Hreg Hinv_interp Hinterp Hmem")
         as (w') "(Hworld_interp & Ha & HSVInterp)"; eauto.
 
       iDestruct ("WorldRes" with "[$Ha $HSVInterp]") as "WorldRes".

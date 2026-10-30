@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -59,7 +59,7 @@ Section fundamental.
     - subst regs'. iApply (interp_linsert with "Hreg"). iIntros (Hdst_null).
       rewrite /auipcc_word.
       destruct (a + imm)%a as [a'|]; last by iApply interp_untagged.
-      iApply (interp_weakening with "IH Hinv_interp"); eauto; try solve_addr;
+      iApply (interp_weakening with "IH Hthread Hinv_interp"); eauto; try solve_addr;
       try apply subseg_heap_base_same.
       + eapply PermFlowsToReflexive.
       + apply LocalityFlowsToReflexive.

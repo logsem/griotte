@@ -13,7 +13,7 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
-    {CL : CritLink Σ}
+    {cthreads : CmptThreads} {CL : CritLink Σ}
     `{MP: MachineParameters}
   .
 
@@ -50,7 +50,7 @@ Section fundamental.
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
     iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
     { rewrite /jalr_link. destruct (decide (rdst = cra)) as [Hcra | Hcra].
-      2: { iApply (interp_weakening with "IH Hinv_interp");
+      2: { iApply (interp_weakening with "IH Hthread Hinv_interp");
            [solve_addr | solve_addr | apply subseg_heap_base_same
            | apply PermFlowsToReflexive | apply LocalityFlowsToReflexive]. }
       destruct Hp as [Hexec _].
@@ -100,8 +100,13 @@ Section fundamental.
            iDestruct "Hwsrc" as "[_ #Hinterp_src]".
            iAssert (future_world g0 W W) as "Hfuture".
            { iApply futureworld_refl. }
-           iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
-           apply LocalityFlowsToReflexive. }
+           destruct g0; iEval (cbn) in "Hinterp_src".
+           - (* A Global sentry, at the running thread of its compartment. *)
+             iSpecialize ("Hinterp_src" $! th with "Hthread").
+             iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
+             apply LocalityFlowsToReflexive.
+           - iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
+             apply LocalityFlowsToReflexive. }
       all: iNext; iApply "IH"; iExact "Hwsrc". }
     iNext.
     iApply (ftlr_post_next with "HPC Hmap Hreg' Hnext Hworld_interp"); first done.
