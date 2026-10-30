@@ -193,6 +193,12 @@ Ltac dispatch_instr_rule instr cont :=
   | SpecialRW cnull mtdc (inr _) => cont (@wp_writesr_mtdc)
   | SpecialRW cnull mtdc (inl _) => cont (@wp_specialrw_imm_mtdc)
   | SpecialRW ?r mtdc (inr ?r) => cont (@wp_specialrw_swap_mtdc)
+  (* SpecialRW on the stack high-water mark: csrr mshwm, csrr mshwmb,
+     csrw mshwm and csrw mshwmb *)
+  | SpecialRW _ mshwm (inr cnull) => cont (@wp_csrr_mshwm)
+  | SpecialRW _ mshwmb (inr cnull) => cont (@wp_csrr_mshwmb)
+  | SpecialRW cnull mshwm (inr _) => cont (@wp_csrw_mshwm)
+  | SpecialRW cnull mshwmb (inr _) => cont (@wp_csrw_mshwmb)
   (* SpecialRW: readsr, writesr, csrw with an immediate, swaps *)
   | SpecialRW _ _ (inr cnull) => cont (@wp_readsr_success)
   | SpecialRW cnull _ (inr _) => cont (@wp_writesr_success)

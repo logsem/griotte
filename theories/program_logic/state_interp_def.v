@@ -4,26 +4,34 @@ From griotte Require Import griotte_lang named_props_extra.
 From griotte Require Export resources crit_link.
 
 (** The logical system registers of a step, in one argument: the shared
-    heap [ls_sh] (without MTDC and mstatus), the ghost value [ls_mtdc] of
-    the thread's mtdc and its logical word [ls_vmtdc], MIE and MPIE. *)
+    heap [ls_sh] (without MTDC, mstatus, MSHWM and MSHWMB), the ghost value
+    [ls_mtdc] of the thread's mtdc and its logical word [ls_vmtdc], MIE,
+    MPIE, and the thread's MSHWMB [ls_hwmb] and MSHWM [ls_hwm]. *)
 Record LSys := MkLSys {
   ls_sh : LSReg;
   ls_mtdc : mtdc_val;
   ls_vmtdc : LWord;
   ls_mie : InterruptStatus;
   ls_mpie : InterruptStatus;
+  ls_hwmb : Z;
+  ls_hwm : Z;
 }.
 
 (** The logical system registers of [erasure]. *)
 Definition ls_join (ls : LSys) : LSReg :=
-  lsregs_join (ls_sh ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls).
+  lsregs_join (ls_sh ls) (ls_vmtdc ls) (ls_hwmb ls) (ls_hwm ls) (ls_mie ls) (ls_mpie ls).
 
 Definition ls_set_mstatus (ls : LSys) (mie mpie : InterruptStatus) : LSys :=
-  MkLSys (ls_sh ls) (ls_mtdc ls) (ls_vmtdc ls) mie mpie.
+  MkLSys (ls_sh ls) (ls_mtdc ls) (ls_vmtdc ls) mie mpie (ls_hwmb ls) (ls_hwm ls).
 Definition ls_set_mtdc (ls : LSys) (m : mtdc_val) (vm : LWord) : LSys :=
-  MkLSys (ls_sh ls) m vm (ls_mie ls) (ls_mpie ls).
+  MkLSys (ls_sh ls) m vm (ls_mie ls) (ls_mpie ls) (ls_hwmb ls) (ls_hwm ls).
 Definition ls_insert_sh (ls : LSys) (sr : SRegName) (v : LWord) : LSys :=
-  MkLSys (<[sr := v]> (ls_sh ls)) (ls_mtdc ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls).
+  MkLSys (<[sr := v]> (ls_sh ls)) (ls_mtdc ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls)
+    (ls_hwmb ls) (ls_hwm ls).
+Definition ls_set_hwmb (ls : LSys) (hb : Z) : LSys :=
+  MkLSys (ls_sh ls) (ls_mtdc ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls) hb (ls_hwm ls).
+Definition ls_set_hwm (ls : LSys) (h : Z) : LSys :=
+  MkLSys (ls_sh ls) (ls_mtdc ls) (ls_vmtdc ls) (ls_mie ls) (ls_mpie ls) (ls_hwmb ls) h.
 
 Lemma ls_join_mstatus ls :
   ls_join ls !! mstatus = Some (lword_of_word (WInt (mstatus_enc (ls_mie ls) (ls_mpie ls)))).
@@ -44,10 +52,34 @@ Proof.
 Qed.
 
 Lemma ls_join_insert_sh ls sr v :
-  sr ≠ mtdc → sr ≠ mstatus → ls_join (ls_insert_sh ls sr v) = <[sr := v]> (ls_join ls).
+  sr ≠ mtdc → sr ≠ mstatus → sr ≠ mshwm → sr ≠ mshwmb →
+  ls_join (ls_insert_sh ls sr v) = <[sr := v]> (ls_join ls).
 Proof.
-  intros H1 H2. rewrite /ls_join /lsregs_join /=.
+  intros H1 H2 H3 H4. rewrite /ls_join /lsregs_join /=.
   rewrite (insert_insert_ne _ sr mstatus) // (insert_insert_ne _ sr mtdc) //.
+  rewrite (insert_insert_ne _ sr mshwmb) // (insert_insert_ne _ sr mshwm) //.
+Qed.
+
+Lemma ls_join_mshwmb ls : ls_join ls !! mshwmb = Some (lword_of_word (WInt (ls_hwmb ls))).
+Proof. apply lsregs_join_mshwmb. Qed.
+
+Lemma ls_join_mshwm ls : ls_join ls !! mshwm = Some (lword_of_word (WInt (ls_hwm ls))).
+Proof. apply lsregs_join_mshwm. Qed.
+
+Lemma ls_join_set_hwmb ls hb :
+  ls_join (ls_set_hwmb ls hb) = <[mshwmb := lword_of_word (WInt hb)]> (ls_join ls).
+Proof.
+  rewrite /ls_join /lsregs_join /=.
+  rewrite (insert_insert_ne _ mshwmb mstatus) // (insert_insert_ne _ mshwmb mtdc) //.
+  by rewrite insert_insert_eq.
+Qed.
+
+Lemma ls_join_set_hwm ls h :
+  ls_join (ls_set_hwm ls h) = <[mshwm := lword_of_word (WInt h)]> (ls_join ls).
+Proof.
+  rewrite /ls_join /lsregs_join /=.
+  rewrite (insert_insert_ne _ mshwm mstatus) // (insert_insert_ne _ mshwm mtdc) //.
+  rewrite (insert_insert_ne _ mshwm mshwmb) //. by rewrite insert_insert_eq.
 Qed.
 
 (** The state interpretation: a part shared by the threads and the part of
@@ -58,7 +90,7 @@ Section state_interp.
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ,
-            !mtdcG Σ, !mieG Σ, !mpieG Σ}.
+            !mtdcG Σ, !mieG Σ, !mpieG Σ, !hwmG Σ}.
 
   (** The trap-entry windows of the running thread: the registers trap
       entry writes (MEPCC, mcause, mtval), held here, or lent to the code
@@ -71,6 +103,17 @@ Section state_interp.
               na_own cerise_pool (↑Ntrap ∖ ↑Ntval)) ∗
     "Hwin_tval" ∷ ((∃ z : Z, mtval ↦ₓ lword_of_word (WInt z)) ∨
                    na_own cerise_pool (↑Ntval)).
+
+  (** The zone of the thread covers [[hb, h)], and the state interpretation
+      holds half of each of its cells, zeroed. *)
+  Definition hwm_zone (hb h : Z) : iProp Σ :=
+    ∃ zone : gset Addr,
+      "%Hzone_cover" ∷ ⌜∀ a : Addr, (hb ≤ a < h)%Z → a ∈ zone⌝ ∗
+      "Hzone_auth" ∷ zone_auth zone ∗
+      "Hzone_cells" ∷ ([∗ set] a ∈ zone, a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt 0)).
+
+  #[global] Instance hwm_zone_timeless hb h : Timeless (hwm_zone hb h).
+  Proof. apply _. Qed.
 
   (** The shared part: the shared system registers (MTCC, which holds the
       trap vector [mtcc_vec], is reserved: no client holds its points-to),
@@ -90,9 +133,10 @@ Section state_interp.
 
   (** The part of the running thread: its PC, its registers, the authority
       of its mtdc ghost, the authority and fragment of MIE, its trap-entry
-      windows. *)
+      windows, the authorities of its MSHWMB and MSHWM, and its zone. *)
   Definition SI_th R C (σ : ExecConf) : iProp Σ :=
-    ∃ (lpc : LWord) (lreg : LReg) (m : mtdc_val) (vm : LWord) (mie : InterruptStatus),
+    ∃ (lpc : LWord) (lreg : LReg) (m : mtdc_val) (vm : LWord) (mie : InterruptStatus)
+      (hb h : Z),
       "HPCa" ∷ PC_auth lpc ∗
       "Hr" ∷ gen_heap_interp lreg ∗
       "Hmtdc" ∷ mtdc_auth m ∗
@@ -100,7 +144,10 @@ Section state_interp.
       "Hmie" ∷ MIE_auth mie ∗
       "Hmie_f" ∷ MIE_frag mie ∗
       "Hwins" ∷ trap_windows ∗
-      "%Herth" ∷ ⌜erasure_th R C σ lpc lreg vm mie⌝.
+      "Hmshwmb_a" ∷ mshwmb_auth hb ∗
+      "Hmshwm_a" ∷ mshwm_auth h ∗
+      "Hzone" ∷ hwm_zone hb h ∗
+      "%Herth" ∷ ⌜erasure_th R C σ lpc lreg vm mie hb h⌝.
 
   (** One [∃ R C] for both parts. *)
   Definition cerise_state_interp (σ : ExecConf) : iProp Σ :=
@@ -110,7 +157,8 @@ Section state_interp.
   Proof. apply _. Qed.
 
   (** The system registers of a step, as one hypothesis: the shared heap,
-      MTCC, MPIE, the thread's mtdc and MIE and its trap-entry windows. *)
+      MTCC, MPIE, the thread's mtdc and MIE, its trap-entry windows, and its
+      MSHWMB, MSHWM and zone. *)
   Definition sys_interp (ls : LSys) : iProp Σ :=
     "Hsr" ∷ gen_heap_interp (ls_sh ls) ∗
     "Hmtcc" ∷ mtcc ↦ₓ lword_of_word mtcc_vec ∗
@@ -121,7 +169,11 @@ Section state_interp.
     "Hmie" ∷ MIE_auth (ls_mie ls) ∗
     "Hmie_f" ∷ MIE_frag (ls_mie ls) ∗
     "Hwins" ∷ trap_windows ∗
-    "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
+    "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝ ∗
+    "Hmshwmb_a" ∷ mshwmb_auth (ls_hwmb ls) ∗
+    "Hmshwm_a" ∷ mshwm_auth (ls_hwm ls) ∗
+    "Hzone" ∷ hwm_zone (ls_hwmb ls) (ls_hwm ls) ∗
+    "%Hlsh_hwm" ∷ ⌜ls_sh ls !! mshwm = None ∧ ls_sh ls !! mshwmb = None⌝.
 End state_interp.
 
 (* invariants for memory, and a state interpretation for (mem,reg), with

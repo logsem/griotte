@@ -167,6 +167,9 @@ Section griotte_lang_rules.
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     destruct (Hdomsys sr) as [Hsr_mtdc Hsr_mst]; first by eapply elem_of_dom_2.
+    iAssert (⌜sr ≠ mshwm ∧ sr ≠ mshwmb⌝)%I as %[Hsr_hwm Hsr_hwmb].
+    { iDestruct (big_sepM_lookup_acc with "Hsmap") as "[Hp _]"; first exact Hvold.
+      iApply (sys_interp_not_hwm with "Hsr Hp"). }
     destruct (specialrw_sregs_phys R C _ r psr m st _ lreg (ls_join lsreg) lmem regs sregs sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
