@@ -215,14 +215,6 @@ Section fundamental.
       iFrame.
   Qed.
 
-  Lemma fundamental_ih :
-    ⊢ ftlr_IH.
-  Proof.
-    iModIntro; iNext.
-    iIntros (t W C w) "Hw".
-    iApply (fundamental_all_threads with "Hw").
-  Qed.
-
   Lemma jmp_or_fail_spec W C (w : LWord) φ :
     ⊢ (interp W C w
      -∗ (if decide (isCorrectPC (updatePcPerm w.(lw)))

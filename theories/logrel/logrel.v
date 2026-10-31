@@ -506,13 +506,6 @@ Section logrel_expr.
     Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
-  (** [zcond] for any word that is an integer, without destructing it. *)
-  Lemma zcond_IsLInt (P : V) (C : CmptName) W1 W2 w z :
-    IsLInt w z → zcond P C -∗ P W1 C w -∗ P W2 C w.
-  Proof.
-    intros (π & ->)%IsLInt_inv. iIntros "#Hz HP". by iApply "Hz".
-  Qed.
-
   (** [rcond] states that stored values satisfying [P] are safe after the
       deep-permission load filter and the current world's heap revocation filter. *)
   Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
@@ -945,9 +938,6 @@ Section logrel_expr.
     - iExists DerefNoId. iSplit; first done. iSplit; first done. by iIntros.
   Qed.
 
-  Definition region_state_pwl (W : WORLD) (k : LAddr) : Prop :=
-    (std W) !! k = Some Temporary.
-
   (** The world-free image of a safety predicate, for a Global region. *)
   Notation safeGC P := (λ Cv : CmptName * LWord, P ∅ Cv.1 Cv.2).
 
@@ -1007,14 +997,6 @@ Section logrel_expr.
   #[global] Instance region_valid_persistent W C k : Persistent (region_valid W C k).
   Proof. apply _. Qed.
 
-  Lemma region_rel_valid W C k p' P p g :
-    region_rel W C k p' P p g -∗ region_valid W C k.
-  Proof.
-    iIntros "H". iDestruct (region_rel_parts with "H") as (ρ) "H".
-    destruct ρ; [iRight; by iExists _, _|].
-    iDestruct "H" as "(_ & % & _)". by iLeft.
-  Qed.
-
   (** Interp trivially holds for integers. *)
   Definition interp_z : V := λne _ _ w, ⌜match w.(lw) with WInt z => True | _ => False end⌝%I.
 
@@ -1043,16 +1025,6 @@ Section logrel_expr.
     heap_cap_ok p b e (Some ι) -∗
     ⌜is_heap_address b = true ∧ executeAllowed p = false ∧ isWL p = false⌝.
   Proof. iIntros (Hbe) "Hok". by iDestruct ("Hok" with "[%]") as "[$ _]". Qed.
-
-  Lemma heap_cap_ok_key_known p b e π a :
-    a ∈ finz.seq_between b e ->
-    heap_cap_ok p b e π -∗ heap_key_known (addr_key π a).
-  Proof.
-    iIntros (Ha) "#Hok". apply elem_of_finz_seq_between in Ha.
-    destruct π as [ι|]; last by rewrite addr_key_None.
-    iDestruct ("Hok" with "[%]") as "[_ (%bo & %eo & #Hobj & %Hbo)]"; first solve_addr.
-    rewrite addr_key_Some. iExists bo, eo. iFrame "Hobj". iPureIntro. solve_addr.
-  Qed.
 
   (** Tagged O capabilities retain authority to free their heap payload: each
       heap cell of the range is a Global region or, under a Local capability,
@@ -1516,7 +1488,6 @@ Section logrel.
   Definition interp_continuation : K := interp_cont interp.
   Program Definition interp_expression : E :=
     interp_expr interp interp_continuation.
-  Definition interp_registers : R := interp_reg interp.
 
   (** [frame_match] and [interp_continuation] do not read the error
       handler count of the topmost frame. *)
@@ -1546,12 +1517,6 @@ Section logrel.
   Proof. apply interp_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag. Qed.
 
   Lemma interp_int W C z π : ⊢ interp W C (WInt z @@? π).
-  Proof. by apply interp_untagged. Qed.
-
-  Lemma interp_IsLInt W C w z : IsLInt w z → ⊢ interp W C w.
-  Proof. intros (π & ->)%IsLInt_inv. apply interp_int. Qed.
-
-  Lemma interp_lnull W C : ⊢ interp W C lnull.
   Proof. by apply interp_untagged. Qed.
 
   (** We have, and we _WANT_, [interp] to be Persistent *)
@@ -1631,8 +1596,6 @@ Section logrel.
   Qed.
 
 
-  (* Non-curried version of interp *)
-  Notation interpC := (safeC interp).
   Notation interp_in_memC := (safeC (interp_in_mem RWL)).
 
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a π :
@@ -1769,32 +1732,6 @@ Section logrel.
   Proof.
     iIntros "#Hth H". destruct g; cbn; [|done].
     iNext. iApply ("H" $! th with "Hth").
-  Qed.
-
-  (* Inversion lemmas about about when R-capability *)
-  Lemma readAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a a' π :
-    readAllowed p = true ->
-    withinBounds b e a' = true ->
-    interp W C (Cap p g b e a @@? π) -∗
-    region_valid W C (addr_key π a').
-  Proof.
-    intros Hra Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    iDestruct (interp_cap_addr with "Hinterp") as (p' P' Hfl' Hpers') "(Hrel & _)";
-      [by eapply readAllowed_nonO|done|].
-    by iApply region_rel_valid.
-  Qed.
-
-  Lemma readAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a' π :
-    readAllowed p = true ->
-    interp W C (Cap p g b e a' @@? π) -∗
-    [∗ list] a ∈ finz.seq_between b e, region_valid W C (addr_key π a).
-  Proof.
-    iIntros (Hra) "#Hinterp".
-    iApply big_sepL_intro. iIntros "!>" (k a Ha).
-    apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha.
-    iApply (readAllowed_valid_cap_implies with "Hinterp"); first done.
-    apply withinBounds_true_iff. solve_addr.
   Qed.
 
   Lemma read_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
@@ -1947,42 +1884,6 @@ Section logrel.
     destruct t.
     - rewrite !interp_unfold !interp1_eq. reflexivity.
     - rewrite !interp_untagged_eq; done.
-  Qed.
-
-  Lemma writeAllowed_valid_cap_implies (W : WORLD) (C : CmptName) p g b e a π :
-    writeAllowed p = true ->
-    withinBounds b e a = true ->
-    interp W C (Cap p g b e a @@? π) -∗
-    region_valid W C (addr_key π a).
-  Proof.
-    intros Hra Hb. iIntros "Hinterp".
-    eapply withinBounds_le_addr in Hb.
-    iDestruct (interp_cap_addr with "Hinterp") as (p' P' Hfl' Hpers') "(Hrel & _)";
-      [by eapply writeAllowed_nonO|done|].
-    by iApply region_rel_valid.
-  Qed.
-
-  Lemma writeAllowed_valid_cap_implies_at W C p g b e a ea π :
-    writeAllowed p = true →
-    withinBounds b e ea = true →
-    interp W C (Cap p g b e a @@? π) -∗
-    region_valid W C (addr_key π ea).
-  Proof.
-    intros Hwa Hb.
-    rewrite (interp_cap_cur_addr W C true p g b e a ea).
-    apply writeAllowed_valid_cap_implies; done.
-  Qed.
-
-  Lemma writeAllowed_valid_cap (W : WORLD) (C : CmptName) p g b e a' π :
-    writeAllowed p = true ->
-    interp W C (Cap p g b e a' @@? π) -∗
-    [∗ list] a ∈ finz.seq_between b e, region_valid W C (addr_key π a).
-  Proof.
-    iIntros (Hwa) "#Hinterp".
-    iApply big_sepL_intro. iIntros "!>" (k a Ha).
-    apply list_elem_of_lookup_2, elem_of_finz_seq_between in Ha.
-    iApply (writeAllowed_valid_cap_implies_at with "Hinterp"); first done.
-    apply withinBounds_true_iff. solve_addr.
   Qed.
 
   (* Inversion lemmas about about when WL-capability *)
@@ -2678,9 +2579,7 @@ End logrel_trap.
 
 Notation safeC P :=
   (λ WCv : WORLD * CmptName * (leibnizO LWord), P WCv.1.1 WCv.1.2 WCv.2).
-Notation interpC := (safeC interp).
 
 Notation interp_in_memC := (safeC (interp_in_mem RWL)).
 Notation safeGC P := (λ Cv : CmptName * LWord, P ∅ Cv.1 Cv.2).
-Notation interp_gC := (safeGC interp).
 Notation interp_in_mem_gC := (safeGC (interp_in_mem RWL)).

@@ -75,9 +75,6 @@ Section local_world.
   Lemma revoke_not_Temporary W k : std (revoke W) !! k ≠ Some Temporary.
   Proof. rewrite revoke_lookup. destruct (std W !! k) as [ [] | ]; simpl; done. Qed.
 
-  Lemma revoke_revoke_condition W : revoke_condition (revoke W).
-  Proof. intros k. apply revoke_not_Temporary. Qed.
-
   (** A restored key of the domain is Temporary. *)
   Lemma close_set_Temporary S W k :
     k ∈ S → k ∈ dom (std W) →
@@ -175,12 +172,6 @@ Section rmap.
     all: apply big_sepM_proper; intros k x _; repeat case_decide; try done; exfalso; set_solver.
   Qed.
 
-  Lemma rmap_lookup {A} `{!savedPredG Σ A} γ M body O k p (φ : A → iProp Σ) :
-    rmap γ M body O -∗ rmap_rel γ k p φ -∗ ⌜∃ γp, M !! k = Some (γp, p)⌝.
-  Proof.
-    iIntros "(Ha & _) (%γp & Hel & _)". iDestruct (ghost_map_lookup with "Ha Hel") as %?. eauto.
-  Qed.
-
   (** Opening a key [k ∉ O], with other keys open: the stored predicate [φ']
       with its own [rmap_rel], its body, and its equivalence with the client's. *)
   Lemma rmap_open {A} `{!savedPredG Σ A} γ M body O k p (φ : A → iProp Σ) :
@@ -225,37 +216,6 @@ Section rmap.
     - iApply big_sepM_insert; [by apply not_elem_of_dom|]. by iFrame "∗#".
     - iApply big_sepM_insert; [by apply not_elem_of_dom|]. rewrite decide_False //.
       iFrame "Hb". iExists φ. by iFrame "#∗%".
-  Qed.
-
-  (** Inserting fresh keys, with any keys open. *)
-  Lemma rmap_insert_list {A} `{!savedPredG Σ A} γ M body O (ks : list LAddr) p
-      (φ : A → iProp Σ) :
-    NoDup ks → (∀ k, k ∈ ks → k ∉ dom M ∧ k ∉ O) → (∀ x, Persistent (φ x)) →
-    rmap γ M body O -∗ ([∗ list] k ∈ ks, heap_key_known k ∗ body k p φ) ==∗
-    ∃ M', rmap γ M' body O ∗ ⌜M ⊆ M'⌝ ∗ [∗ list] k ∈ ks, rmap_rel γ k p φ.
-  Proof.
-    revert M. induction ks as [|k ks IH]; iIntros (M Hnd Hks Hp) "Hm Hb /=".
-    - iModIntro. iExists M. by iFrame.
-    - apply NoDup_cons in Hnd as [Hk Hnd]. iDestruct "Hb" as "[ [#Hkn Hbk] Hb]".
-      destruct (Hks k) as [HkM HkO]; [set_solver|].
-      iMod (rmap_insert _ _ _ _ k p φ HkM HkO Hp with "Hm Hkn Hbk") as (γp) "[Hm #Hr]".
-      assert (∀ k', k' ∈ ks → k' ∉ dom (<[k := (γp, p)]> M) ∧ k' ∉ O) as Hks'.
-      { intros k' Hk'. rewrite dom_insert_L. destruct (Hks k') as [? ?]; [set_solver|].
-        assert (k' ≠ k) by set_solver. split; [set_solver|done]. }
-      iMod (IH _ Hnd Hks' Hp with "Hm Hb") as (M') "(Hm & %HM' & Hrs)".
-      iModIntro. iExists M'. iFrame "Hm Hrs Hr". iPureIntro. etrans; [|exact HM'].
-      by apply insert_subseteq, not_elem_of_dom.
-  Qed.
-
-  (** Freshness from [heap_key_known], which covers the open keys too. *)
-  Lemma rmap_fresh_heap {A} `{!savedPredG Σ A} γ M body O (R : RegState) ι' :
-    R !! ι' = None →
-    reg_auth R -∗ rmap γ M body O -∗ ⌜∀ a, LHeap a ι' ∉ dom M⌝.
-  Proof.
-    iIntros (Hf) "HR (_ & #Hks & _)". iIntros (a [γp Ha]%elem_of_dom).
-    iDestruct (big_sepM_lookup _ _ (LHeap a ι') with "Hks") as "[_ (%b & %e & Hobj & _)]";
-      [exact Ha|].
-    iDestruct (reg_lookup_None with "HR Hobj") as %Hne. by rewrite Hf in Hne.
   Qed.
 
   (** Key-wise rewriting of a map: each entry, given an input [Y k], becomes
@@ -432,41 +392,6 @@ Section region_maps.
     iApply (rmap_close with "Hm Hr Hb"); done.
   Qed.
 
-  (** Reuse of a fresh identifier: its keys are fresh in the map, even with
-      keys open. The allocation's cells enter the map of Permanent regions
-      with their shares; the client half and the allocator's share come
-      out. *)
-  Lemma g_reuse C M O R ι' b e p (φ : CmptName * LWord → iProp Σ) :
-    R !! ι' = None → (∀ a, LHeap a ι' ∉ O) → isO p = false → (∀ x, Persistent (φ x)) →
-    reg_auth R -∗
-    wig_M C M O -∗
-    ([∗ list] a ∈ finz.seq_between b e, ∃ v, a ↦ₐ v ∗ ▷ φ (C, v))
-    ==∗
-    ∃ γ M', reg_auth (<[ι' := (b, e, γ, ALive)]> R) ∗ alloc_obj ι' b e ∗
-      ι' ↦st{1/2} ALive ∗ ι' ↦st{share (finz.dist b e)} ALive ∗
-      wig_M C M' O ∗ ⌜M ⊆ M'⌝ ∗
-      [∗ list] a ∈ finz.seq_between b e, rel_g C (LHeap a ι') p φ.
-  Proof.
-    iIntros (Hf HO Hp Hpers) "HR Hm Hc".
-    iDestruct (rmap_fresh_heap with "HR Hm") as %Hfresh; [done|].
-    iMod (reg_alloc R ι' b e Hf with "HR") as (γ) "(HR & #Hobj & Hst)".
-    rewrite (st_own_split_alloc ι' (finz.seq_between b e)) finz_seq_between_length.
-    iDestruct "Hst" as "(Hhalf & Hal & Hshares)".
-    iMod (rmap_insert_list _ _ _ O ((λ a, LHeap a ι') <$> finz.seq_between b e) p φ
-      with "Hm [Hc Hshares]") as (M') "(Hm & %HM & Hrs)".
-    { apply NoDup_fmap_2; [intros a1 a2 [= ->]; done|apply finz_seq_between_NoDup]. }
-    { intros k (a & -> & _)%list_elem_of_fmap. split; [apply Hfresh|apply HO]. }
-    { rewrite big_sepL_fmap. iDestruct (big_sepL_sep_2 with "Hc Hshares") as "Hc".
-      iApply (big_sepL_impl with "Hc"). iIntros "!>" (i a Ha) "[(%v & Hv & Hφ) Hs]".
-      assert (a ∈ₐ [b, e)) as Hin.
-      { apply elem_of_finz_seq_between. by eapply list_elem_of_lookup_2. }
-      iSplitR; [iExists b, e; by iFrame "Hobj"|].
-      iLeft. iExists v. iSplit; [done|]. iFrame "Hv Hφ". iExists b, e. by iFrame "Hobj Hs". }
-    iModIntro. iExists γ, M'. iFrame "HR Hobj Hhalf Hal Hm". iSplit; [done|].
-    rewrite big_sepL_fmap. iApply (big_sepL_mono with "Hrs").
-    iIntros (i a _) "Hr". by rewrite rel_g_eq.
-  Qed.
-
   (** ** The local map *)
 
   Lemma l_open t W C O k p φ :
@@ -510,18 +435,6 @@ Section region_maps.
     iApply (rmap_close _ _ _ _ k p φ Hk Hp with "Hm Hr [Hb]"). by rewrite /body_l HT.
   Qed.
 
-  (** An open key closed at a later public world, with a body taken at [W]:
-      the key's state at [W'] is a pure side condition. *)
-  Lemma l_close_next t W W' C O k p φ :
-    k ∉ O → related_sts_pub_world W W' → std W' !! k = Some Temporary → (∀ x, Persistent (φ x)) →
-    world_interp_l_open t W' C ({[k]} ∪ O) -∗ rel_l t C k p φ -∗ temp_res W C k p φ -∗
-    world_interp_l_open t W' C O.
-  Proof.
-    iIntros (Hk Hp HT Hpers) "Hw Hr Hb".
-    iDestruct (temp_res_mono_pub with "Hb") as "Hb"; [exact Hp|].
-    iApply (l_close with "Hw Hr Hb"); done.
-  Qed.
-
   (** A public world step of the local map: the closed Temporary bodies move
       by their [future_pub_mono]; a closed key Temporary at [W'] was
       Temporary at [W]. *)
@@ -555,10 +468,6 @@ Section region_maps.
 
   (** ** The custom STS of a thread *)
 
-  Lemma l_loc_agree {D} `{Countable D} t W C O i (d : D) :
-    world_interp_l_open t W C O -∗ sts_state_loc (th:=t) C i d -∗ ⌜loc W !! i = Some (encode d)⌝.
-  Proof. iIntros "(%M & Hw) Hf". iNamed "Hw". iApply (sts_full_state_loc with "Hloc Hf"). Qed.
-
   (** A private step of the custom STS, under [revoke_condition]: no body
       is Temporary, so none needs private monotonicity. *)
   Lemma l_update_loc_priv {D} `{Countable D} t W C O i (d d' : D) :
@@ -575,24 +484,6 @@ Section region_maps.
     iIntros "!>" (k γp Hk) "_ _ Hb". iSplitL; [|done]. case_decide; [done|].
     iDestruct "Hb" as (φ) "(%Hp & #Hsp & Hb)". iExists φ. iSplit; [done|]. iFrame "Hsp".
     rewrite /body_l /=. specialize (Hrc k). by destruct (std W !! k) as [ [] | ].
-  Qed.
-
-  (** A public step of the custom STS, with Temporary keys present: their
-      bodies move by their [future_pub_mono]. *)
-  Lemma l_update_loc_pub {D} `{Countable D} t W C O i (d d' : D) :
-    related_sts_pub_world W (<l[i := d']l> W) →
-    world_interp_l_open t W C O -∗ sts_state_loc (th:=t) C i d ==∗
-    world_interp_l_open t (<l[i := d']l> W) C O ∗ sts_state_loc (th:=t) C i d'.
-  Proof.
-    iIntros (Hpub) "(%M & Hw) Hf". iNamed "Hw".
-    iMod (sts_update_loc with "Hloc Hf") as "[Hloc $]". iModIntro.
-    iExists M. rewrite /wil_M /=. iFrame "Hloc". iSplit; [done|].
-    iDestruct (rmap_transform _ M _ (body_l (<l[i := d']l> W) C) O O
-      (λ _, emp)%I (λ _, emp)%I with "[] [] Hm") as "[$ _]".
-    { iApply big_sepM_intro. by iIntros "!>" (???). }
-    iIntros "!>" (k γp Hk) "_ _ Hb". iSplitL; [|done]. case_decide; [done|].
-    iDestruct "Hb" as (φ) "(%Hp & #Hsp & Hb)". iExists φ. iSplit; [done|]. iFrame "Hsp".
-    iApply (body_l_mono_pub with "Hb"); [done|]. by intros HT.
   Qed.
 
   (** ** Revocation and restoration, with keys open *)
@@ -684,41 +575,6 @@ Section region_maps.
     iApply (l_restore_open with "Hw HR"). exact HS.
   Qed.
 
-  (** Revoking, then restoring every Temporary key and every open key, is a
-      public step: a Temporary key goes back to Temporary, an open Revoked
-      key becomes Temporary. *)
-  Lemma related_pub_revoke_close_set W O S :
-    extract_T W O S → related_sts_pub_world W (close_set (S ∪ O) (revoke W)).
-  Proof.
-    intros HS. split; [|apply related_sts_pub_refl].
-    split; [by rewrite dom_close_set dom_revoke|].
-    intros k x y Hx Hy. rewrite close_set_lookup revoke_lookup Hx /= in Hy.
-    injection Hy as <-.
-    destruct x; simpl; case_decide as HkSO; try apply rtc_refl.
-    - exfalso. apply HkSO. destruct (decide (k ∈ O)) as [HkO|HkO]; [set_solver|].
-      apply elem_of_union_l, HS. done.
-    - apply rtc_once. constructor.
-  Qed.
-
-  (** The restore of a call's return: the callee's world [W2] is revoked,
-      and its Temporary keys and its open keys (the callee's stack) are
-      restored. Only the revoked bodies are needed: the open keys get their
-      bodies back from their holder when they close. *)
-  Lemma l_restore_all t W2 C O S :
-    extract_T W2 O S → O ⊆ dom (std W2) →
-    world_interp_l_open t (revoke W2) C O -∗ RevokedRes t W2 C S -∗
-    world_interp_l_open t (close_set (S ∪ O) (revoke W2)) C O.
-  Proof.
-    iIntros (HS HO) "Hw HR".
-    assert (S ## O) as HSO.
-    { intros k Hk1 Hk2. by destruct (proj1 (HS k) Hk1). }
-    iApply (l_restore_from t W2 (revoke W2) C O (S ∪ O) with "Hw [HR]").
-    - rewrite dom_revoke. intros k [Hk|Hk]%elem_of_union; [|by apply HO].
-      apply HS in Hk as [HT _]. by apply elem_of_dom_std_2 in HT.
-    - by apply related_pub_revoke_close_set.
-    - by replace ((S ∪ O) ∖ O) with S by set_solver.
-  Qed.
-
   (** ** Separation *)
 
   (** A key whose body would conflict with an exclusive [X] is not
@@ -735,21 +591,6 @@ Section region_maps.
     - iDestruct "Hb" as (v) "(_ & Hv & _)". iApply ("Hc" with "Hv HX").
     - iDestruct "Hb" as "[(%v & _ & Hv & _)|Hq]"; [iApply ("Hc" with "Hv HX")|].
       by iApply ("Ht" with "[//] Hq HX").
-  Qed.
-
-  (** Owning the cell of a key forces it Revoked: a Temporary key would own
-      the cell, or, for a heap key, a tombstone, which the cell's live share
-      refutes. *)
-  Lemma revoked_by_separation_l t W C O k p φ w :
-    k ∉ O → k ∈ dom (std W) →
-    world_interp_l_open t W C O -∗ rel_l t C k p φ -∗ k ↦ₖ w -∗
-    world_interp_l_open t W C O ∗ k ↦ₖ w ∗ ⌜std W !! k = Some Revoked⌝.
-  Proof.
-    iIntros (Hk [ρ Hρ]%elem_of_dom_std) "Hw #Hr Hv".
-    destruct ρ; [|iFrame "Hw Hv"; by iPureIntro].
-    iExFalso. iApply (l_excl_not_T _ _ _ _ _ _ _ (k ↦ₖ w) with "[] [] Hw Hr Hv"); [done|done| |].
-    - iIntros "!>" (v) "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
-    - iIntros "!>" (a ι ->) "Hq Hv". iApply (heap_pointsto_quar_false with "Hv Hq").
   Qed.
 
   (** ** Tombstones *)
@@ -1008,43 +849,6 @@ Section region_maps.
   (** The general form, with the open keys of each part. *)
   Definition world_interp_open_gl W C (Og Ol : gset LAddr) : iProp Σ :=
     world_interp_g_open C Og ∗ world_interp_l_open th W C Ol.
-
-  (** Opening and closing at the level of both parts, each with its own open
-      keys. *)
-  Lemma wi_open_g W C Og Ol k p φ :
-    k ∉ Og →
-    world_interp_open_gl W C Og Ol -∗ rel_g C k p φ -∗
-    world_interp_open_gl W C ({[k]} ∪ Og) Ol ∗
-    ∃ φ', ⌜∀ x, Persistent (φ' x)⌝ ∗ rel_g C k p φ' ∗ body_g C k p φ' ∗ ▷ (∀ x, φ x ≡ φ' x).
-  Proof.
-    iIntros (Hk) "[Hg $] Hr". iApply (g_open with "Hg Hr"). done.
-  Qed.
-
-  Lemma wi_close_g W C Og Ol k p φ :
-    k ∉ Og → (∀ x, Persistent (φ x)) →
-    world_interp_open_gl W C ({[k]} ∪ Og) Ol -∗ rel_g C k p φ -∗ body_g C k p φ -∗
-    world_interp_open_gl W C Og Ol.
-  Proof.
-    iIntros (Hk Hp) "[Hg $] Hr Hb". iApply (g_close with "Hg Hr Hb"); done.
-  Qed.
-
-  Lemma wi_open_l W C Og Ol k p φ :
-    k ∉ Ol → std W !! k = Some Temporary →
-    world_interp_open_gl W C Og Ol -∗ rel_l th C k p φ -∗
-    world_interp_open_gl W C Og ({[k]} ∪ Ol) ∗
-    ∃ φ', ⌜∀ x, Persistent (φ' x)⌝ ∗ rel_l th C k p φ' ∗ temp_res W C k p φ' ∗
-      ▷ (∀ x, φ x ≡ φ' x).
-  Proof.
-    iIntros (Hk HT) "[$ Hl] Hr". iApply (l_open with "Hl Hr"); done.
-  Qed.
-
-  Lemma wi_close_l W C Og Ol k p φ :
-    k ∉ Ol → std W !! k = Some Temporary → (∀ x, Persistent (φ x)) →
-    world_interp_open_gl W C Og ({[k]} ∪ Ol) -∗ rel_l th C k p φ -∗ temp_res W C k p φ -∗
-    world_interp_open_gl W C Og Ol.
-  Proof.
-    iIntros (Hk HT Hp) "[$ Hl] Hr Hb". iApply (l_close with "Hl Hr Hb"); done.
-  Qed.
 
 End region_maps.
 

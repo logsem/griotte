@@ -165,13 +165,6 @@ Definition chopped_csp (b e a : Addr) : Word :=
 Definition callee_csp (b e a : Addr) : Word :=
   Cap RWL Local (stk_callee_b b a) (stk_callee_e e a)
     (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
-(** The callee's stack pointer is that of a fresh stack on the callee's
-    bounds. *)
-Lemma callee_csp_start b e a :
-  callee_csp b e a =
-  Cap RWL Local (stk_callee_b b a) (stk_callee_e e a)
-    (stk_start_a (stk_callee_b b a) (stk_callee_e e a)).
-Proof. done. Qed.
 (** The addresses of the callee's stack. *)
 Definition callee_stk_region (b e a : Addr) : list Addr :=
   finz.seq_between (stk_callee_b b a) (stk_callee_e e a).
@@ -282,13 +275,6 @@ Definition top_export_tbl (cstk : cstack) : Addr := tf_export_tbl_b (top_tframe 
 (** The error handler count of the topmost frame. *)
 Definition top_error_count (cstk : cstack) : Z := (top_tframe cstk).(tf_error_count).
 
-Lemma top_tframe_push (frm : cframe) (cstk : cstack) :
-  top_tframe (cstack_push frm cstk) = frm.(cf_tframe).
-Proof. done. Qed.
-Lemma top_tframe_entry (ef : trusted_frame) :
-  top_tframe (entry_cstack ef) = ef.
-Proof. done. Qed.
-
 (** The frame [tf] with its error handler count set to [n]. *)
 Definition tf_set_count (tf : trusted_frame) (n : Z) : trusted_frame :=
   {| tf_csp := tf.(tf_csp); tf_export_tbl := tf.(tf_export_tbl); tf_error_count := n |}.
@@ -318,9 +304,6 @@ Lemma top_error_count_set_count cstk n :
 Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 Lemma top_export_tbl_set_count cstk n :
   top_export_tbl (cstack_set_top_count cstk n) = top_export_tbl cstk.
-Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
-Lemma top_is_entry_set_count cstk n :
-  top_is_entry (cstack_set_top_count cstk n) = top_is_entry cstk.
 Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 Lemma cstack_set_top_count_frames_length cstk n :
   length (cstack_set_top_count cstk n).(cstk_frames) = length cstk.(cstk_frames).

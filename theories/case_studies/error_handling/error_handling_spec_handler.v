@@ -141,15 +141,6 @@ Section Error_Handling_Handler.
     - apply STATS_pcc_base_not_heap.
   Qed.
 
-  (** The release follows the load. *)
-  Lemma stats_release_addr_next : (stats_load_addr + 1)%a = Some stats_release_addr.
-  Proof.
-    pose proof STATS_size_imports as Hsize_imports.
-    pose proof STATS_size_code as Hsize_code.
-    rewrite /stats_load_addr /stats_release_addr.
-    cbn in Hsize_code |- *. solve_addr.
-  Qed.
-
   (** ** The register that a fault names *)
 
   Lemma reg_index_cnull : reg_index cnull = 0%Z.

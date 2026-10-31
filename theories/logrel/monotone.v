@@ -37,15 +37,6 @@ Section monotone.
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
   Qed.
 
-  Lemma region_state_pwl_monotone W W' a :
-    related_sts_pub_world W W' →
-    region_state_pwl W a -> region_state_pwl W' a.
-  Proof.
-    rewrite /region_state_pwl.
-    intros Hrelated Hstate; simplify_eq.
-    eapply region_state_pub_temp in Hstate; eauto.
-  Qed.
-
   (** A sealed word under a Global-kind otype is valid in every world. *)
   Lemma interp_monotone_sd W W' C ot sb π P :
     ⌜related_sts_priv_world W W'⌝ -∗
@@ -208,18 +199,6 @@ Section monotone.
     exact Hrelated.
   Qed.
 
-  Lemma safe_to_seal_monotone C W W' b e :
-    related_sts_priv_world W W' ->
-    safe_to_seal W C (λ t, interp (th := t)) b e -∗
-    safe_to_seal W' C (λ t, interp (th := t)) b e.
-  Proof. by iIntros (Hrelated) "#Hw". Qed.
-
-  Lemma safe_to_unseal_monotone C W W' b e :
-    related_sts_priv_world W W' ->
-    safe_to_unseal W C (λ t, interp (th := t)) b e -∗
-    safe_to_unseal W' C (λ t, interp (th := t)) b e.
-  Proof. by iIntros (Hrelated) "#Hw". Qed.
-
   Lemma interp_monotone_sealrange (W W' : WORLD) C t p g b e a π :
     ⌜related_sts_priv_world W W'⌝
     -∗ interp W C (WSealRange t p g b e a @@? π) -∗ interp W' C (WSealRange t p g b e a @@? π).
@@ -291,17 +270,6 @@ Section monotone.
     intros Hrelated.
     change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
     iIntros "Hw". by iApply (interp_monotone with "[] Hw").
-  Qed.
-
-  Lemma interp_in_mem_monotone_nl W W' C p w :
-    related_sts_priv_world W W' ->
-    isLocalWord (load_word p w.(lw)) = false ->
-    interp_in_mem p W C w -∗ interp_in_mem p W' C w.
-  Proof.
-    intros Hrelated Hnl.
-    change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
-    iIntros "Hw". iApply (interp_monotone_nl with "[] [] Hw"); first done.
-    by rewrite lw_lload_word.
   Qed.
 
   Lemma interp_monotone_cap_nonheap W W' C t p g b e a :

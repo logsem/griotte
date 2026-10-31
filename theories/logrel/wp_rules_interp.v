@@ -298,54 +298,6 @@ Section wp_interp.
     iPureIntro. split; first done. solve_addr.
   Qed.
 
-  Lemma wp_store_interp {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (wi wsrc wdst : LWord)
-    :
-    decodeInstrW wi.(lw) = Store rdst (inr rsrc) 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rsrc ≠ cnull ->
-    rdst ≠ cnull ->
-
-     {{{ interp W C wsrc
-           ∗ interp W C wdst
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ[th] wsrc
-           ∗ rdst ↦ᵣ[th] wdst
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ[th] wsrc ∗
-             (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
-             world_interp W C ) ∨
-          ( ∃ p g b e a π,
-           ⌜ wdst = Cap p g b e a @@? π ⌝
-           ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ[th] wsrc
-           ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
-           ∗ world_interp W C
-           ∗ ⌜ writeAllowed p = true ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ) "Hpre Hφ".
-    iApply (wp_store_interp_imm with "Hpre"); eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (p g b e a π ea) "(? & ? & ? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-.
-    iExists p, g, b, e, a, π. by iFrame.
-  Qed.
-
   Lemma wp_store_interp_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
@@ -391,52 +343,6 @@ Section wp_interp.
     iDestruct "Hpost" as "[Hfail | Hsuccess]"; first (iLeft; iExact "Hfail").
     iDestruct "Hsuccess" as (p0 g0 b0 e0 a0 π0 ea) "(%Heq & Hrest)".
     simplify_eq. iRight. iExists ea. iExact "Hrest".
-  Qed.
-
-  Lemma wp_store_interp_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (wi wsrc : LWord)
-    :
-    decodeInstrW wi.(lw) = Store rdst (inr rsrc) 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rsrc ≠ cnull ->
-    rdst ≠ cnull ->
-
-     {{{ interp W C wsrc
-           ∗ interp W C (Cap p g b e a @@? π)
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ[th] wsrc
-           ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ{dq} wi ∗
-             rsrc ↦ᵣ[th] wsrc ∗
-             (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
-             world_interp W C ) ∨
-          (⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rsrc ↦ᵣ[th] wsrc
-           ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
-           ∗ world_interp W C
-           ∗ ⌜ writeAllowed p = true ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? ? φ) "Hpre Hφ".
-    iApply (wp_store_interp_cap_imm with "Hpre");eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (ea) "(? & ? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-. by iFrame.
   Qed.
 
   Lemma wp_store_interp_z_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
@@ -555,49 +461,6 @@ Section wp_interp.
     iPureIntro. split; first done. solve_addr.
   Qed.
 
-  Lemma wp_store_interp_z {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (wi wdst : LWord) (z : Z)
-    :
-    decodeInstrW wi.(lw) = Store rdst (inl z) 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rdst ≠ cnull ->
-
-     {{{ interp W C wdst
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ[th] wdst
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ{dq} wi ∗
-             (rdst ↦ᵣ[th] wdst ∨ rdst ↦ᵣ[th] lclear_tag wdst) ∗
-             world_interp W C ) ∨
-          ( ∃ p g b e a π,
-           ⌜ wdst = Cap p g b e a @@? π ⌝
-           ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
-           ∗ world_interp W C
-           ∗ ⌜ writeAllowed p ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ) "Hpre Hφ".
-    iApply (wp_store_interp_z_imm with "Hpre"); eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (p g b e a π ea) "(? & ? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-.
-    iExists p, g, b, e, a, π. by iFrame.
-  Qed.
-
   Lemma wp_store_interp_z_cap_imm {dq : dfrac} (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
@@ -638,47 +501,6 @@ Section wp_interp.
     iDestruct "Hpost" as "[Hfail | Hsuccess]"; first (iLeft; iExact "Hfail").
     iDestruct "Hsuccess" as (p0 g0 b0 e0 a0 π0 ea) "(%Heq & Hrest)".
     simplify_eq. iRight. iExists ea. iExact "Hrest".
-  Qed.
-
-  Lemma wp_store_interp_z_cap {dq : dfrac} (E : coPset) (W : WORLD) (C : CmptName) (rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (wi : LWord) (z : Z)
-    :
-    decodeInstrW wi.(lw) = Store rdst (inl z) 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rdst ≠ cnull ->
-
-     {{{  interp W C (Cap p g b e a @@? π)
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ[th] (Cap p g b e a @@? π)
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ{dq} wi ∗
-             (rdst ↦ᵣ[th] Cap p g b e a @@? π ∨ rdst ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
-             world_interp W C ) ∨
-          (⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ{dq} wi
-           ∗ rdst ↦ᵣ[th] Cap p g b e a @@? π
-           ∗ world_interp W C
-           ∗ ⌜ writeAllowed p ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ? φ) "Hpre Hφ".
-    iApply (wp_store_interp_z_cap_imm with "Hpre");eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (ea) "(? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-. by iFrame.
   Qed.
 
   (** The stores of words [ws], safe in the world, through a safe
@@ -1040,85 +862,6 @@ Section wp_interp.
       iApply "Hreb". by iFrame "Hk0 Hφ0".
   Qed.
 
-  Lemma wp_unseal_unknown {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
-    decodeInstrW wi.(lw) = UnSeal r2 r1 r2 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{  PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-          ∗ pc_a ↦ₐ{dq} wi
-          ∗ r1 ↦ᵣ[th] wsealr
-          ∗ r2 ↦ᵣ[th] wsealed
-    }}}
-      Instr Executable @[th] E
-      {{{ retv, RET retv;
-          (⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ[th] wsealr
-              ∗ r2 ↦ᵣ[th] lclear_tag wsealed
-              ∗ ⌜ is_sealr wsealr.(lw) && is_sealed wsealed.(lw) = false ⌝)
-          ∨ (∃ psr gsr bsr esr asr πsr ot wsb π,
-              ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ[th] wsealr
-              ∗ r2 ↦ᵣ[th] WSealable (unseal_sb gsr wsb) @@? π
-              ∗ ⌜ wsealr = SealRange psr gsr bsr esr asr @@? πsr ⌝
-              ∗ ⌜ permit_unseal psr = true ⌝
-              ∗ ⌜ wsealed = WSealed ot wsb @@? π ⌝
-              ∗ ⌜ get_tag_sealable wsb = true ⌝
-              ∗ ⌜ withinBounds bsr esr ot = true ⌝ )
-          ∨ ∃ tsr psr gsr bsr esr asr πsr ot sb π,
-              ⌜ retv = NextIV ⌝
-              ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-              ∗ pc_a ↦ₐ{dq} wi
-              ∗ r1 ↦ᵣ[th] wsealr
-              ∗ r2 ↦ᵣ[th] WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π
-              ∗ ⌜ wsealr = WSealRange tsr psr gsr bsr esr asr @@? πsr ⌝
-              ∗ ⌜ wsealed = WSealed ot sb @@? π ⌝
-              ∗ ⌜ tsr && get_tag_sealable sb && permit_unseal psr &&
-                    withinBounds bsr esr ot = false ⌝
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpc_a' Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
-
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
-    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-
-    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->
-                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
-    { iApply "Hφ". iRight. iLeft.
-      rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      iExists p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { iApply "Hφ". iRight. iRight.
-      rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      iExists t, p, g, b, e, a, πs, o, sb, π.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { iApply "Hφ". iLeft.
-      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
-  Qed.
-
   Lemma wp_unseal_unknown' {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 wsealr wsealed  :
     decodeInstrW wi.(lw) = UnSeal r1 r1 r2 →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1443,56 +1186,7 @@ Section wp_interp.
     iPureIntro. split; first done. solve_addr.
   Qed.
 
-  Lemma wp_load_interp (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (wi wsrc wdst : LWord)
-    :
-    decodeInstrW wi.(lw) = CLoad rdst rsrc 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rsrc ≠ cnull ->
-    rdst ≠ cnull ->
-
-     {{{ thread_in th C
-           ∗ interp W C wsrc
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ[th] wsrc
-           ∗ rdst ↦ᵣ[th] wdst
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ wi ∗
-             (rsrc ↦ᵣ[th] wsrc ∨ rsrc ↦ᵣ[th] lclear_tag wsrc) ∗
-             rdst ↦ᵣ[th] wdst ∗
-             world_interp W C ) ∨
-          ( ∃ p g b e a π wload,
-           ⌜ wsrc = Cap p g b e a @@? π ⌝
-           ∗ ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ[th] Cap p g b e a @@? π
-           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
-           ∗ world_interp W C
-           ∗ ⌜ readAllowed p = true ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ) "Hpre Hφ".
-    iApply (wp_load_interp_imm with "Hpre"); eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (p g b e a π ea wload)
-      "(? & ? & ? & ? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-.
-    iExists p, g, b, e, a, π, wload. by iFrame.
-  Qed.
-
-  (** The fault cases of [wp_load_interp_same]: the opsem gives the load as
+  (** The fault cases of [wp_load_interp_same_open]: the opsem gives the load as
       a fault, and the registers and the memory are unchanged. *)
   #[local] Ltac load_same_fault :=
     iApply (wp_instr_faulted_1 with "[$HPC $Hsrc $Hi]"); [done | done | | ];
@@ -1505,8 +1199,9 @@ Section wp_interp.
     ∀ p g b e a, w.(lw) = Cap p g b e a → withinBounds b e a = true →
       addr_key w.(lprov) a ∉ s.
 
-  (** [wp_load_interp_same] over a world open on [s], when the loaded key
-      is not in [s]. *)
+  (** A load through a safe word into the register that holds it, over a
+      world open on [s], when the loaded key is not in [s]: it faults, or
+      it loads a safe word. *)
   Lemma wp_load_interp_same_open (E : coPset) (W : WORLD) (C : CmptName) (s : list LAddr)
     (r : RegName) (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (wi wsrc : LWord) (dq : dfrac) :
@@ -1634,47 +1329,6 @@ Section wp_interp.
     iApply "Hφ"; iRight. iExists loadv'. iFrame "∗#%". done.
   Qed.
 
-  (** A load through a safe word into the register that holds it: it
-      faults, or it loads a safe word ([wp_load_interp] for one register,
-      with any fraction of the instruction). *)
-  Lemma wp_load_interp_same (E : coPset) (W : WORLD) (C : CmptName) (r : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (wi wsrc : LWord) (dq : dfrac) :
-    decodeInstrW wi.(lw) = CLoad r r 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    r ≠ cnull →
-    {{{ thread_in th C ∗ interp W C wsrc ∗
-        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-        pc_a ↦ₐ{dq} wi ∗
-        r ↦ᵣ[th] wsrc ∗
-        world_interp W C }}}
-      Instr Executable @[th] E
-    {{{ retv, RET retv;
-        ( ⌜retv = FaultedV⌝ ∗
-          PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-          pc_a ↦ₐ{dq} wi ∗
-          (r ↦ᵣ[th] wsrc ∨ r ↦ᵣ[th] lclear_tag wsrc) ∗
-          world_interp W C ) ∨
-        ( ∃ wload,
-          ⌜retv = NextIV⌝ ∗
-          PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗
-          pc_a ↦ₐ{dq} wi ∗
-          r ↦ᵣ[th] wload ∗ interp W C wload ∗
-          world_interp W C ) }}}.
-  Proof.
-    iIntros (Hdecode Hcorrect_pc Hpca' Hr φ)
-      "(#Hth & #Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
-    iApply (wp_load_interp_same_open _ _ _ []
-             with "[$Hth $HPC $Hi $Hsrc $Hinterp_src Hworld_interp]"); try done.
-    { intros ? ? ? ? ? _ _. apply not_elem_of_nil. }
-    { by iApply open_world_interp_empty. }
-    iNext.
-    iIntros (retv) "[(Heq & HPC & Hi & Hsrc & Hworld_interp)
-                   | (%wload & Heq & HPC & Hi & Hsrc & Hload & Hworld_interp)]";
-      iApply "Hφ"; [iLeft | iRight]; iFrame; by iApply open_world_interp_empty.
-  Qed.
-
   Lemma wp_load_interp_cap_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
@@ -1721,54 +1375,6 @@ Section wp_interp.
     iDestruct "Hpost" as "[Hfail | Hsuccess]"; first (iLeft; iExact "Hfail").
     iDestruct "Hsuccess" as (p0 g0 b0 e0 a0 π0 ea wload) "(%Heq & Hrest)".
     simplify_eq. iRight. iExists ea, wload. iExact "Hrest".
-  Qed.
-
-  Lemma wp_load_interp_cap (E : coPset) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a pc_a' : Addr)
-    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (wi wdst : LWord)
-    :
-    decodeInstrW wi.(lw) = CLoad rdst rsrc 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    rsrc ≠ cnull ->
-    rdst ≠ cnull ->
-
-     {{{ thread_in th C
-           ∗ interp W C (Cap p g b e a @@? π)
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a
-           ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ[th] (Cap p g b e a @@? π)
-           ∗ rdst ↦ᵣ[th] wdst
-           ∗ world_interp W C
-     }}}
-       Instr Executable @[th] E
-       {{{ retv, RET retv;
-           ( ⌜ retv = FaultedV ⌝ ∗
-             PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
-             pc_a ↦ₐ wi ∗
-             (rsrc ↦ᵣ[th] Cap p g b e a @@? π ∨ rsrc ↦ᵣ[th] lclear_tag (Cap p g b e a @@? π)) ∗
-             rdst ↦ᵣ[th] wdst ∗
-             world_interp W C ) ∨
-          (∃ wload,
-              ⌜ retv = NextIV ⌝
-           ∗ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a'
-           ∗ pc_a ↦ₐ wi
-           ∗ rsrc ↦ᵣ[th] (Cap p g b e a @@? π)
-           ∗ rdst ↦ᵣ[th] wload ∗ interp W C wload
-           ∗ world_interp W C
-           ∗ ⌜ readAllowed p = true ⌝
-           ∗ ⌜a ∈ₐ [b, e) ⌝
-          )
-       }}}.
-  Proof.
-    iIntros (Hdecode_wi Hcorrect_pc Hpca' ?? φ) "Hpre Hφ".
-    iApply (wp_load_interp_cap_imm with "Hpre");eauto.
-    iNext. iIntros (ret) "[Hfail | Hsucc]"; iApply "Hφ"; first (iLeft; iExact "Hfail").
-    iRight.
-    iDestruct "Hsucc" as (ea wload) "(? & ? & ? & ? & ? & ? & ? & ? & %Hea & %Hb)".
-    rewrite addr_add_0 in Hea. injection Hea as <-.
-    iExists wload. by iFrame.
   Qed.
 
   Lemma load_read_retained {dq : dfrac} E W C

@@ -255,15 +255,6 @@ Ltac fw_fold_cmpt X :=
   change (image.cmpt_exp_tbl_entries c)
     with (compartment_layout.cmpt_exp_tbl_entries X) in *.
 
-(** The export table of the compartment named [n] of the image [img]
-    starts at [b]. *)
-Definition cmpt_tbl (img : fw_image) (n : string) (b : Addr) : Prop :=
-  cmpt_exp_tbl_pcc (cmpt_of img n) = b.
-
-Lemma cmpt_tbl_of (img : fw_image) (n : string) :
-  cmpt_tbl img n (cmpt_exp_tbl_pcc (cmpt_of img n)).
-Proof. done. Qed.
-
 (** ** The prepared resources *)
 Section prepared.
   Context

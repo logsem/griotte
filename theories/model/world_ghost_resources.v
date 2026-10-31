@@ -95,22 +95,6 @@ Section rel.
     `{MP: MachineParameters}.
   Implicit Types W : WORLD.
 
-  Lemma future_pub_mono_eq_pred `{!savedPredG Σ (WorldT * CmptName * LWord)} C γ φ φ' w :
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ future_pub_mono C φ w
-    -∗ ▷ future_pub_mono C φ' w.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
-    iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
-    iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
-    iNext; iModIntro.
-    iIntros "Hφv".
-    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
-    iApply "Hmono"; eauto.
-  Qed.
-
 End rel.
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)

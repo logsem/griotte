@@ -142,31 +142,10 @@ Section Entry_projections.
 
   (** The decoders of the fields of an export entry word invert
       [encode_entry_point], within the bounds of each field. *)
-  Lemma export_entry_offset_encode mie nargs minstk off_entry :
-    export_entry_offset (encode_entry_point mie nargs minstk off_entry) = off_entry.
-  Proof. apply encode_entry_point_eq_off. Qed.
-
-  Lemma export_entry_min_stack_encode mie nargs minstk off_entry :
-    (0 ≤ minstk ≤ 255)%Z ->
-    export_entry_min_stack (encode_entry_point mie nargs minstk off_entry) = minstk.
-  Proof. apply encode_entry_point_eq_minstk. Qed.
-
   Lemma export_entry_nargs_encode mie nargs minstk off_entry :
     (0 ≤ nargs ≤ 7)%Z ->
     export_entry_nargs (encode_entry_point mie nargs minstk off_entry) = nargs.
   Proof. apply encode_entry_point_eq_nargs. Qed.
-
-  Lemma export_entry_flags_encode mie nargs minstk off_entry :
-    export_entry_flags (encode_entry_point mie nargs minstk off_entry) =
-    entry_point_flags mie nargs.
-  Proof. apply encode_entry_point_eq_flags. Qed.
-
-  Lemma export_entry_posture_encode mie nargs minstk off_entry :
-    export_entry_posture (encode_entry_point mie nargs minstk off_entry) = mie.
-  Proof.
-    rewrite /export_entry_posture encode_entry_point_eq_posture.
-    by destruct mie.
-  Qed.
 
   (** Projections of an export-table entry: the entry at [a] encodes
       [n] arguments ([entry_nargs]), a minimum stack of [m] words
@@ -206,15 +185,6 @@ Section Entry_projections.
     a ↦ₑ□{nargs} n ⊢ (SCap true RO g b e a) ↦ₑ□{nargs} n.
   Proof. iIntros "Ha". iExists _, _, _, _. by iFrame "Ha". Qed.
 
-  Lemma entry_min_stack_intro a ie (n m : nat) off :
-    m ≤ 255 →
-    a ↦ₐ□ WInt (encode_entry_point ie n m off) ⊢ entry_min_stack a m.
-  Proof. iIntros (Hm) "Ha". iSplit; [done|]. iExists _, _, _; iFrame. Qed.
-
-  Lemma entry_irq_intro a ie (n m : nat) off :
-    a ↦ₐ□ WInt (encode_entry_point ie n m off) ⊢ entry_irq a ie.
-  Proof. iIntros "Ha". iExists _, _, _; iFrame. Qed.
-
   Lemma entry_nargs_agree_raw (a : Addr) (n n' m : nat) ie off :
     n' ≤ 7 →
     a ↦ₑ□{nargs} n -∗
@@ -227,35 +197,6 @@ Section Entry_projections.
     apply (f_equal export_entry_nargs) in Heq.
     rewrite !export_entry_nargs_encode in Heq; [|lia|lia].
     iPureIntro; lia.
-  Qed.
-
-  Lemma entry_nargs_agree (a : Addr) n n' :
-    a ↦ₑ□{nargs} n -∗ a ↦ₑ□{nargs} n' -∗ ⌜n = n'⌝.
-  Proof.
-    iIntros "Hn [%Hn' (%ie & %m & %off & Ha)]".
-    iApply (entry_nargs_agree_raw with "Hn Ha"); done.
-  Qed.
-
-  Lemma entry_min_stack_agree a m m' :
-    entry_min_stack a m -∗ entry_min_stack a m' -∗ ⌜m = m'⌝.
-  Proof.
-    iIntros "[%Hm (%ie & %n & %off & Ha)] [%Hm' (%ie' & %n' & %off' & Ha')]".
-    iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
-    simplify_eq.
-    apply (f_equal export_entry_min_stack) in Heq.
-    rewrite !export_entry_min_stack_encode in Heq; [|lia|lia].
-    iPureIntro; lia.
-  Qed.
-
-  Lemma entry_irq_agree a ie ie' :
-    entry_irq a ie -∗ entry_irq a ie' -∗ ⌜ie = ie'⌝.
-  Proof.
-    iIntros "(%n & %m & %off & Ha) (%n' & %m' & %off' & Ha')".
-    iDestruct (pointsto_agree with "Ha Ha'") as %Heq.
-    simplify_eq.
-    apply (f_equal export_entry_posture) in Heq.
-    rewrite !export_entry_posture_encode in Heq.
-    by iPureIntro.
   Qed.
 
 End Entry_projections.
@@ -643,19 +584,6 @@ Section Switcher_Stack_Traps.
   Lemma stk_spill_a_end a : stk_spill_ok a → (stk_spill_a a ^+ SpillSlot_size) = a.
   Proof. stk_unfold; solve_addr. Qed.
 
-  (** The free part of a caller's stack splits into its spill area and the
-      callee's stack. *)
-  Lemma stk_free_split_addrs b e a :
-    switcher_stk_bounds b e a →
-    stk_free b e a =
-      stk_mem_join (finz.seq_between (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size))
-        (callee_stk_region b e a).
-  Proof.
-    rewrite /switcher_stk_bounds; intros (Hb & Hb3 & Ha4).
-    rewrite stk_spill_a_end //. stk_unfold.
-    apply finz_seq_between_split; solve_addr.
-  Qed.
-
   Lemma stk_free_split_zeroes b e a :
     switcher_stk_bounds b e a →
     region_addrs_zeroes (stk_free_b b a) (stk_free_e e a) =
@@ -720,11 +648,6 @@ Section Switcher_Stack_Traps.
     apply elem_of_finz_seq_between in Hx. solve_addr.
   Qed.
 
-  (** A fresh stack: its free part is the whole stack. *)
-  Lemma stk_start_free_b (b e : Addr) : stk_free_b b (stk_start_a b e) = b.
-  Proof. done. Qed.
-  Lemma stk_start_free_e (b e : Addr) : stk_free_e e (stk_start_a b e) = stk_start_a b e.
-  Proof. done. Qed.
   Lemma stk_start_cursor_ok (b e : Addr) :
     (b + StackEntry_reserved_space <= e)%Z → stk_cursor_ok b e (stk_start_a b e).
   Proof. stk_unfold; solve_addr. Qed.

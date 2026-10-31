@@ -114,16 +114,6 @@ Section world_std_revocation.
         - rewrite IHl H3; auto. }
   Qed.
 
-  Lemma revoke_list_not_elem_of_lookup i l m :
-    i ∉ l →
-    (revoke_list_std_sta l m) !! i = m !! i.
-  Proof.
-    rewrite revoke_list_std_sta_spec.
-    intros; destruct (m !! i) as [x|] eqn:Hm; auto.
-    destruct (in_dec LAddr_eq_dec i l); auto.
-    eapply list_elem_of_In in i0. by simplify_map_eq.
-  Qed.
-
   Lemma revoke_list_dom_std_sta (Wstd_sta : gmap LAddr region_type) :
     revoke_std_sta Wstd_sta = revoke_list_std_sta (map_to_list Wstd_sta).*1 Wstd_sta.
   Proof.
@@ -231,20 +221,6 @@ Section world_std_revocation.
     - destruct r;[contradiction|auto..].
   Qed.
 
-  Lemma revoke_std_sta_lookup_non_temp Wstd_sta (i : LAddr) (ρ : region_type) :
-    (revoke_std_sta Wstd_sta) !! i = Some ρ → ρ ≠ Temporary.
-  Proof.
-    intros Hin.
-    rewrite revoke_list_dom_std_sta in Hin.
-    apply revoke_list_lookup_non_temp with Wstd_sta ((map_to_list Wstd_sta).*1) i; auto.
-    rewrite /= in Hin.
-    assert (is_Some (Wstd_sta !! i)) as [x Hsome].
-    { rewrite revoke_list_std_sta_spec in Hin.
-      destruct (Wstd_sta !! i); eauto. }
-    apply map_to_list_fst. exists x.
-    apply elem_of_map_to_list. done.
-  Qed.
-
   Lemma revoke_lookup_non_temp W (i : LAddr) (ρ : region_type) :
     (std (revoke W)) !! i = Some ρ → ρ ≠ Temporary.
   Proof.
@@ -276,21 +252,6 @@ Section world_std_revocation.
         rewrite /revoke_std_sta fmap_insert lookup_insert_ne;auto.
   Qed.
 
-  Lemma revoke_monotone_lookup_same' (W:WORLD) (i: LAddr) :
-    std W !! i ≠ Some Temporary ->
-    std (revoke W) !! i = std W !! i.
-  Proof. cbn. eauto using revoke_monotone_lookup_same. Qed.
-
-  Lemma anti_revoke_lookup_Revoked Wstd_sta i :
-    (revoke_std_sta Wstd_sta) !! i = Some Revoked ->
-    (Wstd_sta !! i = Some Revoked) ∨ (Wstd_sta !! i = Some Temporary).
-  Proof.
-    intros Hrev.
-    assert (is_Some (Wstd_sta !! i)) as [x Hx];[apply revoke_std_sta_lookup_Some;eauto|].
-    destruct x;subst;auto;
-      rewrite revoke_monotone_lookup_same in Hrev;auto;rewrite Hx;auto.
-  Qed.
-
   Lemma revoke_dom_eq Wstd_sta :
     dom Wstd_sta = dom (revoke_std_sta Wstd_sta).
   Proof.
@@ -315,30 +276,6 @@ Section world_std_revocation.
     apply revoke_lookup_non_temp in Hsome. done.
   Qed.
 
-
-  Lemma related_sts_pub_revoked_temp W a :
-    (std W) !! a = Some Revoked ∨
-    (std W) !! a = Some Temporary →
-    related_sts_pub_world W (<s[a:=Temporary]s>W).
-  Proof.
-    intros Ha.
-    rewrite /related_sts_pub_world /=.
-    split;[|apply related_sts_pub_refl].
-    rewrite /related_sts_pub. split.
-    - rewrite dom_insert_L. set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst.
-        rewrite Hx in Ha.
-        destruct Ha as [Ha | Ha]; inversion Ha.
-        ++ rewrite lookup_insert_eq in Hy. inversion Hy.
-           right with (Temporary);[|left]. constructor.
-        ++ rewrite lookup_insert_eq in Hy. inversion Hy. left.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
 
 
   (* --------------------------------------------------------------------------------- *)

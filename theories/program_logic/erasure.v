@@ -26,10 +26,6 @@ Section mem_avoids_mmio.
     mem_avoids_mmio m → m !! a = Some w → is_mmio_address a = false.
   Proof. intros Hm Ha. apply Hm. by apply elem_of_dom_2 in Ha. Qed.
 
-  Lemma mem_avoids_mmio_not_shadow m a w :
-    mem_avoids_mmio m → m !! a = Some w → is_shadow_address a = false.
-  Proof. intros. eapply not_mmio_not_shadow, mem_avoids_mmio_lookup; eauto. Qed.
-
   Lemma mem_avoids_mmio_not_revoker m a w :
     mem_avoids_mmio m → m !! a = Some w → is_revoker_address a = false.
   Proof. intros. eapply not_mmio_not_revoker, mem_avoids_mmio_lookup; eauto. Qed.
@@ -59,51 +55,6 @@ Section mem_avoids_mmio.
     intros [Ha | Ha]; [by apply Hm1 | by apply Hm2].
   Qed.
 
-  Lemma mem_avoids_mmio_empty : mem_avoids_mmio ∅.
-  Proof. intros a. rewrite dom_empty_L. set_solver. Qed.
-
-  Lemma advancePC_mem φ imm c :
-    advancePC φ imm = Some c → mem c.2 = mem φ.
-  Proof. rewrite /advancePC. repeat case_match; intros; simplify_eq; done. Qed.
-
-  (* Every instruction preserves the clause: CLoad and Store reach the shadow
-     region and the revoker through their own branches, an ordinary store
-     writes a non-MMIO address, and the sweep keeps the memory's domain. *)
-  Lemma exec_mem_avoids_mmio i p φ :
-    mem_avoids_mmio (mem φ) → mem_avoids_mmio (mem (exec i p φ).2).
-  Proof.
-    intros Hφ. rewrite /exec.
-    destruct (exec_opt i p φ) as [c|] eqn:Hexec; last done.
-    rewrite /exec_opt /exec_jcond in Hexec.
-    destruct i; cbn in Hexec; repeat case_match; simplify_eq; try done.
-    all: repeat match goal with
-      | H : mbind _ ?x = Some _ |- _ => destruct x eqn:?; cbn in H; try discriminate
-      | H : (match ?x with _ => _ end) = Some _ |- _ =>
-          destruct x eqn:?; cbn in H; try discriminate
-      end.
-    all: try (match goal with H : advancePC _ _ = Some _ |- _ =>
-                rewrite (advancePC_mem _ _ _ H) end).
-    all: try (match goal with H : nextPC _ = Some _ |- _ =>
-                rewrite (advancePC_mem _ _ _ H) end).
-    all: try (match goal with H : Some _ = Some _ |- _ => injection H as <- end).
-    (* Jalr may write mstatus. *)
-    all: try (match goal with |- context [jalr_mstatus ?w ?z] => destruct (jalr_mstatus w z) end).
-    all: cbn; try done.
-    - (* Revoker store *)
-      by apply mem_avoids_mmio_sweep.
-    - (* Ordinary store *)
-      apply mem_avoids_mmio_insert; last done.
-      by rewrite /is_mmio_address Heqb2 Heqb3.
-  Qed.
-
-  Lemma step_mem_avoids_mmio (cf cf' : ConfFlag) (φ φ' : ExecConf) :
-    griotte_opsem.step (cf, φ) (cf', φ') →
-    mem_avoids_mmio (mem φ) →
-    mem_avoids_mmio (mem φ').
-  Proof.
-    inversion 1; subst; try done.
-    intros. by apply exec_mem_avoids_mmio.
-  Qed.
 End mem_avoids_mmio.
 
 (** Memory covers every heap address: a load or a store in the heap never
@@ -278,31 +229,12 @@ Proof. by destruct sb. Qed.
 Lemma get_tag_and_tag s w : get_tag (and_tag s w) = s && get_tag w.
 Proof. by destruct s, w as [| [] | | ? [] ]. Qed.
 
-Lemma memory_cap_bounds_and_tag s w : memory_cap_bounds (and_tag s w) = memory_cap_bounds w.
-Proof. by destruct w as [| [] | | ? [] ]. Qed.
-
-Lemma heap_cap_base_and_tag `{HeapRegion} s w : heap_cap_base (and_tag s w) = heap_cap_base w.
-Proof. apply heap_cap_base_bounds_eq, memory_cap_bounds_and_tag. Qed.
-
 Lemma clear_tag_and_tag s w : clear_tag (and_tag s w) = clear_tag w.
 Proof. destruct s; by rewrite ?and_tag_true ?and_tag_false ?clear_tag_idempotent. Qed.
 
 (** The field reads ignore the tag. *)
 Lemma get_a_and_tag s w : get_a (and_tag s w) = get_a w.
 Proof. rewrite and_tag_if. destruct s; auto using get_a_clear_tag. Qed.
-Lemma get_b_and_tag s w : get_b (and_tag s w) = get_b w.
-Proof. rewrite and_tag_if. destruct s; auto using get_b_clear_tag. Qed.
-Lemma get_e_and_tag s w : get_e (and_tag s w) = get_e w.
-Proof. rewrite and_tag_if. destruct s; auto using get_e_clear_tag. Qed.
-Lemma get_p_and_tag s w : get_p (and_tag s w) = get_p w.
-Proof. rewrite and_tag_if. destruct s; auto using get_p_clear_tag. Qed.
-Lemma get_l_and_tag s w : get_l (and_tag s w) = get_l w.
-Proof. rewrite and_tag_if. destruct s; auto using get_l_clear_tag. Qed.
-Lemma nonZero_and_tag s w : nonZero (and_tag s w) = nonZero w.
-Proof. by rewrite /nonZero get_a_and_tag. Qed.
-
-Lemma and_tag_untagged s w : get_tag w = false → and_tag s w = w.
-Proof. intros Ht. rewrite and_tag_if. destruct s; auto using clear_tag_untagged. Qed.
 
 Lemma store_word_clear_tag p w : store_word p (clear_tag w) = clear_tag (store_word p w).
 Proof.
@@ -313,9 +245,6 @@ Qed.
 Lemma store_word_and_tag p s w : store_word p (and_tag s w) = and_tag s (store_word p w).
 Proof. rewrite !and_tag_if. destruct s; auto using store_word_clear_tag. Qed.
 
-Lemma load_word_and_tag p s w : load_word p (and_tag s w) = and_tag s (load_word p w).
-Proof. rewrite !and_tag_if. destruct s; auto using load_word_clear_tag. Qed.
-
 Lemma updatePcPerm_clear_tag w : updatePcPerm (clear_tag w) = clear_tag (updatePcPerm w).
 Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
@@ -325,13 +254,6 @@ Proof. rewrite !and_tag_if. destruct s; auto using updatePcPerm_clear_tag. Qed.
 Lemma jalr_target_ok_and_tag rdst rsrc s w :
   jalr_target_ok rdst rsrc (and_tag s w) = s && jalr_target_ok rdst rsrc w.
 Proof. destruct s; [by rewrite and_tag_true | by rewrite and_tag_false jalr_target_ok_clear_tag]. Qed.
-
-Lemma jalr_target_mie_and_tag s w : jalr_target_mie (and_tag s w) = jalr_target_mie w.
-Proof. by destruct s, w as [| [] | | ? [] ]. Qed.
-
-Lemma decodeInstrW_and_tag `{MachineParameters} s w :
-  decodeInstrW (and_tag s w) = decodeInstrW w.
-Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
 (** ** Registry entries *)
 
@@ -471,9 +393,6 @@ Section erasure.
   Lemma lword_prov_untagged R v : get_tag v.(lw) = false → lword_prov R v.
   Proof. intros Ht ι b e Ht'. congruence. Qed.
 
-  Lemma lword_prov_no_bounds R v : memory_cap_bounds v.(lw) = None → lword_prov R v.
-  Proof. intros Hb ι b e _ Hb'. congruence. Qed.
-
   Lemma lword_prov_no_id R v : v.(lprov) = None → lword_prov R v.
   Proof. intros Hp ι b e _ _ _ Hp'. congruence. Qed.
 
@@ -585,9 +504,6 @@ Section erasure.
 
   Lemma has_authority_tag w : has_authority w → get_tag w = true.
   Proof. by intros [? _]. Qed.
-
-  Lemma has_authority_clear_tag w : ¬ has_authority (clear_tag w).
-  Proof. intros [Ht _]. by rewrite get_tag_clear_tag in Ht. Qed.
 
   (** An exact copy, when no quarantined or dead identifier forces the tag
       off. *)
@@ -713,16 +629,6 @@ Section erasure.
     - apply store_word_and_tag.
   Qed.
 
-  Lemma reg_phys_lload_word R p v w :
-    reg_phys R v w → reg_phys R (lload_word p v) (load_word p w).
-  Proof.
-    intros Hw. destruct (reg_phys_and_tag _ _ _ Hw) as [s ->].
-    apply reg_phys_lift; auto; intros w'.
-    - apply memory_cap_bounds_load_word.
-    - by rewrite get_tag_load_word.
-    - apply load_word_and_tag.
-  Qed.
-
   (** A register word stored to memory satisfies the memory clause. *)
   Lemma reg_phys_mem_word_ok R C v w :
     reg_word_ok R C v → reg_phys R v w → mem_word_ok R C v w.
@@ -784,20 +690,6 @@ Section erasure.
     intros b Ht Hab. specialize (Hauth b Ht Hab).
     destruct (lprov v) as [ι|]; last by destruct Hauth.
     destruct Hauth as (x & Hx & _). by exists x.
-  Qed.
-
-  Lemma mem_word_ok_load_reg_word R C v pw p pl shadow :
-    mem_word_ok R C v pw →
-    load_filter shadow p pw = Some pl →
-    reg_word_ok R C (MkLWord pl v.(lprov)).
-  Proof.
-    intros Hok Hpl. pose proof (mem_word_ok_load_word _ _ _ _ _ _ _ Hok Hpl) as Hcases.
-    apply reg_word_ok_derive; last by eapply mem_word_ok_reg_word_ok.
-    - left. destruct Hcases as [-> | ->];
-        rewrite ?memory_cap_bounds_clear_tag memory_cap_bounds_load_word //.
-    - destruct Hcases as [-> | ->]; rewrite ?get_tag_clear_tag ?get_tag_load_word //.
-    - destruct Hcases as [-> | ->];
-        rewrite ?get_tag_clear_tag ?executable_word_clear_tag ?executable_word_load_word //.
   Qed.
 
   Lemma has_authority_load_word p w : has_authority (load_word p w) ↔ has_authority w.
@@ -1076,15 +968,6 @@ Section erasure.
     - intros (ι & x & Hι & _). congruence.
     - intros _. right. destruct (executable_word_bounds _ Hx) as [[b e] Hbe].
       rewrite /heap_cap_base memory_cap_base_bounds Hbe /=. by rewrite (proj1 (Havoid b e Hbe)).
-  Qed.
-
-  (** A correct logical PC is exact: it is tagged and executable. *)
-  Lemma reg_phys_correct_pc R C lpc pc :
-    reg_word_ok R C lpc → reg_phys R lpc pc → isCorrectPC lpc.(lw) → pc = lpc.(lw).
-  Proof.
-    intros Hok Hw Hcorr. apply (reg_phys_executable R C); [done | done | |].
-    - by apply isCorrectPC_tag.
-    - inversion Hcorr; by cbn.
   Qed.
 
   (** By the tagged-PC invariant, the physical PC is the logical one: a
@@ -1671,69 +1554,6 @@ Section erasure.
       authority or is not a heap capability. *)
   Definition load_exact_cond (v : LWord) : Prop :=
     get_tag v.(lw) = true → has_authority v.(lw) ∨ heap_cap_base v.(lw) = None.
-
-  Lemma load_filter_exact_aux R C st v pw p pl :
-    registry_ok R C st →
-    mem_word_ok R C v pw →
-    load_filter st p pw = Some pl →
-    load_exact_cond v →
-    ¬ stale_id R v →
-    (∀ b, get_tag v.(lw) = true → heap_authority_base v.(lw) = Some b →
-          pw = v.(lw) ∧ st !! b = Some ShadowLive) →
-    pl = load_word p v.(lw).
-  Proof.
-    intros Hreg Hok Hpl Hside Hns Hauth.
-    pose proof (mem_word_ok_load_word _ _ _ _ _ _ _ Hok Hpl) as Hcases.
-    destruct Hok as (Hp & Hrel & Hnh & _).
-    destruct (get_tag v.(lw)) eqn:Ht.
-    - destruct (Hside Ht) as [[_ (b & Hab)] | Hnone].
-      + destruct (Hauth b eq_refl Hab) as [-> Hsb].
-        assert (heap_cap_base v.(lw) = Some b) as Hhb.
-        { by apply heap_authority_base_heap_cap_base. }
-        rewrite /load_filter Hhb Hsb in Hpl. by simplify_eq.
-      + destruct (Hnh Hnone) as [Heq | Hst]; last by destruct Hst.
-        rewrite Heq /load_filter Hnone in Hpl. by simplify_eq.
-    - assert (get_tag (load_word p v.(lw)) = false) as Ht' by by rewrite get_tag_load_word.
-      destruct Hcases as [-> | ->]; first done. by rewrite clear_tag_untagged.
-  Qed.
-
-  (** Variant 3: the identifier is live, so the loaded copy is exact. *)
-  Lemma load_filter_live R C st v pw p pl ι x :
-    registry_ok R C st →
-    mem_word_ok R C v pw →
-    load_filter st p pw = Some pl →
-    v.(lprov) = Some ι → R !! ι = Some x → re_status x = ALive →
-    load_exact_cond v →
-    pl = load_word p v.(lw).
-  Proof.
-    intros Hreg Hok Hpl Hι Hx Hs Hside.
-    eapply load_filter_exact_aux; eauto.
-    { intros (ι' & x' & Hι' & Hx' & Hs'). simplify_eq; congruence. }
-    intros b Ht Hab. destruct Hok as (Hp & _ & _ & Hauth & _). specialize (Hauth b Ht Hab).
-    rewrite Hι in Hauth. destruct Hauth as (x' & Hx' & Hl & _). rewrite Hx in Hx'. simplify_eq.
-    split; first by apply Hl.
-    pose proof Hab as (e & Hbe & Hlt)%heap_authority_base_bounds.
-    destruct (Hp ι b e Ht Hbe Hlt Hι) as (x0 & Hx0 & Hb0 & He0). rewrite Hx in Hx0. simplify_eq.
-    eapply reg_ok_live; eauto. rewrite /re_covers. solve_addr.
-  Qed.
-
-  (** Variant 4: identifier-less words with authority are on heap roots,
-      which are never painted, so the loaded copy is exact. *)
-  Lemma load_filter_none R C st v pw p pl :
-    registry_ok R C st →
-    mem_word_ok R C v pw →
-    load_filter st p pw = Some pl →
-    v.(lprov) = None →
-    load_exact_cond v →
-    pl = load_word p v.(lw).
-  Proof.
-    intros Hreg Hok Hpl Hι Hside.
-    eapply load_filter_exact_aux; eauto.
-    { intros (ι' & x' & Hι' & _). congruence. }
-    intros b Ht Hab. destruct Hok as (_ & _ & _ & Hauth & _). specialize (Hauth b Ht Hab).
-    rewrite Hι in Hauth. destruct Hauth as [Hpw Hc]. split; first done.
-    eapply reg_ok_root; eauto.
-  Qed.
 
   (** A heap capability's base is in the shadow table, so the filter does
       not fail. *)

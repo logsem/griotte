@@ -48,20 +48,6 @@ Section AllocatorOwner.
   #[global] Instance allocator_owner_id_timeless id Ω : Timeless (allocator_owner_id id Ω).
   Proof. apply _. Qed.
 
-  Lemma allocator_owner_id_exclusive id Ω1 Ω2 :
-    allocator_owner_id id Ω1 -∗ allocator_owner_id id Ω2 -∗ False.
-  Proof.
-    iIntros "H1 H2". iDestruct (own_valid_2 with "H1 H2") as %Hvalid.
-    rewrite auth_frag_valid singleton_op singleton_valid in Hvalid.
-    by destruct Hvalid.
-  Qed.
-
-  Lemma allocator_owner_id_ne id1 id2 Ω1 Ω2 :
-    allocator_owner_id id1 Ω1 -∗ allocator_owner_id id2 Ω2 -∗ ⌜id1 ≠ id2⌝.
-  Proof.
-    iIntros "H1 H2" (->). iApply (allocator_owner_id_exclusive with "H1 H2").
-  Qed.
-
   Lemma allocator_owners_agree O id Ω :
     allocator_owners O -∗ allocator_owner_id id Ω -∗ ⌜O !! id = Some Ω⌝.
   Proof.

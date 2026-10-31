@@ -7,9 +7,9 @@ From griotte Require Export code_blocks.
 
     - [code_blocks] (re-exported): offsets of the blocks of the code of a
       compartment, and the tactics to focus on its blocks,
-    - [switcher_call_args_0] ... [switcher_call_args_3]: the argument
-      registers of a call to the switcher, for an entry point with 0 to 3
-      arguments,
+    - [switcher_call_args_0], [switcher_call_args_1]: the argument
+      registers of a call to the switcher, for an entry point with 0 or 1
+      argument,
     - [registers_pointsto_extract] ... [registers_pointsto_ret_spec]: the
       registers of a register map. *)
 
@@ -79,74 +79,6 @@ Section Switcher_call_args.
     iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hrmap".
     iExtractList "Hrmap" [ca1;ca2;ca3;ca4;ca5;ct0]
       as ["Hca1"; "Hca2"; "Hca3"; "Hca4"; "Hca5"; "Hct0"].
-    iExists {[ ca0 := wca0; ca1 := wca1; ca2 := wca2; ca3 := wca3;
-               ca4 := wca4; ca5 := wca5; ct0 := wct0 ]}, _.
-    iFrame "Hrmap".
-    iSplit.
-    { iPureIntro.
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap.
-      set_solver+.
-    }
-    iSplit; first by rewrite /is_arg_rmap.
-    repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-    done.
-  Qed.
-
-  Lemma switcher_call_args_2 W C (rmap : LReg) (wca0 wca1 : LWord) :
-    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
-    ca0 ↦ᵣ[th] wca0 -∗
-    interp W C wca0 -∗
-    ca1 ↦ᵣ[th] wca1 -∗
-    interp W C wca1 -∗
-    regs[th] rmap -∗
-    ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
-      ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
-                                     (if decide (rarg ∈ dom_arg_rmap 2)
-                                      then interp W C warg
-                                      else True)) ∗
-      regs[th] rmap'.
-  Proof.
-    iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hrmap".
-    iExtractList "Hrmap" [ca2;ca3;ca4;ca5;ct0]
-      as ["Hca2"; "Hca3"; "Hca4"; "Hca5"; "Hct0"].
-    iExists {[ ca0 := wca0; ca1 := wca1; ca2 := wca2; ca3 := wca3;
-               ca4 := wca4; ca5 := wca5; ct0 := wct0 ]}, _.
-    iFrame "Hrmap".
-    iSplit.
-    { iPureIntro.
-      repeat (rewrite dom_delete_L).
-      rewrite Hrmap_dom /dom_arg_rmap.
-      set_solver+.
-    }
-    iSplit; first by rewrite /is_arg_rmap.
-    repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
-    done.
-  Qed.
-
-  Lemma switcher_call_args_3 W C (rmap : LReg) (wca0 wca1 wca2 : LWord) :
-    dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ca2 ]} ->
-    ca0 ↦ᵣ[th] wca0 -∗
-    interp W C wca0 -∗
-    ca1 ↦ᵣ[th] wca1 -∗
-    interp W C wca1 -∗
-    ca2 ↦ᵣ[th] wca2 -∗
-    interp W C wca2 -∗
-    regs[th] rmap -∗
-    ∃ arg_rmap rmap',
-      ⌜ dom rmap' = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ⌝ ∗
-      ⌜ is_arg_rmap arg_rmap 8 ⌝ ∗
-      ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗
-                                     (if decide (rarg ∈ dom_arg_rmap 3)
-                                      then interp W C warg
-                                      else True)) ∗
-      regs[th] rmap'.
-  Proof.
-    iIntros (Hrmap_dom) "Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hca2 #Hinterp_ca2 Hrmap".
-    iExtractList "Hrmap" [ca3;ca4;ca5;ct0]
-      as ["Hca3"; "Hca4"; "Hca5"; "Hct0"].
     iExists {[ ca0 := wca0; ca1 := wca1; ca2 := wca2; ca3 := wca3;
                ca4 := wca4; ca5 := wca5; ct0 := wct0 ]}, _.
     iFrame "Hrmap".

@@ -39,14 +39,6 @@ Section VAE_helper.
     inversion Hy; subst; auto.
     apply encode_inj in Heq1. inversion Heq1.
   Qed.
-  Lemma rtc_rel_pub' x :
-    rtc (convert_rel awk_rel_pub) (encode true) (encode x) ->
-    x = true.
-  Proof.
-    intros Hrtc.
-    apply encode_inj.
-    apply rtc_rel_pub with (encode true); auto.
-  Qed.
 
   Lemma rtc_rel_pub_inv y x :
     y = (encode true) ∨ y = (encode false) ->

@@ -299,9 +299,6 @@ Section CmptLayout.
   Definition switcher_base_not_heap (C : cmptSwitcher) :
     is_heap_address (b_switcher C) = false :=
     proj1 (switcher_not_heap_range C).
-  Definition switcher_disjoint_from_heap (C : cmptSwitcher) :
-    disjoint_from_heap (b_switcher C) (e_switcher C) :=
-    proj2 (switcher_not_heap_range C).
 
 
   (** The layout of a single-thread switcher: every thread has the trusted
@@ -341,22 +338,6 @@ Section CmptLayout.
     mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher)
       (switcher_data_words (ot_switcher Cswitcher))
       ∪ mkregion (a_switcher_call Cswitcher) (e_switcher Cswitcher) switcher_instrs .
-  Definition cmpt_switcher_trusted_stack_mregion
-     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    mkregion (b_trusted_stack Cswitcher) (e_trusted_stack Cswitcher) (trusted_stack_content Cswitcher).
-  Definition cmpt_switcher_stack_mregion
-     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    mkregion (b_stack Cswitcher) (e_stack Cswitcher) (stack_content Cswitcher).
-  (** The hazard slots, zeroed. *)
-  Definition cmpt_switcher_hazard_mregion
-     (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    mkregion (b_hazard_slots Cswitcher) (e_hazard_slots Cswitcher) [WInt 0; WInt 0].
-
-  Definition mk_initial_switcher (Cswitcher : cmptSwitcher) : gmap Addr Word :=
-    cmpt_switcher_code_mregion Cswitcher ∪
-    cmpt_switcher_trusted_stack_mregion Cswitcher ∪
-    cmpt_switcher_stack_mregion Cswitcher ∪
-    cmpt_switcher_hazard_mregion Cswitcher.
 
   Definition switcher_cmpt_disjoint
     (C : cmpt) (Cswitcher : cmptSwitcher) : Prop :=
@@ -430,29 +411,6 @@ Section CmptLayout.
     cmpt_assert_cap_mregion Cassert ∪
     cmpt_assert_flag_mregion Cassert.
 
-  Lemma dom_cmpt_pcc_mregion (A_cmpt : cmpt) :
-    dom (cmpt_pcc_mregion A_cmpt) = list_to_set (cmpt_pcc_region A_cmpt).
-  Proof.
-    pose proof (cmpt_import_size A_cmpt).
-    pose proof (cmpt_code_size A_cmpt).
-
-    rewrite /cmpt_pcc_mregion /cmpt_pcc_region.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-    rewrite (finz_seq_between_split
-               (cmpt_b_pcc A_cmpt)
-               (cmpt_a_code A_cmpt)
-               (cmpt_e_pcc A_cmpt)); last solve_addr.
-    set_solver.
-  Qed.
-  Lemma dom_cmpt_cgp_mregion (A_cmpt : cmpt) :
-    dom (cmpt_cgp_mregion A_cmpt) = list_to_set (cmpt_cgp_region A_cmpt).
-  Proof.
-    pose proof (cmpt_data_size A_cmpt).
-    rewrite /cmpt_cgp_mregion /cmpt_cgp_region.
-    repeat rewrite dom_mkregion_eq; try solve_addr.
-  Qed.
-
   Lemma cmpt_assert_flag_mregion_disjoint (assert_cmpt : cmptAssert) :
     cmpt_assert_code_mregion assert_cmpt ∪ cmpt_assert_cap_mregion assert_cmpt
       ##ₘ cmpt_assert_flag_mregion assert_cmpt.
@@ -479,105 +437,6 @@ Section CmptLayout.
     pose proof (assert_code_size assert_cmpt).
     pose proof (assert_cap_size assert_cmpt).
     rewrite /cmpt_assert_code_mregion /cmpt_assert_cap_mregion.
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    apply elem_of_disjoint.
-    intros a Ha Ha'.
-    rewrite !elem_of_list_to_set in Ha,Ha'.
-    rewrite !elem_of_finz_seq_between in Ha,Ha'.
-    solve_addr.
-  Qed.
-
-  Lemma cmpt_switcher_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    cmpt_switcher_code_mregion switcher_cmpt ∪ cmpt_switcher_trusted_stack_mregion switcher_cmpt
-      ##ₘ cmpt_switcher_stack_mregion switcher_cmpt.
-  Proof.
-    apply map_disjoint_dom_2.
-    pose proof (switcher_disjointness switcher_cmpt) as (_ & ? & ?).
-    pose proof (switcher_call_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (trusted_stack_size switcher_cmpt).
-    pose proof (stack_size switcher_cmpt).
-    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion /cmpt_switcher_stack_mregion.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    apply elem_of_disjoint.
-    intros a Ha Ha'.
-    rewrite !elem_of_union in Ha.
-    rewrite !elem_of_list_to_set in Ha,Ha'.
-    destruct Ha as [ [Ha | Ha] | Ha].
-    - rewrite elem_of_disjoint in H; eapply H; eauto.
-      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
-      solve_addr.
-    - rewrite elem_of_disjoint in H; eapply H; eauto.
-      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
-      solve_addr.
-    - rewrite elem_of_disjoint in H0; eapply H0; eauto.
-  Qed.
-
-  Lemma cmpt_switcher_trusted_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    cmpt_switcher_code_mregion switcher_cmpt
-      ##ₘ cmpt_switcher_trusted_stack_mregion switcher_cmpt.
-  Proof.
-    apply map_disjoint_dom_2.
-    pose proof (switcher_disjointness switcher_cmpt) as (? & _ & _).
-    pose proof (switcher_call_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (trusted_stack_size switcher_cmpt).
-    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    apply elem_of_disjoint.
-    intros a Ha Ha'.
-    rewrite !elem_of_union in Ha.
-    rewrite !elem_of_list_to_set in Ha,Ha'.
-    destruct Ha as [ Ha | Ha].
-    - rewrite elem_of_disjoint in H; eapply H; eauto.
-      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
-      solve_addr.
-    - rewrite elem_of_disjoint in H; eapply H; eauto.
-      rewrite !elem_of_finz_seq_between in Ha,Ha' |- *.
-      solve_addr.
-  Qed.
-
-  Lemma cmpt_switcher_hazard_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    cmpt_switcher_code_mregion switcher_cmpt ∪ cmpt_switcher_trusted_stack_mregion switcher_cmpt
-      ∪ cmpt_switcher_stack_mregion switcher_cmpt
-      ##ₘ cmpt_switcher_hazard_mregion switcher_cmpt.
-  Proof.
-    apply map_disjoint_dom_2.
-    pose proof (hazard_slots_disjointness switcher_cmpt) as (Hcode & Htstk & Hstk).
-    pose proof (switcher_call_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
-    pose proof (trusted_stack_size switcher_cmpt).
-    pose proof (stack_size switcher_cmpt).
-    pose proof (hazard_slots_size switcher_cmpt).
-    rewrite /cmpt_switcher_code_mregion /cmpt_switcher_trusted_stack_mregion
-      /cmpt_switcher_stack_mregion /cmpt_switcher_hazard_mregion.
-    rewrite !dom_union_L.
-    repeat rewrite dom_mkregion_eq; try (cbn; solve_addr).
-    apply elem_of_disjoint.
-    intros a Ha Ha'.
-    rewrite !elem_of_union in Ha.
-    rewrite !elem_of_list_to_set in Ha,Ha'.
-    destruct Ha as [ [ [Ha | Ha] | Ha] | Ha].
-    - rewrite elem_of_disjoint in Hcode; eapply Hcode; eauto.
-      rewrite !elem_of_finz_seq_between in Ha |- *.
-      solve_addr.
-    - rewrite elem_of_disjoint in Hcode; eapply Hcode; eauto.
-      rewrite !elem_of_finz_seq_between in Ha |- *.
-      solve_addr.
-    - rewrite elem_of_disjoint in Htstk; eapply Htstk; eauto.
-    - rewrite elem_of_disjoint in Hstk; eapply Hstk; eauto.
-  Qed.
-
-  Lemma cmpt_switcher_code_stack_mregion_disjoint (switcher_cmpt : cmptSwitcher) :
-    mkregion (b_switcher switcher_cmpt) (a_switcher_call switcher_cmpt)
-      (switcher_data_words (ot_switcher switcher_cmpt))
-      ##ₘ mkregion (a_switcher_call switcher_cmpt) (e_switcher switcher_cmpt) switcher_instrs.
-  Proof.
-    apply map_disjoint_dom_2.
-    pose proof (switcher_call_entry_point switcher_cmpt).
-    pose proof (switcher_size switcher_cmpt).
     repeat rewrite dom_mkregion_eq; try (solve_addr).
     apply elem_of_disjoint.
     intros a Ha Ha'.
@@ -754,18 +613,6 @@ Section CmptLayout.
   Definition is_initial_data_word (B_cmpt : cmpt) :=
     (fun w => is_z w ∨ in_region w (cmpt_b_cgp B_cmpt) (cmpt_e_cgp B_cmpt)).
 
-  (** Initial memory never covers a memory-mapped address. *)
-  Lemma mem_avoids_mmio_region (m : Mem) (b e : Addr) :
-    disjoint_from_mmio b e →
-    dom m ⊆ list_to_set (finz.seq_between b e) →
-    mem_avoids_mmio m.
-  Proof.
-    intros Hmmio Hdom a Ha.
-    apply (disjoint_from_mmio_not_in b e); first done.
-    apply withinBounds_true_iff, elem_of_finz_seq_between.
-    apply Hdom in Ha. by apply elem_of_list_to_set in Ha.
-  Qed.
-
   Lemma mem_avoids_mmio_initial_heap : mem_avoids_mmio initial_heap_memory.
   Proof.
     intros a Ha.
@@ -802,16 +649,6 @@ Section CmptLayout.
     intros Hw b _ Hb. apply heap_authority_base_heap_cap_base in Hb. congruence.
   Qed.
 
-  Lemma word_rooted_not_heap_cap H w : is_heap_cap w = false → word_rooted H w.
-  Proof.
-    intros Hw. apply word_rooted_nonheap. rewrite /is_heap_cap in Hw.
-    by destruct (heap_cap_base w).
-  Qed.
-
-  Lemma word_rooted_not_heap_caps H (ws : list Word) :
-    Forall (λ w, is_heap_cap w = false) ws → Forall (word_rooted H) ws.
-  Proof. intros Hws. eapply Forall_impl; first exact Hws. apply word_rooted_not_heap_cap. Qed.
-
   Lemma word_rooted_int H z : word_rooted H (WInt z).
   Proof. by apply word_rooted_nonheap. Qed.
 
@@ -842,20 +679,9 @@ Section CmptLayout.
     Forall (word_rooted H) (encodeInstrsW l).
   Proof. apply Forall_fmap, Forall_true. intros i. apply word_rooted_int. Qed.
 
-  Lemma word_rooted_code H (l : list (list instr)) :
-    Forall (word_rooted H) (concat (encodeInstrsW <$> l)).
-  Proof. apply Forall_concat, Forall_fmap, Forall_true. intros. apply word_rooted_instrs. Qed.
-
   Lemma mem_rooted_union H m1 m2 :
     mem_rooted H m1 → mem_rooted H m2 → mem_rooted H (m1 ∪ m2).
   Proof. intros H1 H2 a w [Ha|[_ Ha] ]%lookup_union_Some_raw; eauto. Qed.
-
-  Lemma mem_rooted_mkregion H b e ws :
-    Forall (word_rooted H) ws → mem_rooted H (mkregion b e ws).
-  Proof.
-    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
-    by eapply Forall_forall.
-  Qed.
 
   Lemma mem_rooted_initial_heap H : mem_rooted H initial_heap_memory.
   Proof.
@@ -910,13 +736,6 @@ Section CmptLayout.
   Lemma mem_exec_ok_union m1 m2 :
     mem_exec_ok m1 → mem_exec_ok m2 → mem_exec_ok (m1 ∪ m2).
   Proof. intros H1 H2 a w [Ha|[_ Ha] ]%lookup_union_Some_raw; eauto. Qed.
-
-  Lemma mem_exec_ok_mkregion b e ws :
-    Forall word_exec_ok ws → mem_exec_ok (mkregion b e ws).
-  Proof.
-    intros Hws a w Ha. apply elem_of_list_to_map_2, elem_of_zip_r in Ha.
-    by eapply Forall_forall.
-  Qed.
 
   Lemma mem_exec_ok_initial_heap : mem_exec_ok initial_heap_memory.
   Proof.

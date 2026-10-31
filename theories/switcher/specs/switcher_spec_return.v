@@ -27,11 +27,6 @@ Section Thread_Return_Sentry.
     lword_of_word (Cap XSRW_ Local b_switcher e_switcher a_switcher_return).
   Proof. reflexivity. Qed.
 
-  (** A return ([Jalr cnull cra]) accepts it. *)
-  Lemma thread_return_sentry_jalr_ok :
-    jalr_target_ok cnull cra thread_return_sentry = true.
-  Proof. reflexivity. Qed.
-
   Lemma thread_return_sentry_not_heap {swlayoutwf : switcherLayoutWf} :
     is_heap_cap thread_return_sentry = false.
   Proof.

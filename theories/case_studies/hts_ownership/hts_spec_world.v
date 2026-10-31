@@ -61,19 +61,6 @@ Section HTS_World.
   Context (C_f : Sealable) (W_init_C : WORLD).
 
 
-  Lemma hts_buffer_not_stack b :
-    hts_buffer_bounds b ->
-    disjoint_from_heap csp_b csp_e ->
-    b ∉ finz.seq_between csp_b csp_e.
-  Proof.
-    intros Hbounds Hstk_heap Hb_stk.
-    pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
-    rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-    eapply (Hstk_heap b); first exact Hb_stk.
-    apply elem_of_finz_seq_between.
-    apply withinBounds_true_iff in Hb_heap. exact Hb_heap.
-  Qed.
-
   (** Share [b] with the first adversary call: make [b] a Global region
       holding [0]; the world of the call is the revoked world. *)
   Lemma hts_world_share_buffer E ι b :

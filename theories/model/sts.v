@@ -617,16 +617,6 @@ Section STS.
   Definition fresh_cus_name (W : WORLD) :=
     match W with | MkWorld _ (fs, fr) => fresh (dom fs ∪ dom fr) end.
 
-  Lemma fresh_name_notin (W : WORLD) (ι : positive) :
-    ι ∈ dom (loc W) ∨ ι ∈ dom (wrel W)
-    -> ι ≠ fresh_cus_name W.
-  Proof.
-    intros Hι.
-    destruct W as [Wsta [ Wcus_loc Wcus_rel ] ]; cbn in *.
-    pose proof ( is_fresh ( (dom Wcus_loc ∪ dom Wcus_rel) ) ).
-    set_solver.
-  Qed.
-
   Lemma sts_alloc_loc W C (d : D) (rpub rpriv : D → D → Prop):
     let i := fresh_cus_name W in
     sts_full_world W C ==∗
@@ -709,25 +699,6 @@ Section STS.
       intros i x y Hx Hy.
       destruct (decide (a = i)).
       + subst. rewrite Hdom_sta in Hx. inversion Hx.
-      + rewrite lookup_insert_ne in Hy;auto.
-        rewrite Hx in Hy.
-        inversion Hy; subst.
-        left.
-  Qed.
-
-  Lemma related_sts_priv_world_fresh W a ρ :
-    (forall ρ', rtc (λ x0 y0 : B, Rpub x0 y0 ∨ Rpriv x0 y0) ρ' ρ) ->
-    related_sts_priv_world W (<s[a:=ρ]s> W).
-  Proof.
-    intros Hdom_sta.
-    rewrite /related_sts_priv_world /=.
-    split;[|apply related_sts_priv_refl].
-    rewrite /related_sts_std_priv. split.
-    - rewrite dom_insert_L; set_solver.
-    - intros i x y Hx Hy.
-      destruct (decide (a = i)).
-      + subst. rewrite lookup_insert_eq in Hy; simplify_eq.
-        apply Hdom_sta.
       + rewrite lookup_insert_ne in Hy;auto.
         rewrite Hx in Hy.
         inversion Hy; subst.

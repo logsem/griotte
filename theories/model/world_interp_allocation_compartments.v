@@ -33,16 +33,6 @@ Section region_alloc_cmpt.
       the compartment's allocation leaves unchanged. *)
   Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) := W.
 
-  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
-    let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
-    let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
-    let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
-    related_sts_pub_world W (std_update_compartment W C_cmpt).
-  Proof. intros * _ _ _. apply related_sts_pub_refl_world. Qed.
-
   Lemma switcher_cmpt_disjoint_std_update_compartment
     (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
     a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->

@@ -22,16 +22,6 @@ Section fundamental.
   #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
-  Lemma enter_cond_weakening W C p b e a π :
-    (□ enter_cond W C p Global b e a π interp) -∗
-     □ enter_cond W C p Local b e a π interp.
-  Proof.
-    iIntros "#Hinterp".
-    rewrite /enter_cond /interp_expr /=.
-    iIntros (W' Hrelated) "!> %g' %Hflows".
-    assert (LocalityFlowsTo g' Global) as Hflow' by (destruct g'; auto).
-    iApply ("Hinterp" $! W' with "[//] [//]").
-  Qed.
 
   (** A Local copy of a Global sentry runs at the running thread: the thread
       is in the compartment whenever the copy runs. *)
@@ -396,16 +386,6 @@ Section fundamental.
     iIntros "#Hth H". by iApply (interp_load_word with "Hth").
   Qed.
 
-  Lemma interp_in_mem_unseal_payload W C ot sb π :
-    interp W C (WSealed ot sb @@? π) -∗
-    interp_in_mem RWL W C (WSealable sb @@? π) -∗ interp W C (WSealable sb @@? π).
-  Proof.
-    iIntros "#Hsealed Hmem".
-    iEval (rewrite interp_in_mem_eq) in "Hmem".
-    by replace (lload_word RWL (WSealable sb @@? π)) with (WSealable sb @@? π)
-      by (by destruct sb).
-  Qed.
-
 
 
   Lemma interp_in_mem_readonly_word W C w :
@@ -449,23 +429,9 @@ Section fundamental.
     iApply interp_in_mem_monotone; eauto.
   Qed.
 
-  Lemma future_priv_mono_interp_in_mem_z C z :
-    ⊢ future_priv_mono C interp_in_memC (WInt z).
-  Proof. iIntros "!> %W %W' %Hrelated _". iApply interp_int. Qed.
-
   Lemma future_pub_mono_interp_in_mem_z C z :
     ⊢ future_pub_mono C interp_in_memC (WInt z).
   Proof. iIntros "!> %W %W' %Hrelated _". iApply interp_int. Qed.
-
-  Lemma future_priv_mono_interp_in_mem_global (C : CmptName) (t : bool) (p : Perm) (b e a : Addr) :
-    ⊢ future_priv_mono C interp_in_memC (WCap t p Global b e a).
-  Proof.
-    iModIntro.
-    iIntros (W W') "%Hrelated Hinterp".
-    rewrite /=.
-    iApply (interp_in_mem_monotone_nl W W' C RWL (WCap t p Global b e a) with "Hinterp"); [exact Hrelated|].
-    by destruct t.
-  Qed.
 
   (* interp_in_mem_dl *)
   Program Definition interp_in_mem_dl : V :=

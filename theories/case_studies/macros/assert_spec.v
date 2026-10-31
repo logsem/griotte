@@ -35,66 +35,6 @@ Section Assert_subroutine.
     Persistent (assert_static b_assert e_assert a_flag).
   Proof. apply _. Qed.
 
-  Lemma assert_subroutine_spec
-    (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word)
-    (φ : language.val griotte_lang -> iProp Σ) :
-    disjoint_from_shadow pc_b pc_e →
-    is_shadow_address a_flag = false →
-    is_heap_address a_flag = false →
-    jalr_target_ok cnull cra wret = true →
-    (  assert_static pc_b pc_e a_flag
-     ∗ PC ↦ₚ Cap RX pc_g pc_b pc_e pc_b
-     ∗ cra ↦ᵣ wret
-     ∗ ct0 ↦ᵣ WInt n1
-     ∗ ct1 ↦ᵣ WInt n2
-     ∗ a_flag ↦ₐ WInt flag
-     ∗ ▷ (PC ↦ₚ updatePcPerm wret
-          ∗ cra ↦ᵣ wret
-          ∗ ct0 ↦ᵣ WInt 0
-          ∗ ct1 ↦ᵣ WInt 0
-          ∗ a_flag ↦ₐ WInt (if (n1 =? n2)%Z then flag else 1%Z)
-          -∗ WP Exec {{ φ }})
-     ⊢ WP Exec {{ φ }})%I.
-  Proof.
-    iIntros (Hcode_shadow Hflag_not_shadow Hflag_not_heap Htgt)
-      "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hflag & Hφ)".
-    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
-    iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hpc_e & %He_flag & Hcap)".
-    destruct He_flag as [e_flag He_flag].
-    rewrite /assert_subroutine_instrs.
-    codefrag_facts "Hprog". rename H into HcontProg.
-    assert (SubBounds pc_b pc_e
-              pc_b (pc_b ^+ length assert_subroutine_instrs))
-      as HsubBounds by solve_addr.
-    iInstr "Hprog".
-    destruct (decide (n1 = n2)) as [Heq|Heq].
-    { (* n1 = n2 *)
-      subst n2. rewrite (_: n1 - n1 = 0)%Z; last lia.
-      iGo "Hprog".
-      iApply "Hφ". iFrame "∗". rewrite Z.eqb_refl //. }
-    { (* n1 ≠ n2 *)
-      (* Jne 4 ct0 0. *)
-      iInstr "Hprog". { apply negb_true_iff, Z.eqb_neq; cbn; lia. }
-      (* Auipcc ct1 6. *)
-      iInstr "Hprog".
-      rewrite (_: pc_b ^+ 11 = cap_addr); [|solve_addr].
-      assert (is_shadow_address cap_addr = false) as Hcap_not_shadow.
-      { eapply disjoint_from_shadow_not_in; first exact Hcode_shadow.
-        apply withinBounds_true_iff; solve_addr. }
-      assert (is_heap_cap (Cap RW Global a_flag (a_flag ^+ 1) a_flag) = false)
-        as Hcap_not_heap.
-      { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hflag_not_heap /=.
-        reflexivity. }
-      (* CLoad ct1 ct1 0. *)
-      iInstr "Hprog"; first solve_addr.
-      (* Store ct1 1 0. *)
-      iInstr "Hprog"; first solve_addr.
-      iGo "Hprog".
-      iApply "Hφ". iFrame "∗". rewrite (_: (n1 =? n2)%Z = false) //.
-      by apply Z.eqb_neq. }
-  Qed.
-
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
     ( n1 n2 flag : Z ) ( wret : Word)

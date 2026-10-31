@@ -22,13 +22,6 @@ Section Switcher_error_state.
     Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher
       (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_return")%a.
 
-  (** The return label follows the [cjalr] (both labels exist: an undefined
-      label has offset 0). *)
-  Lemma handler_return_label_after_cjalr :
-    switcher_label_offset ".Lhandle_error_handler_return" =
-    (switcher_label_offset ".Lhandle_error_handler_cjalr" + 1)%Z.
-  Proof. reflexivity. Qed.
-
   Lemma handler_return_sentry_pc (mie : InterruptStatus) :
     lupdatePcPerm (handler_return_sentry mie) =
     switcher_label_pc ".Lhandle_error_handler_return".

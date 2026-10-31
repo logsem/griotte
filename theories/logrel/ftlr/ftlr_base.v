@@ -268,17 +268,6 @@ Section fundamental.
     apply related_sts_pub_refl_world.
   Qed.
 
-  (** The hand-off of a case that changes the world to a public future
-      world [W']. *)
-  Lemma ftlr_post_future W W' C v :
-    related_sts_pub_world W W' →
-    (∃ W'', ⌜related_sts_pub_world W' W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C v) -∗
-    ∃ W'', ⌜related_sts_pub_world W W''⌝ ∗ world_interp W'' C ∗ ftlr_post W'' C v.
-  Proof.
-    iIntros (Hrel) "(%W'' & %Hrel' & Hworld & Hpost)".
-    iExists W''. iFrame. iPureIntro. by eapply related_sts_pub_trans_world.
-  Qed.
-
 End fundamental.
 
 (** The post-state prints folded in the cases' goals. *)

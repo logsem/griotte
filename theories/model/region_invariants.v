@@ -89,7 +89,7 @@ Section standard_world_interp.
 
   Context {Σ:gFunctors}
     {ceriseg:ceriseG Σ}
-    {Cname : CmptNameG} {CNames : gset CmptName}
+    {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}
     `{MP: MachineParameters}
@@ -116,15 +116,6 @@ Section standard_world_interp.
   Proof.
     intros Hl. rewrite open_region_many_eq /open_region_many_def.
     by rewrite (open_l_perm _ _ _ Hl) (open_g_perm _ _ _ Hl).
-  Qed.
-
-  Lemma open_region_many_keys_known W C l :
-    open_region_many W C l -∗ [∗ set] k ∈ dom (std W), heap_key_known k.
-  Proof.
-    rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    iIntros "[_ (%M & Hw)]". iNamed "Hw". rewrite Hdom.
-    iDestruct "Hm" as "(_ & #Hks & _)".
-    iApply big_sepM_dom. iApply (big_sepM_mono with "Hks"). by iIntros (k γp _) "[_ $]".
   Qed.
 
   (** ** Opening and closing a Temporary key, in the local map *)
@@ -204,21 +195,5 @@ Section standard_world_interp.
     iApply (region_close_perm with "Hr Hrel"); [done..|].
     rewrite /body_g /=. by iRight.
   Qed.
-
-  (** ** Monotonicity of the bodies *)
-
-  (** The monotonicity a body carries, by state: public for a Temporary
-      key; a Permanent body mentions no world. *)
-  Definition monotonicity_guarantees_region
-    (C : CmptName) (φ : WORLD * CmptName * LWord → iProp Σ)
-    (p : Perm) (w : LWord) (ρ : region_type) : iProp Σ :=
-    (match ρ with
-     | Temporary => future_pub_mono C φ w
-     | _ => True
-     end)%I.
-
-  #[global] Instance monotonicity_guarantees_region_Persistent C P p w ρ :
-    Persistent (monotonicity_guarantees_region C P p w ρ).
-  Proof. destruct ρ; apply _. Qed.
 
 End standard_world_interp.

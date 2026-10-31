@@ -60,24 +60,6 @@ Section Switcher.
   Definition TrustedStack_offset_reg (r : RegName) : Z :=
     match r with registers.R n _ => Z.of_nat n end.
 
-  Lemma TrustedStack_offset_reg_named :
-    TrustedStack_offset_reg cra = TrustedStack_offset_cra ∧
-    TrustedStack_offset_reg csp = TrustedStack_offset_csp ∧
-    TrustedStack_offset_reg cgp = TrustedStack_offset_cgp ∧
-    TrustedStack_offset_reg ctp = TrustedStack_offset_ctp ∧
-    TrustedStack_offset_reg ct0 = TrustedStack_offset_ct0 ∧
-    TrustedStack_offset_reg ct1 = TrustedStack_offset_ct1 ∧
-    TrustedStack_offset_reg ct2 = TrustedStack_offset_ct2 ∧
-    TrustedStack_offset_reg cs0 = TrustedStack_offset_cs0 ∧
-    TrustedStack_offset_reg cs1 = TrustedStack_offset_cs1 ∧
-    TrustedStack_offset_reg ca0 = TrustedStack_offset_ca0 ∧
-    TrustedStack_offset_reg ca1 = TrustedStack_offset_ca1 ∧
-    TrustedStack_offset_reg ca2 = TrustedStack_offset_ca2 ∧
-    TrustedStack_offset_reg ca3 = TrustedStack_offset_ca3 ∧
-    TrustedStack_offset_reg ca4 = TrustedStack_offset_ca4 ∧
-    TrustedStack_offset_reg ca5 = TrustedStack_offset_ca5.
-  Proof. done. Qed.
-
   (** CHERIoT's [trustedSpillRegisters]: spill the registers [regs], in
       order, to the register save area of the trusted stack in [csp]. *)
   Definition trusted_spill_registers_asm (regs : list RegName) : list asm_code :=
@@ -183,7 +165,6 @@ Section Switcher.
 
   (** The fields of an export entry word, as [encode_entry_point] packs them
       and as the switcher reads them. *)
-  Definition export_entry_flags (z : Z) : Z := Z.land z ExportEntry_byte_mask.
   Definition export_entry_nargs (z : Z) : Z := Z.land z 7.
   Definition export_entry_posture (z : Z) : InterruptStatus :=
     if (Z.land z ExportEntryInterruptStatusSwitcherMask =? 0)%Z
@@ -748,8 +729,6 @@ Section Switcher.
       (match assembled_switcher !! n with | Some l => l | None => [] end).
   Definition switcher_instrs : list Word :=
    concat (encodeInstrsW <$> assembled_switcher).
-  Definition switcher_instrs_n (n : nat) :=
-   encodeInstrsW (assembled_switcher_n n).
 
   Definition switcher_call_instrs :=
       Eval compute in
@@ -809,11 +788,6 @@ Section Switcher.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
     is_heap_address b_switcher = false.
   Proof. exact (proj1 switcher_not_heap_range). Qed.
-
-  Lemma switcher_disjoint_from_heap
-    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :
-    disjoint_from_heap b_switcher e_switcher.
-  Proof. exact (proj2 switcher_not_heap_range). Qed.
 
   Lemma switcher_call_sentry_not_heap
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} :

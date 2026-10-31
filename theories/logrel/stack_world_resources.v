@@ -188,17 +188,5 @@ Section Stack_World_Resources.
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
   Proof. rewrite /revoked_addresses; apply Forall_app. Qed.
 
-  Lemma revoked_addresses_weaken (W : WORLD) (la la' : list Addr) :
-    la' ⊆ la ->
-    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
-    Forall (λ a, std W !! LNonHeap a = Some Revoked) la'.
-  Proof.
-    intros Hl Hla.
-    rewrite Forall_forall in Hla; apply Forall_forall.
-    intros a Ha.
-    apply Hla.
-    by apply Hl.
-  Qed.
-
 
 End Stack_World_Resources.

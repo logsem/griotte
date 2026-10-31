@@ -467,13 +467,6 @@ Section adversary_world.
 
   (** ** Sealed entries exported by an adversary *)
 
-  Lemma cmpt_exp_tbl_addrs_exports_NoDup (C_cmpt : cmpt) :
-    NoDup ((λ a, lword_of_word (WSealable (cmpt_export C_cmpt a))) <$> cmpt_exp_tbl_addrs C_cmpt).
-  Proof.
-    apply NoDup_fmap_2_strong; last apply finz_seq_between_NoDup.
-    intros a a' _ _ Heq; by simplify_eq.
-  Qed.
-
   Lemma exported_entries_sealed_words (C_cmpt : cmpt) (v : LWord) :
     v ∈ exported_entries_sealed C_cmpt →
     ∃ sb, v = lword_of_word (WSealed switcher.ot_switcher sb) ∧
@@ -729,9 +722,6 @@ Section adversary_world.
 
 End adversary_world.
 
-Notation adv_world := (adv_world_with Temporary).
-Notation adv_world_revoked := (adv_world_with Revoked).
-
 (** ** Exported entry points of an adversary *)
 Section adversary_exports.
   Context
@@ -851,21 +841,6 @@ Section adversary_imports.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}.
 
-  Lemma switcher_call_import_safe (C : CmptName) :
-    let w := lword_of_word (Sentry FwdDisable XSRW_ Local
-               switcher.b_switcher switcher.e_switcher switcher.a_switcher_call) in
-    switcher_family C ⊢
-    switcher_static -∗
-    safeGC interp_cmpt_threads (C, w).
-  Proof.
-    intros w; subst w.
-    iIntros "#Hfamily #_".
-    iEval (cbn; rewrite /interp_cmpt_threads /=).
-    iIntros "!>" (t') "#Ht'".
-    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
-    by iApply (interp_switcher_call (th := t') with "[$Hswitcher $Hswitcher_static]").
-  Qed.
-
   (** A word sealed with [o] is safe once the Global-kind predicate of [o]
       holds of its sealable. *)
   Lemma interp_sealed_of_seals (W : WORLD) (C : CmptName) (o : OType)
@@ -919,20 +894,6 @@ Section service_exports.
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}.
-
-  (** The sealed words of a list of exported entries: each entry and its
-      borrowed version. *)
-  Definition exports_words (sbs : list Sealable) : gset LWord :=
-    ⋃ ((λ sb, {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]}) <$> sbs).
-
-  Lemma exports_words_elem_of (sbs : list Sealable) (sb : Sealable) :
-    sb ∈ sbs →
-    {[ lword_of_word (WSealable sb); lword_of_word (borrow (WSealable sb)) ]} ⊆ exports_words sbs.
-  Proof.
-    intros Hsb w Hw. rewrite /exports_words elem_of_union_list.
-    eexists; split; last done.
-    apply list_elem_of_fmap. by exists sb.
-  Qed.
 
   (** The (global) exported entries [sbs] of a service compartment, sealed
       with [ot_switcher], are safe in the world [W] of a compartment [C],
@@ -1038,14 +999,6 @@ Section main_sizes.
   Lemma cmpt_exp_tbl_cgp_eq (C_cmpt : cmpt) :
     cmpt_exp_tbl_cgp C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_cgp).
   Proof. pose proof (cmpt_exp_tbl_pcc_size C_cmpt); solve_addr. Qed.
-
-  Lemma cmpt_exp_tbl_entries_start_eq (C_cmpt : cmpt) :
-    cmpt_exp_tbl_entries_start C_cmpt = (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entries).
-  Proof.
-    pose proof (cmpt_exp_tbl_pcc_size C_cmpt).
-    pose proof (cmpt_exp_tbl_header_size C_cmpt).
-    solve_addr.
-  Qed.
 
   (** The main compartment's code region, as a [codefrag]. *)
   Lemma cmpt_code_codefrag `{Σ : gFunctors} {ceriseg : ceriseG Σ} (main : cmpt) :
