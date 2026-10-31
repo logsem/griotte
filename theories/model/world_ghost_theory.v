@@ -3,7 +3,6 @@ From griotte Require Import world_interp_revocation world_interp_allocation.
 From griotte Require Export world_interp sts_ghost world_std_revocation sts_multiple_updates seal_store.
 From griotte Require Export stdpp_extra iris_extra.
 From griotte Require Import heap_region.
-Import core_link.
 
   (*** World Ghost Theory *)
 

@@ -1,7 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From griotte Require Export state_interp_def.
-Import core_link.
 
 (** * The state-interpretation update modality
 
@@ -27,7 +26,7 @@ Notation "|~{ E }~> P" := (si_upd E P)
 
 Section si_upd_laws.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
 
   Lemma si_upd_ghost E P Q :

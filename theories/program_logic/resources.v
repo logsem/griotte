@@ -279,6 +279,11 @@ Class ceriseG Σ :=
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
+(** The invariants of an instance, without a link: a fancy update in a
+    section with a [ceriseG] and no thread. Low priority: the invariants of
+    a WP's instance are found first. *)
+#[global] Instance cerise_invGS {Σ} {ceriseg : ceriseG Σ} : invGS Σ | 1000 := cerise_invG.
+
 (** * Threads
 
     The user threads of the firmware image, by index, and the

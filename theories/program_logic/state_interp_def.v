@@ -126,10 +126,11 @@ End state_interp.
 
 (* invariants for memory, and a state interpretation for (mem,reg), with
    the link of the critical sections *)
-#[global] Instance memG_irisG `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} {CL : CritLink Σ} :
+#[global] Instance memG_irisG `{MachineParameters} {Σ} {th : Thread} {ceriseg : ceriseG Σ}
+    {CL : CritLink Σ th} :
   irisGS griotte_lang Σ := {
   iris_invGS := cerise_invG;
-  state_interp σ _ κs _ := (cerise_state_interp σ ∗ crit_link σ)%I;
+  state_interp σ _ κs _ := (cerise_state_interp σ ∗ @crit_link Σ th CL σ)%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _
@@ -140,19 +141,19 @@ End state_interp.
     [WP e @[th] E {{ Φ }}] is Iris's WP at the instance of thread [th], so
     the rule library and the proof mode apply to it unchanged. *)
 Notation "'WP' e '@[' th ] E {{ Φ } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E Φ)
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  Φ  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ Φ } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E Φ)
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] E {{ v , Q } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E (λ v, Q))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E (λ v, Q))
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ v , Q } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (λ v, Q))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (λ v, Q))
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
@@ -164,17 +165,17 @@ Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : griotte_lang.val) : iPr
 (* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
    by the notations with a binder. *)
 Notation "'WP' e '@[' th ] E {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck E e%E (HO th'))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  HO  th'  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
 
 (** A safe run of thread [th]: its WP with postcondition [HO th]. *)
 Notation "'safe[' th ]" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th))) NotStuck ⊤
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤
      Exec (HO th))
   (at level 20, th custom thread, format "'safe[' th ]") : bi_scope.
 
@@ -183,12 +184,12 @@ Notation "'safe[' th ]" :=
     [iris_invGS], which typeclass search does not unify with [cb_invG]:
     this instance eliminates such an update in the WP of any thread. *)
 #[global] Instance elim_modal_base_fupd_wp `{MP : MachineParameters} {Σ}
-    {ceriseb : ceriseBaseG Σ} {CL : CritLink Σ} (th : Thread) p E e (P : iProp Σ) Φ :
+    {ceriseb : ceriseBaseG Σ} (th : Thread) {CL : CritLink Σ th} p E e (P : iProp Σ) Φ :
   ElimModal True p false
     (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cb_invG Σ ceriseb))) E E P) P
     (WP e @[th] E {{ Φ }}) (WP e @[th] E {{ Φ }}).
 Proof.
-  exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG (ceriseg := ceriseG_of th))
+  exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG (th := th) (ceriseg := ceriseG_of th))
            p NotStuck E e P Φ).
 Qed.
 

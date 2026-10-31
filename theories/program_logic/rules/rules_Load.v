@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -1813,7 +1813,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section load_exact.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
   (** Loading an identifier-less word that satisfies [load_exact_cond]
       (e.g. a heap root, which has authority) keeps it exactly: the fourth

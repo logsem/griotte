@@ -11,7 +11,7 @@ Import core_link.
 
 Section trap_entry_windows.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types w : LWord.
@@ -237,7 +237,7 @@ End trap_entry_windows.
 (** Trap entry, at the core link: it writes MIE (and MPIE). *)
 Section griotte_lang_traps.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.

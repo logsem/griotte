@@ -11,7 +11,7 @@ From griotte Require Export rules_base si_modality.
 
 Section rules_registry.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
 
   (** Opens the state interpretation for a ghost update that keeps the

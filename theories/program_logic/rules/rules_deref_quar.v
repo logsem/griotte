@@ -16,7 +16,7 @@ From griotte Require Import rules_Load rules_Store rules_registry.
 
 Section rules_deref_quar.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
 
   (** The register lookup of an untagged register: [cnull] reads as

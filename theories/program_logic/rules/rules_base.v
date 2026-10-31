@@ -25,7 +25,7 @@ Ltac inv_base_step :=
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -185,7 +185,7 @@ Section griotte_lang_rules.
       mtdc. *)
   Lemma instr_close_core σ1 σ' (X : iProp Σ) :
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
-    |==> (cerise_state_interp σ' ∗ @crit_link Σ link_core σ') ∗ X.
+    |==> (cerise_state_interp σ' ∗ @crit_link Σ _ link_core σ') ∗ X.
   Proof. iIntros ">(_ & $ & $)". done. Qed.
 
   (** Closes a step that may change MIE or mtdc from [σ0], through a
@@ -330,7 +330,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section instruction_closing.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread}.
 
   (** The closing lemmas below conclude that the step keeps MIE and mtdc
       ([sys_kept]): they do not change the system registers. *)
@@ -540,7 +540,7 @@ Ltac solve_next_side :=
 
 Section instruction_outcomes.
 
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {CL : CritLink Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
   (* A failed instruction rolls back every tentative write. The premise is
      about all physical register files that include the erased owned

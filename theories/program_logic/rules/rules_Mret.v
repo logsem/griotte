@@ -7,7 +7,7 @@ Import core_link.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -150,7 +150,7 @@ End griotte_lang_rules.
 (** The core corollaries, with today's statements. *)
 Section griotte_lang_rules_core.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread}.
   Implicit Types w : LWord.
 
   Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs dq :

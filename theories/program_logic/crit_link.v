@@ -1,13 +1,14 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import iprop base_logic.
 From griotte Require Export erasure.
+From griotte Require Import resources.
 
 (** * The link of the critical sections
 
     The state interpretation of a thread is completed by a link [crit_link]:
     the part that depends on the interrupt status and on mtdc. A step that
-    keeps MIE and the physical mtdc keeps the link. Today the link is
-    [True] ([link_core]). *)
+    keeps MIE and the physical mtdc keeps the link. The link is per thread.
+    Today the link is [True] ([link_core]). *)
 
 (** MIE of a configuration (InterruptDisabled if mstatus is absent). *)
 Definition mie_st (σ : ExecConf) : InterruptStatus :=
@@ -23,18 +24,18 @@ Proof. rewrite /mstatus_ok /mie_st. intros ->. apply mie_of_mstatus_enc. Qed.
 Lemma mstatus_ok_mpie_st σ mie mpie : mstatus_ok σ mie mpie → mpie_st σ = mpie.
 Proof. rewrite /mstatus_ok /mpie_st. intros ->. apply mpie_of_mstatus_enc. Qed.
 
-Class CritLink Σ := {
+Class CritLink Σ (th : Thread) := {
   crit_link : ExecConf → iProp Σ;
   crit_link_stable σ σ' :
     mie_st σ = mie_st σ' → sreg σ !! mtdc = sreg σ' !! mtdc →
     crit_link σ ⊢ crit_link σ';
 }.
-#[export] Hint Mode CritLink + : typeclass_instances.
+#[export] Hint Mode CritLink + - : typeclass_instances.
 
 (** The core link [True]. Not a global instance: a section without a
     [CritLink] binder that needs it imports [core_link], which declares it
     with a low priority (a [CritLink] binder still takes precedence). *)
-Definition link_core {Σ} : CritLink Σ :=
+Definition link_core {Σ} {th : Thread} : CritLink Σ th :=
   {| crit_link _ := True%I; crit_link_stable _ _ _ _ := reflexivity _ |}.
 
 Module core_link.
@@ -62,12 +63,12 @@ Proof. intros H1 H2. rewrite /sys_kept /mie_st /=. by rewrite !lookup_insert_ne.
 (** The link-transfer premise of a step that may change MIE or mtdc: [P]
     relates the states before and after the step; [T1] is given up and [T2]
     obtained with the link. *)
-Definition link_transfer {Σ} `{!CritLink Σ} (P : ExecConf → ExecConf → Prop)
+Definition link_transfer {Σ} {th : Thread} `{!CritLink Σ th} (P : ExecConf → ExecConf → Prop)
     (T1 T2 : iProp Σ) : Prop :=
   ∀ σ σ', P σ σ' → crit_link σ ∗ T1 ⊢ |==> crit_link σ' ∗ T2.
 
 (** At the core link, it holds with [True]. *)
-Lemma link_transfer_core {Σ} P : @link_transfer Σ link_core P True True.
+Lemma link_transfer_core {Σ} {th : Thread} P : @link_transfer Σ th link_core P True True.
 Proof. iIntros (σ σ' _) "_". done. Qed.
 
 (** The relations of the writers: MIE becomes [b] ([SetMIE], [csrw
@@ -96,7 +97,7 @@ Lemma mtdc_written_kept σ0 σ1 σ' : mtdc_written σ0 σ1 → sys_kept σ1 σ' 
 Proof. rewrite /mtdc_written. intros H1 [Hk1 _]. congruence. Qed.
 
 (** A step that keeps MIE and mtdc keeps the link, without transfer. *)
-Lemma link_transfer_kept {Σ} `{!CritLink Σ} :
+Lemma link_transfer_kept {Σ} {th : Thread} `{!CritLink Σ th} :
   link_transfer (mie_update None) (True : iProp Σ) True.
 Proof.
   iIntros (σ σ' [Hmtdc Hmie]) "[Hl _]". iModIntro. iSplit; last done.
