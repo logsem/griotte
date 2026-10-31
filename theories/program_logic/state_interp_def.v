@@ -58,48 +58,42 @@ Section state_interp.
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ,
-            !mtdcG Σ, !mieG Σ, !mpieG Σ}.
+            !mtdcG Σ, !mieG Σ, !mpieG Σ, !postureG Σ, !mtdcLentG Σ}.
 
-  (** The trap-entry windows of the running thread: the registers trap
-      entry writes (MEPCC, mcause, mtval), held here, or lent to the code
-      after trap entry, which then holds their points-to while the state
-      interpretation holds the trap-entry tokens of the thread's pool. MEPCC
-      and mcause are lent against the token without [Ntval], mtval, which
-      holds an integer, against the token of [Ntval]. *)
-  Definition trap_windows : iProp Σ :=
-    "Hwin" ∷ (((∃ v, mepcc ↦ₓ v) ∗ (∃ v, mcause ↦ₓ v)) ∨
-              na_own cerise_pool (↑Ntrap ∖ ↑Ntval)) ∗
-    "Hwin_tval" ∷ ((∃ z : Z, mtval ↦ₓ lword_of_word (WInt z)) ∨
-                   na_own cerise_pool (↑Ntval)).
+  (** MTCC: it holds the trap vector [mtcc_vec] while the one-shot ghost is
+      pending; once wedged, it holds an untagged word and the state
+      interpretation holds the unwedged token. No client holds its
+      points-to. *)
+  Definition SI_mtcc : iProp Σ :=
+    (mtcc ↦ₓ lword_of_word mtcc_vec ∗ mtcc_pending) ∨
+    (∃ w : LWord, mtcc ↦ₓ w ∗ ⌜get_tag w.(lw) = false⌝ ∗ unwedged ∗ mtcc_wedged).
 
-  (** The shared part: the shared system registers (MTCC, which holds the
-      trap vector [mtcc_vec], is reserved: no client holds its points-to),
+  (** The shared part: the shared system registers (MTCC as [SI_mtcc]),
       memory, the shadow table, the registry, the address claims, and the
-      authority and fragment of MPIE. *)
+      authority of MPIE. The volatile registers (MEPCC, mcause, mtval) and
+      the fragment of MPIE are held by the clients. *)
   Definition SI_shared R C (σ : ExecConf) : iProp Σ :=
     ∃ (lsh : LSReg) (lmem : LMem) (mpie : InterruptStatus),
       "Hsr" ∷ gen_heap_interp lsh ∗
-      "Hmtcc" ∷ mtcc ↦ₓ lword_of_word mtcc_vec ∗
+      "Hmtcc" ∷ SI_mtcc ∗
       "Hm" ∷ gen_heap_interp lmem ∗
       "Hst" ∷ gen_heap_interp (shadowtbl σ) ∗
       "HR" ∷ reg_auth R ∗
       "HC" ∷ addr_alloc_auth C ∗
       "Hmpie" ∷ MPIE_auth mpie ∗
-      "Hmpie_f" ∷ MPIE_frag mpie ∗
       "%Hersh" ∷ ⌜erasure_sh R C σ lsh lmem mpie⌝.
 
   (** The part of the running thread: its PC, its registers, the authority
-      of its mtdc ghost, the authority and fragment of MIE, its trap-entry
-      windows. *)
+      of its mtdc ghost and the clause of its mtdc token, the authority of
+      MIE (the fragment is held by the thread's code). *)
   Definition SI_th R C (σ : ExecConf) : iProp Σ :=
     ∃ (lpc : LWord) (lreg : LReg) (m : mtdc_val) (vm : LWord) (mie : InterruptStatus),
       "HPCa" ∷ PC_auth lpc ∗
       "Hr" ∷ gen_heap_interp lreg ∗
       "Hmtdc" ∷ mtdc_auth m ∗
       "%Hmtdc_m" ∷ ⌜mtdc_match m vm⌝ ∗
+      "Hlent" ∷ mtdc_clause m ∗
       "Hmie" ∷ MIE_auth mie ∗
-      "Hmie_f" ∷ MIE_frag mie ∗
-      "Hwins" ∷ trap_windows ∗
       "%Herth" ∷ ⌜erasure_th R C σ lpc lreg vm mie⌝.
 
   (** One [∃ R C] for both parts. *)
@@ -110,17 +104,15 @@ Section state_interp.
   Proof. apply _. Qed.
 
   (** The system registers of a step, as one hypothesis: the shared heap,
-      MTCC, MPIE, the thread's mtdc and MIE and its trap-entry windows. *)
+      MTCC, MPIE, the thread's mtdc with its clause, and MIE. *)
   Definition sys_interp (ls : LSys) : iProp Σ :=
     "Hsr" ∷ gen_heap_interp (ls_sh ls) ∗
-    "Hmtcc" ∷ mtcc ↦ₓ lword_of_word mtcc_vec ∗
+    "Hmtcc" ∷ SI_mtcc ∗
     "Hmpie" ∷ MPIE_auth (ls_mpie ls) ∗
-    "Hmpie_f" ∷ MPIE_frag (ls_mpie ls) ∗
     "Hmtdc" ∷ mtdc_auth (ls_mtdc ls) ∗
     "%Hmtdc_m" ∷ ⌜mtdc_match (ls_mtdc ls) (ls_vmtdc ls)⌝ ∗
+    "Hlent" ∷ mtdc_clause (ls_mtdc ls) ∗
     "Hmie" ∷ MIE_auth (ls_mie ls) ∗
-    "Hmie_f" ∷ MIE_frag (ls_mie ls) ∗
-    "Hwins" ∷ trap_windows ∗
     "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
 End state_interp.
 
@@ -141,19 +133,23 @@ End state_interp.
     [WP e @[th] E {{ Φ }}] is Iris's WP at the instance of thread [th], so
     the rule library and the proof mode apply to it unchanged. *)
 Notation "'WP' e '@[' th ] E {{ Φ } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E Φ)
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck E e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  Φ  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ Φ } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E Φ)
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck ⊤ e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] E {{ v , Q } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E (λ v, Q))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck E e%E (λ v, Q))
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ v , Q } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (λ v, Q))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck ⊤ e%E (λ v, Q))
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
@@ -165,17 +161,20 @@ Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : griotte_lang.val) : iPr
 (* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
    by the notations with a binder. *)
 Notation "'WP' e '@[' th ] E {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck E e%E (HO th'))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck E e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  HO  th'  } } ']'") : bi_scope.
 Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤ e%E (HO th'))
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck ⊤ e%E (HO th'))
   (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
 
 (** A safe run of thread [th]: its WP with postcondition [HO th]. *)
 Notation "'safe[' th ]" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th))) NotStuck ⊤
+  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
+     NotStuck ⊤
      Exec (HO th))
   (at level 20, th custom thread, format "'safe[' th ]") : bi_scope.
 

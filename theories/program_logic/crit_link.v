@@ -71,36 +71,16 @@ Definition link_transfer {Σ} {th : Thread} `{!CritLink Σ th} (P : ExecConf →
 Lemma link_transfer_core {Σ} {th : Thread} P : @link_transfer Σ th link_core P True True.
 Proof. iIntros (σ σ' _) "_". done. Qed.
 
-(** The relations of the writers: MIE becomes [b] ([SetMIE], [csrw
-    mstatus]) or MPIE ([mret]), or is unchanged ([None]); mtdc is unchanged
-    in each. The mtdc writers keep MIE. *)
-Definition mie_update (o : option InterruptStatus) (σ σ' : ExecConf) : Prop :=
-  sreg σ' !! mtdc = sreg σ !! mtdc ∧
-  match o with Some b => mie_st σ' = b | None => mie_st σ' = mie_st σ end.
-Definition mie_set (b : InterruptStatus) : ExecConf → ExecConf → Prop := mie_update (Some b).
-Definition mie_from_mpie (σ σ' : ExecConf) : Prop :=
-  mie_st σ' = mpie_st σ ∧ sreg σ' !! mtdc = sreg σ !! mtdc.
+(** The relation of the MIE writers: MIE goes from [b] to [b'], mtdc is
+    unchanged. The mtdc writers keep MIE. *)
+Definition mie_move (b b' : InterruptStatus) (σ σ' : ExecConf) : Prop :=
+  mie_st σ = b ∧ mie_st σ' = b' ∧ sreg σ' !! mtdc = sreg σ !! mtdc.
 Definition mtdc_written (σ σ' : ExecConf) : Prop := mie_st σ' = mie_st σ.
 
 (** The relations of the writers are closed under a following step that
     keeps MIE and mtdc. *)
-Lemma mie_update_kept o σ0 σ1 σ' : mie_update o σ0 σ1 → sys_kept σ1 σ' → mie_update o σ0 σ'.
-Proof.
-  intros [Hm Hb] [Hk1 Hk2]. split; first congruence.
-  destruct o; congruence.
-Qed.
-
-Lemma mie_from_mpie_kept σ0 σ1 σ' : mie_from_mpie σ0 σ1 → sys_kept σ1 σ' → mie_from_mpie σ0 σ'.
-Proof. intros [H1 H2] [Hk1 Hk2]. split; congruence. Qed.
+Lemma mie_move_kept b b' σ0 σ1 σ' : mie_move b b' σ0 σ1 → sys_kept σ1 σ' → mie_move b b' σ0 σ'.
+Proof. intros (H1 & H2 & H3) [Hk1 Hk2]. split_and!; congruence. Qed.
 
 Lemma mtdc_written_kept σ0 σ1 σ' : mtdc_written σ0 σ1 → sys_kept σ1 σ' → mtdc_written σ0 σ'.
 Proof. rewrite /mtdc_written. intros H1 [Hk1 _]. congruence. Qed.
-
-(** A step that keeps MIE and mtdc keeps the link, without transfer. *)
-Lemma link_transfer_kept {Σ} {th : Thread} `{!CritLink Σ th} :
-  link_transfer (mie_update None) (True : iProp Σ) True.
-Proof.
-  iIntros (σ σ' [Hmtdc Hmie]) "[Hl _]". iModIntro. iSplit; last done.
-  by iApply (crit_link_stable with "Hl").
-Qed.
-

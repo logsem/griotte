@@ -9,9 +9,8 @@ From griotte Require Export logical_words alloc_registry.
     mtdc and MIE, and MPIE), the classes of a thread's instance and of the
     resources shared by the threads, and the points-to notations. *)
 
-(** Non-atomic invariants: the pool of the running thread, which holds the
-    tokens of trap entry in the state interpretation. Thread-level code names
-    the pool of a thread [th] as [tpool th]. *)
+(** Non-atomic invariants: the pool of the running thread. Thread-level
+    code names the pool of a thread [th] as [tpool th]. *)
 Class cerise_na_invs Σ :=
   {
     na_invG :: na_invG Σ;
@@ -155,11 +154,17 @@ Section mie_resource.
   #[global] Instance MIE_frag_timeless b : Timeless (MIE_frag b).
   Proof. apply _. Qed.
 
+  Lemma MIE_agree b b' : MIE_auth b -∗ MIE_frag b' -∗ ⌜b = b'⌝.
+  Proof. iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv. by apply excl_auth_agree_L in Hv. Qed.
+
   Lemma MIE_update b b' b'' : MIE_auth b -∗ MIE_frag b' ==∗ MIE_auth b'' ∗ MIE_frag b''.
   Proof.
     iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
     apply excl_auth_update.
   Qed.
+
+  Lemma MIE_frag_excl b b' : MIE_frag b -∗ MIE_frag b' -∗ False.
+  Proof. iIntros "H1 H2". iCombine "H1 H2" gives %Hv. by apply excl_auth_frag_op_valid in Hv. Qed.
 End mie_resource.
 
 Section mpie_resource.
@@ -172,11 +177,17 @@ Section mpie_resource.
   #[global] Instance MPIE_frag_timeless b : Timeless (MPIE_frag b).
   Proof. apply _. Qed.
 
+  Lemma MPIE_agree b b' : MPIE_auth b -∗ MPIE_frag b' -∗ ⌜b = b'⌝.
+  Proof. iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv. by apply excl_auth_agree_L in Hv. Qed.
+
   Lemma MPIE_update b b' b'' : MPIE_auth b -∗ MPIE_frag b' ==∗ MPIE_auth b'' ∗ MPIE_frag b''.
   Proof.
     iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
     apply excl_auth_update.
   Qed.
+
+  Lemma MPIE_frag_excl b b' : MPIE_frag b -∗ MPIE_frag b' -∗ False.
+  Proof. iIntros "H1 H2". iCombine "H1 H2" gives %Hv. by apply excl_auth_frag_op_valid in Hv. Qed.
 End mpie_resource.
 
 Lemma mtdc_init `{!mtdcGpreS Σ} (m : mtdc_val) :
@@ -226,6 +237,73 @@ Class mtdcLentG Σ := MtdcLentG {
   mtdc_home : mtdc_val;
 }.
 #[export] Hint Mode mtdcLentG - : typeclass_instances.
+
+(** The unwedged token, and the one-shot ghost of MTCC: pending while MTCC
+    holds the trap vector, wedged (persistently) once it does not. *)
+Section posture_resources.
+  Context `{!postureG Σ}.
+
+  Definition unwedged : iProp Σ := own γunwedged (Excl () : exclR unitO).
+  Definition mtcc_pending : iProp Σ := own γmtcc (Cinl (Excl ()) : oneshotR).
+  Definition mtcc_wedged : iProp Σ := own γmtcc (Cinr (to_agree ()) : oneshotR).
+
+  #[global] Instance unwedged_timeless : Timeless unwedged.
+  Proof. apply _. Qed.
+  #[global] Instance mtcc_pending_timeless : Timeless mtcc_pending.
+  Proof. apply _. Qed.
+  #[global] Instance mtcc_wedged_timeless : Timeless mtcc_wedged.
+  Proof. apply _. Qed.
+  #[global] Instance mtcc_wedged_persistent : Persistent mtcc_wedged.
+  Proof. apply _. Qed.
+
+  Lemma unwedged_excl : unwedged -∗ unwedged -∗ False.
+  Proof. iIntros "H1 H2". by iDestruct (own_valid_2 with "H1 H2") as %[]. Qed.
+
+  Lemma mtcc_pending_wedged : mtcc_pending -∗ mtcc_wedged -∗ False.
+  Proof. iIntros "H1 H2". by iDestruct (own_valid_2 with "H1 H2") as %[]. Qed.
+End posture_resources.
+
+(** The mtdc token of a thread, and the clause of its mtdc in the state
+    interpretation: the ghost value is the home value, or the state
+    interpretation holds the token (the token is lent). *)
+Section mtdc_lent_resources.
+  Context `{!mtdcLentG Σ}.
+
+  Definition mtdc_lent : iProp Σ := own mtdc_lent_name (Excl () : exclR unitO).
+  Definition mtdc_clause (m : mtdc_val) : iProp Σ := ⌜m = mtdc_home⌝ ∨ mtdc_lent.
+
+  #[global] Instance mtdc_lent_timeless : Timeless mtdc_lent.
+  Proof. apply _. Qed.
+  #[global] Instance mtdc_clause_timeless m : Timeless (mtdc_clause m).
+  Proof. apply _. Qed.
+
+  Lemma mtdc_lent_excl : mtdc_lent -∗ mtdc_lent -∗ False.
+  Proof. iIntros "H1 H2". by iDestruct (own_valid_2 with "H1 H2") as %[]. Qed.
+
+  (** The holder of the token knows that the ghost value is the home
+      value. *)
+  Lemma mtdc_clause_lent m : mtdc_clause m -∗ mtdc_lent -∗ ⌜m = mtdc_home⌝.
+  Proof.
+    iIntros "[%Hm | Hl] Hl'"; first done.
+    iDestruct (mtdc_lent_excl with "Hl Hl'") as %[].
+  Qed.
+
+  (** The transfers of the clause by an mtdc write: leaving the home value
+      pays the token, writing another value keeps it lent, coming back to
+      the home value returns it. *)
+  Lemma mtdc_clause_open m' : mtdc_clause mtdc_home ∗ mtdc_lent ⊢ |==> mtdc_clause m' ∗ True.
+  Proof. iIntros "[_ Hl] !>". iSplitL; [by iRight | done]. Qed.
+
+  Lemma mtdc_clause_ex m m' : m ≠ mtdc_home → mtdc_clause m ∗ True ⊢ |==> mtdc_clause m' ∗ True.
+  Proof. iIntros (Hm) "[ [%Hm' | Hl] _] !>"; first done. iSplitL; [by iRight | done]. Qed.
+
+  Lemma mtdc_clause_close m :
+    m ≠ mtdc_home → mtdc_clause m ∗ True ⊢ |==> mtdc_clause mtdc_home ∗ mtdc_lent.
+  Proof. iIntros (Hm) "[ [%Hm' | Hl] _] !>"; first done. iSplitR "Hl"; [by iLeft | done]. Qed.
+
+  Lemma mtdc_clause_keep m : mtdc_clause m ∗ True ⊢ |==> mtdc_clause m ∗ True.
+  Proof. by iIntros "$ !>". Qed.
+End mtdc_lent_resources.
 
 Lemma posture_init `{!inG Σ (exclR unitO), !inG Σ oneshotR, !na_invariants.na_invG Σ} :
   ⊢ |==> ∃ pg : postureG Σ,
@@ -405,13 +483,6 @@ Section thread_indep.
 
 End thread_indep.
 
-(** The namespace of the non-atomic token of trap entry: a fault hands it
-    to the state interpretation, in exchange for MEPCC, mcause and mtval.
-    Its part [Ntval] is exchanged for mtval, the rest for MEPCC and
-    mcause. *)
-Definition Ntrap : namespace := nroot .@ "trap_entry".
-Definition Ntval : namespace := Ntrap .@ "tval".
-
 (* Points to predicates for the system registers of the shared heap: the
    system-wide control and status registers *)
 Notation "sr ↦ₓ dq w" := (pointsto (L:=SRegName) (V:=LWord) sr dq w)
@@ -457,6 +528,13 @@ Notation "'mtdc' ↦ₜ m" := (mtdc_frag m)
   (at level 0, m at level 10, format "'mtdc'  ↦ₜ  m") : bi_scope.
 Notation "'mtdc' ↦ₜ[ th ] m" := (@mtdc_frag _ (@cerise_mtdcG _ (ceriseG_of th)) m)
   (at level 0, th custom thread, m at level 10, format "'mtdc'  ↦ₜ[ th ]  m") : bi_scope.
+
+(** The MIE fragment of a thread, released to its code: [MIE ↦ₜ b], and
+    [MIE ↦ₜ[th] b] for thread [th]. *)
+Notation "'MIE' ↦ₜ b" := (MIE_frag b)
+  (at level 0, b at level 10, format "'MIE'  ↦ₜ  b") : bi_scope.
+Notation "'MIE' ↦ₜ[ th ] b" := (@MIE_frag _ (@cerise_mieG _ (ceriseG_of th)) b)
+  (at level 0, th custom thread, b at level 10, format "'MIE'  ↦ₜ[ th ]  b") : bi_scope.
 
 (* Points to predicates for memory *)
 Notation "a ↦ₐ dq w" := (pointsto (L:=Addr) (V:=LWord) a dq w)

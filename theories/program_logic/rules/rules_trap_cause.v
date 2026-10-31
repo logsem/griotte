@@ -1,6 +1,5 @@
 From iris.proofmode Require Import proofmode environments spec_patterns.
 From griotte Require Export rules_trap_entry.
-Import core_link.
 
 (** * The exact cause and value of a fault
 
@@ -551,7 +550,7 @@ Section trap_cause.
 
   (** * The fault rule with the exact cause and value *)
 
-  Context `{ceriseg : ceriseG Σ} {th : Thread}.
+  Context `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   (** A fault with the exact cause and value, from the PC [w], the
       registers [lregs] and the memory [lm], each cell at its own fraction

@@ -11,7 +11,7 @@ Section state_interp.
             !gen_heapGS RegName LWord Σ, !gen_heapGS SRegName LWord Σ,
             !gen_heapGS Addr LWord Σ, !gen_heapGS Addr AllocStatus Σ,
             !allocRegistryG Σ, !addrAllocG Σ, !trapVector, !cerise_na_invs Σ,
-            !mtdcG Σ, !mieG Σ, !mpieG Σ}.
+            !mtdcG Σ, !mieG Σ, !mpieG Σ, !postureG Σ, !mtdcLentG Σ}.
 
   Lemma SI_close σ lpc lreg ls lmem R C :
     erasure R C σ lpc lreg (ls_join ls) lmem →
@@ -22,7 +22,7 @@ Section state_interp.
     iIntros (Her) "HPCa Hr Hsys Hm Hst HR HC". iNamed "Hsys".
     destruct Hlsh as [Hn1 Hn2].
     destruct (erasure_split _ _ _ _ _ _ _ _ _ _ Hn1 Hn2 Her) as [Hsh Hth].
-    iExists R, C. iSplitR "HPCa Hr Hmtdc Hmie Hmie_f Hwins".
+    iExists R, C. iSplitR "HPCa Hr Hmtdc Hlent Hmie".
     - iExists (ls_sh ls), lmem, (ls_mpie ls). iFrame. done.
     - iExists lpc, lreg, (ls_mtdc ls), (ls_vmtdc ls), (ls_mie ls). iFrame. done.
   Qed.
@@ -105,22 +105,44 @@ Section state_interp.
     - rewrite big_sepM_insert_delete. iFrame.
   Qed.
 
-  (** MTCC holds the trap vector. *)
+  (** MTCC holds the trap vector, for the holder of the unwedged token. *)
   Lemma sys_interp_mtcc ls :
-    sys_interp ls -∗ ⌜ls_join ls !! mtcc = Some (lword_of_word mtcc_vec)⌝.
+    sys_interp ls -∗ unwedged -∗ ⌜ls_join ls !! mtcc = Some (lword_of_word mtcc_vec)⌝.
   Proof.
-    iIntros "Hsys". iNamed "Hsys".
+    iIntros "Hsys HU". iNamed "Hsys".
+    iDestruct "Hmtcc" as "[ [Hmtcc _] | (%w & _ & _ & HU' & _)]"; last first.
+    { iDestruct (unwedged_excl with "HU HU'") as %[]. }
     iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hv.
     iPureIntro. by rewrite /ls_join lsregs_join_ne.
   Qed.
 
-  (** mstatus: each part pins its own bit. *)
-  Lemma sys_interp_set_mstatus ls mie mpie :
-    sys_interp ls ==∗ sys_interp (ls_set_mstatus ls mie mpie).
+  (** MIE and MPIE: the fragments agree with the state interpretation. *)
+  Lemma sys_interp_mie_agree ls b :
+    sys_interp ls -∗ MIE_frag b -∗ ⌜ls_mie ls = b⌝.
+  Proof. iIntros "Hsys Hf". iNamed "Hsys". iApply (MIE_agree with "Hmie Hf"). Qed.
+
+  Lemma sys_interp_mpie_agree ls b :
+    sys_interp ls -∗ MPIE_frag b -∗ ⌜ls_mpie ls = b⌝.
+  Proof. iIntros "Hsys Hf". iNamed "Hsys". iApply (MPIE_agree with "Hmpie Hf"). Qed.
+
+  (** mstatus: a write of MIE, with its fragment, and a write of MIE and
+      MPIE, with both fragments. *)
+  Lemma sys_interp_set_mie ls b mie :
+    sys_interp ls -∗ MIE_frag b ==∗
+    sys_interp (ls_set_mstatus ls mie (ls_mpie ls)) ∗ MIE_frag mie.
   Proof.
-    iIntros "Hsys". iNamed "Hsys".
-    iMod (MIE_update _ _ mie with "Hmie Hmie_f") as "[Hmie Hmie_f]".
-    iMod (MPIE_update _ _ mpie with "Hmpie Hmpie_f") as "[Hmpie Hmpie_f]".
+    iIntros "Hsys Hf". iNamed "Hsys".
+    iMod (MIE_update _ _ mie with "Hmie Hf") as "[Hmie Hf]".
+    iModIntro. by iFrame.
+  Qed.
+
+  Lemma sys_interp_set_mstatus ls b p mie mpie :
+    sys_interp ls -∗ MIE_frag b -∗ MPIE_frag p ==∗
+    sys_interp (ls_set_mstatus ls mie mpie) ∗ MIE_frag mie ∗ MPIE_frag mpie.
+  Proof.
+    iIntros "Hsys Hf Hpf". iNamed "Hsys".
+    iMod (MIE_update _ _ mie with "Hmie Hf") as "[Hmie Hf]".
+    iMod (MPIE_update _ _ mpie with "Hmpie Hpf") as "[Hmpie Hpf]".
     iModIntro. by iFrame.
   Qed.
 
@@ -133,14 +155,25 @@ Section state_interp.
     iDestruct (mtdc_agree with "Hmtdc Hf") as %<-. done.
   Qed.
 
-  Lemma sys_interp_set_mtdc ls m m' vm :
+  (** The write transfers the clause of the mtdc token: [L1] is given up
+      for [L2]. *)
+  Lemma sys_interp_set_mtdc ls m m' vm (L1 L2 : iProp Σ) :
     mtdc_match m' vm →
-    sys_interp ls -∗ mtdc_frag m ==∗ sys_interp (ls_set_mtdc ls m' vm) ∗ mtdc_frag m'.
+    (mtdc_clause m ∗ L1 ⊢ |==> mtdc_clause m' ∗ L2) →
+    sys_interp ls -∗ mtdc_frag m -∗ L1 ==∗ sys_interp (ls_set_mtdc ls m' vm) ∗ mtdc_frag m' ∗ L2.
   Proof.
-    iIntros (Hm') "Hsys Hf". iNamed "Hsys".
+    iIntros (Hm' Htr) "Hsys Hf HL". iNamed "Hsys".
+    iDestruct (mtdc_agree with "Hmtdc Hf") as %<-.
+    iMod (Htr with "[$Hlent $HL]") as "[Hlent HL]".
     iMod (mtdc_update _ _ m' with "Hmtdc Hf") as "[Hmtdc Hf]".
     iModIntro. iFrame. done.
   Qed.
+
+  (** The holder of the mtdc token knows that the ghost value is the home
+      value. *)
+  Lemma sys_interp_mtdc_lent ls :
+    sys_interp ls -∗ mtdc_lent -∗ ⌜ls_mtdc ls = mtdc_home⌝.
+  Proof. iIntros "Hsys Hl". iNamed "Hsys". iApply (mtdc_clause_lent with "Hlent Hl"). Qed.
 End state_interp.
 
 (** * Initialisation of the ghost state
@@ -288,17 +321,20 @@ Section ghost_init.
     - apply Hinit.
   Qed.
 
-  Context `{!ceriseGpreS Σ, !cerise_na_invs Σ}.
+  Context `{!ceriseGpreS Σ, !cerise_na_invs Σ, !postureG Σ, !mtdcLentG Σ}.
 
   (** The generic ghost initialisation of every adequacy theorem. It returns
       the state interpretation, the logical PC, register, mtdc, memory and
-      shadow points-to, and the address claims. mtdc receives a ghost value
-      [m0] that stands for its initial word. *)
+      shadow points-to, the address claims, the fragments of MIE and MPIE
+      at their initial values, and the volatile registers (MEPCC, mcause,
+      mtval). mtdc receives a ghost value [m0] that stands for its initial
+      word and is the home value of the mtdc token; MTCC is pending. *)
   Lemma cerise_ghost_init σ H (m0 : mtdc_val) (wmtdc : Word) :
     ghost_init_cond σ H →
     sreg σ !! mtdc = Some wmtdc →
     mtdc_match m0 (lword_of_word wmtdc) →
-    ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
+    mtdc_home = m0 →
+    mtcc_pending ⊢ |==> ∃ (mg : gen_heapGS Addr LWord Σ) (sg : gen_heapGS Addr AllocStatus Σ)
              (pg : pcG Σ)
              (rg : gen_heapGS RegName LWord Σ) (srg : gen_heapGS SRegName LWord Σ)
              (regg : allocRegistryG Σ) (ag : addrAllocG Σ)
@@ -309,9 +345,16 @@ Section ghost_init.
       mtdc ↦ₜ m0 ∗
       ([∗ map] a ↦ w ∈ init_lmem (mem σ), a ↦ₐ w) ∗
       ([∗ map] a ↦ s ∈ shadowtbl σ, a ↦ₛ s) ∗
-      ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c).
+      ([∗ map] a ↦ c ∈ init_claims H, addr_alloc a c) ∗
+      (∃ mie0 mpie0,
+         ⌜sreg σ !! mstatus = Some (WInt (mstatus_enc mie0 mpie0))⌝ ∗
+         MIE_frag mie0 ∗
+         MPIE_frag mpie0) ∗
+      (∃ v, mepcc ↦ₓ v) ∗
+      (∃ v, mcause ↦ₓ v) ∗
+      (∃ z : Z, mtval ↦ₓ lword_of_word (WInt z)).
   Proof.
-    iIntros (Hinit Hmtdc Hm0).
+    iIntros (Hinit Hmtdc Hm0 Hhome) "Hpending".
     destruct (gi_mstatus _ _ Hinit) as (mie0 & mpie0 & Hmst).
     set (lsh := delete mtdc (delete mstatus (init_lsregs (sreg σ)))).
     iMod (PC_init (lword_of_word (pcc σ))) as (pg) "[Hpc Hpcs]".
@@ -351,17 +394,21 @@ Section ghost_init.
       { by rewrite lookup_insert_eq /init_lsregs lookup_fmap Hmtdc. }
       rewrite lookup_insert_ne; last congruence.
       rewrite Hlsh //. by rewrite /init_lsregs lookup_fmap. }
-    iAssert (sys_interp ls)
-      with "[Hsr Hmtcc Hmepcc Hmcause Hmtval Hmtdc Hmie Hmie_f Hmpie Hmpie_f]" as "Hsys".
-    { iFrame "Hsr Hmtcc Hmtdc Hmie Hmie_f Hmpie Hmpie_f". iSplit; first done.
-      iSplitL "Hmepcc Hmcause Hmtval".
-      - iSplitL "Hmepcc Hmcause"; iLeft; iFrame.
-      - iPureIntro. rewrite /ls /lsh /=. split.
-        + by rewrite lookup_delete_eq.
-        + rewrite lookup_delete_ne //. by rewrite lookup_delete_eq. }
+    iAssert (sys_interp ls) with "[Hsr Hmtcc Hpending Hmtdc Hmie Hmpie]" as "Hsys".
+    { iFrame "Hsr Hmtdc Hmie Hmpie". iSplitL "Hmtcc Hpending".
+      { iLeft. iFrame. }
+      iSplit; first done. iSplit; first (iLeft; iPureIntro; by rewrite Hhome).
+      iPureIntro. rewrite /ls /lsh /=. split.
+      + by rewrite lookup_delete_eq.
+      + rewrite lookup_delete_ne //. by rewrite lookup_delete_eq. }
     iFrame "Hpcs Hrs Hmtdc_f Hms Hsts HCs".
-    iApply (SI_close with "Hpc Hr Hsys Hm Hst HR HC").
-    rewrite Hjoin. by apply init_erasure.
+    iSplitR "Hmie_f Hmpie_f Hmepcc Hmcause Hmtval".
+    { iApply (SI_close with "Hpc Hr Hsys Hm Hst HR HC").
+      rewrite Hjoin. by apply init_erasure. }
+    iSplitL "Hmie_f Hmpie_f"; first by iExists mie0, mpie0; iFrame.
+    iSplitL "Hmepcc"; first by iExists _.
+    iSplitL "Hmcause"; first by iExists _.
+    by iExists ztval.
   Qed.
 
   (** The projection of the initial logical memory onto the physical one. *)
