@@ -1,7 +1,7 @@
 From iris.algebra Require Import frac excl_auth.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel memory_region rules proofmode.
-From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import sts_multiple_updates world_interp_revocation.
 From griotte Require Import bitblast.
 From griotte Require Import map_simpl register_tactics.
 From griotte Require Export code_blocks.

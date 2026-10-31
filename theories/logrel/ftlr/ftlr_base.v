@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel.
+From griotte Require Export logrel region_open.
+From griotte Require Import monotone interp_weakening.
 
 (** * The WP of a thread at the core link
 
@@ -71,127 +72,6 @@ Section fundamental.
           interp_reg interp W C regs
     | HaltedV => True
     end.
-
-  (** The content of the region of the PC: a Global region holds the
-      world-free image of its predicate. *)
-  Definition pc_content (ρ : region_part) (W : WORLD) (C : CmptName) (P : V) (w : LWord)
-    : iProp Σ :=
-    match ρ with
-    | InGlobal => P ∅ C w
-    | InLocal => P W C w
-    end.
-
-  (** The opened region of the PC, at key [k] of part [ρ], holding [w]. *)
-  Definition pc_open_def (W : WORLD) (C : CmptName) (k : LAddr) (p' : Perm) (P : V)
-      (w : LWord) (ρ : region_part) : iProp Σ :=
-    match ρ with
-    | InGlobal => ⌜std W !! k ≠ Some Temporary⌝ ∗ PermRes C k p' (safeGC P) w
-    | InLocal => TmpRes W C k p' (safeC P) w
-    end.
-  #[local] Definition pc_open_aux : seal (@pc_open_def). Proof. by eexists. Qed.
-
-  Definition pc_open := pc_open_aux.(unseal).
-  #[local] Definition pc_open_unseal : @pc_open = @pc_open_def := pc_open_aux.(seal_eq).
-
-  (** The cell of the PC, with its content. *)
-  Lemma pc_open_acc W C k p' P w ρ :
-    pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ).
-  Proof.
-    rewrite pc_open_unseal. destruct ρ; cbn.
-    - iIntros "($ & %HpO & $ & $)". iIntros "[$ $]". done.
-    - iIntros "(%HpO & $ & $ & #Hmono)". iIntros "[$ $]". by iFrame "#".
-  Qed.
-
-  (** Opening the region of the PC. *)
-  Lemma pc_open_intro W C k p' (P : V) w ρ :
-    (ρ = InGlobal → std W !! k ≠ Some Temporary) →
-    match ρ with
-    | InGlobal => PermRes C k p' (safeGC P) w
-    | InLocal => TmpRes W C k p' (safeC P) w
-    end -∗
-    pc_open W C k p' P w ρ.
-  Proof.
-    rewrite pc_open_unseal. iIntros (HnT) "H". destruct ρ; [|done].
-    iFrame. iPureIntro. by apply HnT.
-  Qed.
-
-  (** Closing the region of the PC. *)
-  Lemma pc_close W C k p' P w ρ :
-    persistent_cond P →
-    world_interp_open W C [k] -∗
-    region_rel_part ρ W C k p' P -∗
-    pc_open W C k p' P w ρ -∗
-    world_interp W C.
-  Proof.
-    rewrite pc_open_unseal. iIntros (Hpers) "Hw #Hrel Hres".
-    assert (∀ x, Persistent (safeGC P x)) as HpersG by (intros x; apply (Hpers (_, _, _))).
-    assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
-    rewrite open_world_interp_empty.
-    destruct ρ; cbn.
-    - iDestruct "Hres" as "[%HnT Hres]".
-      iDestruct (close_world_interp_permanent W C [] k p' (safeGC P) w
-                   with "Hw Hrel Hres") as "[$ _]"; [set_solver|done].
-    - iDestruct "Hrel" as "(Hrel & %HT & _)".
-      iDestruct (close_world_interp_temporary W C [] k p' (safeC P) w
-                   with "Hw Hrel Hres") as "[$ _]"; [set_solver|done].
-  Qed.
-
-  (** An opened region is rebuilt from its cell and its content, for any
-      word. *)
-  Lemma pc_open_rebuild ρ W C k p' P :
-    isO p' = false →
-    (ρ = InGlobal → std W !! k ≠ Some Temporary) →
-    region_rel_part ρ W C k p' P -∗
-    □ ∀ w, k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ.
-  Proof.
-    iIntros (HpO HnT) "#Hpart !>". iIntros (w) "[Hk HP]".
-    iApply (pc_open_intro with "[Hk HP]"); first done.
-    destruct ρ; cbn.
-    - by iFrame "∗%".
-    - iDestruct "Hpart" as "(_ & _ & #Hmono)". iFrame "∗%". iApply "Hmono".
-  Qed.
-
-  (** The cell of an opened region, with its content, for any new word. *)
-  Lemma pc_open_acc_forall W C k p' P w ρ :
-    region_rel_part ρ W C k p' P -∗
-    pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (∀ w', k ↦ₖ w' ∗ pc_content ρ W C P w' -∗ pc_open W C k p' P w' ρ).
-  Proof.
-    rewrite pc_open_unseal. iIntros "#Hrel". destruct ρ; cbn.
-    - iIntros "(%HnT & %HpO & Hc & HP)". iFrame "Hc HP".
-      iIntros (w') "[Hc HP]". by iFrame "∗%".
-    - iDestruct "Hrel" as "(_ & _ & #Hmono)".
-      iIntros "(%HpO & Hc & HP & _)". iFrame "Hc HP".
-      iIntros (w') "[Hc HP]". iFrame "∗%". iApply "Hmono".
-  Qed.
-
-  (** Closing an opened region, with other keys open. *)
-  Lemma pc_close_next W C s k p' P w ρ :
-    k ∉ s →
-    persistent_cond P →
-    world_interp_open W C ({[k]} ∪ s) -∗
-    region_rel_part ρ W C k p' P -∗
-    pc_open W C k p' P w ρ -∗
-    world_interp_open W C s.
-  Proof.
-    rewrite pc_open_unseal. iIntros (Hks Hpers) "Hw #Hrel Hres".
-    assert (∀ x, Persistent (safeGC P x)) as HpersG by (intros x; apply (Hpers (_, _, _))).
-    assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
-    destruct ρ; cbn.
-    - iDestruct "Hres" as "[%HnT Hres]".
-      iDestruct (close_world_interp_permanent W C s k p' (safeGC P) w
-                   with "Hw Hrel Hres") as "[$ _]"; done.
-    - iDestruct "Hrel" as "(Hrel & %HT & _)".
-      iDestruct (close_world_interp_temporary W C s k p' (safeC P) w
-                   with "Hw Hrel Hres") as "[$ _]"; done.
-  Qed.
-
-  Lemma pc_content_persistent ρ W C P w :
-    persistent_cond P → Persistent (pc_content ρ W C P w).
-  Proof. intros Hpers. destruct ρ; [apply (Hpers (∅, C, w))|apply (Hpers (W, C, w))]. Qed.
 
   Definition ftlr_instr_base
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
@@ -272,3 +152,112 @@ End fundamental.
 
 (** The post-state prints folded in the cases' goals. *)
 #[global] Arguments ftlr_post : simpl never.
+
+Section fundamental.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  Notation E := (CSTK -n> list WORLD -n> WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> iPropO Σ).
+  #[local] Notation V := (interpO Σ).
+  #[local] Notation R := (regsO Σ).
+  Implicit Types w : (leibnizO LWord).
+  Implicit Types interp : (V).
+
+  Lemma interp_weakening W C t p p' g g' b b' e e' a a' π :
+    (b <= b')%a ->
+    (e' <= e)%a ->
+    subseg_heap_base π b b' e' ->
+    PermFlowsTo p' p ->
+    LocalityFlowsTo g' g ->
+    ftlr_IH -∗
+    thread_in th C -∗
+    interp W C (WCap t p g b e a @@? π) -∗
+    interp W C (WCap t p' g' b' e' a' @@? π).
+  Proof.
+    intros Hb He Hgate Hp Hl. iIntros "#IH #Hth HA".
+    destruct t; last (iApply interp_untagged; done).
+    destruct (isO p') eqn:HpO'.
+    { iDestruct (interp_cap_heap_conditions with "HA") as "[#Hvalid #Hcoverage]".
+      iEval (rewrite interp_unfold interp1_eq HpO').
+      iSplit.
+      - iApply (heap_cap_ok_perm with "[]"); first exact Hp.
+        by iApply (heap_cap_ok_subseg with "Hvalid").
+      - destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
+        { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
+        rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
+        iEval (rewrite !big_sepL_app) in "Hcoverage". iDestruct "Hcoverage" as "[_ [Hcov _] ]".
+        iApply (big_sepL_impl with "Hcov"). iIntros "!>" (k x Hx) "Hx %Hheap".
+        iApply (heap_cap_O_key_weakening with "(Hx [//])"); done. }
+    destruct (isO p) eqn:HpO.
+    { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
+    { iApply (interp_weakeningEO _ _ true p p' g g' with "Hth HA"); eauto. }
+  Qed.
+
+End fundamental.
+
+(** A sentry made from a capability: a Global one runs at every thread of
+    the compartment, through the induction hypothesis at that thread. *)
+Section fundamental_sentry.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    `{MP: MachineParameters}
+  .
+
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  Lemma interp_weakeningSentry W C sk t p g g' b b' e e' a a' :
+      not_heap_range b' e' ->
+      isO p = false ->
+      (b <= b')%a ->
+      (e' <= e)%a ->
+      LocalityFlowsTo g' g ->
+      ftlr_IH -∗
+      interp W C (WCap t p g b e a) -∗
+      interp W C (WSentry sk t p g' b' e' a').
+  Proof.
+    intros Hsentry HpnotO Hb He Hl.
+    iIntros "#IH #HA".
+    destruct t; last (iApply interp_untagged; done).
+    iEval (rewrite interp_unfold /=).
+    iSplit; first done.
+    destruct g'; cbn.
+    - (* A Global sentry, at every thread [t'] of [C]. *)
+      destruct g; cbn in Hl; last done.
+      iIntros "!>" (t') "#Hth'". rewrite /enter_cond.
+      iIntros (W') "_". iIntros (g'' Hflows). iNext.
+      iApply ("IH" $! t' W' C).
+      iDestruct (interp_global_thread_world_free th t' W W' C (Cap p Global b e a)
+                   with "HA") as "HA'"; first done.
+      iApply (interp_weakeningEO (th := t') W' C true p p Global g'' b b' e e' a a' None
+                with "Hth' HA'");
+        [done|done|done|done|apply subseg_heap_base_noid|apply PermFlowsToReflexive|done].
+    - (* A Local sentry, at the holder's thread, in the public futures. *)
+      iIntros "!>". rewrite /enter_cond.
+      iIntros (W') "%Hfuture". iIntros (g'' Hflows).
+      iApply later_interp_expr_thread_in. iIntros "#Hth". iNext.
+      iApply ("IH" $! th W' C).
+      destruct g''; cbn in Hflows; try done.
+      iAssert (interp W' C (Cap p g b e a))%I as "#HA'".
+      { destruct g.
+        - iApply (interp_global_world_free with "HA"). done.
+        - iApply (interp_monotone_cap_valid with "[] HA"). done. }
+      iApply (interp_weakeningEO W' C true p p g Local b b' e e' a a' None
+                with "Hth HA'");
+        [done|done|done|done|apply subseg_heap_base_noid|apply PermFlowsToReflexive|by destruct g].
+  Qed.
+
+End fundamental_sentry.

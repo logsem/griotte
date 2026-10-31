@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export stdpp_extra rules_base.
-From griotte Require Export sts world_std_sts world_ghost_resources heap_region region_maps.
+From griotte Require Export sts world_std_sts heap_region region_maps.
 
   (*** Interpretation of the standard world *)
 

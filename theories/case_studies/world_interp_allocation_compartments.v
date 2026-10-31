@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export region_invariants sts_multiple_updates.
+From griotte Require Export world_interp sts_multiple_updates.
 From griotte Require Import logrel monotone interp_weakening.
 From griotte Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import switcher.
-From griotte Require Import world_ghost_theory region_invariants_allocation.
+From griotte Require Import world_ghost_theory world_interp_allocation.
 From griotte Require Import stdpp_extra.
 
 Section region_alloc_cmpt.
@@ -40,72 +40,6 @@ Section region_alloc_cmpt.
     std W !! LNonHeap a = None ->
     std (std_update_compartment W C_cmpt) !! LNonHeap a = None.
   Proof. by intros _ _ Ha_W. Qed.
-
-  (** The predicate of the PCC range of a compartment (its import table and
-      code): a word valid at every thread of the compartment. The import
-      table holds the Local sentry of the switcher's call, which is not
-      valid independently of the thread. *)
-  Program Definition interp_cmpt_threads : V :=
-    λne W C w, (□ ∀ t', thread_in t' C -∗ interp (th := t') W C w)%I.
-  Solve All Obligations with solve_proper.
-
-  #[global] Instance interp_cmpt_threads_persistent W C w :
-    Persistent (interp_cmpt_threads W C w).
-  Proof. rewrite /interp_cmpt_threads /=. apply _. Qed.
-
-  Lemma persistent_cond_interp_cmpt_threads : persistent_cond interp_cmpt_threads.
-  Proof. intros WCw; apply _. Qed.
-
-  Lemma interp_cmpt_threads_int W C z π : ⊢ interp_cmpt_threads W C (WInt z @@? π).
-  Proof. rewrite /interp_cmpt_threads /=. iIntros "!>" (t') "_". iApply interp_int. Qed.
-
-  Lemma zcond_interp_cmpt_threads C : ⊢ zcond interp_cmpt_threads C.
-  Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_cmpt_threads_int. Qed.
-
-  (** The read condition of the PCC range, at every thread, through a
-      permission that is not deep-local. *)
-  Lemma rcond_g_interp_cmpt_threads C p :
-    isDL p = false → ⊢ rcond_g interp_cmpt_threads C p (λ t, interp (th := t)).
-  Proof.
-    intros Hdl. iIntros "!>" (t') "#Ht'". iIntros "!>" (W w) "Hw".
-    iEval (rewrite /interp_cmpt_threads /=) in "Hw". iDestruct "Hw" as "#Hw".
-    rewrite /interp_in_mem_pre.
-    iApply (interp_load_word_nodl (th := t')); first done.
-    iApply ("Hw" $! t' with "Ht'").
-  Qed.
-
-  (** The predicate of the data range of a compartment (its CGP range) and
-      of the heap objects: a valid word that is not local. Its validity
-      does not depend on the thread. *)
-  Program Definition interp_nonlocal : V :=
-    λne W C w, (⌜isLocalWord w.(lw) = false⌝ ∗ interp W C w)%I.
-  Solve All Obligations with solve_proper.
-
-  #[global] Instance interp_nonlocal_persistent W C w :
-    Persistent (interp_nonlocal W C w).
-  Proof. rewrite /interp_nonlocal /=. apply _. Qed.
-
-  Lemma persistent_cond_interp_nonlocal : persistent_cond interp_nonlocal.
-  Proof. intros WCw; apply _. Qed.
-
-  Lemma interp_nonlocal_int W C z π : ⊢ interp_nonlocal W C (WInt z @@? π).
-  Proof. rewrite /interp_nonlocal /=. iSplit; first done. iApply interp_int. Qed.
-
-  Lemma zcond_interp_nonlocal C : ⊢ zcond interp_nonlocal C.
-  Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_nonlocal_int. Qed.
-
-  Lemma rcond_g_interp_nonlocal C p :
-    isDL p = false → ⊢ rcond_g interp_nonlocal C p (λ t, interp (th := t)).
-  Proof.
-    intros Hdl. iIntros "!>" (t') "_". iIntros "!>" (W w) "Hw".
-    iEval (rewrite /interp_nonlocal /=) in "Hw". iDestruct "Hw" as "[%Hloc #Hw]".
-    rewrite /interp_in_mem_pre.
-    iApply (interp_load_word_nodl (th := t')); first done.
-    by iApply (interp_global_thread_world_free th t' W W C w Hloc).
-  Qed.
-
-  Lemma wcond_nwl_interp_nonlocal C : ⊢ wcond_nwl interp_nonlocal C interp.
-  Proof. iIntros "!>" (W w Hloc) "#Hw". rewrite /interp_nonlocal /=. by iSplit. Qed.
 
   (** The PCC and CGP of a compartment are valid in every world and at
       every thread, from the Global regions of their addresses. *)

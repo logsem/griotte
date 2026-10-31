@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export stdpp_extra iris_extra region_invariants world_std_revocation.
+From griotte Require Export stdpp_extra iris_extra world_interp world_std_revocation.
 
 (** * Revocation and restoration: the list-based interface
 

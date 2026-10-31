@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants region_keys.
+From griotte Require Import world_interp_stack world_interp region_keys.
 From griotte Require Import world_interp_allocation_compartments.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte Require Export code_blocks.

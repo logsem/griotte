@@ -4,7 +4,7 @@ From iris.base_logic Require Import invariants.
 From griotte Require Import logrel monotone interp_weakening.
 From griotte Require Import assert_spec.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers.

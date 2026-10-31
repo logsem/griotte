@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel region_invariants.
+From griotte Require Export logrel world_interp.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.

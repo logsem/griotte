@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
+From griotte Require Import world_interp_allocation world_interp_revocation interp_weakening monotone.
 
 Section VAE_helper.
   Context

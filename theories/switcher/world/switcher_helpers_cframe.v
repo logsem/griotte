@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel monotone interp_weakening.
-From griotte Require Import region_invariants_revocation.
+From griotte Require Import world_interp_revocation.
 From griotte Require Export world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_preamble.
 From griotte Require Import map_simpl.

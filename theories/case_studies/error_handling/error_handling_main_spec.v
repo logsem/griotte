@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import
-  region_invariants_revocation wp_rules_interp interp_weakening.
+  world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_base switcher_base_ktk.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_main_blocks_1 error_handling_spec_main_blocks_2

@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Import ftlr_base interp_weakening interp_switcher_return.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import sts_multiple_updates world_interp_revocation.
 From griotte Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_call_states switcher_call_world.

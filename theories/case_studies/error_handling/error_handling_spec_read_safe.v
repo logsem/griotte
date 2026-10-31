@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules rules_trap_cause rules_deref_quar.
-From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
+From griotte Require Import world_interp_revocation wp_rules_interp interp_weakening region_open.
 From griotte Require Import switcher_base.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks error_handling_spec_handler_blocks

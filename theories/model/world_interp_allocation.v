@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export
-  stdpp_extra iris_extra region_invariants sts_multiple_updates.
+  stdpp_extra iris_extra world_interp sts_multiple_updates.
 
 Section region_alloc.
   Context {Σ:gFunctors}

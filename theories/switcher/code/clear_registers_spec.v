@@ -2,7 +2,7 @@ From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From iris.program_logic Require Export weakestpre.
-From griotte Require Export griotte_lang region_invariants.
+From griotte Require Export griotte_lang world_interp seal_store.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Import rules_base.

@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import region_invariants_revocation region_invariants_allocation.
-From griotte Require Export sts world_std_revocation sts_multiple_updates.
+From griotte Require Import world_interp_revocation world_interp_allocation.
+From griotte Require Export sts_ghost world_std_revocation sts_multiple_updates seal_store.
 From griotte Require Export stdpp_extra iris_extra.
 From griotte Require Import heap_region.
 
@@ -999,3 +999,49 @@ Section world_interp_Pre.
   Qed.
 
 End world_interp_Pre.
+
+(** The world premise of a thread under the regime of the compartment [C]
+    ([world_resources W C]), and the credit it carries from one step to the
+    next ([shared_credit C]). A compartment in exclusive mode owns its world
+    interpretation and carries no credit. *)
+Section world_resources.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    `{MP: MachineParameters}
+  .
+  Implicit Types W : WORLD.
+  Implicit Types C : CmptName.
+
+  Definition world_resources_def (W : WORLD) (C : CmptName) : iProp Σ :=
+    world_interp W C.
+  #[local] Definition world_resources_aux : seal (@world_resources_def). Proof. by eexists. Qed.
+  Definition world_resources := world_resources_aux.(unseal).
+  #[local] Definition world_resources_unseal :
+    @world_resources = @world_resources_def := world_resources_aux.(seal_eq).
+
+  Definition shared_credit_def (C : CmptName) : iProp Σ := True.
+  #[local] Definition shared_credit_aux : seal (@shared_credit_def). Proof. by eexists. Qed.
+  Definition shared_credit := shared_credit_aux.(unseal).
+  #[local] Definition shared_credit_unseal :
+    @shared_credit = @shared_credit_def := shared_credit_aux.(seal_eq).
+
+  (** In exclusive mode, the world premise is the owned world interpretation. *)
+  Lemma world_resources_exclusive W C :
+    world_resources W C ⊣⊢ world_interp W C.
+  Proof. by rewrite world_resources_unseal. Qed.
+
+  (** A later credit refills the carried credit. *)
+  Lemma shared_credit_refill C :
+    £ 1 -∗ shared_credit C.
+  Proof. rewrite shared_credit_unseal. by iIntros "_". Qed.
+
+  (** In exclusive mode, the carried credit is free. *)
+  Lemma shared_credit_exclusive C :
+    ⊢ shared_credit C.
+  Proof. by rewrite shared_credit_unseal. Qed.
+
+End world_resources.
