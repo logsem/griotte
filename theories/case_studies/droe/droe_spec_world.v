@@ -51,7 +51,7 @@ Section DROE_World.
     (cgp_b ^+ 1) ↦ₐ Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
-    (LNonHeap cgp_b) ↪ᵍ[C]{RO_DRO} droe_b_pred ∗
+    (LNonHeap cgp_b) ↪ᵖ[C]{RO_DRO} droe_b_pred ∗
     interp W3 C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1)) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
@@ -183,7 +183,7 @@ Section DROE_World.
     revoked_addresses W3 stk ->
     related_sts_pub_world (std_update_multiple W3 stk' Temporary) W4 ->
     world_interp (revoke W4) C -∗
-    (LNonHeap cgp_b) ↪ᵍ[C]{RO_DRO} droe_b_pred -∗
+    (LNonHeap cgp_b) ↪ᵖ[C]{RO_DRO} droe_b_pred -∗
     ◇ cgp_b ↦ₐ WInt 42.
   Proof.
     intros W3 stk stk'.

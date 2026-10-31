@@ -49,7 +49,7 @@ Section CMDC_World.
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
     ={⊤}=∗
     world_interp W' C ∗
-    (LNonHeap a) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
+    (LNonHeap a) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
     interp W' C (Cap RW Global a a_e a) ∗
     interp W' C (WSealed ot_switcher target) ∗
     StackRevokedResources W' C stk ∗
@@ -123,7 +123,7 @@ Section CMDC_World.
     callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
     related_sts_pub_world (std_update_multiple (cmdc_Wshare W a) stk' Temporary) Wret ->
     world_interp (revoke Wret) C -∗
-    (LNonHeap a) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
+    (LNonHeap a) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     ◇ ∃ v, a ↦ₐ v.
   Proof.
     intros stk'.

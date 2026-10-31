@@ -58,10 +58,10 @@ Section Switcher.
               ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
           )
           ∨
@@ -89,10 +89,10 @@ Section Switcher.
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
-                load_heap_in_world W wcra_caller rcra ∧
-                load_heap_in_world W wcs0_caller rcs0 ∧
-                load_heap_in_world W wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
             )
           )
@@ -537,7 +537,7 @@ Section Switcher.
     { (* The return address of the caller is a valid target *)
       iIntros "%Hjalr".
       destruct Hrestored as (_ & Hra & _ & _).
-      apply load_heap_in_world_nonheap in Hra; last done.
+      apply load_heap_nonheap in Hra; last done.
       subst rcra; congruence. }
     iIntros "[HPC Hlc']".
     iCombine "Hlc Hlc'" as "Hlc".
@@ -835,10 +835,10 @@ Section Switcher.
               ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
           )
           ∨
@@ -866,10 +866,10 @@ Section Switcher.
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
-                load_heap_in_world W wcra_caller rcra ∧
-                load_heap_in_world W wcs0_caller rcs0 ∧
-                load_heap_in_world W wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
             )
           )
@@ -1122,10 +1122,10 @@ Section Switcher.
             ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)

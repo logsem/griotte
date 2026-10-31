@@ -55,7 +55,7 @@ Section SO_World_List.
     NoDup la →
     la ## l' →
     Forall (fun '(a,p,φ) => std W !! a ≠ Some Temporary) l →
-    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵍ[C']{p} φ) ∗
+    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵖ[C']{p} φ) ∗
     world_interp_open W C' l' -∗
     world_interp_open W C' (la ++ l') ∗
     ([∗ list] '(a,p,φ) ∈ l, heap_key_resource a (∃ v, ⌜isO p = false⌝ ∗ a ↦ₖ v ∗ ▷ φ (C', v))).
@@ -71,7 +71,7 @@ Section SO_World_List.
     rewrite world_interp_open_eq /world_interp_open_def.
     iDestruct (region_open_perm with "Hw Hrel") as "[Hw Hb]"; [|done|].
     { set_solver. }
-    rewrite /body_g. iFrame "Hb".
+    rewrite /body_perm. iFrame "Hb".
     iApply (open_region_many_permutation with "Hw"). set_solver.
   Qed.
 
@@ -127,7 +127,7 @@ Section SO_World_List.
     Forall (fun '(a,p,φ) => ∀ Cv : CmptName * LWord, Persistent (φ Cv)) l →
     ι ⊒ AQuar -∗
     world_interp_open W C' (la ++ l') -∗
-    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵍ[C']{p} φ) -∗
+    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵖ[C']{p} φ) -∗
     world_interp_open W C' l'.
   Proof.
     cbv zeta.
@@ -138,7 +138,7 @@ Section SO_World_List.
     apply Forall_cons in HT as [HTa HT].
     apply Forall_cons in Hpers as [Hpers_a Hpers].
     iDestruct "Hrels" as "[Hrel Hrels]".
-    iDestruct (close_world_interp_next_quarantined_heap_g W C'
+    iDestruct (close_world_interp_next_quarantined_heap_perm W C'
                  (((λ '(a, _, _), a) <$> l) ++ l') with "Hq [Hw] Hrel") as "Hw".
     { set_solver. }
     { done. }
@@ -160,7 +160,7 @@ Section SO_World_List.
     world_interp_open W C' (la ++ l') ∗
     ([∗ list] '(a,p,φ);v ∈ l;lv, a ↦ₖ v) ∗
     ▷ ([∗ list] '(a,p,φ);v ∈ l;lv, φ (C', v)) ∗
-    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵍ[C']{p} φ) ∗
+    ([∗ list] '(a,p,φ) ∈ l, a ↪ᵖ[C']{p} φ) ∗
     ([∗ list] '(a,p,φ) ∈ l, ⌜isO p = false⌝) -∗
     world_interp_open W C' l'.
   Proof.
@@ -181,7 +181,7 @@ Section SO_World_List.
     { rewrite world_interp_open_eq /world_interp_open_def.
       iApply (region_close_perm with "[Hw] Hrel"); [first [done|set_solver] .. | |].
       - iApply (open_region_many_permutation with "Hw"). set_solver.
-      - rewrite /body_g. iApply heap_key_resource_intro. iExists v. by iFrame. }
+      - rewrite /body_perm. iApply heap_key_resource_intro. iExists v. by iFrame. }
     iApply ("IH" $! lv with "[%] [%] [%] [%] [%] [$Hw $Hv $Hφ $Hrels $Hp]"); try done.
     - lia.
     - set_solver.
@@ -224,8 +224,8 @@ Section SO_World_Object.
     iDestruct ("IH" with "[//] Hw Hinterp Hl") as "[Hw $]".
     iDestruct (region_rel_parts with "Hrel'") as (ρ) "Hpart".
     destruct ρ; cbn.
-    - iExFalso. rewrite /region_rel_g.
-      iApply (world_interp_open_rel_g_cell_false with "Hw Hpart Hv"). done.
+    - iExFalso. rewrite /region_rel_perm.
+      iApply (world_interp_open_rel_perm_cell_false with "Hw Hpart Hv"). done.
     - iDestruct "Hpart" as "(Hrel'' & _ & _)".
       iDestruct (rel_l_agree with "Hrel Hrel''") as "[_ #Heq]".
       iFrame "Hw". iExists pa, Φa. iFrame "Hrel %".
@@ -377,7 +377,7 @@ Section SO_World_Object.
     iAssert (
         ∃ (wca0_invs : list (LAddr * Perm * (CmptName * LWord -> iProp Σ))),
           ⌜(fun '(a, _, _) => a) <$> wca0_invs = addr_key π <$> perms⌝ ∗
-          ([∗ list] '(a, p0, φ) ∈ wca0_invs, a ↪ᵍ[C]{p0} φ) ∗
+          ([∗ list] '(a, p0, φ) ∈ wca0_invs, a ↪ᵖ[C]{p0} φ) ∗
           ⌜Forall
               (fun '(_, _, φ) => ∀ Cv : CmptName * LWord, Persistent (φ Cv))
               wca0_invs⌝)%I

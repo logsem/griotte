@@ -77,11 +77,11 @@ Section cmdc_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_B".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack cmdc_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [cmdc_firmware fw_cmpts]) in "Hcmpts".
@@ -112,18 +112,18 @@ Section cmdc_obligations.
             _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HB_l fw_world0 B Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_B_f_args; lia) ltac:(done)
-           with "Hfamily_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
+           with "Hswitcher_threads_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hfamily_B Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B Hswitcher_static"). }
     iMod (fw_close_adv_world_revoked (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_C_g_args; lia) ltac:(done)
-           with "Hfamily_C Hswitcher_static HC HC_pers [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers [] Hthread_C Hworld_C")
       as "(Hworld_C & Hrevoked_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static"). }
     cbn [fc_name fw_nth fw_cmpts cmdc_firmware]. rewrite HsbB HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt. fw_fold_cmpt C_cmpt.
 

@@ -54,7 +54,7 @@ Section Heap_Temporal_Safety_Interp.
         with "[Hst Hworld]" as ">(Hworld & Hst & [%v Ha] & Hkey)".
       { iDestruct "Hcov" as "[(%p & %φ & %Hpers & #Hrel) | Hloc]".
         - destruct (decide (std W !! LHeap x ι = Some Temporary)) as [HT|HnT].
-          + iDestruct (world_interp_open_rel_g_temporary with "Hworld Hrel")
+          + iDestruct (world_interp_open_rel_perm_temporary with "Hworld Hrel")
               as "[_ (%a' & %ι' & %Hk & #Hq)]"; [done|done|].
             injection Hk as <- <-.
             iDestruct (live_quar_false with "Hst Hq") as "[]".

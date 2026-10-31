@@ -311,7 +311,7 @@ Section HTS_States.
       ⌜related_sts_pub_world
         (std_update_multiple (hts_Wshare ι b)
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
-      (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
+      (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
       (∃ w, ca0 ↦ᵣ[th] w) ∗
       (∃ w, ca1 ↦ᵣ[th] w) ∗
@@ -333,7 +333,7 @@ Section HTS_States.
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       alloc_obj ι b (b ^+ 1) ∗
-      (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
+      (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
       hts_frame a_ret (stk_start_a csp_b csp_e ^+ -1) ∗
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗

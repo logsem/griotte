@@ -91,10 +91,10 @@ Section fundamental.
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
         "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
         "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
-                       then ▷ (rcond P C p' interp)
+                       then ▷ (rcond_l P C p' interp)
                        else emp) ∗
         "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
-                       then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+                       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
                        else emp) ∗
         "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗

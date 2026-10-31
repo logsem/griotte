@@ -582,17 +582,17 @@ Section adversary.
   (** The switcher call sentry is safe to import. *)
   Lemma fw_switcher_call_safe fw img σ c C :
     firmware_ok fw img σ →
-    switcher_family (swlayout := fw_switcher_layout img) C -∗
+    switcher_threads (swlayout := fw_switcher_layout img) C -∗
     switcher_static (swlayout := fw_switcher_layout img) -∗
     fw_import_safe C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
     intros Hok.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    iIntros "#Hfamily #_".
+    iIntros "#Hswitcher_threads #_".
     rewrite /fw_import_safe /fw_word_of /note.
     iEval (cbn [fst snd]; rewrite /interp_cmpt_threads /=).
     iIntros "!>" (t') "#Ht'".
-    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
+    iDestruct ("Hswitcher_threads" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
     iApply (interp_switcher_call (th := t') (swlayout := fw_switcher_layout img));
       iFrame "Hswitcher Hswitcher_static".
   Qed.
@@ -611,7 +611,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     Forall is_z (compartment_layout.cmpt_code C_cmpt) ∧
     Forall (is_initial_data_word C_cmpt) (compartment_layout.cmpt_data C_cmpt) ∧
-    (switcher_family (swlayout := swl) C -∗
+    (switcher_threads (swlayout := swl) C -∗
      switcher_static (swlayout := swl) -∗
      fw_cmpt_pers_res img fc -∗
      □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
@@ -699,7 +699,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    switcher_family (swlayout := swl) C -∗
+    switcher_threads (swlayout := swl) C -∗
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
@@ -757,7 +757,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    switcher_family (swlayout := swl) C -∗
+    switcher_threads (swlayout := swl) C -∗
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
@@ -798,7 +798,7 @@ Section adversary.
     Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
     (∀ a, a ∈ cmpt_region C_cmpt ∨ a ∈ finz.seq_between (b_stack t) (e_stack t) →
           std W !! LNonHeap a = None) →
-    switcher_family (swlayout := swl) C -∗
+    switcher_threads (swlayout := swl) C -∗
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗

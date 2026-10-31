@@ -65,7 +65,7 @@ Section world_standard_sts.
   (** The part of the world model a key lives in: the map of Global
       regions, or the local world. *)
   Inductive region_part :=
-  | InGlobal
+  | InPerm
   | InLocal.
 
   #[global] Instance region_part_EqDecision : EqDecision region_part.

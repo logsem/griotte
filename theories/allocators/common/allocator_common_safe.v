@@ -22,7 +22,7 @@ Section AllocatorCommonSafe.
     (∃ p (φ : WORLD * CmptName * LWord → iProp Σ),
        ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝) ∨
     (∃ p (φ : CmptName * LWord → iProp Σ),
-       ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵍ[C]{p} φ ∗ ⌜std W !! k ≠ Some Temporary⌝).
+       ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵖ[C]{p} φ ∗ ⌜std W !! k ≠ Some Temporary⌝).
 
   (** Quarantined cells close as tombstones, with the witness that [ι] is
       quarantined. *)
@@ -51,7 +51,7 @@ Section AllocatorCommonSafe.
       + iDestruct (close_world_interp_next_quarantined_heap_l W C _ a ι p φ
           with "Hq Hworld Hrel") as "Hworld"; [done|done|].
         iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
-      + iDestruct (close_world_interp_next_quarantined_heap_g W C _ a ι p φ
+      + iDestruct (close_world_interp_next_quarantined_heap_perm W C _ a ι p φ
           with "Hq Hworld Hrel") as "Hworld"; [done|done|].
         iApply (IH Hnodup with "Hq [$Hworld $Hhandles]").
   Qed.

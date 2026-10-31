@@ -117,8 +117,8 @@ Section Stack_World_Resources.
       iApply monotone.interp_in_mem_monotone; eauto.
     }
     iSplit; first (iApply zcond_interp_in_mem).
-    iSplit; first (by iApply rcond_interp_in_mem_nodl).
-    iSplit; first (iApply wcond_interp_in_mem).
+    iSplit; first (by iApply rcond_l_interp_in_mem_nodl).
+    iSplit; first (iApply wcond_wl_interp_in_mem).
     iPureIntro. apply persistent_cond_interp_in_mem.
   Qed.
 

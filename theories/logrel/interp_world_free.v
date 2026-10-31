@@ -282,22 +282,22 @@ Section logrel_threads.
     isLocalWord w.(lw) = false →
     interp (th := t) W C (Cap p Global b e a) -∗
     interp (th := t) W C w -∗
-    world_interp_g_open C ∅ -∗
+    perm_region_map C ∅ -∗
     ▷ ∃ v, LNonHeap a' ↦ₖ v ∗
-      (LNonHeap a' ↦ₖ w -∗ world_interp_g_open C ∅).
+      (LNonHeap a' ↦ₖ w -∗ perm_region_map C ∅).
   Proof.
     iIntros (Hwl Hwa Hin Hloc) "#Hcap #Hw Hg".
     iDestruct (interp_cap_addr (th := t) W C p Global b e a a' None with "Hcap")
       as (p' P Hfl Hpers) "(Hrel & _ & _ & Hwcond)";
       [by apply writeAllowed_nonO|done|].
-    rewrite (writeAllowed_flowsto _ _ Hfl Hwa) /region_rel Hwl /= /region_rel_g.
-    iDestruct (open_world_interp_g C ∅ (LNonHeap a') p' with "Hg Hrel") as "[Hg Hres]";
+    rewrite (writeAllowed_flowsto _ _ Hfl Hwa) /region_rel Hwl /= /region_rel_perm.
+    iDestruct (open_perm_region_map C ∅ (LNonHeap a') p' with "Hg Hrel") as "[Hg Hres]";
       first set_solver.
     iNext. iDestruct "Hres" as (v) "(%HpO & Hv & _)".
     iExists v. iFrame "Hv". iIntros "Hv".
     assert (∀ Cv : CmptName * LWord, Persistent (P ∅ Cv.1 Cv.2)) as HpersG
       by (intros Cv; apply (Hpers (∅, Cv.1, Cv.2))).
-    iApply (close_world_interp_g C ∅ (LNonHeap a') p' (safeGC P) w with "Hg Hrel");
+    iApply (close_perm_region_map C ∅ (LNonHeap a') p' (safeGC P) w with "Hg Hrel");
       first set_solver.
     iFrame "Hv %". iApply ("Hwcond" $! ∅ w Hloc).
     iApply (interp_global_world_free (th := t) W ∅ C w Hloc with "Hw").

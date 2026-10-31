@@ -205,7 +205,7 @@ Section ot_switcher_adequacy.
     (a_etbl ∈ₐ [entries_etbl, e_etbl))
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
-    → switcher_family C
+    → switcher_threads C
     ⊢ switcher_static
     -∗ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp
@@ -218,7 +218,7 @@ Section ot_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hfamily #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
+    iIntros "#Hswitcher_threads #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
@@ -275,10 +275,11 @@ Section ot_switcher_adequacy.
     iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
     { subst b_etbl1 b_etbl. by rewrite Hcgp_addr. }
-    (* At a thread [t'] of [C]: the switcher's resources from the family,
-       the table and the validity of its Global words moved to [t'] *)
+    (* At a thread [t'] of [C]: the switcher's resources from
+       [switcher_threads], the table and the validity of its Global words
+       moved to [t'] *)
     iIntros "!>" (t') "#Ht'".
-    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hinv_t' Hstatic_t']".
+    iDestruct ("Hswitcher_threads" $! t' with "Ht'") as "[Hinv_t' Hstatic_t']".
     iEval (rewrite (pointsto_pers_thread_indep th t')) in "Hetbl_pcc Hetbl_cgp".
     iEval (rewrite (handler_stackful_thread_indep th t')) in "Hetbl_eh".
     iEval (rewrite (handler_stackless_thread_indep th t')) in "Hetbl_ehs".

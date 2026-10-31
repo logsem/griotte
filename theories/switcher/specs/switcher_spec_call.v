@@ -241,10 +241,10 @@ Section Switcher.
             ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)

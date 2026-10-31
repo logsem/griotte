@@ -22,25 +22,25 @@ Section region_maps.
 
   (** From one persistent [ι ⊒ AQuar], every opened key of [ι] closes with
       the tombstone, in either map. *)
-  Lemma g_close_all_tomb C M O S ι :
+  Lemma perm_close_all_tomb C M O S ι :
     S ## O → (∀ k, k ∈ S → ∃ a, k = LHeap a ι) →
     ι ⊒ AQuar -∗
-    ([∗ set] k ∈ S, ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ rel_g C k p φ) -∗
-    wig_M C M (S ∪ O) -∗ wig_M C M O.
+    ([∗ set] k ∈ S, ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ rel_perm C k p φ) -∗
+    perm_region_map_M C M (S ∪ O) -∗ perm_region_map_M C M O.
   Proof.
     iIntros (HSO HH) "#Hq HS Hm".
     iApply (rmap_close_all with "[] [HS] Hm"); [done| |].
     - iIntros "!>" (k p φ Hk). destruct (HH k Hk) as [a ->].
-      rewrite /body_g /heap_key_resource /=. by iRight.
+      rewrite /body_perm /heap_key_resource /=. by iRight.
     - iApply (big_sepS_mono with "HS"). iIntros (k _) "(%p & %φ & %Hp & Hr)".
-      iExists p, φ. rewrite rel_g_eq. iFrame "Hr %".
+      iExists p, φ. rewrite rel_perm_eq. iFrame "Hr %".
   Qed.
 
   Lemma l_close_all_tomb t W C M O S ι :
     S ## O → (∀ k, k ∈ S → ∃ a, k = LHeap a ι) →
     ι ⊒ AQuar -∗
     ([∗ set] k ∈ S, ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ rel_l t C k p φ) -∗
-    wil_M t W C M (S ∪ O) -∗ wil_M t W C M O.
+    local_region_map_M t W C M (S ∪ O) -∗ local_region_map_M t W C M O.
   Proof.
     iIntros (HSO HH) "#Hq HS Hw". iNamed "Hw".
     iDestruct (rmap_close_all with "[] [HS] Hm") as "Hm"; [done| | |].
@@ -49,14 +49,14 @@ Section region_maps.
         [rewrite /temp_res /heap_key_resource /=; by iRight|done..].
     - iApply (big_sepS_mono with "HS"). iIntros (k _) "(%p & %φ & %Hp & Hr)".
       iExists p, φ. rewrite rel_l_eq. iFrame "Hr %".
-    - rewrite /wil_M. by iFrame "∗%".
+    - rewrite /local_region_map_M. by iFrame "∗%".
   Qed.
 
   (** Every key of a live object [ι] whose cells are held is open in the
       map of Permanent regions: a closed one would hold a cell, or a
       tombstone, which the cells' live shares refute. *)
-  Lemma no_other_live_entry_g C M O ι b e :
-    alloc_obj ι b e -∗ ([∗ set] k ∈ obj_keys ι b e, ∃ v, k ↦ₖ v) -∗ wig_M C M O -∗
+  Lemma no_other_live_entry_perm C M O ι b e :
+    alloc_obj ι b e -∗ ([∗ set] k ∈ obj_keys ι b e, ∃ v, k ↦ₖ v) -∗ perm_region_map_M C M O -∗
     ⌜∀ a, LHeap a ι ∈ dom M → LHeap a ι ∈ O⌝.
   Proof.
     iIntros "#Hobj Hc Hm". iIntros (a [γp Ha]%elem_of_dom).
@@ -76,7 +76,7 @@ Section region_maps.
   Qed.
 
   Lemma no_other_live_entry_l t W C M O ι b e :
-    alloc_obj ι b e -∗ ([∗ set] k ∈ obj_keys ι b e, ∃ v, k ↦ₖ v) -∗ wil_M t W C M O -∗
+    alloc_obj ι b e -∗ ([∗ set] k ∈ obj_keys ι b e, ∃ v, k ↦ₖ v) -∗ local_region_map_M t W C M O -∗
     ⌜∀ a, LHeap a ι ∈ dom M → LHeap a ι ∈ O ∨ std W !! LHeap a ι ≠ Some Temporary⌝.
   Proof.
     iIntros "#Hobj Hc Hw". iNamed "Hw". iIntros (a [γp Ha]%elem_of_dom).
@@ -116,15 +116,15 @@ Section region_maps.
       + iRight. iFrame "HQ Ex ES".
   Qed.
 
-  #[local] Definition gentry C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
-    ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_g C) k γp.
+  #[local] Definition perm_entry C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
+    ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_perm C) k γp.
   #[local] Definition lentry W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_l W C) k γp.
   #[local] Definition keep {A} `{!savedPredG Σ A} (M : gmap LAddr (gname * Perm))
       (k : LAddr) : iProp Σ :=
     ∃ γp (φ : A → iProp Σ), ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ.
-  #[local] Definition gcell C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
+  #[local] Definition perm_cell C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp φ, ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ ∗
       ∃ v, ⌜isO γp.2 = false⌝ ∗ k ↦ₖ v ∗ ▷ φ (C, v).
@@ -143,22 +143,22 @@ Section region_maps.
     Sg ⊆ dom Mg → Sl ⊆ dom Ml → Sg ## Sl → Sg ∪ Sl = obj_keys ι b e →
     Sg ## Og → Sl ## Ol →
     (∀ k, k ∈ Sl → std W !! k = Some Temporary) →
-    wig_M C Mg Og -∗ wil_M t W C Ml Ol -∗
-    (ι ⊒ AQuar ∗ wig_M C Mg Og ∗ wil_M t W C Ml Ol) ∨
+    perm_region_map_M C Mg Og -∗ local_region_map_M t W C Ml Ol -∗
+    (ι ⊒ AQuar ∗ perm_region_map_M C Mg Og ∗ local_region_map_M t W C Ml Ol) ∨
     (([∗ set] k ∈ obj_keys ι b e, ∃ v, k ↦ₖ v) ∗
-     wig_M C Mg (Sg ∪ Og) ∗ wil_M t W C Ml (Sl ∪ Ol) ∗
-     (ι ⊒ AQuar -∗ wig_M C Mg (Sg ∪ Og) -∗ wil_M t W C Ml (Sl ∪ Ol) -∗
-      wig_M C Mg Og ∗ wil_M t W C Ml Ol)).
+     perm_region_map_M C Mg (Sg ∪ Og) ∗ local_region_map_M t W C Ml (Sl ∪ Ol) ∗
+     (ι ⊒ AQuar -∗ perm_region_map_M C Mg (Sg ∪ Og) -∗ local_region_map_M t W C Ml (Sl ∪ Ol) -∗
+      perm_region_map_M C Mg Og ∗ local_region_map_M t W C Ml Ol)).
   Proof.
     iIntros (HSg HSl Hdisj Hobj HgO HlO HT) "Hg Hl". iNamed "Hl".
     assert (∀ k, k ∈ Sg → ∃ a, k = LHeap a ι) as HHg.
     { intros k Hk. apply (obj_keys_heap ι b e). set_solver. }
     assert (∀ k, k ∈ Sl → ∃ a, k = LHeap a ι) as HHl.
     { intros k Hk. apply (obj_keys_heap ι b e). set_solver. }
-    rewrite /wig_M (rmap_split_set _ Mg _ Og Sg HSg HgO).
+    rewrite /perm_region_map_M (rmap_split_set _ Mg _ Og Sg HSg HgO).
     rewrite (rmap_split_set _ Ml _ Ol Sl HSl HlO).
     iDestruct "Hg" as "[Hg HEg]". iDestruct "Hm" as "[Hm HEl]".
-    iDestruct (sepS_cases Sg (gentry C Mg) (gcell C Mg) (ι ⊒ AQuar) with "HEg")
+    iDestruct (sepS_cases Sg (perm_entry C Mg) (perm_cell C Mg) (ι ⊒ AQuar) with "HEg")
       as "[HPg|[#Hq HEg] ]".
     { intros k Hk. destruct (HHg k Hk) as [a ->].
       iIntros "(%γp & %HM & %φ & %Hp & #Hsp & [Hc|#Hq])".
@@ -168,8 +168,8 @@ Section region_maps.
       iIntros "(%γp & %φ & %HM & %Hp & #Hsp & Hc)". iExists γp. iSplit; [done|].
       iExists φ. iSplit; [done|]. iSplit; [done|]. by iLeft. }
     (* stale, from the map of Permanent regions *)
-    2:{ iLeft. iFrame "Hq Hg". iSplitL "HEg"; [by rewrite /gentry|].
-        rewrite /wil_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). by iFrame. }
+    2:{ iLeft. iFrame "Hq Hg". iSplitL "HEg"; [by rewrite /perm_entry|].
+        rewrite /local_region_map_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). by iFrame. }
     iDestruct (sepS_cases Sl (lentry W C Ml) (lcell W C Ml) (ι ⊒ AQuar) with "HEl")
       as "[HPl|[#Hq HEl] ]".
     { intros k Hk. destruct (HHl k Hk) as [a ->].
@@ -187,7 +187,7 @@ Section region_maps.
           iIntros "!>" (k Hk) "(%γp & %φ & %HM & %Hp & #Hsp & Hc)".
           destruct (HHg k Hk) as [a ->]. iExists γp. iSplit; [done|]. iExists φ.
           iSplit; [done|]. iSplit; [done|]. by iLeft.
-        - rewrite /wil_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). iFrame "Hm Hloc".
+        - rewrite /local_region_map_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). iFrame "Hm Hloc".
           iSplit; [done|]. by rewrite /lentry. }
     (* live *)
     iRight.
@@ -204,13 +204,13 @@ Section region_maps.
       iSplitL "Hv"; [by iExists v|]. iExists γp, φ. iSplit; [done|]. by iSplit. }
     iSplitL "HCg HCl". { rewrite -Hobj big_sepS_union //. iFrame. }
     iFrame "Hg". iSplitL "Hm Hloc".
-    { rewrite /wil_M. iFrame "Hm Hloc". done. }
+    { rewrite /local_region_map_M. iFrame "Hm Hloc". done. }
     iIntros "#Hq Hg Hl". iDestruct "Hl" as "(_ & Hm & Hloc)". iFrame "Hg".
     iSplitR.
     - iApply (big_sepS_impl with "HKg"). iIntros "!>" (k Hk) "(%γp & %φ & %HM & %Hp & Hsp)".
       destruct (HHg k Hk) as [a ->]. iExists γp. iSplit; [done|]. iExists φ.
       iSplit; [done|]. iFrame "Hsp". by iRight.
-    - rewrite /wil_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). iFrame "Hm Hloc".
+    - rewrite /local_region_map_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). iFrame "Hm Hloc".
       iSplit; [done|].
       iApply (big_sepS_impl with "HKl"). iIntros "!>" (k Hk) "(%γp & %φ & %HM & %Hp & Hsp)".
       destruct (HHl k Hk) as [a ->]. iExists γp. iSplit; [done|]. iExists φ.
@@ -245,8 +245,8 @@ Section region_maps.
     LHeap a ι ∉ O → (∀ x, Persistent (φ x)) →
     extract_T W O ({[LHeap a ι]} ∪ S) → LHeap a ι ∉ S →
     ι ⊒ AQuar -∗ rel_l t C (LHeap a ι) p φ -∗
-    world_interp_l_open t W C ({[LHeap a ι]} ∪ O) -∗
-    world_interp_l_open t (close_set {[LHeap a ι]} (revoke W)) C O ∗ RevokedRes t W C S.
+    local_region_map t W C ({[LHeap a ι]} ∪ O) -∗
+    local_region_map t (close_set {[LHeap a ι]} (revoke W)) C O ∗ RevokedRes t W C S.
   Proof.
     iIntros (HkO Hp HS HkS) "#Hq #Hr Hw".
     destruct (HS (LHeap a ι)) as [ [HT _] _]; [set_solver|].

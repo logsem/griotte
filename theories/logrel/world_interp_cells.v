@@ -42,12 +42,12 @@ Section wp_interp.
     world_interp_open W C s ∗ a ↦ₐ w ∗ ⌜ρ1 = ρ2 ∧ p1 = p2⌝.
   Proof.
     iIntros "Hw Ha #H1 #H2".
-    destruct ρ1, ρ2; rewrite /region_rel_part /region_rel_g /region_rel_l.
-    - iDestruct (rel_g_agree with "H1 H2") as "[% _]". by iFrame.
+    destruct ρ1, ρ2; rewrite /region_rel_part /region_rel_perm /region_rel_l.
+    - iDestruct (rel_perm_agree with "H1 H2") as "[% _]". by iFrame.
     - iDestruct "H2" as "(_ & %HT & _)". iExFalso.
-      iApply (world_interp_open_rel_g_temporary_cell with "Hw H1 Ha"). done.
+      iApply (world_interp_open_rel_perm_temporary_cell with "Hw H1 Ha"). done.
     - iDestruct "H1" as "(_ & %HT & _)". iExFalso.
-      iApply (world_interp_open_rel_g_temporary_cell with "Hw H2 Ha"). done.
+      iApply (world_interp_open_rel_perm_temporary_cell with "Hw H2 Ha"). done.
     - iDestruct "H1" as "(H1 & _)". iDestruct "H2" as "(H2 & _)".
       iDestruct (rel_l_agree with "H1 H2") as "[% _]". by iFrame.
   Qed.
@@ -56,15 +56,15 @@ Section wp_interp.
       reached through a write-local capability. *)
   Lemma region_rel_part_of W C k p' P p g :
     region_rel W C k p' P p g -∗
-    ∃ ρ, ⌜ρ = InGlobal → isWL p = false⌝ ∗ region_rel_part ρ W C k p' P.
+    ∃ ρ, ⌜ρ = InPerm → isWL p = false⌝ ∗ region_rel_part ρ W C k p' P.
   Proof.
     rewrite /region_rel. iIntros "#H".
     destruct (isWL p) eqn:Hwl.
     { iExists InLocal. iSplit; [by iPureIntro|done]. }
     destruct g.
-    { iExists InGlobal. iSplit; [by iPureIntro|done]. }
+    { iExists InPerm. iSplit; [by iPureIntro|done]. }
     iDestruct "H" as "[H|H]".
-    - iExists InGlobal. iSplit; [by iPureIntro|done].
+    - iExists InPerm. iSplit; [by iPureIntro|done].
     - iExists InLocal. iSplit; [by iPureIntro|done].
   Qed.
 
@@ -75,7 +75,7 @@ Section wp_interp.
     persistent_cond P →
     addr_key π a ∉ s →
     region_rel W C (addr_key π a) p' P p g -∗ world_interp_open W C s -∗
-    (∃ ρ, ⌜ρ = InGlobal → isWL p = false⌝ ∗ region_rel_part ρ W C (addr_key π a) p' P ∗
+    (∃ ρ, ⌜ρ = InPerm → isWL p = false⌝ ∗ region_rel_part ρ W C (addr_key π a) p' P ∗
        world_interp_open W C ({[ addr_key π a ]} ∪ s) ∗
        ▷ (∃ v, pc_open W C (addr_key π a) p' P v ρ))
     ∨ (∃ ι, ⌜π = Some ι⌝ ∗ ι ⊒ AQuar ∗ world_interp_open W C s).
@@ -85,21 +85,21 @@ Section wp_interp.
     assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
     iDestruct (region_rel_part_of with "Hrel") as (ρ Hρ) "#Hpart".
     destruct ρ.
-    - iPoseProof "Hpart" as "Hg". rewrite /region_rel_part /region_rel_g.
+    - iPoseProof "Hpart" as "Hg". rewrite /region_rel_part /region_rel_perm.
       destruct (decide (std W !! addr_key π a = Some Temporary)) as [HT|HnT].
-      + iDestruct (world_interp_open_rel_g_temporary with "Hw Hg")
+      + iDestruct (world_interp_open_rel_perm_temporary with "Hw Hg")
           as "[Hw (%a' & %ι & %Hk & #Hq)]"; [done|done|].
         iRight. iExists ι. destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
         rewrite addr_key_Some in Hk. injection Hk as -> ->. by iFrame "Hq Hw".
       + iDestruct (open_world_interp_permanent with "Hw Hg") as "[Hw Hres]"; [done|done|].
         iDestruct (heap_key_open_cases with "Hres") as "[Hres|(%a' & %ι & %Hk & #Hq)]".
-        * iLeft. iExists InGlobal. iFrame "Hw Hpart %". iNext.
+        * iLeft. iExists InPerm. iFrame "Hw Hpart %". iNext.
           iDestruct "Hres" as (v) "Hres". iExists v.
-          iApply (pc_open_intro W C _ p' P v InGlobal with "Hres"). by intros _.
+          iApply (pc_open_intro W C _ p' P v InPerm with "Hres"). by intros _.
         * iRight. iExists ι. destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
           rewrite addr_key_Some in Hk Hnin HnT |- *. injection Hk as -> ->.
           iSplit; first done. iFrame "Hq".
-          iApply (close_world_interp_next_quarantined_heap_g with "Hq Hw Hg"); done.
+          iApply (close_world_interp_next_quarantined_heap_perm with "Hq Hw Hg"); done.
     - iPoseProof "Hpart" as "(Hl & %HT & _)".
       iDestruct (open_world_interp_temporary with "Hw Hl") as "[Hw Hres]"; [done|done|].
       iDestruct (heap_key_open_cases with "Hres") as "[Hres|(%a' & %ι & %Hk & #Hq)]".
@@ -115,7 +115,7 @@ Section wp_interp.
   Lemma open_world_interp_cases W C π a p' P p g :
     persistent_cond P →
     region_rel W C (addr_key π a) p' P p g -∗ world_interp W C -∗
-    (∃ ρ, ⌜ρ = InGlobal → isWL p = false⌝ ∗ region_rel_part ρ W C (addr_key π a) p' P ∗
+    (∃ ρ, ⌜ρ = InPerm → isWL p = false⌝ ∗ region_rel_part ρ W C (addr_key π a) p' P ∗
        world_interp_open W C [addr_key π a] ∗
        ▷ (∃ v, pc_open W C (addr_key π a) p' P v ρ))
     ∨ (∃ ι, ⌜π = Some ι⌝ ∗ ι ⊒ AQuar ∗ world_interp W C).
@@ -201,9 +201,9 @@ Section wp_interp.
       [done | | done].
     iDestruct (pc_open_acc with "WorldRes") as "[ (>Ha & Hinterp) WorldRes]".
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
-    iPoseProof (load_witness_of_intro W v) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iModIntro. iExists v, (DfracOwn 1), (load_witness_of W v), dw.
+    iModIntro. iExists v, (DfracOwn 1), LoadPlain, dw.
     iFrame "Ha Hwit Hdw". iSplit; first done. iSplit; first done.
     iIntros "!>" (v' Hpost) "Ha _ Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
@@ -225,8 +225,8 @@ Section wp_interp.
 
   (** A Global region whose cell is held is not a Temporary key of the
       local world, even with keys open. *)
-  Lemma world_interp_open_rel_g_cell_not_temporary W C s k p φ w :
-    world_interp_open W C s -∗ k ↪ᵍ[C]{p} φ -∗ k ↦ₖ w -∗
+  Lemma world_interp_open_rel_perm_cell_not_temporary W C s k p φ w :
+    world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗ k ↦ₖ w -∗
     world_interp_open W C s ∗ k ↦ₖ w ∗ ⌜std W !! k ≠ Some Temporary⌝.
   Proof.
     iIntros "Hw #Hr Hk".
@@ -235,9 +235,9 @@ Section wp_interp.
     iEval (rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
       /open_region_many_def /world_interp_open_gl) in "Hw".
     iDestruct "Hw" as "[Hg _]".
-    iDestruct (g_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
-    { rewrite elem_of_open_g. naive_solver. }
-    rewrite /body_g. destruct k as [a0|a0 ι]; cbn.
+    iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
+    { rewrite elem_of_open_perm. naive_solver. }
+    rewrite /body_perm. destruct k as [a0|a0 ι]; cbn.
     - iDestruct "Hb" as (v) "(_ & Hv & _)".
       iApply (heap_pointsto_valid_2 (LNonHeap a0) (LNonHeap a0) with "Hv Hk"). done.
     - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
@@ -282,10 +282,10 @@ Section wp_interp.
     pose proof (pc_content_persistent ρ0 W C P0 v0 Hpers0).
     iDestruct (pc_open_acc with "Hres0") as "[ (>Hk0 & #Hφ0) _]".
     iAssert (world_interp_open W C [k0] ∗ k0 ↦ₖ v0 ∗
-             ⌜ρ0 = InGlobal → std W !! k0 ≠ Some Temporary⌝)%I
+             ⌜ρ0 = InPerm → std W !! k0 ≠ Some Temporary⌝)%I
       with "[Hworld_open Hk0]" as "(Hworld_open & Hk0 & %HnT0)".
     { destruct ρ0; last by iFrame.
-      iDestruct (world_interp_open_rel_g_cell_not_temporary with "Hworld_open Hpart0 Hk0")
+      iDestruct (world_interp_open_rel_perm_cell_not_temporary with "Hworld_open Hpart0 Hk0")
         as "($ & $ & %HnT)". by iPureIntro. }
     iPoseProof (pc_open_rebuild ρ0 W C k0 p0 P0 with "Hpart0") as "#Hreb"; [done|done|].
     iModIntro. iRight.
@@ -305,8 +305,8 @@ Section wp_interp.
       (* The store of [ws !!! i] into an open cell [k] of the world *)
       iAssert (∀ (k : LAddr) ρ (P : interpO Σ) v,
         ⌜k = addr_key (Some ι) ea⌝ -∗
-        ⌜ρ = InGlobal → isWL p = false⌝ -∗
-        ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
+        ⌜ρ = InPerm → isWL p = false⌝ -∗
+        ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
         k ↦ₖ v -∗
         ∃ q, ea ↦ₐ v ∗ deref_res (Some ι) q ∗
           ▷ (ea ↦ₐ lstore_word p (ws !!! i) -∗ deref_res (Some ι) q -∗
@@ -401,10 +401,10 @@ Section wp_interp.
     pose proof (pc_content_persistent ρ0 W C P0 v0 Hpers0).
     iDestruct (pc_open_acc with "Hres0") as "[ (>Hk0 & #Hφ0) _]".
     iAssert (world_interp_open W C [k0] ∗ k0 ↦ₖ v0 ∗
-             ⌜ρ0 = InGlobal → std W !! k0 ≠ Some Temporary⌝)%I
+             ⌜ρ0 = InPerm → std W !! k0 ≠ Some Temporary⌝)%I
       with "[Hworld_open Hk0]" as "(Hworld_open & Hk0 & %HnT0)".
     { destruct ρ0; last by iFrame.
-      iDestruct (world_interp_open_rel_g_cell_not_temporary with "Hworld_open Hpart0 Hk0")
+      iDestruct (world_interp_open_rel_perm_cell_not_temporary with "Hworld_open Hpart0 Hk0")
         as "($ & $ & %HnT)". by iPureIntro. }
     iPoseProof (pc_open_rebuild ρ0 W C k0 p0 P0 with "Hpart0") as "#Hreb"; [done|done|].
     iModIntro. iRight.
@@ -423,11 +423,11 @@ Section wp_interp.
         ⌜k = addr_key (Some ι) ea⌝ -∗
         ⌜PermFlowsTo p p'⌝ -∗
         ⌜persistent_cond P⌝ -∗
-        ▷ rcond P C p' interp -∗
+        ▷ rcond_l P C p' interp -∗
         ▷ pc_content ρ W C P v -∗
         k ↦ₖ v -∗
         ∃ dw, ⌜Some ι = deref_id dw⌝ ∗ ea ↦ₐ v ∗ deref_witness_res dw ∗
-          ▷ (∀ v', ⌜load_post (load_witness_of W v) p v v'⌝ -∗
+          ▷ (∀ v', ⌜load_post LoadPlain p v v'⌝ -∗
                    ea ↦ₐ v -∗ deref_witness_res dw -∗
                    k ↦ₖ v ∗ interp W C v'))%I as "Hload".
       { iIntros (k ρ P p' v -> Hflows Hpers) "#Hrcond HφV Hk".
@@ -450,8 +450,8 @@ Section wp_interp.
       destruct i as [|j].
       + iDestruct ("Hload" $! k0 ρ0 P0 p0 v0 with "[//] [//] [//] Hrcond0 Hφ0 Hk0")
           as (dw Hdw) "(Ha & Hdw & Hclose)".
-        iPoseProof (load_witness_of_intro W v0) as "Hwit".
-        iModIntro. iExists v0, (DfracOwn 1), (load_witness_of W v0), dw.
+        iPoseProof load_witness_plain_intro as "Hwit".
+        iModIntro. iExists v0, (DfracOwn 1), LoadPlain, dw.
         iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
         iIntros "!>" (v' Hpost) "Ha _ Hdw".
         iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hk0 #Hv']".
@@ -475,8 +475,8 @@ Section wp_interp.
         iDestruct ("Hload" $! (addr_key (Some ι) ea) ρ P p' v
                     with "[//] [//] [//] Hrcond Hφ Hki")
           as (dw Hdw) "(Ha & Hdw & Hclose)".
-        iPoseProof (load_witness_of_intro W v) as "Hwit".
-        iModIntro. iExists v, (DfracOwn 1), (load_witness_of W v), dw.
+        iPoseProof load_witness_plain_intro as "Hwit".
+        iModIntro. iExists v, (DfracOwn 1), LoadPlain, dw.
         iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
         iIntros "!>" (v' Hpost) "Ha _ Hdw".
         iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hki #Hv']".

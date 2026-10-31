@@ -146,8 +146,8 @@ Section Switch_Trusted_Stack_Exhausted.
     world_interp W C ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs0 rcs1,
-        ⌜load_heap_in_world W wcgp rcgp ∧ load_heap_in_world W wcra rcra ∧
-          load_heap_in_world W wcs0 rcs0 ∧ load_heap_in_world W wcs1 rcs1⌝ -∗
+        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+          load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
         world_interp W C ∗
         PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
         cs0 ↦ᵣ[th] rcs0 ∗

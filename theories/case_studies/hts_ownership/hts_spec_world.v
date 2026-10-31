@@ -74,7 +74,7 @@ Section HTS_World.
     StackRevokedResources W_init_C C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))
     ={E}=∗
     world_interp (hts_Wshare W_init_C ι b) C ∗
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
     interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι) ∗
     StackRevokedResources (hts_Wshare W_init_C ι b) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
@@ -140,7 +140,7 @@ Section HTS_World.
     related_sts_pub_world
       (std_update_multiple (hts_Wshare W_init_C ι b)
         (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret ->
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     free_right ι -∗
     world_interp (revoke Wret) C
     ={E}=∗
@@ -187,7 +187,7 @@ Section HTS_World_Free.
       as a tombstone, with no resources. *)
   Lemma hts_world_quarantine E ι b Wret :
     hts_buffer_bounds b ->
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     ι ⊒ AQuar -∗
     world_interp_open (revoke Wret) C [LHeap b ι]
     ={E}=∗
@@ -196,7 +196,7 @@ Section HTS_World_Free.
     iIntros (Hbounds) "#Hrel_b #Hquar Hworld_open".
     iModIntro.
     rewrite /hts_Wfree open_world_interp_empty.
-    iApply (close_world_interp_next_quarantined_heap_g (revoke Wret) C [] b ι RW
+    iApply (close_world_interp_next_quarantined_heap_perm (revoke Wret) C [] b ι RW
       (safeGC interp_nonlocal) with "Hquar Hworld_open Hrel_b").
     { set_solver+. }
     { apply revoke_conditions_sat. }

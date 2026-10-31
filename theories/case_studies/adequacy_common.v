@@ -422,8 +422,8 @@ Section adversary_world.
         iDestruct (big_sepL_lookup with "Hrel") as "$"; first done.
         iSplit; first done. iApply mono_pub_interp_in_mem. }
       iSplit; first (iNext ; by iApply zcond_interp_in_mem).
-      iSplit; first (iNext ; by iApply rcond_interp_in_mem_nodl).
-      iNext ; by iApply wcond_interp_in_mem. }
+      iSplit; first (iNext ; by iApply rcond_l_interp_in_mem_nodl).
+      iNext ; by iApply wcond_wl_interp_in_mem. }
     iSplit; first done.
     by iApply heap_cap_ok_disjoint.
   Qed.
@@ -742,7 +742,7 @@ Section adversary_exports.
     (cmpt_exp_tbl_pcc C_cmpt ^+ ExportTable_offset_entry i) = a →
     args < 7 →
     is_Some (cmpt_b_pcc C_cmpt + off%nat)%a →
-    switcher_family C ⊢
+    switcher_threads C ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗
@@ -797,7 +797,7 @@ Section adversary_exports.
          WInt (encode_entry_point e.1.1.1 e.1.1.2 e.1.2 e.2)) <$> exports →
     Forall (λ e, e.1.1.2 < 7) exports →
     Forall (λ e : InterruptStatus * nat * nat * nat, is_Some (cmpt_b_pcc C_cmpt + e.2%nat)%a) exports →
-    switcher_family C ⊢
+    switcher_threads C ⊢
     switcher_static -∗
     cmpt_exp_tbl_pcc C_cmpt ↦ₐ□ cmpt_pcc_cap C_cmpt -∗
     cmpt_exp_tbl_cgp C_cmpt ↦ₐ□ cmpt_cgp_cap C_cmpt -∗

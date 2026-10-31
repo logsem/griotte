@@ -25,7 +25,7 @@ Section fundamental.
   Definition pc_content (ρ : region_part) (W : WORLD) (C : CmptName) (P : V) (w : LWord)
     : iProp Σ :=
     match ρ with
-    | InGlobal => P ∅ C w
+    | InPerm => P ∅ C w
     | InLocal => P W C w
     end.
 
@@ -33,7 +33,7 @@ Section fundamental.
   Definition pc_open_def (W : WORLD) (C : CmptName) (k : LAddr) (p' : Perm) (P : V)
       (w : LWord) (ρ : region_part) : iProp Σ :=
     match ρ with
-    | InGlobal => ⌜std W !! k ≠ Some Temporary⌝ ∗ PermRes C k p' (safeGC P) w
+    | InPerm => ⌜std W !! k ≠ Some Temporary⌝ ∗ PermRes C k p' (safeGC P) w
     | InLocal => TmpRes W C k p' (safeC P) w
     end.
   #[local] Definition pc_open_aux : seal (@pc_open_def). Proof. by eexists. Qed.
@@ -54,9 +54,9 @@ Section fundamental.
 
   (** Opening the region of the PC. *)
   Lemma pc_open_intro W C k p' (P : V) w ρ :
-    (ρ = InGlobal → std W !! k ≠ Some Temporary) →
+    (ρ = InPerm → std W !! k ≠ Some Temporary) →
     match ρ with
-    | InGlobal => PermRes C k p' (safeGC P) w
+    | InPerm => PermRes C k p' (safeGC P) w
     | InLocal => TmpRes W C k p' (safeC P) w
     end -∗
     pc_open W C k p' P w ρ.
@@ -90,7 +90,7 @@ Section fundamental.
       word. *)
   Lemma pc_open_rebuild ρ W C k p' P :
     isO p' = false →
-    (ρ = InGlobal → std W !! k ≠ Some Temporary) →
+    (ρ = InPerm → std W !! k ≠ Some Temporary) →
     region_rel_part ρ W C k p' P -∗
     □ ∀ w, k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ.
   Proof.
@@ -166,7 +166,7 @@ Section wp_interp.
   (** Reading the content of an opened region: a Global region is read at
       the empty world. *)
   Lemma pc_content_rcond {CL : CritLink Σ} ρ W C P p' w :
-    rcond P C p' interp -∗ pc_content ρ W C P w -∗ interp_in_mem_pre W C p' interp w.
+    rcond_l P C p' interp -∗ pc_content ρ W C P w -∗ interp_in_mem_pre W C p' interp w.
   Proof.
     iIntros "#Hrc HP". destruct ρ; cbn.
     - iDestruct ("Hrc" with "HP") as "H". rewrite /interp_in_mem_pre.
@@ -190,8 +190,8 @@ Section wp_interp.
   Qed.
 
   Lemma pc_content_wcond {CL : CritLink Σ} ρ W C P p v :
-    (ρ = InGlobal → isWL p = false) →
-    (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
+    (ρ = InPerm → isWL p = false) →
+    (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
     interp W C v -∗ pc_content ρ W C P (lstore_word p v).
   Proof.
     iIntros (Hwl) "#Hwc #Hv". destruct ρ; cbn.
@@ -205,7 +205,7 @@ Section wp_interp.
   Qed.
 
   Lemma pc_content_wcond_z {CL : CritLink Σ} ρ W C P p z :
-    (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗ pc_content ρ W C P (WInt z).
+    (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗ pc_content ρ W C P (WInt z).
   Proof.
     iIntros "#Hwc". destruct (isWL p); destruct ρ; cbn;
       iApply "Hwc"; try done; iApply interp_int.

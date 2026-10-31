@@ -614,7 +614,7 @@ Section wp_interp.
 
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO|done|].
-    iPoseProof (load_witness_of_intro W w) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (memMap_resource_2ne_apply with "Hi Ha") as "[Hmem %Hpc_a]".
     (* CLoad rdst rsrc imm. *)
@@ -749,7 +749,7 @@ Section wp_interp.
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO | done |].
-    iPoseProof (load_witness_of_intro W w) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
@@ -888,7 +888,7 @@ Section wp_interp.
   Proof.
     iIntros (Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hregion) HΦ".
-    iPoseProof (load_witness_of_intro W raw) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
     iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ□ revoked))%I
@@ -928,7 +928,7 @@ Section wp_interp.
     rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
     rewrite addr_add_0 in Haddr. injection Haddr as <-.
     rewrite lookup_insert_ne // lookup_insert_eq in Hl. injection Hl as <-.
-    pose proof (load_post_world_load_heap_in_world W RW raw loadv' Hpost) as Hloaded.
+    pose proof (load_post_plain_load_heap RW raw loadv' Hpost) as Hloaded.
     rewrite lload_word_RW in Hloaded.
     rewrite linsert_reg_not_cnull //.
     apply incrementPC_Some_inv in Hinc

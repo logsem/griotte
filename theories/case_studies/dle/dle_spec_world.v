@@ -96,8 +96,8 @@ Section DLE_World.
         iSplit; first (iPureIntro; subst W2; cbn; by rewrite lookup_insert_eq).
         iApply mono_pub_interp_in_mem. }
       iSplit; first iApply zcond_interp_in_mem.
-      iSplit; first iApply (rcond_interp_in_mem with "Hthread").
-      iNext; iApply wcond_wcond_nwl; iApply wcond_interp_in_mem.
+      iSplit; first iApply (rcond_l_interp_in_mem with "Hthread").
+      iNext; iApply wcond_wl_wcond_nwl; iApply wcond_wl_interp_in_mem.
     }
 
     assert (is_heap_address (cgp_b ^+ 1) = false) as Hcgp1_nonheap.
@@ -159,8 +159,8 @@ Section DLE_World.
         iSplit; first (iPureIntro; rewrite /W3 /dle_Wshare /=; by rewrite lookup_insert_eq).
         iApply mono_pub_interp_in_mem_dl. }
       iSplit; first iApply zcond_interp_in_mem_dl.
-      iSplit; first (iApply rcond_interp_in_mem_dl; auto).
-      iNext; iApply wcond_wcond_nwl; iApply (wcond_interp_in_mem_dl with "Hthread").
+      iSplit; first (iApply rcond_l_interp_in_mem_dl; auto).
+      iNext; iApply wcond_wl_wcond_nwl; iApply (wcond_wl_interp_in_mem_dl with "Hthread").
     }
     iSplit.
     { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").

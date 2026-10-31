@@ -32,26 +32,26 @@ Section open_keys.
   Definition open_set_l W (S : gset LAddr) : gset LAddr :=
     filter (λ k, std W !! k = Some Temporary) S.
   (** The keys of [S] open in the map of Permanent regions: the others. *)
-  Definition open_set_g W (S : gset LAddr) : gset LAddr :=
+  Definition open_set_perm W (S : gset LAddr) : gset LAddr :=
     filter (λ k, std W !! k ≠ Some Temporary) S.
 
   Definition open_l W (l : list LAddr) : gset LAddr := open_set_l W (list_to_set l).
-  Definition open_g W (l : list LAddr) : gset LAddr := open_set_g W (list_to_set l).
+  Definition open_perm W (l : list LAddr) : gset LAddr := open_set_perm W (list_to_set l).
 
   Lemma open_l_nil W : open_l W [] = ∅.
   Proof. by rewrite /open_l /open_set_l /= filter_empty_L. Qed.
-  Lemma open_g_nil W : open_g W [] = ∅.
-  Proof. by rewrite /open_g /open_set_g /= filter_empty_L. Qed.
+  Lemma open_perm_nil W : open_perm W [] = ∅.
+  Proof. by rewrite /open_perm /open_set_perm /= filter_empty_L. Qed.
 
   Lemma elem_of_open_l W l k : k ∈ open_l W l ↔ k ∈ l ∧ std W !! k = Some Temporary.
   Proof. rewrite /open_l /open_set_l elem_of_filter elem_of_list_to_set. tauto. Qed.
-  Lemma elem_of_open_g W l k : k ∈ open_g W l ↔ k ∈ l ∧ std W !! k ≠ Some Temporary.
-  Proof. rewrite /open_g /open_set_g elem_of_filter elem_of_list_to_set. tauto. Qed.
+  Lemma elem_of_open_perm W l k : k ∈ open_perm W l ↔ k ∈ l ∧ std W !! k ≠ Some Temporary.
+  Proof. rewrite /open_perm /open_set_perm elem_of_filter elem_of_list_to_set. tauto. Qed.
 
-  Lemma open_l_perm W l1 l2 : (∀ k, k ∈ l1 ↔ k ∈ l2) → open_l W l1 = open_l W l2.
+  Lemma open_l_permutation W l1 l2 : (∀ k, k ∈ l1 ↔ k ∈ l2) → open_l W l1 = open_l W l2.
   Proof. intros Hl. apply set_eq. intros k. rewrite !elem_of_open_l Hl. done. Qed.
-  Lemma open_g_perm W l1 l2 : (∀ k, k ∈ l1 ↔ k ∈ l2) → open_g W l1 = open_g W l2.
-  Proof. intros Hl. apply set_eq. intros k. rewrite !elem_of_open_g Hl. done. Qed.
+  Lemma open_perm_permutation W l1 l2 : (∀ k, k ∈ l1 ↔ k ∈ l2) → open_perm W l1 = open_perm W l2.
+  Proof. intros Hl. apply set_eq. intros k. rewrite !elem_of_open_perm Hl. done. Qed.
 
   Lemma open_l_add_T W l k :
     std W !! k = Some Temporary → open_l W ({[k]} ∪ l) = {[k]} ∪ open_l W l.
@@ -59,11 +59,11 @@ Section open_keys.
     intros Hk. apply set_eq. intros k'.
     rewrite elem_of_union elem_of_singleton !elem_of_open_l. set_unfold. naive_solver.
   Qed.
-  Lemma open_g_add_T W l k :
-    std W !! k = Some Temporary → open_g W ({[k]} ∪ l) = open_g W l.
+  Lemma open_perm_add_T W l k :
+    std W !! k = Some Temporary → open_perm W ({[k]} ∪ l) = open_perm W l.
   Proof.
     intros Hk. apply set_eq. intros k'.
-    rewrite !elem_of_open_g. set_unfold. naive_solver.
+    rewrite !elem_of_open_perm. set_unfold. naive_solver.
   Qed.
   Lemma open_l_add_nT W l k :
     std W !! k ≠ Some Temporary → open_l W ({[k]} ∪ l) = open_l W l.
@@ -71,17 +71,17 @@ Section open_keys.
     intros Hk. apply set_eq. intros k'.
     rewrite !elem_of_open_l. set_unfold. naive_solver.
   Qed.
-  Lemma open_g_add_nT W l k :
-    std W !! k ≠ Some Temporary → open_g W ({[k]} ∪ l) = {[k]} ∪ open_g W l.
+  Lemma open_perm_add_nT W l k :
+    std W !! k ≠ Some Temporary → open_perm W ({[k]} ∪ l) = {[k]} ∪ open_perm W l.
   Proof.
     intros Hk. apply set_eq. intros k'.
-    rewrite elem_of_union elem_of_singleton !elem_of_open_g. set_unfold. naive_solver.
+    rewrite elem_of_union elem_of_singleton !elem_of_open_perm. set_unfold. naive_solver.
   Qed.
 
   Lemma not_elem_of_open_l W l k : k ∉ l → k ∉ open_l W l.
   Proof. rewrite elem_of_open_l. tauto. Qed.
-  Lemma not_elem_of_open_g W l k : k ∉ l → k ∉ open_g W l.
-  Proof. rewrite elem_of_open_g. tauto. Qed.
+  Lemma not_elem_of_open_perm W l k : k ∉ l → k ∉ open_perm W l.
+  Proof. rewrite elem_of_open_perm. tauto. Qed.
 
 End open_keys.
 
@@ -99,7 +99,7 @@ Section standard_world_interp.
 
   (** The standard world of the section's thread, with the keys of [l] open. *)
   Definition open_region_many_def (W : WORLD) (C : CmptName) (l : list LAddr) : iProp Σ :=
-    world_interp_open_gl W C (open_g W l) (open_l W l).
+    world_interp_open_gl W C (open_perm W l) (open_l W l).
   #[local] Definition open_region_many_aux : seal (@open_region_many_def). Proof. by eexists. Qed.
   Definition open_region_many := open_region_many_aux.(unseal).
   Definition open_region_many_eq : @open_region_many = @open_region_many_def :=
@@ -108,14 +108,14 @@ Section standard_world_interp.
   Definition region (W : WORLD) (C : CmptName) : iProp Σ := open_region_many W C [].
 
   Lemma region_eq W C : region W C ⊣⊢ world_interp_open_gl W C ∅ ∅.
-  Proof. by rewrite /region open_region_many_eq /open_region_many_def open_l_nil open_g_nil. Qed.
+  Proof. by rewrite /region open_region_many_eq /open_region_many_def open_l_nil open_perm_nil. Qed.
 
   Lemma open_region_many_permutation W C l1 l2 :
     (∀ k, k ∈ l1 ↔ k ∈ l2) →
     open_region_many W C l1 ⊣⊢ open_region_many W C l2.
   Proof.
     intros Hl. rewrite open_region_many_eq /open_region_many_def.
-    by rewrite (open_l_perm _ _ _ Hl) (open_g_perm _ _ _ Hl).
+    by rewrite (open_l_permutation _ _ _ Hl) (open_perm_permutation _ _ _ Hl).
   Qed.
 
   (** ** Opening and closing a Temporary key, in the local map *)
@@ -129,7 +129,7 @@ Section standard_world_interp.
   Proof.
     iIntros (Hkl HT) "Hr Hrel".
     rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_T // open_g_add_T //.
+    rewrite open_l_add_T // open_perm_add_T //.
     iDestruct "Hr" as "[$ Hl]".
     iApply (l_open_transport with "Hl Hrel"); [by apply not_elem_of_open_l|done].
   Qed.
@@ -141,7 +141,7 @@ Section standard_world_interp.
   Proof.
     iIntros (Hkl HT Hp) "Hr Hrel Hb".
     rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_T // open_g_add_T //.
+    rewrite open_l_add_T // open_perm_add_T //.
     iDestruct "Hr" as "[$ Hl]".
     iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
   Qed.
@@ -150,26 +150,26 @@ Section standard_world_interp.
 
   Lemma region_open_perm W C l k p φ :
     k ∉ l → std W !! k ≠ Some Temporary →
-    open_region_many W C l -∗ rel_g C k p φ -∗
-    open_region_many W C ({[k]} ∪ l) ∗ body_g C k p φ.
+    open_region_many W C l -∗ rel_perm C k p φ -∗
+    open_region_many W C ({[k]} ∪ l) ∗ body_perm C k p φ.
   Proof.
     iIntros (Hkl HT) "Hr Hrel".
     rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_nT // open_g_add_nT //.
+    rewrite open_l_add_nT // open_perm_add_nT //.
     iDestruct "Hr" as "[Hg $]".
-    iApply (g_open_transport with "Hg Hrel"). by apply not_elem_of_open_g.
+    iApply (perm_open_transport with "Hg Hrel"). by apply not_elem_of_open_perm.
   Qed.
 
   Lemma region_close_perm W C l k p φ :
     k ∉ l → std W !! k ≠ Some Temporary → (∀ x, Persistent (φ x)) →
-    open_region_many W C ({[k]} ∪ l) -∗ rel_g C k p φ -∗ body_g C k p φ -∗
+    open_region_many W C ({[k]} ∪ l) -∗ rel_perm C k p φ -∗ body_perm C k p φ -∗
     open_region_many W C l.
   Proof.
     iIntros (Hkl HT Hp) "Hr Hrel Hb".
     rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_nT // open_g_add_nT //.
+    rewrite open_l_add_nT // open_perm_add_nT //.
     iDestruct "Hr" as "[Hg $]".
-    iApply (g_close with "Hg Hrel Hb"); [by apply not_elem_of_open_g|done..].
+    iApply (perm_close with "Hg Hrel Hb"); [by apply not_elem_of_open_perm|done..].
   Qed.
 
   (** ** Heap keys, closed with a tombstone *)
@@ -188,12 +188,12 @@ Section standard_world_interp.
   Lemma region_close_perm_quarantined_heap W C l a ι p φ :
     LHeap a ι ∉ l → std W !! LHeap a ι ≠ Some Temporary → (∀ x, Persistent (φ x)) →
     ι ⊒ AQuar -∗
-    open_region_many W C ({[LHeap a ι]} ∪ l) -∗ rel_g C (LHeap a ι) p φ -∗
+    open_region_many W C ({[LHeap a ι]} ∪ l) -∗ rel_perm C (LHeap a ι) p φ -∗
     open_region_many W C l.
   Proof.
     iIntros (Hkl HT Hp) "#Hq Hr Hrel".
     iApply (region_close_perm with "Hr Hrel"); [done..|].
-    rewrite /body_g /=. by iRight.
+    rewrite /body_perm /=. by iRight.
   Qed.
 
 End standard_world_interp.

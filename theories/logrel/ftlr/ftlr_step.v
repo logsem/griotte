@@ -97,10 +97,10 @@ Section ftlr_step_generic.
       region_rel W C (LNonHeap a) p' P p g ∗
       ▷ zcond P C ∗
       (if decide (readAllowed_a_in_lregs regs a)
-       then ▷ (rcond P C p' interp)
+       then ▷ (rcond_l P C p' interp)
        else emp) ∗
       (if decide (writeAllowed_a_in_lregs regs a)
-       then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
        else emp).
   Proof.
     iIntros (HcorrectPC Hp) "#Hth Hw #Hinv #Hreg".
@@ -296,10 +296,10 @@ Section ftlr_step.
       as "[Hworld (%p' & %P & %Hflp & %Hpers & #Hrela & #Hzcond & #Hrcond & #Hwcond)]"; eauto.
     iDestruct (region_rel_parts with "Hrela") as (ρ) "#Hinva".
     (* A Global region of the PC is not a Temporary key of the local world. *)
-    iAssert (world_interp W' C ∗ ⌜ρ = InGlobal → std W' !! LNonHeap a ≠ Some Temporary⌝)%I
+    iAssert (world_interp W' C ∗ ⌜ρ = InPerm → std W' !! LNonHeap a ≠ Some Temporary⌝)%I
       with "[Hworld]" as "[Hworld %HnT]".
     { destruct ρ; [|by iFrame].
-      iDestruct (world_interp_rel_g_not_temporary_nonheap with "Hworld Hinva") as "[$ %HnT]".
+      iDestruct (world_interp_rel_perm_not_temporary_nonheap with "Hworld Hinva") as "[$ %HnT]".
       done. }
     rewrite open_world_interp_empty.
     iAssert (world_interp_open W' C [LNonHeap a] ∗ ▷ ∃ wa, pc_open W' C (LNonHeap a) p' P wa ρ)%I

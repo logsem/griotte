@@ -120,7 +120,7 @@ Section Switcher_Restore_Interp.
   (** The witness of [Wval] for [raw], from the open world [Wworld]. *)
   Lemma world_interp_open_load_witness_eq Wworld Wval C opened raw :
     world_interp_open Wworld C opened -∗
-    world_interp_open Wworld C opened ∗ load_witness_res (load_witness_of Wval raw).
+    world_interp_open Wworld C opened ∗ load_witness_res LoadPlain.
   Proof.
     by iIntros "$".
   Qed.
@@ -140,7 +140,7 @@ Section Switcher_Restore_Interp.
         world_interp_open Wworld C opened }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV;
-        ⌜load_heap_in_world Wval raw actual⌝ ∗
+        ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
@@ -151,7 +151,7 @@ Section Switcher_Restore_Interp.
       as "[Hworld Hwit]".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
-    pose proof (load_post_world_load_heap_in_world Wval RWL raw actual Hpost) as Hloaded.
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame.
   Qed.
@@ -170,7 +170,7 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @[th] E
-    {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
+    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
@@ -182,7 +182,7 @@ Section Switcher_Restore_Interp.
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hactual"; first exact Hpost.
-    pose proof (load_post_world_load_heap_in_world Wval RWL raw actual Hpost) as Hloaded.
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame "∗#".
   Qed.

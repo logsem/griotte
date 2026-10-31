@@ -117,8 +117,8 @@ Section error_handling_obligations.
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [error_handling_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
@@ -199,10 +199,10 @@ Section error_handling_obligations.
             _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
             _ Hadv_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
-           with "Hfamily_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts error_handling_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static").
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts

@@ -27,36 +27,6 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (D).
 
-  (** The witness the world supplies for the word that a load from [r] reads
-      in [mem]: the quarantine witness for a quarantined identifier. *)
-  Definition load_witness_mem (W : WORLD) (regs : LReg) (r : RegName) (imm : Z) (mem : LMem)
-    : load_witness :=
-    match regs !! r with
-    | Some (WCap _ _ _ _ _ a @@? _) =>
-        match (a + imm)%a with
-        | Some ea => match mem !! ea with
-                    | Some v => load_witness_of W v
-                    | None => LoadPlain
-                    end
-        | None => LoadPlain
-        end
-    | _ => LoadPlain
-    end.
-
-  Lemma load_witness_mem_eq W regs r imm mem p g b e a ea v :
-    reg_allows_load_imm regs r imm p g b e a ea →
-    mem !! ea = Some v →
-    load_witness_mem W regs r imm mem = load_witness_of W v.
-  Proof.
-    intros (Hreg & Hadd & _ & _) Hv.
-    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hreg) as (_ & π & Hr).
-    by rewrite /load_witness_mem Hr Hadd Hv.
-  Qed.
-
-  Lemma load_witness_mem_intro W regs r imm mem :
-    ⊢ load_witness_res (load_witness_mem W regs r imm mem).
-  Proof. rewrite /load_witness_mem. by repeat case_match. Qed.
-
   (* A decision procedure that does not unfold [reg_allows_load_imm], so that
      the definitions below can be rewritten under [(a + imm)%a]. *)
   #[local] Instance reg_allows_load_imm_dec regs r imm p g b e a ea :
@@ -107,7 +77,7 @@ Section fundamental.
               ∗ ⌜ea ≠ pc_a⌝
               ∗ ▷ ea ↦ₐ w
               ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' P w true)
-              ∗ ▷ rcond P C p' interp)
+              ∗ ▷ rcond_l P C p' interp)
     else world_interp_open W C [LNonHeap pc_a] end)%I.
 
    Lemma interp_hpf_eq (imm : Z) (W : WORLD) (C : CmptName) P (regs : leibnizO LReg) (r1 : RegName)
@@ -150,7 +120,7 @@ Section fundamental.
               ∗ ⌜ea ≠ pc_a⌝
               ∗ ⌜mem = <[ea:=w]> (<[pc_a:=pc_w]> ∅)⌝
               ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p' P w has_later)
-              ∗ if_later_P has_later (rcond P C p' interp))
+              ∗ if_later_P has_later (rcond_l P C p' interp))
     else ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [LNonHeap pc_a] end)%I.
 
   Lemma create_load_res (imm : Z)
@@ -325,7 +295,7 @@ Section fundamental.
 
   Definition rcond' (P : D) (C : CmptName) (a : Addr) (regs : LReg) p' : iProp Σ
     := (if decide (readAllowed_a_in_lregs regs a)
-             then (rcond P C p' interp)
+             then (rcond_l P C p' interp)
              else emp)%I.
   #[local] Instance rcond'_pers P C a regs p' : Persistent (rcond' P C a regs p' ).
   Proof. intros. rewrite /rcond'. case_decide;apply _. Qed.
@@ -491,7 +461,7 @@ Section fundamental.
       by iApply "Hreg".
     }
 
-    iPoseProof (load_witness_mem_intro W regs src imm mem) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     (* The source needs no status witness: a revoked source fails, which is
        safe. *)
     iApply (wp_load_witness_imm (CL := link_core) _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
@@ -522,8 +492,7 @@ Section fundamental.
     (* Step 5: return all the resources we had in order to close the second location in the region, in the cases where we need to *)
     iDestruct (mem_map_recover_res imm with "Hthread Hinv_interp Hreg Hrcond' Hw Hmem HLoadMem") as
       "[Hworld_interp [Ha #Hnormal ] ]"; eauto.
-    (* The world's witness makes the loaded word valid. *)
-    rewrite (load_witness_mem_eq _ _ _ _ _ _ _ _ _ _ _ _ Hallow' Hl) in Hpost.
+    (* The plain witness makes the loaded word valid. *)
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#HLVInterp"; first exact Hpost.
     iNext.
     apply incrementPC_Some_inv in Hincr as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).

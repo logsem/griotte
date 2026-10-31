@@ -353,8 +353,8 @@ Section logrel_expr.
   Definition valid_stk_interp (interp : V) (C : CmptName) (φ : V) (p : Perm) : iProp Σ :=
     mono_pub C (safeC φ) ∗
     zcond φ C ∗
-    rcond φ C p interp ∗
-    wcond φ C interp ∗
+    rcond_l φ C p interp ∗
+    wcond_wl φ C interp ∗
     ⌜ persistent_cond φ ⌝.
   #[global] Instance valid_interp_ne n :
     Proper (dist n ==> (=) ==> (=) ==> (=) ==> dist n) valid_stk_interp.
@@ -430,7 +430,7 @@ Section logrel_expr.
       The state of the machine should:
       - [PC] points-to the caller's site
       - the callee-saved registers of the topmost call-frame [frm] are restored in their
-        original registers, each satisfying [load_heap_in_world] for its saved word
+        original registers, each satisfying [load_heap] for its saved word
       - [ca0] and [ca1] contain some return values, [interp] in the current world
       - all the other registers have been clear and point to zero
       - the stack is given back, with some universally content (1) [stk_mem_l]
@@ -474,10 +474,10 @@ Section logrel_expr.
          if (is_untrusted_caller_frm frm)
          then stk_mem_join stk_mem_l stk_mem_h
          else stk_mem_h in
-       ⌜load_heap_in_world W frm.(cf_saved).(cs_cgp) rcgp⌝ -∗
-       ⌜load_heap_in_world W frm.(cf_saved).(cs_cra) rcra⌝ -∗
-       ⌜load_heap_in_world W frm.(cf_saved).(cs_cs0) rcs0⌝ -∗
-       ⌜load_heap_in_world W frm.(cf_saved).(cs_cs1) rcs1⌝ -∗
+       ⌜load_heap frm.(cf_saved).(cs_cgp) rcgp⌝ -∗
+       ⌜load_heap frm.(cf_saved).(cs_cra) rcra⌝ -∗
+       ⌜load_heap frm.(cf_saved).(cs_cs0) rcs0⌝ -∗
+       ⌜load_heap frm.(cf_saved).(cs_cs1) rcs1⌝ -∗
        ( PC ↦ₚ[th] lupdatePcPerm rcra
          ∗ cra ↦ᵣ[th] rcra
          ∗ csp ↦ᵣ[th] (Cap RWL Local b_stk e_stk a_stk)
@@ -551,7 +551,7 @@ Section logrel_expr.
 
       Each known caller records only its pure machine frame. The continuation
       accepts the four words restored by the switcher, each related to its
-      saved word by [load_heap_in_world]. Neither shadow bits nor restoration
+      saved word by [load_heap]. Neither shadow bits nor restoration
       resources are stored here.
 
       Unknown callers use the logical relation on the actual words loaded

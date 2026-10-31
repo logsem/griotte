@@ -110,8 +110,8 @@ Section hts_obligations.
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (hts_firmware ot_alloc) 0) with 7 in Hentry_min_stack.
@@ -234,7 +234,7 @@ Section hts_obligations.
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
             HB_l fw_world0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hfamily_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
+           with "Hswitcher_threads_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
@@ -243,7 +243,7 @@ Section hts_obligations.
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports.
       iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
-                                 with "Hfamily_B Hswitcher_static").
+                                 with "Hswitcher_threads_B Hswitcher_static").
       iEval (rewrite !big_sepL_cons) in "Hseal_alloc".
       iDestruct "Hseal_alloc" as "(Hinterp_malloc & Hinterp_free & _)".
       iSplit.

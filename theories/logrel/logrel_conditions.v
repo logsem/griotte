@@ -58,16 +58,6 @@ Section logrel_expr.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** A saved register has the result of a CLoad in the current world.
-      The load outcome depends on the shadow. *)
-  Definition load_heap_in_world (W : WORLD) (saved actual : LWord) : Prop :=
-    load_heap saved actual.
-
-  Lemma load_heap_in_world_nonheap W saved actual :
-    is_heap_cap saved.(lw) = false ->
-    load_heap_in_world W saved actual -> actual = saved.
-  Proof. intros Hnonheap Hloaded. exact (load_heap_nonheap saved actual Hnonheap Hloaded). Qed.
-
   Definition interp_in_mem_pre
     (W : WORLD) (C : CmptName) (p : Perm) (interp : V) (w : LWord) : iProp Σ :=
     interp W C (lload_word p w).
@@ -97,30 +87,30 @@ Section logrel_expr.
     Contractive (λ interp, ▷ zcond P C)%I.
   Proof. solve_contractive. Qed.
 
-  (** [rcond] states that stored values satisfying [P] are safe after the
+  (** [rcond_l] states that stored values satisfying [P] are safe after the
       deep-permission load filter and the current world's heap revocation filter. *)
-  Definition rcond (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
+  Definition rcond_l (P : V) (C : CmptName) (p : Perm) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), P W C w -∗ interp_in_mem_pre W C p interp w).
-  #[global] Instance rcond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond.
-  Proof. rewrite /rcond /interp_in_mem_pre. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  #[global] Instance rcond_contractive (P : V) (C : CmptName) (p : Perm) :
-    Contractive (λ interp, ▷ rcond P C p interp)%I.
-  Proof. rewrite /rcond /interp_in_mem_pre. solve_contractive. Qed.
+  #[global] Instance rcond_l_ne n :
+    Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond_l.
+  Proof. rewrite /rcond_l /interp_in_mem_pre. solve_proper_prepare. repeat f_equiv;auto. Qed.
+  #[global] Instance rcond_l_contractive (P : V) (C : CmptName) (p : Perm) :
+    Contractive (λ interp, ▷ rcond_l P C p interp)%I.
+  Proof. rewrite /rcond_l /interp_in_mem_pre. solve_contractive. Qed.
 
-  (** [wcond] states that [interp] implies the safety predicate [P].
+  (** [wcond_wl] states that [interp] implies the safety predicate [P].
       It comes from the fact that storing in memory consists of storing
       a value that is safe to share, but we need to store a value respecting [P]. *)
-  Definition wcond (P : V) (C : CmptName) (interp : V) : iProp Σ :=
+  Definition wcond_wl (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), interp W C w -∗ P W C w).
-  #[global] Instance wcond_ne n :
-    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond.
+  #[global] Instance wcond_wl_ne n :
+    Proper ((=) ==> (=)  ==> dist n ==> dist n) wcond_wl.
   Proof. solve_proper_prepare. repeat f_equiv;auto. Qed.
-  #[global] Instance wcond_contractive (P : V) (C : CmptName) :
-    Contractive (λ interp, ▷ wcond P C interp)%I.
+  #[global] Instance wcond_wl_contractive (P : V) (C : CmptName) :
+    Contractive (λ interp, ▷ wcond_wl P C interp)%I.
   Proof. solve_contractive. Qed.
 
-  (** [wcond_nwl] is [wcond] on the words that are not local: a capability
+  (** [wcond_nwl] is [wcond_wl] on the words that are not local: a capability
       that is not write-local stores only such words. *)
   Definition wcond_nwl (P : V) (C : CmptName) (interp : V) : iProp Σ :=
     (□ ∀ (W: WORLD) (w : LWord), ⌜isLocalWord w.(lw) = false⌝ → interp W C w -∗ P W C w).
@@ -131,7 +121,7 @@ Section logrel_expr.
     Contractive (λ interp, ▷ wcond_nwl P C interp)%I.
   Proof. solve_contractive. Qed.
 
-  Lemma wcond_wcond_nwl P C interp : wcond P C interp -∗ wcond_nwl P C interp.
+  Lemma wcond_wl_wcond_nwl P C interp : wcond_wl P C interp -∗ wcond_nwl P C interp.
   Proof. iIntros "#H !>" (W w _) "Hw". by iApply "H". Qed.
 
   (** [persistent_cond] states that the safety predicate [P] is persistent. *)
@@ -198,8 +188,8 @@ Section logrel_expr.
       holds the world-free image of its predicate. A Temporary region of the
       local world is public monotone: a Temporary key only ever leaves its
       state through a revocation, which takes its body out. *)
-  Definition region_rel_g (C : CmptName) (k : LAddr) (p : Perm) (P : V) : iProp Σ :=
-    k ↪ᵍ[C]{p} (safeGC P).
+  Definition region_rel_perm (C : CmptName) (k : LAddr) (p : Perm) (P : V) : iProp Σ :=
+    k ↪ᵖ[C]{p} (safeGC P).
 
   Definition region_rel_l (W : WORLD) (C : CmptName) (k : LAddr) (p : Perm) (P : V) : iProp Σ :=
     k ↪ˡ[th, C]{p} (safeC P) ∗ ⌜std W !! k = Some Temporary⌝ ∗ mono_pub C (safeC P).
@@ -210,8 +200,8 @@ Section logrel_expr.
       (p : Perm) (g : Locality) : iProp Σ :=
     if isWL p then region_rel_l W C k p' P
     else match g with
-         | Global => region_rel_g C k p' P
-         | Local => region_rel_g C k p' P ∨ region_rel_l W C k p' P
+         | Global => region_rel_perm C k p' P
+         | Local => region_rel_perm C k p' P ∨ region_rel_l W C k p' P
          end%I.
 
   #[global] Instance region_rel_l_persistent W C k p P : Persistent (region_rel_l W C k p P).
@@ -225,7 +215,7 @@ Section logrel_expr.
   Definition region_rel_part (ρ : region_part) (W : WORLD) (C : CmptName) (k : LAddr)
       (p : Perm) (P : V) : iProp Σ :=
     match ρ with
-    | InGlobal => region_rel_g C k p P
+    | InPerm => region_rel_perm C k p P
     | InLocal => region_rel_l W C k p P
     end.
 
@@ -238,14 +228,14 @@ Section logrel_expr.
   Proof.
     rewrite /region_rel. iIntros "H".
     destruct (isWL p); [by iExists InLocal|].
-    destruct g; [by iExists InGlobal|].
-    iDestruct "H" as "[H|H]"; [by iExists InGlobal|by iExists InLocal].
+    destruct g; [by iExists InPerm|].
+    iDestruct "H" as "[H|H]"; [by iExists InPerm|by iExists InLocal].
   Qed.
 
   (** A key reached through a capability that may read or write it: Temporary
       in the local world, or a Global region. *)
   Definition region_valid (W : WORLD) (C : CmptName) (k : LAddr) : iProp Σ :=
-    (⌜std W !! k = Some Temporary⌝ ∨ ∃ p φ, k ↪ᵍ[C]{p} φ)%I.
+    (⌜std W !! k = Some Temporary⌝ ∨ ∃ p φ, k ↪ᵖ[C]{p} φ)%I.
 
   #[global] Instance region_valid_persistent W C k : Persistent (region_valid W C k).
   Proof. apply _. Qed.
@@ -284,7 +274,7 @@ Section logrel_expr.
       a Temporary region of the local world. Nonheap ranges must stay
       disjoint from the heap under narrowing. *)
   Definition heap_cap_O_key (W : WORLD) (C : CmptName) (g : Locality) (k : LAddr) : iProp Σ :=
-    (∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵍ[C]{p} φ) ∨
+    (∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ᵖ[C]{p} φ) ∨
     (if g is Local
      then ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[th, C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝
      else False)%I.
@@ -384,7 +374,7 @@ Section logrel_fix.
 
   (** The read condition of a Global capability: at every thread of [C]. *)
   Definition rcond_g (P : V) (C : CmptName) (p : Perm) (interp : TV) : iProp Σ :=
-    □ ∀ t', thread_in t' C -∗ rcond P C p (interp t').
+    □ ∀ t', thread_in t' C -∗ rcond_l P C p (interp t').
   #[global] Instance rcond_g_ne n :
     Proper ((=) ==> (=) ==> (=) ==> dist n ==> dist n) rcond_g.
   Proof.

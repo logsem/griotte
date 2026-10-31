@@ -43,8 +43,8 @@ Section fundamental.
   Lemma rcond_sel_weakening g g' P C p'' :
     LocalityFlowsTo g' g →
     □ (⌜g = Global⌝ → ⌜g' = Local⌝ → thread_in th C) -∗
-    ▷ (if isGlobal g then rcond_g P C p'' (λ t, interp (th := t)) else rcond P C p'' interp) -∗
-    ▷ (if isGlobal g' then rcond_g P C p'' (λ t, interp (th := t)) else rcond P C p'' interp).
+    ▷ (if isGlobal g then rcond_g P C p'' (λ t, interp (th := t)) else rcond_l P C p'' interp) -∗
+    ▷ (if isGlobal g' then rcond_g P C p'' (λ t, interp (th := t)) else rcond_l P C p'' interp).
   Proof.
     iIntros (Hl) "#Hth H". destruct g, g'; cbn in Hl |- *; try done.
     iApply (rcond_sel_here Global with "[] H"). by iApply "Hth".
@@ -53,14 +53,14 @@ Section fundamental.
   (** The write condition of a capability, through a lesser permission. *)
   Lemma wcond_sel_weakening p p' P C :
     PermFlowsTo p' p →
-    ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
-    ▷ (if isWL p' then wcond P C interp else wcond_nwl P C interp).
+    ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
+    ▷ (if isWL p' then wcond_wl P C interp else wcond_nwl P C interp).
   Proof.
     iIntros (Hp) "H".
     destruct (isWL p') eqn:Hwl'.
     { by rewrite (isWL_flowsto p' p Hp Hwl'). }
     destruct (isWL p); last done.
-    iNext. by iApply wcond_wcond_nwl.
+    iNext. by iApply wcond_wl_wcond_nwl.
   Qed.
 
   (** The region of a key, read through a lesser capability. *)
@@ -404,14 +404,14 @@ Section fundamental.
   Lemma zcond_interp_in_mem C : ⊢ zcond (interp_in_mem RWL) C.
   Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_untagged; done. Qed.
 
-  Lemma wcond_interp_in_mem C : ⊢ wcond (interp_in_mem RWL) C interp.
+  Lemma wcond_wl_interp_in_mem C : ⊢ wcond_wl (interp_in_mem RWL) C interp.
   Proof. iIntros "!> %W %w H". by iApply interp_to_in_mem. Qed.
 
-  Lemma rcond_interp_in_mem C p : thread_in th C -∗ rcond (interp_in_mem RWL) C p interp.
+  Lemma rcond_l_interp_in_mem C p : thread_in th C -∗ rcond_l (interp_in_mem RWL) C p interp.
   Proof. iIntros "#Hth !> %W %w H". by iApply (interp_in_mem_load_word with "Hth"). Qed.
 
-  Lemma rcond_interp_in_mem_nodl C p :
-    isDL p = false → ⊢ rcond (interp_in_mem RWL) C p interp.
+  Lemma rcond_l_interp_in_mem_nodl C p :
+    isDL p = false → ⊢ rcond_l (interp_in_mem RWL) C p interp.
   Proof.
     iIntros (Hdl) "!> %W %w H".
     rewrite /interp_in_mem_pre.
@@ -452,13 +452,13 @@ Section fundamental.
   Lemma zcond_interp_in_mem_dl C : ⊢ zcond interp_in_mem_dl C.
   Proof. by iModIntro; iIntros (W1 W2 w π) "_"; iApply interp_int. Qed.
 
-  Lemma wcond_interp_in_mem_dl C : thread_in th C -∗ wcond interp_in_mem_dl C interp.
+  Lemma wcond_wl_interp_in_mem_dl C : thread_in th C -∗ wcond_wl interp_in_mem_dl C interp.
   Proof.
     iIntros "#Hth !> %W %w H". iApply interp_to_in_mem.
     iApply interp_deeplocal_word. by iApply (interp_borrow_word with "Hth").
   Qed.
 
-  Lemma rcond_interp_in_mem_dl C p : isDL p = true -> ⊢ rcond interp_in_mem_dl C p interp.
+  Lemma rcond_l_interp_in_mem_dl C p : isDL p = true -> ⊢ rcond_l interp_in_mem_dl C p interp.
   Proof.
     iIntros (Hp) "!> %W %w H".
     rewrite /interp_in_mem_pre /= lload_word_eq Hp.

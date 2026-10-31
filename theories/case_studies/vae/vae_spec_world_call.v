@@ -201,7 +201,7 @@ Section VAE_World_Call.
   (** The callback [g], restored by the switcher after a call in the world
       [Wret], is safe in a private future world [W']. *)
   Lemma vae_world_callback_restored (W Wret W' : WORLD) (C : CmptName) (wg wg' : LWord) :
-    load_heap_in_world Wret wg wg' ->
+    load_heap wg wg' ->
     related_sts_priv_world W W' ->
     ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗

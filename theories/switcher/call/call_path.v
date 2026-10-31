@@ -539,8 +539,8 @@ Section Call_Path.
     regs[th] rmap ∗
     switcher_code ∗
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs0 rcs1,
-        ⌜ load_heap_in_world W wcgp rcgp ∧ load_heap_in_world W wcra rcra ∧
-          load_heap_in_world W wcs0 rcs0 ∧ load_heap_in_world W wcs1 rcs1 ⌝ ∗
+        ⌜ load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+          load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         world_interp W C ∗
         cs0 ↦ᵣ[th] rcs0 ∗

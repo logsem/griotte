@@ -211,7 +211,7 @@ Section Switcher.
       { (* The return address of a trusted caller is a valid target *)
         iIntros "%Hjalr".
         destruct (Hret_ok Hccrel) as [Hret_jalr Hret_heap].
-        apply load_heap_in_world_nonheap in Hr2; last done.
+        apply load_heap_nonheap in Hr2; last done.
         subst rstk2; congruence. }
       iIntros "[HPC _]".
       iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & Hstk')".

@@ -49,8 +49,8 @@ Section region_alloc_cmpt.
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵍ[C]{RX} safeGC interp_cmpt_threads) -∗
-    ([∗ list] k ∈ data_addrs, LNonHeap k ↪ᵍ[C]{RW} safeGC interp_nonlocal) -∗
+    ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵖ[C]{RX} safeGC interp_cmpt_threads) -∗
+    ([∗ list] k ∈ data_addrs, LNonHeap k ↪ᵖ[C]{RW} safeGC interp_nonlocal) -∗
     interp W C pcc_cap ∗ interp W C cgp_cap.
   Proof.
     intros *.
@@ -117,8 +117,8 @@ Section region_alloc_cmpt.
 
     (
       (
-        ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵍ[C]{RX} safeGC interp_cmpt_threads) ∗
-        ([∗ list] k ∈ (data_addrs), LNonHeap k ↪ᵍ[C]{RW} safeGC interp_nonlocal)
+        ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵖ[C]{RX} safeGC interp_cmpt_threads) ∗
+        ([∗ list] k ∈ (data_addrs), LNonHeap k ↪ᵖ[C]{RW} safeGC interp_nonlocal)
       )
       -∗
       ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) ∗

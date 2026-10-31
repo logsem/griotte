@@ -35,7 +35,7 @@ Section WorldInterpStack.
         (LNonHeap a') ↪ˡ[C]{p'} (safeC P) ∗
         ⌜std W !! LNonHeap a' = Some Temporary⌝ ∗
         mono_pub C (safeC P) ∗
-        ▷ zcond P C ∗ ▷ rcond P C p' interp ∗ ▷ wcond P C interp.
+        ▷ zcond P C ∗ ▷ rcond_l P C p' interp ∗ ▷ wcond_wl P C interp.
   Proof.
     iIntros "#Hinterp".
     (* A write-local capability is Local: a Global one is not valid. *)
@@ -308,8 +308,8 @@ Section WorldInterpStack.
     { intros k (x & -> & Hx)%list_elem_of_fmap.
       eapply Forall_forall in Hla_tmp; [exact Hla_tmp|]. by apply Hls_la. }
     rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq /open_region_many_def.
-    assert (open_g W (LNonHeap <$> ls) = ∅) as ->.
-    { apply set_eq. intros k. rewrite elem_of_open_g. split; [|set_solver].
+    assert (open_perm W (LNonHeap <$> ls) = ∅) as ->.
+    { apply set_eq. intros k. rewrite elem_of_open_perm. split; [|set_solver].
       intros [Hk HnT]. by apply Hls_T in Hk. }
     assert (open_l W (LNonHeap <$> ls) = O) as ->.
     { apply set_eq. intros k. rewrite elem_of_open_l /O elem_of_list_to_set.
@@ -317,8 +317,8 @@ Section WorldInterpStack.
     iDestruct "Hr" as "[Hg Hl]".
     iDestruct (l_revoke th W C O S HS with "Hl") as "[Hl HR]".
     (* The open keys are Revoked in [revoke W]: they close with no body. *)
-    iAssert (world_interp_l_open th (revoke W) C ∅) with "[Hl]" as "Hl".
-    { iDestruct "Hl" as (M) "Hw". iNamed "Hw". iExists M. rewrite /wil_M. iFrame "Hloc %".
+    iAssert (local_region_map th (revoke W) C ∅) with "[Hl]" as "Hl".
+    { iDestruct "Hl" as (M) "Hw". iNamed "Hw". iExists M. rewrite /local_region_map_M. iFrame "Hloc %".
       rewrite -(union_empty_r_L O).
       iApply (rmap_close_all _ _ _ ∅ O with "[] [] Hm"); [set_solver| |].
       - iIntros "!>" (k p φ Hk). rewrite /body_l.

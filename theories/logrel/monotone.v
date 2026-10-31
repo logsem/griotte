@@ -120,10 +120,10 @@ Section monotone.
         region_rel W C k p' P p g ∗ ▷ zcond P C ∗
         (if readAllowed p'
          then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
-               else rcond P C p' interp)
+               else rcond_l P C p' interp)
          else True) ∗
         (if writeAllowed p'
-         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
          else True))
     -∗
     (∃ (p' : Perm) (P : V),
@@ -131,10 +131,10 @@ Section monotone.
         region_rel W' C k p' P p g ∗ ▷ zcond P C ∗
         (if readAllowed p'
          then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
-               else rcond P C p' interp)
+               else rcond_l P C p' interp)
          else True) ∗
         (if writeAllowed p'
-         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
          else True)).
   Proof.
     iIntros (Hrelated) "Hw".

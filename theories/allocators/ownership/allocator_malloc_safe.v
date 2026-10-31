@@ -266,7 +266,7 @@ Section Heap_Temporal_Safety_Interp.
           iSplit; first (iPureIntro; reflexivity).
           iSplit; first (iPureIntro; apply persistent_cond_interp_nonlocal).
           iSplit.
-          { rewrite /region_rel /= /region_rel_g.
+          { rewrite /region_rel /= /region_rel_perm.
             iApply (big_sepL_elem_of with "Hrels"); exact Hk_in. }
           iSplit.
           { iNext. iApply zcond_interp_nonlocal. }

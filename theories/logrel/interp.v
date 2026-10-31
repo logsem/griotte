@@ -42,10 +42,10 @@ Section logrel_fix.
         ∧ region_rel (th := th) W C (addr_key π a) p' P p g
         ∧ ▷ zcond P C
         ∧ (if readAllowed p'
-           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond P C p' (interp th))
+           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond_l P C p' (interp th))
            else True)
         ∧ (if writeAllowed p'
-           then ▷ (if isWL p then wcond P C (interp th) else wcond_nwl P C (interp th))
+           then ▷ (if isWL p then wcond_wl P C (interp th) else wcond_nwl P C (interp th))
            else True))%I.
 
   #[global] Instance interp_cap_body_contractive th W C p g b e π :
@@ -67,10 +67,10 @@ Section logrel_fix.
         ∗ region_rel (th := th) W C (addr_key π a) p' P p g
         ∗ ▷ zcond P C
         ∗ (if readAllowed p'
-           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond P C p' (interp th))
+           then ▷ (if isGlobal g then rcond_g P C p' interp else rcond_l P C p' (interp th))
            else True)
         ∗ (if writeAllowed p'
-           then ▷ (if isWL p then wcond P C (interp th) else wcond_nwl P C (interp th))
+           then ▷ (if isWL p then wcond_wl P C (interp th) else wcond_nwl P C (interp th))
            else True))%I.
   Proof.
     rewrite /interp_cap_body.
@@ -247,10 +247,10 @@ Section logrel_fix.
                     ∗ ▷ zcond P C
                     ∗ (if readAllowed p'
                        then ▷ (if isGlobal g then rcond_g P C p' interp
-                             else rcond P C p' (interp th))
+                             else rcond_l P C p' (interp th))
                        else True)
                     ∗ (if writeAllowed p'
-                       then ▷ (if isWL p then wcond P C (interp th)
+                       then ▷ (if isWL p then wcond_wl P C (interp th)
                              else wcond_nwl P C (interp th))
                        else True))
                ∗ ⌜(if isWL p then g = Local else True) ∧
@@ -434,30 +434,28 @@ Section logrel.
   Qed.
 
 
-  (** ** Loads in the current world
+  (** ** Loads
 
-      The status witness for the CLoad rule. A stale word loads as itself: a
-      dereference of it faults on its tombstone. *)
-  Definition load_witness_of (W : WORLD) (v : LWord) : load_witness := LoadPlain.
-
-  Lemma load_witness_of_intro W v : ⊢ load_witness_res (load_witness_of W v).
+      The status witness for the CLoad rule is [LoadPlain]. A stale word
+      loads as itself: a dereference of it faults on its tombstone. *)
+  Lemma load_witness_plain_intro : ⊢ load_witness_res LoadPlain.
   Proof. done. Qed.
 
-  (** The CLoad post under the world's witness: the loaded word is either
+  (** The CLoad post under the plain witness: the loaded word is either
       untagged, or the loaded word itself. *)
-  Lemma load_post_world W p v actual :
-    load_post (load_witness_of W v) p v actual ->
+  Lemma load_post_plain p v actual :
+    load_post LoadPlain p v actual ->
     actual = lclear_tag (lload_word p v) ∨ actual = lload_word p v.
   Proof. intros (_ & _ & _ & Hwit). by right. Qed.
 
   Lemma interp_in_mem_load_post W C p raw actual :
-    load_post (load_witness_of W raw) p raw actual ->
+    load_post LoadPlain p raw actual ->
     interp_in_mem p W C raw -∗ interp W C actual.
-  Proof. intros Hpost. by apply interp_in_mem_load_result, (load_post_world W). Qed.
+  Proof. intros Hpost. by apply interp_in_mem_load_result, load_post_plain. Qed.
 
-  Lemma load_post_world_load_heap_in_world W p v actual :
-    load_post (load_witness_of W v) p v actual ->
-    load_heap_in_world W (lload_word p v) actual.
+  Lemma load_post_plain_load_heap p v actual :
+    load_post LoadPlain p v actual ->
+    load_heap (lload_word p v) actual.
   Proof. intros Hpost. apply Hpost. Qed.
 
 End logrel.

@@ -136,9 +136,9 @@ Section logrel.
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
       ∗ (if readAllowed p'
-         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp)
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp)
          else True)
-      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True).
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True).
   Proof.
     iIntros (HnO Hin) "Hinterp".
     rewrite interp_unfold interp1_eq HnO.
@@ -152,8 +152,8 @@ Section logrel.
   (** The read condition of a capability at the running thread. *)
   Lemma rcond_sel_here g P C p' :
     thread_in th C -∗
-    ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) -∗
-    ▷ rcond P C p' interp.
+    ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) -∗
+    ▷ rcond_l P C p' interp.
   Proof.
     iIntros "#Hth H". destruct g; cbn; [|done].
     iNext. iApply ("H" $! th with "Hth").
@@ -169,8 +169,8 @@ Section logrel.
       ∗ ⌜persistent_cond P⌝
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
-      ∗ ▷ rcond P C p' interp
-      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
+      ∗ ▷ rcond_l P C p' interp
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
   .
   Proof.
     iIntros (Hin Ra) "#Hth #Hinterp".
@@ -196,8 +196,8 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
+              ∗ ▷ rcond_l P C p' interp
+              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hth #Hinterp"; first done.
@@ -221,8 +221,8 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ ▷ rcond P C p' interp
-              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
+              ∗ ▷ rcond_l P C p' interp
+              ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
     iIntros (Hra) "Hth Hinterp".
@@ -242,8 +242,8 @@ Section logrel.
       ∗ ⌜persistent_cond P⌝
       ∗ region_rel W C (addr_key π a') p' P p g
       ∗ ▷ zcond P C
-      ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
-      ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
+      ∗ ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
+      ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) else True)
   .
   Proof.
     iIntros (Hin Ra) "#Hinterp".
@@ -267,8 +267,8 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
-              ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) else True)
+              ∗ ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
           ).
   Proof.
     induction l; iIntros (Hra Hin) "#Hinterp"; first done.
@@ -291,8 +291,8 @@ Section logrel.
               ∗ ⌜persistent_cond P⌝
               ∗ region_rel W C (addr_key π a') p' P p g
               ∗ ▷ zcond P C
-              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
-              ∗ ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+              ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) else True)
+              ∗ ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
           ).
   Proof.
     iIntros (Hra) "Hinterp".
@@ -446,11 +446,11 @@ Section logrel.
   Proof.
     iIntros "Hw #H1 #H2".
     destruct ρ1, ρ2; cbn.
-    - iDestruct (rel_g_agree with "H1 H2") as "[% _]". by iFrame.
+    - iDestruct (rel_perm_agree with "H1 H2") as "[% _]". by iFrame.
     - iDestruct "H2" as "(_ & %HT & _)".
-      iDestruct (world_interp_rel_g_not_temporary_nonheap with "Hw H1") as "[_ %]". done.
+      iDestruct (world_interp_rel_perm_not_temporary_nonheap with "Hw H1") as "[_ %]". done.
     - iDestruct "H1" as "(_ & %HT & _)".
-      iDestruct (world_interp_rel_g_not_temporary_nonheap with "Hw H2") as "[_ %]". done.
+      iDestruct (world_interp_rel_perm_not_temporary_nonheap with "Hw H2") as "[_ %]". done.
     - iDestruct "H1" as "(H1 & _)". iDestruct "H2" as "(H2 & _)".
       iDestruct (rel_l_agree with "H1 H2") as "[% _]". by iFrame.
   Qed.
@@ -466,8 +466,8 @@ Section logrel.
         ∗ ⌜persistent_cond P⌝
         ∗ region_rel W C (LNonHeap a) p' P p g
         ∗ ▷ zcond P C
-        ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond P C p' interp) else True)
-        ∗ (if writeAllowed p' then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) else True)
+        ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) else True)
+        ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
        )
     -∗ world_interp W C ∗
        (∃ (p' : Perm) (P : V),
@@ -476,10 +476,10 @@ Section logrel.
         ∗ region_rel W C (LNonHeap a) p' P p g
         ∗ ▷ zcond P C
         ∗ (if decide (readAllowed_a_in_lregs regs a)
-            then ▷ (rcond P C p' interp)
+            then ▷ (rcond_l P C p' interp)
             else emp)
         ∗ (if decide (writeAllowed_a_in_lregs regs a)
-            then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+            then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
             else emp)
        ).
   Proof.
