@@ -37,9 +37,8 @@ Section Switcher_KtK_Call.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk cstk' : CSTK)
-    (a_tstk : Addr) (save_area tstk_next : list LWord) :
+    (a_tstk : Addr) (tstk_next : list LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     disjoint_from_mmio b_stk e_stk ->
@@ -48,14 +47,15 @@ Section Switcher_KtK_Call.
     switcher_stk_bounds b_stk e_stk a_stk ->
     (b_trusted_stack + tstack_frame_offset (length cstk'.(cstk_frames)))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
+    th ≠ CtxSwitch ->
+    mtdc_home = Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ->
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
 
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) ∗
     na_own (tpool th) (F ∖ ↑Ntstack) ∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
-    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+    tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
@@ -77,6 +77,8 @@ Section Switcher_KtK_Call.
     regs[th] arg_rmap ∗
     regs[th] delete ctp (delete ct2 rmap) ∗
     ◯(CSTK)[th] cstk ∗
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    held (th := th) InterruptDisabled ∗
     ▷ ( ( ∃ rmap' stk_mem' rcgp rcra rcs0 rcs1,
             ⌜ dom rmap' = all_registers_s ∖ {[ cgp ; cra ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
             na_own (tpool th) F ∗
@@ -91,30 +93,32 @@ Section Switcher_KtK_Call.
             regs₀[th] rmap' ∗
             [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]] ∗
             ◯(CSTK)[th] cstk ∗
+            MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw)) ∗
+            held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw))) ∗
             ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
               load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝ )
         -∗ safe[th] )
     ⊢ safe[th].
   Proof.
-    intros a_frameoffset a_save_end a_threadID a_next.
-    subst a_frameoffset a_save_end a_threadID a_next.
+    intros a_frameoffset a_threadID a_next.
+    subst a_frameoffset a_threadID a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
        registers, [switch_trusted_stack_exhausted_path_spec] restores the
        registers, clears the others and returns, then close the trusted-stack
        invariant. The return address is a valid
        target, so the jump back does not fault. *)
-    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hsave_hazard Hret_jalr Hret_heap)
-      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hhazard_slots & Hframeoffset & HthreadID
+    iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Huser Hhome Hret_jalr Hret_heap)
+      "(Hclose_switcher_inv & Hna & Hmtdc & Hhazard_cell & Hhazard_slots & Hframeoffset & HthreadID
       & Htstk & #Hstatic & Hcstk_full & Hstk_interp
       & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk
-      & Hargs & Hregs & Hcstk & Hpost)".
+      & Hargs & Hregs & Hcstk & Hmie & Hheld & Hpost)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     pose proof Hstk_bounds as (Hastk_bstk & Hastk_bounds & Hastk).
     stk_unfold. change (4 - 1)%Z with 3%Z in Hastk_bounds.
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iApply (switch_trusted_stack_exhausted_path_spec with
-      "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1]");
+      "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hmie $Hheld]");
       [done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _)".
@@ -124,11 +128,11 @@ Section Switcher_KtK_Call.
       destruct Hrestored as (_ & Hra & _ & _).
       apply load_heap_nonheap in Hra; last done.
       subst rcra; congruence. }
-    iIntros "[HPC _]".
+    iIntros "(HPC & Hmie & Hheld & _)".
     iMod ("Hclose_switcher_inv" with
-      "[$Hna $Hcstk_full Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hstk_interp]")
+      "[$Hna $Hcstk_full Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Htstk Hstk_interp]")
       as "Hna".
-    { iNext. iExists _,_,_. iFrame "∗ # %". iPureIntro; split; done. }
+    { iNext. iExists _,_. iFrame "∗ # %". iPureIntro; split; done. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
     iApply "Hpost"; iFrame.
     iPureIntro; split; last done. rewrite Hrmap'; set_solver.
@@ -228,16 +232,18 @@ Section Switcher_KtK_Call.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ ◯(CSTK)[th] cstk
+    ∗ MIE ↦ₜ[th] InterruptDisabled
+    ∗ held (th := th) InterruptDisabled
 
 
-    ∗ ▷ ( (∃ mie arg_rmap' rmap',
+    ∗ ▷ ( (∃ arg_rmap' rmap',
             ⌜ is_arg_rmap arg_rmap' 8 ⌝
             ∗ ⌜ dom rmap' = dom rmap ∪ {[ ct1 ; cs0 ; cs1 ]} ⌝
             ∗ na_own (tpool th) F
             (* Registers *)
             ∗ PC ↦ₚ[th] Cap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)
             ∗ cgp ↦ᵣ[th] Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-            ∗ cra ↦ᵣ[th] (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)
+            ∗ cra ↦ᵣ[th] (Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher a_switcher_return)
             (* Stack register *)
             ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
             (* All the other registers *)
@@ -254,6 +260,9 @@ Section Switcher_KtK_Call.
 
             (* Interpretation of the world and stack, at the moment of the switcher_call *)
             ∗ ◯(CSTK)[th] (cstack_push frame cstk)
+            ∗ ⌜route_pre th posture_tgt⌝
+            ∗ MIE ↦ₜ[th] posture_tgt
+            ∗ held (th := th) posture_tgt
           )
           ∨
           (
@@ -277,6 +286,8 @@ Section Switcher_KtK_Call.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
+              ∗ MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw))
+              ∗ held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw)))
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                   load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
           )
@@ -303,7 +314,7 @@ Section Switcher_KtK_Call.
              Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
-        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hpost)".
+        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hmie & Hheld & Hpost)".
     stk_unfold.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -325,8 +336,8 @@ Section Switcher_KtK_Call.
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
-    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
-      first done.
+    iAssert switcher_hazard with "[Hhazard_cell Hhazard_slots]" as "Hhazard";
+      first iFrame "Hhazard_cell Hhazard_slots".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
@@ -347,13 +358,12 @@ Section Switcher_KtK_Call.
       iIntros (g_tstk) "(%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1
         & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Htstk)".
       iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
-      iSpecialize ("Hsave_area" with "Hhazard_cell").
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
-        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hhazard_slots $Hframeoffset $HthreadID $Htstk
+        "[$Hclose_switcher_inv $Hna $Hmtdc $Hhazard_cell $Hhazard_slots $Hframeoffset $HthreadID $Htstk
           $Hstatic
           $Hcstk_full $Hstk_interp
           $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
-          $Hargs $Hregs $Hcstk Hpost]"); [done..|].
+          $Hargs $Hregs $Hcstk $Hmie $Hheld Hpost]"); [done..|].
       iNext; iIntros "H"; iApply "Hpost"; iRight; iExact "H". }
     { (* The callee-save registers fit on the caller's stack: the spill does
          not fault *)
@@ -379,8 +389,8 @@ Section Switcher_KtK_Call.
     iEval (rewrite encode_entry_point_minstk_land Hminstk8) in "Hinv_exp_tbl_entry".
     iApply (switcher_decode_entry_path_known_spec with
       "[- $Hinv_exp_tbl_pcc $Hinv_exp_tbl_cgp $Hinv_exp_tbl_entry $HPC $Hcs0 $Hcs1 $Hct1
-        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode]");
-      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |].
+        $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp $Hargs $Hregs $Hcode $Hmie $Hheld]");
+      [done|solve_addr|done|lia|lia|done|done|done|done| | | |done|done| |intros ?; congruence|].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
       reflexivity. }
     { tstack_unfold; solve_addr. }
@@ -392,23 +402,24 @@ Section Switcher_KtK_Call.
       iIntros "(%Hsmall & _)"; exfalso.
       pose proof Hstk_bounds as (_ & _ & Ha4). stk_unfold.
       solve_addr+Hsmall Hminstk Hminstk8_le Ha4. }
-    iIntros (mie arg_rmap' rmap')
-      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs)".
+    iIntros (arg_rmap' rmap')
+      "(_ & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs
+      & Hmie & Hheld)".
 
     (* Push the frame and close the trusted-stack invariant *)
     (* The table cell holds the unsealed entry *)
     pose proof (tf_export_tbl_cell_entry (cf_tframe frame) Global btbl_tgt etbl_tgt atbl_tgt
                eq_refl Hbtbl_ehs ltac:(solve_addr) Htbl_shadow) as Htbl_cell.
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
-    iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (trusted_stack_inv_push_frame frame cstk with
-           "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
+           "Hcstk_full Hcstk Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells]")
       as "[Hinv Hcstk]";
       [done|done|done|done|exact Hstk_bounds|done|done|by intros _
-      |right; split; [done | exact Htbl_cell]|done| |].
+      |right; split; [done | exact Htbl_cell]|done|done| |].
     { rewrite /cframe_stk_own /=. iDestruct "Hcells" as "($&$&$&$)". }
     iMod ("Hclose_switcher_inv" with "[$Hinv $Hna]") as "Hna".
+    assert (route_pre th posture_tgt) as Hpre_tgt by (intros Hcs; by destruct Huser).
     iApply "Hpost"; iLeft; iFrame "∗ %".
     iPureIntro; rewrite Hrmap' Hdom; set_solver.
   Qed.

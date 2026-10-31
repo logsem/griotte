@@ -81,9 +81,13 @@ Section Switcher.
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
+    (* The switcher's entry disables interrupts *)
+    ∗ MIE ↦ₜ[th] InterruptDisabled
+    ∗ held (th := th) InterruptDisabled
 
     (* POST-CONDITION *)
-    ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
+    ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1
+              (m : InterruptStatus),
               (* We receive a public future world of the world pre switcher call *)
             ⌜ extract_temporaries_condition W2
                 (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝
@@ -115,6 +119,10 @@ Section Switcher.
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
+            (* The caller resumes at the posture of its return sentry *)
+            ∗ ⌜route_pre th (default m (jalr_target_mie rcra.(lw)))⌝
+            ∗ MIE ↦ₜ[th] default m (jalr_target_mie rcra.(lw))
+            ∗ held (th := th) (default m (jalr_target_mie rcra.(lw)))
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
@@ -125,14 +133,15 @@ Section Switcher.
   Proof.
     iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
+    & Hmie & Hheld & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
     1-7: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont".
+      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
     iFrame "Hentry".
     iFrame "%".
     iSplitR.
@@ -142,19 +151,19 @@ Section Switcher.
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iNext.
-    iIntros (W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1) "Hnew".
+    iIntros (W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m) "Hnew".
     iDestruct "Hnew" as
       "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
-      & Hrmap & Hstk & Hcont & %Hloaded)".
+      & Hrmap & Hstk & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
     destruct Hloaded as (Hgp & Hra & Hs0 & Hs1).
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
       as Hloaded by (repeat split; assumption).
-    iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 with
+    iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
-        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont]").
+        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
     iFrame "%".
   Qed.
 
@@ -209,9 +218,13 @@ Section Switcher.
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
+    (* The switcher's entry disables interrupts *)
+    ∗ MIE ↦ₜ[th] InterruptDisabled
+    ∗ held (th := th) InterruptDisabled
 
     (* POST-CONDITION *)
-    ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1,
+    ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1
+              (m : InterruptStatus),
             (* We receive a public future world of the world pre switcher call *)
             ⌜ extract_temporaries_condition W2
                 (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝
@@ -245,6 +258,10 @@ Section Switcher.
                 load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧
                 load_heap wcs1_caller rcs1⌝
+            (* The caller resumes at the posture of its return sentry *)
+            ∗ ⌜route_pre th (default m (jalr_target_mie rcra.(lw)))⌝
+            ∗ MIE ↦ₜ[th] default m (jalr_target_mie rcra.(lw))
+            ∗ held (th := th) (default m (jalr_target_mie rcra.(lw)))
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
@@ -255,14 +272,15 @@ Section Switcher.
   Proof.
     iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont & Hpost)".
+    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
+    & Hmie & Hheld & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
     1-7: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont Hpost".
+      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld Hpost".
     iFrame "Htarget_v".
     iFrame "%".
   Qed.

@@ -28,8 +28,10 @@ Section Switcher_Clear_Unused_Args.
   (** From [.Lswitch_skip_interrupt_enable]: clear the registers that are
       not arguments, and jump to the callee. *)
   Lemma switch_skip_interrupt_enable_spec
-    (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg) :
+    (wcs0 wcs1 wct1 wct2 wctp : LWord) (bpcc epcc a_tgt : Addr) (rmap : LReg)
+    (b : InterruptStatus) :
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    route_pre th b ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_skip_interrupt_enable" ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -40,15 +42,20 @@ Section Switcher_Clear_Unused_Args.
     cra ↦ᵣ[th] Cap RX Global bpcc epcc a_tgt ∗
     regs[th] rmap ∗
     switcher_code ∗
-    ▷ ( ∀ (mie : InterruptStatus) (rmap' : LReg),
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ[th] Cap RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
-        regs₀[th] rmap' -∗
+        cra ↦ᵣ[th] Sentry (ret_kind b) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        regs₀[th] rmap' ∗
+        MIE ↦ₜ[th] b ∗
+        held (th := th) b -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hdom) "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hregs & #Hswitcher & Hpost)".
+    iIntros (Hdom Hpre)
+      "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hregs & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_call"; first iFrame "Hswitcher".
 
     (* [.Lswitch_skip_interrupt_enable] *)
@@ -65,10 +72,13 @@ Section Switcher_Clear_Unused_Args.
     (* [.Lswitch_callee_call] *)
     switcher_open_label ".Lswitch_callee_call" "Hswitcher_call" as "Hcode_call" a_call Ha_call.
     (* Jalr cra cra *)
-    iInstr "Hcode_call".
+    iInstrApply "Hcode_call"
+      (wp_jalr_success_call_same_posture _ _ _ _ _ _ _ _ _
+         (Cap RX Global bpcc epcc a_tgt) b)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     rewrite (_ : a_call ^+ 1 = a_switcher_return);
       last (rewrite switcher_return_offset; switcher_addr_eq).
-    iApply ("Hpost" $! _ rmap'); iFrame "HPC Hcra Hregs"; done.
+    iApply ("Hpost" $! rmap'); iFrame "HPC Hcra Hregs Hmie Hheld"; done.
   Qed.
 
   (** From [.Lswitch_load_zero_arguments_start], up to the jump into the
@@ -104,6 +114,7 @@ Section Switcher_Clear_Unused_Args.
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    route_pre th posture ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -116,19 +127,24 @@ Section Switcher_Clear_Unused_Args.
         r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
     regs[th] rmap ∗
     switcher_code ∗
-    ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    held (th := th) InterruptDisabled ∗
+    ▷ ( ∀ (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ[th] Cap RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ[th] Sentry (ret_kind posture) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
-        regs₀[th] rmap' -∗
+        regs₀[th] rmap' ∗
+        MIE ↦ₜ[th] posture ∗
+        held (th := th) posture -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hnargs Hargs Hdom)
-      "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
+    iIntros (Hnargs Hargs Hdom Hpre)
+      "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher
+      & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
     (* Auipcc cs0 .Lswitch_zero_arguments_start *)
@@ -140,7 +156,10 @@ Section Switcher_Clear_Unused_Args.
     iInstr "Hcode".
     { instantiate (1 := (a_zero ^+ 4) ^+ nargs). solve_addr. }
     (* Jalr cnull cs0 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cs0 _ InterruptDisabled)
+      with "[$HPC $Hcs0 $Hmie $Hheld]" as "(HPC & Hcs0 & Hmie & Hheld)"; [done..|].
+    iEval (cbn [jalr_target_mie default lw]) in "Hmie Hheld".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iApply (clear_registers_pre_call_skip_spec _ _ _ _ (a_zero ^+ 4) arg_rmap nargs
@@ -155,13 +174,16 @@ Section Switcher_Clear_Unused_Args.
     destruct posture; cbn [entry_point_posture].
     (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
     all: iInstr "Hcode".
-    (* SetMIE InterruptEnabled, interrupts enabled *)
-    1: iInstr "Hcode".
+    (* SetMIE InterruptEnabled *)
+    1: iInstrApply "Hcode"
+      (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ InterruptEnabled InterruptDisabled)
+      with "[$HPC $Hmie $Hheld]" as "(HPC & Hmie & Hheld)"; [done..|].
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
-           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip]"); first done.
-    all: iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
-    all: iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
+           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");
+      [done|done|].
+    all: iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hregs & Hmie & Hheld)".
+    all: iApply ("Hpost" $! arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs Hmie"; iFrame; done.
   Qed.
 
   (** Variant of [switcher_clear_unused_args_spec] for a known callee, whose
@@ -173,6 +195,7 @@ Section Switcher_Clear_Unused_Args.
     (nargs <= 7) ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
+    route_pre th posture ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
     cs0 ↦ᵣ[th] wcs0 ∗
@@ -184,21 +207,26 @@ Section Switcher_Clear_Unused_Args.
     regs[th] arg_rmap ∗
     regs[th] rmap ∗
     switcher_code ∗
-    ▷ ( ∀ (mie : InterruptStatus) (arg_rmap' rmap' : LReg),
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    held (th := th) InterruptDisabled ∗
+    ▷ ( ∀ (arg_rmap' rmap' : LReg),
         ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
         ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
         PC ↦ₚ[th] Cap RX Global bpcc epcc a_tgt ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+        cra ↦ᵣ[th] Sentry (ret_kind posture) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
         ( [∗ map] r↦w ∈ arg_rmap',
             r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs)
                      then ⌜ arg_rmap !! r = Some w ⌝
                      else ⌜ w = WInt 0 ⌝ ) ∗
-        regs₀[th] rmap' -∗
+        regs₀[th] rmap' ∗
+        MIE ↦ₜ[th] posture ∗
+        held (th := th) posture -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hnargs Hargs Hdom)
-      "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher & Hpost)".
+    iIntros (Hnargs Hargs Hdom Hpre)
+      "(HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcra & Hargs & Hregs & #Hswitcher
+      & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
     (* Auipcc cs0 .Lswitch_zero_arguments_start *)
@@ -210,7 +238,10 @@ Section Switcher_Clear_Unused_Args.
     iInstr "Hcode".
     { instantiate (1 := (a_zero ^+ 4) ^+ nargs). solve_addr. }
     (* Jalr cnull cs0 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cs0 _ InterruptDisabled)
+      with "[$HPC $Hcs0 $Hmie $Hheld]" as "(HPC & Hcs0 & Hmie & Hheld)"; [done..|].
+    iEval (cbn [jalr_target_mie default lw]) in "Hmie Hheld".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iApply (clear_registers_pre_call_skip_spec_known _ _ _ _ (a_zero ^+ 4) arg_rmap nargs
@@ -225,13 +256,16 @@ Section Switcher_Clear_Unused_Args.
     destruct posture; cbn [entry_point_posture].
     (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
     all: iInstr "Hcode".
-    (* SetMIE InterruptEnabled, interrupts enabled *)
-    1: iInstr "Hcode".
+    (* SetMIE InterruptEnabled *)
+    1: iInstrApply "Hcode"
+      (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ InterruptEnabled InterruptDisabled)
+      with "[$HPC $Hmie $Hheld]" as "(HPC & Hmie & Hheld)"; [done..|].
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
-           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip]"); first done.
-    all: iNext; iIntros (mie rmap') "(%Hrmap' & HPC & Hcra & Hregs)".
-    all: iApply ("Hpost" $! mie arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs"; done.
+           "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");
+      [done|done|].
+    all: iNext; iIntros (rmap') "(%Hrmap' & HPC & Hcra & Hregs & Hmie & Hheld)".
+    all: iApply ("Hpost" $! arg_rmap' rmap'); iFrame "HPC Hcra Hargs Hregs Hmie"; iFrame; done.
   Qed.
 
 End Switcher_Clear_Unused_Args.

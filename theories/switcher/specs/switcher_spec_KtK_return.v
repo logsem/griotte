@@ -39,6 +39,7 @@ Section Switcher_KtK_Return.
     (w_callee_exp_tbl : LWord)
     (F : coPset)
     (n_cnt : Z)
+    (b : InterruptStatus)
     :
     let frame :=
            {| cf_tframe :=
@@ -91,6 +92,8 @@ Section Switcher_KtK_Return.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ ◯(CSTK)[th] (cstack_push frame cstk)
+    ∗ MIE ↦ₜ[th] b
+    ∗ held (th := th) b
 
 
     (* POST-CONDITION *)
@@ -117,6 +120,8 @@ Section Switcher_KtK_Return.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
+              ∗ MIE ↦ₜ[th] default b (jalr_target_mie rcra.(lw))
+              ∗ held (th := th) (default b (jalr_target_mie rcra.(lw)))
 
                 -∗ safe[th]
             )
@@ -135,14 +140,14 @@ Section Switcher_KtK_Return.
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(#Hswitcher & #[Hcode _] & Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
-      & [%wcsp Hcsp] & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
+      & [%wcsp Hcsp] & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld & Hpost)".
 
     (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
-    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
-      first done.
+    iAssert switcher_hazard with "[Hhazard_cell Hhazard_slots]" as "Hhazard";
+      first iFrame "Hhazard_cell Hhazard_slots".
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hswitcher" as hinv_switcher.
 
@@ -166,7 +171,7 @@ Section Switcher_KtK_Return.
     iEval (rewrite switcher_return_block_13) in "HPC".
     iApply (switcher_return_path_spec (length cstk.(cstk_frames)) with
       "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hregs $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcells $Hstk
-        $Hcode]"); [done|done|done|done|done|done|].
+        $Hcode $Hmie $Hheld]"); [done|done|done|done|done|done|intros ?; congruence|].
     iIntros "!>" (rmap' rcgp rcra rcs1 rcs0)
       "(%Hrestored & %Hrmap' & Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
       & Hstk' & Hstk & Hregs)".
@@ -177,7 +182,7 @@ Section Switcher_KtK_Return.
       destruct Hrestored as (_ & Hra & _ & _).
       apply load_heap_nonheap in Hra; last done.
       subst rcra; congruence. }
-    iIntros "[HPC _]".
+    iIntros "(HPC & Hmie & Hheld & _)".
     iDestruct (stk_free_split_join with "[$Hstk' $Hstk]") as "Hstk"; first done.
     { rewrite /region_addrs_zeroes length_replicate.
       revert Hstk_bounds; rewrite /switcher_stk_bounds; stk_unfold;
@@ -188,12 +193,12 @@ Section Switcher_KtK_Return.
     (* Pop the frame and close the trusted-stack invariant *)
     subst hclose_switcher_inv.
     iMod (switcher_return_pop_close F _ cstk with
-           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
+           "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
             Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next")
-      as "[Hna Hcstk]"; [done|done|done|].
+      as "[Hna Hcstk]"; [done|done|done|done|].
 
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
-    iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hregs Hstk Hcstk".
+    iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hregs Hstk Hcstk Hmie Hheld".
     iPureIntro; split; first naive_solver. rewrite Hrmap'; set_solver.
   Qed.
 
@@ -205,6 +210,7 @@ Section Switcher_KtK_Return.
     (cstk : CSTK)
     (w_callee_exp_tbl : LWord)
     (F : coPset)
+    (b : InterruptStatus)
     :
     let frame :=
            {| cf_tframe :=
@@ -257,6 +263,8 @@ Section Switcher_KtK_Return.
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ ◯(CSTK)[th] (cstack_push frame cstk)
+    ∗ MIE ↦ₜ[th] b
+    ∗ held (th := th) b
 
 
     (* POST-CONDITION *)
@@ -283,6 +291,8 @@ Section Switcher_KtK_Return.
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
               ∗ ◯(CSTK)[th] cstk
+              ∗ MIE ↦ₜ[th] default b (jalr_target_mie rcra.(lw))
+              ∗ held (th := th) (default b (jalr_target_mie rcra.(lw)))
 
                 -∗ safe[th]
             )
@@ -292,10 +302,10 @@ Section Switcher_KtK_Return.
     intros frame.
     iIntros (Hstk_heap Hstk_mmio Ha_stk4 HE Hdom)
       "(Hswitcher & Hstatic & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
-      & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hpost)".
+      & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld & Hpost)".
     iApply (switcher_cc_specification_return_known_to_known_gen with
              "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hregs
-               $Hstk $Hcstk $Hpost]"); done.
+               $Hstk $Hcstk $Hmie $Hheld $Hpost]"); done.
   Qed.
 
 End Switcher_KtK_Return.

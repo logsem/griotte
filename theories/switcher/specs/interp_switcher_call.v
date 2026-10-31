@@ -31,7 +31,8 @@ Section fundamental.
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp_expr interp (interp_cont interp) W C (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
+    ⊢ interp_expr_at InterruptDisabled interp (interp_cont interp) W C
+        (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "Hres".
     iApply interp_expr_switcher_call_gen.
@@ -46,9 +47,12 @@ Section fundamental.
     iIntros "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.
     iSplit; first (iPureIntro; exact switcher_not_heap_range).
-    iIntros "!> %regs %W' % %".
+    (* An interrupt-disabling sentry *)
+    iSplit; last (iPureIntro; done).
+    iIntros "!> %W' %Hrelated %g' %Hflows".
     destruct g'; first done.
-    iNext ; iApply (interp_expr_switcher_call with "[$Hinv $Hstatic]"); done.
+    iIntros (m); cbn [default sentry_kind_mie].
+    iNext; iApply (interp_expr_switcher_call with "[$Hinv $Hstatic]").
   Qed.
 
 End fundamental.
