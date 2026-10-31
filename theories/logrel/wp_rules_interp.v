@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel world_interp world_interp_cells.
+From griotte Require Export logrel world_interp_cells.
 From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
 From griotte Require Import rules rules_deref_quar proofmode monotone.
@@ -878,13 +878,13 @@ Section wp_interp.
     dst ≠ cnull → src ≠ cnull →
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RW Global b e a ∗ a ↦ₐ raw ∗
-        region W C }}}
+        world_interp W C }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV;
         ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RW Global b e a ∗
-        a ↦ₐ raw ∗ region W C }}}.
+        a ↦ₐ raw ∗ world_interp W C }}}.
   Proof.
     iIntros (Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hregion) HΦ".

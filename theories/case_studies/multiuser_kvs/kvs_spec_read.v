@@ -463,7 +463,7 @@ Section KVS_spec_read.
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    ( region W C ∗
+    ( world_interp W C ∗
       (* initial register file *)
 
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_read_pcc_addr ∗
@@ -483,7 +483,7 @@ Section KVS_spec_read.
       ▷ is_physical_kvs KVS_cgp_b pkvs ∗
 
       ( ▷ (
-          region W C ∗
+          world_interp W C ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
@@ -600,7 +600,7 @@ Section KVS_spec_read.
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    ( region W C ∗
+    ( world_interp W C ∗
       kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
       na_own (tpool th) F ∗
@@ -622,7 +622,7 @@ Section KVS_spec_read.
       ▷ is_logical_kvs lkvs ∗
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ ( region W C ∗
+      ▷ ( world_interp W C ∗
           na_own (tpool th) F ∗
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
@@ -719,7 +719,7 @@ Section KVS_spec_read.
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    ( region W C ∗
+    ( world_interp W C ∗
       kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
       na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
@@ -739,7 +739,7 @@ Section KVS_spec_read.
 
       ▷ user_key ↦(LKVS) m ∗
 
-      ▷ (region W C ∗
+      ▷ (world_interp W C ∗
          na_own (tpool th) F ∗
          PC ↦ₚ[th] lupdatePcPerm wret ∗
          cgp ↦ᵣ[th] - ∗
@@ -803,7 +803,7 @@ Section KVS_spec_read.
 
     jalr_target_ok cnull cra wret.(lw) = true ->
 
-    ( region W C ∗
+    ( world_interp W C ∗
       kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
       na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
@@ -824,7 +824,7 @@ Section KVS_spec_read.
       ▷ user_kvs_inv user_key ∗
       ▷ (user_key, nkey) ↦(KVS) w ∗
 
-      ▷ (region W C ∗
+      ▷ (world_interp W C ∗
          na_own (tpool th) F ∗
          PC ↦ₚ[th] lupdatePcPerm wret ∗
          cgp ↦ᵣ[th] - ∗

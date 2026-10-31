@@ -307,11 +307,13 @@ Section ftlr_step.
     { destruct ρ; cbn.
       - iDestruct (open_world_interp_permanent with "Hworld Hinva") as "[$ Hres]";
           [set_solver|by apply HnT|].
-        iNext. iDestruct "Hres" as (wa) "Hres". iExists wa. by iApply pc_open_intro.
+        iDestruct "Hres" as (wa) "(%HpO & Hc & HP)".
+        iNext. iExists wa. iApply (pc_open_intro with "[Hc HP]"); [done|by iFrame "∗%"].
       - iDestruct "Hinva" as "(Hrel & %HT & _)".
         iDestruct (open_world_interp_temporary with "Hworld Hrel") as "[$ Hres]";
           [set_solver|done|].
-        iNext. iDestruct "Hres" as (wa) "Hres". iExists wa. by iApply pc_open_intro. }
+        iDestruct "Hres" as (wa) "(%HpO & Hc & HP & Hmono)".
+        iNext. iExists wa. iApply (pc_open_intro with "[Hc HP Hmono]"); [done|by iFrame "∗%"]. }
     (* 5. The case of the instruction. *)
     iApply (wp_wand with "[- Hmie]").
     { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P

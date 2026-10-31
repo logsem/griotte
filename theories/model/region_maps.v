@@ -106,7 +106,7 @@ End relPre.
 
 Section region_maps.
   Context {Σ : gFunctors} {Cname : CmptNameG}
-    `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ}
+    {allocg : allocRegistryG Σ} {memg : gen_heapGS Addr LWord Σ}
     {stsg : STSG Σ} {relg : relGS Σ}.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -153,19 +153,25 @@ Section region_maps.
     iSplit; first done. iIntros (x). iApply (saved_pred_agree with "S1 S2").
   Qed.
 
-  (** A Permanent body mentions no world. *)
-  Definition body_perm C (k : LAddr) (p : Perm) (φ : CmptName * LWord → iProp Σ) : iProp Σ :=
-    heap_key_resource k (∃ v, ⌜isO p = false⌝ ∗ k ↦ₖ v ∗ ▷ φ (C, v)).
+  (** The safety resources of a key of the map of Permanent regions: its
+      cell, and its predicate one later away. A Permanent predicate mentions
+      no world. *)
+  Definition PermRes C (a : LAddr) (p : Perm) (Φ : CmptName * LWord → iProp Σ) (w : LWord) : iProp Σ :=
+    ⌜isO p = false⌝ ∗ a ↦ₖ w ∗ ▷ Φ (C, w).
 
-  (** The cell of a Temporary key. *)
-  Definition temp_body (k : LAddr) (v : LWord) : iProp Σ := k ↦ₖ v.
+  (** The safety resources of a Temporary key: its cell, and one later away
+      its predicate at [W] and the public monotonicity of the predicate. *)
+  Definition TmpRes W C (a : LAddr) (p : Perm) (Φ : WORLD * CmptName * LWord → iProp Σ) (w : LWord) : iProp Σ :=
+    ⌜isO p = false⌝ ∗ a ↦ₖ w ∗ ▷ Φ (W, C, w) ∗ ▷ future_pub_mono C Φ w.
+
+  Definition body_perm C (k : LAddr) (p : Perm) (φ : CmptName * LWord → iProp Σ) : iProp Σ :=
+    heap_key_resource k (∃ v, PermRes C k p φ v).
 
   (** Every Temporary key carries public monotonicity: the only private
       steps with Temporary keys present are revocations, which take every
       Temporary body out. *)
   Definition temp_res W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
-    heap_key_resource k
-      (∃ v, ⌜isO p = false⌝ ∗ temp_body k v ∗ future_pub_mono C φ v ∗ ▷ φ (W, C, v)).
+    heap_key_resource k (∃ v, TmpRes W C k p φ v).
 
   (** A local body is read off the world: no state ghost. *)
   Definition body_l W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
@@ -189,8 +195,8 @@ Section region_maps.
   Lemma temp_res_mono_pub W W' C k p φ :
     related_sts_pub_world W W' → temp_res W C k p φ -∗ temp_res W' C k p φ.
   Proof.
-    iIntros (Hp). iApply heap_key_resource_mono. iIntros "(%v & %HO & Hv & #Hm & Hφ)".
-    iExists v. iFrame "Hv Hm %". iNext. iApply ("Hm" with "[//] Hφ").
+    iIntros (Hp). iApply heap_key_resource_mono. iIntros "(%v & %HO & Hv & Hφ & #Hm)".
+    iExists v. rewrite /TmpRes. iFrame "Hv Hm %". iNext. iApply ("Hm" with "[//] Hφ").
   Qed.
 
   Lemma body_l_mono_pub W W' C k p φ :
@@ -217,8 +223,7 @@ Section region_maps.
     iSplitL "Hm"; [by iExists M|]. iExists φ'. rewrite rel_perm_eq. by iFrame.
   Qed.
 
-  (** The same, in the shape of today's region opening: the body for the
-      client's predicate, its content one later away. *)
+  (** The same, with the body for the client's predicate. *)
   Lemma perm_open_transport C O k p φ :
     k ∉ O →
     perm_region_map C O -∗ rel_perm C k p φ -∗
@@ -227,7 +232,7 @@ Section region_maps.
     iIntros (Hk) "Hw Hr".
     iDestruct (perm_open with "Hw Hr") as "[$ (%φ' & _ & _ & Hb & #Heq)]"; [done|].
     iApply (heap_key_resource_mono with "[] Hb"). iIntros "(%v & %HO & Hv & Hφ)".
-    iExists v. iFrame "Hv %". iNext. iRewrite ("Heq" $! (C, v)). iExact "Hφ".
+    iExists v. rewrite /PermRes. iFrame "Hv %". iNext. iRewrite ("Heq" $! (C, v)). iExact "Hφ".
   Qed.
 
   Lemma perm_close C O k p φ :
@@ -254,22 +259,20 @@ Section region_maps.
     iExists φ'. rewrite rel_l_eq /body_l HT. by iFrame.
   Qed.
 
-  (** The same, in the shape of today's region opening. *)
+  (** The same, with the body for the client's predicate. *)
   Lemma l_open_transport t W C O k p φ :
     k ∉ O → std W !! k = Some Temporary →
     local_region_map t W C O -∗ rel_l t C k p φ -∗
-    local_region_map t W C ({[k]} ∪ O) ∗
-    heap_key_resource k
-      (∃ v, ⌜isO p = false⌝ ∗ temp_body k v ∗ ▷ future_pub_mono C φ v ∗ ▷ φ (W, C, v)).
+    local_region_map t W C ({[k]} ∪ O) ∗ temp_res W C k p φ.
   Proof.
     iIntros (Hk HT) "Hw Hr".
     iDestruct (l_open with "Hw Hr") as "[$ (%φ' & _ & _ & Hb & #Heq)]"; [done|done|].
-    iApply (heap_key_resource_mono with "[] Hb"). iIntros "(%v & %HO & Hv & #Hm & Hφ)".
-    iExists v. iFrame "Hv %". iSplitR.
+    iApply (heap_key_resource_mono with "[] Hb"). iIntros "(%v & %HO & Hv & Hφ & #Hm)".
+    iExists v. rewrite /TmpRes. iFrame "Hv %". iSplitL "Hφ".
+    - iNext. iRewrite ("Heq" $! (W, C, v)). iExact "Hφ".
     - iNext. rewrite /future_pub_mono. iIntros "!>" (W1 W2 Hp) "H".
       iRewrite ("Heq" $! (W2, C, v)). iRewrite ("Heq" $! (W1, C, v)) in "H".
       iApply ("Hm" with "[//] H").
-    - iNext. iRewrite ("Heq" $! (W, C, v)). iExact "Hφ".
   Qed.
 
   Lemma l_close t W C O k p φ :
@@ -428,7 +431,7 @@ Section region_maps.
       Temporary. *)
   Lemma l_excl_not_T t W C O k p φ (X : iProp Σ) :
     k ∉ O → std W !! k = Some Temporary →
-    □ (∀ v, temp_body k v -∗ X -∗ False) -∗
+    □ (∀ v, k ↦ₖ v -∗ X -∗ False) -∗
     □ (∀ a ι, ⌜k = LHeap a ι⌝ → ι ⊒ AQuar -∗ X -∗ False) -∗
     local_region_map t W C O -∗ rel_l t C k p φ -∗ X -∗ False.
   Proof.
@@ -439,14 +442,6 @@ Section region_maps.
     - iDestruct "Hb" as "[(%v & _ & Hv & _)|Hq]"; [iApply ("Hc" with "Hv HX")|].
       by iApply ("Ht" with "[//] Hq HX").
   Qed.
-
-  (** ** The world interpretation of a thread *)
-
-  Context {th : Thread}.
-
-  (** The general form, with the open keys of each part. *)
-  Definition world_interp_open_gl W C (Og Ol : gset LAddr) : iProp Σ :=
-    perm_region_map C Og ∗ local_region_map th W C Ol.
 
 End region_maps.
 

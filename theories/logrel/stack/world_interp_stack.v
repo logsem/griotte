@@ -110,7 +110,6 @@ Section WorldInterpStack.
     (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
            ▷ StackOpenWorldResources interp W C la lv).
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
     induction la as [|a0 la IH]; intros Hnodup Hin Hdis;
       iIntros "(#Hinterp & Hr)"; cbn in * |- *.
     - iFrame. iExists []. rewrite /StackOpenWorldResources /StackWorldResources /=. done.
@@ -123,12 +122,12 @@ Section WorldInterpStack.
       iDestruct (big_sepL_elem_of with "Hrels")
         as "(%p' & %P & %Hfl & %Hpers & #Hrel & %HT & #Hmono & #Hz & #Hrc & #Hwc)".
       { by apply elem_of_finz_seq_between. }
-      iDestruct (region_open_temp with "Hr Hrel") as "[Hr Hres]"; [|done|].
+      iDestruct (open_world_interp_temporary with "Hr Hrel") as "[Hr Hres]"; [|done|].
       { intros (x & Heq & Hx)%list_elem_of_fmap. simplify_eq.
         apply elem_of_app in Hx as [Hx|Hx]; [done|set_solver+Hx Ha_notin_l']. }
-      iDestruct "Hres" as (v) "(_ & Hv & Hfmono & HP)".
+      iDestruct "Hres" as (v) "(_ & Hv & HP & Hfmono)".
       iSplitL "Hr".
-      { iApply (open_region_many_permutation with "Hr"). intros k. set_solver. }
+      { iApply (world_interp_open_permutation with "Hr"). intros k. set_solver. }
       iExists (v :: lv). iFrame "Hv Hlv".
       iNext. iDestruct "Hopen_res" as "[Hres Hstates]".
       rewrite /StackOpenWorldResources /StackWorldResources /=.
@@ -150,7 +149,6 @@ Section WorldInterpStack.
     -∗
     world_interp_open W C (LNonHeap <$> la').
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
     revert lv. induction la as [|a0 la IH]; intros lv Hnodup Hdis Hlen_lv;
       iIntros "(Hr & Ha & [Hres Hstates])"; cbn in * |- *.
     - done.
@@ -162,14 +160,14 @@ Section WorldInterpStack.
       apply NoDup_cons in Hnodup as [Hnotin Hnodup].
       pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
       eapply disjoint_weak in Hdis.
-      iDestruct (region_close_temp W C (LNonHeap <$> (la ++ la')) (LNonHeap a0) p (safeC φ)
-                  with "[Hr] Hrel [Hφ Ha]") as "Hr".
+      assert (∀ x, Persistent (safeC φ x)) as HpersL by (intros x; apply Hpers).
+      iDestruct (close_world_interp_temporary W C (LNonHeap <$> (la ++ la')) (LNonHeap a0) p
+                  (safeC φ) v with "[Hr] Hrel [Hφ Ha]") as "[Hr _]".
       { intros (x & Heq & Hx)%list_elem_of_fmap. simplify_eq.
         apply elem_of_app in Hx as [Hx|Hx]; [done|set_solver+Hx Ha_notin_l']. }
       { done. }
-      { intros x. apply Hpers. }
-      { iApply (open_region_many_permutation with "Hr"). intros k. set_solver. }
-      { rewrite /temp_res /=. iExists v. iFrame "∗#".
+      { iApply (world_interp_open_permutation with "Hr"). intros k. set_solver. }
+      { rewrite /TmpRes /=. iFrame "∗#".
         iPureIntro. by eapply notisO_flowsfrom. }
       iApply (IH with "[$Hr $Hlv $Hres $Hstates]"); eauto.
   Qed.
@@ -307,7 +305,7 @@ Section WorldInterpStack.
     assert (∀ k, k ∈ LNonHeap <$> ls → std W !! k = Some Temporary) as Hls_T.
     { intros k (x & -> & Hx)%list_elem_of_fmap.
       eapply Forall_forall in Hla_tmp; [exact Hla_tmp|]. by apply Hls_la. }
-    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq /open_region_many_def.
+    iEval (rewrite world_interp_open_eq) in "Hr".
     assert (open_perm W (LNonHeap <$> ls) = ∅) as ->.
     { apply set_eq. intros k. rewrite elem_of_open_perm. split; [|set_solver].
       intros [Hk HnT]. by apply Hls_T in Hk. }
@@ -337,7 +335,7 @@ Section WorldInterpStack.
     iModIntro. iExists l_unk.
     iSplit; [iPureIntro; by split|].
     iSplitL "Hg Hl".
-    { rewrite world_interp_eq /world_interp_def region_eq /world_interp_open_gl. iFrame. }
+    { rewrite world_interp_eq. iFrame. }
     iSplit; [by iApply stack_revoked_resources|].
     iSplit; [done|].
     iSplitR "HR_unk"; [|by iFrame].
@@ -375,10 +373,10 @@ Section WorldInterpStack.
      iApply (big_sepL_mono with "H").
      iIntros (k x Hx) "[(%φ & %p & Hφ & #Hfmono & #Hrel & (#Hmono & #Hz & #Hrc & #Hwc & %Hpers) & %Hp) Ha]".
      iExists p, (safeC φ). iSplit; [iPureIntro; intros ?; apply Hpers|].
-     iFrame "Hrel". rewrite /temp_res /=. iExists _. iFrame "Ha".
+     iFrame "Hrel". rewrite /temp_res /TmpRes /=. iExists _. iFrame "Ha".
      iSplit; [iPureIntro; by eapply notisO_flowsfrom|].
-     iSplit; [iApply "Hmono"|].
-     iNext. iApply "Hz". iExact "Hφ".
+     iSplitL "Hφ"; [iNext; iApply "Hz"; iExact "Hφ"|].
+     iNext. iApply "Hmono".
    Qed.
 
 End WorldInterpStack.

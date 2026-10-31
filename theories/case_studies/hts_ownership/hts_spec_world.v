@@ -158,7 +158,7 @@ Section HTS_World.
     { apply revoke_conditions_sat. }
     iDestruct (heap_key_resource_live with "Hright Hres_b") as "[Hres_b Hright]".
     iDestruct "Hres_b" as (v_b) "Hres_b".
-    iDestruct "Hres_b" as "(>%Hp_nonO & >Hb_phys & _)".
+    iDestruct "Hres_b" as "(%Hp_nonO & Hb_phys & _)".
     iModIntro. iExists v_b. by iFrame.
   Qed.
 

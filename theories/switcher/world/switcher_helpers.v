@@ -91,10 +91,10 @@ Section switcher_helper.
         iDestruct "Hrel" as "(#Hrel & _ & #Hmono)".
         iExists p', (safeC P). iFrame "Hrel".
         iSplit; first (iPureIntro; intros [ [W C'] w]; apply Hpers).
-        rewrite /temp_res /heap_key_resource /temp_body /=.
+        rewrite /temp_res /heap_key_resource /TmpRes /=.
         iExists (WInt 0). iFrame "Hv".
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
-        iSplit; first iApply "Hmono".
+        iSplitR; [|iNext; iApply "Hmono"].
         iNext. iApply "Hwcond"; iApply interp_int.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
@@ -144,7 +144,7 @@ Section switcher_helper.
         { iExists p0, P0. iFrame "Hrel0". iSplit; first done.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk0 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -152,7 +152,7 @@ Section switcher_helper.
         { iExists p1, P1. iFrame "Hrel1". iSplit; first done.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk1 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -160,7 +160,7 @@ Section switcher_helper.
         { iExists p2, P2. iFrame "Hrel2". iSplit; first done.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk2 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -168,7 +168,7 @@ Section switcher_helper.
         { iExists p3, P3. iFrame "Hrel3". iSplit; first done.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk3 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }

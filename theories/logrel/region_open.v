@@ -29,12 +29,14 @@ Section fundamental.
     | InLocal => P W C w
     end.
 
-  (** The opened region of the PC, at key [k] of part [ρ], holding [w]. *)
+  (** The opened region of the PC, at key [k] of part [ρ], holding [w]: its
+      safety resources, with the predicate now. *)
   Definition pc_open_def (W : WORLD) (C : CmptName) (k : LAddr) (p' : Perm) (P : V)
       (w : LWord) (ρ : region_part) : iProp Σ :=
     match ρ with
-    | InPerm => ⌜std W !! k ≠ Some Temporary⌝ ∗ PermRes C k p' (safeGC P) w
-    | InLocal => TmpRes W C k p' (safeC P) w
+    | InPerm => ⌜std W !! k ≠ Some Temporary⌝ ∗ ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeGC P (C, w)
+    | InLocal =>
+        ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
     end.
   #[local] Definition pc_open_aux : seal (@pc_open_def). Proof. by eexists. Qed.
 
@@ -56,8 +58,9 @@ Section fundamental.
   Lemma pc_open_intro W C k p' (P : V) w ρ :
     (ρ = InPerm → std W !! k ≠ Some Temporary) →
     match ρ with
-    | InPerm => PermRes C k p' (safeGC P) w
-    | InLocal => TmpRes W C k p' (safeC P) w
+    | InPerm => ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeGC P (C, w)
+    | InLocal =>
+        ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
     end -∗
     pc_open W C k p' P w ρ.
   Proof.
@@ -78,10 +81,13 @@ Section fundamental.
     assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
     rewrite open_world_interp_empty.
     destruct ρ; cbn.
-    - iDestruct "Hres" as "[%HnT Hres]".
+    - iDestruct "Hres" as "(%HnT & %HpO & Hc & HP)".
+      iAssert (PermRes C k p' (safeGC P) w) with "[Hc HP]" as "Hres"; [by iFrame "∗%"|].
       iDestruct (close_world_interp_permanent W C [] k p' (safeGC P) w
                    with "Hw Hrel Hres") as "[$ _]"; [set_solver|done].
     - iDestruct "Hrel" as "(Hrel & %HT & _)".
+      iDestruct "Hres" as "(%HpO & Hc & HP & #Hmono)".
+      iAssert (TmpRes W C k p' (safeC P) w) with "[Hc HP]" as "Hres"; [by iFrame "∗#%"|].
       iDestruct (close_world_interp_temporary W C [] k p' (safeC P) w
                    with "Hw Hrel Hres") as "[$ _]"; [set_solver|done].
   Qed.
@@ -129,10 +135,13 @@ Section fundamental.
     assert (∀ x, Persistent (safeGC P x)) as HpersG by (intros x; apply (Hpers (_, _, _))).
     assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
     destruct ρ; cbn.
-    - iDestruct "Hres" as "[%HnT Hres]".
+    - iDestruct "Hres" as "(%HnT & %HpO & Hc & HP)".
+      iAssert (PermRes C k p' (safeGC P) w) with "[Hc HP]" as "Hres"; [by iFrame "∗%"|].
       iDestruct (close_world_interp_permanent W C s k p' (safeGC P) w
                    with "Hw Hrel Hres") as "[$ _]"; done.
     - iDestruct "Hrel" as "(Hrel & %HT & _)".
+      iDestruct "Hres" as "(%HpO & Hc & HP & #Hmono)".
+      iAssert (TmpRes W C k p' (safeC P) w) with "[Hc HP]" as "Hres"; [by iFrame "∗#%"|].
       iDestruct (close_world_interp_temporary W C s k p' (safeC P) w
                    with "Hw Hrel Hres") as "[$ _]"; done.
   Qed.

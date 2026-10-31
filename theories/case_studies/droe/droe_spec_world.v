@@ -191,7 +191,7 @@ Section DROE_World.
       "Hworld_interp #Hrel_cgp_b".
     rewrite open_world_interp_empty.
     iDestruct (open_world_interp_permanent_nonheap with "Hworld_interp Hrel_cgp_b")
-      as "(_ & [%w (_ & >Hcgp_b & Hw)])"; auto.
+      as "(_ & [%w (_ & Hcgp_b & Hw)])"; auto.
     { set_solver+. }
     { apply revoke_conditions_sat. }
     rewrite /droe_b_pred /=.

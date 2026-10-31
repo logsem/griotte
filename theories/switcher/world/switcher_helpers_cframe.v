@@ -477,10 +477,10 @@ Section switcher_helpers_cframe.
       iDestruct "Hv3" as (p_v3 P3 Hpers_P3) "(#Hrel3 & Hv3)".
       iClear "Hinterp_callee_wstk".
       iFrame "Hrel0". iFrame "Hrel1". iFrame "Hrel2". iFrame "Hrel3".
-      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & #H0 & H0')".
-      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & #H1 & H1')".
-      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & #H2 & H2')".
-      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & #H3 & H3')".
+      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & H0' & H0)".
+      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & H1' & H1)".
+      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & H2' & H2)".
+      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & H3' & H3)".
       pose (W0' := Wfixed). pose (W1' := Wfixed).
       pose (W2' := Wfixed). pose (W3' := Wfixed).
       assert (related_sts_pub_world W0' Wfixed) as HW0' by apply related_sts_pub_refl_world.

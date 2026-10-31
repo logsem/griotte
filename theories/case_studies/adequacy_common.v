@@ -640,9 +640,9 @@ Section adversary_world.
       destruct v2; [| by inversion Hncap..].
       iSplit; first done.
       iSplit.
-      { iEval (rewrite /interp_in_mem_pre /=).
+      { iApply bi.later_intro. iEval (rewrite /interp_in_mem_pre /=).
         iApply interp_int. }
-      iApply future_pub_mono_interp_in_mem_z.
+      iApply bi.later_intro. iApply future_pub_mono_interp_in_mem_z.
     }
     iModIntro; iFrame "Hworld".
     assert (related_sts_priv_world W' Wadv) as Hrelated.

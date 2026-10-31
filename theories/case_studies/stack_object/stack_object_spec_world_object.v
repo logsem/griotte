@@ -68,11 +68,10 @@ Section SO_World_List.
     iDestruct "Hrels" as "[Hrel Hrels]".
     iDestruct ("IH" with "[%] [%] [%] [$Hrels $Hw]") as "[Hw $]"; [done| |done|].
     { set_solver. }
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iDestruct (region_open_perm with "Hw Hrel") as "[Hw Hb]"; [|done|].
+    iDestruct (open_world_interp_permanent with "Hw Hrel") as "[Hw Hb]"; [|done|].
     { set_solver. }
-    rewrite /body_perm. iFrame "Hb".
-    iApply (open_region_many_permutation with "Hw"). set_solver.
+    iEval (rewrite /PermRes) in "Hb". iFrame "Hb".
+    iApply (world_interp_open_permutation with "Hw"). set_solver.
   Qed.
 
   (** The cells of a list of opened keys, as lists of values. *)
@@ -178,10 +177,12 @@ Section SO_World_List.
     iDestruct "Hrels" as "[Hrel Hrels]".
     iDestruct "Hp" as "[%HpO Hp]".
     iAssert (world_interp_open W C' (((λ '(a, _, _), a) <$> l) ++ l'))%I with "[Hw Hva Hφa Hrel]" as "Hw".
-    { rewrite world_interp_open_eq /world_interp_open_def.
-      iApply (region_close_perm with "[Hw] Hrel"); [first [done|set_solver] .. | |].
-      - iApply (open_region_many_permutation with "Hw"). set_solver.
-      - rewrite /body_perm. iApply heap_key_resource_intro. iExists v. by iFrame. }
+    { iDestruct (close_world_interp_permanent W C' (((λ '(a, _, _), a) <$> l) ++ l') a p φ v
+                   with "[Hw] Hrel [Hva Hφa]") as "[$ _]".
+      - set_solver.
+      - done.
+      - iApply (world_interp_open_permutation with "Hw"). set_solver.
+      - by iFrame "∗%". }
     iApply ("IH" $! lv with "[%] [%] [%] [%] [%] [$Hw $Hv $Hφ $Hrels $Hp]"); try done.
     - lia.
     - set_solver.
@@ -209,13 +210,13 @@ Section SO_World_Object.
     ([∗ list] a ∈ l,
        ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
          ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
-               future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)) -∗
+               ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)) -∗
     world_interp_open W1 C s ∗
     ([∗ list] a ∈ l,
        ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
          ▷ zcond (safeUC Φa) C ∗
          ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
-               future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)).
+               ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)).
   Proof.
     iInduction l as [|a l] "IH"; cbn; iIntros (Hs) "Hw #Hinterp Hl"; first by iFrame.
     apply Forall_cons in Hs as [Ha Hs].
@@ -359,16 +360,16 @@ Section SO_World_Object.
                heap_key_resource (addr_key π a)
                  (∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
                     ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
-                          future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa))))%I
+                          ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa))))%I
       with "[Hrevoked_temps]" as "[#Htemps_rels Hrevoked_temps]".
     { rewrite -big_sepL_sep. iApply (big_sepL_impl with "Hrevoked_temps").
       iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & #Hrel & Hres)".
       iSplit; first (iExists pa, Φa; by iFrame "Hrel").
       rewrite /temp_res.
       iApply (heap_key_resource_mono with "[] Hres").
-      iIntros "(%wa & %HpO & Hv & Hmono & HΦ)". iExists pa, Φa. iFrame "Hrel".
+      iIntros "(%wa & %HpO & Hv & HΦ & Hmono)". iExists pa, Φa. iFrame "Hrel".
       iSplit; first done.
-      iExists wa. rewrite /temp_body. by iFrame. }
+      iExists wa. by iFrame. }
 
     (* The addresses of the object that are not Temporary in [W0] are
        Global regions: open them through the world interpretation. *)
@@ -437,7 +438,7 @@ Section SO_World_Object.
          ∗ ([∗ list] a ∈ temps,
               ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
                 ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
-                      future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa)))
+                      ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa)))
         ∨ (∃ ι, ⌜π = Some ι⌝ ∗ ⌜wca0_invs ≠ [] ∨ temps ≠ []⌝ ∗ ι ⊒ AQuar))%I
       with "[Hperms_res Hrevoked_temps]"
       as "[ [Hperms_cells Hrevoked_temps] | (%ι & -> & %Hobject_ne & #Hq)]".
@@ -529,7 +530,7 @@ Section SO_World_Object.
           ∗ ([∗ list] p0 ∈ lp, ⌜isO p0 = false⌝)
           ∗ ([∗ list] a;v ∈ temps;lv, a ↦ₐ v)
           ∗ ([∗ list] a ∈ temps, key_share (addr_key π a))
-          ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv, future_pub_mono C lpφ.2 v)
+          ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv, ▷ future_pub_mono C lpφ.2 v)
           ∗ ([∗ list] φ;v ∈ lφ;lv, ▷ φ (W0, C, v)))%I
       with "[Hrevoked_temps]" as
       (lp lφ wca0_lv_temps)
@@ -614,7 +615,7 @@ Section SO_World_Object.
         iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
         iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
         { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
-          iApply heap_key_resource_intro. iExists v. rewrite /temp_body. by iFrame. }
+          iApply heap_key_resource_intro. iExists v. by iFrame. }
         iApply ("IH" $! lφ lp lv with
           "[%] [%] [%] [$] [$] [$] [$] [$] [$] [$]"); eauto.
       }
@@ -700,7 +701,7 @@ Section SO_World_Object.
       iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
       iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
       { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
-        iApply heap_key_resource_intro. iExists v. rewrite /temp_body. by iFrame. }
+        iApply heap_key_resource_intro. iExists v. by iFrame. }
       iApply ("IH" $! lφ lp lv with
         "[%] [%] [%] [$] [$] [$] [$] [$] [$] [$]"); eauto.
     }

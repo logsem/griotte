@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import world_interp_revocation world_interp_allocation.
-From griotte Require Export sts_ghost world_std_revocation sts_multiple_updates seal_store.
+From griotte Require Export world_interp sts_ghost world_std_revocation sts_multiple_updates seal_store.
 From griotte Require Export stdpp_extra iris_extra.
 From griotte Require Import heap_region.
 
@@ -39,42 +39,10 @@ Section world_ghost_theory.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** ** Definitions of world interpretation *)
-
-  (** Definition of [world_interp].
-      All safety resources of the addresses in the world are owned by the world interpretation. *)
-  Definition world_interp_def (W : WORLD) (C : CmptName) : iProp Σ := region W C.
-  #[local] Definition world_interp_aux : seal (@world_interp_def). Proof. by eexists. Qed.
-  Definition world_interp := world_interp_aux.(unseal).
-  Definition world_interp_eq : @world_interp = @world_interp_def := world_interp_aux.(seal_eq).
-
-  (** Definition of [world_interp_open].
-      The safety resources of the addresses in [s] are not owned by the world
-      interpretation: a key Temporary in [W] is open in the local map, any
-      other key in the map of Global regions. *)
-  Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
-    open_region_many W C s.
-  #[local] Definition world_interp_open_aux : seal (@world_interp_open_def). Proof. by eexists. Qed.
-  Definition world_interp_open := world_interp_open_aux.(unseal).
-  Definition world_interp_open_eq : @world_interp_open = @world_interp_open_def := world_interp_open_aux.(seal_eq).
-
-  Lemma world_interp_gl W C : world_interp W C ⊣⊢ world_interp_open_gl W C ∅ ∅.
-  Proof. by rewrite world_interp_eq /world_interp_def region_eq. Qed.
-
-  Lemma world_interp_open_permutation W C s1 s2 :
-    (∀ k, k ∈ s1 ↔ k ∈ s2) →
-    world_interp_open W C s1 ⊣⊢ world_interp_open W C s2.
-  Proof. intros Hs. rewrite world_interp_open_eq. by apply open_region_many_permutation. Qed.
-
   (** ** Definitions of safety resources *)
 
-  (** Temporary Safety Resources *)
-  Definition TmpRes (W : WORLD) (C : CmptName) (a : LAddr) (p : Perm) Φ (w : LWord) : iProp Σ :=
-    ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (W,C,w) ∗ future_pub_mono C Φ w.
-
-  (** Permanent Safety Resources: a Global region mentions no world. *)
-  Definition PermRes (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vg) (w : LWord) : iProp Σ :=
-    ⌜ isO p = false ⌝ ∗ a ↦ₖ w ∗ Φ (C,w).
+  (** [PermRes] and [TmpRes] are defined with the region maps
+      ([region_maps.v]). *)
 
   (** Revoked Safety Resources *)
   Definition RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
@@ -103,19 +71,12 @@ Section world_ghost_theory.
     iExists pa, Φa. iFrame "Hrel %". by iApply temp_res_mono_pub.
   Qed.
 
-  Lemma TmpRes_temp_res W C a p Φ :
-    heap_key_resource a (∃ w, TmpRes W C a p Φ w) -∗ temp_res W C a p Φ.
-  Proof.
-    iApply heap_key_resource_mono. iIntros "(%w & %HpO & Ha & HΦ & #Hmono)".
-    iExists w. rewrite /temp_body. by iFrame "∗#%".
-  Qed.
-
   (* [PermRes] can give access to the current points-to.
      We have to relinquish it to get [PermRes] again. *)
   Lemma PermRes_acc (C : CmptName) (a : LAddr) (p : Perm) (Φ : Vg) (w : LWord) :
     PermRes C a p Φ w -∗
-    ( a ↦ₖ w ∗ Φ (C,w) ) ∗
-    ( ( a ↦ₖ w ∗ Φ (C,w) ) -∗ PermRes C a p Φ w ).
+    ( a ↦ₖ w ∗ ▷ Φ (C,w) ) ∗
+    ( ( a ↦ₖ w ∗ ▷ Φ (C,w) ) -∗ PermRes C a p Φ w ).
   Proof.
     iIntros "(#Hp&Ha&HΦ)".
     iSplitL "Ha HΦ"; iFrame.
@@ -127,7 +88,7 @@ Section world_ghost_theory.
   (* A closed world is like a world open on no addresses. *)
   Lemma open_world_interp_empty (W : WORLD) (C : CmptName) :
     world_interp W C ⊣⊢ world_interp_open W C [].
-  Proof. by rewrite world_interp_eq /world_interp_def world_interp_open_eq /world_interp_open_def. Qed.
+  Proof. by rewrite world_interp_eq world_interp_open_eq open_perm_nil open_l_nil. Qed.
 
   Lemma open_world_interp_temporary (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
     a ∉ s ->
@@ -136,13 +97,13 @@ Section world_ghost_theory.
     a ↪ˡ[C]{p} Φ
     -∗
     world_interp_open W C ({[ a ]} ∪ s) ∗
-    heap_key_resource a (▷ (∃ w, TmpRes W C a p Φ w)).
+    heap_key_resource a (∃ w, TmpRes W C a p Φ w).
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
+    rewrite !world_interp_open_eq.
     iIntros (Ha HWa) "Hr Hrel".
-    iDestruct (region_open_temp with "Hr Hrel") as "[$ Hres]"; [done..|].
-    iApply (heap_key_resource_mono with "[] Hres").
-    iIntros "(%w & %HpO & Ha & #Hmono & HΦ)". iNext. iExists w. by iFrame "∗#%".
+    rewrite open_l_add_T // open_perm_add_T //.
+    iDestruct "Hr" as "[$ Hl]".
+    iApply (l_open_transport with "Hl Hrel"); [by apply not_elem_of_open_l|done].
   Qed.
 
   Lemma close_world_interp_temporary
@@ -156,10 +117,13 @@ Section world_ghost_theory.
     -∗
     world_interp_open W C s ∗ a ↪ˡ[C]{p} Φ.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
+    rewrite !world_interp_open_eq.
     iIntros (Ha HWa) "Hr #Hrel Hres". iFrame "Hrel".
-    iApply (region_close_temp with "Hr Hrel"); [done..|].
-    iApply TmpRes_temp_res. iApply heap_key_resource_intro. by iExists w.
+    iAssert (temp_res W C a p Φ) with "[Hres]" as "Hb".
+    { iApply heap_key_resource_intro. by iExists w. }
+    rewrite open_l_add_T // open_perm_add_T //.
+    iDestruct "Hr" as "[$ Hl]".
+    iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
   Qed.
 
   Lemma open_world_interp_permanent (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
@@ -169,13 +133,13 @@ Section world_ghost_theory.
     a ↪ᵖ[C]{p} Φ
     -∗
     world_interp_open W C ({[ a ]} ∪ s) ∗
-    heap_key_resource a (▷ (∃ w, PermRes C a p Φ w)).
+    heap_key_resource a (∃ w, PermRes C a p Φ w).
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
+    rewrite !world_interp_open_eq.
     iIntros (Ha HWa) "Hr Hrel".
-    iDestruct (region_open_perm with "Hr Hrel") as "[$ Hres]"; [done..|].
-    iApply (heap_key_resource_mono with "[] Hres").
-    iIntros "(%w & %HpO & Ha & HΦ)". iNext. iExists w. by iFrame "∗%".
+    rewrite open_l_add_nT // open_perm_add_nT //.
+    iDestruct "Hr" as "[Hg $]".
+    iApply (perm_open_transport with "Hg Hrel"). by apply not_elem_of_open_perm.
   Qed.
 
   Lemma open_world_interp_permanent_nonheap (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ :
@@ -186,7 +150,7 @@ Section world_ghost_theory.
     LNonHeap a ↪ᵖ[C]{p} Φ
     -∗
     world_interp_open W C ({[ LNonHeap a ]} ∪ s) ∗
-    ▷ (∃ w, PermRes C a p Φ w).
+    ∃ w, PermRes C a p Φ w.
   Proof.
     intros _. apply open_world_interp_permanent.
   Qed.
@@ -201,10 +165,13 @@ Section world_ghost_theory.
     -∗
     world_interp_open W C s ∗ a ↪ᵖ[C]{p} Φ.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Ha HWa) "Hr #Hrel (%HpO & Ha & HΦ)". iFrame "Hrel".
-    iApply (region_close_perm with "Hr Hrel"); [done..|].
-    iApply heap_key_resource_intro. iExists w. by iFrame "∗%".
+    rewrite !world_interp_open_eq.
+    iIntros (Ha HWa) "Hr #Hrel Hres". iFrame "Hrel".
+    iAssert (body_perm C a p Φ) with "[Hres]" as "Hb".
+    { iApply heap_key_resource_intro. by iExists w. }
+    rewrite open_l_add_nT // open_perm_add_nT //.
+    iDestruct "Hr" as "[Hg $]".
+    iApply (perm_close with "Hg Hrel Hb"); by apply not_elem_of_open_perm.
   Qed.
 
   (** The map of Global regions alone, without the local map: a thread
@@ -216,12 +183,10 @@ Section world_ghost_theory.
     a ↪ᵖ[C]{p} Φ
     -∗
     perm_region_map C ({[ a ]} ∪ s) ∗
-    heap_key_resource a (▷ (∃ w, PermRes C a p Φ w)).
+    heap_key_resource a (∃ w, PermRes C a p Φ w).
   Proof.
     iIntros (Ha) "Hg Hrel".
-    iDestruct (perm_open_transport with "Hg Hrel") as "[$ Hres]"; first done.
-    iApply (heap_key_resource_mono with "[] Hres").
-    iIntros "(%w & %HpO & Ha & HΦ)". iNext. iExists w. by iFrame "∗%".
+    iApply (perm_open_transport with "Hg Hrel"). done.
   Qed.
 
   Lemma close_perm_region_map (C : CmptName) (s : gset LAddr) (a : LAddr) (p : Perm) Φ
@@ -233,9 +198,10 @@ Section world_ghost_theory.
     -∗
     perm_region_map C s.
   Proof.
-    iIntros (Ha) "Hg #Hrel (%HpO & Ha & HΦ)".
-    iApply (perm_close with "Hg Hrel"); [done..|].
-    iApply heap_key_resource_intro. iExists w. by iFrame "∗%".
+    iIntros (Ha) "Hg #Hrel Hres".
+    iAssert (body_perm C a p Φ) with "[Hres]" as "Hb".
+    { iApply heap_key_resource_intro. by iExists w. }
+    iApply (perm_close with "Hg Hrel Hb"); done.
   Qed.
 
   Lemma close_world_interp_next_quarantined_heap_l W C s a ι p φ
@@ -245,9 +211,13 @@ Section world_ghost_theory.
     world_interp_open W C ({[LHeap a ι]} ∪ s) -∗ LHeap a ι ↪ˡ[C]{p} φ -∗
     world_interp_open W C s.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hnin Hstd) "#Hq HW Hrel".
-    iApply (region_close_temp_quarantined_heap with "Hq HW Hrel"); done.
+    rewrite !world_interp_open_eq.
+    iIntros (Hnin Hstd) "#Hq Hr Hrel".
+    iAssert (temp_res W C (LHeap a ι) p φ) with "[]" as "Hb".
+    { rewrite /temp_res /=. by iRight. }
+    rewrite open_l_add_T // open_perm_add_T //.
+    iDestruct "Hr" as "[$ Hl]".
+    iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
   Qed.
 
   Lemma close_world_interp_next_quarantined_heap_perm W C s a ι p φ
@@ -257,9 +227,13 @@ Section world_ghost_theory.
     world_interp_open W C ({[LHeap a ι]} ∪ s) -∗ LHeap a ι ↪ᵖ[C]{p} φ -∗
     world_interp_open W C s.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def.
-    iIntros (Hnin Hstd) "#Hq HW Hrel".
-    iApply (region_close_perm_quarantined_heap with "Hq HW Hrel"); done.
+    rewrite !world_interp_open_eq.
+    iIntros (Hnin Hstd) "#Hq Hr Hrel".
+    iAssert (body_perm C (LHeap a ι) p φ) with "[]" as "Hb".
+    { rewrite /body_perm /=. by iRight. }
+    rewrite open_l_add_nT // open_perm_add_nT //.
+    iDestruct "Hr" as "[Hg $]".
+    iApply (perm_close with "Hg Hrel Hb"); by apply not_elem_of_open_perm.
   Qed.
 
   (** ** The local map: its keys *)
@@ -271,7 +245,7 @@ Section world_ghost_theory.
     world_interp W C ∗
     ∃ p φ, ⌜∀ WCv, Persistent (φ WCv)⌝ ∗ a ↪ˡ[C]{p} φ.
   Proof.
-    rewrite world_interp_gl.
+    rewrite world_interp_eq.
     iIntros (Hlookup) "[Hg (%M & Hw)]". iNamed "Hw".
     assert (is_Some (M !! a)) as [ [γp p] HM].
     { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
@@ -296,7 +270,7 @@ Section world_ghost_theory.
     destruct (decide (std W !! LNonHeap a = Some Temporary)) as [HT|HnT]; [|by iFrame].
     iExFalso.
     iDestruct (world_interp_rel_get with "Hw") as "[Hw (%p' & %φ' & _ & #Hl)]"; [exact HT|].
-    rewrite world_interp_gl. iDestruct "Hw" as "[Hg Hl']".
+    rewrite world_interp_eq. iDestruct "Hw" as "[Hg Hl']".
     iDestruct (perm_open with "Hg Hr") as "[_ (%φ'' & _ & _ & Hb & _)]"; [set_solver|].
     iDestruct "Hb" as (v) "(_ & Hv & _)".
     iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a ↦ₖ v) with "[] [] Hl' Hl Hv");
@@ -312,8 +286,7 @@ Section world_ghost_theory.
     world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗
     world_interp_open W C s ∗ ∃ a ι, ⌜k = LHeap a ι⌝ ∗ ι ⊒ AQuar.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
-      /open_region_many_def /world_interp_open_gl.
+    rewrite !world_interp_open_eq.
     iIntros (Hks HT) "[Hg Hl] #Hr".
     assert (k ∉ open_perm W s) as Hkg by (by apply not_elem_of_open_perm).
     assert (k ∉ open_l W s) as Hkl by (by apply not_elem_of_open_l).
@@ -355,8 +328,7 @@ Section world_ghost_theory.
     std W !! LNonHeap a = Some Temporary →
     world_interp_open W C s -∗ LNonHeap a ↪ᵖ[C]{p} φ -∗ a ↦ₐ w -∗ False.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
-      /open_region_many_def /world_interp_open_gl.
+    rewrite !world_interp_open_eq.
     iIntros (HT) "[Hg _] #Hr Hw".
     iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
     { rewrite elem_of_open_perm. naive_solver. }
@@ -369,8 +341,7 @@ Section world_ghost_theory.
   Lemma world_interp_open_rel_perm_cell_false W C s k p φ w :
     k ∉ s → world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗ k ↦ₖ w -∗ False.
   Proof.
-    rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
-      /open_region_many_def /world_interp_open_gl.
+    rewrite !world_interp_open_eq.
     iIntros (Hks) "[Hg _] #Hr Hw".
     iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
     { by apply not_elem_of_open_perm. }
@@ -410,7 +381,7 @@ Section world_ghost_theory.
   Proof.
     intros Hext. pose proof (extract_temporaries_condition_revoke _ _ Hext) as Hrev.
     destruct Hext as [Hnodup HaS].
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros "[$ Hl]".
     iDestruct (l_revoke th W C ∅ (list_to_set s) with "Hl") as "[$ HR]".
     { intros k. rewrite elem_of_list_to_set HaS. set_solver. }
@@ -424,7 +395,7 @@ Section world_ghost_theory.
     ==∗
     world_interp (close_list l W) C.
   Proof.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros "([$ Hl] & HR)".
     rewrite /RevokedResources.
     iDestruct (RevokedRes_list_sub with "HR") as "HR".
@@ -443,7 +414,7 @@ Section world_ghost_theory.
     world_interp (reinstate W' s) C.
   Proof.
     rewrite /reinstate close_list_close_set close_set_dom.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros (Hpub) "[$ Hl] HR".
     rewrite /RevokedResources.
     iDestruct (RevokedRes_list_sub with "HR") as "HR".
@@ -478,7 +449,7 @@ Section world_ghost_theory.
   Proof.
     iIntros ([ρ Hρ]%elem_of_dom_std) "(Hshare & Hw & Ha)".
     destruct ρ; [|by iFrame].
-    iExFalso. rewrite world_interp_gl.
+    iExFalso. rewrite world_interp_eq.
     iDestruct "Hw" as "[_ (%M & Hw)]". iNamed "Hw".
     assert (is_Some (M !! k)) as [ [γp p] HM].
     { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
@@ -486,7 +457,7 @@ Section world_ghost_theory.
     iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HM|].
     iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l Hρ /temp_res.
     iDestruct (heap_key_resource_live_share with "Hshare Hb") as "[(%v & _ & Hv & _) _]".
-    rewrite /temp_body key_pointsto_eq. iDestruct "Hv" as "[Hv _]".
+    rewrite key_pointsto_eq. iDestruct "Hv" as "[Hv _]".
     iApply (addr_dupl_false with "Ha Hv").
   Qed.
 
@@ -528,7 +499,7 @@ Section world_ghost_theory.
     world_interp W C ∗
     a ↪ᵖ[C]{p} φ.
   Proof.
-    rewrite world_interp_gl /world_interp_open_gl.
+    rewrite world_interp_eq.
     iIntros "[Hg $] (%HpO & Ha & Hφ)".
     iDestruct (key_pointsto_known with "Ha") as "#Hkn".
     iMod (perm_extend with "Hg Hkn Ha [Hφ]") as "[$ $]"; [set_solver|done|by iNext|done].
@@ -561,12 +532,12 @@ Section world_ghost_theory.
     world_interp (<s[a := Temporary ]s>W) C ∗
     a ↪ˡ[C]{p} φ.
   Proof.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros (Hfresh) "[$ Hl] (%HpO & Ha & Hφ & #Hmono)".
     iDestruct (key_pointsto_known with "Ha") as "#Hkn".
     iMod (l_extend th W C ∅ a Temporary p φ with "Hl Hkn [Ha Hφ]") as "[Hl Hr]"; [done|set_solver| |by iFrame].
     rewrite /body_l /std_update /= lookup_insert_eq.
-    iApply heap_key_resource_intro. iExists v. rewrite /temp_body. iFrame "∗#%".
+    iApply heap_key_resource_intro. iExists v. rewrite /TmpRes. iFrame "∗#%".
     iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro. by apply related_sts_pub_world_fresh.
   Qed.
 
@@ -598,7 +569,7 @@ Section world_ghost_theory.
     world_interp (<s[a := Revoked ]s>W) C ∗
     a ↪ˡ[C]{p} φ.
   Proof.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros (Hfresh) "#Hkn [$ Hl]".
     iMod (l_extend th W C ∅ a Revoked p φ with "Hl Hkn []") as "[Hl Hr]"; [done|set_solver| |by iFrame].
     by rewrite /body_l /std_update /= lookup_insert_eq.
@@ -683,7 +654,7 @@ Section world_ghost_theory.
       iApply (world_interp_extend_temp with "Hw [Ha Hφ]").
       { intros [Hin|Hdom]%elem_of_dom_std_multiple_update; [done|].
         rewrite elem_of_dom_std Ha in Hdom. by destruct Hdom. }
-      iFrame "Ha #%". iApply ("Hmono" with "[] Hφ"). iPureIntro.
+      rewrite /TmpRes. iFrame "Ha #%". iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro.
       by apply related_sts_pub_update_multiple.
   Qed.
 
@@ -766,7 +737,7 @@ Section world_ghost_theory.
     ([∗ list] v ∈ lw, φ (C, v)).
   Proof.
     iIntros (Hnd HpO) "Hw Hcells Hφ".
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iDestruct "Hw" as "[(%M & Hm) $]".
     assert (NoDup (LNonHeap <$> la)) as Hnd'.
     { apply NoDup_fmap; [intros ?? [= ->]; done|done]. }
@@ -806,7 +777,7 @@ Section world_ghost_theory.
     R.
   Proof.
     iIntros (Hnd HpO) "Hw Hcells Hφ".
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iDestruct "Hw" as "[(%M & Hm) $]".
     assert (NoDup (LNonHeap <$> la)) as Hnd'.
     { apply NoDup_fmap; [intros ?? [= ->]; done|done]. }
@@ -837,7 +808,7 @@ Section world_ghost_theory.
     sts_state_loc C i d ∗ sts_rel_loc C i rpub rpriv.
   Proof.
     intros i.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros "[$ (%M & Hw)]". iNamed "Hw".
     iMod (sts_alloc_loc W C d rpub rpriv with "Hloc") as "(Hloc & %Hi1 & %Hi2 & $ & $)".
     iModIntro. iSplitL; [|done].
@@ -860,7 +831,7 @@ Section world_ghost_theory.
     world_interp (<l[ i := d' ]l> W) C' ∗
     sts_state_loc C' i d'.
   Proof.
-    rewrite !world_interp_gl /world_interp_open_gl.
+    rewrite !world_interp_eq.
     iIntros (Hrevoke_conditions Hrelated) "[$ Hl] Hst_i".
     iApply (l_update_loc_priv with "Hl Hst_i"). done.
   Qed.
@@ -875,7 +846,7 @@ Section world_ghost_theory.
     -∗
     ⌜ wrel W !! i = Some (convert_rel rpub,convert_rel rpriv)⌝.
   Proof.
-    rewrite world_interp_gl /world_interp_open_gl.
+    rewrite world_interp_eq.
     iIntros "[_ (%M & Hw)] Hsts_rel". iNamed "Hw".
     iApply (sts_full_rel_loc with "Hloc Hsts_rel").
   Qed.
@@ -889,7 +860,7 @@ Section world_ghost_theory.
     -∗
     ⌜loc W !! i = Some (encode d)⌝.
   Proof.
-    rewrite world_interp_gl /world_interp_open_gl.
+    rewrite world_interp_eq.
     iIntros "[_ (%M & Hw)] Hst_i". iNamed "Hw".
     iApply (sts_full_state_loc with "Hloc Hst_i").
   Qed.
@@ -941,10 +912,10 @@ Section thread_indep.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {relg : relGS Σ}.
 
   Lemma perm_region_map_thread_indep (t t' : Thread) C s :
-    perm_region_map (allocRegistryG0 := @cerise_registryG Σ (ceriseG_of t))
-      (gen_heapGS0 := @mem_gen_memG Σ (ceriseG_of t)) C s ⊣⊢
-    perm_region_map (allocRegistryG0 := @cerise_registryG Σ (ceriseG_of t'))
-      (gen_heapGS0 := @mem_gen_memG Σ (ceriseG_of t')) C s.
+    perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
+      (memg := @mem_gen_memG Σ (ceriseG_of t)) C s ⊣⊢
+    perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t'))
+      (memg := @mem_gen_memG Σ (ceriseG_of t')) C s.
   Proof. rewrite /ceriseG_of. reflexivity. Qed.
 
 End thread_indep.
@@ -983,7 +954,7 @@ Section world_interp_Pre.
       rewrite -!big_sepS_sep.
       iApply (big_sepS_impl with "H").
       iModIntro; iIntros (C HC) "(Hg & Hl & Hsts)".
-      rewrite world_interp_gl /world_interp_open_gl.
+      rewrite world_interp_eq.
       iSplitL "Hg".
       + iExists ∅. rewrite /perm_region_map_M /rmap !big_sepM_empty. by iFrame.
       + iExists ∅. rewrite /local_region_map_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.

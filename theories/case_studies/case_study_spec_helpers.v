@@ -351,7 +351,7 @@ Section Revoked_Cells.
       ∃ pa Φa,
         ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
         a ↪ˡ[C]{pa} Φa ∗
-        ∃ wa, ⌜isO pa = false⌝ ∗ a ↦ₖ wa ∗ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa).
+        ∃ wa, TmpRes W C a pa Φa wa.
 
   Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
     RevokedCells W C s -∗ RevokedResources W C s.
@@ -359,6 +359,6 @@ Section Revoked_Cells.
     iIntros "H". iApply (big_sepL_impl with "H").
     iIntros "!>" (i a _) "(%pa & %Φa & %Hpers & Hrel & Hres)".
     iExists pa, Φa. iFrame "Hrel". iSplit; first done.
-    iApply heap_key_resource_intro. rewrite /temp_body. by iFrame.
+    iApply heap_key_resource_intro. by iFrame.
   Qed.
 End Revoked_Cells.

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel world_interp.
+From griotte Require Export logrel.
 From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
 From griotte Require Import rules rules_deref_quar proofmode monotone.
@@ -93,9 +93,9 @@ Section wp_interp.
         rewrite addr_key_Some in Hk. injection Hk as -> ->. by iFrame "Hq Hw".
       + iDestruct (open_world_interp_permanent with "Hw Hg") as "[Hw Hres]"; [done|done|].
         iDestruct (heap_key_open_cases with "Hres") as "[Hres|(%a' & %ι & %Hk & #Hq)]".
-        * iLeft. iExists InPerm. iFrame "Hw Hpart %". iNext.
-          iDestruct "Hres" as (v) "Hres". iExists v.
-          iApply (pc_open_intro W C _ p' P v InPerm with "Hres"). by intros _.
+        * iDestruct "Hres" as (v) "(%HpO & Hc & HP)".
+          iLeft. iExists InPerm. iFrame "Hw Hpart %". iNext. iExists v.
+          iApply (pc_open_intro W C _ p' P v InPerm with "[Hc HP]"); [by intros _|by iFrame "∗%"].
         * iRight. iExists ι. destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
           rewrite addr_key_Some in Hk Hnin HnT |- *. injection Hk as -> ->.
           iSplit; first done. iFrame "Hq".
@@ -103,9 +103,11 @@ Section wp_interp.
     - iPoseProof "Hpart" as "(Hl & %HT & _)".
       iDestruct (open_world_interp_temporary with "Hw Hl") as "[Hw Hres]"; [done|done|].
       iDestruct (heap_key_open_cases with "Hres") as "[Hres|(%a' & %ι & %Hk & #Hq)]".
-      + iLeft. iExists InLocal. iFrame "Hw Hpart". iSplit; [iPureIntro; by intros ?|].
-        iNext. iDestruct "Hres" as (v) "Hres". iExists v.
-        iApply (pc_open_intro W C _ p' P v InLocal with "Hres"). by intros ?.
+      + iDestruct "Hres" as (v) "(%HpO & Hc & HP & Hmono)".
+        iLeft. iExists InLocal. iFrame "Hw Hpart". iSplit; [iPureIntro; by intros ?|].
+        iNext. iExists v.
+        iApply (pc_open_intro W C _ p' P v InLocal with "[Hc HP Hmono]");
+          [by intros ?|by iFrame "∗%"].
       + iRight. iExists ι. destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
         rewrite addr_key_Some in Hk Hnin HT |- *. injection Hk as -> ->.
         iSplit; first done. iFrame "Hq".
@@ -232,8 +234,7 @@ Section wp_interp.
     iIntros "Hw #Hr Hk".
     destruct (decide (std W !! k = Some Temporary)) as [HT|HnT]; last by iFrame.
     iExFalso.
-    iEval (rewrite world_interp_open_eq /world_interp_open_def open_region_many_eq
-      /open_region_many_def /world_interp_open_gl) in "Hw".
+    iEval (rewrite world_interp_open_eq) in "Hw".
     iDestruct "Hw" as "[Hg _]".
     iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
     { rewrite elem_of_open_perm. naive_solver. }

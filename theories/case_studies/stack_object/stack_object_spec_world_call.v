@@ -80,11 +80,11 @@ Section SO_World_Call.
       { intros Wcv; apply Hpers_Pastk1. }
       iFrame "Hrel_astk1".
       rewrite /temp_res. iApply heap_key_resource_intro.
-      iExists (WInt 0). rewrite /temp_body.
+      iExists (WInt 0). rewrite /TmpRes.
       iSplit; first iPureIntro.
       { by apply isWL_nonO. }
       iFrame "Ha_stk1".
-      iSplit; first iApply "Hmono_Pastk1".
+      iSplitR; [|iNext; iApply "Hmono_Pastk1"].
       iNext. rewrite /=.
       iApply "Hwcond_Pastk1".
       iApply interp_int.
@@ -178,7 +178,7 @@ Section SO_World_Call.
       - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
         iSplit; first (iPureIntro; by rewrite Hpartition).
         iSplit; first done.
-        iExists pa, Φa. rewrite /temp_body. by iFrame "Hrel Hk".
+        iExists pa, Φa. by iFrame "Hrel Hk".
       - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
         iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
         iSplit; first (iPureIntro; constructor; eauto).

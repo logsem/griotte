@@ -157,7 +157,7 @@ Section VAE_Return_Repair.
     iIntros (Hdom) "[Hworld Hl]".
     iInduction l as [|k l] "IH"; first by iFrame.
     apply Forall_cons in Hdom as [Hk_dom Hdom].
-    iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & Hmono & HΦ) Hl]".
+    iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & HΦ & Hmono) Hl]".
     iMod ("IH" with "[//] Hworld Hl") as "(Hworld & Hl & %Hl_rev)".
     iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
                (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I

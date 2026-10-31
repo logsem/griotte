@@ -61,7 +61,7 @@ Section Heap_Temporal_Safety_Interp.
           + iDestruct (open_world_interp_permanent with "Hworld Hrel")
               as "[Hworld Hres]"; [done|done|].
             iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
-            iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+            iDestruct "Hres" as (v) "(%HpO & Ha & _)".
             iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
             iRight. iExists p, φ. by iFrame "Hrel %".
         - destruct g; [by iDestruct "Hloc" as "[]"|].
@@ -69,7 +69,7 @@ Section Heap_Temporal_Safety_Interp.
           iDestruct (open_world_interp_temporary with "Hworld Hrel")
             as "[Hworld Hres]"; [done|done|].
           iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
-          iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+          iDestruct "Hres" as (v) "(%HpO & Ha & _)".
           iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
           iLeft. iExists p, φ. by iFrame "Hrel %". }
       iModIntro. iExists (v :: ws). cbn. iFrame "Hst Ha Hmem Hkey Hkeys Hworld".

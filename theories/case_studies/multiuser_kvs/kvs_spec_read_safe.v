@@ -136,14 +136,10 @@ Section KVS_spec_read_safe.
 
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
-    - iEval (rewrite world_interp_eq /world_interp_def) in "Hworld".
-      iApply KVS_read_spec_in_world; last iFrame "∗#"; try solve_ndisj; eauto.
+    - iApply KVS_read_spec_in_world; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
-      iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hct1 & Hct2 & Hctp
+      iIntros "(Hworld & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hct1 & Hct2 & Hctp
                 & Ha & HLUKVS & Hnkey)".
-
-      iAssert (world_interp W C) with "[Hregion]" as "Hworld".
-      { by rewrite world_interp_eq /world_interp_def. }
 
       iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }

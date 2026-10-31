@@ -157,7 +157,7 @@ Section region_alloc_cmpt.
       rewrite /PermRes key_pointsto_nonheap.
       iFrame "Hv".
       iSplit; first done.
-      iApply interp_cmpt_threads_int.
+      iApply bi.later_intro. iApply interp_cmpt_threads_int.
     }
 
     iMod (world_interp_extend_perm_sepL2_open W C

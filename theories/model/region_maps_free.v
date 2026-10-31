@@ -6,7 +6,7 @@ From griotte Require Import region_maps.
 
 Section region_maps.
   Context {Σ : gFunctors} {Cname : CmptNameG}
-    `{!allocRegistryG Σ, !gen_heapGS Addr LWord Σ}
+    {allocg : allocRegistryG Σ} {memg : gen_heapGS Addr LWord Σ}
     {stsg : STSG Σ} {relg : relGS Σ}.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
@@ -127,11 +127,11 @@ Section region_maps.
   #[local] Definition perm_cell C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp φ, ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ ∗
-      ∃ v, ⌜isO γp.2 = false⌝ ∗ k ↦ₖ v ∗ ▷ φ (C, v).
+      ∃ v, PermRes C k γp.2 φ v.
   #[local] Definition lcell W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp φ, ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ ∗
-      ∃ v, ⌜isO γp.2 = false⌝ ∗ temp_body k v ∗ future_pub_mono C φ v ∗ ▷ φ (W, C, v).
+      ∃ v, TmpRes W C k γp.2 φ v.
 
   (** [free] in the owned maps, with keys open: the keys of [ι] (each in the
       map that holds it, [Sg] in the map of Permanent regions, [Sl] in the

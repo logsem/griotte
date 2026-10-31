@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From griotte Require Export logrel world_interp.
+From griotte Require Export logrel.
 Import uPred.
 
 Section monotone.

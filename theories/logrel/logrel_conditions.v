@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
-From griotte Require Export griotte_lang memory_region world_interp.
+From griotte Require Export griotte_lang memory_region.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export state_interp rules_base rules_trap_entry rules_Load machine_instructions call_stack.

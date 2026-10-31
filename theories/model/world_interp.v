@@ -13,7 +13,8 @@ From griotte Require Export sts world_std_sts heap_region region_maps.
       is open in the local map, any other key in the map of Permanent
       regions.
 
-      Finally, this file defines lemma to open / close the standard world.
+      The lemmas that open and close the world interpretation are in
+      [world_ghost_theory.v].
    *)
 
   (** * Disclaimer to the users of Griotte:
@@ -97,103 +98,41 @@ Section standard_world_interp.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** The standard world of the section's thread, with the keys of [l] open. *)
-  Definition open_region_many_def (W : WORLD) (C : CmptName) (l : list LAddr) : iProp Σ :=
-    world_interp_open_gl W C (open_perm W l) (open_l W l).
-  #[local] Definition open_region_many_aux : seal (@open_region_many_def). Proof. by eexists. Qed.
-  Definition open_region_many := open_region_many_aux.(unseal).
-  Definition open_region_many_eq : @open_region_many = @open_region_many_def :=
-    open_region_many_aux.(seal_eq).
+  (** The world interpretation of the section's thread: the two maps of [C],
+      with no key open. It owns the safety resources of every key of the
+      world. *)
+  Definition world_interp_def (W : WORLD) (C : CmptName) : iProp Σ :=
+    perm_region_map C ∅ ∗ local_region_map th W C ∅.
+  #[local] Definition world_interp_aux : seal (@world_interp_def). Proof. by eexists. Qed.
+  Definition world_interp := world_interp_aux.(unseal).
+  #[local] Definition world_interp_unseal : @world_interp = @world_interp_def :=
+    world_interp_aux.(seal_eq).
 
-  Definition region (W : WORLD) (C : CmptName) : iProp Σ := open_region_many W C [].
+  (** The same with the keys of [s] open: it does not own their safety
+      resources. A key Temporary in [W] is open in the local map, any other
+      key in the map of Permanent regions. *)
+  Definition world_interp_open_def (W : WORLD) (C : CmptName) (s : list LAddr) : iProp Σ :=
+    perm_region_map C (open_perm W s) ∗ local_region_map th W C (open_l W s).
+  #[local] Definition world_interp_open_aux : seal (@world_interp_open_def). Proof. by eexists. Qed.
+  Definition world_interp_open := world_interp_open_aux.(unseal).
+  #[local] Definition world_interp_open_unseal : @world_interp_open = @world_interp_open_def :=
+    world_interp_open_aux.(seal_eq).
 
-  Lemma region_eq W C : region W C ⊣⊢ world_interp_open_gl W C ∅ ∅.
-  Proof. by rewrite /region open_region_many_eq /open_region_many_def open_l_nil open_perm_nil. Qed.
+  Lemma world_interp_eq W C :
+    world_interp W C ⊣⊢ perm_region_map C ∅ ∗ local_region_map th W C ∅.
+  Proof. by rewrite world_interp_unseal. Qed.
 
-  Lemma open_region_many_permutation W C l1 l2 :
-    (∀ k, k ∈ l1 ↔ k ∈ l2) →
-    open_region_many W C l1 ⊣⊢ open_region_many W C l2.
+  Lemma world_interp_open_eq W C s :
+    world_interp_open W C s ⊣⊢
+    perm_region_map C (open_perm W s) ∗ local_region_map th W C (open_l W s).
+  Proof. by rewrite world_interp_open_unseal. Qed.
+
+  Lemma world_interp_open_permutation W C s1 s2 :
+    (∀ k, k ∈ s1 ↔ k ∈ s2) →
+    world_interp_open W C s1 ⊣⊢ world_interp_open W C s2.
   Proof.
-    intros Hl. rewrite open_region_many_eq /open_region_many_def.
-    by rewrite (open_l_permutation _ _ _ Hl) (open_perm_permutation _ _ _ Hl).
-  Qed.
-
-  (** ** Opening and closing a Temporary key, in the local map *)
-
-  Lemma region_open_temp W C l k p φ :
-    k ∉ l → std W !! k = Some Temporary →
-    open_region_many W C l -∗ rel_l th C k p φ -∗
-    open_region_many W C ({[k]} ∪ l) ∗
-    heap_key_resource k
-      (∃ v, ⌜isO p = false⌝ ∗ k ↦ₖ v ∗ ▷ future_pub_mono C φ v ∗ ▷ φ (W, C, v)).
-  Proof.
-    iIntros (Hkl HT) "Hr Hrel".
-    rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_T // open_perm_add_T //.
-    iDestruct "Hr" as "[$ Hl]".
-    iApply (l_open_transport with "Hl Hrel"); [by apply not_elem_of_open_l|done].
-  Qed.
-
-  Lemma region_close_temp W C l k p φ :
-    k ∉ l → std W !! k = Some Temporary → (∀ x, Persistent (φ x)) →
-    open_region_many W C ({[k]} ∪ l) -∗ rel_l th C k p φ -∗ temp_res W C k p φ -∗
-    open_region_many W C l.
-  Proof.
-    iIntros (Hkl HT Hp) "Hr Hrel Hb".
-    rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_T // open_perm_add_T //.
-    iDestruct "Hr" as "[$ Hl]".
-    iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
-  Qed.
-
-  (** ** Opening and closing a key of the map of Permanent regions *)
-
-  Lemma region_open_perm W C l k p φ :
-    k ∉ l → std W !! k ≠ Some Temporary →
-    open_region_many W C l -∗ rel_perm C k p φ -∗
-    open_region_many W C ({[k]} ∪ l) ∗ body_perm C k p φ.
-  Proof.
-    iIntros (Hkl HT) "Hr Hrel".
-    rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_nT // open_perm_add_nT //.
-    iDestruct "Hr" as "[Hg $]".
-    iApply (perm_open_transport with "Hg Hrel"). by apply not_elem_of_open_perm.
-  Qed.
-
-  Lemma region_close_perm W C l k p φ :
-    k ∉ l → std W !! k ≠ Some Temporary → (∀ x, Persistent (φ x)) →
-    open_region_many W C ({[k]} ∪ l) -∗ rel_perm C k p φ -∗ body_perm C k p φ -∗
-    open_region_many W C l.
-  Proof.
-    iIntros (Hkl HT Hp) "Hr Hrel Hb".
-    rewrite open_region_many_eq /open_region_many_def /world_interp_open_gl.
-    rewrite open_l_add_nT // open_perm_add_nT //.
-    iDestruct "Hr" as "[Hg $]".
-    iApply (perm_close with "Hg Hrel Hb"); [by apply not_elem_of_open_perm|done..].
-  Qed.
-
-  (** ** Heap keys, closed with a tombstone *)
-
-  Lemma region_close_temp_quarantined_heap W C l a ι p φ :
-    LHeap a ι ∉ l → std W !! LHeap a ι = Some Temporary → (∀ x, Persistent (φ x)) →
-    ι ⊒ AQuar -∗
-    open_region_many W C ({[LHeap a ι]} ∪ l) -∗ rel_l th C (LHeap a ι) p φ -∗
-    open_region_many W C l.
-  Proof.
-    iIntros (Hkl HT Hp) "#Hq Hr Hrel".
-    iApply (region_close_temp with "Hr Hrel"); [done..|].
-    rewrite /temp_res /=. by iRight.
-  Qed.
-
-  Lemma region_close_perm_quarantined_heap W C l a ι p φ :
-    LHeap a ι ∉ l → std W !! LHeap a ι ≠ Some Temporary → (∀ x, Persistent (φ x)) →
-    ι ⊒ AQuar -∗
-    open_region_many W C ({[LHeap a ι]} ∪ l) -∗ rel_perm C (LHeap a ι) p φ -∗
-    open_region_many W C l.
-  Proof.
-    iIntros (Hkl HT Hp) "#Hq Hr Hrel".
-    iApply (region_close_perm with "Hr Hrel"); [done..|].
-    rewrite /body_perm /=. by iRight.
+    intros Hs. rewrite !world_interp_open_eq.
+    by rewrite (open_l_permutation _ _ _ Hs) (open_perm_permutation _ _ _ Hs).
   Qed.
 
 End standard_world_interp.

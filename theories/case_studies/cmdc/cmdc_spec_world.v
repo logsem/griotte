@@ -134,12 +134,10 @@ Section CMDC_World.
     iDestruct (open_world_interp_permanent_nonheap with "Hworld Hrel_a")
       as "(_ & Ha)"; auto.
     { set_solver+. }
-    iAssert (▷ ∃ v, a ↦ₐ v)%I with "[Ha]" as ">Ha".
-    { iNext. iDestruct "Ha" as (v) "Ha".
-      iDestruct (PermRes_acc with "Ha") as "[(Ha & _) _]".
-      iEval (rewrite key_pointsto_nonheap) in "Ha".
-      by iExists v. }
-    by iModIntro.
+    iDestruct "Ha" as (v) "Ha".
+    iDestruct (PermRes_acc with "Ha") as "[(Ha & _) _]".
+    iEval (rewrite key_pointsto_nonheap) in "Ha".
+    iModIntro. by iExists v.
   Qed.
 
 End CMDC_World.
