@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import memory_region proofmode.
 From griotte Require Import world_ghost_theory.
+Import core_link.
 
 Section Stack_World_Resources.
   Context

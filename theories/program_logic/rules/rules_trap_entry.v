@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode environments spec_patterns.
 From griotte Require Export rules_base.
+Import core_link.
 
 (** * Trap entry
 

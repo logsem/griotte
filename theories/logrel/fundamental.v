@@ -6,6 +6,7 @@ From griotte Require Export
   Jmp JCond Jalr Mov CLoad Store BinOp Restrict
   Subseg Get ClearTag Lea SetA Seal UnSeal SpecialRW SetMIE Mret FailHalt Auipcc.
 From griotte Require Import register_tactics.
+Import core_link.
 Import CoreWPNotations.
 
 Section fundamental_generic.

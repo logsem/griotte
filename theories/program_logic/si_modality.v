@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From griotte Require Export state_interp_def.
+Import core_link.
 
 (** * The state-interpretation update modality
 

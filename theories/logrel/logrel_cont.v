@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export logrel_conditions.
+Import core_link.
 Import uPred.
 
 (** interp : is a unary logical relation.

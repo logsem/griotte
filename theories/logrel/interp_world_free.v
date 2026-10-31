@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export interp_caps.
+Import core_link.
 Import uPred.
 
 Section logrel.

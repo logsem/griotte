@@ -6,6 +6,7 @@ From griotte Require Export iris_extra stdpp_extra griotte_lang.
 From griotte Require Export machine_base state_interp register_file machine_instructions.
 From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
+Import core_link.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 

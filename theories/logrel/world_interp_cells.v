@@ -6,6 +6,7 @@ From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
 From griotte Require Import rules rules_deref_quar proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
+Import core_link.
 
 Section wp_interp.
   Context

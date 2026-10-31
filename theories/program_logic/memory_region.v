@@ -2,6 +2,7 @@ From griotte Require Export stdpp_extra griotte_lang rules_base.
 From iris.proofmode Require Import proofmode.
 From machine_utils Require Import finz_interval.
 From griotte Require Import alloc_registry rules_Load.
+Import core_link.
 (* From griotte Require Import addr_reg. (* Required because of a weird Coq bug related to imports *) *)
 
 Section region.

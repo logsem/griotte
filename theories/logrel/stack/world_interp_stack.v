@@ -3,6 +3,7 @@ From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import sts_multiple_updates world_interp_revocation.
 From griotte Require Import memory_region proofmode map_simpl register_tactics.
 From griotte Require Export world_ghost_theory stack_world_resources.
+Import core_link.
 
 Section WorldInterpStack.
   Context

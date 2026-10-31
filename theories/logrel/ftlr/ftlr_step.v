@@ -2,6 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel ftlr_base.
 From griotte Require Import monotone.
+Import core_link.
 Import CoreWPNotations.
 
 (** * One step of the fundamental theorem

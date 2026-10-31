@@ -3,6 +3,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base.
+Import core_link.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.

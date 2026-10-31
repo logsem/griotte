@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import ghost_map.
 From griotte Require Import proofmode logrel.
+Import core_link.
 
 (** * Seal registries
 

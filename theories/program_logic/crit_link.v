@@ -31,10 +31,15 @@ Class CritLink Σ := {
 }.
 #[export] Hint Mode CritLink + : typeclass_instances.
 
-(** The core link [True]. A global instance with a low priority: a section
-    with a [CritLink] binder uses its own link. *)
-#[global] Instance link_core {Σ} : CritLink Σ | 1000 :=
+(** The core link [True]. Not a global instance: a section without a
+    [CritLink] binder that needs it imports [core_link], which declares it
+    with a low priority (a [CritLink] binder still takes precedence). *)
+Definition link_core {Σ} : CritLink Σ :=
   {| crit_link _ := True%I; crit_link_stable _ _ _ _ := reflexivity _ |}.
+
+Module core_link.
+  #[export] Existing Instance link_core | 1000.
+End core_link.
 
 (** A step that keeps MIE and the physical mtdc. *)
 Definition sys_kept (σ σ' : ExecConf) : Prop :=

@@ -3,6 +3,7 @@ From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import memory_region monotone.
 From griotte Require Export logrel.
+Import core_link.
 
 Section fundamental.
   Context
