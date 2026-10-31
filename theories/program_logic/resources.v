@@ -1,6 +1,6 @@
 From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map ghost_var.
 From iris.proofmode Require Import proofmode.
-From iris.algebra Require Import excl_auth.
+From iris.algebra Require Import excl_auth csum.
 From griotte Require Export logical_words alloc_registry.
 
 (** * The resources of Griotte
@@ -203,6 +203,51 @@ Proof.
   iModIntro. iExists (MpieG _ _ γ). iFrame.
 Qed.
 
+(** * The ghost state of the postures
+
+    The names shared by the threads: the pool [crit] of the critical
+    sections, the unwedged token and the one-shot ghost of MTCC. Per
+    thread: the token [mtdc_lent] of its mtdc, and its home value
+    [mtdc_home], the value of its mtdc when the token is not lent. *)
+Definition oneshotR := csumR (exclR unitO) (agreeR unitO).
+
+Class postureG Σ := PostureG {
+  posture_exclG :: inG Σ (exclR unitO);
+  posture_oneshotG :: inG Σ oneshotR;
+  crit : na_inv_pool_name;
+  γunwedged : gname;
+  γmtcc : gname;
+}.
+#[export] Hint Mode postureG - : typeclass_instances.
+
+Class mtdcLentG Σ := MtdcLentG {
+  mtdc_lent_inG :: inG Σ (exclR unitO);
+  mtdc_lent_name : gname;
+  mtdc_home : mtdc_val;
+}.
+#[export] Hint Mode mtdcLentG - : typeclass_instances.
+
+Lemma posture_init `{!inG Σ (exclR unitO), !inG Σ oneshotR, !na_invariants.na_invG Σ} :
+  ⊢ |==> ∃ pg : postureG Σ,
+    na_own (@crit Σ pg) ⊤ ∗
+    @own Σ _ (@posture_exclG Σ pg) (@γunwedged Σ pg) (Excl ()) ∗
+    @own Σ _ (@posture_oneshotG Σ pg) (@γmtcc Σ pg) (Cinl (Excl ())).
+Proof.
+  iMod na_alloc as (p) "Hna".
+  iMod (own_alloc (Excl ())) as (γu) "Hu"; first done.
+  iMod (own_alloc (Cinl (Excl ()) : oneshotR)) as (γm) "Hm"; first done.
+  iModIntro. iExists (PostureG _ _ _ p γu γm). iFrame.
+Qed.
+
+Lemma mtdc_lent_init `{!inG Σ (exclR unitO)} (m : mtdc_val) :
+  ⊢ |==> ∃ g : mtdcLentG Σ,
+    ⌜@mtdc_home Σ g = m⌝ ∗
+    @own Σ _ (@mtdc_lent_inG Σ g) (@mtdc_lent_name Σ g) (Excl ()).
+Proof.
+  iMod (own_alloc (Excl ())) as (γ) "Hl"; first done.
+  iModIntro. iExists (MtdcLentG _ _ γ m). by iFrame.
+Qed.
+
 (** The trap vector: the word that MTCC holds in every state, the
     capability of the exception entry of the switcher. It is tagged, so a
     fault never stops the machine. *)
@@ -228,7 +273,9 @@ Class ceriseG Σ :=
       cerise_trapVector :: trapVector; (* trap vector *)
       cerise_mtdcG :: mtdcG Σ; (* mtdc of the thread *)
       cerise_mieG :: mieG Σ; (* MIE of the thread *)
-      cerise_mpieG :: mpieG Σ (* MPIE *)
+      cerise_mpieG :: mpieG Σ; (* MPIE *)
+      cerise_postureG :: postureG Σ; (* the shared names of the postures *)
+      cerise_mtdc_lentG :: mtdcLentG Σ (* the mtdc token of the thread *)
     }.
 #[export] Hint Mode ceriseG - : typeclass_instances.
 
@@ -275,8 +322,9 @@ Definition thread_map {A} (x0 : A) (xs : list A) (xc d : A) (th : Thread) : A :=
 
 (** The resources shared by the threads, and the per-thread ones as maps
     from threads: the PC, the general registers, the ghost state of mtdc and
-    MIE, and the non-atomic pool [tpool th]. The other system registers and
-    MPIE are shared. The shared fields are [::]
+    MIE, the mtdc token, and the non-atomic pool [tpool th]. The other
+    system registers, MPIE and the names of the postures are shared. The
+    shared fields are [::]
     fields, the per-thread maps are not, so typeclass search finds a
     per-thread heap only through [ceriseG_of]. The shared fields other than
     [na_invG] have a low priority: with a thread in scope, the invariants,
@@ -294,10 +342,12 @@ Class ceriseBaseG Σ := CeriseBaseG {
   cb_addr_alloc :: addrAllocG Σ | 100;
   cb_trapVector :: trapVector | 100;
   cb_mpie :: mpieG Σ | 100;
+  cb_posture :: postureG Σ | 100;
   cb_pc_of : Thread → pcG Σ;
   cb_regs_of : Thread → gen_heapGS RegName LWord Σ;
   cb_mtdc_of : Thread → mtdcG Σ;
   cb_mie_of : Thread → mieG Σ;
+  cb_mtdc_lent_of : Thread → mtdcLentG Σ;
   tpool : Thread → na_inv_pool_name;
 }.
 #[export] Hint Mode ceriseBaseG - : typeclass_instances.
@@ -313,7 +363,8 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
     (@Build_cerise_na_invs Σ (@cb_na_invG Σ base) (@tpool Σ base th))
     (@cb_mem Σ base) (@cb_shadow Σ base) (@cb_pc_of Σ base th) (@cb_regs_of Σ base th)
     (@cb_sreg Σ base) (@cb_registry Σ base) (@cb_addr_alloc Σ base) (@cb_trapVector Σ base)
-    (@cb_mtdc_of Σ base th) (@cb_mie_of Σ base th) (@cb_mpie Σ base).
+    (@cb_mtdc_of Σ base th) (@cb_mie_of Σ base th) (@cb_mpie Σ base)
+    (@cb_posture Σ base) (@cb_mtdc_lent_of Σ base th).
 #[global] Existing Instance ceriseG_of.
 
 (* Goals keep the thread: [simpl] does not unfold the instance of a thread
@@ -334,6 +385,8 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
 #[global] Arguments cerise_mtdcG : simpl never.
 #[global] Arguments cerise_mieG : simpl never.
 #[global] Arguments cerise_mpieG : simpl never.
+#[global] Arguments cerise_postureG : simpl never.
+#[global] Arguments cerise_mtdc_lentG : simpl never.
 
 (** The memory of the instance of a thread is that of the base, so a
     persistent points-to is the same at any two threads. *)
@@ -423,12 +476,15 @@ Class ceriseGpreS Σ := {
   cerise_preG_addr_alloc :: addrAllocPreG Σ;
   cerise_preG_mtdc :: mtdcGpreS Σ;
   cerise_preG_intst :: intstGpreS Σ;
+  cerise_preG_excl :: inG Σ (exclR unitO);
+  cerise_preG_oneshot :: inG Σ oneshotR;
 }.
 #[export] Hint Mode ceriseGpreS - : typeclass_instances.
 
 Definition ceriseGpreΣ : gFunctors :=
   #[gen_heapΣ Addr LWord; gen_heapΣ Addr AllocStatus; pcΣ; gen_heapΣ RegName LWord;
-    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ; mtdcΣ; intstΣ].
+    gen_heapΣ SRegName LWord; allocRegistryΣ; addrAllocΣ; mtdcΣ; intstΣ;
+    GFunctor (exclR unitO); GFunctor oneshotR].
 
 #[global] Instance subG_ceriseGpreS {Σ} : subG ceriseGpreΣ Σ → ceriseGpreS Σ.
 Proof. solve_inG. Qed.
