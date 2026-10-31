@@ -177,7 +177,7 @@ Section wp_interp.
 
   (** Reading the content of an opened region: a Permanent region is read at
       the empty world. *)
-  Lemma pc_content_rcond {CL : ∀ t, CritLink Σ t} ρ W C P p' w :
+  Lemma pc_content_rcond ρ W C P p' w :
     rcond_l P C p' interp -∗ pc_content ρ W C P w -∗ interp_in_mem_pre W C p' interp w.
   Proof.
     iIntros "#Hrc HP". destruct ρ; cbn.
@@ -201,7 +201,7 @@ Section wp_interp.
       destruct_word v; cbn; try done. by destruct sb.
   Qed.
 
-  Lemma pc_content_wcond {CL : ∀ t, CritLink Σ t} ρ W C P p v :
+  Lemma pc_content_wcond ρ W C P p v :
     (ρ = InPerm → isWL p = false) →
     (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
     interp W C v -∗ pc_content ρ W C P (lstore_word p v).
@@ -216,7 +216,7 @@ Section wp_interp.
         by iApply interp_lstore_word.
   Qed.
 
-  Lemma pc_content_wcond_z {CL : ∀ t, CritLink Σ t} ρ W C P p z :
+  Lemma pc_content_wcond_z ρ W C P p z :
     (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗ pc_content ρ W C P (WInt z).
   Proof.
     iIntros "#Hwc". destruct (isWL p); destruct ρ; cbn;

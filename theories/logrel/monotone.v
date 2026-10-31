@@ -71,7 +71,7 @@ Section monotone.
     iIntros (Hrelated) "#Hw".
     destruct t; last (iApply interp_untagged; done).
     rewrite !interp_unfold /=.
-    iDestruct "Hw" as "[$ Hw]".
+    iDestruct "Hw" as "($ & Hw & $)".
     destruct g; cbn.
     + iDestruct "Hw" as "#Hw". iIntros "!>" (t') "#Ht'".
       iSpecialize ("Hw" $! t' with "Ht'").

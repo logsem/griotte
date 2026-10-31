@@ -28,28 +28,32 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  Lemma jalr_case (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+  Lemma jalr_case (m : InterruptStatus) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_part) (rdst rsrc : RegName) (P:V):
-    ftlr_instr W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
+    ftlr_instr_at m W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
+    iDestruct (thread_in_elim with "Hthread") as %Hth_in.
 
     iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
-    iApply (wp_Jalr with "[$HPC $Ha $Hmap]"); eauto.
+    iApply (wp_Jalr with "[$HPC $Ha $Hmap $Hmie]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
 
-    iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap)".
-    destruct HSpec as [ regs' pc_a' wsrc mie Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
-    1,2: iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
+    iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap & HT)".
+    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
+    1,2: iDestruct "HT" as "[ [%Hc _] | [_ Hmie] ]"; first done;
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto;
-      iNext; iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
+      iNext; iApply (ftlr_post_at_fault with "HPC Hmap Hreg Hworld_interp Hmie"); eauto.
+    iDestruct "HT" as "[ [_ Hmie] | [%Hc _] ]"; last done.
+    iEval (rewrite /jalr_mie Hrsrc) in "Hmie".
 
     (* The link: a return sentry when [rdst = cra], the unsealed PC otherwise. *)
-    iAssert (interp W C (jalr_link rdst mie true p g b e pc_a')) as "Hinterp_ret".
+    iAssert (interp W C (jalr_link rdst m true p g b e pc_a')) as "Hinterp_ret".
     { rewrite /jalr_link. destruct (decide (rdst = cra)) as [Hcra | Hcra].
       2: { iApply (interp_weakening with "IH Hthread Hinv_interp");
            [solve_addr | solve_addr | apply subseg_heap_base_same
@@ -62,6 +66,9 @@ Section fundamental.
         apply withinBounds_true_iff in Hbase_heap.
         rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
         eapply (Hheap b); apply elem_of_finz_seq_between; solve_addr. }
+      assert (sentry_kind_mie (ret_kind m) = Some InterruptEnabled →
+              CtxSwitch ∉ cmpt_threads C) as Hsep.
+      { destruct m; cbn; [|done]. intros _. by apply route_pre_enabled_sep. }
       iApply (interp_weakeningSentry with "IH Hinv_interp");eauto;try solve_addr.
       - by apply executeAllowed_nonO.
       - reflexivity.
@@ -92,25 +99,32 @@ Section fundamental.
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
 
-    (* The next-PC witness: the enter condition of a sentry, the induction
-       hypothesis otherwise. *)
-    iAssert (▷ interp_expression W C (updatePcPerm wsrc @@? πs))%I as "Hnext".
-    { destruct wsrc as [z | sb | k [] p0 g0 b0 e0 a0 | ot sb]; cbn [updatePcPerm].
-      4: { iNext. iApply "IH". by iApply interp_untagged. }
+    (* The next-PC witness, at the posture after the jump: the enter
+       condition of a sentry, the induction hypothesis otherwise. *)
+    iAssert (▷ interp_expr_at (default m (jalr_target_mie wsrc)) interp interp_continuation
+               W C (updatePcPerm wsrc @@? πs) ∗
+             ⌜route_pre th (default m (jalr_target_mie wsrc))⌝)%I as "[Hnext %Hpre']".
+    { destruct wsrc as [z | sb | k [] p0 g0 b0 e0 a0 | ot sb];
+        cbn [updatePcPerm jalr_target_mie default].
+      4: { by rewrite /jalr_target_ok /= in Htgt. }
       3: { iEval (rewrite interp_unfold) in "Hwsrc".
-           iDestruct "Hwsrc" as "[_ #Hinterp_src]".
+           iDestruct "Hwsrc" as "(_ & #Hinterp_src & %Hclause)".
+           iSplit; last (iPureIntro; by apply (route_pre_sentry m C)).
            iAssert (future_world g0 W W) as "Hfuture".
            { iApply futureworld_refl. }
            destruct g0; iEval (cbn) in "Hinterp_src".
            - (* A Global sentry, at the running thread of its compartment. *)
              iSpecialize ("Hinterp_src" $! th with "Hthread").
-             iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
+             iSpecialize ("Hinterp_src" $! W with "Hfuture").
+             iApply ("Hinterp_src" $! Global with "[%]").
              apply LocalityFlowsToReflexive.
-           - iApply ("Hinterp_src" with "Hfuture"). iPureIntro.
+           - iSpecialize ("Hinterp_src" $! W with "Hfuture").
+             iApply ("Hinterp_src" $! Local with "[%]").
              apply LocalityFlowsToReflexive. }
-      all: iNext; iApply "IH"; iExact "Hwsrc". }
+      all: iSplit; last done.
+      all: iNext; iApply interp_expression_at; iApply "IH"; iExact "Hwsrc". }
     iNext.
-    iApply (ftlr_post_next with "HPC Hmap Hreg' Hnext Hworld_interp"); first done.
+    iApply (ftlr_post_at_next with "HPC Hmap Hreg' Hnext Hworld_interp Hmie"); done.
   Qed.
 
 End fundamental.
