@@ -1233,7 +1233,7 @@ Section Switcher_Exception.
     install_region a ws ∗
     ◯(CSTK)[th] cstk ∗
     na_own (tpool th) F ∗
-    ▷ ( ( ⌜install_skipped cstk rmap⌝ -∗
+    ▷ ( ( ⌜install_skipped rmap⌝ -∗
           install_region a ws -∗
           unwind_cont F cstk True ) ∧
         ( install_region a ws -∗

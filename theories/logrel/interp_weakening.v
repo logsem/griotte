@@ -216,11 +216,11 @@ Section fundamental.
     iApply interp_weakening_same_bounds_same_loc; eauto; try solve_addr; try done.
   Qed.
 
-  Lemma safe_to_unseal_weakening W C b e b' e':
+  Lemma safe_to_unseal_weakening C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_unseal W C (λ t, interp (th := t)) b e -∗
-    safe_to_unseal W C (λ t, interp (th := t)) b' e'.
+    safe_to_unseal C (λ t, interp (th := t)) b e -∗
+    safe_to_unseal C (λ t, interp (th := t)) b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_unseal.
@@ -230,11 +230,11 @@ Section fundamental.
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
-  Lemma safe_to_seal_weakening W C b e b' e':
+  Lemma safe_to_seal_weakening C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_seal W C (λ t, interp (th := t)) b e -∗
-    safe_to_seal W C (λ t, interp (th := t)) b' e'.
+    safe_to_seal C (λ t, interp (th := t)) b e -∗
+    safe_to_seal C (λ t, interp (th := t)) b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_seal.

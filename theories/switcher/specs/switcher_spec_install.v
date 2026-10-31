@@ -41,7 +41,7 @@ Section Switcher_Spec_Install.
       ([install_skipped]); a load faults once [i] words [ls] are loaded. *)
   Definition install_nested_k (F : coPset) (cstk : CSTK) (rmap : LReg)
     (L : nat → list LWord → iProp Σ) : iProp Σ :=
-    ⌜install_skipped cstk rmap⌝ -∗
+    ⌜install_skipped rmap⌝ -∗
     ∀ (off : Z) (rmap' : LReg) (i : nat) (ls : list LWord),
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
@@ -77,7 +77,7 @@ Section Switcher_Spec_Install.
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume (switcher_pc off) ->
-    install_skipped cstk rmap ->
+    install_skipped rmap ->
 
     regs[th] delete ca5 (delete ca4 (delete ca3 (delete ca2 (delete ca1 (delete ca0 (delete cs1 (delete cs0 (delete ct2 (delete ct1 (delete ct0 (delete ctp (delete cgp (delete csp (delete cra rmap)))))))))))))) ∗
     cra ↦ᵣ[th] wcra ∗

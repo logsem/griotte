@@ -415,10 +415,10 @@ Section logrel_fix.
   Proof. intros n I1 I2 HI. f_contractive_fin. by apply unseal_cond_ne, dist_later_S. Qed.
 
   (* (un)seal permission definitions *)
-  Definition safe_to_seal (W : WORLD) (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
+  Definition safe_to_seal (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ seal_cond κ P C interp)%I.
-  Definition safe_to_unseal (W : WORLD) (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
+  Definition safe_to_unseal (C : CmptName) (interp : TV) (b e : OType) : iPropO Σ :=
     ([∗ list] a ∈ (finz.seq_between b e),
        ∃ κ P, a ↪ₒ{κ} P ∗ seal_kind_ok κ C P ∗ ▷ unseal_cond κ P C interp)%I.
 

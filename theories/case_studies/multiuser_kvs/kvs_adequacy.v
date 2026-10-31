@@ -345,7 +345,7 @@ Section kvs_obligations.
       rewrite B_imports'.
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
-      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher_threads_B Hswitcher_static").
+      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher_threads_B").
         exact Hok. }
       (* The KVS entries and the sealed user key are Global: valid in every world *)
       iApply big_sepL_cons; iSplitL.

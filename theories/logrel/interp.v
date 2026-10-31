@@ -111,8 +111,8 @@ Section logrel_fix.
   Program Definition interp_sr (interp : TV) : V :=
     λne W C w, (match w.(lw) with
     | WSealRange t p g b e a =>
-    (if permit_seal p then safe_to_seal W C interp b e else True)
-    ∗ (if permit_unseal p then safe_to_unseal W C interp b e else True)
+    (if permit_seal p then safe_to_seal C interp b e else True)
+    ∗ (if permit_unseal p then safe_to_unseal C interp b e else True)
     | _ => False end ) %I.
   Solve All Obligations with solve_proper.
 
@@ -176,10 +176,10 @@ Section logrel_fix.
     intros n x y Hdist W C [w π].
     destruct_word w; try reflexivity.
     change (dist n
-      ((if permit_seal sr then safe_to_seal W C x b e else True) ∗
-       (if permit_unseal sr then safe_to_unseal W C x b e else True))%I
-      ((if permit_seal sr then safe_to_seal W C y b e else True) ∗
-       (if permit_unseal sr then safe_to_unseal W C y b e else True))%I).
+      ((if permit_seal sr then safe_to_seal C x b e else True) ∗
+       (if permit_unseal sr then safe_to_unseal C x b e else True))%I
+      ((if permit_seal sr then safe_to_seal C y b e else True) ∗
+       (if permit_unseal sr then safe_to_unseal C y b e else True))%I).
     apply bi.sep_ne.
     - destruct (permit_seal sr); last done. rewrite /safe_to_seal.
       apply big_sepL_ne; intros i o Ho. do 2 (apply bi.exist_ne; intros ?).

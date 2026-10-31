@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    #[local] Lemma world_interp_stack_fixing_aux
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
       ccrel
@@ -39,7 +39,6 @@ Section switcher_helper.
       (a_stk + SpillSlot_size)%a = Some a_stk4 ->
 
       related_sts_pub_world W0 Wfixed ->
-      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
         (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
@@ -60,7 +59,7 @@ Section switcher_helper.
     Proof.
       intros Wfixed closing_region.
       iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
-        "#Htrap #Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
+        "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
       rewrite /SpillSlot_size in He_a1 Ha_stk4. change (4 - 1)%Z with 3%Z in He_a1.
 
 
@@ -191,7 +190,7 @@ Section switcher_helper.
     (** At the return, fix the world on the callee's stack and on the spill
         area of the topmost frame, whose caller's cursor is [a_stk], once
         both are zeroed. *)
-    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma world_interp_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
       (b_stk e_stk a_stk : Addr) (l : list LAddr)
       ccrel
@@ -201,7 +200,6 @@ Section switcher_helper.
 
       switcher_stk_bounds b_stk e_stk a_stk ->
       related_sts_pub_world W0 Wfixed ->
-      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
         (Cap RWL Local
            (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
@@ -228,7 +226,7 @@ Section switcher_helper.
       replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
         by (by destruct (is_untrusted_caller ccrel)).
       intros Hrelated.
-      apply (world_interp_stack_fixing_aux trusted_fault Wcur W0 C (stk_spill_a a_stk));
+      iApply (world_interp_stack_fixing_aux Wcur W0 C (stk_spill_a a_stk));
         [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
     Qed.
 

@@ -283,7 +283,7 @@ Section griotte_lang_rules.
     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
+    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
     iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
     pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.

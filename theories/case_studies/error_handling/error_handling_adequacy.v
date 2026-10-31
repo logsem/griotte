@@ -202,7 +202,7 @@ Section error_handling_obligations.
            with "Hswitcher_threads_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts error_handling_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts

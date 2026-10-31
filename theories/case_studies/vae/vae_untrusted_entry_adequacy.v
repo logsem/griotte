@@ -171,7 +171,7 @@ Section vae_untrusted_entry_obligations.
       as "(Hworld_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & _)".
     { iIntros "(_ & _ & #Hexports)".
       cbn [fc_name fc_imports fw_nth fw_cmpts vae_untrusted_entry_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.awkward *)
@@ -195,7 +195,7 @@ Section vae_untrusted_entry_obligations.
         fw_fold_cmpt C_cmpt.
         iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
         rewrite -(interp_global_thread_world_free (UserThread 0) t'
-                    (std_update_compartment W1 C_cmpt) ∅ C); last done.
+                    W1 ∅ C); last done.
         iApply (adversary_export_interp (th := UserThread 0) (swlayout := swl) _ _ C_cmpt
                   vae_C_entry_g with "Hexports");
           first done.

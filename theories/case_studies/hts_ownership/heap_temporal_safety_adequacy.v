@@ -243,7 +243,7 @@ Section hts_obligations.
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports.
       iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
-                                 with "Hswitcher_threads_B Hswitcher_static").
+                                 with "Hswitcher_threads_B").
       iEval (rewrite !big_sepL_cons) in "Hseal_alloc".
       iDestruct "Hseal_alloc" as "(Hinterp_malloc & Hinterp_free & _)".
       iSplit.
@@ -299,7 +299,7 @@ Section hts_obligations.
     { exact (cmpt_cgp_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt B_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
     { done. }

@@ -985,10 +985,6 @@ Section erasure.
       by rewrite clear_tag_untagged.
   Qed.
 
-  Lemma erasure_pc_correct R C σ lpc lreg lsreg lmem :
-    erasure R C σ lpc lreg lsreg lmem → isCorrectPC lpc.(lw) → pcc σ = lpc.(lw).
-  Proof. intros Her _. by apply (erasure_pc_exact R C _ _ lreg lsreg lmem). Qed.
-
   (** A correct logical PC has no identifier. *)
   Lemma erasure_pc_no_id R C σ lpc lreg lsreg lmem :
     erasure R C σ lpc lreg lsreg lmem → isCorrectPC lpc.(lw) → lpc.(lprov) = None.

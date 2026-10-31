@@ -206,8 +206,7 @@ Section ot_switcher_adequacy.
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
     → switcher_threads C
-    ⊢ switcher_static
-    -∗ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
+    ⊢ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp
     -∗ b_etbl ↦ₑ□{stackful} eh
     -∗ b_etbl ↦ₑ□{stackless} ehs
@@ -218,7 +217,7 @@ Section ot_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hswitcher_threads #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
+    iIntros "#Hswitcher_threads #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).

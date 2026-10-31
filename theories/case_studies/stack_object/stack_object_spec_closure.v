@@ -315,7 +315,7 @@ Section SO.
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
       { by apply trap_no_resume_cap. } }
-    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [_ Hlc'])".
+    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & _)".
 
     (* Close the region of [in] *)
     iDestruct "Hclose_object" as "[Hclose_object _]".
@@ -345,7 +345,7 @@ Section SO.
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iMod (so_world_call with
            "Hthread Hseal_switcher Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
-            Hastk2 Hlc'")
+            Hastk2")
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
            & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk2_W3)";
       [done..|].

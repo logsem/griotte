@@ -37,22 +37,6 @@ Section monotone.
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
   Qed.
 
-  (** A sealed word under a Global-kind otype is valid in every world. *)
-  Lemma interp_monotone_sd W W' C ot sb π P :
-    ⌜related_sts_priv_world W W'⌝ -∗
-    ot ↪ₒ{SealGlobal} P -∗
-    interp W C (WSealed ot sb @@? π) -∗
-    interp W' C (WSealed ot sb @@? π).
-  Proof.
-    iIntros (Hrelated) "#Hspred #Hinterp".
-    destruct sb as [t p g b e a | t p g b e a]; destruct t;
-      rewrite !interp_unfold /= /interp_sb; try done.
-    all: iDestruct "Hinterp" as "[(%κ & %P' & #Hs & #Hok & #HP) $]";
-      iDestruct (seal_pred_agree with "Hspred Hs") as "[<- _]";
-      iExists SealGlobal, P'; iFrame "Hs Hok";
-      iDestruct "Hok" as "[_ #Hc]"; iNext; by iApply ("Hc" $! th th W W').
-  Qed.
-
   (** A sealed word with a Global payload is valid in every world. *)
   Lemma interp_monotone_sd_nl W W' C ot sb π :
     ⌜related_sts_priv_world W W'⌝ -∗
@@ -200,10 +184,9 @@ Section monotone.
   Qed.
 
   Lemma interp_monotone_sealrange (W W' : WORLD) C t p g b e a π :
-    ⌜related_sts_priv_world W W'⌝
-    -∗ interp W C (WSealRange t p g b e a @@? π) -∗ interp W' C (WSealRange t p g b e a @@? π).
+    interp W C (WSealRange t p g b e a @@? π) -∗ interp W' C (WSealRange t p g b e a @@? π).
   Proof.
-    iIntros (Hrelated) "#Hw".
+    iIntros "#Hw".
     rewrite !interp_unfold /=; auto.
   Qed.
 
@@ -217,7 +200,7 @@ Section monotone.
     destruct w; [ | destruct sb | | ].
     - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_cap_valid with "[] [$]"); eauto.
-    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[$]").
     - iApply (interp_monotone_sentry with "[] [$]"); eauto.
     - iApply (interp_monotone_sd_pub with "[] [$]"); eauto.
   Qed.
@@ -258,7 +241,7 @@ Section monotone.
     destruct w; [ | destruct sb | | ].
     - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_nl_cap_valid with "[] [] [$]"); eauto.
-    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[$]").
     - iApply (interp_monotone_nl_sentry with "[] [] [$]"); eauto.
     - iApply (interp_monotone_sd_nl with "[] [] [$]"); eauto.
   Qed.

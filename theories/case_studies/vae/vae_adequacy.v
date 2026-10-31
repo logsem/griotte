@@ -165,7 +165,7 @@ Section vae_obligations.
            with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts vae_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.awkward *)
@@ -187,7 +187,7 @@ Section vae_obligations.
         fw_fold_cmpt C_cmpt.
         iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
         rewrite -(interp_global_thread_world_free (UserThread 0) t'
-                    (std_update_compartment W1 C_cmpt) ∅ C); last done.
+                    W1 ∅ C); last done.
         iApply (adversary_export_interp (th := UserThread 0) (swlayout := swl) _ _ C_cmpt
                   vae_C_entry_g with "Hexports");
           first done.
@@ -218,7 +218,7 @@ Section vae_obligations.
         first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
       apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { rewrite /std_update_compartment /W1.
+    { rewrite /W1.
       rewrite !std_update_multiple_loc_sta.
       by simplify_map_eq. }
     { done. }

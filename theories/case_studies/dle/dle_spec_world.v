@@ -64,7 +64,7 @@ Section DLE_World.
       with "[] [$Hcgp_b] []") as "TmpRes_cgp_b"; auto.
     { iApply future_pub_mono_interp_in_mem_z. }
     { iApply interp_int. }
-    iMod (world_interp_extend_temp_nonheap
+    iMod (world_interp_extend_temp
       with "Hworld_interp_C TmpRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
     { by rewrite -revoke_dom_eq. }
@@ -111,7 +111,7 @@ Section DLE_World.
     iDestruct (init_TmpRes W2 C (cgp_b ^+ 1) RW_DL (safeC interp_in_mem_dl)
       with "[] [$Hcgp_a] []") as "TmpRes_cgp_a"; auto.
     { iApply future_pub_mono_interp_in_mem_dl. }
-    iMod (world_interp_extend_temp_nonheap
+    iMod (world_interp_extend_temp
       with "Hworld_interp_C TmpRes_cgp_a")
       as "(Hworld_interp_C & Hrel_cgp_a)"; auto.
     { subst W2.
@@ -163,8 +163,7 @@ Section DLE_World.
       iNext; iApply wcond_wl_wcond_nwl; iApply (wcond_wl_interp_in_mem_dl with "Hthread").
     }
     iSplit.
-    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").
-      by iPureIntro. }
+    { iApply (interp_sealed_global_kind_world_free with "Hseal_switcher Hinterp_W0_C_f"). }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0"); auto).
 
     (* The stack is still revoked *)
@@ -254,11 +253,7 @@ Section DLE_World.
     assert (related_sts_priv_world W4 (revoke W4)) as Hrelated_priv_W4
         by apply revoke_related_sts_priv_world.
     iSplit.
-    { iApply (interp_monotone_sd W3 (revoke W4) with "[] Hseal_switcher Hinterp_W3_C_f").
-      iPureIntro.
-      eapply related_sts_priv_trans_world; last exact Hrelated_priv_W4.
-      by apply related_sts_pub_priv_world.
-    }
+    { iApply (interp_sealed_global_kind_world_free W3 (revoke W4) with "Hseal_switcher Hinterp_W3_C_f"). }
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W4"); auto.
   Qed.
 

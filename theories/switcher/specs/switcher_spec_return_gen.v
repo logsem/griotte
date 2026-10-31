@@ -193,8 +193,8 @@ Section Switcher.
              "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next")
         as "[Hna Hcstk_frag]"; [done|done|done|].
-      iMod (world_interp_stack_fixing _ _ _ _ b_stk e_stk a_stk with
-             "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
+      iMod (world_interp_stack_fixing _ _ _ b_stk e_stk a_stk with
+             "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
         "(Hworld_interp & Hstk')"; eauto.
       by iFrame "Hna Hcstk_frag Hworld_interp Hstk'". }
 

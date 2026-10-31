@@ -612,7 +612,7 @@ Section Switcher_error_handler.
      safe[th])%I.
 
   (** Why the install faults: the [ErrorState] cannot be loaded. *)
-  Definition install_skipped (cstk : CSTK) (rmap : LReg) : Prop :=
+  Definition install_skipped (rmap : LReg) : Prop :=
     ¬ error_state_loads_ok (rmap !!! csp).
 
   (** The [ErrorState] that the install loads, at the handler's cursor

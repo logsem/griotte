@@ -64,7 +64,6 @@ Section HTS_World.
   (** Share [b] with the first adversary call: make [b] a Global region
       holding [0]; the world of the call is the revoked world. *)
   Lemma hts_world_share_buffer E ι b :
-    LHeap b ι ∉ dom (std (revoke W_init_C)) ->
     hts_buffer_bounds b ->
     disjoint_from_heap csp_b csp_e ->
     revoked_addresses (revoke W_init_C) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ->
@@ -73,15 +72,15 @@ Section HTS_World.
     world_interp (revoke W_init_C) C -∗
     StackRevokedResources W_init_C C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))
     ={E}=∗
-    world_interp (hts_Wshare W_init_C ι b) C ∗
+    world_interp (hts_Wshare W_init_C) C ∗
     (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
-    interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι) ∗
-    StackRevokedResources (hts_Wshare W_init_C ι b) C
+    interp (hts_Wshare W_init_C) C (hts_buffer b @@ ι) ∗
+    StackRevokedResources (hts_Wshare W_init_C) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
-    ⌜revoked_addresses (hts_Wshare W_init_C ι b)
+    ⌜revoked_addresses (hts_Wshare W_init_C)
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝.
   Proof.
-    iIntros (Hb_fresh Hbounds Hstk_heap Hstack_revoked)
+    iIntros (Hbounds Hstk_heap Hstack_revoked)
       "#Hobj Hb Hworld Hstack_revoked".
     set (stk_frame_addrs := stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)).
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
@@ -92,7 +91,7 @@ Section HTS_World.
     { iApply interp_nonlocal_int. }
     iMod (world_interp_extend_perm (revoke W_init_C) C (LHeap b ι) (WInt 0) RW (safeGC interp_nonlocal)
       with "Hworld Hbuf_perm") as "(Hworld & #Hrel_b)".
-    iAssert (interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
+    iAssert (interp (hts_Wshare W_init_C) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
     { iEval (rewrite /hts_buffer interp_unfold /=).
       iSplitL.
       { rewrite /interp_cap_body.
@@ -123,9 +122,9 @@ Section HTS_World.
         solve_addr. }
       iIntros (_). iSplit; first (iPureIntro; done).
       iExists b, (b ^+ 1). iFrame "Hobj". iPureIntro. solve_addr. }
-    assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C ι b))
+    assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C))
       as Hrelated_init_share by apply revoke_related_sts_priv_world.
-    iDestruct (StackRevokedResources_mono_priv W_init_C (hts_Wshare W_init_C ι b) C
+    iDestruct (StackRevokedResources_mono_priv W_init_C (hts_Wshare W_init_C) C
       stk_frame_addrs Hrelated_init_share with "Hstack_revoked")
       as "Hstack_revoked_share".
     iModIntro. iFrame "∗#".
@@ -138,7 +137,7 @@ Section HTS_World.
   Lemma hts_world_reopen_live E ι b Wret :
     hts_buffer_bounds b ->
     related_sts_pub_world
-      (std_update_multiple (hts_Wshare W_init_C ι b)
+      (std_update_multiple (hts_Wshare W_init_C)
         (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret ->
     (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     free_right ι -∗

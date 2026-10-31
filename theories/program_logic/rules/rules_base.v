@@ -105,7 +105,7 @@ Section griotte_lang_rules.
     iDestruct (gen_heap_valid with "Hm Hpc_a") as %Hpc_a.
     pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hregs) as Hregs'.
     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
-    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
+    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as HPCr. cbn in HPCr. subst pc.
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
     iDestruct (gen_heap_valid with "Hm Hpc_a") as %Hpc_a.
     pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hregs) as Hregs'.
     destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hpc_a) as (pw & Hpw & Hok).
-    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as HPCr. cbn in HPCr. subst pc.
+    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as HPCr. cbn in HPCr. subst pc.
     iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
     iNext. iIntros (e2 σ2 efs Hpstep).
     apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).

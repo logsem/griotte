@@ -117,15 +117,7 @@ Section Switcher_Restore_Interp.
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
 
-  (** The witness of [Wval] for [raw], from the open world [Wworld]. *)
-  Lemma world_interp_open_load_witness_eq Wworld Wval C opened raw :
-    world_interp_open Wworld C opened -∗
-    world_interp_open Wworld C opened ∗ load_witness_res LoadPlain.
-  Proof.
-    by iIntros "$".
-  Qed.
-
-  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -147,8 +139,7 @@ Section Switcher_Restore_Interp.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
-      as "[Hworld Hwit]".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
     pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
@@ -177,8 +168,7 @@ Section Switcher_Restore_Interp.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
-      as "[Hworld Hwit]".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hactual"; first exact Hpost.

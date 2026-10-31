@@ -115,7 +115,7 @@ Section cmdc_obligations.
            with "Hswitcher_threads_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"). }
     iMod (fw_close_adv_world_revoked (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HC_l fw_world0 C Hok eq_refl eq_refl
@@ -123,7 +123,7 @@ Section cmdc_obligations.
            with "Hswitcher_threads_C Hswitcher_static HC HC_pers [] Hthread_C Hworld_C")
       as "(Hworld_C & Hrevoked_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
     cbn [fc_name fw_nth fw_cmpts cmdc_firmware]. rewrite HsbB HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt. fw_fold_cmpt C_cmpt.
 
@@ -166,11 +166,11 @@ Section cmdc_obligations.
                     $Hentry_Bf $Hentry_Cg
                     ]"); eauto using fw_cleared_regs_dom.
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt B_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
-    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }

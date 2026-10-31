@@ -26,21 +26,18 @@ Section CMDC_World.
 
   (** ** Sharing an address with a callee
 
-      The world in which a call happens: the shared address [a] becomes a
-      Global region, which leaves the local world unchanged. *)
-  Definition cmdc_Wshare W (a : Addr) : WORLD := W.
+      The shared address [a] becomes a Global region, which leaves the local
+      world unchanged. *)
 
   (** Relinquish [a] into the world of the callee, so that the capability
       [(RW, Global, a, a_e, a)] is safe to share. The stack frame stays
       revoked. *)
   Lemma cmdc_world_share W C (a a_e csp_b csp_e : Addr) (target : Sealable)
     (stk_mem : list LWord) :
-    let W' := cmdc_Wshare W a in
     let stk := finz.seq_between csp_b csp_e in
     (a + 1)%a = Some a_e ->
     is_mmio_address a = false ->
     is_heap_address a = false ->
-    LNonHeap a ∉ dom (std W) ->
     revoked_addresses W stk ->
     world_interp W C -∗
     StackRevokedResources W C stk -∗
@@ -48,17 +45,17 @@ Section CMDC_World.
     a ↦ₐ WInt 0 -∗
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
     ={⊤}=∗
-    world_interp W' C ∗
+    world_interp W C ∗
     (LNonHeap a) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
-    interp W' C (Cap RW Global a a_e a) ∗
-    interp W' C (WSealed ot_switcher target) ∗
-    StackRevokedResources W' C stk ∗
-    ⌜ revoked_addresses W' stk ⌝ ∗
+    interp W C (Cap RW Global a a_e a) ∗
+    interp W C (WSealed ot_switcher target) ∗
+    StackRevokedResources W C stk ∗
+    ⌜ revoked_addresses W stk ⌝ ∗
     ⌜ a ∉ stk ⌝ ∗
     [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]].
   Proof.
-    intros W' stk.
-    iIntros (Ha_e Ha_mmio Ha_heap Ha_fresh Hrevoked_stk)
+    intros stk.
+    iIntros (Ha_e Ha_mmio Ha_heap Hrevoked_stk)
       "Hworld Hstack_revoked #Htarget Ha Hstk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
 
@@ -66,9 +63,8 @@ Section CMDC_World.
     iDestruct (init_PermRes C (LNonHeap a) RW (safeGC interp_nonlocal) with "[$Ha] []") as "Ha".
     { done. }
     { iApply interp_nonlocal_int. }
-    iMod (world_interp_extend_perm_nonheap with "Hworld Ha") as "(Hworld & #Hrel_a)"; auto.
+    iMod (world_interp_extend_perm with "Hworld Ha") as "(Hworld & #Hrel_a)"; auto.
     iModIntro.
-    subst W'; rewrite /cmdc_Wshare.
     iFrame "Hworld Hrel_a Hstk Htarget Hstack_revoked".
 
     (* The capability pointing to [a] is safe to share *)
@@ -121,7 +117,7 @@ Section CMDC_World.
     is_heap_address a = false ->
     a ∉ finz.seq_between csp_b csp_e ->
     callee_stk_bounds csp_b csp_e (stk_start_a csp_b csp_e) ->
-    related_sts_pub_world (std_update_multiple (cmdc_Wshare W a) stk' Temporary) Wret ->
+    related_sts_pub_world (std_update_multiple W stk' Temporary) Wret ->
     world_interp (revoke Wret) C -∗
     (LNonHeap a) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     ◇ ∃ v, a ↦ₐ v.
@@ -131,7 +127,7 @@ Section CMDC_World.
     assert (std (revoke Wret) !! LNonHeap a ≠ Some Temporary) as Ha_perm.
     { apply revoke_conditions_sat. }
     rewrite (open_world_interp_empty _ C).
-    iDestruct (open_world_interp_permanent_nonheap with "Hworld Hrel_a")
+    iDestruct (open_world_interp_permanent with "Hworld Hrel_a")
       as "(_ & Ha)"; auto.
     { set_solver+. }
     iDestruct "Ha" as (v) "Ha".

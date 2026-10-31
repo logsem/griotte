@@ -152,7 +152,7 @@ Section so_obligations.
            with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts so_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.f *)
@@ -174,7 +174,7 @@ Section so_obligations.
         fw_fold_cmpt C_cmpt.
         iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
         rewrite -(interp_global_thread_world_free (UserThread 0) t'
-                    (std_update_compartment fw_world0 C_cmpt) ∅ C); last done.
+                    fw_world0 ∅ C); last done.
         iApply (adversary_export_interp (th := UserThread 0) (swlayout := swl) _ _ C_cmpt
                   so_C_entry_g with "Hexports");
           first done.

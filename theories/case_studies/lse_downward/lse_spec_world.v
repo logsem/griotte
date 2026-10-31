@@ -54,8 +54,7 @@ Section LSE_World.
     iFrame "Hworld_interp_C Hstk".
     iSplit; first done.
     iSplit.
-    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_C_f").
-      by iPureIntro. }
+    { iApply (interp_sealed_global_kind_world_free with "Hseal_switcher Hinterp_C_f"). }
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.
   Qed.

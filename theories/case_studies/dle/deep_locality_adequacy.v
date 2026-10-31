@@ -94,7 +94,7 @@ Section dle_obligations.
            with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts dle_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
@@ -116,11 +116,11 @@ Section dle_obligations.
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
-    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }

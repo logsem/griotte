@@ -113,9 +113,8 @@ Section Switcher.
       world. *)
   Definition switcher_cc_fault
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
     ⌜ switcher_spill_overflows b_stk e_stk a_stk ⌝ -∗
     ∀ (rmap' : LReg),
@@ -145,9 +144,9 @@ Section Switcher.
       [ctp] hold the scratch words of the checks, and its stack. *)
   Lemma switcher_cc_fault_resume
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap rmap0 : LReg)
+    (rmap0 : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     switcher_spill_overflows b_stk e_stk a_stk ->
@@ -169,8 +168,8 @@ Section Switcher.
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
        ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs) -∗
-    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
+    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+      b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
     trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
       (HO th).
   Proof.
@@ -234,13 +233,12 @@ Section Switcher.
   (** The spill of a caller whose stack holds it does not fault. *)
   Lemma switcher_cc_fault_stack_fits
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     stk_spill_fits b_stk e_stk a_stk ->
-    ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-        b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs.
+    ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+        b_stk e_stk a_stk stk_mem cstk Ws Cs.
   Proof.
     iIntros (Hfits Hspill).
     rewrite /switcher_spill_overflows in Hspill.
@@ -430,8 +428,8 @@ Section Switcher.
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
-    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
+    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+      b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
     ( ⌜ ¬ stk_spill_fits b_stk e_stk a_stk ⌝ ∗
       csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
       ct2 ↦ᵣ[th] wct2 ∗
@@ -876,8 +874,8 @@ Section Switcher.
             -∗ safe[th] )
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
-        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
+        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          b_stk e_stk a_stk stk_mem cstk Ws Cs )
 
     ⊢ safe[th].
   Proof.
@@ -1129,8 +1127,8 @@ Section Switcher.
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
-        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
+        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          b_stk e_stk a_stk stk_mem cstk Ws Cs )
 
 
     ⊢ safe[th].

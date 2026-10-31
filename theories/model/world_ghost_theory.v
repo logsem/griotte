@@ -142,19 +142,6 @@ Section world_ghost_theory.
     iApply (perm_open_transport with "Hg Hrel"). by apply not_elem_of_open_perm.
   Qed.
 
-  Lemma open_world_interp_permanent_nonheap (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (p : Perm) Φ :
-    is_heap_address a = false ->
-    LNonHeap a ∉ s ->
-    (std W) !! LNonHeap a ≠ Some Temporary ->
-    world_interp_open W C s -∗
-    LNonHeap a ↪ᵖ[C]{p} Φ
-    -∗
-    world_interp_open W C ({[ LNonHeap a ]} ∪ s) ∗
-    ∃ w, PermRes C a p Φ w.
-  Proof.
-    intros _. apply open_world_interp_permanent.
-  Qed.
-
   Lemma close_world_interp_permanent (W : WORLD) (C : CmptName)
     (s : list LAddr) (a : LAddr) (p : Perm) Φ (w : LWord) `{forall Cv, Persistent (Φ Cv)}:
     a ∉ s ->
@@ -505,20 +492,6 @@ Section world_ghost_theory.
     iMod (perm_extend with "Hg Hkn Ha [Hφ]") as "[$ $]"; [set_solver|done|by iNext|done].
   Qed.
 
-  Lemma world_interp_extend_perm_nonheap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) (p : Perm) (φ : Vg)
-    `{∀ Cv, Persistent (φ Cv)} :
-    is_heap_address a = false ->
-    world_interp W C -∗
-    PermRes C (LNonHeap a) p φ v
-
-    ={E}=∗
-
-    world_interp W C ∗
-    LNonHeap a ↪ᵖ[C]{p} φ.
-  Proof. intros _. by apply world_interp_extend_perm. Qed.
-
   Lemma world_interp_extend_temp
     {E : coPset}
     (W : WORLD) (C : CmptName) (a : LAddr) (v : LWord) (p : Perm) (φ : Vc)
@@ -540,21 +513,6 @@ Section world_ghost_theory.
     iApply heap_key_resource_intro. iExists v. rewrite /TmpRes. iFrame "∗#%".
     iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro. by apply related_sts_pub_world_fresh.
   Qed.
-
-  Lemma world_interp_extend_temp_nonheap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    is_heap_address a = false ->
-    LNonHeap a ∉ dom (std W) →
-    world_interp W C -∗
-    TmpRes W C a p φ v
-
-    ={E}=∗
-
-    world_interp (<s[a := Temporary ]s>W) C ∗
-    LNonHeap a ↪ˡ[C]{p} φ.
-  Proof. intros _. by apply world_interp_extend_temp. Qed.
 
   Lemma world_interp_extend_revoked
     {E : coPset}
@@ -658,22 +616,6 @@ Section world_ghost_theory.
       by apply related_sts_pub_update_multiple.
   Qed.
 
-  Lemma world_interp_extend_temp_sepL2_nonheap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (lw : list LWord) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)} :
-    Forall (fun a => is_heap_address a = false) la ->
-    isO p = false ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C -∗
-    ([∗ list] a;v ∈ la;lw, TmpRes W C (LNonHeap a) p φ v)
-
-    ={E}=∗
-
-    world_interp (std_update_multiple W la Temporary) C ∗
-    ([∗ list] k ∈ la, LNonHeap k ↪ˡ[C]{p} φ).
-  Proof. intros _. by apply world_interp_extend_temp_sepL2. Qed.
-
   Lemma world_interp_extend_revoked_sepL2
     {E : coPset}
     (W : WORLD) (C : CmptName) (la : list Addr) (p : Perm) (φ : Vc)
@@ -699,20 +641,6 @@ Section world_ghost_theory.
         intros [Hin|Hdom]%elem_of_dom_std_multiple_update; [done|].
         rewrite elem_of_dom_std Ha in Hdom. by destruct Hdom.
   Qed.
-
-  Lemma world_interp_extend_revoked_sepL2_nonheap
-    {E : coPset}
-    (W : WORLD) (C : CmptName) (la : list Addr) (p : Perm) (φ : Vc)
-    `{∀ Wv, Persistent (φ Wv)}:
-    Forall (fun a => is_heap_address a = false) la ->
-    Forall (λ k, std W !! LNonHeap k = None) la →
-    world_interp W C
-
-     ={E}=∗
-
-     world_interp (std_update_multiple W la Revoked) C ∗
-     ([∗ list] k ∈ la, LNonHeap k ↪ˡ[C]{p} φ).
-  Proof. intros _. by apply world_interp_extend_revoked_sepL2. Qed.
 
   (** Global regions whose predicates need the region predicates: the keys
       enter the map open, then close with their bodies. *)

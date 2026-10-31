@@ -304,7 +304,7 @@ Section VAE.
       as "[Hstack_revoked_W5q %Hstack_revoked_W5q]"; first done.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W3.
       by eapply vae_quarantined_disjoint_nonheap. }
-    iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hseal_switcher Hinterp_W2q_wca0")
+    iDestruct (vae_world_callback_restored W2q W5q C wca0 callback1 with "Hseal_switcher Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
     iDestruct (vae_call_args W5q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".

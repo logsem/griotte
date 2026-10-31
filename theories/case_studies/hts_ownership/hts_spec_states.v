@@ -264,7 +264,7 @@ Section HTS_States.
 
   (** The world shared with the first adversary call: the stack is revoked;
       the buffer [b] of [ι] is a Global region, outside the local world. *)
-  Definition hts_Wshare (ι : AId) (b : Addr) : WORLD :=
+  Definition hts_Wshare : WORLD :=
     revoke W_init_C.
 
   (** The world after freeing [ι] in the revoked world [Wret]: the entry of
@@ -272,12 +272,10 @@ Section HTS_States.
   Definition hts_Wfree (Wret : WORLD) (ι : AId) : WORLD :=
     revoke Wret.
 
-  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι], whose key
-      is not in the revoked world. *)
+  (** Successful malloc: [ca0] holds the fresh buffer [b] of [ι]. *)
   Definition hts_malloc_ok (a_ret : Addr) : iProp Σ :=
     ∃ (ι : AId) (b : Addr),
       ⌜hts_buffer_bounds b⌝ ∗
-      ⌜LHeap b ι ∉ dom (std (revoke W_init_C))⌝ ∗
       hts_frame a_ret (stk_start_a csp_b csp_e) ∗
       ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
@@ -298,7 +296,7 @@ Section HTS_States.
     (∃ z, hts_halt_ready (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a z) ∨
     hts_malloc_ok (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a.
 
-  (** Return from the first adversary call: [b] was shared in [hts_Wshare b],
+  (** Return from the first adversary call: [b] was shared in [hts_Wshare],
       and the switcher returns a public future [Wret] of it. [p] and the
       saved buffer (in the cell [stk_start_a csp_b csp_e ^+ -1], below the
       space reserved at the top of the stack) stayed outside the
@@ -309,7 +307,7 @@ Section HTS_States.
       ⌜hts_buffer_bounds b⌝ ∗
       ⌜(csp_b < csp_e)%a⌝ ∗
       ⌜related_sts_pub_world
-        (std_update_multiple (hts_Wshare ι b)
+        (std_update_multiple hts_Wshare
           (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret⌝ ∗
       (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
       hts_frame (pc_a ^+ hts_label_offset ".Lhts_reload")%a (stk_start_a csp_b csp_e ^+ -1) ∗
