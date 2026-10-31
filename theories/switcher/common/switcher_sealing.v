@@ -48,7 +48,7 @@ Section Switcher_entry_point.
 
   (** [csp_sync cstk b_stk' e_stk'] is a small pure side-condition that
       relates the stack pointer of the caller, saved in the topmost frame of
-      [cstk], with the stack [[b_stk', e_stk')] of the callee: the callee's
+      [cstk], with the stack $[b_stk', e_stk')$ of the callee: the callee's
       stack is the one that the switcher carved out of the caller's.
       See [execute_entry_point] to understand how they are related.
    *)
@@ -96,7 +96,7 @@ Section Switcher_entry_point.
       [Cap RWL Local b e a] (it is tested by the switcher's call routine).
       The switcher reserves the spill area, from [stk_spill_a a], for the
       callee-saved registers, and passes the callee's part
-      [[stk_callee_b b a, stk_callee_e e a)] of the stack to the callee,
+      $[stk_callee_b b a, stk_callee_e e a)$ of the stack to the callee,
       with the cursor of a fresh stack: [b_stk] and [e_stk] are its bounds.
 
       [csp_sync] synchronises the caller's stack pointer with the callee stack pointer.

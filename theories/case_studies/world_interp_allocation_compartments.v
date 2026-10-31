@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export region_invariants sts_multiple_updates.
+From griotte Require Export world_interp sts_multiple_updates.
 From griotte Require Import logrel monotone interp_weakening.
 From griotte Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import switcher.
-From griotte Require Import world_ghost_theory region_invariants_allocation.
+From griotte Require Import world_ghost_theory world_interp_allocation.
 From griotte Require Import stdpp_extra.
 
 Section region_alloc_cmpt.
@@ -29,104 +29,16 @@ Section region_alloc_cmpt.
   Definition exported_entries_sealed (C_cmpt : cmpt) : gset LWord :=
     list_to_set ((λ sb, lword_of_word (WSealed ot_switcher sb)) <$> (exported_entries_sealable C_cmpt)).
 
-  (** The Global regions of a compartment are not in the local world, which
-      the compartment's allocation leaves unchanged. *)
-  Definition std_update_compartment (W : WORLD) (C_cmpt : cmpt) := W.
-
-  Lemma std_update_compartment_pub (W : WORLD) (C_cmpt : cmpt) :
-    let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
-    let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
-    let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
-    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
-    related_sts_pub_world W (std_update_compartment W C_cmpt).
-  Proof. intros * _ _ _. apply related_sts_pub_refl_world. Qed.
-
-  Lemma switcher_cmpt_disjoint_std_update_compartment
-    (W : WORLD) (C_cmpt : cmpt) (switcher_cmpt : cmptSwitcher) (a : Addr) :
-    a ∈ finz.seq_between (b_stack switcher_cmpt) (e_stack switcher_cmpt) ->
-    switcher_cmpt_disjoint C_cmpt switcher_cmpt ->
-    std W !! LNonHeap a = None ->
-    std (std_update_compartment W C_cmpt) !! LNonHeap a = None.
-  Proof. by intros _ _ Ha_W. Qed.
-
-  (** The predicate of the PCC range of a compartment (its import table and
-      code): a word valid at every thread of the compartment. The import
-      table holds the Local sentry of the switcher's call, which is not
-      valid independently of the thread. *)
-  Program Definition interp_cmpt_threads : V :=
-    λne W C w, (□ ∀ t', thread_in t' C -∗ interp (th := t') W C w)%I.
-  Solve All Obligations with solve_proper.
-
-  #[global] Instance interp_cmpt_threads_persistent W C w :
-    Persistent (interp_cmpt_threads W C w).
-  Proof. rewrite /interp_cmpt_threads /=. apply _. Qed.
-
-  Lemma persistent_cond_interp_cmpt_threads : persistent_cond interp_cmpt_threads.
-  Proof. intros WCw; apply _. Qed.
-
-  Lemma interp_cmpt_threads_int W C z π : ⊢ interp_cmpt_threads W C (WInt z @@? π).
-  Proof. rewrite /interp_cmpt_threads /=. iIntros "!>" (t') "_". iApply interp_int. Qed.
-
-  Lemma zcond_interp_cmpt_threads C : ⊢ zcond interp_cmpt_threads C.
-  Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_cmpt_threads_int. Qed.
-
-  (** The read condition of the PCC range, at every thread, through a
-      permission that is not deep-local. *)
-  Lemma rcond_g_interp_cmpt_threads C p :
-    isDL p = false → ⊢ rcond_g interp_cmpt_threads C p (λ t, interp (th := t)).
-  Proof.
-    intros Hdl. iIntros "!>" (t') "#Ht'". iIntros "!>" (W w) "Hw".
-    iEval (rewrite /interp_cmpt_threads /=) in "Hw". iDestruct "Hw" as "#Hw".
-    rewrite /interp_in_mem_pre.
-    iApply (interp_load_word_nodl (th := t')); first done.
-    iApply ("Hw" $! t' with "Ht'").
-  Qed.
-
-  (** The predicate of the data range of a compartment (its CGP range) and
-      of the heap objects: a valid word that is not local. Its validity
-      does not depend on the thread. *)
-  Program Definition interp_nonlocal : V :=
-    λne W C w, (⌜isLocalWord w.(lw) = false⌝ ∗ interp W C w)%I.
-  Solve All Obligations with solve_proper.
-
-  #[global] Instance interp_nonlocal_persistent W C w :
-    Persistent (interp_nonlocal W C w).
-  Proof. rewrite /interp_nonlocal /=. apply _. Qed.
-
-  Lemma persistent_cond_interp_nonlocal : persistent_cond interp_nonlocal.
-  Proof. intros WCw; apply _. Qed.
-
-  Lemma interp_nonlocal_int W C z π : ⊢ interp_nonlocal W C (WInt z @@? π).
-  Proof. rewrite /interp_nonlocal /=. iSplit; first done. iApply interp_int. Qed.
-
-  Lemma zcond_interp_nonlocal C : ⊢ zcond interp_nonlocal C.
-  Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_nonlocal_int. Qed.
-
-  Lemma rcond_g_interp_nonlocal C p :
-    isDL p = false → ⊢ rcond_g interp_nonlocal C p (λ t, interp (th := t)).
-  Proof.
-    intros Hdl. iIntros "!>" (t') "_". iIntros "!>" (W w) "Hw".
-    iEval (rewrite /interp_nonlocal /=) in "Hw". iDestruct "Hw" as "[%Hloc #Hw]".
-    rewrite /interp_in_mem_pre.
-    iApply (interp_load_word_nodl (th := t')); first done.
-    by iApply (interp_global_thread_world_free th t' W W C w Hloc).
-  Qed.
-
-  Lemma wcond_nwl_interp_nonlocal C : ⊢ wcond_nwl interp_nonlocal C interp.
-  Proof. iIntros "!>" (W w Hloc) "#Hw". rewrite /interp_nonlocal /=. by iSplit. Qed.
-
   (** The PCC and CGP of a compartment are valid in every world and at
-      every thread, from the Global regions of their addresses. *)
+      every thread, from the Permanent regions of their addresses. *)
   Lemma cmpt_caps_interp (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵍ[C]{RX} safeGC interp_cmpt_threads) -∗
-    ([∗ list] k ∈ data_addrs, LNonHeap k ↪ᵍ[C]{RW} safeGC interp_nonlocal) -∗
+    ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵖ[C]{RX} safeGC interp_cmpt_threads) -∗
+    ([∗ list] k ∈ data_addrs, LNonHeap k ↪ᵖ[C]{RW} safeGC interp_nonlocal) -∗
     interp W C pcc_cap ∗ interp W C cgp_cap.
   Proof.
     intros *.
@@ -178,11 +90,6 @@ Section region_alloc_cmpt.
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    let Wfinal := std_update_compartment W C_cmpt in
-
-    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
 
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
@@ -193,12 +100,12 @@ Section region_alloc_cmpt.
 
     (
       (
-        ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵍ[C]{RX} safeGC interp_cmpt_threads) ∗
-        ([∗ list] k ∈ (data_addrs), LNonHeap k ↪ᵍ[C]{RW} safeGC interp_nonlocal)
+        ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵖ[C]{RX} safeGC interp_cmpt_threads) ∗
+        ([∗ list] k ∈ (data_addrs), LNonHeap k ↪ᵖ[C]{RW} safeGC interp_nonlocal)
       )
       -∗
       ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) ∗
-      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
     ) -∗
 
     thread_in th C -∗
@@ -206,14 +113,14 @@ Section region_alloc_cmpt.
 
     ={E}=∗
 
-    world_interp Wfinal C ∗
-    interp Wfinal C pcc_cap ∗
-    interp Wfinal C cgp_cap ∗
-    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
-    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
+    world_interp W C ∗
+    interp W C pcc_cap ∗
+    interp W C cgp_cap ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL W C v) ∗
+    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
   .
   Proof.
-    intros * Himports Hcode Hdata C_code C_data.
+    intros * C_code C_data.
     pose proof (cmpt_pcc_disjoint_from_mmio C_cmpt) as Hpcc_shadow.
     pose proof (cmpt_pcc_disjoint_from_heap C_cmpt) as Hpcc_heap.
     pose proof (cmpt_cgp_disjoint_from_mmio C_cmpt) as Hcgp_shadow.
@@ -233,7 +140,7 @@ Section region_alloc_cmpt.
       rewrite /PermRes key_pointsto_nonheap.
       iFrame "Hv".
       iSplit; first done.
-      iApply interp_cmpt_threads_int.
+      iApply bi.later_intro. iApply interp_cmpt_threads_int.
     }
 
     iMod (world_interp_extend_perm_sepL2_open W C
@@ -317,7 +224,7 @@ Section region_alloc_cmpt.
             imports_addrs
             (lword_of_word <$> cmpt_imports C_cmpt)
             RX (safeGC interp_cmpt_threads)
-            ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
+            ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
            with "Hworld_C HC_imports [Himport_interp]")
       as "(Hworld_C & #HC_imports & #Hinterp_imports & Hinterp_exports)".
     { apply finz_seq_between_NoDup. }
@@ -329,7 +236,7 @@ Section region_alloc_cmpt.
       rewrite big_sepL_app. iFrame "HC_imports HC_code".
     }
     iDestruct (big_sepL_app _ imports_addrs code_addrs with "[$HC_imports $HC_code]") as "HC_PCC".
-    iDestruct (cmpt_caps_interp Wfinal C_cmpt C with "HC_PCC HC_data") as "[#Hpcc #Hcgp]".
+    iDestruct (cmpt_caps_interp W C_cmpt C with "HC_PCC HC_data") as "[#Hpcc #Hcgp]".
     iModIntro. iFrame "Hworld_C Hpcc Hcgp Hinterp_exports".
     iApply (big_sepL_impl with "Hinterp_imports").
     iIntros "!>" (k v Hv) "Hv". iApply interp_to_in_mem.
@@ -344,11 +251,6 @@ Section region_alloc_cmpt.
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
     let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
     let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
-    let Wfinal := std_update_compartment W C_cmpt in
-
-    Forall (λ k, std W !! LNonHeap k = None) imports_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) code_addrs →
-    Forall (λ k, std W !! LNonHeap k = None) data_addrs →
 
     Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
     Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
@@ -358,12 +260,12 @@ Section region_alloc_cmpt.
     ([∗ list] k;v ∈ data_addrs ; lword_of_word <$> cmpt_data C_cmpt, k ↦ₐ v) -∗
     (
       (
-        interp Wfinal C pcc_cap ∗
-        interp Wfinal C cgp_cap
+        interp W C pcc_cap ∗
+        interp W C cgp_cap
       )
       -∗
       ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) ∗
-      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
     )
     -∗
 
@@ -372,16 +274,16 @@ Section region_alloc_cmpt.
 
     ={E}=∗
 
-    world_interp Wfinal C ∗
-    interp Wfinal C pcc_cap ∗
-    interp Wfinal C cgp_cap ∗
-    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL Wfinal C v) ∗
-    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL Wfinal C v)
+    world_interp W C ∗
+    interp W C pcc_cap ∗
+    interp W C cgp_cap ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL W C v) ∗
+    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
   .
   Proof.
-    intros * Himports Hcode Hdata C_code C_data.
+    intros * C_code C_data.
     iIntros "HC_imports HC_code HC_data Himport_interp #Hth Hworld_C".
-    iApply (alloc_compartment_interp_rel W C_cmpt C Himports Hcode Hdata C_code C_data
+    iApply (alloc_compartment_interp_rel W C_cmpt C C_code C_data
       with "HC_imports HC_code HC_data [Himport_interp] Hth Hworld_C").
     iIntros "(#Hrel_pcc & #Hrel_data)".
     iApply "Himport_interp".

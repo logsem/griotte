@@ -220,10 +220,10 @@ Section Stats.
   Definition stats_nb_exports : Z := 1.
   Definition length_stats_exports_tbl : Z := ExportTable_offset_entries + stats_nb_exports.
 
-  (** The layout of [stats]: its PCC [[STATS_pcc_b, STATS_pcc_e)], with its
-      code at [STATS_pcc_b'], its globals [[STATS_cgp_b, STATS_cgp_e)], the
+  (** The layout of [stats]: its PCC $[STATS_pcc_b, STATS_pcc_e)$, with its
+      code at [STATS_pcc_b'], its globals $[STATS_cgp_b, STATS_cgp_e)$, the
       lock at [STATS_cgp_b], and its export table
-      [[b_stats_exp_tbl, e_stats_exp_tbl)]. *)
+      $[b_stats_exp_tbl, e_stats_exp_tbl)$. *)
   Class statsLayout : Type :=
     mkStatsLayout {
         STATS_pcc_b : Addr;

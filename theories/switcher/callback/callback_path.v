@@ -168,8 +168,7 @@ Section Callback_Path.
   Qed.
 
   (** [switcher_return_path_spec], where the restored registers are loaded
-      through the open world [Wworld], and observe the heap of the world
-      [Wval]. The spill area, the callee's stack and the open world come
+      through the open world [Wworld]. The spill area, the callee's stack and the open world come
       from a logical step after the pop, which receives the later credit of
       the pop. When the caller is untrusted, the saved words are safe, and
       so are the restored registers. *)
@@ -215,8 +214,8 @@ Section Callback_Path.
            interp_in_mem RWL Wval C wcs0'
          else True) ∗
         ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
-          ⌜ load_heap_in_world Wval wcgp' rcgp ∧ load_heap_in_world Wval wcra' rcra ∧
-            load_heap_in_world Wval wcs1' rcs1 ∧ load_heap_in_world Wval wcs0' rcs0 ⌝ ∗
+          ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
+            load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
           world_interp_open Wworld C opened ∗
           (if is_untrusted_caller ccrel then
              interp Wval C rcgp ∗

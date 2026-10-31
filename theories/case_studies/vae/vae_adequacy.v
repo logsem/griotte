@@ -8,7 +8,7 @@ From griotte Require Import vae vae_helper vae_spec_closure vae_spec.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -28,11 +28,8 @@ Section vae_obligations.
   Lemma vae_fw_obligations :
     fw_obligations Σ vae_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -73,8 +70,8 @@ Section vae_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack vae_firmware 0) with 4 in Hentry_min_stack.
@@ -162,10 +159,10 @@ Section vae_obligations.
             _ _ _ 1 (fw_nth 1 (fw_cmpts vae_firmware) default_fw_cmpt) _
             HC_l W1 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hfamily_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts vae_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.awkward *)
@@ -187,7 +184,7 @@ Section vae_obligations.
         fw_fold_cmpt C_cmpt.
         iEval (rewrite /interp_cmpt_threads /=). iIntros "!>" (t') "_".
         rewrite -(interp_global_thread_world_free (UserThread 0) t'
-                    (std_update_compartment W1 C_cmpt) ∅ C); last done.
+                    W1 ∅ C); last done.
         iApply (adversary_export_interp (th := UserThread 0) (swlayout := swl) _ _ C_cmpt
                   vae_C_entry_g with "Hexports");
           first done.
@@ -218,7 +215,7 @@ Section vae_obligations.
         first exact (cmpt_cgp_disjoint_from_shadow main_cmpt).
       apply withinBounds_true_iff; cbn in Hmain_data_size |- *; solve_addr+Hmain_data_size. }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { rewrite /std_update_compartment /W1.
+    { rewrite /W1.
       rewrite !std_update_multiple_loc_sta.
       by simplify_map_eq. }
     { done. }

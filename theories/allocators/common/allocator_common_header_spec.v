@@ -221,30 +221,6 @@ Qed.
 Section AllocatorHeaderContracts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.
 
-  (** The first header word of an entry: its recorded end. *)
-  Lemma allocator_headers_end_acc :
-    ∀ h stop allocations (b e : Addr) reserved ι,
-      (b, e, reserved, ι) ∈ allocations ->
-      allocator_headers h stop allocations ⊢
-      (b ^+ (- allocator_header_words)) ↦ₐ WInt e ∗
-      ((b ^+ (- allocator_header_words)) ↦ₐ WInt e -∗ allocator_headers h stop allocations).
-  Proof.
-    intros h stop allocations. revert h.
-    induction allocations as [| [ [ [b0 e0] r0] ι0] rest IH];
-      intros h b e reserved ι Hin; simpl.
-    - set_solver.
-    - rewrite elem_of_cons in Hin. destruct Hin as [Heq|Hin].
-      + injection Heq as <- <- <- <-.
-        iIntros "(%Hbounds & (%Hbase & Hend & Hreserved) & Htail)".
-        assert (b ^+ (- allocator_header_words) = h) as ->
-          by (unfold allocator_header_words in *; solve_addr).
-        iFrame "Hend". iIntros "Hend". iFrame. done.
-      + iIntros "(%Hbounds & Hhead & Htail)".
-        iDestruct (IH with "Htail") as "[Hend Hclose]"; first exact Hin.
-        iFrame "Hend". iIntros "Hend". iFrame. iSplit; first done.
-        iApply ("Hclose" with "Hend").
-  Qed.
-
   Lemma allocator_headers_chain_spec :
     ∀ h stop allocations,
       allocator_headers h stop allocations ⊢
@@ -309,18 +285,6 @@ Section AllocatorEntriesContracts.
     allocator_entries_res live l ∗ allocator_entries_res live l'.
   Proof. by rewrite /allocator_entries_res big_sepL_app. Qed.
 
-  Lemma allocator_entries_res_ids live allocations :
-    allocator_entries_res live allocations -∗
-    allocator_entries_res live allocations ∗
-    [∗ list] ι ∈ allocator_entry_ids allocations, ∃ b e, alloc_obj ι b e.
-  Proof.
-    induction allocations as [| [ [ [b e] reserved] ι] rest IH]; simpl.
-    - by iIntros "$".
-    - rewrite /allocator_entries_res /=.
-      iIntros "[[#Hobj Htok] Hrest]".
-      iDestruct (IH with "Hrest") as "[$ $]". iFrame "∗#".
-  Qed.
-
   (** The tokens of the entries depend only on the membership of their own
       identifiers in [live]. *)
   Lemma allocator_entries_res_live_ext live live' allocations :
@@ -351,7 +315,7 @@ Section AllocatorEntriesContracts.
     apply list_elem_of_lookup_1 in Hin as [k Hk].
     rewrite /allocator_entries_res.
     iDestruct (big_sepL_lookup_acc_impl k (b, e, reserved, ι) with "Hres")
-      as "[[#Hobj Htok] Hclose]"; first exact Hk.
+      as "[ [#Hobj Htok] Hclose]"; first exact Hk.
     iFrame "Hobj Htok". iIntros (live' Hext) "Htok".
     iApply ("Hclose" $! (λ _ entry, let '(b, e, _, ι) := entry in
               alloc_obj ι b e ∗ allocator_tok live' ι b e)%I with "[] [Htok]").
@@ -475,8 +439,8 @@ Section AllocatorCellsContracts.
 
 End AllocatorCellsContracts.
 
-(** [malloc] appends the entry of [ι] over [[b, finish)], with its header at
-    [[next, b)], to the cells and the header list. *)
+(** [malloc] appends the entry of [ι] over $[b, finish)$, with its header at
+    $[next, b)$, to the cells and the header list. *)
 Definition allocator_malloc_cell (b : Addr) (ι : AId) (a : Addr) :
     AddrClaim * AllocStatus * bool :=
   if decide (a < b)%a then (Unclaimed, ShadowQuarantined, true) else (Claimed ι, ShadowLive, false).
@@ -553,7 +517,7 @@ Proof.
   - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
 Qed.
 
-(** [free] revokes the live entry of [ι] over [[b, e)]: its cells become
+(** [free] revokes the live entry of [ι] over $[b, e)$: its cells become
     unclaimed and unpainted, with their memory back in the service invariant. *)
 Definition allocator_free_cell (a : Addr) : AddrClaim * AllocStatus * bool :=
   (Unclaimed, ShadowLive, false).

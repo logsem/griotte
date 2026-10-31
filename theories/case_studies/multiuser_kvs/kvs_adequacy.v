@@ -9,7 +9,7 @@ From griotte Require Import
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -34,11 +34,8 @@ Section kvs_obligations.
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
     intros Hkeys.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -146,8 +143,8 @@ Section kvs_obligations.
     (* 5 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack (kvs_firmware ot_kvs key_main key_B) 0) with 6 in Hentry_min_stack.
@@ -330,12 +327,12 @@ Section kvs_obligations.
       rewrite Heq.
       iApply bi.later_intro. iExact "ot_kvs_user_key_B". }
 
-    (* 7 - Close the world of B: its compartment becomes Global regions, and
+    (* 7 - Close the world of B: its compartment becomes Permanent regions, and
        the stack temporary; its export is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
             HB_l W0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hfamily_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
+           with "Hswitcher_threads_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
@@ -345,7 +342,7 @@ Section kvs_obligations.
       rewrite B_imports'.
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
-      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hfamily_B Hswitcher_static").
+      { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher_threads_B").
         exact Hok. }
       (* The KVS entries and the sealed user key are Global: valid in every world *)
       iApply big_sepL_cons; iSplitL.

@@ -281,7 +281,7 @@ Section griotte_lang_rules.
      destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
      iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
-     pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
+     pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
      iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
      iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
      iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
@@ -336,7 +336,7 @@ Section griotte_lang_rules.
        (* A stripped destination under its witness is a heap capability
           without authority: its bounds are empty. *)
        exfalso.
-       destruct Hrel1 as [[Heq | [_ [[Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
+       destruct Hrel1 as [ [Heq | [_ [ [Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
        { by apply (deref_witness_not_stale R dw (Cap p g b e a @@? π1)). }
        assert (is_heap_address b = true) as Hbh.
        { rewrite /heap_cap_base /= in Hh. by destruct (is_heap_address b). }
@@ -1177,7 +1177,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
     assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
-    { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
+    { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.
   Qed.
@@ -1623,7 +1623,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
         case_decide; [set_solver|done]. }
       assert (revoke_claims ∅ C = C) as ->.
       { apply map_eq. intros a. rewrite lookup_revoke_claims.
-        by destruct (C !! a) as [[]|]; cbn; try done. }
+        by destruct (C !! a) as [ []|]; cbn; try done. }
       iFrame. iModIntro. iSplit; first by rewrite big_sepS_empty.
       iPureIntro. set_solver.
     - rewrite big_sepS_union; last set_solver. rewrite big_sepS_singleton.
@@ -1663,7 +1663,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
       { apply map_eq. intros a. rewrite !lookup_revoke_claims HC1.
         case_decide as Ha.
         - rewrite (Hcl a Ha) /=. case_decide; set_solver.
-        - destruct (C !! a) as [[|ι'|]|] eqn:HCa; rewrite ?HCa /=; try done.
+        - destruct (C !! a) as [ [|ι'|]|] eqn:HCa; rewrite ?HCa /=; try done.
           case_decide as H1; case_decide as H2; try done; [exfalso; set_solver|].
           assert (ι' = ι) as -> by set_solver.
           exfalso. destruct (Hcov ι a ltac:(set_solver) HCa) as (x & Hx & Hc).

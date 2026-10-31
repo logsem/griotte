@@ -40,10 +40,6 @@ Section heap_key_resource.
     Persistent P → Persistent (heap_key_resource k P).
   Proof. destruct k; apply _. Qed.
 
-  Lemma heap_key_resource_nonheap a (P : iProp Σ) :
-    heap_key_resource (LNonHeap a) P ⊣⊢ P.
-  Proof. done. Qed.
-
   Lemma heap_key_resource_intro k (P : iProp Σ) :
     P -∗ heap_key_resource k P.
   Proof. iIntros "HP". destruct k; simpl; [done|by iLeft]. Qed.
@@ -54,9 +50,6 @@ Section heap_key_resource.
     iIntros "HPQ H". destruct k; simpl; [by iApply "HPQ"|].
     iDestruct "H" as "[H|H]"; [iLeft; by iApply "HPQ"|by iRight].
   Qed.
-
-  Lemma heap_key_resource_emp k : ⊢ heap_key_resource k emp.
-  Proof. by iApply heap_key_resource_intro. Qed.
 
   Lemma heap_key_open_cases k (P : iProp Σ) :
     heap_key_resource k P ⊢ P ∨ ∃ a ι, ⌜k = LHeap a ι⌝ ∗ ι ⊒ AQuar.
@@ -69,11 +62,6 @@ Section heap_key_resource.
   Lemma heap_key_close_tomb a ι (P : iProp Σ) :
     ι ⊒ AQuar ⊢ heap_key_resource (LHeap a ι) P.
   Proof. iIntros "Hq". rewrite /heap_key_resource /=. by iRight. Qed.
-
-  (** A tombstone is irrelevant to the resource. *)
-  Lemma heap_key_resource_tomb a ι (P Q : iProp Σ) :
-    ι ⊒ AQuar -∗ heap_key_resource (LHeap a ι) P -∗ heap_key_resource (LHeap a ι) Q.
-  Proof. iIntros "Hq _". by iApply heap_key_close_tomb. Qed.
 
   (** A live status share rules the tombstone out. *)
   Lemma heap_key_resource_live a ι q (P : iProp Σ) :
@@ -98,18 +86,6 @@ Section heap_key_resource.
     - iApply (heap_key_resource_live a).
   Qed.
 
-  Lemma heap_key_known_alloc_obj a ι b e :
-    alloc_obj ι b e -∗ ⌜a ∈ₐ [b, e)⌝ -∗ heap_key_known (LHeap a ι).
-  Proof. iIntros "#H %Ha". iExists b, e. by iFrame "H". Qed.
-
-  Lemma heap_key_known_nonheap_list (l : list Addr) :
-    ⊢ [∗ list] k ∈ LNonHeap <$> l, heap_key_known k.
-  Proof. rewrite big_sepL_fmap. by iApply big_sepL_intro. Qed.
-
-  Lemma heap_key_live_share_nonheap_list (l : list Addr) q :
-    ⊢ [∗ list] k ∈ LNonHeap <$> l, heap_key_live_share k q.
-  Proof. rewrite big_sepL_fmap. by iApply big_sepL_intro. Qed.
-
 End heap_key_resource.
 
 Section key_pointsto_known.
@@ -120,6 +96,16 @@ Section key_pointsto_known.
   Proof.
     destruct k as [a|a ι]; simpl; first by iIntros.
     iIntros "[_ (%b & %e & %Hin & #Hobj & _)]". iExists b, e. by iFrame "Hobj".
+  Qed.
+
+  Lemma key_pointsto_dupl_false (k : LAddr) v1 v2 :
+    k ↦ₖ v1 -∗ k ↦ₖ v2 -∗ False.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (key_pointsto_eq with "H1") as "[H1 _]".
+    iDestruct (key_pointsto_eq with "H2") as "[H2 _]".
+    iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv _].
+    exfalso. by eapply dfrac_full_exclusive.
   Qed.
 
 End key_pointsto_known.

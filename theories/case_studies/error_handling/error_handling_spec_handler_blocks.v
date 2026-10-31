@@ -52,7 +52,7 @@ Section Error_Handling_Handler_Blocks.
     end.
 
   (** The base [b] lies outside the [ErrorState] slot
-      [[a16, a16 + ErrorState_size)], as block 6 tests it. *)
+      $[a16, a16 + ErrorState_size)$, as block 6 tests it. *)
   Definition stats_base_outside (a16 b : Addr) : Prop :=
     (b < a16)%Z ∨ (a16 + ErrorState_size <= b)%Z.
 

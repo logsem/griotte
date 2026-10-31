@@ -1,117 +1,9 @@
 From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From iris.base_logic.lib Require Import ghost_map.
-From griotte Require Export stdpp_extra griotte_lang.
-From griotte Require Export sts world_std_sts region_keys.
+From griotte Require Export stdpp_extra world_std_sts.
 From griotte Require Import resources.
 Import uPred.
-
-(** CMRA for heap and its predicates. Contains: *)
-(* CMRA for relatedness between locations and saved prop names *)
-(* CMRA for saved predicates *)
-(** M_interp *)
-
-(** The region maps of a compartment are over Iris [ghost_map]: a key names a
-    saved predicate and a permission (see [region_maps.v]). *)
-Class relGpreS Σ {Cname : CmptNameG} :=
-  RelGpreS {
-      relPreG_invPreG : invGpreS Σ;
-      relPreG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
-      relPreG_saved_pred_g :: savedPredG Σ (CmptName * LWord);
-      relPreG_rel :: ghost_mapG Σ LAddr (gname * Perm);
-    }.
-#[export] Hint Mode relGpreS - - : typeclass_instances.
-
-Class relGS Σ {Cname : CmptNameG} :=
-  RelGS {
-      relG_rel :: ghost_mapG Σ LAddr (gname * Perm);
-      relG_saved_pred :: savedPredG Σ (WorldT * CmptName * LWord);
-      relG_saved_pred_g :: savedPredG Σ (CmptName * LWord);
-      (** the map of Permanent regions of a compartment *)
-      γrel_g : CmptName -> gname;
-      (** the local map of a thread and a compartment *)
-      γrel_l : Thread -> CmptName -> gname;
-    }.
-#[export] Hint Mode relGS - - : typeclass_instances.
-
-Definition relPreΣ {Cname : CmptNameG} :=
-  #[ ghost_mapΣ LAddr (gname * Perm); savedPredΣ (CmptName * LWord) ].
-
-#[export] Instance subG_relPreΣ {Σ} {Cname : CmptNameG}:
-  subG relPreΣ Σ →
-  invGpreS Σ →
-  subG (savedPredΣ (WorldT * CmptName * LWord)) Σ →
-  relGpreS Σ.
-Proof. rewrite /relPreΣ; solve_inG. Qed.
-
-Section relPre.
-  Context {Σ:gFunctors} {Cname : CmptNameG} {relpreg : relGpreS Σ}.
-
-  Lemma rel_rel_init :
-    ⊢ |==> (∃ γrelC, ([∗ set] C ∈ CNames,
-                        ghost_map_auth (γrelC C) 1 (∅ : gmap LAddr (gname * Perm)))).
-  Proof.
-    induction CNames as [|C' CNs HC' IHg] using set_ind_L.
-    - iModIntro.
-      iExists ( λ C, encode C).
-      by iApply big_sepS_empty.
-    - iMod IHg as (γrelC) "IH".
-      iMod (ghost_map_alloc_empty (K:=LAddr) (V:=gname * Perm)) as (γrel') "Hrel".
-      iModIntro.
-      iExists (λ C, if (bool_decide (C = C')) then γrel' else γrelC C).
-      iApply (big_sepS_union_2 with "[Hrel]").
-      + iApply (big_sepS_singleton).
-        by rewrite bool_decide_eq_true_2.
-      + iApply (big_sepS_mono with "IH").
-        iIntros (C HC) "Hr".
-        rewrite bool_decide_eq_false_2; [done|set_solver].
-  Qed.
-
-  (** The Permanent maps, and the local maps of the user threads [k], for
-      [k < nthreads]: one name each per compartment. The context-switch
-      thread and the other user threads share names that are allocated and
-      dropped. *)
-  Lemma rel_init (nthreads : nat) :
-    ⊢ |==> ∃ (relg: relGS Σ),
-        ([∗ set] C ∈ CNames, ghost_map_auth (γrel_g C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
-        [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-          ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
-  Proof.
-    iMod rel_rel_init as (γg) "Hg".
-    iMod rel_rel_init as (γd) "_".
-    iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
-    iExists (RelGS _ _ _ _ _ γg
-      (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γd end)).
-    iModIntro. iFrame.
-  Qed.
-
-End relPre.
-
-Section rel.
-
-  Context {Σ:gFunctors}
-    {Cname : CmptNameG}
-    `{MP: MachineParameters}.
-  Implicit Types W : WORLD.
-
-  Lemma future_pub_mono_eq_pred `{!savedPredG Σ (WorldT * CmptName * LWord)} C γ φ φ' w :
-    saved_pred_own γ DfracDiscarded φ
-    -∗ saved_pred_own γ DfracDiscarded φ'
-    -∗ ▷ future_pub_mono C φ w
-    -∗ ▷ future_pub_mono C φ' w.
-  Proof.
-    iIntros "#Hφ #Hφ' #Hmono".
-    iIntros (W0 W1 Hrelated).
-    iDestruct (saved_pred_agree _ _ _ _ _ (W0,C,w) with "Hφ Hφ'") as "#Hφeq0".
-    iDestruct (saved_pred_agree _ _ _ _ _ (W1,C,w) with "Hφ Hφ'") as "#Hφeq1".
-    iNext; iModIntro.
-    iIntros "Hφv".
-    iRewrite - "Hφeq0" in "Hφv"; iRewrite - "Hφeq1".
-    iApply "Hmono"; eauto.
-  Qed.
-
-End rel.
 
 (* No Excl' here: do not want the valid option element, as this disallows us from changing the branch in the sum type *)
 Lemma csum_alter_l_r {A : cmra} {C : ofe} (a : A) (c : C) : ✓ a → Cinl (Excl c) ~~> Cinr a.
@@ -154,7 +46,6 @@ Proof.
   intros HR. apply subG_inv in HR as [HR1 HR2].
   constructor; [apply subG_inG in HR1; exact HR1|apply _].
 Qed.
-
 
 Section Store.
   Context {Cname : CmptNameG} `{!sealStoreG Σ}

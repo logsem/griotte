@@ -6,7 +6,7 @@ Section world_standard_sts.
 
   (* We will first define the standard STS for the shared part of the heap.
      The local world only holds local keys: Permanent regions live in the
-     map of Global regions, outside the world. *)
+     map of Permanent regions, outside the world. *)
   Inductive region_type :=
   | Temporary
   | Revoked.
@@ -62,10 +62,10 @@ Section world_standard_sts.
     subst. apply IHHrtc. apply std_rel_pub_Temporary; auto.
   Qed.
 
-  (** The part of the world model a key lives in: the map of Global
+  (** The part of the world model a key lives in: the map of Permanent
       regions, or the local world. *)
   Inductive region_part :=
-  | InGlobal
+  | InPerm
   | InLocal.
 
   #[global] Instance region_part_EqDecision : EqDecision region_part.
@@ -83,8 +83,7 @@ End world_standard_sts.
 
 Section world_standard_sts_mono.
   Context {Σ:gFunctors}
-    {Cname : CmptNameG} {CNames : gset CmptName}
-    {stsg : STSG Σ}
+    {Cname : CmptNameG}
     `{MP: MachineParameters}.
   Notation STS := (leibnizO (STS_states * STS_rels)).
   Notation STS_STD := (leibnizO (STS_std_states LAddr region_type)).
@@ -97,24 +96,8 @@ Section world_standard_sts_mono.
         ⌜ related_sts_pub_world W W'⌝
         → φ (W,C,v) -∗ φ (W',C,v))%I.
 
-  Definition future_priv_mono (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) (v  : LWord) : iProp Σ :=
-    (□ ∀ (W W' : WORLD),
-        ⌜ related_sts_priv_world W W'⌝
-        → φ (W,C,v) -∗ φ (W',C,v))%I.
-
   Definition mono_pub (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) :=
     (∀ (w : LWord), future_pub_mono C φ w)%I.
-  Definition mono_priv (C : CmptName) (φ : (WORLD * CmptName * LWord) -> iProp Σ) (p : Perm) :=
-    (∀ (w : LWord), ⌜canStore p w.(lw) = true⌝ -∗ future_priv_mono C φ w)%I.
-
-  Lemma future_priv_mono_is_future_pub_mono (C : CmptName) (φ: (WORLD * CmptName * LWord) → iProp Σ) v :
-    future_priv_mono C φ v -∗ future_pub_mono C φ v.
-  Proof.
-    iIntros "#H". unfold future_pub_mono. iModIntro.
-    iIntros (W W' Hrelated) "Hφ".
-    iApply "H"; eauto.
-    iPureIntro; eauto using related_sts_pub_priv_world.
-  Qed.
 
 End world_standard_sts_mono.
 

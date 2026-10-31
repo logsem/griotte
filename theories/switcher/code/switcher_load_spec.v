@@ -117,15 +117,7 @@ Section Switcher_Restore_Interp.
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters}.
 
-  (** The witness of [Wval] for [raw], from the open world [Wworld]. *)
-  Lemma world_interp_open_load_witness_eq Wworld Wval C opened raw :
-    world_interp_open Wworld C opened -∗
-    world_interp_open Wworld C opened ∗ load_witness_res (load_witness_of Wval raw).
-  Proof.
-    by iIntros "$".
-  Qed.
-
-  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -140,18 +132,17 @@ Section Switcher_Restore_Interp.
         world_interp_open Wworld C opened }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV;
-        ⌜load_heap_in_world Wval raw actual⌝ ∗
+        ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
-      as "[Hworld Hwit]".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
-    pose proof (load_post_world_load_heap_in_world Wval RWL raw actual Hpost) as Hloaded.
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame.
   Qed.
@@ -170,19 +161,18 @@ Section Switcher_Restore_Interp.
         dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @[th] E
-    {{{ actual, RET NextIV; ⌜load_heap_in_world Wval raw actual⌝ ∗
+    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
         ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal) HΦ".
-    iDestruct (world_interp_open_load_witness_eq _ Wval _ _ raw with "Hworld")
-      as "[Hworld Hwit]".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
     iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
     iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hactual"; first exact Hpost.
-    pose proof (load_post_world_load_heap_in_world Wval RWL raw actual Hpost) as Hloaded.
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame "∗#".
   Qed.

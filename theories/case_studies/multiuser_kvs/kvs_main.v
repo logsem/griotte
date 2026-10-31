@@ -117,15 +117,6 @@ Section KVS_Main.
     ++ kvs_main_instrs_n 7
     ++ kvs_main_instrs_n 8.
 
-  Definition kvs_main_read_assert_phase_instrs : list Word :=
-    kvs_main_instrs_n 9
-    ++ kvs_main_instrs_n 10
-    ++ kvs_main_instrs_n 11
-    ++ kvs_main_instrs_n 12
-    ++ kvs_main_instrs_n 13
-    ++ kvs_main_instrs_n 14
-    ++ kvs_main_instrs_n 15.
-
   Definition kvs_main_code : list Word :=
     kvs_main_instrs_n 0
     ++ kvs_main_instrs_n 1

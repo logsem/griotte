@@ -27,7 +27,7 @@ Section Heap_Temporal_Safety_Interp.
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Open the cells of [lk], keys of the object [ι], in the world. A live
-      status share of [ι] refutes their tombstones, and a Global region of a
+      status share of [ι] refutes their tombstones, and a Permanent region of a
       key that is also Temporary. *)
   Lemma free_region_open_list W C g ι q (lk : list LAddr) :
     NoDup lk ->
@@ -54,14 +54,14 @@ Section Heap_Temporal_Safety_Interp.
         with "[Hst Hworld]" as ">(Hworld & Hst & [%v Ha] & Hkey)".
       { iDestruct "Hcov" as "[(%p & %φ & %Hpers & #Hrel) | Hloc]".
         - destruct (decide (std W !! LHeap x ι = Some Temporary)) as [HT|HnT].
-          + iDestruct (world_interp_open_rel_g_temporary with "Hworld Hrel")
+          + iDestruct (world_interp_open_rel_perm_temporary with "Hworld Hrel")
               as "[_ (%a' & %ι' & %Hk & #Hq)]"; [done|done|].
             injection Hk as <- <-.
             iDestruct (live_quar_false with "Hst Hq") as "[]".
           + iDestruct (open_world_interp_permanent with "Hworld Hrel")
               as "[Hworld Hres]"; [done|done|].
             iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
-            iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+            iDestruct "Hres" as (v) "(%HpO & Ha & _)".
             iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
             iRight. iExists p, φ. by iFrame "Hrel %".
         - destruct g; [by iDestruct "Hloc" as "[]"|].
@@ -69,13 +69,13 @@ Section Heap_Temporal_Safety_Interp.
           iDestruct (open_world_interp_temporary with "Hworld Hrel")
             as "[Hworld Hres]"; [done|done|].
           iDestruct (heap_key_resource_live with "Hst Hres") as "[Hres Hst]".
-          iDestruct "Hres" as (v) "(>%HpO & >Ha & _)".
+          iDestruct "Hres" as (v) "(%HpO & Ha & _)".
           iModIntro. iFrame "Hworld Hst". iSplitL "Ha"; first by iExists v.
           iLeft. iExists p, φ. by iFrame "Hrel %". }
       iModIntro. iExists (v :: ws). cbn. iFrame "Hst Ha Hmem Hkey Hkeys Hworld".
   Qed.
 
-  (** Execute free for an arbitrary caller and update the shared heap world. *)
+  (** Execute free for an arbitrary caller. *)
   Lemma free_exec_entry_point W C :
     allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
@@ -94,7 +94,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (Hpc_b)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "(#Hthread & #Htv & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
+      "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
         & %Hsync & _ & Hcstk & Hna)".
     iEval (rewrite world_resources_exclusive) in "Hworld".
     iDestruct "Hregister" as
@@ -621,7 +621,7 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
-    iIntros (t') "#Ht'".
+    iIntros (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W').

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel region_invariants.
+From griotte Require Export logrel world_interp.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import rules proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
@@ -26,45 +26,6 @@ Section switcher_macros.
   #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
-
-  Lemma big_sepM_arg_rmap (Φ : RegName → LWord → iProp Σ) w0 w1 w2 w3 w4 w5 w6 :
-    ([∗ map] r↦w ∈ <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-                     (<[ca5:=w5]> (<[ct0:=w6]> ∅)))))), Φ r w)
-    ⊣⊢ Φ ca0 w0 ∗ Φ ca1 w1 ∗ Φ ca2 w2 ∗ Φ ca3 w3 ∗ Φ ca4 w4 ∗ Φ ca5 w5 ∗ Φ ct0 w6.
-  Proof.
-    rewrite !big_sepM_insert ?big_sepM_empty ?right_id //; by simplify_map_eq.
-  Qed.
-
-  Lemma is_arg_rmap_8 w0 w1 w2 w3 w4 w5 w6 :
-    is_arg_rmap (<[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-                  (<[ca5:=w5]> (<[ct0:=w6]> ∅))))))) 8.
-  Proof. rewrite /is_arg_rmap /dom_arg_rmap !dom_insert_L dom_empty_L. set_solver. Qed.
-
-  Lemma is_arg_rmap_8_inv (arg_rmap : LReg) :
-    is_arg_rmap arg_rmap 8 →
-    ∃ w0 w1 w2 w3 w4 w5 w6,
-      arg_rmap = <[ca0:=w0]> (<[ca1:=w1]> (<[ca2:=w2]> (<[ca3:=w3]> (<[ca4:=w4]>
-                   (<[ca5:=w5]> (<[ct0:=w6]> ∅)))))).
-  Proof.
-    intros Hargmap.
-    assert (is_Some (arg_rmap !! ca0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ca1)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ca2)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ca3)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ca4)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ca5)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    assert (is_Some (arg_rmap !! ct0)) as [??];[apply elem_of_dom; rewrite Hargmap; set_solver|].
-    exists x,x0,x1,x2,x3,x4,x5. apply map_eq.
-    intros i. destruct (decide (ca0 = i));simplify_map_eq=>//.
-    destruct (decide (ca1 = i));simplify_map_eq=>//.
-    destruct (decide (ca2 = i));simplify_map_eq=>//.
-    destruct (decide (ca3 = i));simplify_map_eq=>//.
-    destruct (decide (ca4 = i));simplify_map_eq=>//.
-    destruct (decide (ca5 = i));simplify_map_eq=>//.
-    destruct (decide (ct0 = i));simplify_map_eq=>//.
-    repeat (rewrite lookup_insert_ne; auto).
-    apply not_elem_of_dom. rewrite Hargmap. set_solver.
-  Qed.
 
   (** [clear_registers_pre_call_skip_spec_known] where the kept argument
       registers are safe. *)

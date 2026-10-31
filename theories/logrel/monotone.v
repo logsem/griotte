@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From griotte Require Export logrel region_invariants.
+From griotte Require Export logrel.
 Import uPred.
 
 Section monotone.
@@ -35,31 +35,6 @@ Section monotone.
     { rewrite -elem_of_dom. apply elem_of_subseteq in Hdom_sta. apply Hdom_sta. rewrite elem_of_dom;eauto. }
     specialize (Hrelated _ Temporary y Hstate Hy).
     apply std_rel_pub_rtc_Temporary in Hrelated; subst; auto.
-  Qed.
-
-  Lemma region_state_pwl_monotone W W' a :
-    related_sts_pub_world W W' →
-    region_state_pwl W a -> region_state_pwl W' a.
-  Proof.
-    rewrite /region_state_pwl.
-    intros Hrelated Hstate; simplify_eq.
-    eapply region_state_pub_temp in Hstate; eauto.
-  Qed.
-
-  (** A sealed word under a Global-kind otype is valid in every world. *)
-  Lemma interp_monotone_sd W W' C ot sb π P :
-    ⌜related_sts_priv_world W W'⌝ -∗
-    ot ↪ₒ{SealGlobal} P -∗
-    interp W C (WSealed ot sb @@? π) -∗
-    interp W' C (WSealed ot sb @@? π).
-  Proof.
-    iIntros (Hrelated) "#Hspred #Hinterp".
-    destruct sb as [t p g b e a | t p g b e a]; destruct t;
-      rewrite !interp_unfold /= /interp_sb; try done.
-    all: iDestruct "Hinterp" as "[(%κ & %P' & #Hs & #Hok & #HP) $]";
-      iDestruct (seal_pred_agree with "Hspred Hs") as "[<- _]";
-      iExists SealGlobal, P'; iFrame "Hs Hok";
-      iDestruct "Hok" as "[_ #Hc]"; iNext; by iApply ("Hc" $! th th W W').
   Qed.
 
   (** A sealed word with a Global payload is valid in every world. *)
@@ -129,10 +104,10 @@ Section monotone.
         region_rel W C k p' P p g ∗ ▷ zcond P C ∗
         (if readAllowed p'
          then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
-               else rcond P C p' interp)
+               else rcond_l P C p' interp)
          else True) ∗
         (if writeAllowed p'
-         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
          else True))
     -∗
     (∃ (p' : Perm) (P : V),
@@ -140,10 +115,10 @@ Section monotone.
         region_rel W' C k p' P p g ∗ ▷ zcond P C ∗
         (if readAllowed p'
          then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t))
-               else rcond P C p' interp)
+               else rcond_l P C p' interp)
          else True) ∗
         (if writeAllowed p'
-         then ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp)
+         then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
          else True)).
   Proof.
     iIntros (Hrelated) "Hw".
@@ -208,23 +183,10 @@ Section monotone.
     exact Hrelated.
   Qed.
 
-  Lemma safe_to_seal_monotone C W W' b e :
-    related_sts_priv_world W W' ->
-    safe_to_seal W C (λ t, interp (th := t)) b e -∗
-    safe_to_seal W' C (λ t, interp (th := t)) b e.
-  Proof. by iIntros (Hrelated) "#Hw". Qed.
-
-  Lemma safe_to_unseal_monotone C W W' b e :
-    related_sts_priv_world W W' ->
-    safe_to_unseal W C (λ t, interp (th := t)) b e -∗
-    safe_to_unseal W' C (λ t, interp (th := t)) b e.
-  Proof. by iIntros (Hrelated) "#Hw". Qed.
-
   Lemma interp_monotone_sealrange (W W' : WORLD) C t p g b e a π :
-    ⌜related_sts_priv_world W W'⌝
-    -∗ interp W C (WSealRange t p g b e a @@? π) -∗ interp W' C (WSealRange t p g b e a @@? π).
+    interp W C (WSealRange t p g b e a @@? π) -∗ interp W' C (WSealRange t p g b e a @@? π).
   Proof.
-    iIntros (Hrelated) "#Hw".
+    iIntros "#Hw".
     rewrite !interp_unfold /=; auto.
   Qed.
 
@@ -238,7 +200,7 @@ Section monotone.
     destruct w; [ | destruct sb | | ].
     - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_cap_valid with "[] [$]"); eauto.
-    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[$]").
     - iApply (interp_monotone_sentry with "[] [$]"); eauto.
     - iApply (interp_monotone_sd_pub with "[] [$]"); eauto.
   Qed.
@@ -279,7 +241,7 @@ Section monotone.
     destruct w; [ | destruct sb | | ].
     - rewrite !interp_unfold /=; auto.
     - iApply (interp_monotone_nl_cap_valid with "[] [] [$]"); eauto.
-    - iApply (interp_monotone_sealrange with "[] [$]"); eauto.
+    - iApply (interp_monotone_sealrange with "[$]").
     - iApply (interp_monotone_nl_sentry with "[] [] [$]"); eauto.
     - iApply (interp_monotone_sd_nl with "[] [] [$]"); eauto.
   Qed.
@@ -291,17 +253,6 @@ Section monotone.
     intros Hrelated.
     change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
     iIntros "Hw". by iApply (interp_monotone with "[] Hw").
-  Qed.
-
-  Lemma interp_in_mem_monotone_nl W W' C p w :
-    related_sts_priv_world W W' ->
-    isLocalWord (load_word p w.(lw)) = false ->
-    interp_in_mem p W C w -∗ interp_in_mem p W' C w.
-  Proof.
-    intros Hrelated Hnl.
-    change (⊢ interp W C (lload_word p w) -∗ interp W' C (lload_word p w))%I.
-    iIntros "Hw". iApply (interp_monotone_nl with "[] [] Hw"); first done.
-    by rewrite lw_lload_word.
   Qed.
 
   Lemma interp_monotone_cap_nonheap W W' C t p g b e a :

@@ -283,7 +283,7 @@ Section logical_lookups.
   Proof.
     intros H. unfold llookup_reg in H.
     case_decide as Hne; first done.
-    destruct (regs !! r) as [[w π]|] eqn:Hr; cbn in H; simplify_eq.
+    destruct (regs !! r) as [ [w π]|] eqn:Hr; cbn in H; simplify_eq.
     split; first done. by exists π.
   Qed.
 

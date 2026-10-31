@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import
-  region_invariants_revocation wp_rules_interp interp_weakening.
+  world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import
   assert_spec fetch_spec.
 From griotte Require Import
@@ -30,7 +30,7 @@ Section KVS_main_spec.
   #[local] Notation V := (interpO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
-      stack [b, e) and the export table word [w] *)
+      stack $[b, e)$ and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
     (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
@@ -245,9 +245,7 @@ Section KVS_main_spec.
 
     iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
     { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-      iApply (monotone.interp_monotone_sd W0 W1 B with "[] Hseal_switcher [Hinterp_W0_B_f]").
-      { iPureIntro. exact Hrelared_priv_W0_W1. }
-      iExact "Hinterp_W0_B_f". }
+      iApply (interp_sealed_global_kind_world_free W0 W1 B with "Hseal_switcher Hinterp_W0_B_f"). }
 
     assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W1.
     {

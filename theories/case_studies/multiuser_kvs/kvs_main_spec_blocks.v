@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import
-  memory_region region_invariants_revocation wp_rules_interp interp_weakening.
+  memory_region world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import assert_spec fetch_spec.
 From griotte Require Import
   switcher_base switcher_base_ktk.
@@ -63,80 +63,6 @@ Section KVS_Main_Blocks.
     {KVS_layout_Wf : kvsLayoutWf}.
 
   Context {B : CmptName}.
-
-  (** Exact layout of seven import addresses in the KVS main compartment.  The final
-      empty region is retained explicitly, so consumers cannot accidentally
-      drop the unused erase import or change the public layout. *)
-  Lemma kvs_main_imports_pointsto
-      pc_b pc_a static_sealed_b
-      (b_assert e_assert : Addr) (B_f : Sealable) :
-    (pc_b + length
-      (kvs_main_imports static_sealed_b b_switcher e_switcher
-        a_switcher_call ot_switcher b_assert e_assert B_f))%a = Some pc_a ->
-    [[pc_b, pc_a]] ↦ₐ
-      [[lword_of_word <$> kvs_main_imports static_sealed_b b_switcher e_switcher
-          a_switcher_call ot_switcher b_assert e_assert B_f]]
-    ⊣⊢
-      pc_b ↦ₐ switcher_entry_call
-      ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ
-        Sentry Inherit RX Global b_assert e_assert b_assert
-      ∗ (pc_b ^+ ADV_F_OFFSET) ↦ₐ WSealed ot_switcher B_f
-      ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ
-        WSealed ot_switcher (KVS_addOrUpdate Global)
-      ∗ (pc_b ^+ KVS_READ_OFFSET) ↦ₐ
-        WSealed ot_switcher (KVS_read Global)
-      ∗ (pc_b ^+ KVS_ERASE_OFFSET) ↦ₐ
-        WSealed ot_switcher (KVS_erase Global)
-      ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ
-        kvs_user_seal_key Global static_sealed_b
-      ∗ region_pointsto (pc_b ^+ 7) pc_a [].
-  Proof.
-    intros Himports.
-    rewrite /kvs_main_imports /switcher_entry_call.
-    iSplit.
-    - iIntros "Himports".
-      iDestruct (region_pointsto_cons with "Himports") as "[Hsw Himports]".
-      { transitivity (Some (pc_b ^+ 1)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Hassert Himports]".
-      { transitivity (Some (pc_b ^+ 2)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[HB Himports]".
-      { transitivity (Some (pc_b ^+ 3)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Hadd Himports]".
-      { transitivity (Some (pc_b ^+ 4)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Hread Himports]".
-      { transitivity (Some (pc_b ^+ 5)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Herase Himports]".
-      { transitivity (Some (pc_b ^+ 6)); auto; solve_addr. }
-      { solve_addr. }
-      iDestruct (region_pointsto_cons with "Himports") as "[Hkey Himports]".
-      { transitivity (Some (pc_b ^+ 7)); auto; solve_addr. }
-      { solve_addr. }
-      rewrite /ASSERT_OFFSET /ADV_F_OFFSET /KVS_INSERT_OFFSET
-        /KVS_READ_OFFSET /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET.
-      iFrame.
-    - iIntros "(Hsw & Hassert & HB & Hadd & Hread & Herase & Hkey & Himports)".
-      rewrite /ASSERT_OFFSET /ADV_F_OFFSET /KVS_INSERT_OFFSET
-        /KVS_READ_OFFSET /KVS_ERASE_OFFSET /SEALED_USER_KEY_OFFSET.
-      iApply (region_pointsto_cons _ (pc_b ^+ 1)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 2)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 3)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 4)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 5)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 6)); [solve_addr|solve_addr|].
-      iFrame.
-      iApply (region_pointsto_cons _ (pc_b ^+ 7)); [solve_addr|solve_addr|].
-      iFrame.
-  Qed.
 
   (** The import cells of the KVS main compartment, from its persistent
       import table. *)

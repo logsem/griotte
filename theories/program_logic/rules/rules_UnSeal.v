@@ -118,17 +118,17 @@ Section griotte_lang_rules.
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
       { rewrite -Hstep.
-        by destruct r1v as [[| [] | | ? [] ] ?], r2v as [[| [] | | ? [] ] ?], s1, s2. }
+        by destruct r1v as [ [| [] | | ? [] ] ?], r2v as [ [| [] | | ? [] ] ?], s1, s2. }
       { apply reg_phys_lclear_tag in Hrel2. by rewrite clear_tag_and_tag in Hrel2. }
       { intros. by eapply UnSeal_spec_untagged. }
       { intros. econstructor. by eapply UnSeal_fail_PC_untagged. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     apply not_false_is_true, andb_true_iff in Hk as [Hr1v Hr2v].
-    destruct r1v as [[ | [ | t p g b e a ] | | ] πs]; try inversion Hr1v. clear Hr1v.
+    destruct r1v as [ [ | [ | t p g b e a ] | | ] πs]; try inversion Hr1v. clear Hr1v.
     (* The unsealing key has no bounds: its copy is exact. *)
     pose proof (reg_phys_no_bounds R (WSealRange t p g b e a @@? πs) _ eq_refl Hrel1) as Hk. cbn in Hk.
     assert (s1 && t = t) as Hs1 by congruence.
-    destruct r2v as [[ | | | o sb ] π]; try inversion Hr2v. clear Hr2v.
+    destruct r2v as [ [ | | | o sb ] π]; try inversion Hr2v. clear Hr2v.
     assert (reg_word_ok R C (WSealed o sb @@? π)) as Hok.
     { by eapply erasure_llookup_reg_word. }
     cbn in Hstep. rewrite Hs1 in Hstep.

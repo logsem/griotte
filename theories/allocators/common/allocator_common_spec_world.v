@@ -36,9 +36,9 @@ Section AllocatorCommonWorld.
     destruct (lprov w); by simplify_eq.
   Qed.
 
-  (** Take the cells of a new chunk [next, finish) above the bump cursor: they
-      are unclaimed, unpainted and not headers. The header cells [next, b)
-      stay unclaimed; the payload cells [b, finish) are claimed by a fresh
+  (** Take the cells of a new chunk $[next, finish)$ above the bump cursor: they
+      are unclaimed, unpainted and not headers. The header cells $[next, b)$
+      stay unclaimed; the payload cells $[b, finish)$ are claimed by a fresh
       identifier [ι ∉ S]. The cells are put back as header words and as cells
       claimed by [ι]. *)
   Lemma allocator_malloc_claim
@@ -203,7 +203,7 @@ Section AllocatorCommonWorld.
     iCombine "Hcells_free Hmem" as "Hcells".
     rewrite -big_sepL_sep.
     iApply (big_sepL_mono with "Hcells").
-    iIntros (k x _) "[[Hs Hc] Hm]".
+    iIntros (k x _) "[ [Hs Hc] Hm]".
     rewrite /cell_res' /allocator_free_cell /cell_res /=. iFrame. done.
   Qed.
 

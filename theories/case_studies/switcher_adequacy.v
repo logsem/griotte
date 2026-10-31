@@ -5,33 +5,6 @@ From griotte Require Import compartment_layout.
 From griotte Require Import switcher_base_interp.
 From griotte Require Import switcher_spec_return.
 
-(** The projections of the header of an export table are the same at any
-    two threads. *)
-Section thread_indep_handlers.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
-
-  (* TODO: move to logrel/call_stack.v *)
-  Lemma handler_stackful_thread_indep (t t' : Thread) b z :
-    handler_stackful (ceriseg := ceriseG_of t) b z ⊣⊢
-    handler_stackful (ceriseg := ceriseG_of t') b z.
-  Proof.
-    iSplit; iIntros "H"; iApply handler_stackful_intro;
-      iDestruct (handler_stackful_elim with "H") as "H";
-      by rewrite pointsto_pers_thread_indep.
-  Qed.
-
-  (* TODO: move to logrel/call_stack.v *)
-  Lemma handler_stackless_thread_indep (t t' : Thread) b z :
-    handler_stackless (ceriseg := ceriseG_of t) b z ⊣⊢
-    handler_stackless (ceriseg := ceriseG_of t') b z.
-  Proof.
-    iSplit; iIntros "H"; iApply handler_stackless_intro;
-      iDestruct (handler_stackless_elim with "H") as "H";
-      by rewrite pointsto_pers_thread_indep.
-  Qed.
-
-End thread_indep_handlers.
-
 Section helpers_switcher_adequacy.
   Context
     {Σ:gFunctors}
@@ -232,9 +205,8 @@ Section ot_switcher_adequacy.
     (a_etbl ∈ₐ [entries_etbl, e_etbl))
     → 0 <= args < 7
     → is_Some (b_pcc + off%nat)%a
-    → switcher_family C
-    ⊢ switcher_static
-    -∗ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
+    → switcher_threads C
+    ⊢ b_etbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc
     -∗ b_etbl1 ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp
     -∗ b_etbl ↦ₑ□{stackful} eh
     -∗ b_etbl ↦ₑ□{stackless} ehs
@@ -245,7 +217,7 @@ Section ot_switcher_adequacy.
   Proof.
     intros b_etbl b_etbl1 e_etbl entries_etbl b_pcc e_pcc b_cgp e_cgp
       Ha_etbl Hargs Hentry.
-    iIntros "#Hfamily #Hswitcher_static #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
+    iIntros "#Hswitcher_threads #Hetbl_pcc #Hetbl_cgp #Hetbl_eh #Hetbl_ehs #Hetbl_entry
       #Hinterp_pcc #Hinterp_cgp".
     (* Only the low byte of the minimum stack size is encoded *)
     set (minstk8 := Z.to_nat (Z.of_nat minstk `mod` 256)).
@@ -302,10 +274,11 @@ Section ot_switcher_adequacy.
     iSplit; first (iPureIntro; exact (cmpt_cgp_base_not_heap C_cmpt)).
     iSplit.
     { subst b_etbl1 b_etbl. by rewrite Hcgp_addr. }
-    (* At a thread [t'] of [C]: the switcher's resources from the family,
-       the table and the validity of its Global words moved to [t'] *)
+    (* At a thread [t'] of [C]: the switcher's resources from
+       [switcher_threads], the table and the validity of its Global words
+       moved to [t'] *)
     iIntros "!>" (t') "#Ht'".
-    iDestruct ("Hfamily" $! t' with "Ht'") as "[Hinv_t' Hstatic_t']".
+    iDestruct ("Hswitcher_threads" $! t' with "Ht'") as "[Hinv_t' Hstatic_t']".
     iEval (rewrite (pointsto_pers_thread_indep th t')) in "Hetbl_pcc Hetbl_cgp".
     iEval (rewrite (handler_stackful_thread_indep th t')) in "Hetbl_eh".
     iEval (rewrite (handler_stackless_thread_indep th t')) in "Hetbl_ehs".

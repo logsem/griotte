@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
-From griotte Require Import region_invariants_revocation interp_weakening monotone.
+From griotte Require Import world_interp_revocation interp_weakening monotone.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Import vae_spec_states vae_spec_closure_repair.

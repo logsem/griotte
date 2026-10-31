@@ -3,7 +3,6 @@ From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import memory_region proofmode.
 From griotte Require Import world_ghost_theory.
 
-
 Section Stack_World_Resources.
   Context
     {Σ:gFunctors}
@@ -17,14 +16,12 @@ Section Stack_World_Resources.
   Implicit Types C : CmptName.
   #[local] Notation V := (interpO Σ).
 
-
   (** ** Lemmas about [StackWorldResource], [StackWorldResources] and [StackOpenWorldResources] *)
 
   (* Length *)
   Lemma StackWorldResources_length (interp : V) (W : WORLD) (C : CmptName) (la : list Addr) (lws : list LWord) :
     StackWorldResources interp W C la lws -∗ ⌜ length la = length lws ⌝.
   Proof. iIntros "H"; iApply (big_sepL2_length with "H"). Qed.
-
 
   (* App *)
   Lemma StackWorldResources_app
@@ -38,7 +35,6 @@ Section Stack_World_Resources.
          - iDestruct (big_sepL2_app' with "H") as "[$ $]"; auto.
          - iApply big_sepL2_app'; last iFrame; auto.
   Qed.
-
 
   (* Zeroing *)
   Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) :
@@ -117,8 +113,8 @@ Section Stack_World_Resources.
       iApply monotone.interp_in_mem_monotone; eauto.
     }
     iSplit; first (iApply zcond_interp_in_mem).
-    iSplit; first (by iApply rcond_interp_in_mem_nodl).
-    iSplit; first (iApply wcond_interp_in_mem).
+    iSplit; first (by iApply rcond_l_interp_in_mem_nodl).
+    iSplit; first (iApply wcond_wl_interp_in_mem).
     iPureIntro. apply persistent_cond_interp_in_mem.
   Qed.
 
@@ -130,7 +126,6 @@ Section Stack_World_Resources.
     iDestruct (IHla with "H") as "$".
     iDestruct ( StackWorldResource_from_rel_stack with "Ha" ) as "$".
   Qed.
-
 
   (** ** Definition [StackRevokedResources] *)
 
@@ -175,7 +170,6 @@ Section Stack_World_Resources.
     iApply "Hzcond"; done.
   Qed.
 
-
   (** Interface for revoked addresses *)
   Definition revoked_addresses (W : WORLD) (la : list Addr) :=
     Forall (λ a, std W !! LNonHeap a = Some Revoked) la.
@@ -187,18 +181,5 @@ Section Stack_World_Resources.
   Lemma revoked_addresses_app (W : WORLD) (la la' : list Addr) :
     revoked_addresses W (la++la') <-> revoked_addresses W la ∧ revoked_addresses W la'.
   Proof. rewrite /revoked_addresses; apply Forall_app. Qed.
-
-  Lemma revoked_addresses_weaken (W : WORLD) (la la' : list Addr) :
-    la' ⊆ la ->
-    Forall (λ a, std W !! LNonHeap a = Some Revoked) la ->
-    Forall (λ a, std W !! LNonHeap a = Some Revoked) la'.
-  Proof.
-    intros Hl Hla.
-    rewrite Forall_forall in Hla; apply Forall_forall.
-    intros a Ha.
-    apply Hla.
-    by apply Hl.
-  Qed.
-
 
 End Stack_World_Resources.

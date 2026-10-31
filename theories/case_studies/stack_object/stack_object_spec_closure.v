@@ -33,8 +33,8 @@ Section SO.
       - 2) Check that the passed stack object [wca0] has read permission,
          and that it does not overlap with our stack frame.
       - 3) Knowing that [wca0] is a safe capability with read permission,
-         we know that all addresses must be in the world,
-         either Temporary or Permanent.
+         we know that all addresses must be in the world: Temporary
+         in the local world, or in the map of Permanent regions.
       - 4) Filter [l] to separate the addresses of [wca0]'s region
          that are Temporary, and the others.
          We know that they are in [l] because if Temporary
@@ -42,10 +42,10 @@ Section SO.
          That way, we can get the points-to predicates for
          the Temporary addresses of [wca0].
       - 5) Open the world and get the points-to predicates
-         of the Permanent addresses of [wca0].
+         of the addresses of [wca0] in the map of Permanent regions.
       - 6) We know have all the points-to predicate of [wca0]'s region,
          we can apply [checkints_spec].
-      - 7) We can close the world with the Permanent addresses,
+      - 7) We can close the world with the addresses in the map of Permanent regions,
          and we can re-introduce the Temporary ones (via [close_list]).
          They respect their associated validity predicate because [wca0] is interp,
          so their associated predicate must be [zcond],
@@ -167,7 +167,7 @@ Section SO.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
@@ -315,7 +315,7 @@ Section SO.
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
       { by apply trap_no_resume_cap. } }
-    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & [_ Hlc'])".
+    iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & _)".
 
     (* Close the region of [in] *)
     iDestruct "Hclose_object" as "[Hclose_object _]".
@@ -345,7 +345,7 @@ Section SO.
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iMod (so_world_call with
            "Hthread Hseal_switcher Hinterp_W0_csp Hinterp_wca1 Hworld_interp_C Hinterp_wca0_W2 Hstack_revoked
-            Hastk2 Hlc'")
+            Hastk2")
       as "(Hworld_interp_C & #Hinterp_wca0_W3 & #Hinterp_z & #Hinterp_wct1
            & Hstack_revoked & %Hrevoked_W3 & %Hpriv_W0_W3 & %Ha_stk2_W3)";
       [done..|].
@@ -384,11 +384,11 @@ Section SO.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
-    apply load_heap_in_world_nonheap in Hrcgp;
+    apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcra;
+    apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcs0;
+    apply load_heap_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
     subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

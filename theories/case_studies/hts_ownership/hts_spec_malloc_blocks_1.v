@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants.
+From griotte Require Import world_interp_stack world_interp.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 From griotte Require Import case_study_spec_helpers.
@@ -198,9 +198,7 @@ Section HTS_Spec_Malloc.
        (delete cs1 (delete ct0 (delete ca5 (delete ca4 (delete ca3
          (delete ca2 (delete cs0 (delete ct1
            (delete ca0 (delete ca1 rmap))))))))))).
-    (* The buffer avoids the identifiers of the heap keys of the world, so
-       that its key is fresh. *)
-    iPoseProof (allocator_malloc_switcher_spec (heap_ids (dom (std W_init_C)))
+    iPoseProof (allocator_malloc_switcher_spec ∅
       Global owner_a hts_main_owner_id ∅ 1
       (Cap RW Global cgp_b cgp_e cgp_b)
       (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a)
@@ -293,7 +291,7 @@ Section HTS_Spec_Malloc.
         iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
         done.
       + iDestruct "Hok" as (ι b e)
-          "(%Hbounds & %Hι_fresh & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
+          "(%Hbounds & _ & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
         rewrite union_empty_l_L.
         destruct Hret as [-> ->].
         assert (e = b ^+ 1) as -> by solve_addr.
@@ -305,8 +303,6 @@ Section HTS_Spec_Malloc.
         iDestruct "Hzeroed" as "[Hb _]".
         iRight. iExists ι, b.
         iSplit; first (iPureIntro; rewrite /hts_buffer_bounds; solve_addr).
-        iSplit.
-        { iPureIntro. rewrite -revoke_dom_eq. by apply heap_ids_fresh. }
         iFrame "∗#".
         iPureIntro. split; [exact Hdom_rmap_ret|exact Hstack_revoked].
     - iNamed "Hcall".

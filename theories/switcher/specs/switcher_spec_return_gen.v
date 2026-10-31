@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Import ftlr_base interp_weakening.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import sts_multiple_updates world_interp_revocation.
 From griotte Require Export switcher switcher_preamble.
 From griotte Require Import switcher_return_states.
 From griotte.switcher.callback Require Import callback_path.
@@ -193,8 +193,8 @@ Section Switcher.
              "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next")
         as "[Hna Hcstk_frag]"; [done|done|done|].
-      iMod (world_interp_stack_fixing _ _ _ _ b_stk e_stk a_stk with
-             "Htrap Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
+      iMod (world_interp_stack_fixing _ _ _ b_stk e_stk a_stk with
+             "Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''") as
         "(Hworld_interp & Hstk')"; eauto.
       by iFrame "Hna Hcstk_frag Hworld_interp Hstk'". }
 
@@ -211,7 +211,7 @@ Section Switcher.
       { (* The return address of a trusted caller is a valid target *)
         iIntros "%Hjalr".
         destruct (Hret_ok Hccrel) as [Hret_jalr Hret_heap].
-        apply load_heap_in_world_nonheap in Hr2; last done.
+        apply load_heap_nonheap in Hr2; last done.
         subst rstk2; congruence. }
       iIntros "[HPC _]".
       iMod "Hupd" as "(Hna & Hcstk_frag & Hworld_interp & Hstk')".

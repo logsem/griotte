@@ -8,7 +8,7 @@ From griotte Require Import lse lse_spec_states lse_spec_closure lse_spec.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -28,11 +28,8 @@ Section lse_obligations.
   Lemma lse_fw_obligations :
     fw_obligations Σ lse_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -71,8 +68,8 @@ Section lse_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack lse_firmware 0) with 4 in Hentry_min_stack.
@@ -145,16 +142,16 @@ Section lse_obligations.
     { intros ????? Heq; inversion Heq; subst.
       exact (cmpt_exp_tbl_disjoint_from_heap main_cmpt). }
 
-    (* 6 - Close the world of C: its compartment becomes Global regions, and the
+    (* 6 - Close the world of C: its compartment becomes Permanent regions, and the
        stack temporary, because main shares it with C; the exported entry
        [f] of main is safe to import; the export of C is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts lse_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hfamily_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts lse_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts lse_firmware

@@ -35,46 +35,6 @@ Section AllocatorMacros.
   (** The existing fetch macro proof specialized to an arbitrary WP mask, so
       allocator calls can keep the non-atomic service invariant open. *)
 
-  Lemma allocator_fetch_spec
-    (n off : Z) (rdst : RegName) (E : coPset)
-    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
-    (wentry wdst : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
-
-    let code := fetch_instrs off rdst in
-    let pc_end := (pc_a ^+ length code) in
-    executeAllowed pc_p = true ->
-    SubBounds pc_b pc_e pc_a pc_end ->
-    (pc_a + off)%a = Some (pc_b ^+ n) ->
-    withinBounds pc_b pc_e (pc_b ^+ n) = true ->
-    disjoint_from_shadow pc_b pc_e ->
-    is_heap_cap wentry.(lw) = false ->
-    rdst ≠ cnull ->
-
-    PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
-    rdst ↦ᵣ wdst ∗
-    (pc_b ^+ n) ↦ₐ□ wentry ∗
-    codefrag_pers pc_a code ∗
-    ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_end ∗
-         rdst ↦ᵣ lload_word pc_p wentry ∗
-         (pc_b ^+ n) ↦ₐ□ wentry ∗
-         codefrag_pers pc_a code
-         -∗ WP Exec @ E {{ φ }})
-    ⊢ WP Exec @ E {{ φ }}.
-  Proof.
-    intros code pc_end Hvpc Hcont Hoff Hpc_n Hdisjoint Hnonheap Hrdst;
-      subst code pc_end.
-    iIntros "(HPC & Hrdst & #Hentry & #Hcode & Hφ)".
-    codefrag_facts "Hcode".
-    assert (is_shadow_address (pc_b ^+ n) = false) as Hshadow.
-    { eapply disjoint_from_shadow_not_in; eauto. }
-    (* Auipcc rdst off. *)
-    iInstr "Hcode".
-    (* CLoad rdst rdst 0. *)
-    iInstr "Hcode".
-    iApply "Hφ"; iFrame "∗ Hentry Hcode".
-  Qed.
-
   Lemma allocator_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (φ : language.val griotte_lang → iPropI Σ) :
@@ -155,7 +115,7 @@ Section AllocatorMacros.
     codefrag_facts "Hcode".
     iEval (rewrite /allocator_range_memory
       (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons) in "Hmem".
-    iDestruct "Hmem" as "[[%w Ha] Hmem]".
+    iDestruct "Hmem" as "[ [%w Ha] Hmem]".
 
     iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
     (* Store rptr 0: the status witness of the capability's identifier
@@ -315,7 +275,7 @@ Section AllocatorMacros.
     assert (Hbnext_e : (b ^+ 1 <= e)%a) by solve_addr.
     iEval (rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons)
       in "Hcells".
-    iDestruct "Hcells" as "[[Hs HP] Hcells]".
+    iDestruct "Hcells" as "[ [Hs HP] Hcells]".
     assert (Hmap : heap_to_shadow b = Some sb).
     { specialize (Htranslate b).
       replace (sb ^+ (b - b)) with sb in Htranslate by solve_addr.
@@ -463,30 +423,6 @@ Section AllocatorLayoutFacts.
     assert (withinBounds heap_b heap_e x = true) as ->
       by (apply withinBounds_true_iff; solve_addr).
     solve_addr.
-  Qed.
-
-  (** The allocator's three imports, as separate words. *)
-  Lemma allocator_imports_split :
-    [[allocator_pcc_b, allocator_code_b]] ↦ₐ [[lword_of_word <$> allocator_imports]] ⊣⊢
-    (allocator_pcc_b ^+ allocator_shadow_import_off) ↦ₐ
-      Cap RW Global shadow_b shadow_e shadow_b ∗
-    (allocator_pcc_b ^+ 1) ↦ₐ
-      SealRange (false, true) Global AllocOtype (AllocOtype ^+ 1) AllocOtype ∗
-    (allocator_pcc_b ^+ allocator_revoker_import_off) ↦ₐ allocator_revoker_cap.
-  Proof.
-    pose proof allocator_common_size_imports as Hsize.
-    rewrite allocator_imports_length in Hsize.
-    rewrite /allocator_imports !fmap_cons fmap_nil.
-    rewrite (region_pointsto_cons allocator_pcc_b (allocator_pcc_b ^+ 1));
-      [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 1) (allocator_pcc_b ^+ 2));
-      [|solve_addr|solve_addr].
-    rewrite (region_pointsto_cons (allocator_pcc_b ^+ 2) allocator_code_b);
-      [|solve_addr|solve_addr].
-    rewrite /region_pointsto finz_seq_between_empty; last solve_addr.
-    rewrite /allocator_shadow_import_off /allocator_revoker_import_off.
-    assert (allocator_pcc_b ^+ 0 = allocator_pcc_b) as -> by solve_addr.
-    iSplit; [iIntros "($ & $ & $ & _)" | iIntros "($ & $ & $)"]; done.
   Qed.
 
   (** The allocator's three imports, as separate persistent words. *)

@@ -144,7 +144,7 @@ Section VAE.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
@@ -258,11 +258,11 @@ Section VAE.
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback1).
-    apply load_heap_in_world_nonheap in Hrcgp;
+    apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcra;
+    apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcs0;
+    apply load_heap_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=;
         reflexivity].
     subst rcgp rcra rcs0.
@@ -304,7 +304,7 @@ Section VAE.
       as "[Hstack_revoked_W5q %Hstack_revoked_W5q]"; first done.
     { apply vae_revoked_addresses_close_list; last exact Hstack_revoked_W3.
       by eapply vae_quarantined_disjoint_nonheap. }
-    iDestruct (vae_world_callback_restored W2q W3 W5q C wca0 callback1 with "Hseal_switcher Hinterp_W2q_wca0")
+    iDestruct (vae_world_callback_restored W2q W5q C wca0 callback1 with "Hseal_switcher Hinterp_W2q_wca0")
       as "#Hinterp_W5q_wca0"; [done..|].
     iDestruct (vae_call_args W5q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
@@ -341,11 +341,11 @@ Section VAE.
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
       & Hrmap & Hstk & HK & %Hrestored)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
-    apply load_heap_in_world_nonheap in Hrcgp;
+    apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcra;
+    apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=; reflexivity].
-    apply load_heap_in_world_nonheap in Hrcs0;
+    apply load_heap_nonheap in Hrcs0;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=;
         reflexivity].
     subst rcgp rcra rcs0.

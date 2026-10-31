@@ -107,7 +107,7 @@ Theorem cmdc_runs_and_gracefully_halts :
 Proof.
   pose proof (machine_run_correct (N.to_nat 10000%N) Executable cmdc_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  destruct Hrun as [ [ [ [ [pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
   exact (cmdc_adequacy _ _ _ _ cmdc_demo_ok Hrun).
 Qed.

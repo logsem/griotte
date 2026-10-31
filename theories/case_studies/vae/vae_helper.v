@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
+From griotte Require Import world_interp_allocation world_interp_revocation interp_weakening monotone.
 
 Section VAE_helper.
   Context
@@ -38,14 +38,6 @@ Section VAE_helper.
     inversion H as [y' [b [Heq1 [Heq2 Hy] ] ] ].
     inversion Hy; subst; auto.
     apply encode_inj in Heq1. inversion Heq1.
-  Qed.
-  Lemma rtc_rel_pub' x :
-    rtc (convert_rel awk_rel_pub) (encode true) (encode x) ->
-    x = true.
-  Proof.
-    intros Hrtc.
-    apply encode_inj.
-    apply rtc_rel_pub with (encode true); auto.
   Qed.
 
   Lemma rtc_rel_pub_inv y x :

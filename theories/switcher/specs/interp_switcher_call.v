@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel region_invariants bitblast.
+From griotte Require Export logrel world_interp bitblast.
 From griotte Require Import fundamental switcher_preamble.
 From griotte Require Export interp_switcher_call_gen.
 From griotte Require Import switcher_exception.

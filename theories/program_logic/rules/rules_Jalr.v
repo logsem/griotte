@@ -79,7 +79,7 @@ Section griotte_lang_rules.
     { rewrite jalr_target_ok_and_tag Hok andb_false_r in Hstep.
       instr_fail Hstep. by eapply Jalr_spec_failure_target. }
     assert (and_tag s wsrc.(lw) = wsrc.(lw)) as Heq.
-    { pose proof Hok as Hok'. apply andb_prop in Hok' as [[Ht _]%andb_prop Hx].
+    { pose proof Hok as Hok'. apply andb_prop in Hok' as [ [Ht _]%andb_prop Hx].
       by apply (reg_phys_executable R C). }
     rewrite Heq in Hstep Hrel. rewrite Hok Hwst /= in Hstep.
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; cbn in Hstep.

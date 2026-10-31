@@ -10,7 +10,7 @@ From griotte Require Import
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -30,11 +30,8 @@ Section error_handling_obligations.
   Lemma error_handling_fw_obligations :
     fw_obligations Σ error_handling_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -117,8 +114,8 @@ Section error_handling_obligations.
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [error_handling_firmware fw_cmpts]) in "Hcmpts".
     iDestruct "Hcmpts"
@@ -192,17 +189,17 @@ Section error_handling_obligations.
       by (rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack; lia).
     apply Hmin_bridge in Hstk_size; clear Hmin_bridge.
 
-    (* 7 - Close the world of [adv]: its compartment becomes Global regions, and
+    (* 7 - Close the world of [adv]: its compartment becomes Permanent regions, and
        the stack temporary; [stats_read] is safe to import; the export of
        [adv] is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
             _ Hadv_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
-           with "Hfamily_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts error_handling_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts

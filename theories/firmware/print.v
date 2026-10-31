@@ -140,7 +140,7 @@ Ltac2 flat (s : string) : string :=
 
 (** [Message.of_constr] parenthesises applications: strip one pair of outer
     parentheses when it encloses the whole string and is not a tuple's. A
-    half-open range [[b, e)] counts as a pair. *)
+    half-open range $[b, e)$ counts as a pair. *)
 Ltac2 strip_parens (s : string) : string :=
   let n := String.length s in
   let ch i := Char.to_int (String.get s i) in

@@ -146,8 +146,8 @@ Section Switch_Trusted_Stack_Exhausted.
     world_interp W C ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs0 rcs1,
-        ⌜load_heap_in_world W wcgp rcgp ∧ load_heap_in_world W wcra rcra ∧
-          load_heap_in_world W wcs0 rcs0 ∧ load_heap_in_world W wcs1 rcs1⌝ -∗
+        ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
+          load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝ -∗
         world_interp W C ∗
         PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
         cs0 ↦ᵣ[th] rcs0 ∗
@@ -177,7 +177,7 @@ Section Switch_Trusted_Stack_Exhausted.
     switcher_open_label ".Lswitch_trusted_stack_exhausted" "Hswitcher" as "Hcode".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ _ cs0 csp
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W C [] _ _ _ _ _ _ cs0 csp
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs0 $Hcsp $Ha_stk0 $Hworld]"
       as (rcs0) "(%Hrcs0 & HPC & Hcs0 & Hcsp & Ha_stk0 & Hworld)".
@@ -186,7 +186,7 @@ Section Switch_Trusted_Stack_Exhausted.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cs1 csp SpillSlot_cs1 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ _ cs1 csp
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W C [] _ _ _ _ _ _ cs1 csp
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld]"
       as (rcs1) "(%Hrcs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
@@ -195,7 +195,7 @@ Section Switch_Trusted_Stack_Exhausted.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cra csp SpillSlot_pcc *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ _ cra csp
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W C [] _ _ _ _ _ _ cra csp
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hworld]"
       as (rcra) "(%Hrcra & HPC & Hcra & Hcsp & Ha_stk3 & Hworld)".
@@ -204,7 +204,7 @@ Section Switch_Trusted_Stack_Exhausted.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W W C [] _ _ _ _ _ _ cgp csp
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ W C [] _ _ _ _ _ _ cgp csp
       _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld]"
       as (rcgp) "(%Hrcgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld)".

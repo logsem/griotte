@@ -104,7 +104,7 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
             ([Instr cf'], φ').
 Proof.
   revert cf cf' φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
-  cbn. intros cf cf' [[[[wpc r] sr] m] st] Hc.
+  cbn. intros cf cf' [ [ [ [wpc r] sr] m] st] Hc.
   destruct cf; simplify_eq.
   - (* Executable: the fetch and the instruction, then the rest of the run. *)
     destruct (isCorrectPCb wpc) eqn:HPC.
@@ -140,7 +140,7 @@ Lemma machine_run_conf_correct `{MachineParameters} fuel cf (φ : ExecConf) cf' 
   rtc erased_step ([Seq (Instr cf)], φ) ([Instr cf'], φ').
 Proof.
   revert cf φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
-  cbn. intros cf [[[[wpc r] sr] m] st] Hc.
+  cbn. intros cf [ [ [ [wpc r] sr] m] st] Hc.
   destruct cf; simplify_eq.
   - (* Executable: the fetch and the instruction, then the rest of the run. *)
     destruct (isCorrectPCb wpc) eqn:HPC.

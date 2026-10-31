@@ -225,30 +225,6 @@ Section KVS_physical_map.
     by apply elem_of_set_seq.
   Qed.
 
-  Lemma kvs_physical_map_indom_idx (pkvs : kvs_physical_map) (a : Addr) (idx : kvs_idx_t) :
-    idx ∈ dom pkvs ->
-    is_physical_kvs a pkvs -∗
-    ⌜ 0 <= idx < SIZE_MAP ⌝.
-  Proof.
-    iIntros (Hm_idx) "(%Hwf_kvs & _)"; iPureIntro.
-    by eapply wf_kvs_indom_idx.
-  Qed.
-
-  Lemma kvs_physical_map_open_in
-    (a : Addr) (pkvs : kvs_physical_map)
-    (idx : kvs_idx_t) (k : full_key_t) (w : LWord) :
-
-    pkvs !! idx = Some (Some (k, w)) ->
-
-    is_physical_kvs a pkvs -∗
-    is_physical_kvs_open a pkvs idx ∗ physical_kvs_entry a idx (Some (k, w)).
-  Proof.
-    iIntros (Hpkvs_idx) "[%Hwf_pkvs HKVS]".
-    rewrite -{1}(insert_id pkvs idx (Some (k,w))); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[$ HKVS]".
-    iFrame; eauto.
-  Qed.
-
   #[global] Instance Permutation_Reflexive {A} : Reflexive (@Permutation A).
   Proof. intros l ; done. Qed.
 
@@ -309,30 +285,6 @@ Section KVS_physical_map.
     done.
   Qed.
 
-  Lemma kvs_physical_map_open_neq
-    (a : Addr) (pkvs : kvs_physical_map) (idx idx' : nat) (k : full_key_t) (w : LWord):
-    pkvs !! idx = Some (Some (k, w)) ->
-    0 <= idx' < SIZE_MAP ->
-    idx ≠ idx' ->
-    is_physical_kvs a pkvs -∗
-    ∃ opt_kw',
-      is_physical_kvs_open a pkvs idx' ∗
-      ⌜ pkvs !! idx' = Some opt_kw' ⌝ ∗
-      physical_kvs_entry a idx' opt_kw' ∗
-      ⌜ match opt_kw' with | Some kw' => k ≠ kw'.1 | None => True end ⌝.
-  Proof.
-    iIntros (Hpkvs_idx Hidx' Hidx_ne) "[%Hwf_kvs HKVS]".
-    pose proof (wf_kvs_is_Some _ _ Hwf_kvs Hidx') as [ opt_kw' Hm_idx' ].
-    iExists opt_kw'.
-    rewrite -{1}(insert_id pkvs idx' opt_kw'); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[ Hk' HKVS]".
-    iFrame "∗%".
-    iPureIntro.
-    destruct opt_kw' as [ [k' w'] |]; auto.
-    pose proof (wf_kvs_neq _ _ _ _ _ _ _ Hwf_kvs Hidx_ne Hpkvs_idx Hm_idx') as Hkk'.
-    done.
-  Qed.
-
 
   Lemma kvs_physical_map_close
     (a : Addr) (pkvs : kvs_physical_map) (idx : kvs_idx_t) (opt_kwidx : kvs_physical_entry):
@@ -389,34 +341,6 @@ Section KVS_physical_map.
   Lemma elem_of_kvs_keys (pkvs : kvs_physical_map) (k : full_key_t) :
     k ∈ kvs_keys pkvs ↔ (∃ w, kvs_elem_of_kvs pkvs k w).
   Proof. split ; [apply elem_of_kvs_keys_1 | apply elem_of_kvs_keys_2]. Qed.
-
-  Lemma kvs_physical_map_open_notin
-    (a : Addr) (pkvs : kvs_physical_map)
-    (idx : kvs_idx_t) (uk : user_key_t) (mk : map_key_t) :
-    let fkey := kvs_full_key uk mk in
-    is_uint16 mk ->
-    (0 ≤ idx < SIZE_MAP)%Z →
-    fkey ∉ kvs_keys pkvs ->
-    is_physical_kvs a pkvs -∗
-    ∃ opt_kwidx,
-      ⌜ pkvs !! idx = Some opt_kwidx ⌝ ∗
-      is_physical_kvs_open a pkvs idx ∗
-      physical_kvs_entry a idx opt_kwidx ∗
-      ⌜ match opt_kwidx with | Some kwidx => kwidx.1 ≠ fkey | None => True end ⌝.
-  Proof.
-    intros fkey Hwf_full_key Hidx Hs'.
-    iIntros "[%Hwf_kvs HKVS]".
-    assert ( is_Some (pkvs !! idx) ) as [ opt_kwidx Hm_idx].
-    { apply wf_kvs_is_Some; auto; lia. }
-    rewrite -{1}(insert_id pkvs idx opt_kwidx); last done.
-    iDestruct (big_sepM_insert_delete with "HKVS") as "[Hkvs_entry HKVS]".
-    iFrame "∗%".
-    iPureIntro.
-    destruct opt_kwidx as [ [ kidx widx ]|]; auto.
-    cbn.
-    assert ( kidx ∈ kvs_keys pkvs ) as Hkidx; last set_solver.
-    apply elem_of_kvs_keys; eexists _,_; eauto.
-  Qed.
 
   Lemma NoDup_kvs_keys_update
     (pkvs : kvs_physical_map) (idx : kvs_idx_t) (k : full_key_t) (w w' : LWord) :
@@ -1242,22 +1166,6 @@ Section KVS_init.
         lia.
   Qed.
 
-  Lemma kvs_keys_map_init : kvs_keys kvs_physical_map_init ≡ₚ [].
-  Proof.
-    rewrite /kvs_physical_map_init.
-    generalize 0 as k.
-    induction SIZE_MAP; intros k; cbn.
-    - by rewrite kvs_keys_empty.
-    - specialize (IHn (S k)).
-      rewrite kvs_keys_insert_None; auto.
-      apply not_elem_of_list_to_map_1.
-      intro Hk; apply list_elem_of_fmap_1 in Hk as ([k' w']&?&Hk); simplify_eq.
-      cbn in *.
-      apply list_elem_of_fmap_1 in Hk as (idx&?&Hk); simplify_eq.
-      apply elem_of_seq in Hk.
-      lia.
-  Qed.
-
   Lemma kvs_not_elem_of_kvs_physical_map_init_lookup k w :
     ¬ (kvs_elem_of_kvs kvs_physical_map_init k w).
   Proof.
@@ -1279,16 +1187,6 @@ Section KVS_init.
     - destruct Hkvs as (m & Huk & Hm_uk).
       apply Hm in Huk; set_solver.
     - eapply kvs_not_elem_of_kvs_physical_map_init_lookup; eauto.
-  Qed.
-
-  Lemma elem_of_kvs_physical_map_init (idx : nat) (opt_kv : kvs_physical_entry) :
-    kvs_physical_map_init !! idx = Some opt_kv -> opt_kv = None.
-  Proof.
-    intros Hidx.
-    rewrite /kvs_physical_map_init in Hidx.
-    apply elem_of_list_to_map_2 in Hidx.
-    apply list_elem_of_fmap in Hidx as (n&?&Hidx); simplify_eq.
-    done.
   Qed.
 
   Lemma kvs_initial_map_init (b e : Addr) :

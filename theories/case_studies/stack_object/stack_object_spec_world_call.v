@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region proofmode register_tactics.
-From griotte Require Import region_invariants_revocation region_invariants_allocation.
+From griotte Require Import world_interp_revocation world_interp_allocation.
 From griotte Require Import interp_weakening monotone world_std_revocation.
 From griotte Require Import world_ghost_theory world_interp_stack switcher_base_interp.
 From griotte Require Import allocator_resources heap_region.
@@ -46,7 +46,6 @@ Section SO_World_Call.
     ∗ interp W0 C (Cap RWL Local stack_b stack_e stack_a)
     ∗ world_interp W2 C
     ∗ a_stk1 ↦ₐ WInt 0
-    ∗ £ 1
     ={⊤}=∗
       world_interp W3 C
       ∗ ⌜related_sts_pub_world W2 W3⌝
@@ -54,7 +53,7 @@ Section SO_World_Call.
       ∗ interp W3 C (Cap RWL Local a_stk1 a_stk2 a_stk1).
   Proof.
     intros W3 Ha_stk2 Hbounds Ha_stk1_W0 Ha_stk1_W2 Hpriv.
-    iIntros "(#Hthread & #Hinterp_stack & Hworld_interp & Ha_stk1 & Hlc)".
+    iIntros "(#Hthread & #Hinterp_stack & Hworld_interp & Ha_stk1)".
     destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
     assert (addr_key None a_stk1 = LNonHeap a_stk1) as Hkey_stk1 by done.
 
@@ -80,11 +79,11 @@ Section SO_World_Call.
       { intros Wcv; apply Hpers_Pastk1. }
       iFrame "Hrel_astk1".
       rewrite /temp_res. iApply heap_key_resource_intro.
-      iExists (WInt 0). rewrite /temp_body.
+      iExists (WInt 0). rewrite /TmpRes.
       iSplit; first iPureIntro.
       { by apply isWL_nonO. }
       iFrame "Ha_stk1".
-      iSplit; first iApply "Hmono_Pastk1".
+      iSplitR; [|iNext; iApply "Hmono_Pastk1"].
       iNext. rewrite /=.
       iApply "Hwcond_Pastk1".
       iApply interp_int.
@@ -178,7 +177,7 @@ Section SO_World_Call.
       - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
         iSplit; first (iPureIntro; by rewrite Hpartition).
         iSplit; first done.
-        iExists pa, Φa. rewrite /temp_body. by iFrame "Hrel Hk".
+        iExists pa, Φa. by iFrame "Hrel Hk".
       - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
         iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
         iSplit; first (iPureIntro; constructor; eauto).
@@ -217,8 +216,7 @@ Section SO_World_Call.
     world_interp W2q C -∗
     interp W2 C (WCap t p g b e (finz.max b e) @@? π) -∗
     StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
-    a_stk2 ↦ₐ WInt 0 -∗
-    £ 1
+    a_stk2 ↦ₐ WInt 0
     ={⊤}=∗
     world_interp W3 C ∗
     interp W3 C (WCap t p g b e (finz.max b e) @@? π) ∗
@@ -231,7 +229,7 @@ Section SO_World_Call.
   Proof.
     intros W2 W2q W3.
     iIntros (Hextract Hq_stack Hno_overlap Hastk1 Hastk2 Hcsp_b_astk2)
-      "#Hthread #Hseal #Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2 Hlc".
+      "#Hthread #Hseal #Hinterp_csp #Hinterp_wct1 Hworld_interp_C #Hinterp_object Hstack_revoked Hastk2".
     unfold StackEntry_reserved_space in Hastk1.
     destruct Hextract as [Hl_revoked_nodup Hl_revoked_temporaries].
     set (temps := so_object_temporaries W0 π b e) in *.
@@ -276,7 +274,7 @@ Section SO_World_Call.
     (* Insert the allocated stack object [a_stk2] in the world *)
     iMod (stack_object_reinstate_fresh_object
             W0 W2q C csp_b csp_e (stk_start_a csp_b csp_e) a_stk2 a_stk1
-           with "[$Hthread $Hinterp_csp $Hworld_interp_C $Hastk2 $Hlc]")
+           with "[$Hthread $Hinterp_csp $Hworld_interp_C $Hastk2]")
       as "(Hworld_interp_C & %Hpub_W2q_W3 & %Ha_stk2_W3 & #Hinterp_z)"; eauto.
     { split; first exact Hcsp_b_astk2.
       split; solve_addr+Hastk1 Hastk2. }
@@ -294,7 +292,7 @@ Section SO_World_Call.
     { destruct (is_sealed_with_o wct1.(lw) ot_switcher) eqn:His_sealed; last done.
       destruct wct1 as [ [| [|] | |] π1]; try discriminate.
       simpl in His_sealed; apply Z.eqb_eq, finz_to_z_eq in His_sealed as ->.
-      iApply (interp_monotone_sd W0 W3 with "[] Hseal Hinterp_wct1"); eauto.
+      iApply (interp_sealed_global_kind_world_free W0 W3 with "Hseal Hinterp_wct1").
     }
 
     (* The stack frame of the callee is still revoked *)
@@ -422,8 +420,7 @@ Section SO_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd with "[] Hseal Hinterp_C_f").
-      by iPureIntro. }
+    { iApply (interp_sealed_global_kind_world_free with "Hseal Hinterp_C_f"). }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

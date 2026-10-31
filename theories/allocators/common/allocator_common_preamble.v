@@ -87,8 +87,8 @@ Section AllocatorHeaders.
       The empty case [h = stop] terminates the chain at the bump pointer.
 
       For example, with two payloads of lengths four and three:
-        header at 100: [106; r1], payload [102, 106)
-        header at 106: [111; r2], payload [108, 111)
+        header at 100: [106; r1], payload $[102, 106)$
+        header at 106: [111; r2], payload $[108, 111)$
         stop at 111: no header is read here.
       The physical links are 100 -> 106 -> 111, and the logical list is
       [(102, 106, r1, ι1); (108, 111, r2, ι2)]. Unfolding owns the header at 100,

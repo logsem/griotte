@@ -47,27 +47,6 @@ Section SealRegistryNames.
     {seal_registry_preg : sealRegistryPreG ObjKey Σ}
   .
 
-  (** The ghost names of the registries of several sealers, with distinct
-      otypes [os]: an empty map for each of them. The name of the otype [o]
-      is that of the first allocation of [o], so the names of [os] are
-      distinct. *)
-  Lemma seal_registry_names_alloc (os : list OType) :
-    NoDup os →
-    ⊢ |==> ∃ name : OType → gname,
-      [∗ list] o ∈ os, ghost_map_auth (name o) 1 (∅ : gmap ObjKey CmptName).
-  Proof.
-    induction 1 as [|o os Ho Hnodup IH].
-    - iModIntro. iExists (λ _, 1%positive). by rewrite big_sepL_nil.
-    - iMod IH as (name) "Hauths".
-      iMod (ghost_map_alloc_empty (K := ObjKey) (V := CmptName)) as (γ) "Hauth".
-      iModIntro.
-      iExists (λ o', if decide (o' = o) then γ else name o').
-      rewrite big_sepL_cons decide_True //. iFrame "Hauth".
-      iApply (big_sepL_impl with "Hauths").
-      iIntros "!>" (i o' Hi) "Hauth".
-      rewrite decide_False; first done.
-      intros ->. apply Ho. by eapply list_elem_of_lookup_2.
-  Qed.
 End SealRegistryNames.
 
 Section SealRegistry.
@@ -189,45 +168,6 @@ Section SealRegistry.
     iExists M. iFrame "Hauth". iExact "Hcontents".
   Qed.
 
-  (** The empty registry. *)
-  Lemma registry_alloc_empty (E : coPset) :
-    registry_auth ∅
-    ={E}=∗
-    registry_inv.
-  Proof.
-    iIntros "Hauth".
-    iApply (registry_alloc E ∅ with "Hauth").
-    iNext. by rewrite big_sepM_empty.
-  Qed.
-
-  (** A new object is registered for [C], with its contents. The contents
-      of one key are exclusive: a key that is already registered cannot be
-      registered again. *)
-  Lemma registry_insert (E F : coPset) (C : CmptName) (k : ObjKey) :
-    ↑N ⊆ F → ↑N ⊆ E →
-    registry_inv -∗
-    (∀ C', ▷ sealed_obj_resources C' k -∗ ▷ sealed_obj_resources C k -∗ ▷ False) -∗
-    ▷ sealed_obj_resources C k -∗
-    na_own (tpool th) F
-    ={E}=∗
-    registry_member k C ∗
-    na_own (tpool th) F.
-  Proof.
-    iIntros (HF HE) "#Hreg Hexcl Hk Hna".
-    iMod (na_inv_acc with "Hreg Hna") as "(Hopen & Hna & Hclose)"; [done|done|].
-    iDestruct "Hopen" as (M) "[>Hauth Hcontents]".
-    destruct (M !! k) as [C'|] eqn:HM.
-    - iEval (rewrite (big_sepM_delete (λ k' C', sealed_obj_resources C' k') _ _ _ HM)) in "Hcontents".
-      iDestruct "Hcontents" as "[Hk' _]".
-      iDestruct ("Hexcl" with "Hk' Hk") as ">[]".
-    - iMod (ghost_map_insert_persist k C HM with "Hauth") as "[Hauth #Hel]".
-      iCombine "Hk Hcontents" as "Hcontents".
-      iEval (rewrite -(big_sepM_insert (λ k' C', sealed_obj_resources C' k') _ _ _ HM)) in "Hcontents".
-      iMod ("Hclose" with "[- $Hna]") as "Hna".
-      { iExists (<[k := C]> M). iFrame "Hauth". iExact "Hcontents". }
-      iModIntro. iFrame "Hna". iExact "Hel".
-  Qed.
-
   (** ** Unsealing
 
       A valid word sealed with [o] has a registered key, whose contents are
@@ -274,25 +214,6 @@ Section SealRegistry.
     iEval (rewrite -(big_sepM_delete (λ k' C', sealed_obj_resources C' k') _ _ _ HM)) in "Hcontents".
     iApply ("Hclose" with "[- $Hna]").
     iExists M. iFrame "Hauth". iExact "Hcontents".
-  Qed.
-
-  (** ** Validity
-
-      A word sealed with [o] whose key is registered for [C] is valid in
-      [C], in every world. *)
-  Lemma registry_sealed_interp (W : WORLD) (C : CmptName) (sb : Sealable) (π : option AId) (k : ObjKey) :
-    key_of (lforce_global (WSealable sb @@? π)) = Some k →
-    shape (lforce_global (WSealable sb @@? π)) →
-    o ↪ₒ{SealGlobal} registry_propC -∗
-    registry_member k C -∗
-    sealed_payload_ok (WSealable sb @@? π) -∗
-    interp W C (WSealed o sb @@? π).
-  Proof.
-    iIntros (Hkey Hshape) "#Hs #Hel #Hpayload".
-    iApply (interp_sb_intro_global W C o registry_propC sb π with "[] Hs [] Hpayload").
-    - iApply registry_kind_ok.
-    - iApply bi.later_intro.
-      iApply (registry_propC_intro th W C _ k Hkey Hshape with "Hel").
   Qed.
 
 End SealRegistry.

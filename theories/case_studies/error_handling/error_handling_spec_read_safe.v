@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules rules_trap_cause rules_deref_quar.
-From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
+From griotte Require Import world_interp_revocation wp_rules_interp interp_weakening region_open.
 From griotte Require Import switcher_base.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks error_handling_spec_handler_blocks
@@ -110,7 +110,7 @@ Section Error_Handling_Read_Safe.
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ a with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO | done |].
-    iPoseProof (load_witness_of_intro W w) as "Hwit".
+    iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iDestruct (memMap_resource_2ne_apply_dq with "Hi Ha") as "[Hmem %Hpc_a]".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
@@ -558,7 +558,7 @@ Section Error_Handling_Read_Safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact STATS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact STATS_cgp_base_not_heap).
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %b_stk %e_stk".

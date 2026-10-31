@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher_base switcher_base_ktk.
 From griotte Require Import register_tactics map_simpl.
-From griotte Require Import world_interp_stack world_interp_allocation_compartments.
+From griotte Require Import world_interp_stack world_interp_allocation_compartments interp_weakening.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.
 From griotte.allocators.ownership Require Export allocator_malloc_spec allocator_free_spec
@@ -44,7 +44,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (Hpc_b)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "(#Hthread & #Htv & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
+      "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
         & %Hsync & _ & Hcstk & Hna)".
     iEval (rewrite world_resources_exclusive) in "Hworld".
     iDestruct "Hregister" as
@@ -217,7 +217,7 @@ Section Heap_Temporal_Safety_Interp.
         iMod ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights $Hna]")
           as "Hna".
         destruct Hbounds_size as [Hbounds Hsize].
-        (* The cells of [ι] become Global regions: the world is unchanged. *)
+        (* The cells of [ι] become Permanent regions: the world is unchanged. *)
         set (lk := (λ a, LHeap a ι) <$> finz.seq_between b e).
         set (Wshare := revoke W).
         iMod (world_interp_extend_perm_keys (revoke W) C lk
@@ -266,7 +266,7 @@ Section Heap_Temporal_Safety_Interp.
           iSplit; first (iPureIntro; reflexivity).
           iSplit; first (iPureIntro; apply persistent_cond_interp_nonlocal).
           iSplit.
-          { rewrite /region_rel /= /region_rel_g.
+          { rewrite /region_rel /= /region_rel_perm.
             iApply (big_sepL_elem_of with "Hrels"); exact Hk_in. }
           iSplit.
           { iNext. iApply zcond_interp_nonlocal. }
@@ -424,7 +424,7 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
-    iIntros (t') "#Ht'".
+    iIntros (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W').

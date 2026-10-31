@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import memory_region monotone.
-From griotte Require Export logrel ftlr_base.
+From griotte Require Export logrel.
 
 Section fundamental.
   Context
@@ -22,16 +22,6 @@ Section fundamental.
   #[local] Notation R := (regsO Σ).
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
-  Lemma enter_cond_weakening W C p b e a π :
-    (□ enter_cond W C p Global b e a π interp) -∗
-     □ enter_cond W C p Local b e a π interp.
-  Proof.
-    iIntros "#Hinterp".
-    rewrite /enter_cond /interp_expr /=.
-    iIntros (W' Hrelated) "!> %g' %Hflows".
-    assert (LocalityFlowsTo g' Global) as Hflow' by (destruct g'; auto).
-    iApply ("Hinterp" $! W' with "[//] [//]").
-  Qed.
 
   (** A Local copy of a Global sentry runs at the running thread: the thread
       is in the compartment whenever the copy runs. *)
@@ -53,8 +43,8 @@ Section fundamental.
   Lemma rcond_sel_weakening g g' P C p'' :
     LocalityFlowsTo g' g →
     □ (⌜g = Global⌝ → ⌜g' = Local⌝ → thread_in th C) -∗
-    ▷ (if isGlobal g then rcond_g P C p'' (λ t, interp (th := t)) else rcond P C p'' interp) -∗
-    ▷ (if isGlobal g' then rcond_g P C p'' (λ t, interp (th := t)) else rcond P C p'' interp).
+    ▷ (if isGlobal g then rcond_g P C p'' (λ t, interp (th := t)) else rcond_l P C p'' interp) -∗
+    ▷ (if isGlobal g' then rcond_g P C p'' (λ t, interp (th := t)) else rcond_l P C p'' interp).
   Proof.
     iIntros (Hl) "#Hth H". destruct g, g'; cbn in Hl |- *; try done.
     iApply (rcond_sel_here Global with "[] H"). by iApply "Hth".
@@ -63,14 +53,14 @@ Section fundamental.
   (** The write condition of a capability, through a lesser permission. *)
   Lemma wcond_sel_weakening p p' P C :
     PermFlowsTo p' p →
-    ▷ (if isWL p then wcond P C interp else wcond_nwl P C interp) -∗
-    ▷ (if isWL p' then wcond P C interp else wcond_nwl P C interp).
+    ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
+    ▷ (if isWL p' then wcond_wl P C interp else wcond_nwl P C interp).
   Proof.
     iIntros (Hp) "H".
     destruct (isWL p') eqn:Hwl'.
     { by rewrite (isWL_flowsto p' p Hp Hwl'). }
     destruct (isWL p); last done.
-    iNext. by iApply wcond_wcond_nwl.
+    iNext. by iApply wcond_wl_wcond_nwl.
   Qed.
 
   (** The region of a key, read through a lesser capability. *)
@@ -226,11 +216,11 @@ Section fundamental.
     iApply interp_weakening_same_bounds_same_loc; eauto; try solve_addr; try done.
   Qed.
 
-  Lemma safe_to_unseal_weakening W C b e b' e':
+  Lemma safe_to_unseal_weakening C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_unseal W C (λ t, interp (th := t)) b e -∗
-    safe_to_unseal W C (λ t, interp (th := t)) b' e'.
+    safe_to_unseal C (λ t, interp (th := t)) b e -∗
+    safe_to_unseal C (λ t, interp (th := t)) b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_unseal.
@@ -240,11 +230,11 @@ Section fundamental.
     - iClear "HA"; rewrite !finz_seq_between_empty;[done |solve_addr].
   Qed.
 
-  Lemma safe_to_seal_weakening W C b e b' e':
+  Lemma safe_to_seal_weakening C b e b' e':
     (b <= b')%ot ->
     (e' <= e)%ot ->
-    safe_to_seal W C (λ t, interp (th := t)) b e -∗
-    safe_to_seal W C (λ t, interp (th := t)) b' e'.
+    safe_to_seal C (λ t, interp (th := t)) b e -∗
+    safe_to_seal C (λ t, interp (th := t)) b' e'.
   Proof.
     iIntros (Hb He) "HA".
     rewrite /safe_to_seal.
@@ -396,18 +386,6 @@ Section fundamental.
     iIntros "#Hth H". by iApply (interp_load_word with "Hth").
   Qed.
 
-  Lemma interp_in_mem_unseal_payload W C ot sb π :
-    interp W C (WSealed ot sb @@? π) -∗
-    interp_in_mem RWL W C (WSealable sb @@? π) -∗ interp W C (WSealable sb @@? π).
-  Proof.
-    iIntros "#Hsealed Hmem".
-    iEval (rewrite interp_in_mem_eq) in "Hmem".
-    by replace (lload_word RWL (WSealable sb @@? π)) with (WSealable sb @@? π)
-      by (by destruct sb).
-  Qed.
-
-
-
   Lemma interp_in_mem_readonly_word W C w :
     interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (lreadonly w).
   Proof.
@@ -424,14 +402,14 @@ Section fundamental.
   Lemma zcond_interp_in_mem C : ⊢ zcond (interp_in_mem RWL) C.
   Proof. iIntros "!> %W1 %W2 %z %π _". iApply interp_untagged; done. Qed.
 
-  Lemma wcond_interp_in_mem C : ⊢ wcond (interp_in_mem RWL) C interp.
+  Lemma wcond_wl_interp_in_mem C : ⊢ wcond_wl (interp_in_mem RWL) C interp.
   Proof. iIntros "!> %W %w H". by iApply interp_to_in_mem. Qed.
 
-  Lemma rcond_interp_in_mem C p : thread_in th C -∗ rcond (interp_in_mem RWL) C p interp.
+  Lemma rcond_l_interp_in_mem C p : thread_in th C -∗ rcond_l (interp_in_mem RWL) C p interp.
   Proof. iIntros "#Hth !> %W %w H". by iApply (interp_in_mem_load_word with "Hth"). Qed.
 
-  Lemma rcond_interp_in_mem_nodl C p :
-    isDL p = false → ⊢ rcond (interp_in_mem RWL) C p interp.
+  Lemma rcond_l_interp_in_mem_nodl C p :
+    isDL p = false → ⊢ rcond_l (interp_in_mem RWL) C p interp.
   Proof.
     iIntros (Hdl) "!> %W %w H".
     rewrite /interp_in_mem_pre.
@@ -449,23 +427,9 @@ Section fundamental.
     iApply interp_in_mem_monotone; eauto.
   Qed.
 
-  Lemma future_priv_mono_interp_in_mem_z C z :
-    ⊢ future_priv_mono C interp_in_memC (WInt z).
-  Proof. iIntros "!> %W %W' %Hrelated _". iApply interp_int. Qed.
-
   Lemma future_pub_mono_interp_in_mem_z C z :
     ⊢ future_pub_mono C interp_in_memC (WInt z).
   Proof. iIntros "!> %W %W' %Hrelated _". iApply interp_int. Qed.
-
-  Lemma future_priv_mono_interp_in_mem_global (C : CmptName) (t : bool) (p : Perm) (b e a : Addr) :
-    ⊢ future_priv_mono C interp_in_memC (WCap t p Global b e a).
-  Proof.
-    iModIntro.
-    iIntros (W W') "%Hrelated Hinterp".
-    rewrite /=.
-    iApply (interp_in_mem_monotone_nl W W' C RWL (WCap t p Global b e a) with "Hinterp"); [exact Hrelated|].
-    by destruct t.
-  Qed.
 
   (* interp_in_mem_dl *)
   Program Definition interp_in_mem_dl : V :=
@@ -486,13 +450,13 @@ Section fundamental.
   Lemma zcond_interp_in_mem_dl C : ⊢ zcond interp_in_mem_dl C.
   Proof. by iModIntro; iIntros (W1 W2 w π) "_"; iApply interp_int. Qed.
 
-  Lemma wcond_interp_in_mem_dl C : thread_in th C -∗ wcond interp_in_mem_dl C interp.
+  Lemma wcond_wl_interp_in_mem_dl C : thread_in th C -∗ wcond_wl interp_in_mem_dl C interp.
   Proof.
     iIntros "#Hth !> %W %w H". iApply interp_to_in_mem.
     iApply interp_deeplocal_word. by iApply (interp_borrow_word with "Hth").
   Qed.
 
-  Lemma rcond_interp_in_mem_dl C p : isDL p = true -> ⊢ rcond interp_in_mem_dl C p interp.
+  Lemma rcond_l_interp_in_mem_dl C p : isDL p = true -> ⊢ rcond_l interp_in_mem_dl C p interp.
   Proof.
     iIntros (Hp) "!> %W %w H".
     rewrite /interp_in_mem_pre /= lload_word_eq Hp.
@@ -683,36 +647,6 @@ Section fundamental.
     by iIntros "!> _ _".
   Qed.
 
-  Lemma interp_weakening W C t p p' g g' b b' e e' a a' π :
-    (b <= b')%a ->
-    (e' <= e)%a ->
-    subseg_heap_base π b b' e' ->
-    PermFlowsTo p' p ->
-    LocalityFlowsTo g' g ->
-    ftlr_IH -∗
-    thread_in th C -∗
-    interp W C (WCap t p g b e a @@? π) -∗
-    interp W C (WCap t p' g' b' e' a' @@? π).
-  Proof.
-    intros Hb He Hgate Hp Hl. iIntros "#IH #Hth HA".
-    destruct t; last (iApply interp_untagged; done).
-    destruct (isO p') eqn:HpO'.
-    { iDestruct (interp_cap_heap_conditions with "HA") as "[#Hvalid #Hcoverage]".
-      iEval (rewrite interp_unfold interp1_eq HpO').
-      iSplit.
-      - iApply (heap_cap_ok_perm with "[]"); first exact Hp.
-        by iApply (heap_cap_ok_subseg with "Hvalid").
-      - destruct (decide (b' < e')%a) as [Hbe'|Hbe']; cycle 1.
-        { rewrite (finz_seq_between_empty b' e'); auto; solve_addr. }
-        rewrite (isWithin_finz_seq_between_decomposition b' e' b e); last solve_addr.
-        iEval (rewrite !big_sepL_app) in "Hcoverage". iDestruct "Hcoverage" as "[_ [Hcov _] ]".
-        iApply (big_sepL_impl with "Hcov"). iIntros "!>" (k x Hx) "Hx %Hheap".
-        iApply (heap_cap_O_key_weakening with "(Hx [//])"); done. }
-    destruct (isO p) eqn:HpO.
-    { eapply notisO_flowsfrom in Hp ; eauto; congruence. }
-    { iApply (interp_weakeningEO _ _ true p p' g g' with "Hth HA"); eauto. }
-  Qed.
-
   Lemma interp_weakening_word_load (W : WORLD) (C : CmptName) (p p' : Perm) v :
     PermFlowsTo p p'
     -> thread_in th C
@@ -762,63 +696,40 @@ Section fundamental.
         destruct (isDL p); auto.
   Qed.
 
-
 End fundamental.
 
-(** A sentry made from a capability: a Global one runs at every thread of
-    the compartment, through the induction hypothesis at that thread. *)
-Section fundamental_sentry.
+Section region_alloc_cmpt.
   Context
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
     `{MP: MachineParameters}
   .
+  #[local] Notation V := (interpO Σ).
 
-  Implicit Types W : WORLD.
-  Implicit Types C : CmptName.
-
-  Lemma interp_weakeningSentry W C sk t p g g' b b' e e' a a' :
-      not_heap_range b' e' ->
-      isO p = false ->
-      (b <= b')%a ->
-      (e' <= e)%a ->
-      LocalityFlowsTo g' g ->
-      ftlr_IH -∗
-      interp W C (WCap t p g b e a) -∗
-      interp W C (WSentry sk t p g' b' e' a').
+  (** The read condition of the PCC range, at every thread, through a
+      permission that is not deep-local. *)
+  Lemma rcond_g_interp_cmpt_threads C p :
+    isDL p = false → ⊢ rcond_g interp_cmpt_threads C p (λ t, interp (th := t)).
   Proof.
-    intros Hsentry HpnotO Hb He Hl.
-    iIntros "#IH #HA".
-    destruct t; last (iApply interp_untagged; done).
-    iEval (rewrite interp_unfold /=).
-    iSplit; first done.
-    destruct g'; cbn.
-    - (* A Global sentry, at every thread [t'] of [C]. *)
-      destruct g; cbn in Hl; last done.
-      iIntros "!>" (t') "#Hth'". rewrite /enter_cond.
-      iIntros (W') "_". iIntros (g'' Hflows). iNext.
-      iApply ("IH" $! t' W' C).
-      iDestruct (interp_global_thread_world_free th t' W W' C (Cap p Global b e a)
-                   with "HA") as "HA'"; first done.
-      iApply (interp_weakeningEO (th := t') W' C true p p Global g'' b b' e e' a a' None
-                with "Hth' HA'");
-        [done|done|done|done|apply subseg_heap_base_noid|apply PermFlowsToReflexive|done].
-    - (* A Local sentry, at the holder's thread, in the public futures. *)
-      iIntros "!>". rewrite /enter_cond.
-      iIntros (W') "%Hfuture". iIntros (g'' Hflows).
-      iApply later_interp_expr_thread_in. iIntros "#Hth". iNext.
-      iApply ("IH" $! th W' C).
-      destruct g''; cbn in Hflows; try done.
-      iAssert (interp W' C (Cap p g b e a))%I as "#HA'".
-      { destruct g.
-        - iApply (interp_global_world_free with "HA"). done.
-        - iApply (interp_monotone_cap_valid with "[] HA"). done. }
-      iApply (interp_weakeningEO W' C true p p g Local b b' e e' a a' None
-                with "Hth HA'");
-        [done|done|done|done|apply subseg_heap_base_noid|apply PermFlowsToReflexive|by destruct g].
+    intros Hdl. iIntros "!>" (t') "#Ht'". iIntros "!>" (W w) "Hw".
+    iEval (rewrite /interp_cmpt_threads /=) in "Hw". iDestruct "Hw" as "#Hw".
+    rewrite /interp_in_mem_pre.
+    iApply (interp_load_word_nodl (th := t')); first done.
+    iApply ("Hw" $! t' with "Ht'").
   Qed.
 
-End fundamental_sentry.
+  Lemma rcond_g_interp_nonlocal C p :
+    isDL p = false → ⊢ rcond_g interp_nonlocal C p (λ t, interp (th := t)).
+  Proof.
+    intros Hdl. iIntros "!>" (t') "_". iIntros "!>" (W w) "Hw".
+    iEval (rewrite /interp_nonlocal /=) in "Hw". iDestruct "Hw" as "[%Hloc #Hw]".
+    rewrite /interp_in_mem_pre.
+    iApply (interp_load_word_nodl (th := t')); first done.
+    by iApply (interp_global_thread_world_free th t' W W C w Hloc).
+  Qed.
+
+End region_alloc_cmpt.

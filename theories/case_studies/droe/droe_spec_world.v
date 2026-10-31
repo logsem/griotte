@@ -27,21 +27,19 @@ Section DROE_World.
   (** ** Sharing the data with the adversary
 
       The world in which the call happens: the revoked world. [cgp_b] and
-      [cgp_b + 1] become Global regions, with a read-only safety predicate
+      [cgp_b + 1] become Permanent regions, with a read-only safety predicate
       that fixes their content. *)
-  Definition droe_Wshare W (cgp_b : Addr) : WORLD := revoke W.
+  Definition droe_Wshare W : WORLD := revoke W.
 
   (** The safety predicate of [cgp_b]: it always contains [42]. *)
   Definition droe_b_pred : CmptName * LWord → iProp Σ :=
     safeGC (interp_in_mem_dro_eq (WInt 42)).
 
   Lemma droe_world_share W0 C (cgp_b cgp_e csp_b csp_e : Addr) (C_f : Sealable) :
-    let W3 := droe_Wshare W0 cgp_b in
+    let W3 := droe_Wshare W0 in
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     not_heap_range cgp_b cgp_e ->
-    LNonHeap cgp_b ∉ dom (std W0) ->
-    LNonHeap (cgp_b ^+ 1) ∉ dom (std W0) ->
     revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e) ->
     ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     world_interp (revoke W0) C -∗
@@ -51,14 +49,14 @@ Section DROE_World.
     (cgp_b ^+ 1) ↦ₐ Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b
     ={⊤}=∗
     world_interp W3 C ∗
-    (LNonHeap cgp_b) ↪ᵍ[C]{RO_DRO} droe_b_pred ∗
+    (LNonHeap cgp_b) ↪ᵖ[C]{RO_DRO} droe_b_pred ∗
     interp W3 C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1)) ∗
     interp W3 C (WSealed ot_switcher C_f) ∗
     StackRevokedResources W3 C (finz.seq_between csp_b csp_e) ∗
     ⌜ revoked_addresses W3 (finz.seq_between csp_b csp_e) ⌝.
   Proof.
     intros W3'; subst W3'; rewrite /droe_Wshare.
-    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_range Hcgp_b Hcgp_a Hstack_revoked)
+    iIntros (Hcgp_contiguous Hcgp_shadow Hcgp_range Hstack_revoked)
       "#Hseal_switcher Hworld_interp_C #Hstack_revoked_W0 #Hinterp_W0_C_f Hcgp_b Hcgp_a".
     destruct Hcgp_range as [Hcgp_nonheap Hcgp_heap].
     iDestruct (init_PermRes C (LNonHeap cgp_b) RO_DRO droe_b_pred
@@ -68,10 +66,10 @@ Section DROE_World.
       iEval (rewrite /interp_in_mem_pre /=).
       iApply interp_int.
     }
-    iMod (world_interp_extend_perm_nonheap with "Hworld_interp_C PermRes_cgp_b")
+    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
 
-    (* A Global capability to Global regions is valid in any world *)
+    (* A Global capability to Permanent regions is valid in any world *)
     iAssert (∀ W, interp W C (Cap RO_DRO Global cgp_b (cgp_b ^+ 1) cgp_b))%I
       as "#Hinterp_cgp_b".
     { iIntros (W).
@@ -122,7 +120,7 @@ Section DROE_World.
     { cbn. iSplit; [done |].
       iApply interp_to_in_mem.
       iApply "Hinterp_cgp_b". }
-    iMod (world_interp_extend_perm_nonheap with "Hworld_interp_C PermRes_cgp_a")
+    iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_a")
       as "(Hworld_interp_C & #Hrel_cgp_a)"; auto.
 
     iAssert (interp (revoke W0) C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1)))
@@ -161,8 +159,7 @@ Section DROE_World.
     iModIntro.
     iFrame "Hworld_interp_C Hrel_cgp_b Hinterp_W3_C_a".
     iSplit.
-    { iApply (interp_monotone_sd with "[] Hseal_switcher Hinterp_W0_C_f").
-      iPureIntro. apply revoke_related_sts_priv_world. }
+    { iApply (interp_sealed_global_kind_world_free with "Hseal_switcher Hinterp_W0_C_f"). }
     iSplit; first (iApply (StackRevokedResources_mono_priv with "Hstack_revoked_W0");
                    apply revoke_related_sts_priv_world).
     done.
@@ -171,10 +168,10 @@ Section DROE_World.
   (** ** Return from the call
 
       The adversary returned a public future [W4] of [W3]. Since [cgp_b] is
-      a Global region, opening the world gives back [cgp_b], which still
+      a Permanent region, opening the world gives back [cgp_b], which still
       contains [42]. *)
   Lemma droe_world_return W0 W4 C (cgp_b cgp_e csp_b csp_e : Addr) :
-    let W3 := droe_Wshare W0 cgp_b in
+    let W3 := droe_Wshare W0 in
     let stk := finz.seq_between csp_b csp_e in
     let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
@@ -183,15 +180,15 @@ Section DROE_World.
     revoked_addresses W3 stk ->
     related_sts_pub_world (std_update_multiple W3 stk' Temporary) W4 ->
     world_interp (revoke W4) C -∗
-    (LNonHeap cgp_b) ↪ᵍ[C]{RO_DRO} droe_b_pred -∗
+    (LNonHeap cgp_b) ↪ᵖ[C]{RO_DRO} droe_b_pred -∗
     ◇ cgp_b ↦ₐ WInt 42.
   Proof.
     intros W3 stk stk'.
     iIntros (Hcgp_contiguous Hcsp_bounds Hcgp_nonheap Hstack_revoked_W3 Hrelated_pub)
       "Hworld_interp #Hrel_cgp_b".
     rewrite open_world_interp_empty.
-    iDestruct (open_world_interp_permanent_nonheap with "Hworld_interp Hrel_cgp_b")
-      as "(_ & [%w (_ & >Hcgp_b & Hw)])"; auto.
+    iDestruct (open_world_interp_permanent with "Hworld_interp Hrel_cgp_b")
+      as "(_ & [%w (_ & Hcgp_b & Hw)])"; auto.
     { set_solver+. }
     { apply revoke_conditions_sat. }
     rewrite /droe_b_pred /=.

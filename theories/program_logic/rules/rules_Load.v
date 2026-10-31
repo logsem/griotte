@@ -95,7 +95,7 @@ Section griotte_lang_rules.
     destruct wit as [|ι|ι q].
     - by exists (lload_word p v).
     - destruct (decide (v.(lprov) = Some ι ∧ (get_tag v.(lw) = true → has_authority v.(lw))))
-        as [[Hι Hside] | Hn].
+        as [ [Hι Hside] | Hn].
       + destruct Hwit as (x & Hx & Hle).
         pose proof (load_filter_quarantined _ _ _ _ _ _ _ _ _ Hreg Hok Hpl Hι Hx Hle Hside) as Hpl'.
         exists (lclear_tag (lload_word p v)). split_and!.
@@ -283,7 +283,7 @@ Section griotte_lang_rules.
     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_correct _ _ _ _ _ _ _ Her Hvpc) as Hpc. cbn in Hpc. subst pc.
+    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
     iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
     iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
     pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.
@@ -322,7 +322,7 @@ Section griotte_lang_rules.
       { unfold is_cap in Hr2v. destruct r2v as [r2v ?]; cbn in *.
         destruct_word r2v; by simplify_pair_eq. }
       instr_fail Hstep'. apply Load_spec_failure; [|done..]. by eapply Load_fail_const. }
-    destruct r2v as [[ | [t p g b e a | ] | | ] π2]; try inversion Hr2v. clear Hr2v.
+    destruct r2v as [ [ | [t p g b e a | ] | | ] π2]; try inversion Hr2v. clear Hr2v.
     destruct t.
     2: { cbn in Hstep. rewrite ?andb_false_r in Hstep.
          instr_fail Hstep. apply Load_spec_failure; [|done..]. eapply Load_fail_tag. by rewrite Hr'2. }
@@ -337,7 +337,7 @@ Section griotte_lang_rules.
       (* A stripped source under its witness is a heap capability without
          authority: its bounds are empty. *)
       exfalso.
-      destruct Hrel2 as [[Heq | [_ [[Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
+      destruct Hrel2 as [ [Heq | [_ [ [Hst _] | [Hna [base Hh] ] ] ] ] _]; cbn in *; try discriminate.
       { by apply (deref_witness_not_stale R dw (Cap p g b e a @@? π2)). }
       assert (is_heap_address b = true) as Hbh.
       { rewrite /heap_cap_base /= in Hh. by destruct (is_heap_address b). }
@@ -401,7 +401,7 @@ Section griotte_lang_rules.
             as Hstep'.
           { rewrite -Hstep /load_filter in Hpl |- *.
             destruct (heap_cap_base pv) as [base|]; last by simplify_eq.
-            destruct (st !! base) as [[]|]; simplify_eq; done. }
+            destruct (st !! base) as [ []|]; simplify_eq; done. }
           destruct (load_post_choose _ _ _ _ _ _ _ _ Hreg Hwit Hpvok Hpl) as (loadv' & Hpost & Hok' & Hphys).
           exists loadv', pl.
           split; first done. split; first done.
@@ -654,7 +654,7 @@ Section griotte_lang_rules.
 
   Lemma decode_load_not_heap_cap_imm (w : LWord) dst src imm :
     decodeInstrW w.(lw) = CLoad dst src imm → is_heap_cap w.(lw) = false.
-  Proof. destruct w as [[] ?]; cbn; try discriminate; done. Qed.
+  Proof. destruct w as [ [] ?]; cbn; try discriminate; done. Qed.
 
   Lemma decode_load_not_heap_cap (w : LWord) dst src :
     decodeInstrW w.(lw) = CLoad dst src 0 → is_heap_cap w.(lw) = false.
@@ -1220,7 +1220,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
-    { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
+    { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.
   Qed.
@@ -1329,7 +1329,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
-    { destruct wa as [[| [[] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
+    { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.
   Qed.

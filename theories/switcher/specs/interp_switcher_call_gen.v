@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Export logrel region_invariants bitblast.
+From griotte Require Export logrel world_interp bitblast.
 From griotte Require Import interp_weakening.
 From griotte Require Import wp_rules_interp switcher_macros_spec.
 From griotte Require Import rules proofmode monotone.
@@ -144,13 +144,12 @@ Section fundamental.
     (b e a : Addr) (wtbl : LWord) :
     disjoint_from_heap b e ->
     switcher_stk_bounds b e a ->
-    switcher_trap_safety -∗
     interp W C (Cap RWL Local b e a) -∗
     top_cmpt_untrusted interp W C cstk -∗
     interp_cont interp cstk Ws Cs -∗
     interp_cont interp (cstack_push (interp_call_frame b e a wtbl) cstk) (W :: Ws) (C :: Cs).
   Proof.
-    iIntros (Hstk_heap Hstk_bounds) "#Hsafety #Hspv #Htop Hcont".
+    iIntros (Hstk_heap Hstk_bounds) "#Hspv #Htop Hcont".
     simpl.
     iFrame "Hcont".
     destruct Hstk_bounds as (Hba & Hba3 & Ha4).
@@ -491,7 +490,7 @@ Section fundamental.
     { by rewrite /cframe_stk_own /=. }
     iModIntro.
     iFrame "Hrmap Hworld_interp Hcstk Hna".
-    iApply (interp_call_cont_frame with "Hsafety Hspv Htop Hcont"); done.
+    iApply (interp_call_cont_frame with "Hspv Htop Hcont"); done.
   Qed.
 
   (** The callee's stack is too small: push the frame, whose table cell
@@ -565,7 +564,7 @@ Section fundamental.
     iDestruct (interp_call_regs_full with "Hparams Hrest Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1")
       as (regs) "[%Hfull Hregs]"; [done|done|].
     iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (Cap RO g_tbl b_tbl e_tbl a_tbl)
-                with "Hsafety Hspv Htop Hcont") as "Hcont"; [done|done|].
+                with "Hspv Htop Hcont") as "Hcont"; [done|done|].
     iApply (switcher_call_stack_too_small_unwind_of_safety _ _ (cstack_push frame cstk)
              (W :: Ws) (C :: Cs)
              with "[$HPC $Hregs $Hthread $Hsafety $Hworld_interp $Hna $Hcstk $Hcont]"); first done.
@@ -869,7 +868,7 @@ Section fundamental.
       as "[Hna Hcstk]"; [done|done|done|done|done|done|done|right; split; [done | exact Htbl_ok]| |].
     { by rewrite /cframe_stk_own /=. }
     iDestruct (interp_call_cont_frame _ _ _ _ _ _ _ _ (Cap RO g_tbl b_tbl e_tbl a_tbl)
-                with "Hsafety Hspv Htop Hcont") as "Hcont"; [done|done|].
+                with "Hspv Htop Hcont") as "Hcont"; [done|done|].
 
     (* Execute the entry point of the callee *)
     iAssert (interp W C (callee_csp b e a)) as "#Hstk4v".

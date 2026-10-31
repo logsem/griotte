@@ -122,7 +122,7 @@ Definition note {A} (comment : string) (x : A) : A := x.
 Definition mem_region (b : Addr) (ws : list Word) : Mem :=
   list_to_map (zip (finz.seq b (length ws)) ws).
 
-(** The ranges [[b, e)] are pairwise disjoint. *)
+(** The ranges $[b, e)$ are pairwise disjoint. *)
 Definition ranges_disjoint (rs : list (Addr * Addr)) : Prop :=
   ## ((λ r, finz.seq_between r.1 r.2) <$> rs).
 
@@ -136,7 +136,7 @@ Definition otype_valid (o : OType) : Prop := (o < o ^+ 1)%ot.
 Proof. rewrite /otype_valid. solve [apply _ | unfold finz.lt; apply _]. Defined.
 
 (** An initial global of an untrusted compartment: an integer, or a
-    capability, at most read-write, within the globals [[b, e)]. *)
+    capability, at most read-write, within the globals $[b, e)$. *)
 Definition initial_data_word (b e : Addr) (w : Word) : Prop :=
   is_z w ∨ in_region w b e.
 

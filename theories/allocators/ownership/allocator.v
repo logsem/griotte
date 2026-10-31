@@ -383,23 +383,6 @@ Section Allocator.
     - exact allocator_regions_disjoint.
   Qed.
 
-  Definition allocator_export_table `{allocatorLayout} : list Word :=
-    [Cap RX Global allocator_pcc_b allocator_pcc_e allocator_pcc_b;
-     Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b]
-      ++ allocator_export_table_entries.
-
-  (** Compartment memory contains imports followed by code, the bump
-      capability, and the export table. Heap contents and the initially
-      clear shadow table are supplied separately by the enclosing system. *)
-
-  Definition allocator_initial_memory `{allocatorLayout} : Mem :=
-    list_to_map (zip (finz.seq_between allocator_pcc_b allocator_pcc_e)
-      (allocator_imports ++ allocator_code)) ∪
-    list_to_map (zip (finz.seq_between allocator_cgp_b allocator_cgp_e)
-      allocator_data) ∪
-    list_to_map (zip (finz.seq_between allocator_exp_tbl_b allocator_exp_tbl_e)
-      allocator_export_table).
-
   Definition allocator_free_pcc_addr `{allocatorLayout} : Addr :=
     (allocator_pcc_b ^+ allocator_free_pcc_off).
 

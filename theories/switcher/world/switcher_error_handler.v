@@ -342,14 +342,6 @@ Section Switcher_error_handler.
     clear Hroom. rewrite /ErrorState_size in Hn Ha0. solve_addr.
   Qed.
 
-  Lemma error_state_pointsto_area (w : LWord) (rmap : LReg) :
-    error_state_pointsto w rmap -∗ error_state_area rmap.
-  Proof.
-    rewrite /error_state_pointsto /error_state_area.
-    destruct (rmap !!! csp) as [ [|[ | ]|? []|] π]; cbn; iIntros "Hws"; try done;
-      iExists _; iFrame "Hws"; iPureIntro; apply length_error_state_words.
-  Qed.
-
   (** The [ErrorState] slot does not overlap the shadow table. *)
   Definition error_state_shadow_free (wcsp : LWord) : Prop :=
     match wcsp.(lw) with
@@ -620,48 +612,13 @@ Section Switcher_error_handler.
      safe[th])%I.
 
   (** Why the install faults: the [ErrorState] cannot be loaded. *)
-  Definition install_skipped (cstk : CSTK) (rmap : LReg) : Prop :=
+  Definition install_skipped (rmap : LReg) : Prop :=
     ¬ error_state_loads_ok (rmap !!! csp).
 
   (** The [ErrorState] that the install loads, at the handler's cursor
       [a]. *)
   Definition install_region (a : Addr) (ws : list LWord) : iProp Σ :=
     [[ a , a ^+ ErrorState_size ]] ↦ₐ [[ ws ]].
-
-  (** The [ErrorState] that the switcher writes, below the faulting cursor
-      of [rfault]'s [csp]. *)
-  Definition error_state_region (rfault : LReg) (ws : list LWord) : iProp Σ :=
-    match (rfault !!! csp).(lw) with
-    | WCap _ _ _ _ _ a => [[ a ^+ (- ErrorState_size) , a ]] ↦ₐ [[ ws ]]
-    | _ => True
-    end.
-
-  (** The [ErrorState] that the switcher writes for a stackful handler is
-      the one that the install loads at the handler's [csp]. *)
-  Lemma install_region_slot (rfault : LReg) (t : bool) (p : Perm) (g : Locality)
-    (b e a : Addr) (π : option AId) (wa0 : LWord) (ws : list LWord) :
-    stackful_regs (rfault !!! csp) = Some (MkLWord (WCap t p g b e a) π, wa0) →
-    error_state_region rfault ws ⊣⊢ install_region a ws.
-  Proof.
-    rewrite /stackful_regs /error_state_region /install_region.
-    destruct (rfault !!! csp) as [w π']; cbn.
-    destruct w as [n | [t' p' g' b' e' a' | t' p' g' b' e' a'] | k t' p' g' b' e' a' | ot sb];
-      try done.
-    destruct (a' + (- ErrorState_size))%a as [a16|] eqn:Ha16; cbn; last done.
-    intros Hregs; simplify_eq.
-    rewrite /ErrorState_size in Ha16 |- *.
-    rewrite (_ : a' ^+ - (16) = a); last solve_addr.
-    by rewrite (_ : a ^+ 16 = a'); last solve_addr.
-  Qed.
-
-  (** The install faults only if the handler's [csp] does not allow the
-      loads of the [ErrorState]. *)
-  Lemma stackful_handler_runs_install (cstk : CSTK) (w : LWord) (rfault : LReg)
-    (eh : Z) (wpcc : LWord) (n : Z) (regs : LReg) :
-    stackful_handler_runs cstk w rfault eh wpcc →
-    error_state_loads_ok (regs !!! csp) →
-    ¬ install_skipped (cstack_set_top_count cstk n) regs.
-  Proof. intros _ Hok Hnok. by apply Hnok. Qed.
 
   (** Setting the address of a safe word keeps it safe: a capability or a
       sealing range with its cursor moved, or untagged by an overflow, an
@@ -891,20 +848,6 @@ Section Switcher_error_handler.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hh Heh Hslot HUP".
     iSplit; first done. iSplit; first done. iRight; iLeft.
     iExists P_fault, eh. iFrame "Hh Heh Hslot HUP".
-  Qed.
-
-  (** A fault in a running trusted handler. *)
-  Lemma trap_handler_ok_running P_mcause P_mtval F cstk w regs (eh ehs : Z) :
-    trap_no_resume w →
-    (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
-    Z.odd (top_error_count cstk) = true →
-    top_export_tbl cstk ↦ₑ□{stackful} eh -∗
-    top_export_tbl cstk ↦ₑ□{stackless} ehs -∗
-    unwind_cont F cstk True -∗
-    trap_handler_ok_cause P_mcause P_mtval F cstk w regs.
-  Proof.
-    rewrite trap_handler_ok_unseal. iIntros (Hno Hset Hodd) "Heh Hehs HU".
-    iSplit; first done. iSplit; first done. iRight; iRight. by iFrame.
   Qed.
 
   (** The three cases, unsealed. *)

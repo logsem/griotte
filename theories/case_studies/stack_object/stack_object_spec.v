@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import region_invariants_allocation region_invariants_revocation interp_weakening monotone.
+From griotte Require Import world_interp_allocation world_interp_revocation interp_weakening monotone.
 From griotte Require Import rules logrel world_interp_stack monotone proofmode register_tactics.
 From griotte Require Import fetch_spec assert_spec switcher_base switcher_base_interp.
 From griotte Require Import stack_object.
@@ -25,7 +25,7 @@ Section SO.
   #[local] Notation V := (interpO Σ).
 
   (** The call stack of a thread that starts in this compartment, with the
-      stack [b, e) and the export table word [w] *)
+      stack $[b, e)$ and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
     (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;

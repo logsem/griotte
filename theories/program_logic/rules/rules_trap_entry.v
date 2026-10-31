@@ -140,7 +140,7 @@ Section trap_entry_windows.
   Proof.
     rewrite trap_vcsr_res_unseal.
     iIntros "Hsys Htok". iNamed "Hsys". iDestruct "Hwins" as "[Hwin Hwin_tval]".
-    iDestruct "Hwin" as "[[[%wepcc Hmepcc] [%wcause Hmcause] ] | Htok']"; last first.
+    iDestruct "Hwin" as "[ [ [%wepcc Hmepcc] [%wcause Hmcause] ] | Htok']"; last first.
     { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
     iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
@@ -165,7 +165,7 @@ Section trap_entry_windows.
     iIntros "Hsys Hmepcc Hmcause". iNamed "Hsys". iDestruct "Hwins" as "[Hwin Hwin_tval]".
     iDestruct (gen_heap_valid with "Hsr Hmepcc") as %Hmepcc.
     iDestruct (gen_heap_valid with "Hsr Hmcause") as %Hmcause.
-    iDestruct "Hwin" as "[[[%wepcc' Hmepcc'] _] | Htok]".
+    iDestruct "Hwin" as "[ [ [%wepcc' Hmepcc'] _] | Htok]".
     { iDestruct (pointsto_ne with "Hmepcc Hmepcc'") as %Hne. by exfalso; apply Hne. }
     iSplit.
     { iPureIntro. by rewrite /ls_join !lsregs_join_ne. }
@@ -185,7 +185,7 @@ Section trap_entry_windows.
   Proof.
     rewrite trap_tval_res_unseal.
     iIntros "Hsys Hmtval". iNamed "Hsys". iDestruct "Hwins" as "[Hwin Hwin_tval]".
-    iDestruct "Hwin_tval" as "[[%z' Hmtval'] | Htok]".
+    iDestruct "Hwin_tval" as "[ [%z' Hmtval'] | Htok]".
     { iDestruct (pointsto_ne with "Hmtval Hmtval'") as %Hne. by exfalso; apply Hne. }
     iSplitR "Htok"; last done.
     iFrame "Hsr Hmtcc Hmpie Hmpie_f Hmtdc Hmie Hmie_f".
@@ -331,7 +331,7 @@ Section griotte_lang_traps.
     iAssert ⌜(snd <$> lm) ⊆ lmem⌝%I as %Hmem.
     { rewrite map_subseteq_spec. iIntros (a x Ha).
       rewrite lookup_fmap in Ha.
-      destruct (lm !! a) as [[q x']|] eqn:Hlm; last done.
+      destruct (lm !! a) as [ [q x']|] eqn:Hlm; last done.
       injection Ha as <-.
       iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Hlm.
       iApply (gen_heap_valid with "Hm Ha"). }
@@ -365,7 +365,7 @@ Section griotte_lang_traps.
     iNamed "Hsr". destruct Hlsh as [Hn1 Hn2]. iDestruct "Hwins" as "[Hwin Hwin_tval]".
     (* With the token in hand, MEPCC, mcause and mtval are held. *)
     iDestruct (trap_token_split with "Htok") as "[Htok Htok_tval]".
-    iDestruct "Hwin" as "[[Hmepcc Hmcause] | Htok']"; last first.
+    iDestruct "Hwin" as "[ [Hmepcc Hmcause] | Htok']"; last first.
     { iDestruct (trap_vcsr_token_excl with "Htok Htok'") as %[]. }
     iDestruct "Hwin_tval" as "[Hmtval | Htok']"; last first.
     { iDestruct (trap_tval_token_excl with "Htok_tval Htok'") as %[]. }

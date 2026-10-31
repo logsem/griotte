@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants.
+From griotte Require Import world_interp_stack world_interp.
 From griotte Require Import world_interp_allocation_compartments.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states.
 
@@ -61,23 +61,9 @@ Section HTS_World.
   Context (C_f : Sealable) (W_init_C : WORLD).
 
 
-  Lemma hts_buffer_not_stack b :
-    hts_buffer_bounds b ->
-    disjoint_from_heap csp_b csp_e ->
-    b ∉ finz.seq_between csp_b csp_e.
-  Proof.
-    intros Hbounds Hstk_heap Hb_stk.
-    pose proof (hts_buffer_heap_address b Hbounds) as Hb_heap.
-    rewrite /disjoint_from_heap elem_of_disjoint in Hstk_heap.
-    eapply (Hstk_heap b); first exact Hb_stk.
-    apply elem_of_finz_seq_between.
-    apply withinBounds_true_iff in Hb_heap. exact Hb_heap.
-  Qed.
-
-  (** Share [b] with the first adversary call: make [b] a Global region
+  (** Share [b] with the first adversary call: make [b] a Permanent region
       holding [0]; the world of the call is the revoked world. *)
   Lemma hts_world_share_buffer E ι b :
-    LHeap b ι ∉ dom (std (revoke W_init_C)) ->
     hts_buffer_bounds b ->
     disjoint_from_heap csp_b csp_e ->
     revoked_addresses (revoke W_init_C) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ->
@@ -86,15 +72,15 @@ Section HTS_World.
     world_interp (revoke W_init_C) C -∗
     StackRevokedResources W_init_C C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))
     ={E}=∗
-    world_interp (hts_Wshare W_init_C ι b) C ∗
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) ∗
-    interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι) ∗
-    StackRevokedResources (hts_Wshare W_init_C ι b) C
+    world_interp (hts_Wshare W_init_C) C ∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
+    interp (hts_Wshare W_init_C) C (hts_buffer b @@ ι) ∗
+    StackRevokedResources (hts_Wshare W_init_C) C
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
-    ⌜revoked_addresses (hts_Wshare W_init_C ι b)
+    ⌜revoked_addresses (hts_Wshare W_init_C)
       (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝.
   Proof.
-    iIntros (Hb_fresh Hbounds Hstk_heap Hstack_revoked)
+    iIntros (Hbounds Hstk_heap Hstack_revoked)
       "#Hobj Hb Hworld Hstack_revoked".
     set (stk_frame_addrs := stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)).
     pose proof Hbounds as Hbnd; rewrite /hts_buffer_bounds in Hbnd.
@@ -105,7 +91,7 @@ Section HTS_World.
     { iApply interp_nonlocal_int. }
     iMod (world_interp_extend_perm (revoke W_init_C) C (LHeap b ι) (WInt 0) RW (safeGC interp_nonlocal)
       with "Hworld Hbuf_perm") as "(Hworld & #Hrel_b)".
-    iAssert (interp (hts_Wshare W_init_C ι b) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
+    iAssert (interp (hts_Wshare W_init_C) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
     { iEval (rewrite /hts_buffer interp_unfold /=).
       iSplitL.
       { rewrite /interp_cap_body.
@@ -136,9 +122,9 @@ Section HTS_World.
         solve_addr. }
       iIntros (_). iSplit; first (iPureIntro; done).
       iExists b, (b ^+ 1). iFrame "Hobj". iPureIntro. solve_addr. }
-    assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C ι b))
+    assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C))
       as Hrelated_init_share by apply revoke_related_sts_priv_world.
-    iDestruct (StackRevokedResources_mono_priv W_init_C (hts_Wshare W_init_C ι b) C
+    iDestruct (StackRevokedResources_mono_priv W_init_C (hts_Wshare W_init_C) C
       stk_frame_addrs Hrelated_init_share with "Hstack_revoked")
       as "Hstack_revoked_share".
     iModIntro. iFrame "∗#".
@@ -146,14 +132,14 @@ Section HTS_World.
   Qed.
 
   (** After the first adversary call: main still holds the free right of
-      [ι], so [ι] is still live, and [b] is a Global region. Open its world
+      [ι], so [ι] is still live, and [b] is a Permanent region. Open its world
       entry to get its memory back. *)
   Lemma hts_world_reopen_live E ι b Wret :
     hts_buffer_bounds b ->
     related_sts_pub_world
-      (std_update_multiple (hts_Wshare W_init_C ι b)
+      (std_update_multiple (hts_Wshare W_init_C)
         (callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) Temporary) Wret ->
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     free_right ι -∗
     world_interp (revoke Wret) C
     ={E}=∗
@@ -171,7 +157,7 @@ Section HTS_World.
     { apply revoke_conditions_sat. }
     iDestruct (heap_key_resource_live with "Hright Hres_b") as "[Hres_b Hright]".
     iDestruct "Hres_b" as (v_b) "Hres_b".
-    iDestruct "Hres_b" as "(>%Hp_nonO & >Hb_phys & _)".
+    iDestruct "Hres_b" as "(%Hp_nonO & Hb_phys & _)".
     iModIntro. iExists v_b. by iFrame.
   Qed.
 
@@ -200,7 +186,7 @@ Section HTS_World_Free.
       as a tombstone, with no resources. *)
   Lemma hts_world_quarantine E ι b Wret :
     hts_buffer_bounds b ->
-    (LHeap b ι) ↪ᵍ[C]{RW} (safeGC interp_nonlocal) -∗
+    (LHeap b ι) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) -∗
     ι ⊒ AQuar -∗
     world_interp_open (revoke Wret) C [LHeap b ι]
     ={E}=∗
@@ -209,7 +195,7 @@ Section HTS_World_Free.
     iIntros (Hbounds) "#Hrel_b #Hquar Hworld_open".
     iModIntro.
     rewrite /hts_Wfree open_world_interp_empty.
-    iApply (close_world_interp_next_quarantined_heap_g (revoke Wret) C [] b ι RW
+    iApply (close_world_interp_next_quarantined_heap_perm (revoke Wret) C [] b ι RW
       (safeGC interp_nonlocal) with "Hquar Hworld_open Hrel_b").
     { set_solver+. }
     { apply revoke_conditions_sat. }

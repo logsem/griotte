@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region proofmode register_tactics.
-From griotte Require Import region_invariants_revocation region_invariants_allocation.
+From griotte Require Import world_interp_revocation world_interp_allocation.
 From griotte Require Import interp_weakening monotone.
 From griotte Require Import world_ghost_theory world_interp_stack switcher_base_interp.
 From griotte Require Import allocator_resources heap_region.
@@ -171,7 +171,7 @@ Section VAE_World_Call.
       - iExists (k :: l_live), l_q. iFrame "Hl_q Hl_live".
         iSplit; first (iPureIntro; by rewrite Hpartition).
         iSplit; first done.
-        iExists pa, Φa. rewrite /temp_body. by iFrame "Hrel Hk".
+        iExists pa, Φa. by iFrame "Hrel Hk".
       - iExists l_live, (LHeap x ι :: l_q). iFrame "Hl_live Hl_q".
         iSplit; first (iPureIntro; rewrite Hpartition; apply Permutation_middle).
         iSplit; first (iPureIntro; constructor; eauto).
@@ -195,13 +195,13 @@ Section VAE_World_Call.
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:Hsealed; last done.
     destruct wg as [ [| [|] | |] π]; try discriminate.
     simpl in Hsealed; apply Z.eqb_eq, finz_to_z_eq in Hsealed as ->.
-    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
+    iApply (interp_sealed_global_kind_world_free W W' with "Hseal Hg").
   Qed.
 
-  (** The callback [g], restored by the switcher after a call in the world
-      [Wret], is safe in a private future world [W']. *)
-  Lemma vae_world_callback_restored (W Wret W' : WORLD) (C : CmptName) (wg wg' : LWord) :
-    load_heap_in_world Wret wg wg' ->
+  (** The callback [g], restored by the switcher after a call, is safe in a
+      private future world [W']. *)
+  Lemma vae_world_callback_restored (W W' : WORLD) (C : CmptName) (wg wg' : LWord) :
+    load_heap wg wg' ->
     related_sts_priv_world W W' ->
     ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
     (if is_sealed_with_o wg.(lw) ot_switcher then interp W C wg else True) -∗
@@ -216,7 +216,7 @@ Section VAE_World_Call.
     destruct (is_sealed_with_o wg.(lw) ot_switcher) eqn:His_sealed; last done.
     destruct wg as [ [| [|] | |] π]; try discriminate.
     simpl in His_sealed; apply Z.eqb_eq, finz_to_z_eq in His_sealed as ->.
-    iApply (interp_monotone_sd W W' with "[] Hseal Hg"); eauto.
+    iApply (interp_sealed_global_kind_world_free W W' with "Hseal Hg").
   Qed.
 
   (** The world [W'] after a call is a public future world of the world [W]
@@ -340,7 +340,7 @@ Section VAE_World_Call.
     iExists stk_mem.
     iFrame "Hworld_interp_C Hstk".
     iSplit.
-    { iApply (interp_monotone_sd with "[] Hseal Hinterp_C_f"); by iPureIntro. }
+    { iApply (interp_sealed_global_kind_world_free with "Hseal Hinterp_C_f"). }
     iSplit; last done.
     iNext.
     iApply (StackRevokedResources_mono_priv with "Hstack_revoked"); eauto.

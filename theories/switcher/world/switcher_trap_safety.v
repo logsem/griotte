@@ -275,7 +275,7 @@ End Switcher_trap_safety.
     The trusted-stack invariant and the static resources of the switcher,
     at every thread of the compartment [C]: the switcher's entry points are
     safe at each of them. *)
-Section Switcher_family.
+Section Switcher_threads.
   Context
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {cthreads : CmptThreads}
@@ -286,21 +286,21 @@ Section Switcher_family.
     {swlayout : switcherLayout}
   .
 
-  Definition switcher_family (C : CmptName) : iProp Σ :=
+  Definition switcher_threads (C : CmptName) : iProp Σ :=
     □ ∀ (t' : Thread), thread_in t' C -∗
       na_inv (tpool t') Ntstack (trusted_stack_inv (th := t')) ∗
       switcher_static (th := t').
 
-  #[global] Instance switcher_family_persistent C : Persistent (switcher_family C).
-  Proof. rewrite /switcher_family. apply _. Qed.
+  #[global] Instance switcher_threads_persistent C : Persistent (switcher_threads C).
+  Proof. rewrite /switcher_threads. apply _. Qed.
 
-  (** A compartment that runs at most on the thread [th] has the family of
-      the switcher at [th]. *)
-  Lemma switcher_family_pinned (th : Thread) (C : CmptName) :
+  (** A compartment that runs at most on the thread [th] has
+      [switcher_threads] from the switcher's resources at [th]. *)
+  Lemma switcher_threads_pinned (th : Thread) (C : CmptName) :
     cmpt_threads C ⊆ {[th]} →
     na_inv (tpool th) Ntstack (trusted_stack_inv (th := th)) -∗
     switcher_static (th := th) -∗
-    switcher_family C.
+    switcher_threads C.
   Proof.
     iIntros (Hpin) "#Hinv #Hstatic !>". iIntros (t') "#Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
@@ -308,4 +308,4 @@ Section Switcher_family.
     iFrame "Hinv Hstatic".
   Qed.
 
-End Switcher_family.
+End Switcher_threads.

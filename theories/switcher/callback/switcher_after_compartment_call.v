@@ -341,10 +341,10 @@ Section Switcher_After_Compartment_Call.
     interp_in_mem RWL Wval C wcs0 ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
-        ⌜load_heap_in_world Wval wcgp rcgp ∧
-          load_heap_in_world Wval wcra rcra ∧
-          load_heap_in_world Wval wcs1 rcs1 ∧
-          load_heap_in_world Wval wcs0 rcs0⌝ -∗
+        ⌜load_heap wcgp rcgp ∧
+          load_heap wcra rcra ∧
+          load_heap wcs1 rcs1 ∧
+          load_heap wcs0 rcs0⌝ -∗
         world_interp_open Wworld C opened ∗
         (interp Wval C rcgp ∗
          interp Wval C rcra ∗
@@ -450,10 +450,10 @@ Section Switcher_After_Compartment_Call.
      else True) ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
-        ⌜load_heap_in_world Wval wcgp rcgp ∧
-          load_heap_in_world Wval wcra rcra ∧
-          load_heap_in_world Wval wcs1 rcs1 ∧
-          load_heap_in_world Wval wcs0 rcs0⌝ -∗
+        ⌜load_heap wcgp rcgp ∧
+          load_heap wcra rcra ∧
+          load_heap wcs1 rcs1 ∧
+          load_heap wcs0 rcs0⌝ -∗
         world_interp_open Wworld C opened ∗
         (if is_untrusted_caller ccrel then
            interp Wval C rcgp ∗
@@ -493,7 +493,7 @@ Section Switcher_After_Compartment_Call.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
       cs0 csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hworld]"
       as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hworld)".
@@ -502,7 +502,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cs1 csp SpillSlot_cs1 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
       cs1 csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld]"
       as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
@@ -511,7 +511,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cra csp SpillSlot_pcc *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
       cra csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hworld]"
       as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk3 & Hworld)".
@@ -520,7 +520,7 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_world _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
       cgp csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld]"
       as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld)".

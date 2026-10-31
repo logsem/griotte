@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules.
 From griotte Require Import
-  region_invariants_revocation wp_rules_interp interp_weakening.
+  world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_base switcher_base_ktk.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_main_blocks_1 error_handling_spec_main_blocks_2
@@ -43,7 +43,7 @@ Section Error_Handling_Main_Spec.
   Context {C : CmptName}.
 
   (** The call stack of a thread that starts in [main], with the stack
-      [b, e) and the export table word [w] *)
+      $[b, e)$ and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
     (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;
@@ -647,8 +647,7 @@ Section Error_Handling_Main_Spec.
       by eapply revoke_related_sts_priv_world.
     iAssert (interp W1 C (WSealed ot_switcher adv_f)) as "#Hinterp_W1_adv".
     { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-      iApply (monotone.interp_monotone_sd W0 W1 C with "[] Hseal_switcher Hinterp_adv").
-      iPureIntro. exact Hrelated_priv_W0_W1. }
+      iApply (interp_sealed_global_kind_world_free W0 W1 C with "Hseal_switcher Hinterp_adv"). }
     iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0")
       as "Hstack_revoked_W1"; eauto.
 

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
-From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
+From griotte Require Import world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_base.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_read.
@@ -136,14 +136,10 @@ Section KVS_spec_read_safe.
 
     (* Either the map key is already allocated, or it is not *)
     iDestruct "Hinterp_nkey" as "[ (%w & >Hney & #Hinterp_nkey) | >Hnkey ]".
-    - iEval (rewrite world_interp_eq /world_interp_def) in "Hworld".
-      iApply KVS_read_spec_in_world; last iFrame "∗#"; try solve_ndisj; eauto.
+    - iApply KVS_read_spec_in_world; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
-      iIntros "(Hregion & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hct1 & Hct2 & Hctp
+      iIntros "(Hworld & Hna & HPC & Hgcp & Hcra & Hca0 & [%actual [Hca1 %Hactual] ] & Hct1 & Hct2 & Hctp
                 & Ha & HLUKVS & Hnkey)".
-
-      iAssert (world_interp W C) with "[Hregion]" as "Hworld".
-      { by rewrite world_interp_eq /world_interp_def. }
 
       iDestruct (big_sepS_delete with "[$Hinterp Hnkey Hinterp_nkey]") as "Hinterp"; eauto.
       { rewrite /safe_kvs_pointsto; eauto. }
@@ -241,7 +237,7 @@ Section KVS_spec_read_safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".

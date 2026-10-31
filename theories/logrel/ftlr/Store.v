@@ -34,8 +34,8 @@ Section fundamental.
     region_rel_part ρ W C (LNonHeap a) p2 P2 -∗
     ∀ v, ▷ (pc_content ρ W C P1 v ≡ pc_content ρ W C P2 v).
   Proof.
-    iIntros "#H1 #H2" (v). destruct ρ; rewrite /region_rel_part /region_rel_g /region_rel_l /pc_content.
-    - iDestruct (rel_g_agree with "H1 H2") as "[_ Heq]". iApply ("Heq" $! (C, v)).
+    iIntros "#H1 #H2" (v). destruct ρ; rewrite /region_rel_part /region_rel_perm /region_rel_l /pc_content.
+    - iDestruct (rel_perm_agree with "H1 H2") as "[_ Heq]". iApply ("Heq" $! (C, v)).
     - iDestruct "H1" as "(H1 & _)". iDestruct "H2" as "(H2 & _)".
       iDestruct (rel_l_agree with "H1 H2") as "[_ Heq]". iApply ("Heq" $! (W, C, v)).
   Qed.
@@ -78,7 +78,7 @@ Section fundamental.
     -∗ world_interp_open W C [LNonHeap pc_a]
     -∗ pc_a ↦ₐ w_pc
     -∗ world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ w_pc ∗
-       ⌜PermFlowsTo p pc_p' ∧ (ρ = InGlobal → isWL p = false)⌝ ∗
+       ⌜PermFlowsTo p pc_p' ∧ (ρ = InPerm → isWL p = false)⌝ ∗
        ▷ pc_store_cond W C ρ P p.
   Proof.
     intros Hπ Hrar Hfl.
@@ -110,7 +110,7 @@ Section fundamental.
     (k : LAddr) (ls : list LAddr) (pw p : Perm)
     (v : LWord) (P : D) (has_later : bool): iProp Σ :=
     (∃ ρ,
-        ⌜ρ = InGlobal → isWL pw = false⌝
+        ⌜ρ = InPerm → isWL pw = false⌝
         ∗ region_rel_part ρ W C k p P
         ∗ world_interp_open W C ({[k]} ∪ ls)
         ∗ if_later_P has_later (pc_content ρ W C P v)
@@ -129,7 +129,7 @@ Section fundamental.
           | Some ea => if decide (reg_allows_store_imm regs r1 imm p g b e a ea)
           then (if decide (addr_key π ea = LNonHeap pc_a)
                 then world_interp_open W C [LNonHeap pc_a] ∗ ⌜PermFlowsTo p pc_p⌝ ∗
-                       ⌜ρ = InGlobal → isWL p = false⌝ ∗
+                       ⌜ρ = InPerm → isWL p = false⌝ ∗
                        if_later_P has_later (pc_store_cond W C ρ P p)
                 else ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
@@ -139,7 +139,7 @@ Section fundamental.
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
                        then if_later_P has_later
-                              (if isWL p then wcond P' C interp else wcond_nwl P' C interp)
+                              (if isWL p then wcond_wl P' C interp else wcond_nwl P' C interp)
                        else True)
                     ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p p' w P' has_later))
           else world_interp_open W C [LNonHeap pc_a]
@@ -156,7 +156,7 @@ Section fundamental.
           | Some ea => if decide (reg_allows_store_imm regs r1 imm p g b e a ea)
           then (if decide (addr_key π ea = LNonHeap pc_a)
                 then ⌜mem = <[pc_a:=pc_w]> ∅⌝ ∗ world_interp_open W C [LNonHeap pc_a] ∗ ⌜PermFlowsTo p pc_p⌝ ∗
-                       ⌜ρ = InGlobal → isWL p = false⌝ ∗
+                       ⌜ρ = InPerm → isWL p = false⌝ ∗
                        if_later_P has_later (pc_store_cond W C ρ P p)
                 else ∃ p' (P':D) w,
                     ⌜PermFlowsTo p p'⌝
@@ -165,7 +165,7 @@ Section fundamental.
                     ∗ if_later_P has_later (zcond P' C)
                     ∗ (if writeAllowed p
                        then if_later_P  has_later
-                              (if isWL p then wcond P' C interp else wcond_nwl P' C interp)
+                              (if isWL p then wcond_wl P' C interp else wcond_nwl P' C interp)
                        else True)
                     ∗ ⌜mem = <[ea:=w]> (<[pc_a:=pc_w]> ∅)⌝
                     ∗ (region_open_resources W C (addr_key π ea) [LNonHeap pc_a] p p' w P' has_later))
@@ -458,7 +458,7 @@ Section fundamental.
     (* Step 1: open the region, if necessary,
        and store all the resources obtained from the region in allow_store_res imm *)
     iMod (create_store_res imm with "Hinv_interp Hreg Hinva Hworld_interp Ha")
-      as "[[HStoreRes Ha] | (%ι & %wd & %Hwd & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
+      as "[ [HStoreRes Ha] | (%ι & %wd & %Hwd & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
     2: { (* A tombstone: the store faults on the tag of the address. *)
          iDestruct (big_sepM_insert_acc with "Hmap") as "[Hdst Hmap]"; first exact Hwd.
          iApply (wp_store_quar_imm (CL := link_core) with "[$HPC $Ha $Hdst $Hq]"); eauto.

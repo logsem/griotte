@@ -5,7 +5,7 @@ From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety_allocator_spec.
 From griotte Require Import world_ghost_theory heap_region.
-From griotte Require Import world_interp_stack region_invariants.
+From griotte Require Import world_interp_stack world_interp.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
 From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
@@ -79,7 +79,7 @@ Section HTS_Spec_Share.
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
                  $Hcstk $Hcode_main]"); [done | done]. }
-    iDestruct "Hok" as (ι b) "(%Hbounds & %Hb_fresh & Hframe & Hca0 & Hca1 & Hregs & Hstk
+    iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
@@ -220,12 +220,11 @@ Section HTS_Spec_Share.
       with "Hobj Hb Hworld Hstack_revoked_W0")
       as "(Hworld & #Hrel_b & #Hinterp_buf & Hstack_revoked_share
         & %Hstack_revoked_share)".
-    { exact Hb_fresh. }
     { exact Hbounds. }
     { exact Hstk_heap. }
     { exact Hstack_revoked. }
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C ι b)
+    iDestruct (hts_interp_adv_world C C_f W_init_C (hts_Wshare W_init_C)
       Hadv_nonheap with "Hseal_switcher Hadv") as "#Hinterp_adv_share".
 
     iExtractList "Hrmap" [ca2;ca3;ca4;ca5] as
@@ -237,7 +236,7 @@ Section HTS_Spec_Share.
       ct0 := lword_of_word (WInt 1)]} : LReg)).
     iAssert ([∗ map] rarg↦warg ∈ adv_arg,
       rarg ↦ᵣ warg ∗ if decide (rarg ∈ dom_arg_rmap 1)
-        then interp (hts_Wshare W_init_C ι b) C warg else True)%I
+        then interp (hts_Wshare W_init_C) C warg else True)%I
       with "[Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0]" as "Hadv_arg".
     { subst adv_arg.
       repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
@@ -256,7 +255,7 @@ Section HTS_Spec_Share.
       rewrite Hdom_rmap /dom_arg_rmap /=. set_solver+. }
     assert (is_arg_rmap adv_arg 8) as Hargs_rmap.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
-    iApply (switcher_cc_specification (hts_Wshare W_init_C ι b) C
+    iApply (switcher_cc_specification (hts_Wshare W_init_C) C
       (Cap RW Global cgp_b cgp_e cgp_b)
       (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f

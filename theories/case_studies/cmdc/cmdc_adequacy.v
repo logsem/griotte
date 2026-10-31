@@ -8,7 +8,7 @@ From griotte Require Import cmdc cmdc_spec.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -30,11 +30,8 @@ Section cmdc_obligations.
     fw_obligations Σ cmdc_firmware.
   Proof.
     intros HBC.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -77,11 +74,11 @@ Section cmdc_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_family_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_B".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack cmdc_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [cmdc_firmware fw_cmpts]) in "Hcmpts".
@@ -105,25 +102,25 @@ Section cmdc_obligations.
     { apply elem_of_difference. split; last set_solver+HBC.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* 4 - Close the worlds of B and C: their compartments become Global regions,
+    (* 4 - Close the worlds of B and C: their compartments become Permanent regions,
        and the stack is revoked, because main keeps it; their exports are
        safe to share. *)
     iMod (fw_close_adv_world_revoked (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HB_l fw_world0 B Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_B_f_args; lia) ltac:(done)
-           with "Hfamily_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
+           with "Hswitcher_threads_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hfamily_B Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"). }
     iMod (fw_close_adv_world_revoked (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts cmdc_firmware) default_fw_cmpt)
             _ HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(apply Forall_singleton; cbn; rewrite /cmdc_C_g_args; lia) ltac:(done)
-           with "Hfamily_C Hswitcher_static HC HC_pers [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers [] Hthread_C Hworld_C")
       as "(Hworld_C & Hrevoked_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
     cbn [fc_name fw_nth fw_cmpts cmdc_firmware]. rewrite HsbB HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt B_cmpt. fw_fold_cmpt C_cmpt.
 
@@ -166,11 +163,11 @@ Section cmdc_obligations.
                     $Hentry_Bf $Hentry_Cg
                     ]"); eauto using fw_cleared_regs_dom.
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt B_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
-    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }

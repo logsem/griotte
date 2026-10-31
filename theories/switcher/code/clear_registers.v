@@ -8,10 +8,6 @@ Section ClearStackMacro.
   (** CHERIoT's [zeroRegisters]: clear the registers [l], in order. *)
   Definition rclear_asm (l : list RegName) : list asm_code :=
   (fun r => (* zeroOne r *) mov r 0) <$> l.
-  Definition rclear (l : list RegName) : list instr :=
-    Eval cbn in assemble (rclear_asm l).
-  Definition rclear_instrs (l : list RegName) : list Word :=
-    encodeInstrsW (rclear l).
   Definition rclear_instrs' (l : list RegName) : list Word
     := (fun r => (encodeInstrW (machine_instructions.Mov r (inl 0%Z)))) <$> l.
 
@@ -36,11 +32,6 @@ Section ClearStackMacro.
   Lemma registers_except_handler_invoke :
     registers_except [cra; csp; cgp; ca0; ca1; ca2] = registers_handler_invoke.
   Proof. vm_compute. reflexivity. Qed.
-
-  Lemma zero_all_registers_except_handler_invoke :
-    zero_all_registers_except_asm [cra; csp; cgp; ca0; ca1; ca2] =
-      rclear_asm registers_handler_invoke.
-  Proof. by rewrite /zero_all_registers_except_asm registers_except_handler_invoke. Qed.
 
   Definition registers_pre_call_skip : list RegName :=
     [ca0;ca1;ca2;ca3;ca4;ca5;ct0].

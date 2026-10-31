@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
 From griotte Require Import logrel rules.
-From griotte Require Import region_invariants_revocation wp_rules_interp interp_weakening.
+From griotte Require Import world_interp_revocation wp_rules_interp interp_weakening.
 From griotte Require Import switcher_base.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_erase.
@@ -227,7 +227,7 @@ Section KVS_spec_erase.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact KVS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact KVS_cgp_base_not_heap).
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".

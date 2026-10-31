@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Import ftlr_base interp_weakening interp_switcher_return.
 From griotte Require Import logrel fundamental interp_weakening memory_region rules proofmode monotone.
-From griotte Require Import sts_multiple_updates region_invariants_revocation.
+From griotte Require Import sts_multiple_updates world_interp_revocation.
 From griotte Require Export switcher switcher_preamble switcher_macros_spec switcher_helpers.
 From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_call_states switcher_call_world.
@@ -58,10 +58,10 @@ Section Switcher.
               ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
           )
           ∨
@@ -89,17 +89,17 @@ Section Switcher.
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
-                load_heap_in_world W wcra_caller rcra ∧
-                load_heap_in_world W wcs0_caller rcs0 ∧
-                load_heap_in_world W wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
             )
           )
             -∗ safe[th].
 
   (** The spill of the callee-save registers at the cursor [a_stk] does not
-      fit in the caller's stack [[b_stk, e_stk)]. *)
+      fit in the caller's stack $[b_stk, e_stk)$. *)
   Definition switcher_spill_overflows (b_stk e_stk a_stk : Addr) : Prop :=
     ¬ stk_spill_fits b_stk e_stk a_stk.
 
@@ -113,9 +113,8 @@ Section Switcher.
       world. *)
   Definition switcher_cc_fault
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) : iProp Σ :=
     ⌜ switcher_spill_overflows b_stk e_stk a_stk ⌝ -∗
     ∀ (rmap' : LReg),
@@ -145,9 +144,9 @@ Section Switcher.
       [ctp] hold the scratch words of the checks, and its stack. *)
   Lemma switcher_cc_fault_resume
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap rmap0 : LReg)
+    (rmap0 : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     switcher_spill_overflows b_stk e_stk a_stk ->
@@ -169,8 +168,8 @@ Section Switcher.
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
        ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs) -∗
-    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
+    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+      b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
     trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
       (HO th).
   Proof.
@@ -234,13 +233,12 @@ Section Switcher.
   (** The spill of a caller whose stack holds it does not fault. *)
   Lemma switcher_cc_fault_stack_fits
     (W : WORLD) (C : CmptName)
-    (wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller : LWord)
+    (wcgp_caller wcra_caller wcs0_caller wcs1_caller : LWord)
     (b_stk e_stk a_stk : Addr) (stk_mem : list LWord)
-    (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     stk_spill_fits b_stk e_stk a_stk ->
-    ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-        b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs.
+    ⊢ switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+        b_stk e_stk a_stk stk_mem cstk Ws Cs.
   Proof.
     iIntros (Hfits Hspill).
     rewrite /switcher_spill_overflows in Hspill.
@@ -430,8 +428,8 @@ Section Switcher.
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
-    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs -∗
+    switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+      b_stk e_stk a_stk stk_mem cstk Ws Cs -∗
     ( ⌜ ¬ stk_spill_fits b_stk e_stk a_stk ⌝ ∗
       csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
       ct2 ↦ᵣ[th] wct2 ∗
@@ -537,7 +535,7 @@ Section Switcher.
     { (* The return address of the caller is a valid target *)
       iIntros "%Hjalr".
       destruct Hrestored as (_ & Hra & _ & _).
-      apply load_heap_in_world_nonheap in Hra; last done.
+      apply load_heap_nonheap in Hra; last done.
       subst rcra; congruence. }
     iIntros "[HPC Hlc']".
     iCombine "Hlc Hlc'" as "Hlc".
@@ -835,10 +833,10 @@ Section Switcher.
               ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
           )
           ∨
@@ -866,18 +864,18 @@ Section Switcher.
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W wcgp_caller rcgp ∧
-                load_heap_in_world W wcra_caller rcra ∧
-                load_heap_in_world W wcs0_caller rcs0 ∧
-                load_heap_in_world W wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               ∗ £ 2
             )
           )
             -∗ safe[th] )
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
-        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
+        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          b_stk e_stk a_stk stk_mem cstk Ws Cs )
 
     ⊢ safe[th].
   Proof.
@@ -1122,15 +1120,15 @@ Section Switcher.
             ∗ regs₀[th] rmap'
             ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
             ∗ interp_continuation cstk Ws Cs
-              ∗ ⌜load_heap_in_world W2 wcgp_caller rcgp ∧
-                load_heap_in_world W2 wcra_caller rcra ∧
-                load_heap_in_world W2 wcs0_caller rcs0 ∧
-                load_heap_in_world W2 wcs1_caller rcs1⌝
+              ∗ ⌜load_heap wcgp_caller rcgp ∧
+                load_heap wcra_caller rcra ∧
+                load_heap wcs0_caller rcs0 ∧
+                load_heap wcs1_caller rcs1⌝
               -∗ safe[th])
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
-        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-          b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs )
+        switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
+          b_stk e_stk a_stk stk_mem cstk Ws Cs )
 
 
     ⊢ safe[th].

@@ -81,8 +81,9 @@ Ltac so_unfold_code := rewrite so_main_code_flat.
 (** ** Addresses of the stack object [in]
 
     The addresses of the stack object [(p, g, b, e, _)] passed to [f] are
-    either permanent or temporary in the world [W] of the call. The
-    temporary ones are revoked, together with the stack frame, by [f]. *)
+    either Temporary in the world [W] of the call, or in the map of
+    Permanent regions. The Temporary ones are revoked, together with the
+    stack frame, by [f]. *)
 Section SO_Object.
 
   Definition so_object_addresses (b e : Addr) :=

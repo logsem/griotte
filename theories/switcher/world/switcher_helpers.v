@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel monotone interp_weakening fundamental wp_rules_interp.
-From griotte Require Import region_invariants_revocation.
+From griotte Require Import world_interp_revocation.
 From griotte Require Export world_ghost_theory world_interp_stack.
 From griotte Require Import switcher_preamble.
 From griotte Require Import map_simpl.
@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    #[local] Lemma world_interp_stack_fixing_aux (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    #[local] Lemma world_interp_stack_fixing_aux
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
       ccrel
@@ -39,7 +39,6 @@ Section switcher_helper.
       (a_stk + SpillSlot_size)%a = Some a_stk4 ->
 
       related_sts_pub_world W0 Wfixed ->
-      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
         (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
@@ -60,7 +59,7 @@ Section switcher_helper.
     Proof.
       intros Wfixed closing_region.
       iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
-        "#Htrap #Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
+        "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
       rewrite /SpillSlot_size in He_a1 Ha_stk4. change (4 - 1)%Z with 3%Z in He_a1.
 
 
@@ -91,10 +90,10 @@ Section switcher_helper.
         iDestruct "Hrel" as "(#Hrel & _ & #Hmono)".
         iExists p', (safeC P). iFrame "Hrel".
         iSplit; first (iPureIntro; intros [ [W C'] w]; apply Hpers).
-        rewrite /temp_res /heap_key_resource /temp_body /=.
+        rewrite /temp_res /heap_key_resource /TmpRes /=.
         iExists (WInt 0). iFrame "Hv".
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
-        iSplit; first iApply "Hmono".
+        iSplitR; [|iNext; iApply "Hmono"].
         iNext. iApply "Hwcond"; iApply interp_int.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
@@ -144,7 +143,7 @@ Section switcher_helper.
         { iExists p0, P0. iFrame "Hrel0". iSplit; first done.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk0 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -152,7 +151,7 @@ Section switcher_helper.
         { iExists p1, P1. iFrame "Hrel1". iSplit; first done.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk1 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -160,7 +159,7 @@ Section switcher_helper.
         { iExists p2, P2. iFrame "Hrel2". iSplit; first done.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk2 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -168,7 +167,7 @@ Section switcher_helper.
         { iExists p3, P3. iFrame "Hrel3". iSplit; first done.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_body /=.
+          rewrite /temp_res /heap_key_resource /TmpRes /=.
           iExists (WInt 0). iFrame "Ha_stk3 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
@@ -191,7 +190,7 @@ Section switcher_helper.
     (** At the return, fix the world on the callee's stack and on the spill
         area of the topmost frame, whose caller's cursor is [a_stk], once
         both are zeroed. *)
-    Lemma world_interp_stack_fixing (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma world_interp_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
       (b_stk e_stk a_stk : Addr) (l : list LAddr)
       ccrel
@@ -201,7 +200,6 @@ Section switcher_helper.
 
       switcher_stk_bounds b_stk e_stk a_stk ->
       related_sts_pub_world W0 Wfixed ->
-      trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       interp W0 C
         (Cap RWL Local
            (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
@@ -228,7 +226,7 @@ Section switcher_helper.
       replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
         by (by destruct (is_untrusted_caller ccrel)).
       intros Hrelated.
-      apply (world_interp_stack_fixing_aux trusted_fault Wcur W0 C (stk_spill_a a_stk));
+      iApply (world_interp_stack_fixing_aux Wcur W0 C (stk_spill_a a_stk));
         [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
     Qed.
 

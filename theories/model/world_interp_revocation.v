@@ -1,11 +1,10 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export stdpp_extra iris_extra region_invariants world_std_revocation.
+From griotte Require Export stdpp_extra iris_extra world_interp world_std_revocation.
 
 (** * Revocation and restoration: the list-based interface
 
     The region maps revoke and restore sets of keys ([l_revoke],
-    [l_restore_open], [l_restore_from], [l_restore_all] in
-    [region_maps.v]); the interface of [world_ghost_theory.v] keeps lists
+    [l_restore_open], [l_restore_from] in [region_maps.v]); the interface of [world_ghost_theory.v] keeps lists
     ([close_list], [RevokedResources]). This file bridges the two. *)
 
 Section bridge.

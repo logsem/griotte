@@ -8,7 +8,7 @@ From griotte Require Import deep_immutability deep_immutability_spec.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  region_invariants_revocation region_invariants_allocation world_interp_allocation_compartments.
+  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.program_logic Require Import adequacy.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
@@ -27,11 +27,8 @@ Section droe_obligations.
   Lemma droe_fw_obligations :
     fw_obligations Σ droe_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -67,8 +64,8 @@ Section droe_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_family_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
-      as "#Hfamily_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+      as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack droe_firmware 0) with 4 in Hentry_min_stack.
     iEval (cbv [droe_firmware fw_cmpts]) in "Hcmpts".
@@ -85,16 +82,16 @@ Section droe_obligations.
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* 4 - Close the world of C: its compartment becomes Global regions, and the
+    (* 4 - Close the world of C: its compartment becomes Permanent regions, and the
        stack temporary, because main shares it with C; its export is safe
        to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts droe_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hfamily_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hfamily_C Hswitcher_static"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts droe_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
@@ -116,11 +113,11 @@ Section droe_obligations.
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
     { exact (cmpt_cgp_not_heap_range main_cmpt). }
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
-    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
-    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt C_cmpt); [done | done | | ].
+    { apply (main_cgp_not_in_adv_world Temporary fw_world0 swc main_cmpt); [done | |].
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size.
     }
