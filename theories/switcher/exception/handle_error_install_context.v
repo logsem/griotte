@@ -120,8 +120,7 @@ Section Handle_Error_Install_Context.
           ∀ (off : Z) (i : nat) (ls save' : list LWord),
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
           ⌜length save' = 21%nat⌝ -∗
-          ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
-           = save !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
+          ⌜drop 16 save' = drop 16 save⌝ -∗
           csp ↦ᵣ[th] wcsp ∗
           cra ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗
@@ -402,7 +401,7 @@ Section Handle_Error_Install_Context.
       iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
                with "[//] [%] [%] [-]").
       { rewrite /= length_app length_drop Hwd' Hlen. lia. }
-      { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r Hwd' // lookup_drop //. }
+      { cbn [drop]. rewrite drop_app_length' //. }
       rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
       rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
         [|solve_addr|rewrite Hwd' /finz.dist; solve_addr].

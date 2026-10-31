@@ -6,13 +6,12 @@ From griotte Require Import switcher_exception_states trusted_spill_registers_sp
 (** * Exception path: [.Lcommon_context_install]
 
     [.Lcommon_context_install] installs the context of the register save
-    area and resumes it: it restores mstatus, borrows the volatile
-    registers back from the trap-entry token to write the PC to resume (in
-    [ct2]) to MEPCC, reloads the registers (the stack pointer last, as it
-    overwrites the trusted stack), and returns from the trap with [mret],
-    which gives the volatile registers back. The interrupt status after
-    [mret] is that of mstatus's MPIE, which the specification does not
-    track. *)
+    area and resumes it, at InterruptDisabled with the posture of the
+    thread: it restores mstatus (whose MIE, saved by the exception entry,
+    is InterruptDisabled), writes the PC to resume (in [ct2]) to MEPCC,
+    reloads the registers (the stack pointer last, as it overwrites the
+    trusted stack), and returns from the trap with [mret], which moves the
+    posture to the saved MPIE. *)
 
 Section Common_Context_Install.
   Context
@@ -30,12 +29,17 @@ Section Common_Context_Install.
     trusted_reload_registers_instrs exception_spill_regs ++
     encodeInstrsW [machine_instructions.CLoad csp csp TrustedStack_offset_csp; Mret].
 
-  (** From [.Lcommon_context_install]: the registers receive the words of
-      the register save area, and the PC the word in [ct2], as MEPCC holds
-      it. *)
+  (** From [.Lcommon_context_install], at InterruptDisabled with the
+      posture, but its save area joined with the word [hazardPointers]:
+      the registers receive the words of the register save area, and the PC
+      the word in [ct2], as MEPCC holds it. The posture goes to the saved
+      MPIE [p] (the MPIE of the word [mstatus] of the register save area),
+      and the save area back into it; [hazardPointers] is given back. *)
   Lemma common_context_install_spec (g_tstk : Locality) (wpc : LWord) (save_area : list LWord)
     (wcra wcgp wctp wct0 wct1 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
+    th ≠ CtxSwitch ->
     length save_area = 21%nat ->
+    saved_mie_ok save_area ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lcommon_context_install" ∗
     csp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack ∗
@@ -54,9 +58,12 @@ Section Common_Context_Install.
     ca4 ↦ᵣ[th] wca4 ∗
     ca5 ↦ᵣ[th] wca5 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-    trap_entry_res ∗
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    handover_res ∗
+    mtdc_lent ∗
     switcher_code ∗
-    ▷ ( PC ↦ₚ[th] llegalise mepcc wpc ∗
+    ▷ ( let p := mpie_of (get_a (save_area !!! Z.to_nat TrustedStack_offset_mstatus).(lw)) in
+        PC ↦ₚ[th] llegalise mepcc wpc ∗
         cra ↦ᵣ[th] (save_area !!! 1%nat) ∗
         csp ↦ᵣ[th] (save_area !!! 2%nat) ∗
         cgp ↦ᵣ[th] (save_area !!! 3%nat) ∗
@@ -72,25 +79,34 @@ Section Common_Context_Install.
         ca3 ↦ᵣ[th] (save_area !!! 13%nat) ∗
         ca4 ↦ᵣ[th] (save_area !!! 14%nat) ∗
         ca5 ↦ᵣ[th] (save_area !!! 15%nat) ∗
-        [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-        trap_entry_res -∗
+        tstack_hazard_cell ↦ₐ (save_area !!! Z.to_nat TrustedStack_offset_hazardPointers) ∗
+        ⌜route_pre th p⌝ ∗
+        MIE ↦ₜ[th] p ∗
+        held (th := th) p ∗
+        £ 1 -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
-    iIntros (Hlen)
+    iIntros (Hth Hlen Hsaved)
       "(HPC & Hcsp & Hcra & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Htok & #Hswitcher & Hpost)".
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave & Hmie & Hho & Hlent & #Hswitcher
+       & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     destruct save_area as
       [|s0 [|s1 [|s2 [|s3 [|s4 [|s5 [|s6 [|s7 [|s8 [|s9 [|s10
       [|s11 [|s12 [|s13 [|s14 [|s15 [|s16 [|s17 [|s18 [|s19 [|s20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
       try done.
+    (* The saved MIE is InterruptDisabled *)
+    pose proof (Hsaved s17 eq_refl) as Hs17_mie.
     rewrite /tstack_save_end.
     assert ((b_trusted_stack + 21%nat)%a = Some (b_trusted_stack ^+ TSTACK_REGFRAME_SZ))
       as Hsave_end by (tstack_unfold; solve_addr).
     iRegionSplit "Hsave" as
       "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
        & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs16 & Hs17 & Hs18 & Hs19 & Hs20)".
+    (* The volatile registers *)
+    iDestruct (handover_res_unfold with "Hho")
+      as (vepcc vcause vtval vmpie) "(Hcrit & HU & Hmepcc & Hmcause & Hmtval & Hmpie)".
     switcher_open_label ".Lcommon_context_install" "Hswitcher" as "Hcode" pc_a Hpc_a.
     (* The block has no exit by label: the equation of its address is not needed *)
     clear Hpc_a.
@@ -110,14 +126,12 @@ Section Common_Context_Install.
       with "[$HPC $Hcra $Hcsp $Hs17 $Hwit]" as (wst) "(%Hload & HPC & Hcra & Hcsp & Hs17 & _)".
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wst.
     (* SpecialRW cnull mstatus cra *)
-    iInstrApply "Hcode" wp_csrw_mstatus with "[$HPC $Hcra]" as "(HPC & Hcra)".
-    (* The trap-entry token, without its part for mtval, lends MEPCC and
-       mcause *)
-    iDestruct (trap_entry_res_vcsr_tval with "Htok") as "[Htok Htval]".
-    iApply (wp_vcsr_lend with "Htok"); first done.
-    iIntros (wepcc wcause) "Hmepcc Hmcause".
+    iInstrApply "Hcode" (wp_csrw_mstatus _ _ _ _ _ _ _ _ _ _ _ vmpie)
+      with "[$HPC $Hcra $Hmie $Hmpie]" as "(HPC & Hcra & Hmie & Hmpie)".
+    iEval (rewrite -vcsr_frag_pointsto) in "Hmepcc".
     (* SpecialRW cnull mepcc ct2 *)
     iInstrApply "Hcode" wp_cspecialw_mepcc with "[$HPC $Hct2 $Hmepcc]" as "(HPC & Hct2 & Hmepcc)".
+    iEval (rewrite vcsr_frag_pointsto) in "Hmepcc".
     (* The reload of the registers but the stack pointer *)
     rewrite (_ : pc_a ^+ length (encodeInstrsW
                    [machine_instructions.CLoad cra csp TrustedStack_offset_mstatus;
@@ -156,12 +170,29 @@ Section Common_Context_Install.
          _ _ _ _ _ _ _ _ _ LoadPlain)
       with "[$HPC $Hcsp $Hs2 //]" as (wcsp) "(%Hload & HPC & Hcsp & Hs2 & _)".
     destruct Hload as (_ & _ & _ & Hload). rewrite lload_word_RWL in Hload. subst wcsp.
+    (* The save area goes back into the posture, but [hazardPointers] *)
+    set (save := [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16;
+                  s17; s18; s19; s20]).
+    iAssert ([[ b_trusted_stack, b_trusted_stack ^+ TSTACK_REGFRAME_SZ ]] ↦ₐ [[ save ]])%I
+      with "[Hs0 Hs1 Hs2 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15 Hs16
+             Hs17 Hs18 Hs19 Hs20]" as "Hsave".
+    { iRegionMerge. iFrame. }
+    iDestruct (save_area_split save s16 with "Hsave") as "[Hholed Hhazard]"; first done.
+    iAssert (@posture_part _ _ _ th _ (crit_route_full th)) with "[Hholed Hlent]" as "Hpart".
+    { rewrite posture_part_user //. iFrame "Hlent". iExists save. by iFrame "Hholed". }
+    set (p := mpie_of (get_a s17.(lw))).
+    iAssert (posture_res_gen (th := th) (Some p) (Some (llegalise mepcc wpc)) None None)
+      with "[Hcrit HU Hmepcc Hmcause Hmtval Hmpie Hpart]" as "Hposture".
+    { rewrite posture_res_gen_unfold. iFrame "Hpart".
+      iExists (llegalise mepcc wpc), vcause, vtval, p. by iFrame. }
     (* Mret *)
-    iInstrApply "Hcode" wp_mret_vcsr with "[$HPC $Hmepcc $Hmcause]" as "(HPC & Htok)".
-    iDestruct (trap_entry_res_vcsr_tval with "[$Htok $Htval]") as "Htok".
+    iInstrApply "Hcode" with "Hlc"
+      (wp_mret_success_posture _ _ _ _ _ _ _ _ (llegalise mepcc wpc) p)
+      with "[$HPC $Hmie $Hposture]" as "(HPC & Hmie & Hheld)".
     iApply "Hpost".
-    iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Htok".
-    iRegionMerge. iFrame.
+    iFrame "HPC Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5
+            Hhazard Hmie Hheld Hlc".
+    iPureIntro. by intros Hc.
   Qed.
 
 End Common_Context_Install.

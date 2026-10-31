@@ -14,10 +14,8 @@ From griotte Require Import call_stack switcher_exception_states switcher_error_
     below the end); otherwise a store faults when it reaches the end of the
     faulting [csp], after the words below the end are written, or all the
     stores succeed. The handler's stack pointer and [ca0] are [ct0] (the
-    [ErrorState]), [ca1] the cause and [ca2] the value of the trap, from the
-    lent mtval. mtval goes back to the state interpretation after it is
-    read, or before a store faults. The block falls through to
-    [.Lhandle_error_handler_invoke]. *)
+    [ErrorState]), [ca1] the cause and [ca2] the value of the trap, from
+    mtval. The block falls through to [.Lhandle_error_handler_invoke]. *)
 
 Section Handle_Error_Stack_Setup.
   Context
@@ -49,8 +47,7 @@ Section Handle_Error_Stack_Setup.
       one of the copy, after [k] words are written. Otherwise [csp], [ct0]
       and [ca0] are the handler's stack, at the [ErrorState], [ca1] the
       cause (word 18 of the register save area) and [ca2] the value [tval]
-      of the trap, and the PC is at the invocation of the handler. Either
-      way, the lent mtval has gone back to the state interpretation. *)
+      of the trap, and the PC is at the invocation of the handler. *)
   Lemma handle_error_stack_setup_spec (g_tstk : Locality)
     (save : list LWord) (wcsp wct0 wcs1 wca0 wca1 wca2 wca3 wca4 : LWord)
     (error_state_written : nat → iProp Σ) (tval : Z) :
@@ -68,8 +65,7 @@ Section Handle_Error_Stack_Setup.
     ca3 ↦ᵣ[th] wca3 ∗
     ca4 ↦ᵣ[th] wca4 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
-    trap_vcsr_res ∗
-    vcsr_frag mtval (lword_of_word (WInt tval)) ∗
+    mtval ↦ₓ lword_of_word (WInt tval) ∗
     switcher_code ∗
     error_state_written 0 ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
@@ -91,7 +87,7 @@ Section Handle_Error_Stack_Setup.
           ca4 ↦ᵣ[th] - ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written k ∗
-          trap_entry_res -∗
+          mtval ↦ₓ lword_of_word (WInt tval) -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜error_state_stores_ok wcsp⌝ -∗
           ∀ (wcs1' wca3' wca4' : LWord),
@@ -106,12 +102,12 @@ Section Handle_Error_Stack_Setup.
           ca4 ↦ᵣ[th] wca4' ∗
           [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] ∗
           error_state_written (Z.to_nat ErrorState_size) ∗
-          trap_entry_res -∗
+          mtval ↦ₓ lword_of_word (WInt tval) -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
     iIntros (Hlen Hlea Hfits)
-      "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave & Htok & Hmtval
+      "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave & Hmtval
        & #Hswitcher & HES & Hacc & Hpost)".
     switcher_open_label ".Lhandle_error_stack_setup" "Hswitcher" as "Hcode" pc_a Hpc_a.
     switcher_hide "Hpost" as hpost.
@@ -143,8 +139,6 @@ Section Handle_Error_Stack_Setup.
       - (* Store ct0 cs1 TrustedStack_offset_mepcc *)
         iInstrApply "Hcode" wp_store_fail_reg_not_cap_lword_imm with "[$HPC $Hcs1 $Hct0]"
           as "(HPC & Hcs1 & Hct0)".
-        iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-        iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
@@ -154,8 +148,6 @@ Section Handle_Error_Stack_Setup.
         (* Store ct0 cs1 TrustedStack_offset_mepcc *)
         iInstrApply "Hcode" wp_store_fail_reg_perm_imm with "[$HPC $Hcs1 $Hct0]"
           as "(HPC & Hcs1 & Hct0)".
-        iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-        iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
@@ -165,8 +157,6 @@ Section Handle_Error_Stack_Setup.
         (* Store ct0 cs1 TrustedStack_offset_mepcc *)
         iInstrApply "Hcode" wp_store_fail_reg_imm with "[$HPC $Hcs1 $Hct0]"
           as "(HPC & Hcs1 & Hct0)".
-        iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-        iIntros "Htok".
         iSpecialize ("Hfailed" with "[//]").
         iSpecialize ("Hfailed" $! 0%nat with "[%]"); first (rewrite /ErrorState_size; lia).
         switcher_merge_pc.
@@ -265,8 +255,6 @@ Section Handle_Error_Stack_Setup.
          faulting [csp] is past its end *)
       iIntros (j Hj Hout) "Hca2 Hca3 Hcs1 Hca4 Hsrc HES HPC".
       iDestruct ("Hsave_join" with "[//] Hs0 Hsrc Hrest") as "Hsave".
-      iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-      iIntros "Htok".
       iApply (wp_trap with "HPC").
       subst hpost.
       iDestruct "Hpost" as "[Hfailed _]".
@@ -274,7 +262,7 @@ Section Handle_Error_Stack_Setup.
       { rewrite /error_state_stores_ok /=. intros (_ & _ & Hle). solve_addr. }
       switcher_merge_pc.
       iApply ("Hfailed" $! (S j) with "[%] [%] [$Hcsp $Hct0 $Hcs1 $Hca0 $Hca1 $Hca2 $Hca3
-                                           $Hca4 $Hsave $HES $Htok]").
+                                           $Hca4 $Hsave $HES $Hmtval]").
       - rewrite /ErrorState_size; lia.
       - apply trap_no_resume_switcher_pc. by vm_compute. }
     iIntros (wscratch' Hin) "HPC Hca2 Hca3 Hcs1 Hca4 Hsrc HES".
@@ -292,12 +280,11 @@ Section Handle_Error_Stack_Setup.
       with "[$HPC $Hca1 $Hcsp $Hs18]" as "(HPC & Hca1 & Hcsp & Hs18)".
     rewrite lload_word_RWL.
     iDestruct ("Hsave" with "Hs18") as "Hsave".
+    iEval (rewrite -vcsr_frag_pointsto) in "Hmtval".
     (* SpecialRW ca2 mtval cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hca2 $Hmtval]"
       as "(HPC & Hca2 & Hmtval)".
-    (* mtval goes back to the state interpretation *)
-    iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-    iIntros "Htok".
+    iEval (rewrite vcsr_frag_pointsto) in "Hmtval".
     (* Mov csp ca0 *)
     iInstr "Hcode".
     switcher_change_pc_label ".Lhandle_error_handler_invoke".
@@ -307,7 +294,7 @@ Section Handle_Error_Stack_Setup.
     iApply ("Hpost" with "[%]").
     { rewrite /error_state_stores_ok /=.
       split_and!; [done | rewrite /ErrorState_size; solve_addr | solve_addr]. }
-    iFrame "HPC Hcsp Hct0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hsave HES Htok".
+    iFrame "HPC Hcsp Hct0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hsave HES Hmtval".
   Qed.
 
 End Handle_Error_Stack_Setup.
