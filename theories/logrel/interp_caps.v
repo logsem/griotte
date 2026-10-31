@@ -369,7 +369,6 @@ Section logrel.
     congruence.
   Qed.
 
-
   (** The addresses of a write-local capability are non-heap, so its full
       [Temporary] coverage is stated over [LNonHeap] keys. *)
   Lemma writeLocalAllowed_valid_cap_implies_full_cap_nonheap (W : WORLD) (C : CmptName) p g b e a π :
@@ -383,7 +382,6 @@ Section logrel.
     iApply (big_sepL_impl with "Htmp"); iIntros "!>" (k a' Ha') "%Htmp".
     by rewrite (Forall_lookup_1 _ _ _ _ Hkeys Ha') in Htmp.
   Qed.
-
 
   (** A register file can read (resp. write) the address [a] through a word
       without an identifier, i.e. through the region key [LNonHeap a]. A word

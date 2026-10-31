@@ -427,7 +427,7 @@ Section fundamental.
 
     (* Step 1: open the region, if necessary, and store all the resources obtained from the region in allow_load_res imm *)
     iMod (create_load_res imm with "Hthread Hreg Hinv_interp Hinva Hworld_interp Ha")
-      as "[[HLoadRes Ha] | (%ι & %ws & %Hws & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
+      as "[ [HLoadRes Ha] | (%ι & %ws & %Hws & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
     2: { (* A tombstone: the load faults on the tag of the source. *)
          iDestruct (big_sepM_insert_acc with "Hmap") as "[Hsrc Hmap]"; first exact Hws.
          iApply (wp_load_quar_imm (CL := link_core) with "[$HPC $Ha $Hsrc $Hq]"); eauto.

@@ -97,7 +97,7 @@ End Switcher_call_args.
 
 (** ** The free part of a fresh stack
 
-    A call from a fresh stack [[b, e)] hands to the switcher the part of the
+    A call from a fresh stack $[b, e)$ hands to the switcher the part of the
     stack below the space reserved at its top. *)
 Section Fresh_stack.
   Context

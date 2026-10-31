@@ -555,6 +555,31 @@ Proof.
   iFrame "∗ # %".
 Qed.
 
+(** The same, with every compartment run by the user thread 0 only: the
+    obligations receive this pinning of the threads, not the assignment
+    itself. *)
+Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
+    `{MP : MachineParameters} (fw : firmware) :
+  fw_entry_at_code fw →
+  (∀ (cthreads : CmptThreads),
+     (∀ C, cmpt_threads C ⊆ {[UserThread 0]}) →
+     (∀ C, UserThread 0 ∈ cmpt_threads C) →
+     ∀ (img : fw_image) (σ : ExecConf)
+       (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
+       (stsg : STSG Σ) (relg : relGS Σ)
+       (cstackg : CSTACKG Σ),
+       firmware_ok fw img σ →
+       ⊢ fw_init_res (th := UserThread 0) fw img
+         ={⊤}=∗
+         WP Exec @[u 0] {{ _, True }}) →
+  fw_obligations Σ fw.
+Proof.
+  intros Hentry Hprep.
+  pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+  apply (fw_obligations_of Σ (cthreads := cthreads)); first exact Hentry.
+  apply Hprep; [intros; reflexivity | intros; rewrite /cthreads /=; set_solver].
+Qed.
+
 (** ** Closing the world of an untrusted compartment *)
 Section adversary.
   Context

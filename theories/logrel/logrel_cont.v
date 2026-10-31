@@ -43,7 +43,6 @@ Section logrel_pre.
      | Global => True
      end)%I.
 
-
   Lemma futureworld_refl (g : Locality) (W : WORLD) :
     ⊢ @future_world g W W.
   Proof.
@@ -56,7 +55,6 @@ Section logrel_pre.
   Proof.
     unfold future_world. destruct g; apply bi.pure_persistent.
   Qed.
-
 
   (* interp expression definitions *)
   Definition registers_pointsto (r : LReg) : iProp Σ :=
@@ -513,7 +511,7 @@ Section logrel_expr.
   (** [interp_callee_part_of_the_stack] interprets the stack pointer of the caller [wstk].
       When a caller calls the switcher-call routine with a capability [Cap p g b e a] in the [csp]
       register, the switcher is using the spill area at [stk_spill_a a] as callee-saved registers area,
-      and giving the region [[stk_callee_b b a, stk_callee_e e a)] as callee-stack frame.
+      and giving the region $[stk_callee_b b a, stk_callee_e e a)$ as callee-stack frame.
 
       If the caller is trusted, the callee-saved registers area is expected to be solely accessed by the switcher,
       sharing in fact only the callee's region with the caller.
@@ -538,7 +536,6 @@ Section logrel_expr.
         interp W C (WCap t p g b_callee e_callee a)
     | _ => True
     end.
-
 
   (** [interp_cont] is the continuation relation.
       It takes a call-stack [cstk], a list of world [Ws] and a list of compartments [Cs], all of same size.

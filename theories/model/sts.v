@@ -224,7 +224,7 @@ Section STS.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    destruct Hf2 as [ [x1 x2] Hrtc2] ; eauto.
     edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
     edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
@@ -253,7 +253,7 @@ Section STS.
     intros [Hf1 [Hf2 Hf3] ] [Hg1 [Hg2 Hg3] ]; split; [|split]; try by etrans.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i); revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    destruct Hf2 as [ [x1 x2] Hrtc2] ; eauto.
     edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
     edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
@@ -285,7 +285,7 @@ Section STS.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    destruct Hf2 as [ [x1 x2] Hrtc2] ; eauto.
     edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
     edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
@@ -317,7 +317,7 @@ Section STS.
     intros i rpub rpriv rpub' rpriv' Hfr Hhr.
     specialize (Hf1 i); specialize (Hf2 i)
     ; revert Hf1 Hf2; rewrite !elem_of_dom; intros Hf1 Hf2.
-    destruct Hf2 as [[x1 x2] Hrtc2] ; eauto.
+    destruct Hf2 as [ [x1 x2] Hrtc2] ; eauto.
     edestruct Hf3 as [Heq1 [Heq2 Hrtc3] ] ; eauto; simplify_eq.
     edestruct Hg3 as [Heq1 [Heq2 Hrtc4] ] ; eauto; simplify_eq.
     repeat (split;auto).
@@ -350,7 +350,6 @@ Section STS.
     - apply related_sts_std_pub_priv_trans with (std W'); auto.
     - apply related_sts_pub_priv_trans with (loc W') (wrel W'); auto.
   Qed.
-
 
   Lemma related_sts_priv_pub_trans_world W W' W'' :
     related_sts_priv_world W W'
@@ -385,7 +384,6 @@ Section STS.
     - apply related_sts_pub_trans with (loc W') (wrel W'); auto.
   Qed.
 
-
   (* Definition and notation for updating a standard or local state in the STS collection *)
   Definition std_update (W : WORLD) (a : A) (b : B) : WORLD :=
     MkWorld (<[ a := b]>(std W)) (cus W).
@@ -399,7 +397,6 @@ Section STS.
   Notation "<s[ a := ρ ]s> W" := (std_update W a ρ) (at level 10, format "<s[ a := ρ ]s> W").
   Notation "<l[ a := ρ , r ]l> W" := (loc_alloc W a ρ r.1 r.2) (at level 10, format "<l[ a := ρ , r ]l> W").
   Notation "<l[ a := ρ ]l> W" := (loc_update W a ρ) (at level 10, format "<l[ a := ρ ]l> W").
-
 
   Definition fresh_cus_name (W : WORLD) :=
     match W with | MkWorld _ (fs, fr) => fresh (dom fs ∪ dom fr) end.
@@ -422,7 +419,6 @@ Section STS.
         inversion Hy; subst.
         left.
   Qed.
-
 
   Lemma related_sts_pub_world_fresh_loc W (i x : positive) (rpub rpriv : positive -> positive -> Prop) :
     i ∉ dom (loc W) →

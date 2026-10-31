@@ -115,7 +115,7 @@ Section AllocatorMacros.
     codefrag_facts "Hcode".
     iEval (rewrite /allocator_range_memory
       (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons) in "Hmem".
-    iDestruct "Hmem" as "[[%w Ha] Hmem]".
+    iDestruct "Hmem" as "[ [%w Ha] Hmem]".
 
     iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
     (* Store rptr 0: the status witness of the capability's identifier
@@ -275,7 +275,7 @@ Section AllocatorMacros.
     assert (Hbnext_e : (b ^+ 1 <= e)%a) by solve_addr.
     iEval (rewrite (finz_seq_between_cons b e (proj1 (proj2 Hheap))) big_sepL_cons)
       in "Hcells".
-    iDestruct "Hcells" as "[[Hs HP] Hcells]".
+    iDestruct "Hcells" as "[ [Hs HP] Hcells]".
     assert (Hmap : heap_to_shadow b = Some sb).
     { specialize (Htranslate b).
       replace (sb ^+ (b - b)) with sb in Htranslate by solve_addr.

@@ -234,7 +234,7 @@ Section WorldInterpStack.
     iApply exists_pointsto_list. by iApply revoked_cells.
   Qed.
 
-  (* Revoke a stack region, part of which ([bs, es)) has been opened: the
+  (* Revoke a stack region, part of which ($[bs, es)$) has been opened: the
      open keys are revoked with the others, and closed in the revoked world,
      where their body is empty. *)
   Lemma monotone_revoke_stack_open {E : coPset} W C b e a bs es lv ws :

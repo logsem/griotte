@@ -19,7 +19,7 @@ Section Switcher_KtK.
   .
 
   (** The unwind continuation of a known callee's frame [frame], pushed on
-      [cstk], with the callee's stack [[b_callee, e_callee)]: the switcher
+      [cstk], with the callee's stack $[b_callee, e_callee)$: the switcher
       force-unwinds a fault of the callee and returns ECOMPARTMENTFAIL to
       the caller, which needs the callee's whole stack back. *)
   Definition ktk_fault_cont (F : coPset) (frame : cframe) (cstk : CSTK)

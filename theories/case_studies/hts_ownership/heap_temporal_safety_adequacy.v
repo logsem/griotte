@@ -34,11 +34,8 @@ Section hts_obligations.
   Lemma hts_fw_obligations (ot_alloc : OType) :
     fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -228,7 +225,7 @@ Section hts_obligations.
         + apply withinBounds_true_iff. subst adv_owner_a.
           solve_addr+Hadv_owner_size. }
 
-    (* 11 - Close the world of B: its compartment becomes Global regions,
+    (* 11 - Close the world of B: its compartment becomes Permanent regions,
        and the stack temporary, because main shares it with B; the imports
        of B are safe; its export is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)

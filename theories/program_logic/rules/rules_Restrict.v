@@ -135,12 +135,12 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { apply reg_word_ok_lclear_tag. }
-      { rewrite -Hstep. by destruct wsrc as [[| [] | | ? [] ] ?], s. }
+      { rewrite -Hstep. by destruct wsrc as [ [| [] | | ? [] ] ?], s. }
       { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
       { intros lpc' Hi. eapply Restrict_spec_untagged; eauto. }
       { intros Hi. apply Restrict_spec_failure; [|done..]. eapply Restrict_fail_PC_overflow_other; eauto. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
-    destruct wsrc as [[ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
+    destruct wsrc as [ [ | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
     1,4,5: by exfalso; apply Hk.
     - destruct (decodePermPair n) as [p' g'] eqn:HdecPair.
       set (nt := t && PermFlowsTo p' p && LocalityFlowsTo g' g).
@@ -149,12 +149,12 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { eapply (reg_word_ok_derive _ _ (WCap t p g b e a @@? π)); last done; first by left.
-        - rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop.
-        - rewrite /nt /=. intros [[? Hfl]%andb_prop ?]%andb_prop Hx.
+        - rewrite /nt /=. by intros [ [? ?]%andb_prop ?]%andb_prop.
+        - rewrite /nt /=. intros [ [? Hfl]%andb_prop ?]%andb_prop Hx.
           eapply (executeAllowed_flowsto p' p); [by rewrite Hfl | exact Hx]. }
       { exact Hstep. }
       { eapply (reg_phys_derive_eq _ (WCap t p g b e a @@? π) s); [done|done| |by destruct s].
-        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
+        rewrite /nt /=. by intros [ [? ?]%andb_prop ?]%andb_prop. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (PermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
@@ -171,11 +171,11 @@ Section griotte_lang_rules.
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       { eapply (reg_word_ok_derive _ _ (WSealRange t p g b e a @@? π)); last done; first by right.
-        - rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop.
+        - rewrite /nt /=. by intros [ [? ?]%andb_prop ?]%andb_prop.
         - done. }
       { exact Hstep. }
       { eapply (reg_phys_derive_eq _ (WSealRange t p g b e a @@? π) s); [done|done| |by destruct s].
-        rewrite /nt /=. by intros [[? ?]%andb_prop ?]%andb_prop. }
+        rewrite /nt /=. by intros [ [? ?]%andb_prop ?]%andb_prop. }
       { intros lpc' Hi. rewrite /nt in Hi |- *.
         destruct (SealPermFlowsTo p' p) eqn:Hp, (LocalityFlowsTo g' g) eqn:Hl;
           rewrite ?andb_true_r ?andb_false_r /= in Hi |- *;
@@ -382,7 +382,7 @@ Section instruction_outcomes.
                  repeat case_decide; simplify_eq; cbn; eauto];
       try solve [rewrite /lz_of_argument /llookup_reg; simplify_map_eq;
                  case_decide; [by inversion Hread|];
-                 destruct ws as [[] ?]; by simplify_eq/=].
+                 destruct ws as [ [] ?]; by simplify_eq/=].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
     rewrite /linsert_reg decide_False //.
     iRegsMap "Hmap"; iFrame.
@@ -417,7 +417,7 @@ Section instruction_outcomes.
                  repeat case_decide; simplify_eq; cbn; eauto];
       try solve [rewrite /lz_of_argument /llookup_reg; simplify_map_eq;
                  case_decide; [by inversion Hread|];
-                 destruct ws as [[] ?]; by simplify_eq/=].
+                 destruct ws as [ [] ?]; by simplify_eq/=].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
     rewrite /linsert_reg decide_False //.
     iRegsMap "Hmap"; iFrame.
@@ -448,7 +448,7 @@ Section instruction_outcomes.
                  repeat case_decide; simplify_eq; cbn; eauto];
       try solve [rewrite /lz_of_argument /llookup_reg; simplify_map_eq;
                  case_decide; [by inversion Hread|];
-                 destruct ws as [[] ?]; by simplify_eq/=].
+                 destruct ws as [ [] ?]; by simplify_eq/=].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
     rewrite /linsert_reg decide_False //.
     iRegsMap "Hmap"; iFrame.
@@ -483,7 +483,7 @@ Section instruction_outcomes.
                  repeat case_decide; simplify_eq; cbn; eauto];
       try solve [rewrite /lz_of_argument /llookup_reg; simplify_map_eq;
                  case_decide; [by inversion Hread|];
-                 destruct ws as [[] ?]; by simplify_eq/=].
+                 destruct ws as [ [] ?]; by simplify_eq/=].
     iNext. iIntros "(HPC & Hmem & Hmap)". iApply "Hφ". iFrame "HPC Hmem".
     rewrite /linsert_reg decide_False //.
     iRegsMap "Hmap"; iFrame.

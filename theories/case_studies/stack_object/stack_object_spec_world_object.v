@@ -47,7 +47,7 @@ Section SO_World_List.
     apply big_sepL2_proper. by intros ? [ [k p] phi] v _ _.
   Qed.
 
-  (** Open a list of keys of the map of Global regions. *)
+  (** Open a list of keys of the map of Permanent regions. *)
   Lemma open_world_interp_list (W : WORLD) (C' : CmptName)
     (l : list (LAddr * Perm * (CmptName * LWord → iProp Σ)))
     (l' : list LAddr) :
@@ -113,7 +113,7 @@ Section SO_World_List.
   (** Close a list of opened keys of a freed object [ι] with their
       tombstones. *)
 
-  (** Close a list of opened Global keys of a freed object [ι] with their
+  (** Close a list of opened Permanent keys of a freed object [ι] with their
       tombstones. *)
   Lemma close_world_interp_list_tomb (W : WORLD) (C' : CmptName) (ι : AId)
     (l : list (LAddr * Perm * (CmptName * LWord → iProp Σ)))
@@ -146,7 +146,7 @@ Section SO_World_List.
     set_solver.
   Qed.
 
-  (** Close a list of opened Global keys with their cells. *)
+  (** Close a list of opened Permanent keys with their cells. *)
   Lemma close_world_interp_list (W : WORLD) (C' : CmptName)
     (l : list (LAddr * Perm * (CmptName * LWord → iProp Σ)))
     (l' : list LAddr) (lv : list LWord) :
@@ -372,7 +372,7 @@ Section SO_World_Object.
       iExists wa. by iFrame. }
 
     (* The addresses of the object that are not Temporary in [W0] are
-       Global regions: open them through the world interpretation. *)
+       Permanent regions: open them through the world interpretation. *)
     iDestruct (read_allowed_inv_full_cap with "Hthread Hinterp_wca0_W0")
       as "Hinterp_wca0_invs"; auto.
     iAssert (
@@ -636,7 +636,7 @@ Section SO_World_Object.
     { rewrite (so_invs_pointsto _ _ _ Hwca0_invs_perma) addr_key_pointsto_list.
       iFrame. }
 
-    (* The continuation first closes the Global regions back into [W1],
+    (* The continuation first closes the Permanent regions back into [W1],
        then uses the integer-valued Temporary addresses to reinstate the
        object. *)
     iDestruct (close_world_interp_list W1 C wca0_invs [] with
@@ -749,7 +749,7 @@ Section SO_World_Object.
 
   (** Revoke the world [W0] of the call to [f], and open the region of the
       readable stack object [(t, p, g, b, e, a)], tagged or empty, which
-      does not overlap with the stack frame [[csp_b, csp_e)]. The first closing puts the cells of
+      does not overlap with the stack frame $[csp_b, csp_e)$. The first closing puts the cells of
       the object back in the world, provided that they contain integers,
       and gives back the stack frame. The second closing, used when
       [checkints] faults, puts the object back unchanged in the revoked

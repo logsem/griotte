@@ -53,8 +53,6 @@ Section world_std_revocation.
   Definition revoke_list (l : list LAddr) (W : WORLD) : WORLD
     := MkWorld (revoke_list_std_sta l (std W)) (cus W).
 
-
-
   (* -------------------------------------------------------------------------- *)
   (* ------------------------- LEMMAS ABOUT REVOKE ---------------------------- *)
   (* -------------------------------------------------------------------------- *)
@@ -234,7 +232,6 @@ Section world_std_revocation.
     apply elem_of_map_to_list. done.
   Qed.
 
-
   Lemma revoke_monotone_lookup_same (Wstd_sta : gmap LAddr region_type) i :
     Wstd_sta !! i ≠ Some Temporary →
     revoke_std_sta Wstd_sta !! i = Wstd_sta !! i.
@@ -276,12 +273,9 @@ Section world_std_revocation.
     apply revoke_lookup_non_temp in Hsome. done.
   Qed.
 
-
-
   (* --------------------------------------------------------------------------------- *)
   (* ----------- A REVOKED REGION IS MONOTONE WRT PRIVATE FUTURΕ WORLDS -------------- *)
   (* --------------------------------------------------------------------------------- *)
-
 
   Ltac revoke_i W1 W2 i :=
     (match goal with
@@ -499,8 +493,6 @@ Section world_std_revocation.
     - apply close_list_related_sts_pub_cons_world; auto.
   Qed.
 
-
-
   Lemma close_revoke_iff Wstd_sta (l : list LAddr) :
      (forall (i : LAddr), Wstd_sta !! i = Some Temporary <-> i ∈ l) ->
      ∀ i, (close_list_std_sta l (revoke_std_sta Wstd_sta)) !! i =
@@ -539,7 +531,6 @@ Section world_std_revocation.
     rewrite close_revoke_eq; auto; cbn.
     destruct W; apply related_sts_pub_refl_world.
   Qed.
-
 
   Lemma close_list_empty W : (close_list [] W) = W.
   Proof.
@@ -616,7 +607,6 @@ Section world_std_revocation.
     - rewrite close_list_lookup_not_in // std_sta_update_multiple_lookup_same_k //.
   Qed.
 
-
   (* ---------------------------------------------------------------------------------------- *)
   (* ----------------- REVOKING ALL TEMPORARY REGIONS, KNOWN AND UNKNOWN  ------------------- *)
   (* ---------------------------------------------------------------------------------------- *)
@@ -678,8 +668,6 @@ Section world_std_revocation.
            by apply Hl'.
         ++ by apply HForall.
   Qed.
-
-
 
 End world_std_revocation.
 

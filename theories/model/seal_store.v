@@ -47,7 +47,6 @@ Proof.
   constructor; [apply subG_inG in HR1; exact HR1|apply _].
 Qed.
 
-
 Section Store.
   Context {Cname : CmptNameG} `{!sealStoreG Σ}
       `{MP: MachineParameters}.

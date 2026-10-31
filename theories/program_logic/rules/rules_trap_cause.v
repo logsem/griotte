@@ -154,7 +154,7 @@ Section trap_cause.
   Lemma data_cap_check_untagged perm_ok perm_code r w imm :
     get_tag w = false →
     data_cap_check perm_ok perm_code r w imm = inl (FaultCheri TagViolation (CheriGPR r)).
-  Proof. by destruct w as [| [[] | [] ] | ? [] | ? [ [] | [] ] ]. Qed.
+  Proof. by destruct w as [| [ [] | [] ] | ? [] | ? [ [] | [] ] ]. Qed.
 
   Lemma data_cap_check_clear_tag perm_ok perm_code r w imm :
     data_cap_check perm_ok perm_code r (clear_tag w) imm =
@@ -192,7 +192,7 @@ Section trap_cause.
       rewrite data_cap_check_clear_tag.
       destruct (get_tag x) eqn:Htag; last (left; by rewrite data_cap_check_untagged).
       right. split_and!; [done | by apply Hstrip |].
-      destruct x as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
+      destruct x as [| [ [] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
       destruct (readAllowed p); last done.
       destruct (a + imm)%a as [ea|]; last done.
       destruct (withinBounds b e ea) eqn:Hwb; last done.
@@ -227,7 +227,7 @@ Section trap_cause.
       rewrite data_cap_check_clear_tag.
       destruct (get_tag x) eqn:Htag; last (left; by rewrite data_cap_check_untagged).
       right. split_and!; [done | by apply Hstrip |].
-      destruct x as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
+      destruct x as [| [ [] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try done; cbn.
       destruct (writeAllowed p); last done.
       destruct (a + imm)%a as [ea|]; last done.
       destruct (withinBounds b e ea) eqn:Hwb; last done.
@@ -278,7 +278,7 @@ Section trap_cause.
   Proof.
     intros Hrel. pose proof (cr_pc _ _ _ Hrel) as Hpc.
     rewrite /trap_fault -Hpc.
-    destruct (pcc φl) as [| [[] p g b e a | ] | | ] eqn:Hpcl; try by left.
+    destruct (pcc φl) as [| [ [] p g b e a | ] | | ] eqn:Hpcl; try by left.
     destruct (isCorrectPCb _) eqn:Hcorrect; last by left.
     pose proof (cr_mem _ _ _ Hrel a) as Hm.
     destruct (mem φl !! a) as [x|] eqn:Hx; inversion Hm as [? y [Hdec _] Hx' Hy|];
@@ -312,13 +312,13 @@ Section trap_cause.
     registry_ok R C st → lreg !! r = Some v → reg_word_ok R C v → reg_phys R v w →
     word_agree (reg_may_strip lreg r) v.(lw) w.
   Proof.
-    intros Hreg Hr Hok [[-> | [-> Hstrip] ] _]; first by left.
+    intros Hreg Hr Hok [ [-> | [-> Hstrip] ] _]; first by left.
     right. split; first done. split.
     { intros Htag. exists v. split; first done. split; first done.
-      destruct Hstrip as [[(ι & x & Hι & _) _] | [_ Hb] ]; [left | right]; by eauto. }
+      destruct Hstrip as [ [(ι & x & Hι & _) _] | [_ Hb] ]; [left | right]; by eauto. }
     intros p g b e a ea Hv Hwb.
     pose proof Hwb as Hwb'. apply withinBounds_true_iff in Hwb'.
-    destruct Hstrip as [[(ι & x & Hι & Hx & _) _] | [Hna [b' Hhb] ] ].
+    destruct Hstrip as [ [(ι & x & Hι & Hx & _) _] | [Hna [b' Hhb] ] ].
     - destruct Hok as (Hprov & _ & _).
       destruct (Hprov ι b e) as (x' & Hx' & Hb & He);
         [by rewrite Hv | by rewrite Hv | solve_addr | done |].
@@ -491,7 +491,7 @@ Section trap_cause.
       by rewrite !lookup_fmap Hv (lookup_weaken _ _ _ _ Hv Hsub). }
     revert Hknown. rewrite /lfault /trap_fault /lview /=.
     destruct lpc as [w π]; cbn in Hregs |- *.
-    destruct w as [| [[] p g b e a | ] | | ]; try done.
+    destruct w as [| [ [] p g b e a | ] | | ]; try done.
     destruct (isCorrectPCb _); last done.
     rewrite !lookup_fmap.
     destruct (lm !! a) as [wi|] eqn:Hwi; last done.
@@ -531,7 +531,7 @@ Section trap_cause.
     right. destruct Hknown as [Hregs Hacc].
     rewrite /instr_at in Hwi.
     destruct lpc as [w π]; cbn in Hwi, Hregs.
-    destruct w as [| [[] p g b e a | ] | | ]; try done.
+    destruct w as [| [ [] p g b e a | ] | | ]; try done.
     destruct (isCorrectPCb _) eqn:Hcorrect; last done.
     (* The fragment has the instruction word: otherwise the fault would be a
        fetch access fault. *)
@@ -541,7 +541,7 @@ Section trap_cause.
     rewrite (lookup_weaken _ _ _ _ Hwi' Hmsub) in Hwi. injection Hwi as ->.
     pose proof (Hregs _ _ _ _ _ _ eq_refl Hwi') as Hdom.
     pose proof (fault_auth_reg_operands_of _ _ Hr) as Hrr.
-    destruct (elem_of_dom lregs r) as [[v' Hv'] _].
+    destruct (elem_of_dom lregs r) as [ [v' Hv'] _].
     { apply Hdom. rewrite /regs_of. set_solver. }
     rewrite (lookup_weaken _ _ _ _ Hv' Hsub) in Hv. injection Hv as ->.
     exists wi, r, v. split_and!; try done.

@@ -607,7 +607,7 @@ Section SO_World_Return.
       ([l4]) overlap on the temporary addresses of the stack object [in],
       and [l4] contains the stack object [z] at [a_stk2]. The world is
       repaired by closing both lists, without duplicates, and the stack
-      frame [[csp_b, csp_e)] (the stack frame of the callee, [z], the
+      frame $[csp_b, csp_e)$ (the stack frame of the callee, [z], the
       secret at [a_stk1], and the space reserved on top). *)
   Lemma so_world_return
       (W0 W4 : WORLD) (C : CmptName)

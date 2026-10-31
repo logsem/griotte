@@ -99,7 +99,7 @@ Section Switcher.
             -∗ safe[th].
 
   (** The spill of the callee-save registers at the cursor [a_stk] does not
-      fit in the caller's stack [[b_stk, e_stk)]. *)
+      fit in the caller's stack $[b_stk, e_stk)$. *)
   Definition switcher_spill_overflows (b_stk e_stk a_stk : Addr) : Prop :=
     ¬ stk_spill_fits b_stk e_stk a_stk.
 

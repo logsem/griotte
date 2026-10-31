@@ -98,13 +98,13 @@ Arguments tf_stk_e !tf /.
 
 (** * The layout of a compartment stack
 
-    The switcher's call path takes the caller's stack [[b, e)] with its
+    The switcher's call path takes the caller's stack $[b, e)$ with its
     cursor at [a]. It spills the callee-saved registers of the caller in the
     [SpillSlot_size] words of the spill area, at [stk_spill_a a], moves the
     cursor to [stk_saved_a a], saved in the frame, and gives the callee the
-    stack [[stk_callee_b b a, stk_callee_e e a)]. The part of the caller's
+    stack $[stk_callee_b b a, stk_callee_e e a)$. The part of the caller's
     stack that the call hands to the switcher, the spill area and the
-    callee's stack, is [[stk_free_b b a, stk_free_e e a)]. Stacks grow
+    callee's stack, is $[stk_free_b b a, stk_free_e e a)$. Stacks grow
     down, as in CHERIoT: the free part is below the cursor, the spill area
     is its top [SpillSlot_size] words, and the callee's stack the rest. *)
 
@@ -118,7 +118,7 @@ Definition stk_callee_e (e a : Addr) : Addr := (a ^+ (- SpillSlot_size)).
 (** The bounds of the free part of the caller's stack. *)
 Definition stk_free_b (b a : Addr) : Addr := b.
 Definition stk_free_e (e a : Addr) : Addr := a.
-(** Where the cursor of a fresh stack [[b, e)] starts: below the
+(** Where the cursor of a fresh stack $[b, e)$ starts: below the
     [StackEntry_reserved_space] words reserved at its top. *)
 Definition stk_start_a (b e : Addr) : Addr := (e ^+ (- StackEntry_reserved_space)).
 (** The spill area does not wrap around the address space. *)

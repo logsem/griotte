@@ -26,7 +26,7 @@ Section CMDC_World.
 
   (** ** Sharing an address with a callee
 
-      The shared address [a] becomes a Global region, which leaves the local
+      The shared address [a] becomes a Permanent region, which leaves the local
       world unchanged. *)
 
   (** Relinquish [a] into the world of the callee, so that the capability
@@ -59,7 +59,7 @@ Section CMDC_World.
       "Hworld Hstack_revoked #Htarget Ha Hstk".
     iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
 
-    (* Relinquish [a] into the world, as a Global region *)
+    (* Relinquish [a] into the world, as a Permanent region *)
     iDestruct (init_PermRes C (LNonHeap a) RW (safeGC interp_nonlocal) with "[$Ha] []") as "Ha".
     { done. }
     { iApply interp_nonlocal_int. }
@@ -110,7 +110,7 @@ Section CMDC_World.
   (** ** Return from a call
 
       The callee returned a public future [Wret] of the world of the call.
-      The shared address [a] is a Global region, which gives back a
+      The shared address [a] is a Permanent region, which gives back a
       points-to of [a]. *)
   Lemma cmdc_world_return W Wret C (a csp_b csp_e : Addr) :
     let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in

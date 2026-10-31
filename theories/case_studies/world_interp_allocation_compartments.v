@@ -30,7 +30,7 @@ Section region_alloc_cmpt.
     list_to_set ((λ sb, lword_of_word (WSealed ot_switcher sb)) <$> (exported_entries_sealable C_cmpt)).
 
   (** The PCC and CGP of a compartment are valid in every world and at
-      every thread, from the Global regions of their addresses. *)
+      every thread, from the Permanent regions of their addresses. *)
   Lemma cmpt_caps_interp (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in

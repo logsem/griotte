@@ -77,7 +77,7 @@ Section region_alloc.
     rewrite /std_update /= !dom_insert_L. set_solver.
   Qed.
 
-  (** Global regions enter the map open: each cell shows that its key is
+  (** Permanent regions enter the map open: each cell shows that its key is
       fresh. *)
   Lemma perm_insert_open_list C M O (ks : list LAddr) (lw : list LWord) p (φ : CmptName * LWord → iProp Σ) :
     NoDup ks → (∀ k, k ∈ ks → k ∉ O) →
@@ -106,7 +106,7 @@ Section region_alloc.
     iFrame "Hm Hrs Hl Hv". by rewrite rel_perm_eq.
   Qed.
 
-  (** Closing open Global regions, each with its cell and its predicate. *)
+  (** Closing open Permanent regions, each with its cell and its predicate. *)
   Lemma perm_close_list C M O (ks : list LAddr) (lw : list LWord) p (φ : CmptName * LWord → iProp Σ) :
     NoDup ks → (∀ k, k ∈ ks → k ∉ O) → isO p = false → (∀ x, Persistent (φ x)) →
     rmap (γrel_perm C) M (body_perm C) (list_to_set ks ∪ O) -∗

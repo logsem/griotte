@@ -6,7 +6,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
     The shadow segment [allocator_malloc_shadow_code] of [malloc] is shared
     by the allocators. Block 0 is the zeroing loop over the payload
-    [b, finish), through the payload capability in [ca2]. Block 1
+    $[b, finish)$, through the payload capability in [ca2]. Block 1
     translates the header address [next] to its shadow entry, through the
     shadow capability in [ctp]. Block 2 paints the three header words
     quarantined. Block 3 loads the payload size, and block 4 stores

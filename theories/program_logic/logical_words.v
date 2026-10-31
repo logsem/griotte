@@ -150,7 +150,7 @@ Proof. done. Qed.
 Lemma lprov_lseal_capability v ot : (lseal_capability v ot).(lprov) = v.(lprov).
 Proof. done. Qed.
 Lemma lprov_lunseal g v : (lunseal g v).(lprov) = v.(lprov).
-Proof. by destruct v as [[] ?]. Qed.
+Proof. by destruct v as [ [] ?]. Qed.
 Lemma lw_llegalise sr v : (llegalise sr v).(lw) = legalise sr v.(lw).
 Proof. done. Qed.
 Lemma lprov_llegalise sr v : (llegalise sr v).(lprov) = v.(lprov).

@@ -9,8 +9,8 @@ From griotte Require Import allocator_resources.
 (** The namespace of the invariant on the flag of the assert library. *)
 Definition Nassert_flag : namespace := nroot .@ "assert_flag".
 
-(** The layout of a trusted stack [ [b, e)] with contents [ts] and hazard
-    slots [ [b_hz, e_hz)]. *)
+(** The layout of a trusted stack $[b, e)$ with contents [ts] and hazard
+    slots $[b_hz, e_hz)$. *)
 Section trusted_stack_layout.
   Context `{MP : MachineParameters}.
 

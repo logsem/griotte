@@ -168,8 +168,7 @@ Section Callback_Path.
   Qed.
 
   (** [switcher_return_path_spec], where the restored registers are loaded
-      through the open world [Wworld], and observe the heap of the world
-      [Wval]. The spill area, the callee's stack and the open world come
+      through the open world [Wworld]. The spill area, the callee's stack and the open world come
       from a logical step after the pop, which receives the later credit of
       the pop. When the caller is untrusted, the saved words are safe, and
       so are the restored registers. *)

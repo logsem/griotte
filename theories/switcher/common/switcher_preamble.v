@@ -266,7 +266,7 @@ Section Switcher_preamble.
     (a ^+ SpillSlot_pcc) ↦ₐ w3.
 
   (** [cframe_stk_own s saved ccrel] holds the spill area
-      [[s, s + SpillSlot_size)] where the switcher spilled the callee-saved
+      $[s, s + SpillSlot_size)$ where the switcher spilled the callee-saved
       registers [saved] of the caller. We have 2 situations to take into account:
       - If the caller is untrusted, the points-to predicate of the callee-save region
         are stored in the region invariant, which means that their content is controlled by adversary,
@@ -282,7 +282,7 @@ Section Switcher_preamble.
       switcher_stk_cells a_stk saved.(cs_cs0) saved.(cs_cs1) saved.(cs_cgp) saved.(cs_cra))%I.
 
   (** The spill area of a caller whose cursor is [a] lies in its stack
-      [[b, e)], and does not wrap around. *)
+      $[b, e)$, and does not wrap around. *)
   Definition switcher_stk_bounds (b e a : Addr) : Prop :=
     (b <= stk_spill_a a)%a ∧
     (stk_spill_a a ^+ (SpillSlot_size - 1)) ∈ₐ [b, e) ∧
@@ -291,7 +291,7 @@ Section Switcher_preamble.
   (** [cframe_interp] interprets a call-frame, i.e.,
       describes how the physical call-frame is linked to the logical call-frame [frm : cframe]:
       its frame of the trusted stack, whose stack pointer is the stack of
-      the caller [[b_stk, e_stk)] with the cursor saved after the spill at
+      the caller $[b_stk, e_stk)$ with the cursor saved after the spill at
       the caller's cursor [a_stk]; and the spill area.
    *)
   Definition cframe_interp (frm : cframe) (a_tstk : Addr) : iProp Σ :=

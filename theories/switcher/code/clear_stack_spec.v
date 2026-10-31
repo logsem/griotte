@@ -8,7 +8,7 @@ Section ClearStackMacro.
     {ceriseg:ceriseG Σ}
     `{MP: MachineParameters}.
 
-  (** Zero the words [[a_lo, a_hi)] through the capability in [rbase], whose
+  (** Zero the words $[a_lo, a_hi)$ through the capability in [rbase], whose
       cursor is at [a_lo], up to the address [a_hi] in [rtop]. *)
   Lemma clear_stack_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)

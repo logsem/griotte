@@ -43,7 +43,7 @@ Section Error_Handling_Main_Spec.
   Context {C : CmptName}.
 
   (** The call stack of a thread that starts in [main], with the stack
-      [b, e) and the export table word [w] *)
+      $[b, e)$ and the export table word [w] *)
   #[local] Notation main_entry_cstack b e w :=
     (entry_cstack {| tf_csp := Cap RWL Local b e (stk_start_a b e);
                      tf_export_tbl := w;

@@ -27,7 +27,7 @@ Section DROE_World.
   (** ** Sharing the data with the adversary
 
       The world in which the call happens: the revoked world. [cgp_b] and
-      [cgp_b + 1] become Global regions, with a read-only safety predicate
+      [cgp_b + 1] become Permanent regions, with a read-only safety predicate
       that fixes their content. *)
   Definition droe_Wshare W : WORLD := revoke W.
 
@@ -69,7 +69,7 @@ Section DROE_World.
     iMod (world_interp_extend_perm with "Hworld_interp_C PermRes_cgp_b")
       as "(Hworld_interp_C & #Hrel_cgp_b)"; auto.
 
-    (* A Global capability to Global regions is valid in any world *)
+    (* A Global capability to Permanent regions is valid in any world *)
     iAssert (∀ W, interp W C (Cap RO_DRO Global cgp_b (cgp_b ^+ 1) cgp_b))%I
       as "#Hinterp_cgp_b".
     { iIntros (W).
@@ -168,7 +168,7 @@ Section DROE_World.
   (** ** Return from the call
 
       The adversary returned a public future [W4] of [W3]. Since [cgp_b] is
-      a Global region, opening the world gives back [cgp_b], which still
+      a Permanent region, opening the world gives back [cgp_b], which still
       contains [42]. *)
   Lemma droe_world_return W0 W4 C (cgp_b cgp_e csp_b csp_e : Addr) :
     let W3 := droe_Wshare W0 in

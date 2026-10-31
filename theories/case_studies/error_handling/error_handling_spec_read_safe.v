@@ -558,7 +558,7 @@ Section Error_Handling_Read_Safe.
       - apply withinBounds_true_iff; solve_addr. }
     iSplit; first (iPureIntro; exact STATS_pcc_base_not_heap).
     iSplit; first (iPureIntro; exact STATS_cgp_base_not_heap).
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %b_stk %e_stk".

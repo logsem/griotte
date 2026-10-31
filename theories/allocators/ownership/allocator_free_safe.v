@@ -27,7 +27,7 @@ Section Heap_Temporal_Safety_Interp.
   #[local] Instance free_auth_owner_inst : FreeAuth Σ := free_auth_owner.
 
   (** Open the cells of [lk], keys of the object [ι], in the world. A live
-      status share of [ι] refutes their tombstones, and a Global region of a
+      status share of [ι] refutes their tombstones, and a Permanent region of a
       key that is also Temporary. *)
   Lemma free_region_open_list W C g ι q (lk : list LAddr) :
     NoDup lk ->
@@ -75,7 +75,7 @@ Section Heap_Temporal_Safety_Interp.
       iModIntro. iExists (v :: ws). cbn. iFrame "Hst Ha Hmem Hkey Hkeys Hworld".
   Qed.
 
-  (** Execute free for an arbitrary caller and update the shared heap world. *)
+  (** Execute free for an arbitrary caller. *)
   Lemma free_exec_entry_point W C :
     allocator_pcc_b ≠ b_switcher ->
     allocator_service_ctx ∗
@@ -94,7 +94,7 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (Hpc_b)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "(#Hthread & #Htv & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
+      "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
         & %Hsync & _ & Hcstk & Hna)".
     iEval (rewrite world_resources_exclusive) in "Hworld".
     iDestruct "Hregister" as
@@ -621,7 +621,7 @@ Section Heap_Temporal_Safety_Interp.
         as Hhelem by (apply elem_of_finz_seq_between; solve_addr).
       set_solver. }
     iModIntro.
-    iIntros (t') "#Ht'".
+    iIntros (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W').

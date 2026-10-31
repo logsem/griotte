@@ -451,7 +451,7 @@ Lemma jalr_target_ok_pc_ok rdst rsrc w :
   jalr_target_ok rdst rsrc w = true → pc_ok (updatePcPerm w).
 Proof.
   rewrite /jalr_target_ok /pc_ok.
-  intros [[Ht Hs]%andb_prop Hx]%andb_prop _.
+  intros [ [Ht Hs]%andb_prop Hx]%andb_prop _.
   destruct w as [| [] | | ? [] ]; cbn in *; try done; by split.
 Qed.
 

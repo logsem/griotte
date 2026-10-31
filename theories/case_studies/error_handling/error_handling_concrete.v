@@ -72,7 +72,7 @@ Section error_handling_adv_code.
     fetch_asm ".Limport_switcher" ct0 ++
     fetch_asm ".Limport_stats_read" ct1 ++
     [ jalr cra ct0;
-      (* the object [csp + 1, csp + 2), one past its end *)
+      (* the object $[csp + 1, csp + 2)$, one past its end *)
       geta ct2 csp;
       add ct2 ct2 1;
       add ctp ct2 1;
@@ -189,7 +189,7 @@ Proof.
   pose proof (machine_run_correct (N.to_nat 15000%N) Executable error_handling_demo_state Halted)
     as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [[[[[pc' reg'] sreg'] mem'] sh'] Hrun].
+  destruct Hrun as [ [ [ [ [pc' reg'] sreg'] mem'] sh'] Hrun].
   exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
   exact (error_handling_adequacy _ _ _ _ error_handling_demo_ok Hrun).
 Qed.

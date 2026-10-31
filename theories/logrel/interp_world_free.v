@@ -26,7 +26,7 @@ Section logrel.
   (** ** World-free validity
 
       A word that is not Local is valid in every world: its regions are
-      Global, its sentries run in every world, and the predicates of Global
+      Permanent, its sentries run in every world, and the predicates of Global
       seals are constant. *)
   Lemma interp_global_world_free W W' C w :
     isLocalWord w.(lw) = false →
@@ -275,7 +275,7 @@ Section logrel_threads.
 
   (** A holder of a Global capability that is not write-local, at any
       thread [t], in the compartment's threads or not, writes a word that
-      is not local into a Global region through the map of Global regions
+      is not local into a Permanent region through the map of Permanent regions
       alone. *)
   Lemma wg_holder_write (t : Thread) W C p (b e a a' : Addr) w :
     isWL p = false → writeAllowed p = true → (b ≤ a' ∧ a' < e)%Z →

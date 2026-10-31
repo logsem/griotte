@@ -7,7 +7,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
     The tail [allocator_free_tail_code] of [free] is shared by the
     allocators.
 
-    Block 0 paints the payload [b, e) quarantined, while the status token of
+    Block 0 paints the payload $[b, e)$ quarantined, while the status token of
     its identifier [ι] is in [APainting]. Block 1 sets the result
     [ALLOC_OK] and clears [ca1].
 

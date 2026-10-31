@@ -458,7 +458,7 @@ Section fundamental.
     (* Step 1: open the region, if necessary,
        and store all the resources obtained from the region in allow_store_res imm *)
     iMod (create_store_res imm with "Hinv_interp Hreg Hinva Hworld_interp Ha")
-      as "[[HStoreRes Ha] | (%ι & %wd & %Hwd & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
+      as "[ [HStoreRes Ha] | (%ι & %wd & %Hwd & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
     2: { (* A tombstone: the store faults on the tag of the address. *)
          iDestruct (big_sepM_insert_acc with "Hmap") as "[Hdst Hmap]"; first exact Hwd.
          iApply (wp_store_quar_imm (CL := link_core) with "[$HPC $Ha $Hdst $Hq]"); eauto.

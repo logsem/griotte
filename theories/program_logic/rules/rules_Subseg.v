@@ -913,7 +913,7 @@ Section griotte_lang_rules.
     { destruct sd.
       - apply reg_phys_exact. intros ι' x Ha Hι Hx. rewrite /v /= in Hι. simplify_eq.
         cbn. by intros [-> | ->]; destruct Hs.
-      - destruct Hreld as [[Heq | [_ [[(? & ? & ? & _) _] | [Hna [base Hh] ] ] ] ] _];
+      - destruct Hreld as [ [Heq | [_ [ [(? & ? & ? & _) _] | [Hna [base Hh] ] ] ] ] _];
           cbn in *; try discriminate.
         split; last done. right. split; first done. right.
         assert (is_heap_address b = true) as Hbh.

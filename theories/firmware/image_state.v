@@ -168,7 +168,7 @@ Proof.
     apply elem_of_cons in Hx as [->|Hx]; [done | by apply IH].
 Qed.
 
-(** [[b, e)] and [[lo, hi)] are apart. *)
+(** $[b, e)$ and $[lo, hi)$ are apart. *)
 Definition range_apart (b e lo hi : Addr) : bool :=
   bool_decide (e <= lo)%a || bool_decide (hi <= b)%a.
 

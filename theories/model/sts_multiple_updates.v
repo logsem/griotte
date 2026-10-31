@@ -261,7 +261,7 @@ Section std_updates.
          rewrite /std_update insert_id /=; first  by destruct (std_update_multiple W l Temporary) as [].
          by apply std_sta_update_multiple_lookup_in_i.
        }
-       destruct W as [Hstd Hcus Hloc].
+       destruct W as [Hstd Hcus].
        apply related_sts_pub_world_revoked_temporary in Ha_std.
        eapply related_sts_pub_trans_world;[apply std_update_multiple_related_monotone,Ha_std|].
        rewrite std_update_multiple_insert_commute //. apply related_sts_pub_refl_world.

@@ -241,7 +241,7 @@ Qed.
     rewrite /sweep_word. intros Hnq.
     destruct (heap_cap_base w) as [base|] eqn:Hbase; last done.
     specialize (Hnq base eq_refl).
-    destruct (shadow !! base) as [[]|]; done.
+    destruct (shadow !! base) as [ []|]; done.
   Qed.
 
   Lemma sweep_word_nonheap shadow w :
@@ -253,7 +253,7 @@ Qed.
   Proof.
     rewrite /sweep_word.
     destruct (heap_cap_base w); last by left.
-    destruct (shadow !! _) as [[]|]; auto.
+    destruct (shadow !! _) as [ []|]; auto.
   Qed.
 
   Lemma lookup_sweep_mem shadow m a :
@@ -417,7 +417,7 @@ Qed.
     ∃ p g b e a, w = Cap p g b e a ∧ perm_ok p = true.
   Proof.
     intros Hcode. rewrite /data_cap_check.
-    destruct w as [| [[] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try (intros [=]; fail);
+    destruct w as [| [ [] p g b e a | [] ] | k [] | ? [ [] | [] ] ]; try (intros [=]; fail);
       try (intros [= ?]; congruence).
     destruct (perm_ok p) eqn:Hp; last (intros [= ?]; congruence).
     intros _. by exists p, g, b, e, a.

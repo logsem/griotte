@@ -40,7 +40,7 @@ Section AllocatorServiceInitializationProofs.
     { rewrite /allocator_cells /allocator_initial_cells big_sepM_fmap.
       iCombine "Hheap Hclaims" as "Hcells". rewrite -big_sepM_sep.
       iApply (big_sepM_mono with "Hcells").
-      iIntros (a c Hc) "[[Ha Hs] Hclaim]". rewrite /cell_res /=. iFrame.
+      iIntros (a c Hc) "[ [Ha Hs] Hclaim]". rewrite /cell_res /=. iFrame.
       rewrite lookup_init_claims in Hc.
       destruct (is_heap_address a); last done.
       case_decide; simplify_eq; by iFrame. }

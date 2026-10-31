@@ -55,7 +55,7 @@ Section AllocatorMallocWorld.
     iDestruct (allocator_owners_agree with "Howners Hid") as %HOid.
     iEval (rewrite (st_own_split_alloc ι (finz.seq_between b finish))
       finz_seq_between_length -free_auth_split) in "Htok".
-    iDestruct "Htok" as "[[Hkept Hheld] [Hshare Hshares] ]".
+    iDestruct "Htok" as "[ [Hkept Hheld] [Hshare Hshares] ]".
     assert (Hιids : ι ∉ allocator_entry_ids allocations).
     { intros Hin. apply Hιissued, (acw_issued _ _ _ _ _ Hcwf).
       by apply elem_of_list_to_set. }

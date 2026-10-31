@@ -315,7 +315,7 @@ Section AllocatorEntriesContracts.
     apply list_elem_of_lookup_1 in Hin as [k Hk].
     rewrite /allocator_entries_res.
     iDestruct (big_sepL_lookup_acc_impl k (b, e, reserved, ι) with "Hres")
-      as "[[#Hobj Htok] Hclose]"; first exact Hk.
+      as "[ [#Hobj Htok] Hclose]"; first exact Hk.
     iFrame "Hobj Htok". iIntros (live' Hext) "Htok".
     iApply ("Hclose" $! (λ _ entry, let '(b, e, _, ι) := entry in
               alloc_obj ι b e ∗ allocator_tok live' ι b e)%I with "[] [Htok]").
@@ -439,8 +439,8 @@ Section AllocatorCellsContracts.
 
 End AllocatorCellsContracts.
 
-(** [malloc] appends the entry of [ι] over [[b, finish)], with its header at
-    [[next, b)], to the cells and the header list. *)
+(** [malloc] appends the entry of [ι] over $[b, finish)$, with its header at
+    $[next, b)$, to the cells and the header list. *)
 Definition allocator_malloc_cell (b : Addr) (ι : AId) (a : Addr) :
     AddrClaim * AllocStatus * bool :=
   if decide (a < b)%a then (Unclaimed, ShadowQuarantined, true) else (Claimed ι, ShadowLive, false).
@@ -517,7 +517,7 @@ Proof.
   - rewrite allocator_entry_ids_app list_to_set_app_L /=. set_solver.
 Qed.
 
-(** [free] revokes the live entry of [ι] over [[b, e)]: its cells become
+(** [free] revokes the live entry of [ι] over $[b, e)$: its cells become
     unclaimed and unpainted, with their memory back in the service invariant. *)
 Definition allocator_free_cell (a : Addr) : AddrClaim * AllocStatus * bool :=
   (Unclaimed, ShadowLive, false).

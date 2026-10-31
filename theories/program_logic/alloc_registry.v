@@ -11,7 +11,7 @@ From griotte Require Import addresses machine_word region_keys logical_words.
     forward: [ALive → APainting → AQuar → ADead]. Entries are never removed
     and identifiers are never reused.
 
-    - [alloc_obj ι b e] (persistent): [ι] covers [[b, e)].
+    - [alloc_obj ι b e] (persistent): [ι] covers $[b, e)$.
     - [ι ↦st{q} s] (fractional, exact): [ι] is currently in state [s].
     - [ι ⊒ s] (persistent): [ι] has reached at least [s].
     - [reg_auth R]: the authority, holding the hidden half of every status. *)
@@ -195,7 +195,7 @@ Section registry_lemmas.
     iIntros "[Hmap Hauths] (%b & %e & %γ & #H & A)".
     iDestruct (ghost_map_lookup with "Hmap H") as %Hlookup.
     rewrite /reg_names lookup_fmap in Hlookup.
-    apply fmap_Some in Hlookup as ([[[b' e'] γ'] s'] & HR & Heq).
+    apply fmap_Some in Hlookup as ([ [ [b' e'] γ'] s'] & HR & Heq).
     simplify_eq/=.
     iDestruct (big_sepM_lookup with "Hauths") as "Ha"; first exact HR.
     iDestruct (mono_nat_auth_own_agree with "Ha A") as %[_ Hs].
@@ -209,7 +209,7 @@ Section registry_lemmas.
     iIntros "[Hmap Hauths] (%b & %e & %γ & #H & L)".
     iDestruct (ghost_map_lookup with "Hmap H") as %Hlookup.
     rewrite /reg_names lookup_fmap in Hlookup.
-    apply fmap_Some in Hlookup as ([[[b' e'] γ'] s'] & HR & Heq).
+    apply fmap_Some in Hlookup as ([ [ [b' e'] γ'] s'] & HR & Heq).
     simplify_eq/=.
     iDestruct (big_sepM_lookup with "Hauths") as "Ha"; first exact HR.
     iDestruct (mono_nat_lb_own_valid with "Ha L") as %[_ Hle].
@@ -223,7 +223,7 @@ Section registry_lemmas.
     iIntros "[Hmap _] (%γ & #H)".
     iDestruct (ghost_map_lookup with "Hmap H") as %Hlookup.
     rewrite /reg_names lookup_fmap in Hlookup.
-    apply fmap_Some in Hlookup as ([[[b' e'] γ'] s'] & HR & Heq).
+    apply fmap_Some in Hlookup as ([ [ [b' e'] γ'] s'] & HR & Heq).
     simplify_eq/=. eauto.
   Qed.
 

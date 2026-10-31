@@ -11,7 +11,6 @@ Definition sts_stateUR := authUR (gmapUR positive (exclR (leibnizO positive))).
 Definition sts_relUR :=
   authUR (gmapUR positive (agreeR (leibnizO ((positive → positive → Prop) * (positive → positive → Prop) )))).
 
-
 (** The CMRA for the sts collection: the custom STSs. *)
 Class STS_preG (Σ : gFunctors) :=
   { sts_pre_state_inG :: inG Σ sts_stateUR;
@@ -302,7 +301,6 @@ Section STS.
     iFrame.
     repeat iSplit; auto.
   Qed.
-
 
   Lemma sts_update_loc W C i d d' :
     sts_full_world W C

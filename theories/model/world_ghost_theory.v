@@ -6,21 +6,21 @@ From griotte Require Import heap_region.
 
   (*** World Ghost Theory *)
 
-  (** This file define the ghost theory of worlds.
-      It is intended to be a clean interface between the model defined in [region_invariant_*.v] and the user. *)
+  (** This file defines the ghost theory of worlds.
+      It is intended to be a clean interface between the model defined in
+      [world_interp.v], [region_maps.v] and [world_interp_*.v], and the user. *)
 
   (** * Disclaimer to the users of Griotte:
 
-      All the proofs in this file are use the Griotte internal model defined in [region_invariant_*.v].
+      All the proofs in this file use the Griotte internal model defined in
+      [world_interp.v], [region_maps.v] and [world_interp_*.v].
       This file defines the interface that one should use in the proofs.
 
       The world interpretation of a compartment has two parts: the map of
-      Global regions ([k ↪ᵖ[C]{p} φ], predicates without a world), and the
+      Permanent regions ([k ↪ᵖ[C]{p} φ], predicates without a world), and the
       local map of the section's thread ([k ↪ˡ[C]{p} φ]), read off the
       local world [W], whose keys are Temporary or Revoked.
   *)
-
-
 
 Section world_ghost_theory.
 
@@ -161,8 +161,8 @@ Section world_ghost_theory.
     iApply (perm_close with "Hg Hrel Hb"); by apply not_elem_of_open_perm.
   Qed.
 
-  (** The map of Global regions alone, without the local map: a thread
-      outside the compartment's threads opens and closes a Global region
+  (** The map of Permanent regions alone, without the local map: a thread
+      outside the compartment's threads opens and closes a Permanent region
       through it. *)
   Lemma open_perm_region_map (C : CmptName) (s : gset LAddr) (a : LAddr) (p : Perm) Φ :
     a ∉ s ->
@@ -247,7 +247,7 @@ Section world_ghost_theory.
     - iExists p, φ. iSplit; [done|]. rewrite rel_l_eq. iExists γp. by iFrame "#".
   Qed.
 
-  (** A Global region outside the heap is not a Temporary key of the local
+  (** A Permanent region outside the heap is not a Temporary key of the local
       world: both would own its cell. *)
   Lemma world_interp_rel_perm_not_temporary_nonheap W C a p φ :
     world_interp W C -∗ LNonHeap a ↪ᵖ[C]{p} φ -∗
@@ -266,7 +266,7 @@ Section world_ghost_theory.
     - iIntros "!>" (a' ι Heq). done.
   Qed.
 
-  (** A Global region of a key Temporary in the local world: both parts would
+  (** A Permanent region of a key Temporary in the local world: both parts would
       own its cell, so the key is a heap key, with a tombstone. *)
   Lemma world_interp_open_rel_perm_temporary W C s k p φ :
     k ∉ s → std W !! k = Some Temporary →
@@ -309,7 +309,7 @@ Section world_ghost_theory.
         iApply (perm_close with "Hg Hr' []"); [done|]. rewrite /body_perm /=. by iRight.
   Qed.
 
-  (** A Global region outside the heap whose key is Temporary in the local
+  (** A Permanent region outside the heap whose key is Temporary in the local
       world owns its cell, even with keys open. *)
   Lemma world_interp_open_rel_perm_temporary_cell W C s a p φ w :
     std W !! LNonHeap a = Some Temporary →
@@ -323,7 +323,7 @@ Section world_ghost_theory.
     iApply (heap_pointsto_valid_2 (LNonHeap a) (LNonHeap a) with "Hv Hw"). done.
   Qed.
 
-  (** A Global region whose cell is held is not open: the world owns its
+  (** A Permanent region whose cell is held is not open: the world owns its
       body. *)
   Lemma world_interp_open_rel_perm_cell_false W C s k p φ w :
     k ∉ s → world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗ k ↦ₖ w -∗ False.
@@ -472,7 +472,7 @@ Section world_ghost_theory.
 
   (** ** Extension of the world interpretation for safety invariants. *)
 
-  (** A Global region enters the map of Global regions of [C]: no world
+  (** A Permanent region enters the map of Permanent regions of [C]: no world
       step. *)
   Lemma world_interp_extend_perm
     {E : coPset}
@@ -642,7 +642,7 @@ Section world_ghost_theory.
         rewrite elem_of_dom_std Ha in Hdom. by destruct Hdom.
   Qed.
 
-  (** Global regions whose predicates need the region predicates: the keys
+  (** Permanent regions whose predicates need the region predicates: the keys
       enter the map open, then close with their bodies. *)
   Lemma world_interp_extend_perm_sepL2_open
     {E : coPset}
@@ -681,7 +681,7 @@ Section world_ghost_theory.
     - by iApply (big_sepL_lookup with "Hrels").
   Qed.
 
-  (** Global regions whose predicates need the region predicates, with a
+  (** Permanent regions whose predicates need the region predicates, with a
       frame: the keys enter the map open, then close with their bodies. *)
   Lemma world_interp_extend_perm_sepL2_open_frame
     {E : coPset}
@@ -835,7 +835,7 @@ End world_ghost_theory.
 (** ** The shared resources at two threads
 
     The registry of the instance of a thread is that of the base, so the
-    map of Global regions is the same at any two threads. *)
+    map of Permanent regions is the same at any two threads. *)
 Section thread_indep.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {relg : relGS Σ}.
 

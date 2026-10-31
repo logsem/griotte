@@ -433,7 +433,6 @@ Section logrel.
       iIntros "$".
   Qed.
 
-
   (** ** Loads
 
       The status witness for the CLoad rule is [LoadPlain]. A stale word

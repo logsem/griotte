@@ -34,11 +34,8 @@ Section kvs_obligations.
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
     intros Hkeys.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -330,7 +327,7 @@ Section kvs_obligations.
       rewrite Heq.
       iApply bi.later_intro. iExact "ot_kvs_user_key_B". }
 
-    (* 7 - Close the world of B: its compartment becomes Global regions, and
+    (* 7 - Close the world of B: its compartment becomes Permanent regions, and
        the stack temporary; its export is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _

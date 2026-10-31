@@ -17,7 +17,7 @@ Section AllocatorCommonSafe.
   .
 
   (** The region of a key in its part of the world: a Temporary key of
-      the local world, or a Global region of a key that is not Temporary. *)
+      the local world, or a Permanent region of a key that is not Temporary. *)
   Definition region_key (W : WORLD) (C : CmptName) (k : LAddr) : iProp Σ :=
     (∃ p (φ : WORLD * CmptName * LWord → iProp Σ),
        ⌜∀ x, Persistent (φ x)⌝ ∗ k ↪ˡ[C]{p} φ ∗ ⌜std W !! k = Some Temporary⌝) ∨

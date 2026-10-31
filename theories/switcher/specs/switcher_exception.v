@@ -869,7 +869,7 @@ Section Switcher_Exception.
       "#Hinv_switcher #Hstatic #Hsafe HU #Hcase HPC Hout Hrmap Hna Hcstk".
     iAssert (⌜¬ switcher_fault_pc w⌝ → handler_header cstk)%I as "#Hheader".
     { iIntros (Hnot). iSplit; first (iPureIntro; by apply Htbl_set). rewrite /no_handler.
-      iDestruct "Hcase" as "[%Hpc | [[Heh Hehs] | [%Hodd (%eh & %ehs & Heh & Hehs)] ] ]";
+      iDestruct "Hcase" as "[%Hpc | [ [Heh Hehs] | [%Hodd (%eh & %ehs & Heh & Hehs)] ] ]";
         first done.
       - iExists _, _. iFrame "Heh Hehs". iIntros ([ [Hne | Hne] _]); by contradict Hne.
       - iExists eh, ehs. iFrame "Heh Hehs". iIntros ([_ Hev]).
@@ -1056,7 +1056,7 @@ Section Switcher_Exception.
     iLöb as "IH".
     iIntros "!>" (P_mcause P_mtval F cstk rmap w HP_mcause HF HFtrap Hfull)
       "Hfault HPC Hout Hrmap Hna Hcstk".
-    iDestruct "Hfault" as "[[-> Huntrusted] | Hhandled]".
+    iDestruct "Hfault" as "[ [-> Huntrusted] | Hhandled]".
     { iApply (exception_entry_untrusted_safe with
                "Hinv_switcher Hstatic IH Huntrusted HPC Hout Hrmap Hna Hcstk"); done. }
     iDestruct (trap_handler_ok_cases with "Hhandled")

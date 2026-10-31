@@ -30,11 +30,8 @@ Section cmdc_obligations.
     fw_obligations Σ cmdc_firmware.
   Proof.
     intros HBC.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -105,7 +102,7 @@ Section cmdc_obligations.
     { apply elem_of_difference. split; last set_solver+HBC.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
-    (* 4 - Close the worlds of B and C: their compartments become Global regions,
+    (* 4 - Close the worlds of B and C: their compartments become Permanent regions,
        and the stack is revoked, because main keeps it; their exports are
        safe to share. *)
     iMod (fw_close_adv_world_revoked (th := UserThread 0)

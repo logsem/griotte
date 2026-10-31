@@ -21,13 +21,8 @@ From griotte Require Export world_std_sts world_std_revocation.
     A heap key [LHeap a ι] holds its body or a tombstone [ι ⊒ AQuar]: once
     [ι] is quarantined, its keys close without their cells. *)
 
-(** CMRA for heap and its predicates. Contains: *)
-(* CMRA for relatedness between locations and saved prop names *)
-(* CMRA for saved predicates *)
-(** M_interp *)
-
-(** The region maps of a compartment are over Iris [ghost_map]: a key names a
-    saved predicate and a permission (see [region_maps.v]). *)
+(** The ghost state of the region maps: the maps themselves, and the saved
+    predicates of their keys. *)
 Class relGpreS Σ {Cname : CmptNameG} :=
   RelGpreS {
       relPreG_invPreG : invGpreS Σ;

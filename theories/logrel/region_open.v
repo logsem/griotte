@@ -20,7 +20,7 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** The content of the region of the PC: a Global region holds the
+  (** The content of the region of the PC: a Permanent region holds the
       world-free image of its predicate. *)
   Definition pc_content (ρ : region_part) (W : WORLD) (C : CmptName) (P : V) (w : LWord)
     : iProp Σ :=
@@ -172,7 +172,7 @@ Section wp_interp.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** Reading the content of an opened region: a Global region is read at
+  (** Reading the content of an opened region: a Permanent region is read at
       the empty world. *)
   Lemma pc_content_rcond {CL : CritLink Σ} ρ W C P p' w :
     rcond_l P C p' interp -∗ pc_content ρ W C P w -∗ interp_in_mem_pre W C p' interp w.
@@ -183,7 +183,7 @@ Section wp_interp.
     - by iApply "Hrc".
   Qed.
 
-  (** Writing a safe word into an opened region: a Global region is written
+  (** Writing a safe word into an opened region: a Permanent region is written
       through a capability that is not write-local. *)
   (** A word stored through a capability that is not write-local is not
       local. *)

@@ -133,13 +133,13 @@ Section griotte_lang_rules.
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
        { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
        { apply reg_word_ok_lclear_tag. }
-       { rewrite -Hstep. by destruct srcv as [[| [] | | ? [] ] ?], s. }
+       { rewrite -Hstep. by destruct srcv as [ [| [] | | ? [] ] ?], s. }
        { apply reg_phys_lclear_tag in Hrel. by rewrite clear_tag_and_tag in Hrel. }
        { intros lpc' Hi. eapply Lea_spec_sealed; eauto. }
        { intros Hi. apply Lea_spec_failure; [|done..]. eapply Lea_fail_overflow_PC_other; eauto.
-         by destruct srcv as [[| [] | | ? [] ] ?]. }
+         by destruct srcv as [ [| [] | | ? [] ] ?]. }
        iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
-     destruct srcv as [[ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
+     destruct srcv as [ [ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
      4,5: by exfalso; apply Hsl.
      1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WInt (n + argz) @@? π) _ _ _ _
           (λ lpc' regs' retv, Lea_spec _ regs dst src arg lpc' regs' retv)

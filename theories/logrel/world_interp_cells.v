@@ -225,7 +225,7 @@ Section wp_interp.
     - rewrite ?big_sepL_app /=. iFrame "Hls Hv'".
   Qed.
 
-  (** A Global region whose cell is held is not a Temporary key of the
+  (** A Permanent region whose cell is held is not a Temporary key of the
       local world, even with keys open. *)
   Lemma world_interp_open_rel_perm_cell_not_temporary W C s k p φ w :
     world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗ k ↦ₖ w -∗

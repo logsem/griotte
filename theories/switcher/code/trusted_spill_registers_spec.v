@@ -16,7 +16,7 @@ Section TrustedSpillRegisters.
     `{MP: MachineParameters}.
 
   (** The cells of the registers [regs] in the register save area at [a],
-      in its bounds [b, e) and outside the shadow table. *)
+      in its bounds $[b, e)$ and outside the shadow table. *)
   Definition trusted_save_cells_ok (b e a : Addr) (regs : list RegName) : Prop :=
     ∀ r, r ∈ regs →
          (a + TrustedStack_offset_reg r)%a = Some (a ^+ TrustedStack_offset_reg r) ∧

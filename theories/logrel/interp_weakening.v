@@ -386,8 +386,6 @@ Section fundamental.
     iIntros "#Hth H". by iApply (interp_load_word with "Hth").
   Qed.
 
-
-
   Lemma interp_in_mem_readonly_word W C w :
     interp_in_mem RWL W C w -∗ interp_in_mem RWL W C (lreadonly w).
   Proof.
@@ -697,7 +695,6 @@ Section fundamental.
       + iDestruct (interp_borrowed_sealed with "Hinterp") as "Hinterp'".
         destruct (isDL p); auto.
   Qed.
-
 
 End fundamental.
 

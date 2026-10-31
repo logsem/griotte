@@ -80,7 +80,7 @@ Section griotte_lang_rules.
   Lemma reg_phys_tag_strippable R (v : LWord) :
     reg_phys R v (clear_tag v.(lw)) → get_tag v.(lw) = true → tag_strippable v.
   Proof.
-    intros [[Heq | [_ [[(ι & _ & Hι & _) _] | Hh] ] ] _] Ht; split; try done.
+    intros [ [Heq | [_ [ [(ι & _ & Hι & _) _] | Hh] ] ] _] Ht; split; try done.
     - by rewrite -Heq get_tag_clear_tag in Ht.
     - left. by rewrite Hι.
     - by right.

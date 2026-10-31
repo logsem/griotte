@@ -30,11 +30,8 @@ Section error_handling_obligations.
   Lemma error_handling_fw_obligations :
     fw_obligations Σ error_handling_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
-    assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
-    assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
-    apply (fw_obligations_of Σ (cthreads := cthreads)); first reflexivity.
-    intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    apply (fw_obligations_of_pinned Σ); first reflexivity.
+    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -192,7 +189,7 @@ Section error_handling_obligations.
       by (rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack; lia).
     apply Hmin_bridge in Hstk_size; clear Hmin_bridge.
 
-    (* 7 - Close the world of [adv]: its compartment becomes Global regions, and
+    (* 7 - Close the world of [adv]: its compartment becomes Permanent regions, and
        the stack temporary; [stats_read] is safe to import; the export of
        [adv] is safe to share. *)
     iMod (fw_close_adv_world (th := UserThread 0)

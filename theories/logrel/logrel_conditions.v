@@ -27,7 +27,7 @@ Ltac solve_proper ::= (repeat intros ?; simpl; auto_equiv).
 Notation safeC P :=
   (λ WCv : WORLD * CmptName * (leibnizO LWord), P WCv.1.1 WCv.1.2 WCv.2).
 
-(** The world-free image of a safety predicate, for a Global region. *)
+(** The world-free image of a safety predicate, for a Permanent region. *)
 Notation safeGC P := (λ Cv : CmptName * LWord, P ∅ Cv.1 Cv.2).
 
 (** The types of the logical relation: the interpretations of words and of
@@ -127,9 +127,7 @@ Section logrel_expr.
   (** [persistent_cond] states that the safety predicate [P] is persistent. *)
   Definition persistent_cond (P:V) := (∀ WCv, Persistent (P WCv.1.1 WCv.1.2  WCv.2)).
 
-
   (** * Definitions interp *)
-
 
   (** Interp of the world state
 
@@ -183,8 +181,7 @@ Section logrel_expr.
     - iExists DerefNoId. iSplit; first done. iSplit; first done. by iIntros.
   Qed.
 
-
-  (** The region of a key reached through a capability. A Global region
+  (** The region of a key reached through a capability. A Permanent region
       holds the world-free image of its predicate. A Temporary region of the
       local world is public monotone: a Temporary key only ever leaves its
       state through a revocation, which takes its body out. *)
@@ -195,7 +192,7 @@ Section logrel_expr.
     k ↪ˡ[th, C]{p} (safeC P) ∗ ⌜std W !! k = Some Temporary⌝ ∗ mono_pub C (safeC P).
 
   (** A write-local capability reaches Temporary regions only, a Global one
-      Global regions only, and a Local one either. *)
+      Permanent regions only, and a Local one either. *)
   Definition region_rel (W : WORLD) (C : CmptName) (k : LAddr) (p' : Perm) (P : V)
       (p : Perm) (g : Locality) : iProp Σ :=
     if isWL p then region_rel_l W C k p' P
@@ -233,7 +230,7 @@ Section logrel_expr.
   Qed.
 
   (** A key reached through a capability that may read or write it: Temporary
-      in the local world, or a Global region. *)
+      in the local world, or a Permanent region. *)
   Definition region_valid (W : WORLD) (C : CmptName) (k : LAddr) : iProp Σ :=
     (⌜std W !! k = Some Temporary⌝ ∨ ∃ p φ, k ↪ᵖ[C]{p} φ)%I.
 
@@ -270,7 +267,7 @@ Section logrel_expr.
   Proof. iIntros (Hbe) "Hok". by iDestruct ("Hok" with "[%]") as "[$ _]". Qed.
 
   (** Tagged O capabilities retain authority to free their heap payload: each
-      heap cell of the range is a Global region or, under a Local capability,
+      heap cell of the range is a Permanent region or, under a Local capability,
       a Temporary region of the local world. Nonheap ranges must stay
       disjoint from the heap under narrowing. *)
   Definition heap_cap_O_key (W : WORLD) (C : CmptName) (g : Locality) (k : LAddr) : iProp Σ :=
@@ -304,7 +301,7 @@ Section logrel_expr.
   Proof. iIntros (Hdisjoint Hnonempty). done. Qed.
 
   (** A valid capability over a heap payload names the object covering it,
-      and every cell of the payload is a Global region or a Temporary region
+      and every cell of the payload is a Permanent region or a Temporary region
       of the local world. *)
   Lemma free_heap_cap_payload W C p g b e π :
     (heap_b < b ∧ b < e ∧ e <= heap_e)%a ->

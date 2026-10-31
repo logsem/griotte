@@ -33,8 +33,8 @@ Section SO.
       - 2) Check that the passed stack object [wca0] has read permission,
          and that it does not overlap with our stack frame.
       - 3) Knowing that [wca0] is a safe capability with read permission,
-         we know that all addresses must be in the world,
-         either Temporary or Permanent.
+         we know that all addresses must be in the world: Temporary
+         in the local world, or in the map of Permanent regions.
       - 4) Filter [l] to separate the addresses of [wca0]'s region
          that are Temporary, and the others.
          We know that they are in [l] because if Temporary
@@ -42,10 +42,10 @@ Section SO.
          That way, we can get the points-to predicates for
          the Temporary addresses of [wca0].
       - 5) Open the world and get the points-to predicates
-         of the Permanent addresses of [wca0].
+         of the addresses of [wca0] in the map of Permanent regions.
       - 6) We know have all the points-to predicate of [wca0]'s region,
          we can apply [checkints_spec].
-      - 7) We can close the world with the Permanent addresses,
+      - 7) We can close the world with the addresses in the map of Permanent regions,
          and we can re-introduce the Temporary ones (via [close_list]).
          They respect their associated validity predicate because [wca0] is interp,
          so their associated predicate must be [zcond],
@@ -167,7 +167,7 @@ Section SO.
       [exact Hexports_shadow | apply withinBounds_true_iff; solve_addr]).
     iSplit; first done.
     iSplit; first done.
-    iIntros "!>" (t') "#Ht'".
+    iIntros "!>" (t') "Ht'".
     iDestruct (thread_in_elim with "Ht'") as %Ht'.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".

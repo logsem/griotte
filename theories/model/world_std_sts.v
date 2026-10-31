@@ -6,7 +6,7 @@ Section world_standard_sts.
 
   (* We will first define the standard STS for the shared part of the heap.
      The local world only holds local keys: Permanent regions live in the
-     map of Global regions, outside the world. *)
+     map of Permanent regions, outside the world. *)
   Inductive region_type :=
   | Temporary
   | Revoked.
@@ -62,7 +62,7 @@ Section world_standard_sts.
     subst. apply IHHrtc. apply std_rel_pub_Temporary; auto.
   Qed.
 
-  (** The part of the world model a key lives in: the map of Global
+  (** The part of the world model a key lives in: the map of Permanent
       regions, or the local world. *)
   Inductive region_part :=
   | InPerm

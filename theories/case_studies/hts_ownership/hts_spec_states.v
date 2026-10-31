@@ -263,7 +263,7 @@ Section HTS_States.
     codefrag_pers pc_a hts_main_code.
 
   (** The world shared with the first adversary call: the stack is revoked;
-      the buffer [b] of [ι] is a Global region, outside the local world. *)
+      the buffer [b] of [ι] is a Permanent region, outside the local world. *)
   Definition hts_Wshare : WORLD :=
     revoke W_init_C.
 

@@ -295,7 +295,7 @@ Section ftlr_step.
     iDestruct (interp_pc_in_registers with "Hthread Hworld Hinv_interp Hregs")
       as "[Hworld (%p' & %P & %Hflp & %Hpers & #Hrela & #Hzcond & #Hrcond & #Hwcond)]"; eauto.
     iDestruct (region_rel_parts with "Hrela") as (ρ) "#Hinva".
-    (* A Global region of the PC is not a Temporary key of the local world. *)
+    (* A Permanent region of the PC is not a Temporary key of the local world. *)
     iAssert (world_interp W' C ∗ ⌜ρ = InPerm → std W' !! LNonHeap a ≠ Some Temporary⌝)%I
       with "[Hworld]" as "[Hworld %HnT]".
     { destruct ρ; [|by iFrame].

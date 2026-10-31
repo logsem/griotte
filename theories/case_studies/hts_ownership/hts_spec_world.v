@@ -61,7 +61,7 @@ Section HTS_World.
   Context (C_f : Sealable) (W_init_C : WORLD).
 
 
-  (** Share [b] with the first adversary call: make [b] a Global region
+  (** Share [b] with the first adversary call: make [b] a Permanent region
       holding [0]; the world of the call is the revoked world. *)
   Lemma hts_world_share_buffer E ι b :
     hts_buffer_bounds b ->
@@ -132,7 +132,7 @@ Section HTS_World.
   Qed.
 
   (** After the first adversary call: main still holds the free right of
-      [ι], so [ι] is still live, and [b] is a Global region. Open its world
+      [ι], so [ι] is still live, and [b] is a Permanent region. Open its world
       entry to get its memory back. *)
   Lemma hts_world_reopen_live E ι b Wret :
     hts_buffer_bounds b ->
