@@ -6,7 +6,6 @@ From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
 From griotte Require Import rules rules_deref_quar proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
-Import core_link.
 
 Section wp_interp.
   Context
@@ -15,7 +14,9 @@ Section wp_interp.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.

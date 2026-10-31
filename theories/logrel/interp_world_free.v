@@ -1,6 +1,5 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export interp_caps.
-Import core_link.
 Import uPred.
 
 Section logrel.
@@ -13,8 +12,9 @@ Section logrel.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -148,8 +148,9 @@ Section logrel_threads.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
   #[local] Notation TV := (Thread -d> interpO Σ).
@@ -317,7 +318,9 @@ Section logrel_trap.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   Implicit Types w : (leibnizO LWord).
   Implicit Types W : WORLD.
@@ -445,7 +448,9 @@ Section region_alloc_cmpt.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
 

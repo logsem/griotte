@@ -2,7 +2,6 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel ftlr_base.
 From griotte Require Import monotone.
-Import core_link.
 Import CoreWPNotations.
 
 (** * One step of the fundamental theorem
@@ -23,8 +22,9 @@ Section ftlr_step_generic.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -128,7 +128,9 @@ Section ftlr_step.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ} {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.

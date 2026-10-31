@@ -2,7 +2,6 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening.
 From griotte Require Import memory_region proofmode.
 From griotte Require Import world_ghost_theory.
-Import core_link.
 
 Section Stack_World_Resources.
   Context
@@ -11,7 +10,9 @@ Section Stack_World_Resources.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.

@@ -1,7 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic.lib Require Import ghost_map.
 From griotte Require Import proofmode logrel.
-Import core_link.
 
 (** * Seal registries
 
@@ -57,7 +56,9 @@ Section SealRegistry.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
     {ObjKey : Type} `{Countable ObjKey}
     {seal_registryg : sealRegistryG ObjKey Σ}
   .

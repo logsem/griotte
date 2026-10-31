@@ -1,6 +1,5 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export logrel_conditions.
-Import core_link.
 Import uPred.
 
 (** interp : is a unary logical relation.
@@ -20,7 +19,9 @@ Section logrel_pre.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -290,8 +291,9 @@ Section logrel_expr.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
