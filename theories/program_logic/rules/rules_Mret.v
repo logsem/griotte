@@ -197,6 +197,26 @@ Section griotte_lang_rules.
     iExact "Hφ".
   Qed.
 
+  (** Without the permission to access the system registers, [mret] faults
+      before it reads MEPCC and mstatus: the rule needs no MIE or MPIE
+      fragment. *)
+  Lemma wp_mret_fail E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
+    decodeInstrW w.(lw) = Mret →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = false →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w }}}
+      Instr Executable @ E
+      {{{ RET FaultedV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+          pc_a ↦ₐ{dq} w }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr φ) "H Hφ".
+    iApply (wp_instr_faulted_0 with "H Hφ"); [exact Hinstr | exact Hvpc |].
+    intros r sr m st. by rewrite /exec /= Hxsr.
+  Qed.
+
 End griotte_lang_rules.
 
 (** The core corollaries, with today's statements. *)

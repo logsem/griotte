@@ -530,6 +530,20 @@ Qed.
   FramableMachineResource (mtdc ↦ₜ m).
 Qed.
 
+(* The mtdc token of the thread, for the mtdc writes that lend it. *)
+#[export] Instance FramableMachineResource_mtdc_lent `{ceriseG Σ} :
+  FramableMachineResource mtdc_lent.
+Qed.
+
+(* The MIE and MPIE fragments of the thread, for the MIE writers. *)
+#[export] Instance FramableMachineResource_mie `{ceriseG Σ} b :
+  FramableMachineResource (MIE ↦ₜ b).
+Qed.
+
+#[export] Instance FramableMachineResource_mpie `{ceriseG Σ} b :
+  FramableMachineResource (MPIE_frag b).
+Qed.
+
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
   FramableMachineResource (PC ↦ₚ w).
 Qed.
@@ -610,7 +624,8 @@ Qed.
 (* remembering names after auto-framing done by iFrameAuto *)
 
 Ltac2 Type hyp_table_kind :=
-  [ PCReg | Reg | SReg | Mtdc | Mem | Codefrag | CodefragPers | Claim | DerefRes ].
+  [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Mem | Codefrag | CodefragPers | Claim
+  | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -636,6 +651,9 @@ Ltac2 record_framed
     | (?r ↦ᵣ _)%I => (r, Reg)
     | (?sr ↦ₓ _)%I => (sr, SReg)
     | (mtdc_frag _) => ('tt, Mtdc)
+    | mtdc_lent => ('tt, MtdcLent)
+    | (MIE_frag _) => ('tt, Mie)
+    | (MPIE_frag _) => ('tt, Mpie)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -731,6 +749,18 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
   | Mtdc =>
     match! goal with [ |- context [ mtdc_frag ?x ] ] =>
       ltac1:(x name |- change (mtdc ↦ₜ x)%I with (name ∷ (mtdc ↦ₜ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr name)
+    end
+  | MtdcLent =>
+    ltac1:(name |- change mtdc_lent with (name ∷ mtdc_lent)%I) (Ltac1.of_constr name)
+  | Mie =>
+    match! goal with [ |- context [ MIE_frag ?x ] ] =>
+      ltac1:(x name |- change (MIE ↦ₜ x)%I with (name ∷ (MIE ↦ₜ x))%I)
+        (Ltac1.of_constr x) (Ltac1.of_constr name)
+    end
+  | Mpie =>
+    match! goal with [ |- context [ MPIE_frag ?x ] ] =>
+      ltac1:(x name |- change (MPIE_frag x) with (name ∷ MPIE_frag x)%I)
         (Ltac1.of_constr x) (Ltac1.of_constr name)
     end
   | PCReg =>
@@ -1164,12 +1194,21 @@ Ltac solve_jcond_test :=
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
    proved. Likewise, a conditional jump's rule (taken or not) only applies if
-   its comparison is proved. Fail otherwise, so that the dispatcher tries its
-   next alternative. Other side goals are left to the caller. *)
+   its comparison is proved. An mtdc write commits to a transfer of the clause
+   of the mtdc token only if the word it writes stands for a known ghost value
+   (the home value, to return the token), its ghost value is known not to be
+   the home value when it leaves another value, and is known to be the home
+   value when it lends the token. Fail
+   otherwise, so that the dispatcher tries its next alternative. Other side
+   goals are left to the caller. *)
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
   | |- jcond_test _ _ _ = _ => solve [solve_jcond_test]
+  | |- mtdc_match ?m _ =>
+      tryif has_evar m then idtac else solve [assumption | done | hnf; eexists; reflexivity]
+  | |- _ = mtdc_home => solve [assumption | done]
+  | |- _ ≠ mtdc_home => solve [assumption | done | congruence]
   | _ => idtac
   end.
 

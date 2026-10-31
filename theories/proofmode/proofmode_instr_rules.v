@@ -117,16 +117,16 @@ Ltac dispatch_instr_rule instr cont :=
   | Lea _ _ (inl _) => (cont (@wp_lea_success_z_src) || cont (@wp_lea_success_z_int_src))
   (* CLoad *)
   | CLoad ?r ?r 0 =>
-    (cont (fun MP Σ ceriseg CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
-       @wp_load_success_same_notinstr MP Σ ceriseg CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' (WInt 0 @@? None)) ||
+    (cont (fun MP Σ ceriseg th CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
+       @wp_load_success_same_notinstr MP Σ ceriseg th CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' (WInt 0 @@? None)) ||
      cont (@wp_load_success_same_frominstr))
   | CLoad _ _ 0 =>
     (cont (@wp_load_success_notinstr) ||
      cont (@wp_load_success_frominstr))
   (* Store *)
   | Store _ (inl _) 0 =>
-    (cont (fun MP Σ ceriseg CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z =>
-       @wp_store_success_same MP Σ ceriseg CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z (WInt 0 @@? None)) ||
+    (cont (fun MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z =>
+       @wp_store_success_same MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z (WInt 0 @@? None)) ||
      cont (@wp_store_success_z))
   | Store ?r (inr ?r) 0 =>
     (cont (@wp_store_success_reg_same'_store_word) ||
@@ -188,11 +188,20 @@ Ltac dispatch_instr_rule instr cont :=
   | UnSeal ?r _ ?r => cont (@wp_unseal_r2)
   | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
   | UnSeal _ _ _ => cont (@wp_unseal_success)
-  (* SpecialRW on mtdc, before the generic cases: its own ghost state *)
+  (* SpecialRW on mtdc, before the generic cases: its own ghost state. A
+     write transfers the clause of the mtdc token: the ghost value comes
+     back to the home value, is kept, leaves the home value, or moves
+     between other values, in this order (see [instr_commit_lint]). *)
   | SpecialRW _ mtdc (inr cnull) => cont (@wp_readsr_mtdc)
-  | SpecialRW cnull mtdc (inr _) => cont (@wp_writesr_mtdc)
-  | SpecialRW cnull mtdc (inl _) => cont (@wp_specialrw_imm_mtdc)
-  | SpecialRW ?r mtdc (inr ?r) => cont (@wp_specialrw_swap_mtdc)
+  | SpecialRW cnull mtdc (inr _) =>
+    (cont (@wp_writesr_mtdc_close) || cont (@wp_writesr_mtdc_keep) ||
+     cont (@wp_writesr_mtdc_open) || cont (@wp_writesr_mtdc_ex))
+  | SpecialRW cnull mtdc (inl _) =>
+    (cont (@wp_specialrw_imm_mtdc_close) || cont (@wp_specialrw_imm_mtdc_keep) ||
+     cont (@wp_specialrw_imm_mtdc_open) || cont (@wp_specialrw_imm_mtdc_ex))
+  | SpecialRW ?r mtdc (inr ?r) =>
+    (cont (@wp_specialrw_swap_mtdc_close) || cont (@wp_specialrw_swap_mtdc_keep) ||
+     cont (@wp_specialrw_swap_mtdc_open) || cont (@wp_specialrw_swap_mtdc_ex))
   (* SpecialRW: readsr, writesr, csrw with an immediate, swaps *)
   | SpecialRW _ _ (inr cnull) => cont (@wp_readsr_success)
   | SpecialRW cnull _ (inr _) => cont (@wp_writesr_success)
@@ -218,15 +227,15 @@ Ltac dispatch_generic_failure instr cont :=
   lazymatch goal with
   | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?p ?g ?b ?e ?a @@? ?π)%I ] =>
     lazymatch regs with
-    | [] => cont (fun E => @wp_instr_faulted_0 _ _ _ _ E p g b e a π
+    | [] => cont (fun E => @wp_instr_faulted_0 _ _ _ _ _ E p g b e a π
                             (encodeInstrW instr @@? None) instr)
-    | [(?r1, ?w1)] => cont (fun E => @wp_instr_faulted_1 _ _ _ _ E p g b e a π
+    | [(?r1, ?w1)] => cont (fun E => @wp_instr_faulted_1 _ _ _ _ _ E p g b e a π
                                      (encodeInstrW instr @@? None) instr r1 w1)
     | [(?r1, ?w1); (?r2, ?w2)] =>
-        cont (fun E => @wp_instr_faulted_2 _ _ _ _ E p g b e a π
+        cont (fun E => @wp_instr_faulted_2 _ _ _ _ _ E p g b e a π
                          (encodeInstrW instr @@? None) instr r1 w1 r2 w2)
     | [(?r1, ?w1); (?r2, ?w2); (?r3, ?w3)] =>
-        cont (fun E => @wp_instr_faulted_3 _ _ _ _ E p g b e a π
+        cont (fun E => @wp_instr_faulted_3 _ _ _ _ _ E p g b e a π
                          (encodeInstrW instr @@? None) instr r1 w1 r2 w2 r3 w3)
     end
   end.

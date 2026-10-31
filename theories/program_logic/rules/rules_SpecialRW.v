@@ -797,4 +797,336 @@ Section griotte_lang_rules_core.
     iNext. iIntros "(HPC & Hpc_a & Hmtdc_f & _ & HL)". iApply "Hφ". iFrame.
   Qed.
 
+  (** The core rules of the mtdc writers for each transfer of the clause of
+      the mtdc token ([mtdc_clause_keep], [_close], [_open], [_ex]): they have
+      no clause premise, so that [iInstr] can apply them. *)
+
+  (** The core rule with the ghost value kept. *)
+  Lemma wp_writesr_mtdc_keep E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    mtdc_match m v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ v ∗
+          mtdc ↦ₜ m }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hm' φ) "(HPC & Hpc_a & Hsrc & Hmtdc) Hφ".
+    pose proof (mtdc_clause_keep m) as Hcl.
+    iApply (wp_writesr_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m _ True%I True%I
+             with "[$HPC $Hpc_a $Hsrc $Hmtdc]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hsrc & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule back to the home value: the token returns. *)
+  Lemma wp_writesr_mtdc_close E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    m ≠ mtdc_home →
+    mtdc_match mtdc_home v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ v ∗
+          mtdc ↦ₜ mtdc_home ∗
+          mtdc_lent }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hne Hm' φ) "(HPC & Hpc_a & Hsrc & Hmtdc) Hφ".
+    pose proof (mtdc_clause_close m Hne) as Hcl.
+    iApply (wp_writesr_mtdc _ _ _ _ _ _ _ _ _ _ _ _ mtdc_home _ True%I mtdc_lent
+             with "[$HPC $Hpc_a $Hsrc $Hmtdc]"); done.
+  Qed.
+
+  (** The core rule leaving the home value: the token is lent. *)
+  Lemma wp_writesr_mtdc_open E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    m = mtdc_home →
+    mtdc_match m' v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m ∗
+        ▷ mtdc_lent }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ v ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hhome Hm' φ) "(HPC & Hpc_a & Hsrc & Hmtdc & HL) Hφ".
+    subst m. pose proof (mtdc_clause_open m') as Hcl.
+    iApply (wp_writesr_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m' _ mtdc_lent True%I
+             with "[$HPC $Hpc_a $Hsrc $Hmtdc $HL]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hsrc & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule between values other than the home value. *)
+  Lemma wp_writesr_mtdc_ex E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    m ≠ mtdc_home →
+    mtdc_match m' v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ v ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hne Hm' φ) "(HPC & Hpc_a & Hsrc & Hmtdc) Hφ".
+    pose proof (mtdc_clause_ex m m' Hne) as Hcl.
+    iApply (wp_writesr_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m' _ True%I True%I
+             with "[$HPC $Hpc_a $Hsrc $Hmtdc]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hsrc & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule with the ghost value kept. *)
+  Lemma wp_specialrw_swap_mtdc_keep E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m dq :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    mtdc_match m v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ vm, RET NextIV;
+          ⌜mtdc_match m vm⌝ ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          r ↦ᵣ vm ∗
+          mtdc ↦ₜ m }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm' φ) "(HPC & Hpc_a & Hr & Hmtdc) Hφ".
+    pose proof (mtdc_clause_keep m) as Hcl.
+    iApply (wp_specialrw_swap_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m _ True%I True%I
+             with "[$HPC $Hpc_a $Hr $Hmtdc]"); try done.
+    iIntros "!>" (vm) "(Hm & HPC & Hpc_a & Hr & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule back to the home value: the token returns. *)
+  Lemma wp_specialrw_swap_mtdc_close E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m dq :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    m ≠ mtdc_home →
+    mtdc_match mtdc_home v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ vm, RET NextIV;
+          ⌜mtdc_match m vm⌝ ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          r ↦ᵣ vm ∗
+          mtdc ↦ₜ mtdc_home ∗
+          mtdc_lent }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hne Hm' φ) "(HPC & Hpc_a & Hr & Hmtdc) Hφ".
+    pose proof (mtdc_clause_close m Hne) as Hcl.
+    iApply (wp_specialrw_swap_mtdc _ _ _ _ _ _ _ _ _ _ _ _ mtdc_home _ True%I mtdc_lent
+             with "[$HPC $Hpc_a $Hr $Hmtdc]"); done.
+  Qed.
+
+  (** The core rule leaving the home value: the token is lent. *)
+  Lemma wp_specialrw_swap_mtdc_open E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    m = mtdc_home →
+    mtdc_match m' v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m ∗
+        ▷ mtdc_lent }}}
+      Instr Executable @ E
+      {{{ vm, RET NextIV;
+          ⌜mtdc_match m vm⌝ ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          r ↦ᵣ vm ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hhome Hm' φ) "(HPC & Hpc_a & Hr & Hmtdc & HL) Hφ".
+    subst m. pose proof (mtdc_clause_open m') as Hcl.
+    iApply (wp_specialrw_swap_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m' _ mtdc_lent True%I
+             with "[$HPC $Hpc_a $Hr $Hmtdc $HL]"); try done.
+    iIntros "!>" (vm) "(Hm & HPC & Hpc_a & Hr & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule between values other than the home value. *)
+  Lemma wp_specialrw_swap_mtdc_ex E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r (v : LWord) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    m ≠ mtdc_home →
+    mtdc_match m' v →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r ↦ᵣ v ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ vm, RET NextIV;
+          ⌜mtdc_match m vm⌝ ∗
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          r ↦ᵣ vm ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hne Hm' φ) "(HPC & Hpc_a & Hr & Hmtdc) Hφ".
+    pose proof (mtdc_clause_ex m m' Hne) as Hcl.
+    iApply (wp_specialrw_swap_mtdc _ _ _ _ _ _ _ _ _ _ _ _ m' _ True%I True%I
+             with "[$HPC $Hpc_a $Hr $Hmtdc]"); try done.
+    iIntros "!>" (vm) "(Hm & HPC & Hpc_a & Hr & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule with the ghost value kept. *)
+  Lemma wp_specialrw_imm_mtdc_keep E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    mtdc_match m (lword_of_word (WInt z)) →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          mtdc ↦ₜ m }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hm' φ) "(HPC & Hpc_a & Hmtdc) Hφ".
+    pose proof (mtdc_clause_keep m) as Hcl.
+    iApply (wp_specialrw_imm_mtdc _ _ _ _ _ _ _ _ _ _ _ m _ True%I True%I
+             with "[$HPC $Hpc_a $Hmtdc]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule back to the home value: the token returns. *)
+  Lemma wp_specialrw_imm_mtdc_close E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    m ≠ mtdc_home →
+    mtdc_match mtdc_home (lword_of_word (WInt z)) →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          mtdc ↦ₜ mtdc_home ∗
+          mtdc_lent }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hne Hm' φ) "(HPC & Hpc_a & Hmtdc) Hφ".
+    pose proof (mtdc_clause_close m Hne) as Hcl.
+    iApply (wp_specialrw_imm_mtdc _ _ _ _ _ _ _ _ _ _ _ mtdc_home _ True%I mtdc_lent
+             with "[$HPC $Hpc_a $Hmtdc]"); done.
+  Qed.
+
+  (** The core rule leaving the home value: the token is lent. *)
+  Lemma wp_specialrw_imm_mtdc_open E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    m = mtdc_home →
+    mtdc_match m' (lword_of_word (WInt z)) →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ mtdc ↦ₜ m ∗
+        ▷ mtdc_lent }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hhome Hm' φ) "(HPC & Hpc_a & Hmtdc & HL) Hφ".
+    subst m. pose proof (mtdc_clause_open m') as Hcl.
+    iApply (wp_specialrw_imm_mtdc _ _ _ _ _ _ _ _ _ _ _ m' _ mtdc_lent True%I
+             with "[$HPC $Hpc_a $Hmtdc $HL]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
+  (** The core rule between values other than the home value. *)
+  Lemma wp_specialrw_imm_mtdc_ex E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (z : Z) m m' dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inl z) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    m ≠ mtdc_home →
+    mtdc_match m' (lword_of_word (WInt z)) →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ mtdc ↦ₜ m }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          mtdc ↦ₜ m' }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hne Hm' φ) "(HPC & Hpc_a & Hmtdc) Hφ".
+    pose proof (mtdc_clause_ex m m' Hne) as Hcl.
+    iApply (wp_specialrw_imm_mtdc _ _ _ _ _ _ _ _ _ _ _ m' _ True%I True%I
+             with "[$HPC $Hpc_a $Hmtdc]"); try done.
+    iIntros "!> (HPC & Hpc_a & Hmtdc & _)". iApply "Hφ". iFrame.
+  Qed.
+
 End griotte_lang_rules_core.
