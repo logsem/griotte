@@ -14,6 +14,46 @@ From griotte Require Export switcher_error_handler.
     are derived from it, so the specifications of the call and return
     routines do not depend on the proof of the exception path. *)
 
+(* TODO: move to program_logic/rules/rules_trap_entry.v *)
+Section trap_safe_posture.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
+    {CR : CritRoute Σ th CL}.
+
+  (** The fault obligation at the posture [b]: the trap vector receives
+      MIE disabled and the whole posture, with MPIE at [b] and MEPCC,
+      mcause and mtval pinned at the values of trap entry. *)
+  Lemma trap_safe_held_intro P_mcause P_mtval w E Φ (b : InterruptStatus) :
+    route_pre th b →
+    MIE ↦ₜ b -∗
+    held b -∗
+    ▷ (MIE ↦ₜ InterruptDisabled -∗
+       (∃ (b' : InterruptStatus) (c v : Z),
+          ⌜route_pre th b'⌝ ∗
+          ⌜P_mcause c⌝ ∗
+          ⌜P_mtval v⌝ ∗
+          posture_res_gen (Some b') (Some (lmepcc_of_pc w))
+            (Some (lword_of_word (WInt c))) (Some v)) -∗
+       PC ↦ₚ lword_of_word mtcc_vec -∗
+       WP Exec @ E {{ Φ }}) -∗
+    trap_safe_cause P_mcause P_mtval w E Φ.
+  Proof.
+    iIntros (Hpre) "Hmie Hheld Hcont".
+    iApply trap_safe_entry_intro. iModIntro. iExists b. rewrite /held /held_of.
+    iAssert ((if b is InterruptDisabled then handover_res else True) ∗
+             (if b is InterruptDisabled then posture_part (th := th) else True))%I
+      with "[Hheld]" as "[Hho Hpart]".
+    { destruct b; [done | iExact "Hheld"]. }
+    iSplitL "Hmie Hho".
+    { iApply trap_entry_res_unfold. by iFrame. }
+    iIntros "!> Hout HPC".
+    iDestruct (trap_entry_out_handover with "Hout")
+      as "(Hmie & (%c & %v & %Hc & %Hv & Hh) & Hpart')".
+    iApply ("Hcont" with "Hmie [Hh Hpart Hpart'] HPC").
+    iExists b, c, v. do 3 (iSplit; first done).
+    iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
+  Qed.
+End trap_safe_posture.
+
 Section Switcher_trap_safety.
   Context
     {Σ:gFunctors}
@@ -28,21 +68,29 @@ Section Switcher_trap_safety.
   (** The safety of the exception entry, for a fault in an untrusted
       compartment (with the whole non-atomic token) or a fault that the
       switcher handles, for any token [F] that contains the switcher's
-      invariant and the trap-entry part, any cause predicate [P_mcause] of
-      fault causes, and any value predicate [P_mtval]. *)
+      invariant, any cause predicate [P_mcause] of fault causes, and any
+      value predicate [P_mtval]. As the trap vector of the logical
+      relation, it runs with MIE disabled and receives the whole posture of
+      the thread, with MPIE (the posture of the fault), MEPCC, mcause and
+      mtval pinned at the values of trap entry. *)
   Definition exception_entry_safe : iProp Σ :=
     □ ∀ (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
         (w : LWord),
       ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
       ⌜↑Ntstack ⊆ F⌝ -∗
-      ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
        trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
       PC ↦ₚ[th] lword_of_word mtcc_vec -∗
-      trap_entry_out_cause P_mcause P_mtval w -∗
+      MIE ↦ₜ[th] InterruptDisabled -∗
+      (∃ (b : InterruptStatus) (c v : Z),
+         ⌜route_pre th b⌝ ∗
+         ⌜P_mcause c⌝ ∗
+         ⌜P_mtval v⌝ ∗
+         posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
+           (Some (lword_of_word (WInt c))) (Some v)) -∗
       registers_pointsto rmap -∗
-      na_own (tpool th) (F ∖ ↑Ntrap) -∗
+      na_own (tpool th) F -∗
       ◯(CSTK)[th] cstk -∗
       safe[th].
 
@@ -53,17 +101,20 @@ Section Switcher_trap_safety.
   (** A fault that the exception path resumes (a fault of the first spill
       of the call path) is safe: after trap entry, the switcher overwrites
       the return values with [-ENOTENOUGHSTACK] and 0, and installs the
-      context again, at [.Lswitch_just_return]. *)
+      context again, at [.Lswitch_just_return], at the posture [b] of the
+      fault, with the credit of its [mret]. *)
   Definition switcher_resume_safe : iProp Σ :=
     □ ∀ (F : coPset) (w : LWord),
       ⌜↑Ntstack ⊆ F⌝ -∗
-      ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜¬ trap_no_resume w⌝ -∗
       (|={⊤}=>
-         ∃ rmap : LReg,
+         ∃ (rmap : LReg) (b : InterruptStatus),
            ⌜∀ r, is_Some (rmap !! r)⌝ ∗
+           ⌜route_pre th b⌝ ∗
            na_own (tpool th) F ∗
            registers_pointsto rmap ∗
+           MIE ↦ₜ[th] b ∗
+           held (th := th) b ∗
            (∀ rmap' : LReg,
               ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
               ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
@@ -72,6 +123,9 @@ Section Switcher_trap_safety.
               PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
               registers_pointsto rmap' -∗
               na_own (tpool th) F -∗
+              MIE ↦ₜ[th] b -∗
+              held (th := th) b -∗
+              £ 1 -∗
               safe[th])) -∗
       trap_safe w ⊤ (HO th).
 
@@ -100,11 +154,12 @@ Section Switcher_trap_safety.
     exception_entry_safe ⊢
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
-    iIntros "#Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hout Hrmap Hna Hcstk".
+    iIntros "#Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hmie Hpost Hrmap Hna Hcstk".
     iApply ("Hsafe" $! mcause_ok (λ _ : Z, True%type) ⊤
-             with "[%] [%] [%] [//] [Hfault] HPC Hout Hrmap Hna Hcstk");
-      [done | set_solver | set_solver |].
-    iDestruct "Hfault" as "[Hfault | Hfault]"; [iLeft; by iFrame | by iRight].
+             with "[%] [%] [//] [Hfault] HPC Hmie [Hpost] Hrmap Hna Hcstk");
+      [done | set_solver | |].
+    - iDestruct "Hfault" as "[Hfault | Hfault]"; [iLeft; by iFrame | by iRight].
+    - iDestruct "Hpost" as (b c v Hpre Hc) "Hpost". iExists b, c, v. by iFrame.
   Qed.
 
   (** The unwind continuation from the logical relation's resources, for a
@@ -122,10 +177,12 @@ Section Switcher_trap_safety.
     unwind_cont ⊤ cstk True.
   Proof.
     iIntros (Hframe) "#Hthread #Hinv #Hstatic #Htrap Hworld Hcont".
-    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna".
+    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna Hmie Hheld".
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "Hcont".
-    iApply (switcher_return_unwind _ W C (cstack_set_top_count cstk n) Ws Cs
-             with "[$HPC $Hrmap $Hthread $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk]");
+    iApply (switcher_return_unwind _ W C (cstack_set_top_count cstk n) Ws Cs _ _ _
+              InterruptDisabled
+             with "[$HPC $Hrmap $Hthread $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk
+                    $Hmie $Hheld]");
       [done | done | done | by apply frame_match_set_top_count |].
     iSplit; iApply interp_int.
   Qed.
@@ -160,26 +217,29 @@ Section Switcher_trap_safety.
     (w : LWord) :
     (∀ c, P_mcause c → mcause_ok c) →
     ↑Ntstack ⊆ F →
-    ↑Ntrap ⊆ F →
     switcher_trap_safety -∗
     (|={⊤}=>
-       ∃ (rmap : LReg) (cstk : CSTK),
+       ∃ (rmap : LReg) (cstk : CSTK) (b : InterruptStatus),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
          ◯(CSTK)[th] cstk ∗
-         trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
+         trap_handler_ok_cause P_mcause P_mtval F cstk w rmap ∗
+         ⌜route_pre th b⌝ ∗
+         MIE ↦ₜ[th] b ∗
+         held (th := th) b) -∗
     trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
-    iIntros (HP_mcause HF HFtrap) "#Hsafety Hres".
+    iIntros (HP_mcause HF) "#Hsafety Hres".
     iNamed "Hsafety".
-    iApply trap_safe_entry_intro.
-    iSplit; last by iIntros "!> %Hv".
-    iMod "Hres" as (rmap cstk Hfull_rmap) "(Hna & Hrmap & Hcstk & Hhandled)".
-    iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
-    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
+    iApply trap_safe_fupd.
+    iMod "Hres" as (rmap cstk b Hfull_rmap)
+      "(Hna & Hrmap & Hcstk & Hhandled & %Hpre & Hmie & Hheld)".
+    iModIntro.
+    iApply (trap_safe_held_intro _ _ _ _ _ b with "Hmie Hheld"); first done.
+    iIntros "!> Hmie Hpost HPC".
     iApply ("Hentry_safe" $! P_mcause P_mtval F cstk rmap w with
-             "[//] [//] [//] [//] [Hhandled] HPC Hout Hrmap Hna Hcstk").
+             "[//] [//] [//] [Hhandled] HPC Hmie Hpost Hrmap Hna Hcstk").
     by iRight.
   Qed.
 
@@ -188,14 +248,16 @@ Section Switcher_trap_safety.
       which returns at [.Lswitch_just_return]. *)
   Lemma trap_safe_resume_of_safety (F : coPset) (w : LWord) :
     ↑Ntstack ⊆ F →
-    ↑Ntrap ⊆ F →
     ¬ trap_no_resume w →
     switcher_trap_safety -∗
     (|={⊤}=>
-       ∃ rmap : LReg,
+       ∃ (rmap : LReg) (b : InterruptStatus),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
+         ⌜route_pre th b⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
+         MIE ↦ₜ[th] b ∗
+         held (th := th) b ∗
          (∀ rmap' : LReg,
             ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
             ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
@@ -204,12 +266,19 @@ Section Switcher_trap_safety.
             PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
             registers_pointsto rmap' -∗
             na_own (tpool th) F -∗
+            MIE ↦ₜ[th] b -∗
+            held (th := th) b -∗
             safe[th])) -∗
     trap_safe w ⊤ (HO th).
   Proof.
-    iIntros (HF HFtrap Hresume) "#Hsafety Hres".
+    iIntros (HF Hresume) "#Hsafety Hres".
     iNamed "Hsafety".
-    by iApply ("Hresume_safe" with "[//] [//] [//] Hres").
+    iApply ("Hresume_safe" with "[//] [//]").
+    iMod "Hres" as (rmap b Hfull Hpre) "(Hna & Hrmap & Hmie & Hheld & Hcont)".
+    iModIntro. iExists rmap, b. iFrame "Hna Hrmap Hmie Hheld".
+    do 2 (iSplit; first done).
+    iIntros (rmap' Hfull' Hsame Hca0 Hca1) "HPC Hrmap Hna Hmie Hheld _".
+    iApply ("Hcont" with "[//] [//] [//] [//] HPC Hrmap Hna Hmie Hheld").
   Qed.
 
   (** A fault in trusted code is safe: after exception entry, the exception
@@ -222,7 +291,8 @@ Section Switcher_trap_safety.
        registers_pointsto rmap ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
-       (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
+       (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap) ∗
+       (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap) "#Hsafety Hres".
@@ -252,13 +322,14 @@ Section Switcher_trap_safety.
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       ◯(CSTK)[th] cstk) -∗
+       ◯(CSTK)[th] cstk ∗
+       (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hthread #Hsafety Hcase Hres".
     iApply (trap_safe_unwind_of_safety with "Hsafety"); [done |].
-    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk)".
-    iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
+    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk & Hposture)".
+    iModIntro. iFrame "Hrmap Hna Hcstk Hposture". iRight.
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iNamed "Hsafety".
     iPoseProof (logrel_unwind_cont_gen with "Hthread Hinv_switcher Hstatic Htrap Hworld_interp Hcont")

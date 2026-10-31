@@ -21,23 +21,31 @@ Section Switcher_Zero_Callee_Frame.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** From [.Lswitch_just_return]: the jump to [wret], which faults
-      when [wret] is not a valid target. *)
-  Lemma switcher_return_to_caller_spec (wret : LWord) :
+  (** From [.Lswitch_just_return], at the posture [b]: the jump to [wret],
+      which moves the posture to the one [wret] restores, and faults when
+      [wret] is not a valid target. *)
+  Lemma switcher_return_to_caller_spec (wret : LWord) (b : InterruptStatus) :
+    route_pre th b →
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ[th] wret ∗
     switcher_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
     ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
           cra ↦ᵣ[th] wret ∗
+          MIE ↦ₜ[th] default b (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default b (jalr_target_mie wret.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
-        cra ↦ᵣ[th] wret -∗
+        cra ↦ᵣ[th] wret ∗
+        MIE ↦ₜ[th] b ∗
+        held (th := th) b -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
           (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
+    iIntros (Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
     switcher_open_label ".Lswitch_just_return" "Hswitcher" as "Hcode" a_ret Ha_ret.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* The fault is at the start of the block. The label would be unfolded
@@ -50,47 +58,56 @@ Section Switcher_Zero_Callee_Frame.
       iTrap with "Hfailed".
       done. }
     (* Jalr cnull cra *)
-    iInstr "Hcode" with "Hlc".
+    iInstrApply "Hcode" with "Hlc" (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ _ _ b)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     iDestruct "Hpost" as "[Hpost _]".
-    iApply "Hpost". iFrame "HPC Hcra Hlc".
+    iApply "Hpost". iFrame "HPC Hcra Hmie Hheld Hlc".
   Qed.
 
   (** From [.Lswitch_callee_dead_zeros]: clear the registers of [rmap] and
       jump to [wcra]. The jump faults when [wcra] is not a valid target. *)
-  Lemma switch_callee_dead_zeros_spec (wcra : LWord) (rmap : LReg) :
+  Lemma switch_callee_dead_zeros_spec (wcra : LWord) (rmap : LReg) (b : InterruptStatus) :
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    route_pre th b ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
     cra ↦ᵣ[th] wcra ∗
     regs[th] rmap ∗
     switcher_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         cra ↦ᵣ[th] wcra ∗
         regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm wcra ∗
+          MIE ↦ₜ[th] default b (jalr_target_mie wcra.(lw)) ∗
+          held (th := th) (default b (jalr_target_mie wcra.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra.(lw) = false ⌝ -∗
+          MIE ↦ₜ[th] b -∗
+          held (th := th) b -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hdom) "(HPC & Hcra & Hrmap & #Hswitcher & Hpost)".
+    iIntros (Hdom Hpre) "(HPC & Hcra & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_ret"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_callee_dead_zeros" "Hswitcher" as "Hcode".
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]");
       try solve_pure.
     iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & _)".
     switcher_change_pc_label ".Lswitch_just_return".
-    iApply (switcher_return_to_caller_spec with "[- $HPC $Hcra $Hswitcher_ret]").
+    iApply (switcher_return_to_caller_spec _ b with "[- $HPC $Hcra $Hswitcher_ret $Hmie $Hheld]");
+      first done.
     iSplit.
-    - iNext; iIntros "(HPC & Hcra & Hlc)".
+    - iNext; iIntros "(HPC & Hcra & Hmie & Hheld & Hlc)".
       iDestruct ("Hpost" $! rmap' with "[$Hcra $Hrmap //]") as "[Hpost _]".
-      iApply "Hpost"; iFrame "HPC Hlc".
-    - iIntros "(%Htgt & Hcra)".
+      iApply "Hpost"; iFrame "HPC Hmie Hheld Hlc".
+    - iIntros "(%Htgt & Hcra & Hmie & Hheld)".
       iDestruct ("Hpost" $! rmap' with "[$Hcra $Hrmap //]") as "[_ Hfailed]".
-      by iApply "Hfailed".
+      by iApply ("Hfailed" with "[//] Hmie Hheld").
   Qed.
 
   (** From [.Lswitch_callee_stack_zero]: clear the caller's free part, the
@@ -100,11 +117,12 @@ Section Switcher_Zero_Callee_Frame.
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp : LWord)
     (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 wct1 wct2 : LWord)
-    (rmap : LReg) :
+    (rmap : LReg) (mie : InterruptStatus) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
+    route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
     cgp ↦ᵣ[th] wcgp' ∗
@@ -121,6 +139,8 @@ Section Switcher_Zero_Callee_Frame.
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     regs[th] rmap ∗
     switcher_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ ( ∀ (rmap' : LReg),
         ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
         cra ↦ᵣ[th] wcra' ∗
@@ -132,16 +152,20 @@ Section Switcher_Zero_Callee_Frame.
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
         regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm wcra' ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wcra'.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wcra'.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
+          MIE ↦ₜ[th] mie -∗
+          held (th := th) mie -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hbounds Hstk_mmio Hdom)
+    iIntros (Hbounds Hstk_mmio Hdom Hpre)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
-      & Hcells & Hstk & Hrmap & #Hswitcher & Hpost)".
+      & Hcells & Hstk & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_dz"; first iFrame "Hswitcher".
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_stack_zero" "HPC".
@@ -172,8 +196,10 @@ Section Switcher_Zero_Callee_Frame.
     iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap"; [iFrame "Hca2"|].
     iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap"; [iFrame "Hctp"|].
     switcher_change_pc_label ".Lswitch_callee_dead_zeros".
-    iApply (switch_callee_dead_zeros_spec with "[- $HPC $Hcra $Hrmap $Hswitcher_dz]").
+    iApply (switch_callee_dead_zeros_spec _ _ mie
+              with "[- $HPC $Hcra $Hrmap $Hswitcher_dz $Hmie $Hheld]").
     { rewrite !dom_insert_L Hdom. clear. set_solver. }
+    { done. }
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
     iAssert ([[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ 0…0 ]])%I
       with "[Hstk]" as "Hstk"; first done.
