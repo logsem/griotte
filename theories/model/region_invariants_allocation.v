@@ -14,15 +14,6 @@ Section region_alloc.
   Implicit Types C : CmptName.
   Implicit Types t : Thread.
 
-  Lemma key_pointsto_dupl_false (k : LAddr) v1 v2 :
-    k ↦ₖ v1 -∗ k ↦ₖ v2 -∗ False.
-  Proof.
-    iIntros "H1 H2".
-    iDestruct (key_pointsto_eq with "H1") as "[H1 _]".
-    iDestruct (key_pointsto_eq with "H2") as "[H2 _]".
-    iApply (addr_dupl_false with "H1 H2").
-  Qed.
-
   (** A cell refutes a closed body of the map of Permanent regions at its
       key: the body is the same cell or, for a heap key, a tombstone. *)
   Lemma body_g_cell_false C k p φ v :
@@ -84,25 +75,6 @@ Section region_alloc.
     iModIntro. iSplitR "Hr"; [|by rewrite rel_l_eq].
     iExists _. rewrite /wil_M. iFrame "Hm". iFrame "Hloc". iPureIntro.
     rewrite /std_update /= !dom_insert_L. set_solver.
-  Qed.
-
-  (** A fresh key enters a map open, with no body yet. *)
-  Lemma rmap_insert_open {A} `{!savedPredG Σ A} γ M body O k p (φ : A → iProp Σ) :
-    k ∉ dom M →
-    rmap γ M body O -∗ heap_key_known k ==∗
-    ∃ γp, rmap γ (<[k := (γp, p)]> M) body ({[k]} ∪ O) ∗ rmap_rel γ k p φ.
-  Proof.
-    iIntros (HkM) "(Ha & Hks & Hb) #Hkn".
-    iMod (saved_pred_alloc φ DfracDiscarded) as (γp) "#Hsp"; [done|].
-    iMod (ghost_map_insert_persist k (γp, p) with "Ha") as "[Ha #Hel]"; [by apply not_elem_of_dom|].
-    iModIntro. iExists γp. iFrame "Ha". iSplitL; [|iExists γp; by iFrame "#"].
-    iSplitL "Hks".
-    - iApply big_sepM_insert; [by apply not_elem_of_dom|]. by iFrame "∗#".
-    - iApply big_sepM_insert; [by apply not_elem_of_dom|]. rewrite decide_True; [|set_solver].
-      iSplitR; [done|]. iApply (big_sepM_mono with "Hb"). iIntros (k' γp' Hk') "Hb".
-      assert (k' ≠ k) by (intros ->; apply HkM; by eapply elem_of_dom_2).
-      destruct (decide (k' ∈ O)) as [HO|HO];
-        [rewrite decide_True; [done|set_solver]|rewrite decide_False; [done|set_solver] ].
   Qed.
 
   (** Global regions enter the map open: each cell shows that its key is

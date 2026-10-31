@@ -98,4 +98,14 @@ Section key_pointsto_known.
     iIntros "[_ (%b & %e & %Hin & #Hobj & _)]". iExists b, e. by iFrame "Hobj".
   Qed.
 
+  Lemma key_pointsto_dupl_false (k : LAddr) v1 v2 :
+    k ↦ₖ v1 -∗ k ↦ₖ v2 -∗ False.
+  Proof.
+    iIntros "H1 H2".
+    iDestruct (key_pointsto_eq with "H1") as "[H1 _]".
+    iDestruct (key_pointsto_eq with "H2") as "[H2 _]".
+    iDestruct (pointsto_valid_2 with "H1 H2") as %[Hv _].
+    exfalso. by eapply dfrac_full_exclusive.
+  Qed.
+
 End key_pointsto_known.

@@ -492,3 +492,28 @@ Notation "b ↦ₑ□{stackful} z" := (handler_stackful b z)
   (at level 20, format "b  ↦ₑ□{stackful}  z") : bi_scope.
 Notation "b ↦ₑ□{stackless} z" := (handler_stackless b z)
   (at level 20, format "b  ↦ₑ□{stackless}  z") : bi_scope.
+
+(** The projections of the header of an export table are the same at any
+    two threads. *)
+Section thread_indep_handlers.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
+
+  Lemma handler_stackful_thread_indep (t t' : Thread) b z :
+    handler_stackful (ceriseg := ceriseG_of t) b z ⊣⊢
+    handler_stackful (ceriseg := ceriseG_of t') b z.
+  Proof.
+    iSplit; iIntros "H"; iApply handler_stackful_intro;
+      iDestruct (handler_stackful_elim with "H") as "H";
+      by rewrite pointsto_pers_thread_indep.
+  Qed.
+
+  Lemma handler_stackless_thread_indep (t t' : Thread) b z :
+    handler_stackless (ceriseg := ceriseG_of t) b z ⊣⊢
+    handler_stackless (ceriseg := ceriseG_of t') b z.
+  Proof.
+    iSplit; iIntros "H"; iApply handler_stackless_intro;
+      iDestruct (handler_stackless_elim with "H") as "H";
+      by rewrite pointsto_pers_thread_indep.
+  Qed.
+
+End thread_indep_handlers.

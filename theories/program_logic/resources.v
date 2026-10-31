@@ -245,6 +245,13 @@ Inductive Thread : Type := UserThread (t : nat) | CtxSwitch.
 Proof. solve_decision. Qed.
 Existing Class Thread.
 (* No [Hint Mode]: the class has no parameter, hence no input position. *)
+#[global] Instance Thread_countable : Countable Thread.
+Proof.
+  refine (inj_countable'
+    (λ th, match th with UserThread n => Some n | CtxSwitch => None end)
+    (λ o, match o with Some n => UserThread n | None => CtxSwitch end) _).
+  by intros [n|].
+Qed.
 
 (** Threads in notations: [u n] is the user thread [n], [s] the
     context-switch thread; a variable or a parenthesised term is a thread
@@ -327,6 +334,18 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
 #[global] Arguments cerise_mtdcG : simpl never.
 #[global] Arguments cerise_mieG : simpl never.
 #[global] Arguments cerise_mpieG : simpl never.
+
+(** The memory of the instance of a thread is that of the base, so a
+    persistent points-to is the same at any two threads. *)
+Section thread_indep.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
+
+  Lemma pointsto_pers_thread_indep (t t' : Thread) (a : Addr) (w : LWord) :
+    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t)) (L := Addr) (V := LWord) a DfracDiscarded w ⊣⊢
+    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t')) (L := Addr) (V := LWord) a DfracDiscarded w.
+  Proof. rewrite /ceriseG_of. reflexivity. Qed.
+
+End thread_indep.
 
 (** The namespace of the non-atomic token of trap entry: a fault hands it
     to the state interpretation, in exchange for MEPCC, mcause and mtval.

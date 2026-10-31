@@ -30,15 +30,6 @@ Notation interpO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LWord) -n> i
 Notation regsO Σ := (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ).
 Notation contO Σ := (CSTK -n> list WORLD -n> leibnizO (list CmptName) -n> iPropO Σ).
 
-(* TODO: move to program_logic/resources.v *)
-#[global] Instance Thread_countable : Countable Thread.
-Proof.
-  refine (inj_countable'
-    (λ th, match th with UserThread n => Some n | CtxSwitch => None end)
-    (λ o, match o with Some n => UserThread n | None => CtxSwitch end) _).
-  by intros [n|].
-Qed.
-
 (** The threads that may run in a compartment. *)
 Class CmptThreads {Cname : CmptNameG} := {
   cmpt_threads : CmptName → gset Thread;

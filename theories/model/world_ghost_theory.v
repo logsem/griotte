@@ -935,17 +935,10 @@ End world_ghost_theory.
 
 (** ** The shared resources at two threads
 
-    The memory and the registry of the instance of a thread are those of
-    the base, so a persistent points-to and the map of Global regions are
-    the same at any two threads. *)
+    The registry of the instance of a thread is that of the base, so the
+    map of Global regions is the same at any two threads. *)
 Section thread_indep.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {relg : relGS Σ}.
-
-  (* TODO: move to program_logic/resources.v *)
-  Lemma pointsto_pers_thread_indep (t t' : Thread) (a : Addr) (w : LWord) :
-    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t)) (L := Addr) (V := LWord) a DfracDiscarded w ⊣⊢
-    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t')) (L := Addr) (V := LWord) a DfracDiscarded w.
-  Proof. rewrite /ceriseG_of. reflexivity. Qed.
 
   Lemma world_interp_g_open_thread_indep (t t' : Thread) C s :
     world_interp_g_open (allocRegistryG0 := @cerise_registryG Σ (ceriseG_of t))

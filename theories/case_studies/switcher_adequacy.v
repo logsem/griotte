@@ -5,33 +5,6 @@ From griotte Require Import compartment_layout.
 From griotte Require Import switcher_base_interp.
 From griotte Require Import switcher_spec_return.
 
-(** The projections of the header of an export table are the same at any
-    two threads. *)
-Section thread_indep_handlers.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
-
-  (* TODO: move to logrel/call_stack.v *)
-  Lemma handler_stackful_thread_indep (t t' : Thread) b z :
-    handler_stackful (ceriseg := ceriseG_of t) b z ⊣⊢
-    handler_stackful (ceriseg := ceriseG_of t') b z.
-  Proof.
-    iSplit; iIntros "H"; iApply handler_stackful_intro;
-      iDestruct (handler_stackful_elim with "H") as "H";
-      by rewrite pointsto_pers_thread_indep.
-  Qed.
-
-  (* TODO: move to logrel/call_stack.v *)
-  Lemma handler_stackless_thread_indep (t t' : Thread) b z :
-    handler_stackless (ceriseg := ceriseG_of t) b z ⊣⊢
-    handler_stackless (ceriseg := ceriseG_of t') b z.
-  Proof.
-    iSplit; iIntros "H"; iApply handler_stackless_intro;
-      iDestruct (handler_stackless_elim with "H") as "H";
-      by rewrite pointsto_pers_thread_indep.
-  Qed.
-
-End thread_indep_handlers.
-
 Section helpers_switcher_adequacy.
   Context
     {Σ:gFunctors}

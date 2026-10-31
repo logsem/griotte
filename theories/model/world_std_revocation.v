@@ -682,3 +682,87 @@ Section world_std_revocation.
 
 
 End world_std_revocation.
+
+(** ** The local world *)
+
+(** Revocation turns every Temporary key Revoked; restoring a set of keys
+    turns its Revoked keys Temporary. *)
+Definition revoke_rt (ρ : region_type) : region_type :=
+  match ρ with Temporary => Revoked | _ => ρ end.
+Definition close_rt (ρ : region_type) : region_type :=
+  match ρ with Revoked => Temporary | _ => ρ end.
+
+(** Restoring the keys of a set; the list-based [close_list] above
+    restores the keys of a list. *)
+Definition close_set (S : gset LAddr) (W : WORLD) : WORLD :=
+  MkWorld (map_imap (λ k ρ, Some (if decide (k ∈ S) then close_rt ρ else ρ)) (std W)) (cus W).
+
+(** [S] is exactly the set of Temporary keys of [W] that are not open. *)
+Definition extract_T (W : WORLD) (O S : gset LAddr) : Prop :=
+  ∀ k, k ∈ S ↔ std W !! k = Some Temporary ∧ k ∉ O.
+
+Section local_world.
+  Implicit Types W : WORLD.
+
+  Lemma elem_of_dom_std W k : k ∈ dom (std W) ↔ is_Some (std W !! k).
+  Proof. by rewrite elem_of_dom. Qed.
+
+  Lemma elem_of_dom_std_2 W k ρ : std W !! k = Some ρ → k ∈ dom (std W).
+  Proof. intros Hk. rewrite elem_of_dom_std. eauto. Qed.
+
+  Lemma related_pub_Temporary W W' k :
+    related_sts_pub_world W W' → std W !! k = Some Temporary → std W' !! k = Some Temporary.
+  Proof.
+    intros [ [Hd Hr] _] Hk.
+    assert (is_Some (std W' !! k)) as [ρ Hρ].
+    { rewrite -elem_of_dom; apply Hd; rewrite elem_of_dom; eauto. }
+    rewrite Hρ. f_equal.
+    eapply (std_rel_pub_rtc_Temporary Temporary ρ); [done|exact (Hr k _ _ Hk Hρ)].
+  Qed.
+
+  Lemma revoke_lookup W k : std (revoke W) !! k = revoke_rt <$> std W !! k.
+  Proof. by rewrite /revoke /= lookup_fmap. Qed.
+
+  Lemma close_set_lookup S W k :
+    std (close_set S W) !! k =
+    (λ ρ, if decide (k ∈ S) then close_rt ρ else ρ) <$> std W !! k.
+  Proof. rewrite /close_set /= map_lookup_imap. by destruct (_ !! k). Qed.
+
+  Lemma dom_revoke W : dom (std (revoke W)) = dom (std W).
+  Proof. by rewrite /revoke /= dom_fmap_L. Qed.
+
+  Lemma dom_close_set S W : dom (std (close_set S W)) = dom (std W).
+  Proof.
+    apply set_eq. intros k. rewrite !elem_of_dom close_set_lookup fmap_is_Some. done.
+  Qed.
+
+  Lemma revoke_not_Temporary W k : std (revoke W) !! k ≠ Some Temporary.
+  Proof. rewrite revoke_lookup. destruct (std W !! k) as [ [] | ]; simpl; done. Qed.
+
+  (** A restored key of the domain is Temporary. *)
+  Lemma close_set_Temporary S W k :
+    k ∈ S → k ∈ dom (std W) →
+    std (close_set S W) !! k = Some Temporary.
+  Proof.
+    intros HkS [ρ Hρ]%elem_of_dom_std. rewrite close_set_lookup Hρ /= decide_True //.
+    destruct ρ; done.
+  Qed.
+
+  Lemma close_set_not_elem S W k :
+    k ∉ S → std (close_set S W) !! k = std W !! k.
+  Proof.
+    intros HkS. rewrite close_set_lookup. destruct (std W !! k); simpl; [|done].
+    by rewrite decide_False.
+  Qed.
+
+  Lemma related_pub_close_set S W : related_sts_pub_world W (close_set S W).
+  Proof.
+    split; [|apply related_sts_pub_refl].
+    split; [by rewrite dom_close_set|].
+    intros k x y Hx Hy. rewrite close_set_lookup Hx /= in Hy. injection Hy as <-.
+    case_decide; [|apply rtc_refl].
+    destruct x; simpl; [apply rtc_refl|].
+    apply rtc_once. constructor.
+  Qed.
+
+End local_world.
