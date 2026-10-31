@@ -2,9 +2,11 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules_Load map_simpl register_tactics logrel.
 From griotte Require Import world_ghost_theory wp_rules_interp.
 From griotte Require Export call_stack.
+From griotte Require Import switcher_link.
 
 Section Switcher_Restore.
-  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
+  Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
+    `{MP : MachineParameters}.
 
   (** Restore one saved register, at the offset [off] from the stack
       pointer, under a load witness. The load does not fail, and its result
@@ -115,7 +117,7 @@ Section Switcher_Restore_Interp.
     {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
-    `{MP : MachineParameters}.
+    `{MP : MachineParameters} {swlayout : switcherLayout}.
 
   Lemma switcher_load_stack_restore_world {dq : dfrac} E Wworld C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)

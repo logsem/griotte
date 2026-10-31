@@ -7,6 +7,7 @@ From griotte Require Import rules proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
 From griotte Require Import wp_rules_interp.
 From griotte Require Import clear_stack_spec clear_registers_spec.
+From griotte Require Import switcher_link.
 
 Section switcher_macros.
   Context
@@ -14,7 +15,7 @@ Section switcher_macros.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG} {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
-    `{MP: MachineParameters}
+    `{MP: MachineParameters} {swlayout : switcherLayout}
   .
 
   Implicit Types W : WORLD.

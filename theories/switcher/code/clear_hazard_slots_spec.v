@@ -12,7 +12,7 @@ From griotte Require Export switcher.
 
 Section ClearHazardSlots.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     `{MP: MachineParameters}.
 
   Lemma clear_hazard_slots_instrs_length ts scratch :

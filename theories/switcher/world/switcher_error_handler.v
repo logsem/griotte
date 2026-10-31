@@ -419,7 +419,7 @@ Section Switcher_error_handler.
   Definition handler_invocation_regs (kind : handler_kind) (cstk : CSTK) (wcgp : LWord)
     (rfault : LReg) (mcause mtval : Z) (regs : LReg) : Prop :=
     (∀ r, is_Some (regs !! r)) ∧
-    (∃ mie, regs !! cra = Some (handler_return_sentry mie)) ∧
+    regs !! cra = Some (handler_return_sentry InterruptEnabled) ∧
     regs !! cgp = Some wcgp ∧
     match kind with
     | Stackful =>
@@ -528,7 +528,7 @@ Section Switcher_error_handler.
 
   (** The switcher's resources at a token [F]. *)
   Definition switcher_res (F : coPset) : iProp Σ :=
-    ⌜↑Ntstack ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
+    ⌜↑Ntstack ⊆ F⌝ ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static.
 
@@ -544,7 +544,9 @@ Section Switcher_error_handler.
       fact that the stackful handler runs) or [P_fault] at the cause and the
       value. A stackless handler
       also knows that the stackful handler does not run. It does not
-      mention the trap vector. *)
+      mention the trap vector. A handler starts with interrupts enabled:
+      the posture of the thread is in its link, and the return sentry in
+      [cra] enables them again. *)
   Definition execute_error_handler (b_tbl : Addr) (wpcc wcgp : LWord) (off : Z)
     (kind : handler_kind) (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ)
     : iProp Σ :=
@@ -564,6 +566,8 @@ Section Switcher_error_handler.
            P_fault F cstk w rfault mcause mtval) -∗
           ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own (tpool th) F -∗
+          ⌜route_pre th InterruptEnabled⌝ -∗
+          MIE ↦ₜ[th] InterruptEnabled -∗
           safe[th] ).
 
   #[global] Instance execute_error_handler_persistent b_tbl wpcc wcgp off kind P_fault :

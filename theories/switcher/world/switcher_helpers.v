@@ -14,7 +14,7 @@ Section switcher_helper.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    `{MP: MachineParameters}
+    `{MP: MachineParameters} {swlayout : switcherLayout}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).

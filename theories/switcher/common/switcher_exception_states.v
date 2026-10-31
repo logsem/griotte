@@ -83,6 +83,28 @@ Section Switcher_Exception_States.
     rewrite (drop_S _ w16 16) //=.
   Qed.
 
+  (** The spill writes the word [mstatus] of the register save area: its
+      saved MIE is that of [wst]. *)
+  Lemma exception_spill_saved_mie_ok save wmepcc wregs wst wcause :
+    length save = 21%nat →
+    length wregs = 15%nat →
+    mie_of (get_a wst.(lw)) = InterruptDisabled →
+    saved_mie_ok (exception_spill save wmepcc wregs wst wcause).
+  Proof.
+    intros Hsave Hregs Hmie w.
+    rewrite /exception_spill /TrustedStack_offset_mstatus /=.
+    rewrite lookup_app_r Hregs; last lia. cbn.
+    destruct (lookup_lt_is_Some_2 save 16) as [w16 Hw16]; first lia.
+    rewrite (drop_S _ w16 16) //=. by intros [= <-].
+  Qed.
+
+  (** The saved MIE does not depend on the word [hazardPointers]. *)
+  Lemma saved_mie_ok_insert_hazard (ws : list LWord) (w : LWord) :
+    saved_mie_ok (<[Z.to_nat TrustedStack_offset_hazardPointers := w]> ws) ↔ saved_mie_ok ws.
+  Proof.
+    rewrite /saved_mie_ok list_lookup_insert_ne //.
+  Qed.
+
   (** The register save area holds 21 words. *)
   Lemma tstack_save_area_length save :
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗ ⌜length save = 21%nat⌝.
@@ -141,3 +163,31 @@ Section Switcher_Exception_States.
   Qed.
 
 End Switcher_Exception_States.
+
+Section Switcher_Exception_Release.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ}
+    `{MP: MachineParameters}
+    {th : Thread}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
+  .
+
+  (** The register save area goes back into the posture, which the thread
+      holds at InterruptDisabled, but the word [hazardPointers], which goes
+      back to the trusted-stack invariant. *)
+  Lemma save_area_release (save : list LWord) :
+    th ≠ CtxSwitch →
+    save !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) →
+    saved_mie_ok save →
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
+    handover_res -∗
+    mtdc_lent -∗
+    held (th := th) InterruptDisabled ∗ tstack_hazard_cell ↦ₐ hazard_slots_cap.
+  Proof.
+    iIntros (Hth Hhz Hok) "Hsave Hho Hlent".
+    rewrite /tstack_save_end.
+    iDestruct (save_area_split with "Hsave") as "[Hholed $]"; first exact Hhz.
+    rewrite held_disabled posture_part_user //. iFrame "Hho Hlent". iExists save. by iFrame.
+  Qed.
+End Switcher_Exception_Release.

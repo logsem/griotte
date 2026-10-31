@@ -9,7 +9,6 @@ From griotte Require Export switcher switcher_tactics.
 From griotte Require Export clear_stack_spec clear_registers_spec.
 From griotte Require Export switcher_sealing.
 From griotte Require Export switcher_namespace.
-From griotte Require Export switcher_link.
 
 Lemma switcher_disjoint_subseg `{MP : MachineParameters} b e b' e' :
   (b <= b')%a -> (e' <= e)%a ->
@@ -360,23 +359,25 @@ Section Switcher_preamble.
 
       Finally, the invariant holds the points-to predicates of the trusted stack.
       The topmost frame is at [a_tstk]; the unused part, from the next frame
-      to [e_trusted_stack], and the save area contain some unknown values,
-      but for the word [hazardPointers] of the save area, which holds the
-      capability to the hazard slots of the thread. The invariant owns the
+      to [e_trusted_stack], contains some unknown values. Of the register
+      save area, the invariant holds only the word [hazardPointers], which
+      holds the capability to the hazard slots of the thread: the rest is
+      in the posture of the thread ([save_area_part]). The invariant owns the
       two hazard slots, which hold unknown values: no compartment reaches
       them. The used part is contained in the definition of [cstack_interp].
+
+      Only a user thread has a trusted stack ([%Huser]), and the home value
+      of its mtdc is the trusted stack ([%Hhome]).
    *)
   Definition trusted_stack_inv : iProp Σ :=
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
-    ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
+    ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+      "%Huser" ∷ ⌜th ≠ CtxSwitch⌝ ∗
       "Hmtdc" ∷ mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
-      "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-      "%Hsave_hazard" ∷
-        ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
-         = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "%Hhome" ∷ ⌜mtdc_home = Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack⌝ ∗
+      "Hhazard_cell" ∷ tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
       "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
@@ -392,16 +393,14 @@ Section Switcher_preamble.
       conjuncts lose their later, so that [iNamed] can name them. *)
   Lemma trusted_stack_inv_open :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     ▷ trusted_stack_inv -∗
-    ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (save_area tstk_next : list LWord),
+    ◇ ∃ (a_tstk : Addr) (cstk' : CSTK) (tstk_next : list LWord),
       let a_next := (a_tstk ^+ TrustedStackFrame_size) in
+      "%Huser" ∷ ⌜th ≠ CtxSwitch⌝ ∗
       "Hmtdc" ∷ mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
-      "Hsave_area" ∷ [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
-      "%Hsave_hazard" ∷
-        ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
-         = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "%Hhome" ∷ ⌜mtdc_home = Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack⌝ ∗
+      "Hhazard_cell" ∷ tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
       "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
@@ -412,20 +411,19 @@ Section Switcher_preamble.
          ∧ (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z⌝ ∗
       "Hstk_interp" ∷ ▷ cstack_interp cstk' a_tstk.
   Proof.
-    intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
+    intros a_frameoffset a_threadID; subst a_frameoffset a_threadID.
     iIntros "Hinv". rewrite /trusted_stack_inv /=.
-    iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
-      "(>Hmtdc & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
-       & >Hcstk_full & >% & Hstk_interp)".
-    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ %".
+    iDestruct "Hinv" as (a_tstk cstk' tstk_next)
+      "(>% & >Hmtdc & >% & >Hhazard_cell & >Hhazard_slots & >Hframeoffset & >HthreadID
+       & >Htstk & >Hcstk_full & >% & Hstk_interp)".
+    iModIntro. iExists a_tstk, cstk', tstk_next. by iFrame "∗ %".
   Qed.
 
   (** Close [trusted_stack_inv] after popping the topmost frame, at [a_tstk],
       of the trusted stack: its cells go back to the unused part. *)
   Lemma trusted_stack_inv_pop_frame
-    (a_tstk : Addr) (cstk : CSTK) (save_area tstk_next : list LWord) (w0 w1 w2 : LWord) :
+    (a_tstk : Addr) (cstk : CSTK) (tstk_next : list LWord) (w0 w1 w2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
     let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
     let a_next := (a_tstk ^+ TrustedStackFrame_size) in
     let a_prev := (a_tstk ^+ - TrustedStackFrame_size) in
@@ -434,10 +432,11 @@ Section Switcher_preamble.
     let a_error_count := (a_tstk ^+ TrustedStackFrame_offset_errorHandlerCount) in
     (b_trusted_stack + tstack_frame_offset (S (length cstk.(cstk_frames))))%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
+    th ≠ CtxSwitch ->
+    mtdc_home = Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ->
 
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
-    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
+    tstack_hazard_cell ↦ₐ hazard_slots_cap -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
     (∃ w, a_threadID ↦ₐ w) -∗
@@ -449,16 +448,16 @@ Section Switcher_preamble.
     cstack_interp cstk a_prev -∗
     trusted_stack_inv.
   Proof.
-    intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Hlen_cstk Ha_tstk_e Hsave_hazard)
-      "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
+    intros a_frameoffset a_threadID a_next a_prev a_csp a_export_table a_error_count.
+    subst a_frameoffset a_threadID a_next a_prev a_csp a_export_table a_error_count.
+    iIntros (Hlen_cstk Ha_tstk_e Huser Hhome)
+      "Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
        Hstk_interp".
-    iExists (a_tstk ^+ - TrustedStackFrame_size), cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp".
+    iExists (a_tstk ^+ - TrustedStackFrame_size), cstk, (w0 :: w1 :: w2 :: tstk_next).
+    iFrame "Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp".
+    do 2 (iSplit; first done).
     replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size) with a_tstk
       by (tstack_unfold; solve_addr).
-    iSplit; first done.
     iSplitL "Hw0 Hw1 Hw2 Htstk".
     { iDestruct (region_pointsto_cons _ (a_tstk ^+ TrustedStackFrame_size)
                    with "[$Hw2 $Htstk]") as "Htstk"; [tstack_unfold; solve_addr..|].
@@ -517,29 +516,62 @@ Section Switcher_Hazard.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** Take the word [hazardPointers] out of the register save area
-      [save_area], with the hazard slots. *)
-  Lemma switcher_hazard_open (save_area : list LWord) :
-    let a_save_end := (b_trusted_stack ^+ TSTACK_REGFRAME_SZ) in
-    save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
-    [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
-    (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
-    switcher_hazard ∗
-    (tstack_hazard_cell ↦ₐ hazard_slots_cap -∗
-     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]]).
+  (** The word [hazardPointers] of the register save area is in its
+      bounds. *)
+  Lemma tstack_save_area_hazard_lookup :
+    finz.seq_between b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ)
+      !! Z.to_nat TrustedStack_offset_hazardPointers = Some tstack_hazard_cell.
   Proof.
-    intros a_save_end; subst a_save_end.
-    iIntros (Hk) "Hsave Hslots".
     pose proof trusted_stack_frames_fit as [n Hfit].
-    rewrite /region_pointsto.
-    iDestruct (big_sepL2_length with "Hsave") as %Hlen.
+    eapply finz_seq_between_lookup with (n := 21%nat);
+      rewrite /tstack_hazard_cell /TrustedStack_offset_hazardPointers; tstack_unfold;
+      [lia | solve_addr].
+  Qed.
+
+  (** The save area of the posture does not depend on its word
+      [hazardPointers]. *)
+  Lemma save_area_holed_insert (ws : list LWord) (w : LWord) :
+    save_area_holed th (<[Z.to_nat TrustedStack_offset_hazardPointers := w]> ws) ⊣⊢
+    save_area_holed th ws.
+  Proof.
+    rewrite /save_area_holed.
+    generalize (finz.seq_between (@b_trusted_stack (tlayout_of th))
+                  (@b_trusted_stack (tlayout_of th) ^+ TSTACK_REGFRAME_SZ)%a).
+    generalize (Z.to_nat TrustedStack_offset_hazardPointers) as i.
+    intros i l. revert i ws.
+    induction l as [|a l IH]; intros i ws; destruct ws as [|w' ws]; destruct i as [|i];
+      cbn [insert list_insert]; try done.
+    rewrite !big_sepL2_cons. f_equiv.
+    etrans; [|etrans; [apply (IH i ws)|] ];
+      apply big_sepL2_proper; intros; repeat case_decide; try done; lia.
+  Qed.
+
+  (** The register save area, split at its word [hazardPointers]. *)
+  Lemma save_area_split (ws : list LWord) (w : LWord) :
+    ws !! Z.to_nat TrustedStack_offset_hazardPointers = Some w →
+    [[ b_trusted_stack, b_trusted_stack ^+ TSTACK_REGFRAME_SZ ]] ↦ₐ [[ ws ]] ⊣⊢
+    save_area_holed th ws ∗ tstack_hazard_cell ↦ₐ w.
+  Proof.
+    intros Hw. rewrite /region_pointsto /save_area_holed.
+    rewrite (big_sepL2_delete _ _ _ _ _ _ tstack_save_area_hazard_lookup Hw).
+    rewrite bi.sep_comm. done.
+  Qed.
+
+  (** The save area of the posture and the word [hazardPointers] of the
+      invariant give the whole register save area. *)
+  Lemma save_area_join (ws : list LWord) :
+    save_area_holed th ws ∗ tstack_hazard_cell ↦ₐ hazard_slots_cap ⊢
+    [[ b_trusted_stack, b_trusted_stack ^+ TSTACK_REGFRAME_SZ ]] ↦ₐ
+      [[ <[Z.to_nat TrustedStack_offset_hazardPointers := lword_of_word hazard_slots_cap]> ws ]].
+  Proof.
+    iIntros "[Hs Hc]".
+    iDestruct (big_sepL2_length with "Hs") as %Hlen.
+    pose proof trusted_stack_frames_fit as [n Hfit].
     rewrite finz_seq_between_length /finz.dist in Hlen.
-    iDestruct (big_sepL2_lookup_acc _ _ _ (Z.to_nat TrustedStack_offset_hazardPointers)
-                 with "Hsave") as "[Hw Hcont]"; [|exact Hk|].
-    { eapply finz_seq_between_lookup with (n := 21%nat);
-        rewrite /TrustedStack_offset_hazardPointers; tstack_unfold; [lia | solve_addr]. }
-    iFrame "Hslots".
-    iSplitL "Hw"; [iExact "Hw" | iExact "Hcont"].
+    rewrite (save_area_split _ (lword_of_word hazard_slots_cap)).
+    - rewrite save_area_holed_insert. iFrame.
+    - apply list_lookup_insert_eq.
+      rewrite -Hlen /TrustedStack_offset_hazardPointers. tstack_unfold. solve_addr.
   Qed.
 
 End Switcher_Hazard.
