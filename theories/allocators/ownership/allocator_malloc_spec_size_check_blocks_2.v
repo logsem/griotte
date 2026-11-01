@@ -12,7 +12,7 @@ From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_
 Section AllocatorMallocSizeCheckBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_malloc_size_check_valid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wtmp : LWord)

@@ -347,7 +347,7 @@ Section Switcher_After_Compartment_Call.
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
-    perm_resources C ∗
+        perm_resources C ∗
         (interp Wval C rcgp ∗
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
@@ -405,8 +405,9 @@ Section Switcher_After_Compartment_Call.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
-      cgp csp _ _ _ _ _ _ _ _)
+    iInstrApply "Hcode" with "Hlc'"
+      (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
+         cgp csp _ _ _ _ _ _ _ _)
       with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hlocal $Hperm $Hnormal_gp]"
       as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hlocal & Hperm & #Hactual_gp)".
     { exact Ha2. }
@@ -458,7 +459,7 @@ Section Switcher_After_Compartment_Call.
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
-    perm_resources C ∗
+        perm_resources C ∗
         (if is_untrusted_caller ccrel then
            interp Wval C rcgp ∗
            interp Wval C rcra ∗

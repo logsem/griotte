@@ -93,8 +93,8 @@ Section Heap_Temporal_Safety_Main.
       ∗ a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ a_alloc_entry_malloc ↦ₐ□
-          WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack
-            allocator_malloc_pcc_off)
+          WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs
+            allocator_malloc_min_stack allocator_malloc_pcc_off)
       ∗ a_alloc_entry_free ↦ₐ□
           WInt (encode_entry_point InterruptDisabled allocator_free_nargs allocator_free_min_stack
             allocator_free_pcc_off)

@@ -565,7 +565,8 @@ Section wp_interp.
              iApply (heap_pointsto_quar_false with "Hv Hq").
       + rewrite (open_l_add_nT _ _ _ HnT) (open_perm_add_nT _ _ _ HnT).
         iAssert (▷ (perm_region_map C ({[addr_key π a]} ∪ open_perm W s) ∗
-                    heap_key_resource (addr_key π a) (∃ w, PermRes C (addr_key π a) p' (safeGC P) w)))%I
+                    heap_key_resource (addr_key π a)
+                      (∃ w, PermRes C (addr_key π a) p' (safeGC P) w)))%I
           with "[Hg]" as "[Hg Hres]".
         { iNext. iApply (perm_open_transport with "Hg Hr"). by apply not_elem_of_open_perm. }
         iDestruct (bi.later_mono _ _ (heap_key_open_cases _ _) with "Hres")

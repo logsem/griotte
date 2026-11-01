@@ -186,49 +186,6 @@ Section switcher_helper.
         rewrite /RevokedResources big_sepL_app. iFrame.
     Qed.
 
-    #[local] Lemma world_interp_stack_fixing_aux
-      (Wcur W0 : WORLD) (C : CmptName)
-      (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
-      ccrel
-      :
-
-      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) Wcur in
-      let closing_region := LNonHeap <$> finz.seq_between b_stk a_stk in
-
-      (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
-      (b_stk <= a_stk)%a ->
-      (a_stk + SpillSlot_size)%a = Some a_stk4 ->
-
-      related_sts_pub_world W0 Wfixed ->
-      interp W0 C
-        (Cap RWL Local b_stk
-           (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
-      world_interp Wcur C -∗
-      [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
-
-      CloseRes Wfixed C a_stk l ccrel -∗
-
-      £ 1 -∗
-      |={⊤}=>
-            world_interp Wfixed C
-            ∗ (if (is_untrusted_caller ccrel)
-               then True
-               else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
-              )
-    .
-    Proof.
-      intros Wfixed closing_region.
-      iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
-        "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
-      rewrite !world_interp_eq.
-      iDestruct "Hworld_interp" as "[Hperm Hlocal]".
-      iMod (local_stack_fixing_aux with
-             "Hinterp_callee_wstk Hlocal Hstk' Hstk Hrevoked Hlc''")
-        as "[Hlocal Hstk']"; [done..|].
-      by iFrame.
-    Qed.
-
     (** At the return, fix the local map on the callee's stack and on the spill
         area of the topmost frame, whose caller's cursor is [a_stk], once
         both are zeroed. *)
@@ -269,49 +226,6 @@ Section switcher_helper.
         by (by destruct (is_untrusted_caller ccrel)).
       intros Hrelated.
       iApply (local_stack_fixing_aux Wcur W0 C (stk_spill_a a_stk));
-        [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
-    Qed.
-
-    (** At the return, fix the world on the callee's stack and on the spill
-        area of the topmost frame, whose caller's cursor is [a_stk], once
-        both are zeroed. *)
-    Lemma world_interp_stack_fixing
-      (Wcur W0 : WORLD) (C : CmptName)
-      (b_stk e_stk a_stk : Addr) (l : list LAddr)
-      ccrel
-      :
-      let s := stk_spill_a a_stk in
-      let Wfixed := close_list (l ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) Wcur in
-
-      switcher_stk_bounds b_stk e_stk a_stk ->
-      related_sts_pub_world W0 Wfixed ->
-      interp W0 C
-        (Cap RWL Local
-           (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
-           (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
-           a_stk) -∗
-      world_interp Wcur C -∗
-      [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] -∗
-
-      CloseRes Wfixed C s l ccrel -∗
-
-      £ 1 -∗
-      |={⊤}=>
-            world_interp Wfixed C
-            ∗ (if (is_untrusted_caller ccrel)
-               then True
-               else [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]
-              )
-    .
-    Proof.
-      intros s Wfixed Hbounds; subst s Wfixed.
-      destruct Hbounds as (Hb & Hb3 & Ha4).
-      stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
-      replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
-        by (by destruct (is_untrusted_caller ccrel)).
-      intros Hrelated.
-      iApply (world_interp_stack_fixing_aux Wcur W0 C (stk_spill_a a_stk));
         [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
     Qed.
 

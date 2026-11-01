@@ -46,7 +46,8 @@ Section Switcher.
               ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
               (* The local map, open on the callee's stack region, and the
                  map of Permanent regions *)
-              ∗ local_region_map th W2 C (open_l W2 (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk)))
+              ∗ local_region_map th W2 C
+                  (open_l W2 (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk)))
               ∗ perm_resources C
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ ◯(CSTK)[th] cstk
@@ -858,7 +859,8 @@ Section Switcher.
               ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
               (* The local map, open on the callee's stack region, and the
                  map of Permanent regions *)
-              ∗ local_region_map th W2 C (open_l W2 (LNonHeap <$> callee_stk_region b_stk e_stk a_stk))
+              ∗ local_region_map th W2 C
+                  (open_l W2 (LNonHeap <$> callee_stk_region b_stk e_stk a_stk))
               ∗ perm_resources C
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ ◯(CSTK)[th] cstk

@@ -214,6 +214,7 @@ Section Switcher_Restore_Interp.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame.
   Qed.
+
   (** [switcher_load_stack_restore_interp] over the local map of
       [Wworld]. *)
   Lemma switcher_load_stack_restore_local_interp {dq : dfrac} E Wworld Wval C opened

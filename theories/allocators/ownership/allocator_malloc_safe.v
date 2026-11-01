@@ -46,7 +46,7 @@ Section Heap_Temporal_Safety_Interp.
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
-        & %Hsync & _ & Hcstk & Hna & %Hroute & Hmie & Hposture)".
+        & %Hsync & _ & Hcstk & Hna & %_ & Hmie & Hposture)".
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs #Hzeros]".

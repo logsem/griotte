@@ -94,7 +94,9 @@ Section world_ghost_theory.
       regions beside the local map open on those keys. *)
   Lemma world_interp_open_temporary_split W C s :
     Forall (λ k, std W !! k = Some Temporary) s →
-    world_interp_open W C s ⊣⊢ perm_region_map C ∅ ∗ local_region_map th W C (open_l W s).
+    world_interp_open W C s ⊣⊢
+    perm_region_map C ∅ ∗
+    local_region_map th W C (open_l W s).
   Proof. intros Hs. by rewrite world_interp_open_eq open_perm_temporary. Qed.
 
   Lemma open_world_interp_temporary (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
@@ -1066,18 +1068,22 @@ Section world_resources.
   Definition perm_resources C : iProp Σ :=
     if cmpt_shared C then wg_inv C else perm_region_map C ∅.
 
+  (** In shared mode, the Permanent part is the invariant. *)
   Lemma perm_resources_shared C :
     cmpt_shared C = true →
     perm_resources C = wg_inv C.
   Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
 
+  (** In exclusive mode, it is the owned map of Permanent regions. *)
   Lemma perm_resources_exclusive C :
     cmpt_shared C = false →
     perm_resources C = perm_region_map C ∅.
   Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
 
   Lemma world_resources_split W C :
-    world_resources W C ⊣⊢ local_region_map th W C ∅ ∗ perm_resources C.
+    world_resources W C ⊣⊢
+    local_region_map th W C ∅ ∗
+    perm_resources C.
   Proof.
     rewrite world_resources_unseal /world_resources_def /perm_resources.
     destruct (cmpt_shared C); first done.

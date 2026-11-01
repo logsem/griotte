@@ -11,7 +11,7 @@ From griotte.allocators.common Require Import allocator_common_free_spec_tail_bl
 Section AllocatorFreeReturnBlocks4.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_free_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)

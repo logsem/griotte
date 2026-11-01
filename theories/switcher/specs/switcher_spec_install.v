@@ -144,13 +144,13 @@ Section Switcher_Spec_Install.
       [csp] through the accessor, and the context it holds is resumed, or a
       load faults. The caller may hold the critical-section token, lent out
       of the posture: it gives the posture without it ([posture_lent]), a
-      resource [Tok], a later credit (for the trusted-stack invariant), and
+      resource [crit_loan], a later credit (for the trusted-stack invariant), and
       a closing hook, which the installation calls
       before the [mret] and before a fault; the hook gives the token back and
       turns the source into [Lc], which the continuations receive. *)
   Lemma switcher_install_context_spec
     (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
-    (L : nat → list LWord → iProp Σ) (Tok : iProp Σ) (Lc : nat → list LWord → iProp Σ) :
+    (L : nat → list LWord → iProp Σ) (crit_loan : iProp Σ) (Lc : nat → list LWord → iProp Σ) :
     ↑Ntstack ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
@@ -162,7 +162,7 @@ Section Switcher_Spec_Install.
     registers_pointsto rmap ∗
     MIE ↦ₜ[th] InterruptDisabled ∗
     posture_lent (th := th) None None None None ∗
-    Tok ∗
+    crit_loan ∗
     £ 1 ∗
     na_own (tpool th) F ∗
     ◯(CSTK)[th] cstk ∗
@@ -172,14 +172,14 @@ Section Switcher_Spec_Install.
        ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( ∀ i ls, Tok -∗ L i ls ={⊤}=∗ na_own crit ⊤ ∗ Lc i ls ) ∗
+    ▷ ( ∀ i ls, crit_loan -∗ L i ls ={⊤}=∗ na_own crit ⊤ ∗ Lc i ls ) ∗
     ▷ ( install_nested_k F cstk rmap Lc ∧
         install_resume_k F cstk rmap wpcc Lc )
     ⊢ safe[th].
   Proof.
     iIntros (HF Hfull Hnz Htbl_set)
-      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & HTok & Hlc_inv & Hna & Hcstk & #Hpcc
-       & HL & Hacc & Hhook & Hpost)".
+      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & Hcrit_loan & Hlc_inv & Hna
+       & Hcstk & #Hpcc & HL & Hacc & Hhook & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | done |].
@@ -277,7 +277,7 @@ Section Switcher_Spec_Install.
       destruct (Hdrop_ok save' Hdrop) as [Hhz' Hok'].
       (* The closing hook gives the token back *)
       iApply trap_safe_fupd.
-      iMod ("Hhook" with "HTok HL") as "[Hcrit HL]".
+      iMod ("Hhook" with "Hcrit_loan HL") as "[Hcrit HL]".
       iModIntro.
       iDestruct (handover_res_intro with "[Hcrit $HU $Hvol]") as "Hho"; first iExact "Hcrit".
       iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
@@ -310,7 +310,7 @@ Section Switcher_Spec_Install.
                 lword_of_word hazard_slots_cap) as Hhz_total.
       { by apply list_lookup_total_correct. }
       (* The closing hook gives the token back *)
-      iMod ("Hhook" with "HTok HL") as "[Hcrit HL]".
+      iMod ("Hhook" with "Hcrit_loan HL") as "[Hcrit HL]".
       iDestruct (handover_res_intro with "[Hcrit $HU $Hvol]") as "Hho"; first iExact "Hcrit".
       (* [.Lcommon_context_install], at InterruptDisabled with the posture *)
       iApply (common_context_install_spec with

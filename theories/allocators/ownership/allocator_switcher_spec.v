@@ -73,7 +73,7 @@ Section AllocatorSwitcherSpec.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hposture & (Hid & Ha_owner) & Hpost)".
+        & Hargs & Hrmap & Hstk & Hcstk & %_ & Hmie & Hposture & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
       ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -181,7 +181,7 @@ Section AllocatorSwitcherSpec.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hposture
+        & Hargs & Hrmap & Hstk & Hcstk & %_ & Hmie & Hposture
         & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as

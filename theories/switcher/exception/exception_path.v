@@ -646,14 +646,14 @@ Section Switcher_Spec_Exception.
       reached. The cause satisfies the cause predicate [P_mcause] of fault
       causes, the value the value predicate [P_mtval]. The caller may hold
       the critical-section token, lent out of the posture: it gives the
-      posture without it ([posture_lent]), a resource [Tok], and a closing
+      posture without it ([posture_lent]), a resource [crit_loan], and a closing
       hook, which the path calls, at any number of stores, before every
       change of the posture and every nested fault; the hook gives the
       token back and turns the destination into [error_state_closed],
       which the continuations receive. *)
   Lemma switcher_exception_path_spec (P_mcause P_mtval : Z → Prop)
     (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
-    (error_state_written : nat → iProp Σ) (Tok : iProp Σ)
+    (error_state_written : nat → iProp Σ) (crit_loan : iProp Σ)
     (error_state_closed : nat → iProp Σ) (rmap : LReg) (w : LWord)
     (b : InterruptStatus) (cause tval : Z) :
     (∀ c, P_mcause c → mcause_ok c) ->
@@ -669,13 +669,13 @@ Section Switcher_Spec_Exception.
     MIE ↦ₜ[th] InterruptDisabled ∗
     posture_lent (th := th) (Some b) (Some (lmepcc_of_pc w))
       (Some (lword_of_word (WInt cause))) (Some tval) ∗
-    Tok ∗
+    crit_loan ∗
     na_own (tpool th) F ∗
     (if decide (trap_no_resume w) then ◯(CSTK)[th] cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
     path_es_acc cstk w rmap error_state_written ∗
-    ▷ ( ∀ k, Tok -∗ error_state_written k ={⊤}=∗ na_own crit ⊤ ∗ error_state_closed k ) ∗
+    ▷ ( ∀ k, crit_loan -∗ error_state_written k ={⊤}=∗ na_own crit ⊤ ∗ error_state_closed k ) ∗
     ▷ ( path_unwind_k F cstk w rmap error_state_closed ∧
         path_resume_k F R_resume rmap w b error_state_closed ∧
         path_nested_k F cstk w rmap error_state_closed ∧
@@ -702,7 +702,7 @@ Section Switcher_Spec_Exception.
        - give the save area back to the posture, and close the
          trusted-stack invariant. *)
     iIntros (HP_mcause HF Hfull Hcause Htval)
-      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & HTok & Hna & Hcstk
+      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & Hcrit_loan & Hna & Hcstk
        & #Hheader & Hwritten & #Hes_acc & Hhook & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc & _)".
     rewrite Hmtcc.
@@ -795,7 +795,7 @@ Section Switcher_Spec_Exception.
           & Hframeoffset)".
       pose proof (Hcstk_eq (or_intror (proj2 Hswitcher_fault))) as Heq_cstk; subst cstk'.
       rewrite decide_True; last exact (or_intror (proj2 Hswitcher_fault)).
-      iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+      iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
       iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
         as "Hho"; first iExact "Hcrit".
       iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
@@ -815,7 +815,7 @@ Section Switcher_Spec_Exception.
       iIntros (Hresume wct0' wct1' wctp')
         "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hlent & Hsave_area
           & Hframeoffset)".
-      iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+      iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
       iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
         as "Hho"; first iExact "Hcrit".
       iApply (common_context_install_spec with
@@ -923,7 +923,7 @@ Section Switcher_Spec_Exception.
             & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-        iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+        iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
         iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
           as "Hho"; first iExact "Hcrit".
         iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
@@ -979,7 +979,7 @@ Section Switcher_Spec_Exception.
           iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
             as "Htf".
           iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-          iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+          iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
           iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
             as "Hho"; first iExact "Hcrit".
           iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
@@ -1013,7 +1013,7 @@ Section Switcher_Spec_Exception.
           rewrite Hsave'_cause.
           (* The posture is given back, and the invariant closed, before the
              [cjalr] *)
-          iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+          iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
           iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
             as "Hho"; first iExact "Hcrit".
           iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
@@ -1066,7 +1066,7 @@ Section Switcher_Spec_Exception.
                "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
                  & [%wca4_f Hca4] & Hsave_area & Hwritten & Hmtval)".
              iApply trap_safe_fupd.
-             iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+             iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
              iModIntro.
              iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
                as "Hho"; first iExact "Hcrit".
@@ -1090,7 +1090,7 @@ Section Switcher_Spec_Exception.
                "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
                  & Hwritten & Hmtval)".
              rewrite Hsave'_cause.
-             iMod ("Hhook" with "HTok Hwritten") as "[Hcrit Hwritten]".
+             iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
              iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
                as "Hho"; first iExact "Hcrit".
              iDestruct (save_area_release with "Hsave_area Hho Hlent")

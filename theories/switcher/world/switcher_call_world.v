@@ -74,59 +74,13 @@ Section Switcher_Call_World.
       iApply (IH lv lv' with "[$H $Hlv']"); cbn in *; lia.
   Qed.
 
-  (** The opened part $[a, e)$ of the stack, containing [lv]. *)
-  Definition switcher_stk_opened W C (a e : Addr) (lv : list LWord) : iProp Σ :=
-    world_interp_open W C (LNonHeap <$> finz.seq_between a e) ∗
-    StackOpenWorldResources interp W C (finz.seq_between a e) lv.
-
-  (** Open the part $[x, y)$ of a safe stack $[b, e)$. *)
-  Lemma switcher_call_stk_open W C (b e a x y : Addr) :
-    (b <= x)%a ->
-    (y <= e)%a ->
-    interp W C (Cap RWL Local b e a) -∗
-    world_interp W C -∗
-    ∃ lv,
-      [[ x , y ]] ↦ₐ [[ lv ]] ∗
-      ▷ switcher_stk_opened W C x y lv.
-  Proof.
-    iIntros (Hbx Hye) "#Hinterp Hworld".
-    iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld".
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between x y) []
-                with "[$Hinterp $Hworld]")
-      as "(Hworld & %lv & Hstk & Hres)".
-    { apply finz_seq_between_NoDup. }
-    { apply Forall_forall; intros a' Ha'.
-      apply elem_of_finz_seq_between in Ha'; solve_addr. }
-    { set_solver+. }
-    rewrite app_nil_r.
-    iExists lv; iFrame.
-  Qed.
-
-  Lemma switcher_call_stk_close W C (a e : Addr) (lv lv' : list LWord) :
-    length lv' = length lv ->
-    switcher_stk_opened W C a e lv -∗
-    [[ a , e ]] ↦ₐ [[ lv' ]] -∗
-    ([∗ list] k ↦ w ∈ lv', ⌜ lv !! k = Some w ⌝ ∨ interp W C w) -∗
-    world_interp W C.
-  Proof.
-    iIntros (Hlen) "[Hworld [Hsw Hst] ] Hstk Hlv'".
-    iDestruct (StackWorldResources_length with "Hsw") as "%Hlen_la".
-    iDestruct (StackWorldResources_update with "Hsw Hlv'") as "Hsw"; first done.
-    iEval (rewrite -(app_nil_r (finz.seq_between a e))) in "Hworld".
-    iDestruct (close_world_interp_opening_resources _ _ lv' (finz.seq_between a e) []
-                with "[$Hworld $Hstk $Hsw $Hst]") as "Hworld".
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    { by rewrite Hlen -Hlen_la. }
-    by rewrite fmap_nil -open_world_interp_empty.
-  Qed.
-
-  (** The opened part $[a, e)$ of the stack, over the local map. *)
+  (** The opened part $[a, e)$ of the stack, containing [lv], over the local
+      map. *)
   Definition local_stk_opened W C (a e : Addr) (lv : list LWord) : iProp Σ :=
     local_region_map th W C (open_l W (LNonHeap <$> finz.seq_between a e)) ∗
     StackOpenWorldResources interp W C (finz.seq_between a e) lv.
 
-  (** [switcher_call_stk_open] over the local map. *)
+  (** Open the part $[x, y)$ of a safe stack $[b, e)$ in the local map. *)
   Lemma local_call_stk_open W C (b e a x y : Addr) :
     (b <= x)%a ->
     (y <= e)%a ->
@@ -150,7 +104,7 @@ Section Switcher_Call_World.
     iNext; iFrame.
   Qed.
 
-  (** [switcher_call_stk_close] over the local map. *)
+  (** Close the opened part of the stack in the local map. *)
   Lemma local_call_stk_close W C (a e : Addr) (lv lv' : list LWord) :
     length lv' = length lv ->
     local_stk_opened W C a e lv -∗
@@ -665,97 +619,9 @@ Section Switcher_Call_World.
     set_solver.
   Qed.
 
-  (** Revoke the world after the callee returned: close the callee's stack
-      frame in the world, and revoke the temporary addresses, including the
-      caller's stack frame. *)
-  Lemma switcher_cc_revoke_returned E W W2 C (b_stk e_stk a_stk : Addr)
-    (stk_mem_l stk_mem_h : list LWord) :
-    revoked_addresses W (stk_free b_stk e_stk a_stk) ->
-    related_sts_pub_world
-      (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary) W2 ->
-    callee_stk_bounds b_stk e_stk a_stk ->
-
-    interp W2 C (callee_csp b_stk e_stk a_stk) -∗
-    StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk) -∗
-    StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h -∗
-    [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]] -∗
-    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
-    £ 2
-    ={E}=∗
-    ∃ (stk_mem : list LWord) (l' : list LAddr),
-      ⌜ extract_temporaries_condition W2
-          (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝ ∗
-      RevokedResources W2 C l' ∗
-      ⌜ revoked_keys (revoke W2) l' ⌝ ∗
-      StackRevokedResources W2 C (stk_free b_stk e_stk a_stk) ∗
-      ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝ ∗
-      world_interp (revoke W2) C ∗
-      [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]].
-  Proof.
-    iIntros (Hrevoked_stk Hrelated_pub_Wext_W2 Hcsp_bounds)
-      "#Hinterp_W2_csp #Hstk_val Hworld_interp_C Hstack_revoked_W2 Hstk_l Hstk_h [Hlc Hlc']".
-    pose proof (callee_stk_region_free_split _ _ _ Hcsp_bounds) as Hsplit.
-    iDestruct ( big_sepL2_length with "Hstk_h" ) as "%Hlen_stk_h".
-    iDestruct ( big_sepL2_length with "Hstk_l" ) as "%Hlen_stk_l".
-    iEval (rewrite <- (app_nil_r (callee_stk_region b_stk e_stk a_stk))) in "Hworld_interp_C".
-
-    iDestruct (close_world_interp_opening_resources
-                with "[$Hworld_interp_C $Hstack_revoked_W2 $Hstk_h]")
-      as "Hworld_interp_C".
-    { apply finz_seq_between_NoDup. }
-    { set_solver+. }
-    { by rewrite /callee_stk_region finz_seq_between_length in Hlen_stk_l. }
-    rewrite fmap_nil -open_world_interp_empty.
-
-    assert (NoDup (stk_free b_stk e_stk a_stk)) as Hnodup by apply finz_seq_between_NoDup.
-    rewrite Hsplit in Hrevoked_stk Hnodup.
-    apply revoked_addresses_app in Hrevoked_stk as [Hrev_callee Hrev_spill].
-    apply NoDup_app in Hnodup as (_ & Hdisj & _).
-
-    iMod (world_interp_revoked_by_separation_many with "[$Hworld_interp_C $Hstk_l]")
-      as "(Hworld_interp_C & Hstk_l & %Hstk_l_revoked)".
-    {
-      apply Forall_forall; intros a Ha.
-      eapply elem_of_mono_pub;eauto.
-      rewrite elem_of_dom.
-      rewrite std_sta_update_multiple_lookup_same_i; cycle 1.
-      { intro Hcontra. by apply (Hdisj a). }
-      rewrite /revoked_addresses Forall_forall in Hrev_spill.
-      apply Hrev_spill in Ha.
-      done.
-    }
-
-    iMod (world_interp_revoke_stack with "[$Hinterp_W2_csp $Hworld_interp_C]")
-      as (l') "(%Hl_unk' & Hworld_interp_C & Hstack_revoked_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h] & [Hrevoked_l' %Hrevoked_W2_l'])".
-    iDestruct (stk_free_join_callee with "[$Hstk_l $Hstk_h]") as "Hstk"; first done.
-    { rewrite finz_seq_between_length in Hlen_stk_l. rewrite -Hlen_stk_l.
-      revert Hcsp_bounds; stk_unfold. intros (_ & He & Hbe & Ha).
-      rewrite /finz.dist. solve_addr. }
-    iCombine "Hstack_revoked_W2 Hrevoked_W2" as "Hstack_revoked_W2".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hrevoked_l']") as ">Hrevoked_l'".
-    iDestruct (lc_fupd_elim_later with "[$] [$Hstack_revoked_W2]") as ">[Hstack_revoked_W2 %Hrevoked_callee]".
-    iModIntro.
-    iExists _, l'; iFrame (Hl_unk' Hrevoked_W2_l') "Hrevoked_l' Hworld_interp_C Hstk".
-    rewrite Hsplit.
-    iSplitL "Hstack_revoked_W2"; cycle 1.
-    { iPureIntro.
-      rewrite !/revoked_addresses !Forall_forall in Hrevoked_callee, Hstk_l_revoked |- *.
-      intros x Hx; cbn.
-      apply elem_of_app in Hx; destruct Hx as [Hx|Hx].
-      + apply Hrevoked_callee; done.
-      + apply revoke_lookup_Revoked; apply Hstk_l_revoked; done.
-    }
-    iDestruct (StackRevokedResources_app with "Hstk_val") as "[_ Hstk_val_l]".
-    iApply StackRevokedResources_app; iFrame "Hstack_revoked_W2".
-    iApply (StackRevokedResources_mono_priv with "Hstk_val_l").
-    eapply related_sts_priv_pub_trans_world; eauto.
-    apply related_sts_pub_priv_world.
-    eapply related_sts_pub_update_multiple_temp.
-    done.
-  Qed.
-
-  (** [switcher_cc_revoke_returned] over the local map. *)
+  (** Revoke the local map after the callee returned: close the callee's
+      stack frame in the local map, and revoke the temporary addresses,
+      including the caller's stack frame. *)
   Lemma local_cc_revoke_returned E W W2 C (b_stk e_stk a_stk : Addr)
     (stk_mem_l stk_mem_h : list LWord) :
     revoked_addresses W (stk_free b_stk e_stk a_stk) ->
@@ -808,7 +674,8 @@ Section Switcher_Call_World.
       apply Hrev_spill in Ha.
       done. }
     iMod (local_revoke_stack with "[$Hinterp_W2_csp $Hlocal_C]")
-      as (l') "(%Hl_unk' & Hlocal_C & Hstack_revoked_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h] & [Hrevoked_l' %Hrevoked_W2_l'])".
+      as (l') "(%Hl_unk' & Hlocal_C & Hstack_revoked_W2 & Hrevoked_W2 & >[%stk_mem_h' Hstk_h]
+                & [Hrevoked_l' %Hrevoked_W2_l'])".
     iDestruct (stk_free_join_callee with "[$Hstk_l $Hstk_h]") as "Hstk"; first done.
     { rewrite finz_seq_between_length in Hlen_stk_l. rewrite -Hlen_stk_l.
       revert Hcsp_bounds; stk_unfold. intros (_ & He & Hbe & Ha).
@@ -940,45 +807,6 @@ Section Switcher_Call_World.
     }
     iApply stk_free_join_callee; [done | done |].
     iFrame.
-  Qed.
-
-  (** Revoke the world after the trusted stack was exhausted. *)
-  Lemma switcher_cc_revoke_exhausted E W C (b_stk e_stk a_stk : Addr)
-    (stk_mem_l stk_mem_h : list LWord) :
-    let W2 := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary in
-    revoked_addresses W (stk_free b_stk e_stk a_stk) ->
-    callee_stk_bounds b_stk e_stk a_stk ->
-    length stk_mem_l = Z.to_nat SpillSlot_size ->
-
-    world_interp W C -∗
-    StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
-    [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]] -∗
-    [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]] -∗
-    £ 2
-    ={E}=∗
-    ∃ (l' : list LAddr),
-      ⌜ extract_temporaries_condition W2
-          (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) ⌝ ∗
-      RevokedResources W2 C l' ∗
-      ⌜ revoked_keys (revoke W2) l' ⌝ ∗
-      ⌜ related_sts_pub_world W2 W2 ⌝ ∗
-      ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
-         ⌜ std W2 !! LNonHeap a = Some Temporary ⌝) ∗
-      StackRevokedResources W2 C (stk_free b_stk e_stk a_stk) ∗
-      ⌜ revoked_addresses (revoke W2) (stk_free b_stk e_stk a_stk) ⌝ ∗
-      world_interp (revoke W2) C ∗
-      [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ
-        [[ stk_mem_join stk_mem_l stk_mem_h ]].
-  Proof.
-    intros W2.
-    iIntros (Hrevoked_stk Hcsp_bounds Hlen_l)
-      "Hworld_interp_C Hclose Hstk_l Hstk_h Hlc".
-    rewrite !world_interp_eq.
-    iDestruct "Hworld_interp_C" as "[Hperm Hlocal_C]".
-    iMod (local_cc_revoke_exhausted with "Hlocal_C Hclose Hstk_l Hstk_h Hlc")
-      as (l') "(%Hext & HR & %Hrk & %Hpub & Htemp & Hstk_rev & %Hrev & Hlocal_C & Hstk)";
-      [done..|].
-    iModIntro. iExists l'. rewrite world_interp_eq. by iFrame "∗ %".
   Qed.
 
 End Switcher_Call_World.

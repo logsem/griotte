@@ -25,7 +25,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 Section AllocatorFreeTailBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorCommonLayoutWf}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_free_quarantine_spec
     (E : coPset) (pc_b pc_e pc_a b e : Addr) (ι : AId) (wreq wca1 : LWord)

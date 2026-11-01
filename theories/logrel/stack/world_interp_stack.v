@@ -314,9 +314,9 @@ Section WorldInterpStack.
     iModIntro. iExists l_unk. rewrite world_interp_eq. by iFrame "∗%".
   Qed.
 
-  (* Revoke a stack region in the local map, part of which ($[bs, es)$) has
-     been opened: the open keys are revoked with the others, and closed in
-     the revoked world, where their body is empty. *)
+  (** Revoke a stack region in the local map, part of which ($[bs, es)$) has
+      been opened: the open keys are revoked with the others, and closed in
+      the revoked world, where their body is empty. *)
   Lemma local_revoke_stack_open {E : coPset} W C b e a bs es lv ws :
     let la := finz.seq_between b e in
     let ls := finz.seq_between bs es in
@@ -455,7 +455,7 @@ Section WorldInterpStack.
     iModIntro. iExists l_unk. rewrite world_interp_eq. by iFrame "∗%".
   Qed.
 
-  (* Reinstate a stack region in the local map *)
+  (** Reinstate a stack region in the local map. *)
   Lemma local_reinstate_stack {E : coPset} W C la lv :
      NoDup la →
      Forall (eq (lword_of_word (WInt 0))) lv ->

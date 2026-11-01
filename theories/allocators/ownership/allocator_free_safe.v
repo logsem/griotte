@@ -96,7 +96,7 @@ Section Heap_Temporal_Safety_Interp.
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
-        & %Hsync & _ & Hcstk & Hna & %Hroute & Hmie & Hposture)".
+        & %Hsync & _ & Hcstk & Hna & %_ & Hmie & Hposture)".
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs %Hzeros]".
@@ -398,7 +398,8 @@ Section Heap_Temporal_Safety_Interp.
         [solve_ndisj|solve_ndisj|].
       iMod (trusted_stack_inv_open with "Hsw") as (a_tstk cstk' tstk_next) "Hsw".
       iNamed "Hsw".
-      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id Ω p g ι b e a ws
+      iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id Ω
+        p g ι b e a ws
         (Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
         (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rmap InterruptDisabled
         (HO th) with "[-]");

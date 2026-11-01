@@ -10,7 +10,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
 Section AllocatorMallocExitBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   (** Block 2: return. *)
   Lemma allocator_malloc_exit_return_spec

@@ -498,8 +498,8 @@ Section logrel_expr.
       - The local map is returned, but open to have the points-to of the stack region out,
         together with the part of the world premise that holds the map of
         Permanent regions, [perm_resources C].
-      - Because the region invariant is open, we need to give the user a way to close the region invariant.
-        That's the role of the resources [closing_resources interp W C a v].
+      - Because the local map is open on the stack region,
+        [StackOpenWorldResources] gives the user what it needs to close it.
       - Finally, we have the [interp_cont] of the (depoped) stack frame (we don't see it in this def,
         but we see it in the definition of [interp_cont] later),
         and the fragmental view of the call-stack [cstk].

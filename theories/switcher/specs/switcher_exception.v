@@ -670,7 +670,6 @@ Section Switcher_Exception.
     (* The world, opened with the token lent out of the posture *)
     iEval (rewrite held_lend) in "Hheld".
     iDestruct "Hheld" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     iDestruct (shared_credit_refill C with "Hlc_open") as "Hcred".
     iMod (world_resources_acc_credit ⊤ ⊤ W C with "Hworld Hcred Hcrit")
       as "(Hworld_interp & Htok & [Hcl _])"; [solve_ndisj | solve_ndisj |].
@@ -982,25 +981,24 @@ Section Switcher_Exception.
     (* The token, lent out of the posture *)
     iEval (rewrite posture_res_gen_lend) in "Hposture".
     iDestruct "Hposture" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     iDestruct (top_cmpt_untrusted_header with "Htop") as "#Hheader".
-    (* The path, for a destination [D] of the stores, a resource [Tok], and
+    (* The path, for a destination [D] of the stores, a resource [crit_loan], and
        a hook that closes the world *)
-    iAssert (∀ (rmap' : LReg) (D : nat → iProp Σ) (Tok : iProp Σ),
+    iAssert (∀ (rmap' : LReg) (D : nat → iProp Σ) (crit_loan : iProp Σ),
                ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
                (∀ (r : RegName) (v : LWord), ⌜rmap' !! r = Some v⌝ → interp W C v) -∗
                registers_pointsto rmap' -∗
                D 0 -∗
                path_es_acc cstk w rmap' D -∗
-               Tok -∗
-               ▷ (∀ k, Tok -∗ D k ={⊤}=∗ na_own crit ⊤ ∗ world_resources W C) -∗
+               crit_loan -∗
+               ▷ (∀ k, crit_loan -∗ D k ={⊤}=∗ na_own crit ⊤ ∗ world_resources W C) -∗
                safe[th])%I
       with "[HPC Hmie Hposture Hna Hcstk Hcont]" as "Hpath".
-    { iIntros (rmap' D Tok Hfull_rmap') "#Hregs' Hrmap HD0 #Hacc HTok Hhook".
+    { iIntros (rmap' D crit_loan Hfull_rmap') "#Hregs' Hrmap HD0 #Hacc Hcrit_loan Hhook".
       iApply (switcher_exception_path_spec P_mcause P_mtval ⊤ cstk (cstack_frag cstk)
-                D Tok (λ _, world_resources W C) _ w bf cf vf with
-               "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hmie $Hposture $HTok $Hna Hcstk HD0 Hcont
-                 Hhook]");
+                D crit_loan (λ _, world_resources W C) _ w bf cf vf with
+               "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hmie $Hposture $Hcrit_loan $Hna Hcstk HD0
+                 Hcont Hhook]");
         [done | set_solver | done | done | done |].
       iSplitL "Hcstk"; first by case_decide.
       iSplitR; first (iIntros "_"; iExact "Hheader").
@@ -1118,7 +1116,6 @@ Section Switcher_Exception.
         exfalso. rewrite -Z.negb_odd Hodd in Hev. done. }
     iEval (rewrite posture_res_gen_lend) in "Hposture".
     iDestruct "Hposture" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     iApply (switcher_exception_path_spec P_mcause P_mtval F cstk (cstack_frag cstk)
               (λ _, True%I) (na_own crit ⊤) (λ _, True%I) _ w bf cf vf with
              "[$Hinv_switcher $Hstatic $HPC $Hrmap $Hmie $Hposture $Hcrit $Hna Hcstk HU]");
@@ -1239,7 +1236,6 @@ Section Switcher_Exception.
     { by iFrame "Hinv_switcher Hstatic". }
     iEval (rewrite posture_res_gen_lend) in "Hposture".
     iDestruct "Hposture" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     iApply (switcher_exception_path_spec P_mcause P_mtval F cstk (cstack_frag cstk)
               (trusted_error_state eh w rmap) (na_own crit ⊤) (trusted_error_state eh w rmap)
               _ w bf cf vf with
@@ -1360,7 +1356,6 @@ Section Switcher_Exception.
     iIntros "!> Hmie (%c & %v & %Hc & _ & Hposture) HPC".
     iEval (rewrite posture_res_gen_lend) in "Hposture".
     iDestruct "Hposture" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     (* The path only resumes: its call stack is not used, any one does *)
     iApply (switcher_exception_path_spec mcause_ok (λ _ : Z, True%type) F
               (entry_cstack (MkTFrame (WInt 0) (WInt 0) 0)) True (λ _, True%I) (na_own crit ⊤)
@@ -1536,7 +1531,6 @@ Section Switcher_Exception.
     (* The token, lent out of the posture: the installation gives it back *)
     iEval (rewrite held_lend) in "Hheld".
     iDestruct "Hheld" as "[Hcrit Hposture]".
-    iAssert (na_own crit ⊤)%I with "[Hcrit]" as "Hcrit"; first iExact "Hcrit".
     rewrite /install_region.
     assert (a ^+ ErrorState_size = a_es) as Ha_es' by solve_addr.
     rewrite Ha_es' in Hshadow.

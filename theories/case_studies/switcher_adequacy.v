@@ -225,7 +225,8 @@ Section helpers_switcher_adequacy.
     iApply (fundamental_untrusted_thread_gen W C ef b_pcc e_pcc b_cgp e_cgp a_pc eh ehs regs b
               Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
              with "Hthread Hinv_switcher Hswitcher_static Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs
-                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hcred Hna Hcstk Hroute HMIE Hheld").
+                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hcred Hna Hcstk Hroute HMIE
+                   Hheld").
   Qed.
 
   (** A thread that starts at an export of an untrusted compartment in

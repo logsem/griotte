@@ -15,7 +15,7 @@ From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_
 Section AllocatorMallocPrepareBlocks3.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_malloc_prepare_success_spec
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (n o : Z) (πn : option AId) (ι : AId)

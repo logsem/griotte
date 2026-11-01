@@ -83,8 +83,8 @@ Section Switcher.
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hthread & #Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK & Hworld_res & Hna
-    & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp & Hmie & Hheld)".
+      "(#Hthread & #Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK
+       & Hworld_res & Hna & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp & Hmie & Hheld)".
     iDestruct (world_resources_split with "Hworld_res") as "[Hlocal Hperm]".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hswitcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".

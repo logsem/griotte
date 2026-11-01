@@ -31,7 +31,7 @@ Section AllocatorMacros.
     {ceriseg : ceriseG Σ}
     {MP : MachineParameters}
   .
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   (** The existing fetch macro proof specialized to an arbitrary WP mask, so
       allocator calls can keep the non-atomic service invariant open. *)
