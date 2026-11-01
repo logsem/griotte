@@ -1,5 +1,6 @@
 From griotte Require Export stdpp_extra machine_utils_extra.
-From griotte Require Export machine_base machine_parameters machine_instructions trap_fault.
+From griotte Require Export machine_base machine_parameters machine_instructions trap_fault
+  trap_codes.
 
 (* The machine configuration: the PC, the general registers, the system
    registers, the memory and the shadow table. *)
@@ -639,19 +640,6 @@ Section opsem.
         step (Executable, φ) (c.1, c.2).
 
   (** * Trap entry *)
-
-  (** Exception causes, with the names and values of CHERIoT's
-      [sdk/include/priv/riscv.h]. *)
-  Definition MCAUSE_INST_ACCESS_FAULT : Z := 1.
-  Definition MCAUSE_ILLEGAL_INSTRUCTION : Z := 2.
-  Definition MCAUSE_LOAD_ACCESS_FAULT : Z := 5.
-  Definition MCAUSE_STORE_ACCESS_FAULT : Z := 7.
-  Definition MCAUSE_CHERI : Z := 28.
-
-  (** The value that trap entry writes to mtval for a fault that has none
-      (an illegal instruction: cheriot-sail's default, without the
-      instruction bits). *)
-  Definition MTVAL_NONE : Z := 0.
 
   (** The default fault, for a fault that the PC checks do not explain and
       that no instruction check reports: a bounds violation on the PC. It is
