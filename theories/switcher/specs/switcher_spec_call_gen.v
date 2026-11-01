@@ -44,8 +44,10 @@ Section Switcher.
               ∗ interp W2 C (callee_csp b_stk e_stk a_stk)
               ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
               ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
-              (* Interpretation of the world *)
-              ∗ world_interp_open W2 C (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk))
+              (* The local map, open on the callee's stack region, and the
+                 map of Permanent regions *)
+              ∗ local_region_map th W2 C (open_l W2 (LNonHeap <$> (callee_stk_region b_stk e_stk a_stk)))
+              ∗ perm_resources C
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ (callee_stk_region b_stk e_stk a_stk), ⌜ std W2 !! LNonHeap a = Some Temporary ⌝ )
@@ -90,7 +92,7 @@ Section Switcher.
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ world_interp W C
+              ∗ world_resources W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
@@ -140,7 +142,7 @@ Section Switcher.
       ca1 ↦ᵣ[th] WInt 0 ∗
       regs[th] rmap' ∗
       [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
-      world_interp W C ∗
+      world_resources W C ∗
       StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
       ◯(CSTK)[th] cstk ∗
       interp_continuation cstk Ws Cs ∗
@@ -193,6 +195,7 @@ Section Switcher.
       [set_solver | apply trap_no_resume_first_spill |].
     iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%wca0 Hca0] & [%wca1 Hca1]
                      & Hrmap0 & Hstk & Hworld_interp & Hstk_val & Hcstk & Hcont & Hmie & Hheld)".
+    iMod (world_resources_init with "Hworld_interp") as "Hworld_res".
     iModIntro.
     iDestruct (big_sepM_insert_2 _ _ cra wcra_caller with "[Hcra] Hrmap0") as "Hrmap0"; [iFrame|].
     iDestruct (big_sepM_insert_2 _ _ cgp wcgp_caller with "[Hcgp] Hrmap0") as "Hrmap0"; [iFrame|].
@@ -392,10 +395,10 @@ Section Switcher.
       iApply (interp_lea with "Hstk4v"); done. }
     iIntros (W'' HW' rcgp rcra rcs0 rcs1 warg0 warg1 rmap' stk_mem_l stk_mem_h m)
       "%Hrcgp %Hrcra %Hrcs0 %Hrcs1 (HPC & Hcra & Hcsp & Hgp & Hcs0 & Hcs1 & Ha0 & #Hv
-    & Hca1 & #Hv' & %Hdom' & Hregs & Hstk & Hstk' & Hworld_interp & Hcls & Hcont & Hcstk & Own
+    & Hca1 & #Hv' & %Hdom' & Hregs & Hstk & Hstk' & Hlocal & Hperm & Hcls & Hcont & Hcstk & Own
     & _ & %Hpre_ret & Hmie & Hheld)".
     iApply ("Hpost" $! W'' rmap' stk_mem_l stk_mem_h rcgp rcra rcs0 rcs1 m); iLeft.
-    iFrame "Hcls Hworld_interp HPC Hgp Hcra Hcs0 Hcs1 Hcsp Hregs Hstk Hstk' Hcont Hcstk Own Hlc
+    iFrame "Hcls Hlocal Hperm HPC Hgp Hcra Hcs0 Hcs1 Hcsp Hregs Hstk Hstk' Hcont Hcstk Own Hlc
       Hmie Hheld".
     iSplit; first (iPureIntro; exact HW').
     iSplit; first (iPureIntro; rewrite Hdom'; set_solver).
@@ -563,6 +566,7 @@ Section Switcher.
     iCombine "Hlc Hlc'" as "Hlc".
     iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
+    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1 InterruptDisabled); iRight.
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hworld_interp Hstk_val Hcstk
       Hcont Hlc Hmie Hheld".
@@ -670,6 +674,7 @@ Section Switcher.
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
+    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
@@ -764,6 +769,7 @@ Section Switcher.
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
       as (regs) "[%Hfull_regs Hregs]"; first done.
+    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iApply (switcher_call_stack_too_small_unwind_of_safety W' C (cstack_push frame cstk)
               (W' :: Ws) (C :: Cs) regs);
       [done|simpl; split; [apply related_sts_pub_refl_world|done]|].
@@ -850,8 +856,10 @@ Section Switcher.
               ∗ interp W2 C (callee_csp b_stk e_stk a_stk)
               ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
               ∗ ⌜ disjoint_from_heap (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) ⌝
-              (* Interpretation of the world *)
-              ∗ world_interp_open W2 C (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)
+              (* The local map, open on the callee's stack region, and the
+                 map of Permanent regions *)
+              ∗ local_region_map th W2 C (open_l W2 (LNonHeap <$> callee_stk_region b_stk e_stk a_stk))
+              ∗ perm_resources C
               ∗ StackOpenWorldResources interp W2 C (callee_stk_region b_stk e_stk a_stk) stk_mem_h
               ∗ ◯(CSTK)[th] cstk
               ∗ ([∗ list] a ∈ callee_stk_region b_stk e_stk a_stk,
@@ -897,7 +905,7 @@ Section Switcher.
               ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_callee stk_mem ]]
 
               (* Interpretation of the world and stack, at the moment of the switcher_call *)
-              ∗ world_interp W C
+              ∗ world_resources W C
               ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
               ∗ ◯(CSTK)[th] cstk
               ∗ interp_continuation cstk Ws Cs
@@ -1039,7 +1047,7 @@ Section Switcher.
                 Hhazard Hframe_csp Hframe_cnt Htstk"); done. }
     iIntros (arg_rmap' rmap')
       "(%Hbig & %Harg_rmap' & %Hrmap' & HPC & Hcgp & Hcra & Hcsp & Hframe_tbl & Hargs & Hregs
-      & Hmie & Hheld)".
+      & Hmie & Hheld & Hlc_cred)".
 
     (* Push the frame and close the trusted-stack invariant *)
     iMod (trusted_stack_inv_opened_push frame cstk with
@@ -1053,8 +1061,8 @@ Section Switcher.
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done|done|done|].
     iPoseProof (switcher_untrusted_vec_safe_of_safety with "Hsafety") as "#Htv".
-    iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
-    iPoseProof (shared_credit_exclusive C) as "Hcred".
+    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
+    iDestruct (shared_credit_refill C with "Hlc_cred") as "Hcred".
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
               (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
     iSplitR; first iExact "Hthread".
@@ -1158,7 +1166,7 @@ Section Switcher.
             ∗ na_own (tpool th) ⊤
             ∗ ⌜ callee_stk_bounds b_stk e_stk a_stk ⌝
             (* Interpretation of the world *)
-            ∗ world_interp (revoke W2) C
+            ∗ world_resources (revoke W2) C
             ∗ ◯(CSTK)[th] cstk
             ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
             (* cgp is restored, cra points to the next  *)
@@ -1191,8 +1199,8 @@ Section Switcher.
   Proof.
     (* Outline of the proof: apply [switcher_cc_specification_gen], then
        revoke the world in the post-condition, with
-       [switcher_cc_revoke_returned] when the callee returned, and with
-       [switcher_cc_revoke_exhausted] when the trusted stack was exhausted. *)
+       [local_cc_revoke_returned] when the callee returned, and with
+       [local_cc_revoke_exhausted] when the trusted stack was exhausted. *)
     iIntros (Hstk_mmio Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hthread & #Hsafety & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hargs & Hcs0 & Hcs1 & Hregs & Hstk & Hworld_interp & #Hstk_val & %Hrevoked_stk & Hcstk & Hcont
@@ -1208,15 +1216,17 @@ Section Switcher.
     + iDestruct "H" as
         "(%Hrelated_pub_Wext_W2 & %Hdom_rmap
       & Hna & #Hinterp_W2_csp & %Hcsp_bounds & %Hstack_heap
-      & Hworld_interp_C & Hstack_revoked_W2
+      & Hlocal_C & Hperm_C & Hstack_revoked_W2
       & Hcstk_frag & Hrel_stk_C
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & Hca0 & Hca1 & Hrmap & Hstk_l & Hstk_h & HK & %Hrestored & %Hpre_ret & Hmie & Hheld & Hlc)".
-      iMod (switcher_cc_revoke_returned with
-             "Hinterp_W2_csp Hstk_val Hworld_interp_C Hstack_revoked_W2 Hstk_l Hstk_h Hlc")
+      iMod (local_cc_revoke_returned with
+             "Hinterp_W2_csp Hstk_val Hlocal_C Hstack_revoked_W2 Hstk_l Hstk_h Hlc")
         as (stk_mem' l') "(%Htemp & Hrevoked_l' & %Hrev_l' & Hstk_revoked & %Hrev_stk
-                           & Hworld_interp & Hstk)";
+                           & Hlocal_C & Hstk)";
         [done|done|naive_solver|].
+      iAssert (world_resources (revoke W') C) with "[Hlocal_C Hperm_C]" as "Hworld_interp".
+      { rewrite world_resources_split. iFrame "Hlocal_C Hperm_C". }
       iApply ("Hpost" $! W' rmap' stk_mem' l' rcgp rcra rcs0 rcs1 m).
       iFrame "Hrevoked_l' Hrel_stk_C Hstk_revoked Hna Hworld_interp Hcstk_frag HPC Hcgp Hcra
         Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk HK Hmie Hheld".
@@ -1230,10 +1240,15 @@ Section Switcher.
            & Hrmap & Hstk_l & Hstk_h
            & Hworld_interp_C & _
            & Hcstk_frag & HK & %Hrestored & %Hpre_ret & Hmie & Hheld & Hlc)".
-      iMod (switcher_cc_revoke_exhausted with "Hworld_interp_C Hstk_val Hstk_l Hstk_h Hlc")
+      iDestruct (world_resources_split with "Hworld_interp_C") as "[Hlocal_C Hperm_C]".
+      iMod (local_cc_revoke_exhausted with "Hlocal_C Hstk_val Hstk_l Hstk_h Hlc")
         as (l') "(%Htemp & Hrevoked_l & %Hrev_l & %Hstd & Htemp_W & Hstk_revoked & %Hrev_stk
-                  & Hworld_interp & Hstk)";
+                  & Hlocal_C & Hstk)";
         [done|naive_solver|done|].
+      iAssert (world_resources
+                 (revoke (std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary)) C)
+        with "[Hlocal_C Hperm_C]" as "Hworld_interp".
+      { rewrite world_resources_split. iFrame "Hlocal_C Hperm_C". }
       iApply ("Hpost" $! _ rmap' _ l' rcgp rcra rcs0 rcs1 InterruptDisabled).
       iFrame "Hrevoked_l Htemp_W Hstk_revoked Hna Hworld_interp Hcstk_frag HPC Hcgp Hcra Hcs0
         Hcs1 Hcsp Hrmap Hstk HK Hmie Hheld".
