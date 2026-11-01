@@ -16,8 +16,9 @@ Section logrel_fix.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
   #[local] Notation TV := (Thread -d> interpO Σ).
@@ -93,16 +94,19 @@ Section logrel_fix.
               end)%I.
   Solve All Obligations with auto;solve_proper.
 
-  (** Interp for sentry in [enter_cond]: a Global sentry runs at every
-      thread of [C], a Local one at the holder's thread [th]. *)
+  (** Interp for sentry in [enter_cond], at the posture its kind sets: a
+      Global sentry runs at every thread of [C], a Local one at the
+      holder's thread [th]. A sentry that enables interrupts is not valid
+      in a compartment where the context-switch thread runs. *)
   Program Definition interp_sentry (interp : TV) (th : Thread) : V :=
     λne W C w, (match w.(lw) with
                 | WSentry k t p g b e a =>
                     ⌜not_heap_range b e⌝ ∗
                     (if isGlobal g
                      then □ ∀ t', thread_in t' C -∗
-                            enter_cond (th := t') W C p g b e a w.(lprov) (interp t')
-                     else □ enter_cond (th := th) W C p g b e a w.(lprov) (interp th))
+                            enter_cond (th := t') k W C p g b e a w.(lprov) (interp t')
+                     else □ enter_cond (th := th) k W C p g b e a w.(lprov) (interp th)) ∗
+                    ⌜sentry_kind_mie k = Some InterruptEnabled → CtxSwitch ∉ cmpt_threads C⌝
                 | _ => False
                 end)%I.
   Solve All Obligations with solve_proper.
@@ -141,13 +145,15 @@ Section logrel_fix.
     change (dist n
       (⌜not_heap_range b e⌝ ∗
         (if isGlobal g
-         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') W C sd g b e a π (x t')
-         else □ enter_cond (th := th) W C sd g b e a π (x th)))%I
+         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') k W C sd g b e a π (x t')
+         else □ enter_cond (th := th) k W C sd g b e a π (x th)) ∗
+        ⌜sentry_kind_mie k = Some InterruptEnabled → CtxSwitch ∉ cmpt_threads C⌝)%I
       (⌜not_heap_range b e⌝ ∗
         (if isGlobal g
-         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') W C sd g b e a π (y t')
-         else □ enter_cond (th := th) W C sd g b e a π (y th)))%I).
-    f_equiv. destruct (isGlobal g).
+         then □ ∀ t', thread_in t' C -∗ enter_cond (th := t') k W C sd g b e a π (y t')
+         else □ enter_cond (th := th) k W C sd g b e a π (y th)) ∗
+        ⌜sentry_kind_mie k = Some InterruptEnabled → CtxSwitch ∉ cmpt_threads C⌝)%I).
+    apply bi.sep_ne; first done. apply bi.sep_ne; last done. destruct (isGlobal g).
     - do 4 f_equiv. by apply enter_cond_contractive, dist_later_app.
     - f_equiv. by apply enter_cond_contractive, dist_later_app.
   Qed.
@@ -284,8 +290,9 @@ Section interp.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   Definition interp : interpO Σ := interp_fam th.
 End interp.
@@ -301,8 +308,9 @@ Section logrel.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -326,6 +334,15 @@ Section logrel.
   Definition interp_continuation : K := interp_cont interp.
   Program Definition interp_expression : E :=
     interp_expr interp interp_continuation.
+
+  (** Safe execution at every posture is safe execution at [b]. *)
+  Lemma interp_expression_at b W C w :
+    interp_expression W C w -∗ interp_expr_at b interp interp_continuation W C w.
+  Proof. iIntros "H". iApply "H". Qed.
+
+  Lemma interp_expression_intro W C w :
+    (∀ b, interp_expr_at b interp interp_continuation W C w) -∗ interp_expression W C w.
+  Proof. iIntros "H". iApply "H". Qed.
 
   (** [frame_match] and [interp_continuation] do not read the error
       handler count of the topmost frame. *)

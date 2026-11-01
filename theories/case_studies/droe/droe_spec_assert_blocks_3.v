@@ -23,11 +23,12 @@ Section DROE_Assert_Blocks_3.
 
   Lemma droe_assert_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (cstk : CSTK)
-    (wca0 wca1 wctp wct0 wct1 wct2 wca2 wcra : LWord) :
+    (wca0 wca1 wctp wct0 wct1 wct2 wca2 wcra : LWord) (b : InterruptStatus) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     cstk.(cstk_frames) = [] ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -46,14 +47,16 @@ Section DROE_Assert_Blocks_3.
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
-    codefrag_pers pc_a droe_main_code
+    codefrag_pers pc_a droe_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
-             Hcgp_contiguous Hcgp_mmio Hframes)
+             Hcgp_contiguous Hcgp_mmio Hframes Hroute)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hca0 & Hca1 & Hctp
         & Hct0 & Hct1 & Hct2 & Hca2 & Hcs0 & Hcra & Hcstk & Hcgp_b & Himport_assert
-        & Hcode_main)".
+        & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
     rewrite /assert_entry.
@@ -78,11 +81,11 @@ Section DROE_Assert_Blocks_3.
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
-              $Hcode $Himport_assert]"); auto; try (by intros ?).
+              $Hcode $Himport_assert $Hmie $Hheld]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
-                    & _ & Himport_assert)".
+                    & Hmie & Hheld & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 5: clear the return values and return, the thread exits *)
@@ -95,8 +98,8 @@ Section DROE_Assert_Blocks_3.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
   Qed.
 
 End DROE_Assert_Blocks_3.

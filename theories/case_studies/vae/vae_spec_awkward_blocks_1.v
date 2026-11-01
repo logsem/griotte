@@ -25,12 +25,13 @@ Section VAE_Awkward_Blocks_1.
   Lemma vae_awkward_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive)
-    (wcra wca0 wct0 wct1 wcs0 wcs1 : LWord) :
+    (wcra wca0 wct0 wct1 wcs0 wcs1 : LWord) (mie : InterruptStatus) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     revoke_condition W ->
     related_sts_priv_world W (<l[i:=false]l>W) ->
+    route_pre th mie ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
@@ -43,7 +44,9 @@ Section VAE_Awkward_Blocks_1.
     cs1 ↦ᵣ[th] wcs1 ∗
     pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (∀ mie, world_interp (<l[i:=false]l>W) C ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
+    ▷ (world_interp (<l[i:=false]l>W) C ∗
         PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
@@ -53,14 +56,16 @@ Section VAE_Awkward_Blocks_1.
         cs0 ↦ᵣ[th] wcra ∗
         cs1 ↦ᵣ[th] wca0 ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
-        codefrag_pers pc_a vae_main_code
+        codefrag_pers pc_a vae_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hrevoke Hpriv)
+               Hcgp_shadow Hrevoke Hpriv Hroute)
       "(#Hawk & Hworld & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Himport_switcher & Hcode_main & Hpost)".
+      & Himport_switcher & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
     rewrite /switcher_entry_call.

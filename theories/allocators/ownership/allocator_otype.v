@@ -25,6 +25,7 @@ Section AllocatorOtype.
     `{MP: MachineParameters}
     {alloclayout : allocatorLayout}
   .
+  Context {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
 
   (** Each identifier recorded for an owner is either quarantined, or its
       right to be freed is held by the sealing predicate. It does not depend

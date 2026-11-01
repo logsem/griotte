@@ -232,7 +232,11 @@ Section HTS_States.
   Definition hts_frame (a_ret a_stk : Addr) : iProp Σ :=
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e a_ret ∗
-    (∃ mie, cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e a_ret) ∗
+    (∃ mie,
+       ⌜route_pre th mie⌝ ∗
+       cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e a_ret ∗
+       MIE ↦ₜ[th] mie ∗
+       held (th := th) mie) ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     csp ↦ᵣ[th] Cap RWL Local csp_b csp_e a_stk ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
@@ -258,6 +262,7 @@ Section HTS_States.
     (∃ w, cra ↦ᵣ[th] w) ∗
     (∃ w, ctp ↦ᵣ[th] w) ∗
     (∃ w, ct2 ↦ᵣ[th] w) ∗
+    (∃ mie, ⌜route_pre th mie⌝ ∗ MIE ↦ₜ[th] mie ∗ held (th := th) mie) ∗
     ◯(CSTK)[th] cstk ∗
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.

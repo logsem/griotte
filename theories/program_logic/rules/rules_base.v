@@ -3,9 +3,10 @@ From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
 From griotte Require Export iris_extra stdpp_extra griotte_lang.
-From griotte Require Export machine_base state_interp register_file machine_instructions.
+From griotte Require Export machine_base state_interp posture register_file machine_instructions.
 From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
+Import core_link.
 
 (* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
 
@@ -24,7 +25,7 @@ Ltac inv_base_step :=
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -184,23 +185,24 @@ Section griotte_lang_rules.
       mtdc. *)
   Lemma instr_close_core σ1 σ' (X : iProp Σ) :
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
-    |==> (cerise_state_interp σ' ∗ @crit_link Σ link_core σ') ∗ X.
+    |==> (cerise_state_interp σ' ∗ @crit_link Σ _ link_core σ') ∗ X.
   Proof. iIntros ">(_ & $ & $)". done. Qed.
 
   (** Closes a step that may change MIE or mtdc from [σ0], through a
       closing from [σ1] (the state after the write): the link is
-      transferred with [T1] for [T2], which the postcondition receives. *)
+      transferred with [T1] for [T2], with the state interpretation of the
+      new state in hand, and the postcondition receives [T2]. *)
   Lemma instr_close_link_transfer (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
       σ0 σ1 σ' (Ψ : griotte_lang.val → iProp Σ) (c : ConfFlag) :
-    link_transfer P T1 T2 →
+    link_transfer_si P T1 T2 →
     (sys_kept σ1 σ' → P σ0 σ') →
     crit_link σ0 -∗ T1 -∗
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
           from_option (λ v, T2 -∗ Ψ v) False (to_val (Instr c))) -∗
     |==> (cerise_state_interp σ' ∗ crit_link σ') ∗ from_option Ψ False (to_val (Instr c)).
   Proof.
-    iIntros (Htr HP) "Hlink HT >(%Hk & $ & HΨ)".
-    iMod (Htr _ σ' (HP Hk) with "[$Hlink $HT]") as "[$ HT]". iModIntro.
+    iIntros (Htr HP) "Hlink HT >(%Hk & HSI & HΨ)".
+    iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
     destruct (to_val (Instr c)); cbn; [by iApply "HΨ" | done].
   Qed.
 
@@ -329,7 +331,7 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section instruction_closing.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread}.
 
   (** The closing lemmas below conclude that the step keeps MIE and mtdc
       ([sys_kept]): they do not change the system registers. *)
@@ -539,7 +541,7 @@ Ltac solve_next_side :=
 
 Section instruction_outcomes.
 
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {CL : CritLink Σ}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
   (* A failed instruction rolls back every tentative write. The premise is
      about all physical register files that include the erased owned

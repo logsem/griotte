@@ -10,8 +10,9 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -25,14 +26,14 @@ Section fundamental.
 
   (** A Local copy of a Global sentry runs at the running thread: the thread
       is in the compartment whenever the copy runs. *)
-  Lemma enter_cond_weakening_global W C p b e a π :
+  Lemma enter_cond_weakening_global k W C p b e a π :
     (□ ∀ t', thread_in t' C -∗
-       enter_cond (th := t') W C p Global b e a π (interp (th := t'))) -∗
-     □ enter_cond W C p Local b e a π interp.
+       enter_cond (th := t') k W C p Global b e a π (interp (th := t'))) -∗
+     □ enter_cond k W C p Local b e a π interp.
   Proof.
     iIntros "#Hinterp !>". rewrite /enter_cond.
-    iIntros (W') "_". iIntros (g' Hflows).
-    iApply later_interp_expr_thread_in. iIntros "#Hth".
+    iIntros (W') "_". iIntros (g' Hflows m).
+    iApply later_interp_expr_at_thread_in. iIntros "#Hth".
     assert (LocalityFlowsTo g' Global) as Hflow' by (destruct g'; auto).
     iSpecialize ("Hinterp" $! th with "Hth").
     iApply ("Hinterp" $! W' with "[//] [%]"). done.
@@ -93,7 +94,7 @@ Section fundamental.
     iIntros "#Hinterp".
     destruct t; last (iApply interp_untagged; done).
     rewrite !interp_unfold /=.
-    iDestruct "Hinterp" as "[$ Hinterp]".
+    iDestruct "Hinterp" as "($ & Hinterp & $)".
     destruct g; cbn; last done.
     by iApply enter_cond_weakening_global.
   Qed.
@@ -706,7 +707,9 @@ Section region_alloc_cmpt.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
 

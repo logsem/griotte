@@ -14,7 +14,7 @@ Section switcher_helper.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
-    `{MP: MachineParameters}
+    `{MP: MachineParameters} {swlayout : switcherLayout}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -268,12 +268,14 @@ Section switcher_helper.
 
     (** Jump to a safe return address [wret], with safe callee-save
         registers [cgp], [cs0], [cs1], [csp], safe return values [ca0],
-        [ca1], and cleared registers. *)
+        [ca1], and cleared registers, from the posture [m]: the caller
+        resumes at the posture [wret] restores. *)
     Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-      (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) :
+      (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) (m : InterruptStatus) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
       frame_match Ws Cs cstk W C ->
+      route_pre th (default m (jalr_target_mie wret.(lw))) ->
 
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       thread_in th C -∗
@@ -298,11 +300,14 @@ Section switcher_helper.
       interp_continuation cstk Ws Cs -∗
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
+      MIE ↦ₜ[th] default m (jalr_target_mie wret.(lw)) -∗
+      held (th := th) (default m (jalr_target_mie wret.(lw))) -∗
       £ 1 -∗
       safe[th].
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
-        HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc".
+      iIntros (Hdom Hframe Hpre) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
+        #Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hmie Hheld
+        Hlc".
       iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
       iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
       iPoseProof (shared_credit_exclusive C) as "Hcred".
@@ -335,9 +340,10 @@ Section switcher_helper.
       destruct (decide (isCorrectPC (updatePcPerm wret.(lw)))); cycle 1.
       { (* The return address is not a valid PC: the jump faults *)
         iApply "Hcont"; iFrame "HPC".
-        iApply (interp_trap_safe_untrusted with
-                 "Htrap Hthread Hregs_interp Htop [$Hrmap $Hworld_interp $Hcred $HK $Hna $Hcstk]");
-          done. }
+        iApply (interp_trap_safe_untrusted with "Htrap Hthread Hregs_interp Htop [-]");
+          [done | done |].
+        iModIntro. iFrame "Hrmap Hworld_interp Hcred HK Hna Hcstk".
+        iExists _. by iFrame "Hmie Hheld". }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
       iDestruct "Hcont" as "(%Hwret & #Hcont)".
@@ -345,7 +351,7 @@ Section switcher_helper.
       { destruct g; cbn; iPureIntro; [ done
                                      | apply related_sts_pub_refl_world].
       }
-      iSpecialize ("Hcont" $! W with "Hfuture").
+      iSpecialize ("Hcont" $! W m with "Hfuture").
       iDestruct (lc_fupd_elim_later with "[$] [$Hcont]") as ">Hcont'".
 
       iApply ("Hcont'" $! cstk Ws Cs regs); iFrame "∗ #".
@@ -358,9 +364,11 @@ Section switcher_helper.
         needed after the jump or the exception entry. *)
     Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-      (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 w : LWord) :
+      (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 w : LWord) (m : InterruptStatus) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
       frame_match Ws Cs cstk W C ->
+      route_pre th m ->
+      route_pre th (default m (jalr_target_mie wret.(lw))) ->
 
       trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
       thread_in th C -∗
@@ -386,20 +394,24 @@ Section switcher_helper.
          na_own (tpool th) ⊤ ∗
          ◯(CSTK)[th] cstk) -∗
       ( PC ↦ₚ[th] lupdatePcPerm wret ∗
+        MIE ↦ₜ[th] default m (jalr_target_mie wret.(lw)) ∗
+        held (th := th) (default m (jalr_target_mie wret.(lw))) ∗
         £ 1 -∗
         safe[th] ) ∧
       ( ⌜ jalr_target_ok cnull cra wret.(lw) = false ⌝ -∗
+        MIE ↦ₜ[th] m -∗
+        held (th := th) m -∗
         trap_safe w ⊤ (HO th) ).
     Proof.
-      iIntros (Hdom Hframe) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1 #Htop
-        Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
+      iIntros (Hdom Hframe Hpre Hpre_ret) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0
+        #Hwca1 #Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
       iSplit.
-      - iIntros "[HPC Hlc]".
+      - iIntros "(HPC & Hmie & Hheld & Hlc)".
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
-        iApply (switcher_jump_to_caller_spec with
+        iApply (switcher_jump_to_caller_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ m with
                  "Htrap Hthread Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
-                  Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hlc"); done.
-      - iIntros "_".
+                  Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hmie Hheld Hlc"); done.
+      - iIntros "_ Hmie Hheld".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
         iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
         { apply not_elem_of_dom; rewrite Hdom; set_solver+. }
@@ -422,12 +434,13 @@ Section switcher_helper.
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
         iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
-                 "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres]");
+                 "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres Hmie Hheld]");
           [done | done |].
         iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
         iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
         iPoseProof (shared_credit_exclusive C) as "Hcred".
-        by iFrame.
+        iFrame "Hrmap HK Hna Hcstk Hworld_interp Hcred".
+        iExists m. by iFrame "Hmie Hheld".
     Qed.
 
 End switcher_helper.

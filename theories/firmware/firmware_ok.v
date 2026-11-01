@@ -283,11 +283,14 @@ Section translation.
 
   (** *** Registers
 
-      The first thread starts at an export of its compartment, with
-      interrupts disabled, and the switcher's return sentry in [cra]. The PC
-      of a trusted export is at the offset that the firmware gives; the PC of
-      an untrusted export is at the offset that its entry word in the export
-      table encodes ([export_entry_offset]), as the switcher decodes it. *)
+      The first thread starts at an export of its compartment, with the
+      interrupt posture of that export, and the switcher's return sentry in
+      [cra]. The PC of a trusted export is at the offset that the firmware
+      gives; the PC of an untrusted export is at the offset that its entry
+      word in the export table encodes ([export_entry_offset]), as the
+      switcher decodes it, and so is its posture ([export_entry_posture]).
+      The state is the one after the switcher's [mret] into the thread:
+      MPIE enabled, and [mepcc] the entry. *)
 
   Definition regs_ok (σ : ExecConf) : Prop :=
     match fw_threads fw with
@@ -301,7 +304,12 @@ Section translation.
             note (ft_cmpt ft ++ ", export " ++ ft_entry ft)
               (pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
                          (addr_off (cmpt_b_pcc m)
-                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b)))))
+                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b))))) ∧
+            note "interrupts as the posture of the export"
+              (sreg σ !! mstatus =
+                 Some (WInt (mstatus_enc
+                               (fe_posture (fw_export_named (ft_entry ft) (tb_exports b)))
+                               InterruptEnabled)))
         | UntrustedBody b =>
             match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
             | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
@@ -310,7 +318,10 @@ Section translation.
                         ", at the offset its entry word encodes")
                   (∃ z : Z, cmpt_exp_tbl_entries m !! k = Some (WInt z) ∧
                      pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
-                               (cmpt_b_pcc m ^+ export_entry_offset z))
+                               (cmpt_b_pcc m ^+ export_entry_offset z) ∧
+                     note "interrupts as the posture its entry word encodes"
+                       (sreg σ !! mstatus =
+                          Some (WInt (mstatus_enc (export_entry_posture z) InterruptEnabled))))
             end
         end ∧
         reg σ !! cgp = Some (Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
@@ -325,14 +336,12 @@ Section translation.
           (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
         sreg σ !! mtdc =
           Some (Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
-        note "interrupts disabled (the posture of the export is not used yet)"
-          (sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))) ∧
         sreg σ !! mtcc =
           Some (Cap XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
                   (a_switcher_call (img_sw img) ^+
                      assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                        ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
-        sreg σ !! mepcc = Some (WInt 0) ∧
+        note "the entry, as the switcher's mret leaves it" (sreg σ !! mepcc = Some (pcc σ)) ∧
         sreg σ !! mcause = Some (WInt 0) ∧
         sreg σ !! mtval = Some (WInt 0)
     end.

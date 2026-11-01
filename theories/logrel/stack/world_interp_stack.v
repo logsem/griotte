@@ -11,7 +11,9 @@ Section WorldInterpStack.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -388,7 +390,9 @@ Section WorldInterpStack.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.

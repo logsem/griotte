@@ -52,6 +52,8 @@ Section VAE.
 
 
     (i : positive)
+    (* The posture of the thread *)
+    (mie : InterruptStatus)
     :
 
     let imports := vae_main_imports C_f in
@@ -78,6 +80,7 @@ Section VAE.
 
     loc W0 !! i = Some (encode false) ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
+    route_pre th mie ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -109,6 +112,8 @@ Section VAE.
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ MIE ↦ₜ[th] mie
+      ∗ held (th := th) mie
 
       ⊢ safe[th])%I.
   Proof.
@@ -124,6 +129,7 @@ Section VAE.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
                Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hloc_i_0 Hframe_match
+               Hroute
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -139,6 +145,7 @@ Section VAE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
+      & Hmie & Hheld
       )".
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
@@ -158,9 +165,10 @@ Section VAE.
        switcher *)
     iApply (vae_init_blocks_1_spec with
              "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra
-              $Himport_switcher $Himport_C_f $Hcode_main]"); [done..|exact Hloc_i_0|].
-    iNext; iIntros (mie) "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
-                    & _ & _ & _)".
+              $Himport_switcher $Himport_C_f $Hcode_main $Hmie $Hheld]");
+      [done..|exact Hloc_i_0|done|].
+    iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
+                    & _ & _ & _ & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -182,7 +190,7 @@ Section VAE.
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]").
+              $Hinterp_W1_C_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
@@ -197,9 +205,9 @@ Section VAE.
       iApply switcher_cc_fault_stack_fits.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
-    iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
+    iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & _ & _ & %Hrmap_ret_dom & _ & _ & Hna & _ & _ & Hcstk_frag & HPC
-      & _ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored)".
+      & _ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
@@ -212,7 +220,7 @@ Section VAE.
     (* Block 3: return, the thread exits *)
     iApply (vae_init_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main]"); [done | done].
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 
 End VAE.

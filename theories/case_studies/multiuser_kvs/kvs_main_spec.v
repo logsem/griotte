@@ -54,6 +54,8 @@ Section KVS_main_spec.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
+    (* The posture of the thread *)
+    (mie : InterruptStatus)
 
     :
 
@@ -80,6 +82,7 @@ Section KVS_main_spec.
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
+    route_pre th mie ->
     (
       assert_static b_assert e_assert a_flag ∗
       thread_in th B ∗
@@ -118,7 +121,9 @@ Section KVS_main_spec.
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
-      interp W0 B (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      interp W0 B (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie
 
       ⊢ safe[th])%I.
   Proof.
@@ -127,7 +132,7 @@ Section KVS_main_spec.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
-               Hframe_match
+               Hframe_match Hroute
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Hkvs_static & #Hkvs & #Hkvs_logical
@@ -141,6 +146,7 @@ Section KVS_main_spec.
       & #Hinterp_W0_B_f
       & #HentryB_f
       & #Hinterp_W0_csp
+      & Hmie & Hheld
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
     assert (withinBounds static_sealed_b (static_sealed_b ^+ 1) static_sealed_b = true)
@@ -182,14 +188,14 @@ Section KVS_main_spec.
        $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
        $Himport_sealed_user_key $Hcode_main
-       $Hstatic_sealed_b $HLUKVS $Hkvs_1 $Hstk $Hcstk_frag]");
+       $Hstatic_sealed_b $HLUKVS $Hkvs_1 $Hstk $Hcstk_frag $Hmie $Hheld]");
       eauto.
     iNext.
     iIntros (rmap_ret)
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & [%wcra Hcra]
        & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
        & Hstk & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
-       & _ & _ & _ & _)".
+       & _ & _ & _ & _ & Hmie & Hheld)".
     iEval (cbn [kvs_main_add_phase_instrs]) in "HPC".
     iEval (rewrite /kvs_main_code) in "Hcode_main".
 
@@ -226,6 +232,7 @@ Section KVS_main_spec.
     (* --------------------------------------------------- *)
     focus_block 8 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch2.
+    (* Jalr cra ctp *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -279,12 +286,12 @@ Section KVS_main_spec.
          | ].
     iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
-      Hstack_revoked_W1_free Hinterp_W1_B_f HentryB_f HK".
+      Hstack_revoked_W1_free Hinterp_W1_B_f HentryB_f HK Hmie Hheld".
     iFrame "%".
     clear dependent rmap.
     clear stk_mem.
     iNext.
-    iIntros (W2 rmap stk_mem l' rcgp rcra rcs0 rcs1)
+    iIntros (W2 rmap stk_mem l' rcgp rcra rcs0 rcs1 m)
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
       & %Hrelated_pub_W1ext_W2 & Hrel_stk_C' & %Hdom_rmap & Hfrm_close_W2 & %Hfrm_close_W2
       & Hna & %Hcsp_bounds
@@ -292,7 +299,7 @@ Section KVS_main_spec.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored)".
+      & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
@@ -303,6 +310,7 @@ Section KVS_main_spec.
       [|rewrite /kvs_user_seal_key /kvs_user_seal_key_scap
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iEval (cbn) in "Hcgp".
     iEval (cbn) in "HPC".
     iEval (cbn) in "Hcra".
@@ -325,7 +333,7 @@ Section KVS_main_spec.
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1
        $Hrmap $Hstk $Hcstk_frag $Hstatic_sealed_b $HLUKVS $Hkvs_1
-      $Himport_switcher $Himport_kvs_read $Himport_assert $Hcode_main]");
+      $Himport_switcher $Himport_kvs_read $Himport_assert $Hcode_main $Hmie $Hheld]");
       eauto.
   Qed.
 

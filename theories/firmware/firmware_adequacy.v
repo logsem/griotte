@@ -626,6 +626,8 @@ Section layout_of_img_wf.
     - reflexivity.
     - by apply initial_trusted_stack_content_words.
     - apply initial_trusted_stack_content_hazard.
+    - (* The saved [mstatus] is zero: MIE is InterruptDisabled *)
+      intros w Hw. rewrite /initial_trusted_stack_content in Hw. simpl in Hw. by simplify_eq.
   Qed.
 
   (** A capability of the entry frame. *)
@@ -1013,6 +1015,15 @@ Section entry.
        | UntrustedBody _ => (cmpt_b_pcc m ^+ export_entry_offset (fw_entry_word fw img i))
        end).
 
+  (** The interrupt posture of the export the thread [i] starts at: the
+      firmware's for a trusted compartment, the one its entry word encodes
+      for an untrusted one. *)
+  Definition fw_entry_posture (fw : firmware) (img : fw_image) (i : nat) : InterruptStatus :=
+    match fc_body (fw_entry_fc fw i) with
+    | TrustedBody b => fe_posture (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
+    | UntrustedBody _ => export_entry_posture (fw_entry_word fw img i)
+    end.
+
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
     Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
@@ -1062,12 +1073,15 @@ Section entry.
   Definition fw_trap_vector (img : fw_image) : trapVector :=
     {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.
 
-  Definition fw_initial_sreg (img : fw_image) (sr : SRegName) : Word :=
+  (** The system registers after the switcher's [mret] into the thread
+      [0]: MIE the posture of its entry, MPIE enabled, [mepcc] its entry. *)
+  Definition fw_initial_sreg (fw : firmware) (img : fw_image) (sr : SRegName) : Word :=
     match sr with
     | mtdc => fw_thread_mtdc img 0
-    | mstatus => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
+    | mstatus => WInt (mstatus_enc (fw_entry_posture fw img 0) InterruptEnabled)
     | mtcc => fw_mtcc img
-    | mepcc | mcause | mtval => WInt 0
+    | mepcc => fw_entry_pc fw img 0
+    | mcause | mtval => WInt 0
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1080,23 +1094,23 @@ Section entry.
     reg σ !! csp = Some (fw_thread_csp img 0) ∧
     reg σ !! cra = Some (fw_thread_cra img) ∧
     (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
-    (∀ sr, sreg σ !! sr = Some (fw_initial_sreg img sr)).
+    (∀ sr, sreg σ !! sr = Some (fw_initial_sreg fw img sr)).
   Proof.
-    rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_word
-      /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
+    rewrite /regs_ok /note /fw_initial_sreg /fw_entry_posture /fw_entry_pc /fw_entry_cgp
+      /fw_entry_offset /fw_entry_word /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
     destruct (fw_threads fw) as [|ft fts]; first done.
-    intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause
-            & Hmtval).
+    intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmtcc & Hmepcc & Hmcause & Hmtval).
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub] eqn:Hbody.
-    - destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
+    - destruct Hpc as [Hpc Hmstatus].
+      destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
       split_and!; [by exists fts | done..|].
-      intros sr. by destruct sr.
+      intros sr. destruct sr; first [done | by rewrite Hmepcc Hpc].
     - destruct (fw_index_of ue_name (ft_entry ft) (ub_exports ub)) as [k|] eqn:Hk;
         last by destruct Hpc.
-      destruct Hpc as (z & Hz & Hpc).
+      destruct Hpc as (z & Hz & Hpc & Hmstatus).
       destruct (fw_cmpt_of_untrusted _ _ _ _ _ Hbody Hk) as [Hin Hname].
       split_and!; [by exists fts | done | done | by rewrite Hpc Hz /= | done..|].
-      intros sr. by destruct sr.
+      intros sr. destruct sr; first [done | by rewrite Hmstatus Hz | by rewrite Hmepcc Hpc Hz].
   Qed.
 
   Lemma firmware_ok_thread0 fw img σ :
@@ -1467,6 +1481,8 @@ Section ghost_init.
       + (* MTCC: the switcher's capability, outside the heap *)
         apply word_rooted_cap_nonheap. exact (proj1 Hsw_not_heap).
       + by apply word_rooted_cap_disjoint.
+      + (* MEPCC: the entry, outside the heap *)
+        apply word_rooted_cap_nonheap. exact (proj1 (icl_pcc_not_heap _ Hm)).
     - (* The memory avoids the memory-mapped devices. *)
       match goal with |- mem_avoids_mmio (?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM) =>
         replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
@@ -1510,8 +1526,11 @@ Section ghost_init.
       apply word_exec_ok_int.
     - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
       destruct sr; try by apply word_exec_ok_not_executable.
-      (* MTCC: the switcher's capability, with closed bounds outside the heap *)
-      eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end].
+      + (* MTCC: the switcher's capability, with closed bounds outside the heap *)
+        eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end].
+      + (* MEPCC: the entry, with closed bounds outside the heap *)
+        eapply word_exec_ok_closed;
+          [done | exact (icl_pcc_not_heap _ Hm) | exact (icl_pcc_end_not_heap _ Hm)].
     - by intros _.
     - intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
       (* MTCC is an unsealed executable capability *)
@@ -1519,7 +1538,7 @@ Section ghost_init.
     - intros sr _. eexists. apply Hsreg.
     - exact (Hsreg mtcc).
     - exists 0%Z. exact (Hsreg mtval).
-    - exists InterruptDisabled, InterruptDisabled. exact (Hsreg mstatus).
+    - eexists _, _. exact (Hsreg mstatus).
   Qed.
 End ghost_init.
 
@@ -1713,7 +1732,8 @@ Section resources.
 
   (** The resources of the thread [i], the user thread [i]: its
       trusted-stack invariant, in its pool, its registers, its stack, its
-      call stack and the non-atomic token of its pool. *)
+      call stack, the non-atomic token of its pool, and its posture at the
+      posture of its entry: its MIE fragment and what it holds there. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
     let t := thread_of img i in
     "Hswitcher" ∷
@@ -1728,7 +1748,13 @@ Section resources.
       region_pointsto (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
         (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
     "Hcstk" ∷ ◯(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) ∗
-    "Hna" ∷ na_own (tpool (UserThread i)) ⊤.
+    "Hna" ∷ na_own (tpool (UserThread i)) ⊤ ∗
+    "HMIE" ∷ MIE ↦ₜ[u i] fw_entry_posture fw img i ∗
+    "Hheld" ∷
+      held (th := UserThread i)
+        (CL := crit_link_full (swlayout := fw_switcher_layout img) (UserThread i))
+        (CR := crit_route_full (swlayout := fw_switcher_layout img) (UserThread i))
+        (fw_entry_posture fw img i).
 End resources.
 
 (** ** Splitting the initial memory *)
@@ -1875,10 +1901,13 @@ Section thread_trusted_stack_inv.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
   (** The trusted-stack invariant of the thread [i] of a firmware, from its
-      memory, its call stack and its mtdc. Its stack is left over. *)
+      memory, its call stack and its mtdc, whose token has the trusted stack
+      as home value. Its stack and the save area of its posture are left
+      over. *)
   Lemma fw_thread_trusted_stack_inv_alloc fw img i ft (E : coPset)
       (Hwf : img_wf fw img) (H0 : fw_threads fw !! 0 = Some (fw_thread0 fw)) :
     fw_threads fw !! i = Some ft →
+    @mtdc_home Σ (@cb_mtdc_lent_of Σ ceriseb (UserThread i)) = fw_thread_tstack img i →
     ([∗ map] a↦w ∈ thread_mem img i ft, a ↦ₐ lword_of_word w) -∗
     ●(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
     mtdc ↦ₜ[u i] fw_thread_tstack img i
@@ -1887,9 +1916,10 @@ Section thread_trusted_stack_inv.
       (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
     region_pointsto (ceriseg := ceriseG_of (UserThread i))
       (b_stack (thread_of img i)) (e_stack (thread_of img i))
-      (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)).
+      (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
+    save_area_part (swlayout := fw_switcher_layout img) (UserThread i).
   Proof.
-    intros Hi.
+    intros Hi Hhome.
     pose proof (img_wf_trusted_stack_layout _ _ _ _ Hi Hwf) as Hts.
     pose proof (img_wf_switcher_layout _ _ _ _ Hi Hwf) as Hsw.
     pose proof Hwf as (_ & _ & Hcmpts_wf & Hthreads_wf & _).
@@ -1919,9 +1949,9 @@ Section thread_trusted_stack_inv.
                   (fw_tstack_content img i ft) (fw_thread_csp img i) (fw_entry_tbl fw img i)
                   (cmpt_exp_tbl_pcc (fw_entry_cmpt fw img i))) as Hinit.
     rewrite (fw_tlayout_lt img i Hlt) in Hinit.
-    iMod (Hinit Hts (fw_tstack_content_csp img i ft) Htbl Hcap
-           with "Htstk Hhazard Hcstk_full Hmtdc") as "#Hswitcher".
-    iModIntro. iFrame "Hswitcher".
+    iMod (Hinit ltac:(done) Hhome Hts (fw_tstack_content_csp img i ft) Htbl Hcap
+           with "Htstk Hhazard Hcstk_full Hmtdc") as "[#Hswitcher Hsave]".
+    iModIntro. iFrame "Hswitcher Hsave".
     rewrite Hft /region_pointsto big_sepL2_fmap_r. iFrame.
   Qed.
 
@@ -1933,6 +1963,8 @@ Section thread_trusted_stack_inv.
     ([∗ list] k ↦ ft ∈ fts,
        ([∗ map] a↦w ∈ thread_mem img (S k) ft, a ↦ₐ lword_of_word w) ∗
        ●(CSTK)[u (S k)] (entry_cstack (fw_entry_frame fw img (S k))) ∗
+       ⌜@mtdc_home Σ (@cb_mtdc_lent_of Σ ceriseb (UserThread (S k))) =
+          fw_thread_tstack img (S k)⌝ ∗
        mtdc ↦ₜ[u (S k)] fw_thread_tstack img (S k))
     ={E}=∗
     True.
@@ -1940,9 +1972,9 @@ Section thread_trusted_stack_inv.
     intros Hthreads. iIntros "Hthreads".
     iAssert ([∗ list] k ↦ ft ∈ fts, |={E}=> True)%I with "[Hthreads]" as "Hthreads".
     { iApply (big_sepL_impl with "Hthreads").
-      iIntros "!>" (k ft Hk) "(Hmem & Hcstk_full & Hmtdc)".
+      iIntros "!>" (k ft Hk) "(Hmem & Hcstk_full & %Hhome & Hmtdc)".
       assert (fw_threads fw !! S k = Some ft) as Hi by by rewrite Hthreads.
-      iMod (fw_thread_trusted_stack_inv_alloc fw img (S k) ft E Hwf H0 Hi
+      iMod (fw_thread_trusted_stack_inv_alloc fw img (S k) ft E Hwf H0 Hi Hhome
              with "Hmem Hcstk_full Hmtdc") as "_".
       by iModIntro. }
     iMod (big_sepL_fupd with "Hthreads") as "_".
@@ -1968,6 +2000,7 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
     ⊢ fw_shared_res fw img -∗
       fw_thread_res fw img 0
       ={⊤}=∗
+      let _ : switcherLayout := fw_switcher_layout img in
       WP Exec @[u 0] {{ _, True }}.
 
 Section adequacy.
@@ -2012,9 +2045,14 @@ Proof.
             _ _ _ _ _ _ _ _ _ _ _ (fw_thread_tstack img 0)
             (fw_imap_from (λ i _, fw_thread_tstack img i) 1 fts));
     [exact Hinit | exact Hnull | exact (Hsreg mtdc) | by exists Global | | exact Hstep].
-  iIntros (ceriseb Hmtcc) "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna Hothers".
+  iIntros (ceriseb Hmtcc Hhome0)
+    "HPC Hreg Hmtdc HMIE Hho Hlent Hmem Hshadow Hclaims Hna Hothers".
   iEval (rewrite big_sepL_fw_imap_from) in "Hothers".
+  iEval (setoid_rewrite bi.sep_assoc) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
+  (* The initial MIE is the posture of the entry of the user thread [0]. *)
+  assert (mie_st (w_pc, regs, sregs, m, sh) = fw_entry_posture fw img 0) as Hmie.
+  { rewrite /mie_st /= Hsreg /= mie_of_mstatus_enc //. }
   (* The seal store, the call stacks and the worlds. *)
   iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0))
           (finite.enum CmptName)
@@ -2048,19 +2086,26 @@ Proof.
          with "Hsw_code Hseal_switcher") as "[_ #Hswitcher_static]".
   (* The trusted-stack invariant of each thread, and the stack of the user thread
      [0]. *)
-  iMod (fw_thread_trusted_stack_inv_alloc fw img 0 (fw_thread0 fw) ⊤ Hwf H0 H0
-         with "Hthread0 Hcstk_full Hmtdc") as "[#Hswitcher Hstack]".
+  iMod (fw_thread_trusted_stack_inv_alloc fw img 0 (fw_thread0 fw) ⊤ Hwf H0 H0 Hhome0
+         with "Hthread0 Hcstk_full Hmtdc") as "(#Hswitcher & Hstack & Hsave)".
   iDestruct (big_sepL_sep_2 with "Hcstks Hmtdcs") as "Hothers".
   iDestruct (big_sepL_sep_2 with "Hthreads_mem Hothers") as "Hothers".
   iMod (fw_threads_trusted_stack_inv_alloc fw img fts ⊤ Hwf H0 Hthreads with "Hothers") as "_".
+  (* The link of the user thread [0] at the initial state, and its posture. *)
+  iDestruct (crit_link_full_init (th := UserThread 0) (swlayout := fw_switcher_layout img)
+               (w_pc, regs, sregs, m, initial_heap_shadow) ltac:(done)
+              with "Hho Hsave Hlent") as "[Hlink Hheld]".
+  rewrite Hmie.
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseb sealsg stsg relg cstackg Hok) as "Hobl".
-  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]
-                     [HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]") as "Hwp".
+  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna HMIE Hheld Hlink]
+                     [HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna HMIE Hheld]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
     iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
-  { iFrame "HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna Hswitcher". }
-  iModIntro. iFrame "Hwp Hflag".
+  { iFrame "HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna HMIE Hheld Hswitcher". }
+  iModIntro.
+  iExists (crit_link_full (swlayout := fw_switcher_layout img) (UserThread 0)).
+  iFrame "Hlink Hflag". iExact "Hwp".
 Qed.
 End adequacy.
 

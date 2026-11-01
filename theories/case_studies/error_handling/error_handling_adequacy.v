@@ -225,7 +225,8 @@ Section error_handling_obligations.
                   _ _ _ _ _ _ _ _ adv_f _ [] [] _
                  with "[$Hassert $Hthread_C $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
                         $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs $Hmain_imports $Hmain_code $Hmain_data
-                        $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C]")
+                        $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C
+                        $HMIE $Hheld]")
       as "Hspec".
     all: [> exact Hstats_switcher
       | split_and!; [exact Hmain_bounds | exact Hmain_imports_size
@@ -241,6 +242,7 @@ Section error_handling_obligations.
       | exact Hstk_size
       | apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap
       | done
+      | by rewrite /route_pre
       | ].
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.

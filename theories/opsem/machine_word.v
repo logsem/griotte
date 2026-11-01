@@ -400,6 +400,12 @@ Definition jalr_target_mie (w : Word) : option InterruptStatus :=
   | _ => None
   end.
 
+(** The posture after a return through a return sentry of kind
+    [ret_kind b]: [b]. *)
+Lemma default_jalr_target_mie_ret_kind (m b : InterruptStatus) p g b' e a :
+  default m (jalr_target_mie (Sentry (ret_kind b) p g b' e a)) = b.
+Proof. by destruct b. Qed.
+
 (** The sealing check of Jalr, by the form of the instruction, as in
     cheriot-sail: a return ([rdst = cnull], [rsrc = cra]) accepts only
     backward sentries; a call ([rdst = cra]) accepts unsealed capabilities and
@@ -434,6 +440,13 @@ Qed.
 
 Lemma jalr_target_ok_clear_tag rdst rsrc w : jalr_target_ok rdst rsrc (clear_tag w) = false.
 Proof. by destruct w as [| [] | | ? [] ]. Qed.
+
+(** The checks of Jalr do not depend on the posture a return sentry
+    restores. *)
+Lemma jalr_target_ok_ret_kind rdst rsrc b p g b' e a :
+  jalr_target_ok rdst rsrc (Sentry (ret_kind b) p g b' e a) =
+  jalr_target_ok rdst rsrc (Sentry RetEnable p g b' e a).
+Proof. destruct b; first done. rewrite /jalr_target_ok /jalr_sealing_ok /=. by case_decide. Qed.
 
 (** A PC word that is tagged is an unsealed executable capability. *)
 Definition pc_ok (w : Word) : Prop :=

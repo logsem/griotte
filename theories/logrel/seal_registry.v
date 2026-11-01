@@ -56,7 +56,9 @@ Section SealRegistry.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
     {ObjKey : Type} `{Countable ObjKey}
     {seal_registryg : sealRegistryG ObjKey Σ}
   .

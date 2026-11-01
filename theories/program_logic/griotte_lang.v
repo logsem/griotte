@@ -85,6 +85,17 @@ Section griotte_lang.
       step (Executable, σ1) (c, σ2).
   Proof. inversion 1; subst; split; eauto. Qed.
 
+  (** One step of an instruction reaches a value, without forks. *)
+  Lemma prim_step_instr_val σ κ e2 σ2 efs :
+    prim_step (Instr Executable) σ κ e2 σ2 efs →
+    is_Some (to_val e2) ∧ efs = [].
+  Proof.
+    intros (_ & -> & c & -> & Hstep)%prim_step_exec_inv. split; last done.
+    inversion Hstep as [| |φ p g b e a i c' wa _ _ _ _ Hexec]; subst; try done.
+    pose proof (exec_not_executable i p σ) as Hne.
+    destruct (exec i p σ).1; done.
+  Qed.
+
   Lemma prim_step_and_step_exec σ1 e2 σ2 l1 e2' σ2' efs :
     step (Executable, σ1) (e2, σ2) →
     prim_step (Instr Executable) σ1 l1 e2' σ2' efs →

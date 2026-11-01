@@ -390,6 +390,7 @@ Section kvs_obligations.
                         $HK_lukvs_1
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
+                        $HMIE $Hheld
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
@@ -405,6 +406,7 @@ Section kvs_obligations.
       by rewrite main_static_sealed in Hsize.
     }
     { done. }
+    { by rewrite /route_pre. }
 
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.

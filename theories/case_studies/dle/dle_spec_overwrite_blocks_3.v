@@ -23,10 +23,11 @@ Section DLE_Overwrite_Blocks_3.
 
   Lemma dle_overwrite_blocks_3_spec
     (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable)
-    (wcgp_b wca0 wct0 wct1 wcra wcs0 : LWord) :
+    (wcgp_b wca0 wct0 wct1 wcra wcs0 : LWord) (b : InterruptStatus) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length dle_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -38,24 +39,29 @@ Section DLE_Overwrite_Blocks_3.
     cgp_b ↦ₐ wcgp_b ∗
     pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a dle_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] WInt 0 ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_check")%a ∗
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e (pc_a ^+ dle_label_offset
+          ".Ldle_check")%a ∗
         cs0 ↦ᵣ[th] wcs0 ∗
         cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cgp_b ↦ₐ WInt 42 ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
-        codefrag_pers pc_a dle_main_code
+        codefrag_pers pc_a dle_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
-             Hcgp_contiguous Hcgp_mmio)
+             Hcgp_contiguous Hcgp_mmio Hroute)
       "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b & Himport_switcher
-        & Hcode_main & Hpost)".
+        & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code dle_main_code "Hcode_main".
 

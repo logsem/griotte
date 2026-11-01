@@ -64,7 +64,8 @@ Section HTS_Spec_Share.
     iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 5: return when malloc returned an integer. *)
       iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcs0 & [%wcra Hcra]
-        & [%wctp Hctp] & [%wct2 Hct2] & Hcstk & %Hframes & Hcode_main)".
+        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)] & Hcstk & %Hframes
+        & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
       focus_block (hts_block ".Lhts_malloc_result") "Hcode_main" of hts_main_blocks at pc_a as a_result Ha_result "Hcode" "Hcont".
@@ -78,12 +79,13 @@ Section HTS_Spec_Share.
       unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [done | done]. }
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done]. }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
+      & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -199,7 +201,7 @@ Section HTS_Spec_Share.
     focus_block (hts_block ".Lhts_call_adv_1") "Hcode_main" of hts_main_blocks at pc_a as a_advcall Ha_advcall "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstr_success "Hcode".
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_advcall ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_reload")%a) as Ha_next
       by (offsets_compute; solve_addr).
@@ -257,19 +259,19 @@ Section HTS_Spec_Share.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
     iApply (switcher_cc_specification (hts_Wshare W_init_C) C
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f
       (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e ^+ -1))
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
-        $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share]").
+        $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct mie_ret; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
@@ -277,13 +279,13 @@ Section HTS_Spec_Share.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min. }
     iNext.
-    iIntros (Wret rmap_after stk_after lret rcgp rcra rcs0 rcs1)
+    iIntros (Wret rmap_after stk_after lret rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & %Hrelated_share_ret & _ & %Hdom_rmap_after
        & Hstack_revoked_ret & %Hstack_revoked_ret
        & Hna & _ & Hworld & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-       & Hrmap & Hstk & HK & %Hrestored)".
+       & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hgp_ret & Hra_ret & Hs0_ret & _).
     apply load_heap_nonheap in Hs0_ret; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret.
@@ -295,6 +297,7 @@ Section HTS_Spec_Share.
            Hpc_nonheap /=. reflexivity. }
     subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iApply "Hcontinue".
     iExists ι, b, Wret.
     iFrame "∗#%".

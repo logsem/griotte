@@ -550,7 +550,7 @@ Section trap_cause.
 
   (** * The fault rule with the exact cause and value *)
 
-  Context `{ceriseg : ceriseG Σ}.
+  Context `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   (** A fault with the exact cause and value, from the PC [w], the
       registers [lregs] and the memory [lm], each cell at its own fraction

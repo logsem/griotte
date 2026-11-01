@@ -14,8 +14,9 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -51,15 +52,12 @@ Section fundamental.
       congruence.
     }
 
-    iApply (wp_Mret _ _ _ _ _ _ _ _ ∅ with "[$HPC $Ha]"); eauto.
-    { by rewrite HpXRS. }
+    iApply (wp_mret_fail (CL := link_core) with "[$HPC $Ha]"); eauto.
 
-    iIntros "!>" (lpc' retv). iDestruct 1 as (HSpec) "(HPC & Ha & _)".
-    destruct HSpec; cycle 1.
-    - iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
-      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
-    - simplify_map_eq; congruence.
+    iIntros "!> (HPC & Ha)".
+    iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+    iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+    iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
   Qed.
 
 End fundamental.

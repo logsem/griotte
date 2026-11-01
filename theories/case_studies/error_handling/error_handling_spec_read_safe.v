@@ -407,7 +407,7 @@ Section Error_Handling_Read_Safe.
       values. *)
   Lemma stats_read_ret_logrel (W0 : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (rmap : LReg)
-    (b_stk e_stk : Addr) (l : list LAddr) (stk_mem : list LWord) :
+    (b_stk e_stk : Addr) (l : list LAddr) (stk_mem : list LWord) (mie : InterruptStatus) :
     frame_match Ws Cs cstk W0 C →
     csp_sync cstk b_stk e_stk →
     extract_temporaries_condition W0 (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) →
@@ -425,11 +425,13 @@ Section Error_Handling_Read_Safe.
     world_interp (revoke W0) C -∗
     ▷ RevokedResources W0 C l -∗
     na_own (tpool th) ⊤ -∗
+    MIE ↦ₜ[th] mie -∗
+    held (th := th) mie -∗
     safe[th].
   Proof.
     iIntros (Hframe_match Hsync_csp Hl_unk Hfull)
       "#Hthread #Hinv_switcher #Hswitcher_static #Hinterp_ca0 #Hinterp_ca1 HPC Hregs Hstk Hcstk HK
-       Hworld_C Hrevoked_l Hna".
+       Hworld_C Hrevoked_l Hna Hmie Hheld".
     destruct Hl_unk as [Hnodup Htemps].
     set (Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk e_stk)) (revoke W0)).
     assert (related_sts_pub_world W0 Wfixed) as Hrelated_pub_W0_Wfixed.
@@ -442,7 +444,7 @@ Section Error_Handling_Read_Safe.
     iApply (switcher_ret_specification W0 (revoke W0) C rest e_stk b_stk l stk_mem
               cstk Ws Cs
              with "[$Hthread $Hinv_switcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_C $Hna $HPC
-                    $Hrevoked_l $Hrest $Hca0 $Hca1 $Hcsp]").
+                    $Hrevoked_l $Hrest $Hca0 $Hca1 $Hcsp $Hmie $Hheld]").
     { exact Hrelated_pub_W0_Wfixed. }
     { exact Hdom_rest. }
     { exact Hframe_match. }
@@ -479,7 +481,7 @@ Section Error_Handling_Read_Safe.
   Proof.
     intros es Hframe_match Hsync_csp Hb_es Hcur_e Hcsp.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Hinterp_csp Hworld_open Hslot_res HK Hclose".
-    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hregs Hcstk [Harea Hinv] Hna".
+    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hregs Hcstk [Harea Hinv] Hna Hmie Hheld".
     iMod ("Hclose" with "[$Hinv $Hna]") as "Hna".
     rewrite /error_state_area Hcsp /=.
     iDestruct "Harea" as (ws) "[%Hws Hslot]".
@@ -491,7 +493,7 @@ Section Error_Handling_Read_Safe.
     iApply (stats_read_ret_logrel W0 C (cstack_set_top_count cstk n) Ws Cs rmap
               b_stk e_stk l stk_mem
              with "Hthread Hinv_switcher Hswitcher_static [] [] HPC Hregs Hstk Hcstk [HK] Hworld_C
-                   Hrevoked_l Hna").
+                   Hrevoked_l Hna Hmie Hheld").
     { by apply frame_match_set_top_count. }
     { by rewrite csp_sync_set_top_count. }
     { exact Hl_unk. }
@@ -563,15 +565,15 @@ Section Error_Handling_Read_Safe.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %b_stk %e_stk".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
-      & Hworld_C & _ & %Hsync_csp & %Hminstk & Hcstk & Hna)".
+      & Hworld_C & _ & %Hsync_csp & %Hminstk & Hcstk & Hna & %Hroute & Hmie & Hheld)".
     iEval (rewrite world_resources_exclusive) in "Hworld_C".
     iDestruct "Hregister_state" as
-      "(%Hfull & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_csp & #Hinterp_rmap & _)".
+      "(%Hfull & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & #Hinterp_rmap & _)".
     set (cur := stk_start_a b_stk e_stk).
     destruct Htop_tbl as (Hframes & Htbl & Hcount & Htbl_ok).
     rewrite /stats_read_min_stack in Hminstk.
     set (wret :=
-      Sentry (ret_kind mie_ret) XSRW_ Local b_switcher e_switcher a_switcher_return).
+      Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher a_switcher_return).
     destruct (Hfull ca0) as [wptr Hwptr].
     iAssert (interp W0 C wptr) as "#Hinterp_wptr".
     { iApply "Hinterp_rmap"; iPureIntro; last exact Hwptr.
@@ -609,7 +611,7 @@ Section Error_Handling_Read_Safe.
     iEval (rewrite open_world_interp_empty) in "Hworld_C".
     iApply (stats_read_load_interp_open_spec W0 C [] wptr
              with "[$Hthread $HPC $Hca0 $Hinterp_wptr $Hworld_C $Hcode_stats
-                    Hregs Hlock Hna Hclose Hcstk HK]").
+                    Hregs Hlock Hna Hclose Hcstk HK Hmie Hheld]").
     { intros p0 g0 b0 e0 a0 _ _. apply not_elem_of_nil. }
     iSplit.
     - (* The load faults, with its exact fault [f]: borrow the slot, lend it *)
@@ -629,7 +631,7 @@ Section Error_Handling_Read_Safe.
       assert (rfault !! ca0 = Some wf) as Hca0_fault.
       { by rewrite /rfault lookup_insert_eq. }
       clearbody rfault.
-      iApply trap_safe_fupd. iSplitL; last by iIntros "!> %Hv".
+      iApply trap_safe_fupd.
       iDestruct (open_world_interp_opening_resources W0 C slot [] Local b_stk e_stk cur
                   with "[$Hinterp_csp Hworld_C]")
         as "[Hworld_open (%lv & Hslot & Hslot_res)]".
@@ -641,7 +643,8 @@ Section Error_Handling_Read_Safe.
       iDestruct (big_sepL2_length with "Hslot") as %Hlen_lv.
       iModIntro.
       iApply (stats_read_fault_safe _ _ cstk rfault Local b_stk e_stk cur
-               with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Hslot] [-]").
+               with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Hslot] Hmie Hheld
+                     [-]").
       { by intros c [Hok _]. }
       1-3: done.
       { by apply lookup_total_correct. }
@@ -657,12 +660,14 @@ Section Error_Handling_Read_Safe.
         destruct (stats_load_repairable_ca0 _ _ _ _ Hf Hc Hv Hrep)
           as [Hreg (p0 & g0 & b0 & e0 & a0 & π0 & ->)].
         exists ca0, p0, g0, b0, e0, a0, π0. split; [by rewrite Hreg | exact Hca0_fault]. }
+      { done. }
       { rewrite /error_state_area Hcsp_fault /=. iExists lv. iFrame "Hslot".
         iPureIntro. rewrite -Hlen_lv /slot finz_seq_between_length /finz.dist /ErrorState_size.
         solve_addr. }
       iIntros (c v Hc Hv). iNext. rewrite /stats_fault_conts. iSplit.
       + (* Retry: the base is outside the slot *)
-        iIntros (Hretries r' p' g' b' e' a' π' w' [Hidx Hr'] Hbe' Hout' Hw') "Hlock Harea".
+        iIntros (Hretries r' p' g' b' e' a' π' w' [Hidx Hr'] Hbe' Hout' Hw')
+          "Hlock Harea %mie' %Hroute' Hmie Hheld".
         destruct (stats_load_repairable_ca0 _ _ _ _ Hf Hc Hv (proj1 Hretries))
           as [Hreg _].
         rewrite Hreg in Hidx. apply (inj reg_index) in Hidx as ->.
@@ -689,7 +694,7 @@ Section Error_Handling_Read_Safe.
         (* The retried load, in the world open at the slot *)
         iApply (stats_read_load_interp_open_spec W0 C (LNonHeap <$> slot) wrep
                  with "[$Hthread $HPC $Hca0 $Hinterp_wrep $Hworld_open $Hcode_stats
-                        Hregs Hlock Hna Hclose Hcstk HK Hslot_res Harea]");
+                        Hregs Hlock Hna Hclose Hcstk HK Hslot_res Harea Hmie Hheld]");
           first exact Hclosed.
         iSplit.
         * (* It faults: not repairable, unwind at count 2 *)
@@ -700,7 +705,8 @@ Section Error_Handling_Read_Safe.
           { by rewrite /rretry2 lookup_total_insert_ne // Hcsp_retry. }
           set (cstk2 := cstack_set_top_count cstk (top_error_count cstk + 2)).
           iApply (stats_read_fault_safe _ _ cstk2 rretry2 Local b_stk e_stk cur
-                   with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Harea] [-]").
+                   with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Harea]
+                         Hmie Hheld [-]").
           { by intros c2 [Hok _]. }
           { done. }
           { intros r. rewrite /rretry2 /rretry /stats_retry_regs !lookup_insert_is_Some'.
@@ -723,6 +729,7 @@ Section Error_Handling_Read_Safe.
               rewrite /wrep /= in Hf2 Hv2;
               (eapply (stats_retry_fault_not_repairable _ _ _ b' e' π' f2 c2 v2);
                [done | exact Hf2 | exact Hc2 | exact Hv2 | exact Hrep2]). }
+          { done. }
           { rewrite /error_state_area Hcsp_retry2. iExact "Harea". }
           iIntros (c2 v2 Hc2 Hv2). iNext. rewrite /stats_fault_conts. iSplit.
           { iIntros ([Hrep2 _]). exfalso.
@@ -750,20 +757,21 @@ Section Error_Handling_Read_Safe.
                   with "[$Hinterp_csp $Hworld_open $Hslot_res $Hslot]")
             as (l) "(%Hl_unk & Hworld_C & _ & _ & >[%stk_mem Hstk] & Hrevoked_l & _)";
             [done | done |].
-          iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose").
+          iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose Hmie Hheld").
           { intros r. rewrite !lookup_insert_is_Some'. by right; right; right. }
           { rewrite /rretry /stats_retry_regs. by simplify_map_eq. }
           { rewrite lookup_total_insert_ne // /rretry /stats_retry_regs
               !lookup_total_insert_ne // Hcra_fault.
             apply jalr_target_ok_switcher_return_sentry. }
-          iNext. iIntros "HPC Hregs Hna".
+          { done. }
+          iNext. iIntros "HPC Hregs Hna Hmie Hheld".
           set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=wload]> rretry)).
           assert (<[ca0:=wload]> rretry !!! cra = lword_of_word wret) as Hret_cra.
           { rewrite -Hcra_fault !lookup_total_alt /rretry /stats_retry_regs. by simplify_map_eq. }
           iEval (rewrite Hret_cra /=) in "HPC".
           iApply (stats_read_ret_logrel W0 C _ Ws Cs M b_stk e_stk l stk_mem
                    with "Hthread Hinv_switcher Hswitcher_static [] [] HPC Hregs Hstk Hcstk [HK]
-                         Hworld_C Hrevoked_l Hna").
+                         Hworld_C Hrevoked_l Hna Hmie Hheld").
           { by apply frame_match_set_top_count. }
           { by rewrite csp_sync_set_top_count. }
           { exact Hl_unk. }
@@ -782,11 +790,12 @@ Section Error_Handling_Read_Safe.
       iDestruct ("Hregs" with "Hca0") as "Hregs".
       iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_C]")
         as (l) "(%Hl_unk & Hworld_C & _ & _ & Hstk & Hrevoked_l & _)".
-      iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose").
+      iApply (stats_read_release_close with "Hstatic HPC Hregs Hlock Hna Hclose Hmie Hheld").
       { intros r. rewrite lookup_insert_is_Some'. by right. }
       { by rewrite lookup_insert_ne. }
       { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
-      iNext. iIntros "HPC Hregs Hna".
+      { done. }
+      iNext. iIntros "HPC Hregs Hna Hmie Hheld".
       iDestruct "Hstk" as (stk_mem) "Hstk".
       set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=wload]> rtake)).
       assert (<[ca0:=wload]> rtake !!! cra = lword_of_word wret) as Hret_cra.
@@ -794,7 +803,7 @@ Section Error_Handling_Read_Safe.
       iEval (rewrite Hret_cra /=) in "HPC".
       iApply (stats_read_ret_logrel W0 C cstk Ws Cs M b_stk e_stk l
                with "Hthread Hinv_switcher Hswitcher_static [] [] HPC Hregs Hstk Hcstk HK Hworld_C
-                     Hrevoked_l Hna").
+                     Hrevoked_l Hna Hmie Hheld").
       { exact Hframe_match. }
       { exact Hsync_csp. }
       { exact Hl_unk. }

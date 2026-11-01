@@ -12,6 +12,7 @@ Section Assert_subroutine.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   (* [assert_subroutine_instrs] asserts (ct0 == ct1) and jumps back to cra.
@@ -37,32 +38,45 @@ Section Assert_subroutine.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
-    ( n1 n2 flag : Z ) ( wret : Word)
+    ( n1 n2 flag : Z ) ( wret : Word) (b : InterruptStatus)
     (φ : language.val griotte_lang -> iProp Σ) :
     n1 = n2 →
     jalr_target_ok cnull cra wret = true →
+    route_pre th b →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ Cap RX pc_g pc_b pc_e pc_b
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
+     ∗ MIE ↦ₜ b
+     ∗ held b
      ∗ ▷ (PC ↦ₚ updatePcPerm wret
           ∗ cra ↦ᵣ wret
           ∗ ct0 ↦ᵣ WInt 0%Z
           ∗ ct1 ↦ᵣ WInt 0%Z
+          ∗ MIE ↦ₜ default b (jalr_target_mie wret)
+          ∗ held (default b (jalr_target_mie wret))
           -∗ WP Exec {{ φ }})
      ⊢ WP Exec {{ φ }})%I.
   Proof.
-    iIntros (Heq Htgt) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hφ)".
+    iIntros (Heq Htgt Hpre) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hmie & Hheld & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
     assert (SubBounds pc_b pc_e
               pc_b (pc_b ^+ length assert_subroutine_instrs))
       as HsubBounds by solve_addr.
+    (* Sub ct0 ct0 ct1. *)
     iInstr "Hprog".
     rewrite (_: n1 - n2 = 0)%Z; last lia.
-    iGo "Hprog".
+    (* Jne assert_fail ct0 0. *)
+    iInstr "Hprog".
+    (* Mov ct0 0. *)
+    iInstr "Hprog".
+    (* Mov ct1 0. *)
+    iInstr "Hprog".
+    (* Jalr cnull cra. *)
+    iInstr "Hprog".
     iApply "Hφ". iFrame "∗".
   Qed.
 
@@ -73,6 +87,7 @@ Section Assert.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   Lemma assert_instrs_fetch (off : Z) (rdst rscratch : RegName) :
@@ -89,7 +104,7 @@ Section Assert.
     (n off : Z) (rdst rscratch : RegName)
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
-    (n1 n2 : Z) (wdst wcra wscratch : LWord) (dq : dfrac)
+    (n1 n2 : Z) (wdst wcra wscratch : LWord) (dq : dfrac) (b : InterruptStatus)
     (φ : language.val griotte_lang -> iProp Σ) :
 
     let assert_macro := assert_instrs off rdst rscratch in
@@ -103,6 +118,7 @@ Section Assert.
     rscratch ≠ cnull →
 
     n1 = n2 →
+    route_pre th b →
     (  assert_static b_assert e_assert a_flag
      ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
      ∗ rdst ↦ᵣ wdst
@@ -110,6 +126,8 @@ Section Assert.
      ∗ cra ↦ᵣ wcra
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
+     ∗ MIE ↦ₜ b
+     ∗ held b
      ∗ codefrag_pers pc_a assert_macro
      ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert b_assert)
      ∗ ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
@@ -118,14 +136,17 @@ Section Assert.
           ∗ cra ↦ᵣ wcra
           ∗ ct0 ↦ᵣ WInt 0
           ∗ ct1 ↦ᵣ WInt 0
+          ∗ MIE ↦ₜ b
+          ∗ held b
           ∗ codefrag_pers pc_a assert_macro
           ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert b_assert)
           -∗ WP Exec {{ φ }})
      ⊢ WP Exec {{ φ }})%I.
   Proof.
     intros assert_macro a_last; subst assert_macro a_last.
-    iIntros (Hpc_exec HsubBounds Hoff Hinbounds Hcode_shadow Hrdst_cnull Hrscratch_cnull Heq)
-      "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & #Hcode_main & Hpc_bn & Hφ)".
+    iIntros (Hpc_exec HsubBounds Hoff Hinbounds Hcode_shadow Hrdst_cnull Hrscratch_cnull Heq Hpre)
+      "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & Hmie & Hheld & #Hcode_main
+        & Hpc_bn & Hφ)".
     iAssert (⌜is_heap_address b_assert = false⌝)%I as %Hassert_not_heap.
     { by iDestruct "Hassert" as "[$ _]". }
     codefrag_facts "Hcode_main".
@@ -138,12 +159,19 @@ Section Assert.
     unfocus_block "Hfetch" "Hcont" as "Hcode_main"; subst hcode.
     focus_block 1 "Hcode_main" as a_assert Ha_assert "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
     iDestruct (regname_neq with "Hrdst Hcra") as %Hrdst_cra.
-    iGo "Hcode".
+    (* Mov rscratch cra. *)
+    iInstr "Hcode".
+    (* Jalr cra rdst. *)
+    iInstr "Hcode".
     iEval (cbn) in "HPC".
     (* The return target is the link sentry, executable as the PC is. *)
     iApply (assert_subroutine_success_spec with "[-]"); last iFrame "∗ Hassert"; try done.
-    all: try (by destruct mie).
-    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1)".
+    all: try (by destruct b).
+    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hmie & Hheld)".
+    (* The return sentry restores the posture [b]. *)
+    rewrite (_ : default (default b (sentry_kind_mie Inherit))
+                   (jalr_target_mie (Sentry (ret_kind b) pc_p pc_g pc_b pc_e (a_assert ^+ 2)))
+                 = b); last by destruct b.
     iEval (cbn) in "HPC".
     iGo "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.

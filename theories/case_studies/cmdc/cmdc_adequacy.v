@@ -148,7 +148,7 @@ Section cmdc_obligations.
     iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
-              [] [] _ _
+              [] [] _ _ _
               (cmpt_pcc_disjoint_from_shadow main_cmpt)
               (cmpt_pcc_base_not_heap main_cmpt)
               Hmain_shadow (cmpt_cgp_base_not_heap main_cmpt)
@@ -161,6 +161,7 @@ Section cmdc_obligations.
                     $Hmain_imports $Hmain_code $Hmain_data $Hstack
                     $Hinterp_B $Hinterp_C $Hcstk $Hrevoked_stack_B $Hrevoked_stack_C
                     $Hentry_Bf $Hentry_Cg
+                    $HMIE $Hheld
                     ]"); eauto using fw_cleared_regs_dom.
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply (main_cgp_not_in_adv_world Revoked fw_world0 swc main_cmpt); [done | |].
@@ -181,6 +182,7 @@ Section cmdc_obligations.
       intros a Ha.
       by apply std_sta_update_multiple_lookup_in_i.
     }
+    { by rewrite /route_pre. }
   Qed.
 End cmdc_obligations.
 

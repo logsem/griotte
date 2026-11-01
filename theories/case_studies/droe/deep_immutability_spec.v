@@ -45,6 +45,8 @@ Section DROE.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
+    (* The posture of the thread *)
+    (b : InterruptStatus)
 
     :
 
@@ -73,6 +75,7 @@ Section DROE.
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
+    route_pre th b ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -100,6 +103,8 @@ Section DROE.
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ MIE ↦ₜ[th] b
+      ∗ held (th := th) b
 
       ⊢ safe[th])%I.
   Proof.
@@ -118,6 +123,7 @@ Section DROE.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcs1_nonheap
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
+               Hroute
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
@@ -128,6 +134,7 @@ Section DROE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
+      & Hmie & Hheld
       )".
     iExtractList "Hrmap" [ca0;ca1;ct0;ct1;ct2;cs0;cs1]
       as ["Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
@@ -152,9 +159,9 @@ Section DROE.
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iAssert (droe_static_mem pc_b pc_a C_f) with "[$Himports $Hcode_main]" as "Hmem".
     iApply (droe_share_blocks_2_spec with
-             "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Hmem]");
-      first (rewrite /droe_code_bounds; eauto 10).
-    iNext; iIntros (mie) "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem)".
+             "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Hmem $Hmie $Hheld]");
+      [rewrite /droe_code_bounds; eauto 10|done|].
+    iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hmem & Hmie & Hheld)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
     (* Share the data in the world *)
@@ -183,13 +190,13 @@ Section DROE.
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
-              $Hinterp_W3_C_f $HentryC_f $HK]").
+              $Hinterp_W3_C_f $HentryC_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.
@@ -199,7 +206,7 @@ Section DROE.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem rmap.
-    iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1)
+    iIntros (W4 rmap stk_mem l' rcgp rcra rcs0 rcs1 m)
       "( _ & _ & _
       & %Hrelated_pub_W3ext_W4 & _ & %Hrmap_dom & _ & _
       & Hna & %Hcsp_bounds
@@ -207,7 +214,7 @@ Section DROE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & _ & _
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & _ & _ & %Hrestored)".
+      & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].
@@ -227,7 +234,8 @@ Section DROE.
     (* Blocks 3-5: assert that b is unchanged and return, the thread exits *)
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
              "[$Hassert $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hca0 $Hca1 $Hctp $Hct0
-              $Hct1 $Hct2 $Hca2 $Hcs0 $Hcra $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main]");
+              $Hct1 $Hct2 $Hca2 $Hcs0 $Hcra $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main
+              $Hmie $Hheld]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.
 

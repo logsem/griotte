@@ -7,8 +7,8 @@ Import uPred.
     The definitions that take the thread are in sections with a thread
     [th]; they are taken at another thread with [(th := t)]. The fixpoint
     [interp1] is over the family of the threads' relations, in a section
-    without thread. The definitions about the trap vector are at the core
-    link, the others at the section's link. *)
+    without thread. The definitions are at the links of the threads'
+    family [CL], with their routing laws [CR]. *)
 Section logrel_pre.
 
   Context
@@ -19,7 +19,9 @@ Section logrel_pre.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -222,22 +224,27 @@ Section logrel_pre.
     all: try apply interp_reg_ne; try apply top_cmpt_untrusted_ne; try apply HK; done.
   Qed.
 
-  (** The trap vector [wvec] is safe, at the core link: after trap entry
-      from any PC [w], with any call stack [cstk] and registers [regs],
-      execution from [wvec] is safe, for a fault in an untrusted compartment
-      ([untrusted_fault_pre]) or a fault that [trusted_fault] accepts. Trap
-      entry lends MEPCC, mcause and mtval to the trap vector
-      ([trap_entry_out w]) and holds the trap-entry part [Ntrap] of the
-      non-atomic token. *)
+  (** The trap vector [wvec] is safe: after trap entry from any PC [w],
+      with any call stack [cstk] and registers [regs], execution from [wvec]
+      is safe, for a fault in an untrusted compartment
+      ([untrusted_fault_pre]) or a fault that [trusted_fault] accepts. The
+      trap vector runs with MIE disabled and receives the whole posture of
+      the thread, with MPIE (the posture of the fault), MEPCC, mcause and
+      mtval pinned at the values of trap entry. *)
   Definition trap_vector_safe_pre (interp : V) (interp_cont : K)
       (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
     □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
       (untrusted_fault_pre interp interp_cont cstk regs ∨ trusted_fault cstk w regs) -∗
       PC ↦ₚ[th] wvec -∗
-      trap_entry_out w -∗
+      MIE ↦ₜ[th] InterruptDisabled -∗
+      (∃ (b : InterruptStatus) (c v : Z),
+         ⌜route_pre th b⌝ ∗
+         ⌜mcause_ok c⌝ ∗
+         posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
+           (Some (lword_of_word (WInt c))) (Some v)) -∗
       registers_pointsto regs -∗
-      na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
+      na_own (tpool th) ⊤ -∗
       ◯(CSTK)[th] cstk -∗
       safe[th].
 
@@ -277,6 +284,26 @@ Section logrel_pre.
     iApply ("Hsafe" with "[//]"). by iLeft.
   Qed.
 
+  (** What trap entry gives back, with the part of the posture that the
+      faulting code keeps at InterruptDisabled, is what the trap vector
+      receives. *)
+  Lemma trap_entry_out_posture w b :
+    route_pre th b →
+    trap_entry_out w b -∗
+    (if b is InterruptDisabled then posture_part (th := th) else True) -∗
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    ∃ (b' : InterruptStatus) (c v : Z),
+      ⌜route_pre th b'⌝ ∗
+      ⌜mcause_ok c⌝ ∗
+      posture_res_gen (th := th) (Some b') (Some (lmepcc_of_pc w))
+        (Some (lword_of_word (WInt c))) (Some v).
+  Proof.
+    iIntros (Hpre) "Hout Hpart".
+    iDestruct (trap_entry_out_handover with "Hout") as "($ & (%c & %v & %Hc & _ & Hh) & Hpart')".
+    iExists b, c, v. iSplit; first done. iSplit; first done.
+    iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
+  Qed.
+
 End logrel_pre.
 
 Section logrel_expr.
@@ -289,8 +316,9 @@ Section logrel_expr.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -301,11 +329,13 @@ Section logrel_expr.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  (** Safe execution from [wpc] by the thread [th] in the compartment [C]:
-      with the thread in [C], a trap vector safe for its faults, safe
-      registers, in an untrusted topmost compartment
-      ([top_cmpt_untrusted]), and the continuation of [cstk]. *)
-  Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
+  (** Safe execution from [wpc] by the thread [th] in the compartment [C],
+      at the posture [b]: with the thread in [C], a trap vector safe for its
+      faults, safe registers, in an untrusted topmost compartment
+      ([top_cmpt_untrusted]), the continuation of [cstk], and the MIE
+      fragment and what the thread holds at [b], where the thread may run at
+      [b] ([route_pre]). *)
+  Program Definition interp_expr_at (b : InterruptStatus) (interp : V) (interp_cont : K) : E :=
     (λne (W : WORLD) (C : CmptName) (wpc : LWord),
        ∀ cstk Ws Cs regs,
        ( thread_in th C
@@ -320,8 +350,25 @@ Section logrel_expr.
         ∗ na_own (tpool th) ⊤
         ∗ ◯(CSTK)[th] cstk
         ∗ ⌜frame_match Ws Cs cstk W C⌝
+        ∗ ⌜route_pre th b⌝
+        ∗ MIE ↦ₜ[th] b
+        ∗ held (th := th) b
           -∗ safe[th])
     )%I.
+  Solve All Obligations with solve_proper.
+
+  #[global] Instance interp_expr_at_ne b n :
+    Proper (dist n ==> dist n ==> dist n) (interp_expr_at b).
+  Proof.
+    intros interp interp0 Heq K K0 HK.
+    rewrite /interp_expr_at. intros ???. simpl.
+    by repeat f_equiv.
+  Qed.
+
+  (** Safe execution at every posture. *)
+  Program Definition interp_expr (interp : V) (interp_cont : K) : E :=
+    (λne (W : WORLD) (C : CmptName) (wpc : LWord),
+       ∀ b, interp_expr_at b interp interp_cont W C wpc)%I.
   Solve All Obligations with solve_proper.
 
   #[global] Instance interp_expr_ne n :
@@ -329,21 +376,30 @@ Section logrel_expr.
   Proof.
     intros interp interp0 Heq K K0 HK.
     rewrite /interp_expr. intros ???. simpl.
-    by repeat f_equiv.
+    f_equiv. intros b. by apply interp_expr_at_ne.
   Qed.
 
   (** A safe execution that needs the thread in its compartment: the
       thread is in it, or the execution has a false premise. *)
-  Lemma later_interp_expr_thread_in (interp : V) (interp_cont : K) W C w :
-    (thread_in th C -∗ ▷ interp_expr interp interp_cont W C w) ⊢
-    ▷ interp_expr interp interp_cont W C w.
+  Lemma later_interp_expr_at_thread_in b (interp : V) (interp_cont : K) W C w :
+    (thread_in th C -∗ ▷ interp_expr_at b interp interp_cont W C w) ⊢
+    ▷ interp_expr_at b interp interp_cont W C w.
   Proof.
     iIntros "H".
     destruct (decide (th ∈ cmpt_threads C)) as [Hin|Hnin].
     { iApply "H". by iApply thread_in_intro. }
-    iClear "H". rewrite /interp_expr /=. iNext.
+    iClear "H". rewrite /interp_expr_at /=. iNext.
     iIntros (cstk Ws Cs regs) "(Hth & _)".
     iDestruct (thread_in_elim with "Hth") as %Hin. done.
+  Qed.
+
+  Lemma later_interp_expr_thread_in (interp : V) (interp_cont : K) W C w :
+    (thread_in th C -∗ ▷ interp_expr interp interp_cont W C w) ⊢
+    ▷ interp_expr interp interp_cont W C w.
+  Proof.
+    iIntros "H". rewrite /interp_expr /=. iIntros (b).
+    iApply later_interp_expr_at_thread_in.
+    iIntros "Hth". iSpecialize ("H" with "Hth"). iNext. iApply "H".
   Qed.
 
   (** [valid_stk_interp] is a predicate stating that the safety predicate [φ]
@@ -446,6 +502,9 @@ Section logrel_expr.
       - Finally, we have the [interp_cont] of the (depoped) stack frame (we don't see it in this def,
         but we see it in the definition of [interp_cont] later),
         and the fragmental view of the call-stack [cstk].
+      - The caller resumes with its MIE fragment and what the thread holds at
+        the posture that its return sentry [rcra] restores; [m] is the
+        posture of the return routine, kept by an inheriting target.
 
     (1) Although we know it should contain zeroes due to the clearing during the return routine,
         it is logically hard to prove in the functional specification because the world
@@ -460,7 +519,8 @@ Section logrel_expr.
     :=
     (λne (cstk : CSTK) (W : WORLD) (C : CmptName) (frm : cframe)
      ,
-       ∀ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (regs : LReg) (stk_mem_l stk_mem_h : list LWord),
+       ∀ (rcgp rcra rcs0 rcs1 wca0 wca1 : LWord) (regs : LReg) (stk_mem_l stk_mem_h : list LWord)
+         (m : InterruptStatus),
        let b_stk := cf_stk_b frm in
        let a_stk := cf_caller_a frm in
        let e_stk := cf_stk_e frm in
@@ -501,6 +561,10 @@ Section logrel_expr.
          ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
          ∗ thread_in th C
+         (* The caller resumes at the posture its return sentry restores *)
+         ∗ ⌜route_pre th (default m (jalr_target_mie rcra.(lw)))⌝
+         ∗ MIE ↦ₜ[th] (default m (jalr_target_mie rcra.(lw)))
+         ∗ held (th := th) (default m (jalr_target_mie rcra.(lw)))
            -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
@@ -656,30 +720,31 @@ Section logrel_expr.
 
       The unsealed capability keeps the sentry's identifier [π].
  *)
-  Definition enter_cond
+  Definition enter_cond (k : SentryKind)
     (W : WORLD) (C : CmptName)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (interp : V) : iProp Σ :=
     (∀ W',
        future_world g W W'
-       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ → (▷ interp_expr interp (interp_cont interp) W' C (Cap p g' b e a @@? π)))
+       → (∀ g', ⌜ LocalityFlowsTo g' g ⌝ →
+          ∀ m, ▷ interp_expr_at (default m (sentry_kind_mie k)) interp (interp_cont interp)
+                   W' C (Cap p g' b e a @@? π))
     )%I.
   #[global] Instance enter_cond_ne n :
-    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> dist n ==> dist n) enter_cond.
+    Proper ((=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==> (=) ==>
+            dist n ==> dist n) enter_cond.
   Proof.
-    solve_proper_prepare.
-    solve_proper.
+    intros k ? <- W ? <- C ? <- p ? <- g ? <- b ? <- e ? <- a ? <- π ? <- interp interp' Heq.
+    rewrite /enter_cond. do 9 f_equiv. apply interp_expr_at_ne; [done | by apply interp_cont_ne].
   Qed.
-  #[global] Instance enter_cond_contractive W C p g b e a π :
-    Contractive (λ interp, enter_cond W C p g b e a π interp).
+  #[global] Instance enter_cond_contractive k W C p g b e a π :
+    Contractive (λ interp, enter_cond k W C p g b e a π interp).
   Proof.
-    intros ????. rewrite /enter_cond.
-    do 6 f_equiv.
+    intros n interp interp' Heq. rewrite /enter_cond.
+    do 8 f_equiv.
     apply later_contractive.
-    inversion H. constructor. intros.
-    apply dist_later_lt in H0.
-    apply interp_expr_ne;auto.
-    apply interp_cont_ne;auto.
+    inversion Heq as [Heq']. constructor. intros n' Hn'.
+    apply interp_expr_at_ne; [by apply Heq' | by apply interp_cont_ne, Heq'].
   Qed.
 
 End logrel_expr.

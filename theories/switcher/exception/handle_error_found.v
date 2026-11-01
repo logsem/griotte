@@ -210,8 +210,8 @@ Section Handle_Error_Found.
 
   (** From [.Lhandle_error_stackless_setup]: [ca0] receives the cause of the
       trap (word 18 of the register save area), [ca1] the value of the
-      trap, from the lent mtval, which then goes back to the state
-      interpretation, [ca2] 0 and [csp] the handler's stack, from [ct0]. *)
+      trap, from mtval, [ca2] 0 and [csp] the handler's stack, from
+      [ct0]. *)
   Lemma handle_error_stackless_setup_spec (g_tstk : Locality)
     (save_area : list LWord) (wct0 wca0 wca1 wca2 : LWord) (tval : Z) :
     length save_area = 21%nat ->
@@ -223,8 +223,7 @@ Section Handle_Error_Found.
     ca1 ↦ᵣ[th] wca1 ∗
     ca2 ↦ᵣ[th] wca2 ∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-    trap_vcsr_res ∗
-    vcsr_frag mtval (lword_of_word (WInt tval)) ∗
+    mtval ↦ₓ lword_of_word (WInt tval) ∗
     switcher_code ∗
     ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_invoke" ∗
         csp ↦ᵣ[th] wct0 ∗
@@ -233,12 +232,12 @@ Section Handle_Error_Found.
         ca1 ↦ᵣ[th] WInt tval ∗
         ca2 ↦ᵣ[th] WInt 0 ∗
         [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save_area ]] ∗
-        trap_entry_res -∗
+        mtval ↦ₓ lword_of_word (WInt tval) -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
     iIntros (Hlen)
-      "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & Htok & Hmtval & #Hswitcher & Hpost)".
+      "(HPC & Hcsp & Hct0 & Hca0 & Hca1 & Hca2 & Hsave & Hmtval & #Hswitcher & Hpost)".
     destruct (lookup_lt_is_Some_2 save_area 18%nat) as [w18 Hw18]; first lia.
     rewrite (list_lookup_total_correct _ _ _ Hw18).
     iDestruct (tstack_save_area_acc _ _ _ Hw18 with "Hsave") as "[Hs18 Hsave]".
@@ -248,12 +247,11 @@ Section Handle_Error_Found.
     iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds_dq _ _ _ _ _ _ _ ca0 csp 18)
       with "[$HPC $Hca0 $Hcsp $Hs18]" as "(HPC & Hca0 & Hcsp & Hs18)".
     rewrite lload_word_RWL.
+    iEval (rewrite -vcsr_frag_pointsto) in "Hmtval".
     (* SpecialRW ca1 mtval cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hca1 $Hmtval]"
       as "(HPC & Hca1 & Hmtval)".
-    (* mtval goes back to the state interpretation *)
-    iApply (wp_vcsr_tval_return with "Hmtval Htok"); first done.
-    iIntros "Htok".
+    iEval (rewrite vcsr_frag_pointsto) in "Hmtval".
     (* Mov ca2 0 *)
     iInstr "Hcode".
     (* Mov csp ct0 *)
@@ -262,7 +260,7 @@ Section Handle_Error_Found.
     iInstr "Hcode".
     { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_handler_invoke")%a
         by switcher_addr_eq. }
-    iApply "Hpost". iFrame "HPC Hcsp Hct0 Hca0 Hca1 Hca2 Htok". by iApply "Hsave".
+    iApply "Hpost". iFrame "HPC Hcsp Hct0 Hca0 Hca1 Hca2 Hmtval". by iApply "Hsave".
   Qed.
 
 End Handle_Error_Found.

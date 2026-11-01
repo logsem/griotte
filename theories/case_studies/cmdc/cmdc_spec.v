@@ -49,6 +49,8 @@ Section CMDC.
     (w_main_tbl : LWord)
 
     (csp_content : list LWord)
+    (* The posture of the thread *)
+    (b : InterruptStatus)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -83,6 +85,7 @@ Section CMDC.
        which is not possible. *)
     revoked_addresses W_init_B (finz.seq_between csp_b csp_e) ->
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
+    route_pre th b ->
 
     (
       assert_static b_assert e_assert a_flag
@@ -121,6 +124,8 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
+      ∗ MIE ↦ₜ[th] b
+      ∗ held (th := th) b
       ⊢ safe[th])%I.
   Proof.
     (* Outline of the proof:
@@ -147,7 +152,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
-               Hrevoked_stack_B Hrevoked_stack_C)
+               Hrevoked_stack_B Hrevoked_stack_C Hroute)
       "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -157,7 +162,7 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hstack_revoked_B & Hstack_revoked_C)".
+      & Hstack_revoked_B & Hstack_revoked_C & Hmie & Hheld)".
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
@@ -179,9 +184,9 @@ Section CMDC.
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_B_f $Hcode_main]"); first done.
-    iNext; iIntros (mie) "(HPC & Hctp & Hct1 & Hcra
-                    & Himport_switcher & Himport_B_f & Hcode_main)".
+              $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]"); [done|done|].
+    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+                    & Himport_switcher & Himport_B_f & Hcode_main & Hmie & Hheld)".
 
     (* Share b in the world of B *)
     iMod (cmdc_world_share _ _ _ (cgp_b ^+ 1) with
@@ -210,13 +215,13 @@ Section CMDC.
              "[- $Hthread_B $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
-              $Hinterp_B_f $HentryB_f $HK]").
+              $Hinterp_B_f $HentryB_f $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.
@@ -226,14 +231,14 @@ Section CMDC.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap.
-    iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1)
+    iIntros (W_ret_B rmap stk_mem l rcgp rcra rcs0 rcs1 m)
       "( _ & _ & _ & %Hrelated_pub_B & _ & %Hrmap_dom & _ & _
       & Hna & %Hcsp_bounds
       & Hworld_interp_B
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK & %Hrestored)".
+      & Hrmap & Hcsp_stk & HK & %Hrestored & %Hroute_B & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
@@ -254,9 +259,9 @@ Section CMDC.
     (* Blocks 3-4: assert that c is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_B with
              "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
-              $Hcgp_c $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
+              $Hcgp_c $Himport_assert $Hcode_main $Hmie $Hheld]"); [done|solve_addr|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-                    & Hcgp_c & Himport_assert & Hcode_main)".
+                    & Hcgp_c & Himport_assert & Hcode_main & Hmie & Hheld)".
 
     (* Block 5: overwrite b and prepare the argument c *)
     iApply (cmdc_prep_blocks_4_spec with
@@ -268,9 +273,9 @@ Section CMDC.
     (* Blocks 6-8: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_C_g $Hcode_main]"); first done.
-    iNext; iIntros (mie') "(HPC & Hctp & Hct1 & Hcra
-                    & Himport_switcher & Himport_C_g & Hcode_main)".
+              $Himport_switcher $Himport_C_g $Hcode_main $Hmie $Hheld]"); [done|done|].
+    iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
+                    & Himport_switcher & Himport_C_g & Hcode_main & Hmie & Hheld)".
 
     iDestruct (stk_start_region_join with "Hcsp_stk Hstk_res") as "Hcsp_stk";
       first exact Hstk_res_size.
@@ -299,13 +304,13 @@ Section CMDC.
              "[- $Hthread_C $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hcsp_stk $Hworld_interp_C $Hstack_revoked_C $Hcstk_frag
-              $Hinterp_C_g $HentryC_g $HK]").
+              $Hinterp_C_g $HentryC_g $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { destruct mie'; reflexivity. }
+    { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.
@@ -315,11 +320,11 @@ Section CMDC.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' rmap stk_mem.
-    iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1)
+    iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1 m')
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
       & Hna & _ & _ & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & _ & _ & _ & _
-      & Hrmap & _ & _ & %Hrestored)".
+      & Hrmap & _ & _ & %Hrestored & %Hroute_C & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
@@ -335,13 +340,13 @@ Section CMDC.
     (* Blocks 8-9: assert that b is unchanged *)
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
              "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
-              $Hcgp_b $Himport_assert $Hcode_main]"); [done|solve_addr|done|].
-    iNext; iIntros "(HPC & _ & Hct0 & _ & Hct2 & _ & Hcra & _ & _ & Hcode_main)".
+              $Hcgp_b $Himport_assert $Hcode_main $Hmie $Hheld]"); [done|solve_addr|done|done|].
+    iNext; iIntros "(HPC & _ & Hct0 & _ & Hct2 & _ & Hcra & _ & _ & Hcode_main & Hmie & Hheld)".
 
     (* Block 10: return, the thread exits *)
     iApply (cmdc_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main]"); [done | done].
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 
   Lemma cmdc_spec_full
@@ -363,6 +368,8 @@ Section CMDC.
     (w_main_tbl : LWord)
 
     (csp_content : list LWord)
+    (* The posture of the thread *)
+    (b : InterruptStatus)
     :
 
     let imports := cmdc_main_imports B_f C_g in
@@ -393,6 +400,7 @@ Section CMDC.
 
     revoked_addresses W_init_B (finz.seq_between csp_b csp_e) ->
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
+    route_pre th b ->
 
     (
       assert_static b_assert e_assert a_flag
@@ -431,6 +439,8 @@ Section CMDC.
       (* initial stack are revoked in both worlds *)
       ∗ StackRevokedResources W_init_B B (finz.seq_between csp_b csp_e)
       ∗ StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e)
+      ∗ MIE ↦ₜ[th] b
+      ∗ held (th := th) b
       ⊢ WP Exec @[th] {{ λ v, True }})%I.
   Proof.
     intros imports; subst imports.
@@ -438,7 +448,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
-               Hrevoked_stack_B Hrevoked_stack_C)
+               Hrevoked_stack_B Hrevoked_stack_C Hroute)
       "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -448,12 +458,12 @@ Section CMDC.
       & Hcstk_frag
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
-      & Hstack_revoked_B & Hstack_revoked_C)".
+      & Hstack_revoked_B & Hstack_revoked_C & Hmie & Hheld)".
     iApply (wp_wand with "[-]").
     { iApply (cmdc_spec
                 pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e rmap
                 B_f C_g W_init_B W_init_C
-               Ws Cs w_main_tbl csp_content); eauto; iFrame "#∗".
+               Ws Cs w_main_tbl csp_content b); eauto; iFrame "#∗".
     }
     by iIntros (v) "?".
   Qed.

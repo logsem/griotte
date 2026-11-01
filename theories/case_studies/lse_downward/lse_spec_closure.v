@@ -112,10 +112,10 @@ Section LSE.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
-      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
     iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & _ & _)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /registers_pointsto.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_size; solve_addr).
@@ -149,9 +149,10 @@ Section LSE.
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
-              $Himport_assert $Hcode_main]"); [done|exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
+              $Himport_assert $Hcode_main $Hmie $Hheld]");
+      [done|exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)|done|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
-                    & _ & _)".
+                    & _ & _ & Hmie & Hheld)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iMod ("Hlse_code_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hct1";"Hct0";"Hcs1";"Hcs0";"Hcgp";"Hcra"].
@@ -160,7 +161,7 @@ Section LSE.
     iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     iApply (switcher_ret_specification W0 (revoke W0) with
              "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
-              $Hrmap $Hca0 $Hca1 $Hcsp]"); auto.
+              $Hrmap $Hca0 $Hca1 $Hcsp $Hmie]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
     { destruct Hextract; auto. }
     { intros a; destruct Hextract as [_ Htemp]; destruct (Htemp a); auto. }

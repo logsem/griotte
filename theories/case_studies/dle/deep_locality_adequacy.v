@@ -107,6 +107,7 @@ Section dle_obligations.
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
+                        $HMIE $Hheld
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
@@ -123,6 +124,7 @@ Section dle_obligations.
     }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }
+    { by rewrite /route_pre. }
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.

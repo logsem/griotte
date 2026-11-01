@@ -197,7 +197,8 @@ Section SO_World_Object.
     {sealsg : sealStoreG Σ} {CNames : gset CmptName}
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
-    `{MP : MachineParameters}.
+    `{MP : MachineParameters}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
 
   (** The revoked Temporary keys whose cells are held, outside the open
       keys [s] of [W1]: the capability reaches them through their local

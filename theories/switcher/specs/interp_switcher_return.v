@@ -91,14 +91,15 @@ Section fundamental.
 
    *)
 
-  (** The return routine, from its entry point: from a full register file
-      whose return values [ca0] and [ca1] are safe, the switcher pops the
-      caller's frame and returns to it, or exits the thread when the frame to
-      pop is the entry frame. No other register is read. *)
+  (** The return routine, from its entry point, at either posture [b]: from
+      a full register file whose return values [ca0] and [ca1] are safe, the
+      switcher pops the caller's frame and returns to it, at the posture its
+      return sentry restores, or exits the thread when the frame to pop is
+      the entry frame. No other register is read. *)
   Lemma switcher_return_unwind (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (rmap : LReg) (wca0 wca1 : LWord) :
+    (rmap : LReg) (wca0 wca1 : LWord) (b : InterruptStatus) :
     (∀ r, is_Some (rmap !! r)) ->
     rmap !! ca0 = Some wca0 ->
     rmap !! ca1 = Some wca1 ->
@@ -115,7 +116,9 @@ Section fundamental.
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    ◯(CSTK)[th] cstk
+    ◯(CSTK)[th] cstk ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     (* Outline of the proof:
@@ -133,7 +136,7 @@ Section fundamental.
          [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
       "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hthread & #Hinv_switcher & #[Hcode _] & #Htrap
-        & Hworld_interp & Hcont_K & Hna & Hcstk)".
+        & Hworld_interp & Hcont_K & Hna & Hcstk & Hmie & Hheld)".
     iDestruct (ret_regs_extract_full with "Hrmap")
       as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
           & %rmap0 & %Hrmap0 & Hrmap)"; [done|done|done|].
@@ -142,8 +145,10 @@ Section fundamental.
     iMod (na_inv_acc with "Hinv_switcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
-    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
-      first done.
+    iAssert switcher_hazard with "[Hhazard_cell Hhazard_slots]" as "Hhazard".
+    { rewrite /switcher_hazard. iFrame "Hhazard_cell Hhazard_slots". }
+    (* Only a user thread has a trusted stack: it may run at any posture *)
+    assert (∀ b', route_pre th b') as Hpre by (intros b' Hcs; by destruct Huser).
     iHide "Hclose_switcher_inv" as hclose_switcher_inv.
     iHide "Hinv_switcher" as hinv_switcher.
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
@@ -151,15 +156,15 @@ Section fundamental.
     iEval (rewrite switcher_return_block_13) in "HPC".
     destruct cstk as [ef [|frm frms] ].
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
-      iApply (switcher_return_exit_path_spec with
-        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hhazard $Hcode
-          Hna Hclose_switcher_inv Hsave_area HthreadID Htstk Hcstk_full Hstk_interp]");
-        first done.
-      iIntros "!> (Hmtdc & Hframeoffset & Hhazard)".
+      iApply (switcher_return_exit_path_spec _ _ _ b with
+        "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hhazard $Hcode $Hmie $Hheld
+          Hna Hclose_switcher_inv HthreadID Htstk Hcstk_full Hstk_interp]");
+        [done | apply Hpre |].
+      iIntros "!> (Hmtdc & Hframeoffset & Hhazard & _ & _)".
       subst hclose_switcher_inv.
       iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
-              Hcstk_full Hstk_interp") as "Hna"; [done|done|].
+             "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
+              Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
       iModIntro; iIntros (_); iExact "Hna".
     }
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
@@ -196,9 +201,10 @@ Section fundamental.
 
     (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
-      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode]");
-      [done|done|done|done|done|done|].
+    iApply (switcher_return_path_world_spec W W C ccrel (length frms) _ _ _ _ _ _ _ _ _ _ b with
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode
+        $Hmie $Hheld]");
+      [done|done|done|done|done|done|apply Hpre|].
     iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)
@@ -251,13 +257,13 @@ Section fundamental.
        invariant, after the jump or the exception entry *)
     iAssert (|={⊤}=> na_own (tpool th) ⊤ ∗
                      cstack_frag {| cstk_entry := ef; cstk_frames := frms |})%I
-      with "[Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
+      with "[Hna Hmtdc Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".
     { subst hclose_switcher_inv.
       iApply (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
+             "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next");
-        [done|done|done]. }
+        [done|done|done|done]. }
 
     set (lv' := region_addrs_zeroes b_stk s).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
@@ -280,16 +286,20 @@ Section fundamental.
         destruct (Hret_ok Hccrel) as [Hret_jalr Hret_heap].
         apply load_heap_nonheap in Hr2; last done.
         subst rstk2; congruence. }
-      iIntros "[HPC _]".
+      iIntros "(HPC & Hmie & Hheld & _)".
       iMod "Hupd" as "[Hna Hcstk_frag]".
       iSpecialize ("Htopmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Htopmost_frm".
       stk_unfold.
+      (* The caller resumes at the posture of its return sentry, from [b] *)
+      iSpecialize ("Htopmost_frm" $! _ _ _ _ _ _ _ _ _ b).
       iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread]");
+      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread
+      $Hmie $Hheld]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
+      iSplit; last (iPureIntro; apply Hpre).
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
     - (* Case where caller is untrusted, we close the world and jump to the
@@ -326,10 +336,10 @@ Section fundamental.
       (* The untrusted caller recorded that its topmost compartment is
          untrusted *)
       iDestruct "Htopmost_frm" as "#Htop_caller".
-      iApply (switcher_jump_to_caller_cases_spec with
+      iApply (switcher_jump_to_caller_cases_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ b with
                "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 Htop_caller Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
-                Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|].
+                Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|apply Hpre|apply Hpre|].
       iMod "Hupd" as "[Hna Hcstk_frag]".
       by iFrame.
   Qed.

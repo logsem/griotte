@@ -26,6 +26,7 @@ Section KVS_spec_addOrUpdate_safe.
     (Wca W : WORLD) (C : CmptName)
     (wret wca0 wca1 wca2 : LWord)
     (F : coPset)
+    (mie : InterruptStatus)
     :
 
     is_shadow_address (KVS_pcc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
@@ -35,6 +36,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     related_sts_priv_world Wca W ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
       kvs_otype_registry ∗
@@ -47,6 +49,8 @@ Section KVS_spec_addOrUpdate_safe.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] wca0 ∗ interp Wca C wca0 ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ interp Wca C wca2 ∗ (* New value *)
@@ -60,6 +64,8 @@ Section KVS_spec_addOrUpdate_safe.
            PC ↦ₚ[th] lupdatePcPerm wret ∗
            cgp ↦ᵣ[th] - ∗
            cra ↦ᵣ[th] - ∗
+           MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+           held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
            (ca0 ↦ᵣ[th] WInt ASM_TRUE ∨ ca0 ↦ᵣ[th] WInt ASM_FALSE) ∗
            ca1 ↦ᵣ[th] WInt 0 ∗
            ca2 ↦ᵣ[th] - ∗
@@ -76,6 +82,8 @@ Section KVS_spec_addOrUpdate_safe.
             na_own (tpool th) F ∗
             cgp ↦ᵣ[th] - ∗
             cra ↦ᵣ[th] - ∗
+            MIE ↦ₜ[th] mie ∗
+            held (th := th) mie ∗
             ca0 ↦ᵣ[th] - ∗
             ca1 ↦ᵣ[th] - ∗
             ca2 ↦ᵣ[th] - ∗
@@ -87,8 +95,9 @@ Section KVS_spec_addOrUpdate_safe.
               (HO th) ) )
       ⊢ safe[th])%I.
   Proof.
-    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt)
-      "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hca0 & #Hinterp_wca0
+    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt Hroute)
+      "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra &
+        Hmie & Hheld & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -96,9 +105,9 @@ Section KVS_spec_addOrUpdate_safe.
     { (* the map key argument is not a uint16 *)
       iDestruct "Hpost" as "[Hpost _]".
       iApply (KVS_addOrUpdate_spec_not_uint16_map_key with
-               "[- $Hkvs_static $Hkvs_inv $Hna $HPC $Hcra $Hca0 $Hca1 $Hct1]");
-        [exact Hnkvs_E | exact Hwca1_uint16 | exact Htgt |].
-      iNext; iIntros "(Hna & HPC & Hcra & Hca0 & Hca1 & Hct1)".
+               "[- $Hkvs_static $Hkvs_inv $Hna $HPC $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hct1]");
+        [exact Hnkvs_E | exact Hwca1_uint16 | exact Htgt | exact Hroute |].
+      iNext; iIntros "(Hna & HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hct1)".
       iApply "Hpost"; iFrame.
     }
     destruct wca1 as [ [nkey| | | ] πnkey]; cbn in Hwca1_uint16; try done.
@@ -107,7 +116,7 @@ Section KVS_spec_addOrUpdate_safe.
     destruct (get_tag wca0.(lw)) eqn:Hwca0_tag; cycle 1.
     { iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
                with "[$Hkvs_static $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
-                      Hworld Hpost Hca2]");
+                      Hworld Hpost Hca2 Hmie Hheld]");
         [exact Hunsealing_shadow | exact Hwca1_uint16
         | right; exact Hwca0_tag |].
       iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
@@ -119,7 +128,7 @@ Section KVS_spec_addOrUpdate_safe.
     { (* the user key argument is not a valid sealed user key *)
       iApply (KVS_addOrUpdate_spec_invalid_sealed_user_key
                with "[$Hkvs_static $Hna $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hct1 $Hct2 $Hctp
-                      Hworld Hpost Hca2]");
+                      Hworld Hpost Hca2 Hmie Hheld]");
         [exact Hunsealing_shadow | exact Hwca1_uint16
         | left; exact Hwca0_sealed_with_kvs_ot |].
       iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hct1 & Hct2 & Hctp)".
@@ -142,7 +151,7 @@ Section KVS_spec_addOrUpdate_safe.
     - iApply KVS_update_spec; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
       iIntros "(Hna
-                & HPC & Hgcp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+                & HPC & Hgcp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                 & Ha & HLUKVS & Hnkey)".
 
       iAssert (interp_in_mem_gC (C, lstore_word RW wca2)) as "Hw_interp".
@@ -157,7 +166,7 @@ Section KVS_spec_addOrUpdate_safe.
     - iApply KVS_add_spec; last iFrame "∗#"; try solve_ndisj; eauto.
       iNext.
       iIntros "(Hna
-                & HPC & Hgcp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+                & HPC & Hgcp & Hcra & Hmie & Hheld & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                 & Ha
                 & HLUKVS & Hrest)".
 
@@ -252,14 +261,14 @@ Section KVS_spec_addOrUpdate_safe.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
-      & Hworld_C & _ & %Hsync_csp & _ & Hcstk & Hna)".
+      & Hworld_C & _ & %Hsync_csp & _ & Hcstk & Hna & %Hroute & Hmie & Hheld)".
     iEval (rewrite world_resources_exclusive) in "Hworld_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hkvs_exp_eh Hkvs_exp_ehs".
       iPureIntro. by apply tf_export_tbl_ok_nonzero. }
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & Hinterp_rmap & Hzeroed_rmap)".
     rewrite /stk_start_a in Hcsp |- *.
     rewrite /registers_pointsto.
 
@@ -303,15 +312,18 @@ Section KVS_spec_addOrUpdate_safe.
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
 
     iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) C
-              (Sentry (ret_kind mie_ret) XSRW_ Local b_switcher e_switcher a_switcher_return)
-              wca0 wca1 wca2 ⊤ Hunsealing_shadow
+              (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher
+                a_switcher_return)
+              wca0 wca1 wca2 ⊤ InterruptEnabled Hunsealing_shadow
              with "[$Hspred $Hreg $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
+               $Hmie $Hheld
                     $Hca0 $Hinterp_wca0 $Hca1 $Hca2 $Hinterp_wca2 $Hctp $Hct1 $Hct2 $Hworld_C
                     Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
       [solve_ndisj | solve_ndisj | solve_ndisj | exact Hrelared_priv_W0_W1
-      | apply jalr_target_ok_switcher_return_sentry |].
+      | apply jalr_target_ok_switcher_return_sentry | exact Hroute |].
     iSplit.
-    - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+    - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 &
+      Hct2 & Hworld_C)".
       iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
       { iDestruct "Hca0" as "[$|$]". }
       iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
@@ -330,7 +342,7 @@ Section KVS_spec_addOrUpdate_safe.
       iApply (switcher_ret_specification W0 (revoke W0)
                with
                "[ $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
-               $Hrmap $Hca0 $Hca1 $Hcsp]"
+               $Hrmap $Hca0 $Hca1 $Hcsp $Hmie]"
              ); last iFrame "∗#".
       { exact Hrelated_pub_W0_Wfixed. }
       { apply lregmap_full_dom in Hrmap_init.
@@ -343,7 +355,8 @@ Section KVS_spec_addOrUpdate_safe.
       { intros a Ha; apply Htemps; done. }
       { iSplit; iApply interp_int. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
-      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp &
+        Hct1 & Hct2 & Hworld_C)".
       iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".
@@ -359,7 +372,7 @@ Section KVS_spec_addOrUpdate_safe.
       map_simpl "Hrmap".
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l stk_mem cstk Ws Cs _
                with "Hthread Hinv_switcher Hswitcher_static Hno_handler [-]");
-        last (iModIntro; iFrame).
+        last (iModIntro; iFrame "∗ %").
       { exact Hrelated_pub_W0_Wfixed. }
       { apply lregmap_full_dom in Hrmap_init.
         repeat (rewrite dom_insert_L).

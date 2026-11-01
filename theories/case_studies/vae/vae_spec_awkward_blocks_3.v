@@ -25,12 +25,13 @@ Section VAE_Awkward_Blocks_3.
   Lemma vae_awkward_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive)
-    (wret wcra wca0 wca1 wct0 wct1 wct2 wca2 : LWord) :
+    (wret wcra wca0 wca1 wct0 wct1 wct2 wca2 : LWord) (mie : InterruptStatus) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     loc W !! i = Some (encode true) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     assert_static b_assert e_assert a_flag ∗
@@ -46,6 +47,8 @@ Section VAE_Awkward_Blocks_3.
     ca2 ↦ᵣ[th] wca2 ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a vae_main_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ (world_interp W C ∗
         PC ↦ₚ[th] lupdatePcPerm wret ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
@@ -58,15 +61,17 @@ Section VAE_Awkward_Blocks_3.
         ct2 ↦ᵣ[th] WInt 0 ∗
         ca2 ↦ᵣ[th] WInt 0 ∗
         (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
-        codefrag_pers pc_a vae_main_code
+        codefrag_pers pc_a vae_main_code ∗
+        MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+        held (th := th) (default mie (jalr_target_mie wret.(lw)))
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hloc Htgt)
+               Hcgp_shadow Hloc Htgt Hroute)
       "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
       & Hct0 & Hct1 & Hct2 & Hca2
-      & Himport_assert & Hcode_main & Hpost)".
+      & Himport_assert & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
     rewrite /assert_entry.
@@ -97,11 +102,11 @@ Section VAE_Awkward_Blocks_3.
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
-              $Hcode $Himport_assert]"); auto; try (by intros ?).
+              $Hcode $Himport_assert $Hmie $Hheld]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
-                    & _ & Himport_assert)".
+                    & Hmie & Hheld & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 11: restore the return address, clear the return values, and

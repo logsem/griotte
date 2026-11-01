@@ -10,6 +10,7 @@ From griotte.allocators.common Require Export allocator_common_macros_spec.
 Section AllocatorLayoutFacts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_code_free :
     (allocator_code_b + length allocator_malloc_instrs)%a = Some allocator_free_pcc_addr.
@@ -82,6 +83,7 @@ Section AllocatorOwnerMacro.
     {MP : MachineParameters}
     {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}
   .
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   Definition allocator_unsealing_key : Word :=
     SealRange (false, true) Global AllocOtype (AllocOtype ^+ 1) AllocOtype.

@@ -12,7 +12,7 @@ From griotte Require Export clear_registers.
 Section ClearRegistersMacro.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}

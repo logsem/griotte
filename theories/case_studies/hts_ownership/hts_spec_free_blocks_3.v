@@ -20,7 +20,7 @@ Section HTS_Reload.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    `{MP: MachineParameters}.
+    `{MP: MachineParameters} {CL : CritLink Σ th}.
 
   Definition hts_reload_buffer_instrs : list Word :=
     hts_main_instrs_n 10.
@@ -123,7 +123,8 @@ Section HTS_Spec_Free.
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
       & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & Howner & #Hobj & Hright)".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
+      & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -280,7 +281,8 @@ Section HTS_Spec_Free.
          (delete ct1 (delete ct0 rmap))))))).
     iPoseProof (hts_free_known_function
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
+        ".Lhts_free_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) b (b ^+ 1) b
       free_arg cstk RW Global ι
       [lword_of_word (Cap RW Global cgp_b cgp_e cgp_b)]
@@ -307,7 +309,8 @@ Section HTS_Spec_Free.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
+        ".Lhts_free_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) stk free_arg
       free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤
@@ -317,7 +320,7 @@ Section HTS_Spec_Free.
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-        $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun]").
+        $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun $Hmie $Hheld]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { stk_unfold; solve_addr. }
@@ -328,7 +331,6 @@ Section HTS_Spec_Free.
     { exact hts_export_tbl_disjoint_from_shadow. }
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
-    { solve_ndisj. }
     { solve_ndisj. }
     { rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { solve_addr. }
@@ -344,7 +346,7 @@ Section HTS_Spec_Free.
     { rewrite /allocator_free_min_stack; stk_unfold; solve_addr+Hstk_min. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct mie_ret; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iFrame "Hobj Hright Hfree_mem Howner Howner_word".
@@ -363,6 +365,7 @@ Section HTS_Spec_Free.
              Hpc_nonheap /=. reflexivity. }
       subst rcgp rcra rcs0.
       iEval (cbn) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iEval (rewrite /hts_free_result /allocator_free_result) in "HQ".
       iDestruct "HQ" as
         "(#Hquar & _ & Howner_word & %Hfree_values)".
@@ -378,10 +381,11 @@ Section HTS_Spec_Free.
       apply load_heap_nonheap in Hs0_free; [|exact thread_return_sentry_not_heap].
       subst rcra rcs0.
       iEval (cbn) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iApply "Hcontinue".
       iLeft. iExists _.
       iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
-      iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
-      iPureIntro; split; [rewrite /ENOTENOUGHTRUSTEDSTACK; lia | exact Hframes].
+      iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main Hmie Hheld".
+      iPureIntro; split_and!; [rewrite /ENOTENOUGHTRUSTEDSTACK; lia | exact Hroute | exact Hframes].
   Qed.
 End HTS_Spec_Free.

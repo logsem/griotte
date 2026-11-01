@@ -29,7 +29,8 @@ Section Switcher_error_handler.
       and [R_unwind_stk], the part of the callee's stack that the fault site
       holds and gives back to the unwind (the [ErrorState] slot for a
       stackful handler, the whole stack for a known callee, [True] when
-      nothing is lent). *)
+      nothing is lent). The unwind runs with interrupts disabled, with the
+      whole posture of the thread. *)
   Definition unwind_cont (F : coPset) (cstk : CSTK) (R_unwind_stk : iProp Σ) : iProp Σ :=
     ∀ (n : Z) (rmap : LReg),
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
@@ -40,13 +41,15 @@ Section Switcher_error_handler.
       ◯(CSTK)[th] (cstack_set_top_count cstk n) -∗
       R_unwind_stk -∗
       na_own (tpool th) F -∗
+      MIE ↦ₜ[th] InterruptDisabled -∗
+      held (th := th) InterruptDisabled -∗
       safe[th].
 
   Lemma unwind_cont_give (F : coPset) (cstk : CSTK) (R_unwind_stk : iProp Σ) :
     R_unwind_stk -∗ unwind_cont F cstk R_unwind_stk -∗ unwind_cont F cstk True.
   Proof.
-    iIntros "HS HU" (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna".
-    iApply ("HU" with "[//] [//] [//] HPC Hrmap Hcstk HS Hna").
+    iIntros "HS HU" (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna Hmie Hheld".
+    iApply ("HU" with "[//] [//] [//] HPC Hrmap Hcstk HS Hna Hmie Hheld").
   Qed.
 
   Lemma unwind_cont_weaken (F : coPset) (cstk : CSTK) (R_unwind_stk R_unwind_stk' : iProp Σ) :
@@ -54,8 +57,9 @@ Section Switcher_error_handler.
     unwind_cont F cstk R_unwind_stk -∗
     unwind_cont F cstk R_unwind_stk'.
   Proof.
-    iIntros "HSS HU" (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk HS Hna".
-    iApply ("HU" with "[//] [//] [//] HPC Hrmap Hcstk [HSS HS] Hna"). by iApply "HSS".
+    iIntros "HSS HU" (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk HS Hna Hmie Hheld".
+    iApply ("HU" with "[//] [//] [//] HPC Hrmap Hcstk [HSS HS] Hna Hmie Hheld").
+    by iApply "HSS".
   Qed.
 
   (** [unwind_cont] ignores the count of the topmost frame. *)
@@ -419,7 +423,7 @@ Section Switcher_error_handler.
   Definition handler_invocation_regs (kind : handler_kind) (cstk : CSTK) (wcgp : LWord)
     (rfault : LReg) (mcause mtval : Z) (regs : LReg) : Prop :=
     (∀ r, is_Some (regs !! r)) ∧
-    (∃ mie, regs !! cra = Some (handler_return_sentry mie)) ∧
+    regs !! cra = Some (handler_return_sentry InterruptEnabled) ∧
     regs !! cgp = Some wcgp ∧
     match kind with
     | Stackful =>
@@ -528,7 +532,7 @@ Section Switcher_error_handler.
 
   (** The switcher's resources at a token [F]. *)
   Definition switcher_res (F : coPset) : iProp Σ :=
-    ⌜↑Ntstack ⊆ F ∧ ↑Ntrap ⊆ F⌝ ∗
+    ⌜↑Ntstack ⊆ F⌝ ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static.
 
@@ -544,7 +548,9 @@ Section Switcher_error_handler.
       fact that the stackful handler runs) or [P_fault] at the cause and the
       value. A stackless handler
       also knows that the stackful handler does not run. It does not
-      mention the trap vector. *)
+      mention the trap vector. A handler starts with interrupts enabled:
+      the posture of the thread is in its link, and the return sentry in
+      [cra] enables them again. *)
   Definition execute_error_handler (b_tbl : Addr) (wpcc wcgp : LWord) (off : Z)
     (kind : handler_kind) (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ)
     : iProp Σ :=
@@ -564,6 +570,8 @@ Section Switcher_error_handler.
            P_fault F cstk w rfault mcause mtval) -∗
           ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
           na_own (tpool th) F -∗
+          ⌜route_pre th InterruptEnabled⌝ -∗
+          MIE ↦ₜ[th] InterruptEnabled -∗
           safe[th] ).
 
   #[global] Instance execute_error_handler_persistent b_tbl wpcc wcgp off kind P_fault :

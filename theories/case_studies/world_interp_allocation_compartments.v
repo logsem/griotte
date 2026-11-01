@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Export world_interp sts_multiple_updates.
 From griotte Require Import logrel monotone interp_weakening.
 From griotte Require Import compartment_layout mkregion_helpers disjoint_regions_tactics.
-From griotte Require Import switcher.
+From griotte Require Import switcher_link.
 From griotte Require Import world_ghost_theory world_interp_allocation.
 From griotte Require Import stdpp_extra.
 

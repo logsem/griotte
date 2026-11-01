@@ -22,9 +22,10 @@ Section SO_Run_Blocks_1.
 
   Lemma so_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wcs0 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) (mie : InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
+    route_pre th mie ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -33,7 +34,9 @@ Section SO_Run_Blocks_1.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ[th] wcra ∗
@@ -41,13 +44,15 @@ Section SO_Run_Blocks_1.
           (pc_a ^+ so_label_offset ".Lso_run_return")%a ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
-        codefrag_pers pc_a so_main_code
+        codefrag_pers pc_a so_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap Hroute)
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & Himport_switcher & Himport_C_f
-      & Hcode_main & Hpost)".
+      & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
     rewrite /switcher_entry_call.

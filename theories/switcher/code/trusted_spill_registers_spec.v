@@ -12,7 +12,7 @@ From griotte Require Export switcher.
 
 Section TrustedSpillRegisters.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     `{MP: MachineParameters}.
 
   (** The cells of the registers [regs] in the register save area at [a],

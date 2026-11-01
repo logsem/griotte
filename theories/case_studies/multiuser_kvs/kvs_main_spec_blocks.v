@@ -200,7 +200,10 @@ Section KVS_Main_Blocks.
     ∗ ⌜revoked_addresses W (stk_free b_stk e_stk a_stk)⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1,
+    ∗ MIE ↦ₜ[th] InterruptDisabled
+    ∗ held (th := th) InterruptDisabled
+    ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1
+           (m : InterruptStatus),
         ⌜extract_temporaries_condition
           W2 (l' ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk))⌝
         ∗ RevokedResources W2 C l'
@@ -230,6 +233,9 @@ Section KVS_Main_Blocks.
         ∗ interp_continuation cstk Ws Cs
         ∗ ⌜load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
              load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1⌝
+        ∗ ⌜route_pre th (default m (jalr_target_mie rcra.(lw)))⌝
+        ∗ MIE ↦ₜ[th] default m (jalr_target_mie rcra.(lw))
+        ∗ held (th := th) (default m (jalr_target_mie rcra.(lw)))
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
@@ -238,7 +244,7 @@ Section KVS_Main_Blocks.
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
        & Hrmap & Hstk & Hworld & Hrevoked & %Hrevoked
-       & Hcstk & HK & Hpost)".
+       & Hcstk & HK & Hmie & Hheld & Hpost)".
     iPoseProof (kvs_main_adversary_arg_rmap_resources W C with
       "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
     iApply (switcher_cc_specification W C wcgp wcra wcs0 wcs1
@@ -246,7 +252,7 @@ Section KVS_Main_Blocks.
       rmap cstk Ws Cs 0 with
       "[$Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
        $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
-       $Htarget Hargs Hpost]");
+       $Htarget $Hmie $Hheld Hargs Hpost]");
       [exact Hstk_shadow | exact Hstk_heap | exact Hb_a | exact Hrmap
       | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap |].
     iSplitR; first iExact "Hentry".
@@ -263,9 +269,11 @@ Section KVS_Main_Blocks.
   (** Block 15: return through the switcher's return sentry, saved in
       [cs0]: the thread exits. *)
   Lemma kvs_return_spec
-    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord)
+    (b : InterruptStatus) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
     cstk.(cstk_frames) = [] ->
+    route_pre th b ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
@@ -276,12 +284,14 @@ Section KVS_Main_Blocks.
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
-    codefrag_pers pc_a kvs_main_code
+    codefrag_pers pc_a kvs_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros (HsubBounds Hframes)
+    iIntros (HsubBounds Hframes Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & Hcode_main)".
+        & Hcstk & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code kvs_main_code "Hcode_main".
     focus_block 15 "Hcode_main" of kvs_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
@@ -290,15 +300,15 @@ Section KVS_Main_Blocks.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
   Qed.
 
   Lemma kvs_main_add_phase_spec
       (pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e : Addr)
       (rmap : LReg) (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert : Addr) (B_f : Sealable)
-      (stk_mem : list LWord) (cstk : CSTK) :
+      (stk_mem : list LWord) (cstk : CSTK) (mie : InterruptStatus) :
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -315,6 +325,7 @@ Section KVS_Main_Blocks.
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
+    route_pre th mie ->
     na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
@@ -342,6 +353,8 @@ Section KVS_Main_Blocks.
     ∗ (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥
     ∗ [[csp_b, stk_start_a csp_b csp_e]] ↦ₐ [[stk_mem]]
     ∗ ◯(CSTK)[th] cstk
+    ∗ MIE ↦ₜ[th] mie
+    ∗ held (th := th) mie
     ∗ ▷ (∀ (rmap_ret : LReg),
         ⌜dom rmap_ret =
           all_registers_s ∖ {[ csp; cgp; cra; cs0; cs1; ca0; ca1]}⌝
@@ -367,6 +380,8 @@ Section KVS_Main_Blocks.
         ∗ (pc_b ^+ SEALED_USER_KEY_OFFSET) ↦ₐ□
             kvs_user_seal_key Global static_sealed_b
         ∗ codefrag_pers pc_a kvs_main_code
+        ∗ MIE ↦ₜ[th] mie
+        ∗ held (th := th) mie
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
@@ -374,7 +389,7 @@ Section KVS_Main_Blocks.
     subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow
                Hstatic_nonheap Hrmap_dom Hrmap_init Hframes HsubBounds Himports_contiguous
-               Hstatic_sealed_b)
+               Hstatic_sealed_b Hroute)
       "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
@@ -382,7 +397,7 @@ Section KVS_Main_Blocks.
        & #Himport_switcher & #Himport_kvs_addOrUpdate
        & #Himport_sealed_user_key & #Hcode_main
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
-       & Hstk & Hcstk_frag & Hpost)".
+       & Hstk & Hcstk_frag & Hmie & Hheld & Hpost)".
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     iExtractList "Hrmap" [ca0;ca1;ca2;ctp;ct0;ct1;cs0;cs1]
@@ -448,6 +463,7 @@ Section KVS_Main_Blocks.
     (* --------------------------------------------------- *)
     focus_block 4 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch2.
+    (* Jalr cra ctp *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -503,7 +519,7 @@ Section KVS_Main_Blocks.
              with
              "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-                 $Hstk $Hcstk_frag $HKVS_f
+                 $Hstk $Hcstk_frag $HKVS_f $Hmie $Hheld
                  Hstatic_sealed_b HLUKVS Hkvs_1 Hpost]").
     all: [> exact Hstk_heap | exact Hstk_shadow
       | apply stk_start_cursor_ok;
@@ -513,7 +529,7 @@ Section KVS_Main_Blocks.
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact kvs_exp_tbl_disjoint_from_shadow
-      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj | solve_ndisj
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
       | rewrite /kvs_addOrUpdate_exp_tbl_addr /kvs_addOrUpdate_exp_tbl_off /kvs_entry_addOrUpdate;
         solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
@@ -545,6 +561,7 @@ Section KVS_Main_Blocks.
       apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
       subst rcgp rcra rcs0 rcs1.
       iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
       iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp"; "Hct0"; "Hct2"].
       focus_block 5 "Hcode_main" as a_blk_4 Ha_blk_4 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
@@ -557,7 +574,7 @@ Section KVS_Main_Blocks.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply (kvs_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [done | done].
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
     apply load_heap_nonheap in Hgp;
@@ -570,6 +587,7 @@ Section KVS_Main_Blocks.
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iDestruct "HQ"
       as "(Hstatic_sealed_b & HLUKVS & %Hwca1_ret
            & [(%Hwca0_ret & Hkvs_1)
@@ -589,7 +607,7 @@ Section KVS_Main_Blocks.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply (kvs_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [done | done].
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
     }
     subst wca0_ret.
     (* Case where insert succeeded  *)
@@ -607,7 +625,7 @@ Section KVS_Main_Blocks.
     destruct ( decide (ca0 = cnull) ) as [|_] ; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply ("Hpost" $! rmap_ret).
-    iFrame "Hna Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk
+    iFrame "Hna Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hcstk Hmie Hheld
       Hstatic_sealed_b HLUKVS Hkvs_1 Himport_switcher
       Himport_kvs_addOrUpdate Himport_sealed_user_key Hcode_main".
     replace (pc_a ^+ length kvs_main_add_phase_instrs)
@@ -623,7 +641,7 @@ Section KVS_Main_Blocks.
       (rmap : LReg) (wca0 wca1 wcra : LWord)
       (KVS_USER_KEY_MAIN : Z)
       (b_assert e_assert a_flag : Addr)
-      (stk_mem : list LWord) (cstk : CSTK) :
+      (stk_mem : list LWord) (cstk : CSTK) (mie : InterruptStatus) :
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_shadow pc_b pc_e ->
     is_heap_address pc_b = false ->
@@ -640,6 +658,7 @@ Section KVS_Main_Blocks.
     (pc_b + kvs_main_label ".Lkvs_main")%a = Some pc_a ->
     withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
+    route_pre th mie ->
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
@@ -673,20 +692,22 @@ Section KVS_Main_Blocks.
     ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ□
         Sentry Inherit RX Global b_assert e_assert b_assert
     ∗ codefrag_pers pc_a kvs_main_code
+    ∗ MIE ↦ₜ[th] mie
+    ∗ held (th := th) mie
     ⊢ safe[th].
   Proof.
     intros a_kvs_exp_tbl_cgp.
     subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow
                Hstatic_nonheap Hdom_rmap Hframes HsubBounds Himports_contiguous
-               Hstatic_sealed_b)
+               Hstatic_sealed_b Hroute)
       "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & #Himport_switcher & #Himport_kvs_read & #Himport_assert
-       & #Hcode_main)".
+       & #Hcode_main & Hmie & Hheld)".
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
@@ -761,6 +782,7 @@ Section KVS_Main_Blocks.
     (* -------------------------------------------------- *)
     focus_block 12 "Hcode_main" as a_insert_kvs Ha_insert_kvs "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch2.
+    (* Jalr cra ctp *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -798,7 +820,7 @@ Section KVS_Main_Blocks.
              with
              "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-                 $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag $HKVS_f
+                 $Hrmap_arg_read $Hrmap $Hstk $Hcstk_frag $HKVS_f $Hmie $Hheld
                  Hstatic_sealed_b HLUKVS Hkvs_1]").
     all: [> exact Hstk_heap | exact Hstk_shadow
       | apply stk_start_cursor_ok;
@@ -808,7 +830,7 @@ Section KVS_Main_Blocks.
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | apply Hexport_shadow; solve_addr+Hkvs_exp_tbl_size
       | exact kvs_exp_tbl_disjoint_from_shadow
-      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj | solve_ndisj
+      | exact KVS_pcc_base_not_heap | exact KVS_cgp_base_not_heap | solve_ndisj
       | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
       | solve_addr+Hkvs_exp_tbl_size
       | rewrite /kvs_read_exp_tbl_addr /kvs_read_exp_tbl_off /kvs_entry_read; solve_addr+Hkvs_exp_tbl_size
@@ -841,6 +863,7 @@ Section KVS_Main_Blocks.
       apply load_heap_nonheap in Hrcs0; [|exact thread_return_sentry_not_heap].
       subst rcgp rcra rcs0 rcs1.
       iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
       iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp"; "Hct0"; "Hct2"].
       focus_block 13 "Hcode_main" as a_assert1 Ha_assert1 "Hcode" "Hcont"; iHide "Hcode_main" as hcode
@@ -853,7 +876,7 @@ Section KVS_Main_Blocks.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply (kvs_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [done | done].
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
     apply load_heap_nonheap in Hgp;
@@ -866,6 +889,7 @@ Section KVS_Main_Blocks.
           /is_heap_cap /heap_cap_base /memory_cap_base /= Hstatic_nonheap /=; reflexivity].
     subst rcgp rcra rcs0 rcs1.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iDestruct "HQ"
       as "(Hstatic_sealed_b & HLUKVS & Hkvs_1 & %Hwca0_ret & %Hwca1_ret)".
     subst wca0_ret wca1_ret.
@@ -895,11 +919,11 @@ Section KVS_Main_Blocks.
     ; clear dependent Ha_assert1.
     iApply (assert_success_spec ASSERT_OFFSET with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
-              $Hcode $Himport_assert]"); auto; try (by intros ?).
+              $Hcode $Himport_assert $Hmie $Hheld]"); auto; try (by intros ?).
     { kvs_main_fetch_offset. }
     { kvs_main_fetch_bounds. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
-                    & _ & _)".
+                    & Hmie & Hheld & _ & _)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* ---------------------------------------------------- *)
@@ -910,7 +934,7 @@ Section KVS_Main_Blocks.
     2: { kvs_main_fetch_offset. }
     iApply (kvs_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk $Hcode_main]"); [done | done].
+               $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 
 End KVS_Main_Blocks.

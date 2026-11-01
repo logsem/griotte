@@ -49,6 +49,8 @@ Section LSE.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
+    (* The posture of the thread *)
+    (b : InterruptStatus)
     :
 
     let imports := lse_main_imports C_f in
@@ -73,6 +75,7 @@ Section LSE.
 
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
+    route_pre th b ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -103,6 +106,8 @@ Section LSE.
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ MIE ↦ₜ[th] b
+      ∗ held (th := th) b
 
       ⊢ safe[th])%I.
   Proof.
@@ -119,6 +124,7 @@ Section LSE.
                Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
+               Hroute
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -134,6 +140,7 @@ Section LSE.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
+      & Hmie & Hheld
       )".
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
@@ -156,9 +163,10 @@ Section LSE.
        switcher *)
     iApply (lse_run_blocks_1_spec with
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b
-              $Himport_switcher $Himport_C_f $Hcode_main]"); [done|done|done|done|].
-    iNext; iIntros (mie) "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
-                    & _ & _ & _)".
+              $Himport_switcher $Himport_C_f $Hcode_main $Hmie $Hheld]");
+      [done|done|done|done|done|].
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
+                    & _ & _ & _ & Hmie & Hheld)".
     iMod ("Hlse_close" with "[$Hna $Hcgp_b]") as "Hna".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
@@ -181,13 +189,13 @@ Section LSE.
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]").
+              $Hinterp_W1_C_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.
@@ -197,13 +205,14 @@ Section LSE.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
-    iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1)
+    iIntros (W2 rmap' stk_mem l' rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & _ & _ & %Hrmap'_dom & _ & _
       & Hna & _
       & _
       & Hcstk_frag
       & HPC & Hrest)".
-    iDestruct "Hrest" as "(_ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored)".
+    iDestruct "Hrest"
+      as "(_ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
@@ -216,7 +225,7 @@ Section LSE.
     (* Block 3: return, the thread exits *)
     iApply (lse_run_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main]"); [done | done].
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 
 End LSE.

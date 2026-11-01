@@ -34,12 +34,14 @@ Section Callback_Path.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (** From [switcher_after_compartment_call], when the frame to pop is the
-      entry frame: the thread exits. *)
+  (** From [switcher_after_compartment_call], at the posture [mie], when
+      the frame to pop is the entry frame: the thread exits, at
+      InterruptDisabled. *)
   Lemma switcher_return_exit_path_spec
-    (E : coPset) (Φ : griotte_lang.val → iProp Σ) (rmap : LReg) :
+    (E : coPset) (Φ : griotte_lang.val → iProp Σ) (rmap : LReg) (mie : InterruptStatus) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     regs[th] rmap ∗
@@ -47,24 +49,29 @@ Section Callback_Path.
     a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
     switcher_hazard ∗
     switcher_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
-        switcher_hazard
+        switcher_hazard ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         ={E}=∗
         Φ HaltedV )
     ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
-    iIntros (Hdom) "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hpost)".
+    iIntros (Hdom Hpre)
+      "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hmie & Hheld & Hpost)".
     iDestruct (ret_regs_extract with "Hrmap")
       as "([%wctp Hctp] & [%wct0 Hct0] & _ & [%wct2 Hct2] & _)"; first done.
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hswitcher]").
     iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
-    iApply (common_defer_irqs_and_thread_exit_spec with
-      "[$HPC $Hswitcher Hpost Hmtdc Hframeoffset Hhazard]").
-    iIntros "!> _".
-    iApply ("Hpost" with "[$Hmtdc $Hframeoffset $Hhazard]").
+    iApply (common_defer_irqs_and_thread_exit_spec _ _ mie with
+      "[$HPC $Hswitcher $Hmie $Hheld Hpost Hmtdc Hframeoffset Hhazard]"); first done.
+    iIntros "!> (_ & Hmie & Hheld)".
+    iApply ("Hpost" with "[$Hmtdc $Hframeoffset $Hhazard $Hmie $Hheld]").
   Qed.
 
   (** From [switcher_after_compartment_call], with [S d] frames above the
@@ -78,7 +85,7 @@ Section Callback_Path.
   Lemma switcher_return_path_spec
     (d : nat) (a_tstk b e a : Addr) (stk_mem : list LWord)
     (wcs0' wcs1' wcgp' wcra' : LWord)
-    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
+    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) (mie : InterruptStatus) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
@@ -87,6 +94,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     csp ↦ᵣ[th] wcsp ∗
@@ -102,6 +110,8 @@ Section Callback_Path.
     ▷ switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
     [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
     switcher_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
         ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
           load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
@@ -119,17 +129,21 @@ Section Callback_Path.
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
         regs₀[th] rmap' -∗
         ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie rcra.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie rcra.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+          MIE ↦ₜ[th] mie -∗
+          held (th := th) mie -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hpre)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
-      & Hcells & Hstk & #Hswitcher & Hpost)".
+      & Hcells & Hstk & #Hswitcher & Hmie & Hheld & Hpost)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
     assert (is_heap_address b = false) as Hb_heap.
@@ -158,9 +172,9 @@ Section Callback_Path.
     iEval (rewrite Hspill_top) in "Hcsp".
     (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
-    iApply (switcher_zero_callee_frame_spec with
+    iApply (switcher_zero_callee_frame_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ mie with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher]"); [done|done|done|].
+        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
       "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap]").
@@ -175,7 +189,7 @@ Section Callback_Path.
   Lemma switcher_return_path_world_spec
     Wworld Wval C (ccrel : caller_callee_relation)
     (d : nat) (a_tstk b e a : Addr)
-    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) :
+    (wcsp wcgp wcra wcs0 wcs1 : LWord) (rmap : LReg) (mie : InterruptStatus) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     let a_csp := (a_tstk ^+ TrustedStackFrame_offset_csp) in
     (b_trusted_stack + tstack_frame_offset (S d))%a = Some a_tstk ->
@@ -184,6 +198,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     csp ↦ᵣ[th] wcsp ∗
@@ -197,6 +212,8 @@ Section Callback_Path.
     switcher_hazard ∗
     a_csp ↦ₐ Cap RWL Local b e (stk_saved_a a) ∗
     switcher_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset d) ∗
         switcher_hazard ∗
@@ -234,17 +251,21 @@ Section Callback_Path.
           regs₀[th] rmap' ∗
           £ 2 -∗
           ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
+            MIE ↦ₜ[th] default mie (jalr_target_mie rcra.(lw)) ∗
+            held (th := th) (default mie (jalr_target_mie rcra.(lw))) ∗
             £ 1 -∗
             safe[th] ) ∧
           ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
+            MIE ↦ₜ[th] mie -∗
+            held (th := th) mie -∗
             trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
               (HO th) ) ) )
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hpre)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
-      & #Hswitcher & Hmid)".
+      & #Hswitcher & Hmie & Hheld & Hmid)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
     revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
     assert (is_heap_address b = false) as Hb_heap.
@@ -277,9 +298,9 @@ Section Callback_Path.
     iEval (rewrite Hspill_top) in "Hcsp".
     (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
-    iApply (switcher_zero_callee_frame_spec with
+    iApply (switcher_zero_callee_frame_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ mie with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher]"); [done|done|done|].
+        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
       "[$Hworld $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap $Hlc]").

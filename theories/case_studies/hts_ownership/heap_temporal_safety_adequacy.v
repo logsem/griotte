@@ -283,7 +283,7 @@ Section hts_obligations.
                         $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_B $Hcstk
-                        $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B]")
+                        $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B $HMIE $Hheld]")
       as "Hspec"; eauto using fw_cleared_regs_dom.
     { eapply disjoint_from_shadow_not_in.
       - exact (cmpt_static_sealed_disjoint_from_shadow main_cmpt).
@@ -300,6 +300,7 @@ Section hts_obligations.
       - rewrite /= dom_empty_L; set_solver+.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
     { done. }
+    { by rewrite /route_pre. }
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.

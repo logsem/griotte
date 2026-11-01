@@ -30,8 +30,9 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -110,6 +111,58 @@ Section fundamental.
     : Prop :=
     ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i).
 
+  (** The post-state of an instruction step that may change the posture:
+      after [NextIV], the PC is safe to execute at the post-step posture
+      [m]; otherwise as [ftlr_post]. *)
+  Definition ftlr_post_at (m : InterruptStatus) (W : WORLD) (C : CmptName)
+      (v : griotte_lang.val) : iProp Σ :=
+    match v with
+    | NextIV =>
+        ∃ (regs : LReg) (pc : LWord),
+          ⌜∀ r, is_Some (regs !! r)⌝ ∗
+          PC ↦ₚ[th] pc ∗
+          regs[th] regs ∗
+          (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
+          interp_expr_at m interp interp_continuation W C pc
+    | _ => ftlr_post W C v
+    end.
+
+  (** A case of the fundamental theorem that sees the posture [m] of the
+      thread: the MIE fragment comes in at [m] and goes out at the
+      post-step posture [m']. *)
+  Definition ftlr_instr_at (m : InterruptStatus)
+    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
+    (p p' : Perm) (g : Locality) (b e a : Addr)
+    (w : LWord) (i: instr) (ρ : region_part) (P : V)
+    : Prop :=
+    validPCperm p g
+    → (∀ x : RegName, is_Some (regs !! x))
+    → isCorrectPC (Cap p g b e a)
+    → (b <= a)%a ∧ (a < e)%a
+    → PermFlowsTo p p'
+    → (persistent_cond P)
+    → decodeInstrW w.(lw) = i
+    -> ("#IH" ∷ ftlr_IH ∗
+        "#Hthread" ∷ thread_in th C ∗
+        "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
+        "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
+        "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
+        "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
+                       then ▷ (rcond_l P C p' interp)
+                       else emp) ∗
+        "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
+                       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
+                       else emp) ∗
+        "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
+        "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
+        "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
+        "Hmap" ∷ regs[th] regs ∗
+        "Hmie" ∷ MIE ↦ₜ[th] m ∗
+        "%Hpre" ∷ ⌜route_pre th m⌝)
+    -∗ WP Instr Executable @core[th]
+       {{ v, ▷ ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
+                        MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C v }}.
+
   (** The hand-off of a case, after the next instruction. *)
   Lemma ftlr_post_next W C (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
@@ -139,6 +192,74 @@ Section fundamental.
     by iApply (interp_reg_intro with "Hreg").
   Qed.
 
+  (** A thread that may run at InterruptEnabled is a user thread, so its
+      compartment has no context-switch thread. *)
+  Lemma route_pre_enabled_sep C :
+    route_pre th InterruptEnabled → th ∈ cmpt_threads C → CtxSwitch ∉ cmpt_threads C.
+  Proof.
+    intros Hpre Hin. destruct th as [n|]; first by eapply cmpt_threads_sep.
+    by specialize (Hpre eq_refl).
+  Qed.
+
+  (** A jump through a sentry of kind [k] valid in [C] keeps the thread at a
+      posture where it may run. *)
+  Lemma route_pre_sentry m C k :
+    route_pre th m →
+    th ∈ cmpt_threads C →
+    (sentry_kind_mie k = Some InterruptEnabled → CtxSwitch ∉ cmpt_threads C) →
+    route_pre th (default m (sentry_kind_mie k)).
+  Proof.
+    intros Hpre Hin Hsep.
+    destruct (sentry_kind_mie k) as [ [|] |] eqn:Hk; cbn; [|done|done].
+    intros ->. exfalso. exact (Hsep eq_refl Hin).
+  Qed.
+
+  (** The post-state of [ftlr_post_at] is that of [ftlr_post] after a
+      fault or a halt. *)
+  Lemma ftlr_post_at_eq m W C v : v ≠ NextIV → ftlr_post_at m W C v ⊣⊢ ftlr_post W C v.
+  Proof. by destruct v. Qed.
+
+  (** The hand-off of a case that sees the posture, after the next
+      instruction at the posture [m]. *)
+  Lemma ftlr_post_at_next m W C (regs : LReg) (pc : LWord) :
+    (∀ r, is_Some (regs !! r)) →
+    route_pre th m →
+    PC ↦ₚ[th] pc -∗
+    regs[th] regs -∗
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    interp_expr_at m interp interp_continuation W C pc -∗
+    world_interp W C -∗
+    MIE ↦ₜ[th] m -∗
+    ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
+             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C NextIV.
+  Proof.
+    iIntros (Hfull Hpre) "HPC Hregs Hreg Hpc Hworld Hmie".
+    iExists W, m. iFrame "Hworld Hmie".
+    iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iSplit; first done.
+    rewrite /ftlr_post_at. iExists regs, pc. iFrame. by iPureIntro.
+  Qed.
+
+  (** The hand-off of a case that sees the posture, after a fault at the
+      posture [m]. *)
+  Lemma ftlr_post_at_fault m W C (regs : LReg) (pc : LWord) :
+    (∀ r, is_Some (regs !! r)) →
+    route_pre th m →
+    PC ↦ₚ[th] pc -∗
+    regs[th] regs -∗
+    (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
+    world_interp W C -∗
+    MIE ↦ₜ[th] m -∗
+    ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
+             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C FaultedV.
+  Proof.
+    iIntros (Hfull Hpre) "HPC Hregs Hreg Hworld Hmie".
+    iExists W, m. rewrite ftlr_post_at_eq //. iFrame "HPC Hregs Hworld Hmie".
+    iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iSplit; first done.
+    by iApply (interp_reg_intro with "Hreg").
+  Qed.
+
   (** The hand-off of a case, after a halt. *)
   Lemma ftlr_post_halt W C :
     world_interp W C -∗
@@ -150,8 +271,9 @@ Section fundamental.
 
 End fundamental.
 
-(** The post-state prints folded in the cases' goals. *)
+(** The post-states print folded in the cases' goals. *)
 #[global] Arguments ftlr_post : simpl never.
+#[global] Arguments ftlr_post_at : simpl never.
 
 Section fundamental.
   Context
@@ -159,8 +281,9 @@ Section fundamental.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -212,8 +335,9 @@ Section fundamental_sentry.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : CritLink Σ}
+    {cstackg : CSTACKG Σ} {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -225,20 +349,23 @@ Section fundamental_sentry.
       (b <= b')%a ->
       (e' <= e)%a ->
       LocalityFlowsTo g' g ->
+      (sentry_kind_mie sk = Some InterruptEnabled → CtxSwitch ∉ cmpt_threads C) ->
       ftlr_IH -∗
       interp W C (WCap t p g b e a) -∗
       interp W C (WSentry sk t p g' b' e' a').
   Proof.
-    intros Hsentry HpnotO Hb He Hl.
+    intros Hsentry HpnotO Hb He Hl Hsep.
     iIntros "#IH #HA".
     destruct t; last (iApply interp_untagged; done).
     iEval (rewrite interp_unfold /=).
     iSplit; first done.
+    iSplit; last done.
     destruct g'; cbn.
     - (* A Global sentry, at every thread [t'] of [C]. *)
       destruct g; cbn in Hl; last done.
       iIntros "!>" (t') "#Hth'". rewrite /enter_cond.
-      iIntros (W') "_". iIntros (g'' Hflows). iNext.
+      iIntros (W') "_". iIntros (g'' Hflows m). iNext.
+      iApply (interp_expression_at (th := t')).
       iApply ("IH" $! t' W' C).
       iDestruct (interp_global_thread_world_free th t' W W' C (Cap p Global b e a)
                    with "HA") as "HA'"; first done.
@@ -247,8 +374,9 @@ Section fundamental_sentry.
         [done|done|done|done|apply subseg_heap_base_noid|apply PermFlowsToReflexive|done].
     - (* A Local sentry, at the holder's thread, in the public futures. *)
       iIntros "!>". rewrite /enter_cond.
-      iIntros (W') "%Hfuture". iIntros (g'' Hflows).
-      iApply later_interp_expr_thread_in. iIntros "#Hth". iNext.
+      iIntros (W') "%Hfuture". iIntros (g'' Hflows m).
+      iApply later_interp_expr_at_thread_in. iIntros "#Hth". iNext.
+      iApply interp_expression_at.
       iApply ("IH" $! th W' C).
       destruct g''; cbn in Hflows; try done.
       iAssert (interp W' C (Cap p g b e a))%I as "#HA'".

@@ -7,6 +7,7 @@ Section Check_No_Overlap_spec.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   Lemma check_no_overlap_spec

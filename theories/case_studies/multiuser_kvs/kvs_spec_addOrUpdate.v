@@ -25,6 +25,7 @@ Section KVS_spec_addOrUpdate.
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (idx : kvs_idx_t) ( wnkey : LWord )
     (pkvs : kvs_physical_map)
+    (mie : InterruptStatus)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -40,12 +41,15 @@ Section KVS_spec_addOrUpdate.
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, wnkey)) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ((* initial register file *)
 
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -64,6 +68,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -83,8 +89,9 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
+      His_uint16_nkey Hpkvs_idx Htgt Hroute)
+      "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
 
@@ -168,6 +175,7 @@ Section KVS_spec_addOrUpdate.
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
     (F : coPset)
+    (mie : InterruptStatus)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -182,6 +190,7 @@ Section KVS_spec_addOrUpdate.
     is_Some (m !! nkey) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -192,6 +201,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -212,6 +223,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -231,9 +244,10 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey] Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey
+      Hm_nkey] Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+        & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & Ha_user_key
         & >Hlkvs_auth & (%pkvs & >%Hsync & >Hpkvs_frag) & >Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -270,10 +284,10 @@ Section KVS_spec_addOrUpdate.
 
 
     iApply (KVS_update_spec_layer_0 with
-             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+             "[- $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & HPKVS )".
     rewrite Heq_addr.
@@ -298,6 +312,7 @@ Section KVS_spec_addOrUpdate.
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (F : coPset)
+    (mie : InterruptStatus)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
@@ -312,6 +327,7 @@ Section KVS_spec_addOrUpdate.
     is_Some (m !! nkey) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -322,6 +338,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -337,6 +355,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -353,22 +373,23 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Hm_nkey Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+      & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
 
     iApply (KVS_update_spec_layer_1 with
              "[- $Hkvs_static $Hkvs_inv
-                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+                 $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                  $Ha_user_key
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
     {  solve_ndisj. }
 
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+                     & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hlkvs_auth & HLKVS & Hm)".
 
@@ -381,6 +402,7 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (F : coPset)
+    (mie : InterruptStatus)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
@@ -393,6 +415,7 @@ Section KVS_spec_addOrUpdate.
     withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -403,6 +426,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -419,6 +444,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ASM_TRUE ∗ (* TRUE: the key exists in the map and is updated *)
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -436,9 +463,10 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+      & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & [%wk >Hk] & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
@@ -446,11 +474,11 @@ Section KVS_spec_addOrUpdate.
 
     iApply (KVS_update_spec_layer_2
              with "[- $Hkvs_static $Hkvs_inv $Hkvs_logical_inv $Hna
-                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+                    $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                     $Ha_user_key
                     $Hm]"); eauto.
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+                     & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & Hm)".
 
@@ -465,6 +493,7 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (pkvs : kvs_physical_map)
+    (mie : InterruptStatus)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -480,12 +509,15 @@ Section KVS_spec_addOrUpdate.
     fkey ∉ kvs_keys pkvs ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ((* initial register file *)
 
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -504,6 +536,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗ (* scratch *)
@@ -537,8 +571,9 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt)
-      "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
+      His_uint16_nkey Hpkvs_idx Htgt Hroute)
+      "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
 
@@ -639,7 +674,7 @@ Section KVS_spec_addOrUpdate.
       iDestruct (kvs_physical_map_close_insert with "[$HPKVS] [Hcgp_opt Hcgp_key Hcgp_val]")
         as "HPKVS"; eauto.
       { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
-      (* jalr cnull cra; *)
+      (* Jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing".
@@ -664,7 +699,7 @@ Section KVS_spec_addOrUpdate.
       iInstr "Hcode".
       (* mov ca1 0; *)
       iInstr "Hcode".
-      (* jalr cnull cra; *)
+      (* Jalr cnull cra *)
       iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing".
@@ -678,6 +713,7 @@ Section KVS_spec_addOrUpdate.
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (lkvs : kvs_logical_map) (m : kvs_user_map)
     (F : coPset)
+    (mie : InterruptStatus)
     :
 
     let fkey := (kvs_full_key user_key nkey) in
@@ -692,6 +728,7 @@ Section KVS_spec_addOrUpdate.
     m !! nkey = None ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -701,6 +738,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -719,6 +758,8 @@ Section KVS_spec_addOrUpdate.
           PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
           ctp ↦ᵣ[th] - ∗ (* scratch *)
@@ -751,9 +792,10 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey
+      Htgt Hroute)
       "( #Hkvs_static & #Hkvs_inv & Hna
-        & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+        & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
         & Ha_user_key
         & >Hlkvs_auth & (%pkvs & >%Hsync & >Hpkvs_frag) & >Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_inv Hna")
@@ -788,10 +830,10 @@ Section KVS_spec_addOrUpdate.
 
 
     iApply (KVS_add_spec_layer_0 with
-             "[- $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+             "[- $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
               $Hcode $Ha_unsealing $Ha_user_key
               $HPKVS]"); eauto.
-    iNext; iIntros "(HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext; iIntros "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & _ & _ & Ha_user_key
                      & [ (%idx_empty & %Hidx_empty & Hca0 & HPKVS)
                          | (Hca0 & HPKVS)
@@ -821,6 +863,7 @@ Section KVS_spec_addOrUpdate.
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (m : kvs_user_map)
     (F : coPset)
+    (mie : InterruptStatus)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
@@ -835,6 +878,7 @@ Section KVS_spec_addOrUpdate.
     m !! nkey = None ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -845,6 +889,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -860,6 +906,8 @@ Section KVS_spec_addOrUpdate.
          PC ↦ₚ[th] lupdatePcPerm wret ∗
          cgp ↦ᵣ[th] - ∗
          cra ↦ᵣ[th] - ∗
+         MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+         held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
          ca1 ↦ᵣ[th] WInt 0 ∗
          ca2 ↦ᵣ[th] - ∗
          ctp ↦ᵣ[th] - ∗ (* scratch *)
@@ -885,21 +933,22 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Hm_nkey Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+      & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
 
     iApply (KVS_add_spec_layer_1 with
              "[- $Hkvs_static $Hkvs_inv
-                 $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+                 $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                  $Ha_user_key
                  $Hlkvs_auth $HLKVS $Hm]"); last iFrame; eauto.
     {  solve_ndisj. }
     iNext; iIntros "(Hna
-                     & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+                     & HPC & Hcgp & Hcra & Hmie & Hheld & Hca1 & Hca2 & Hctp & Hct1 & Hct2
                      & Ha_user_key
                      & [ (Hca0 & Hlkvs_auth & HLKVS & Hm)
                      | (Hca0 & Hlkvs_auth & HLKVS & Hm)
@@ -916,6 +965,7 @@ Section KVS_spec_addOrUpdate.
     (wret wca2 : LWord)
     (user_key : user_key_t) (nkey : map_key_t) (πnkey : option AId) (l_user_key : Locality) (user_key_addr : Addr)
     (F : coPset)
+    (mie : InterruptStatus)
     :
     let fkey := (kvs_full_key user_key nkey) in
 
@@ -928,6 +978,7 @@ Section KVS_spec_addOrUpdate.
     withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -938,6 +989,8 @@ Section KVS_spec_addOrUpdate.
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cgp ↦ᵣ[th] Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] kvs_user_seal_key l_user_key user_key_addr ∗ (* Sealed User Key *)
       ca1 ↦ᵣ[th] WInt nkey @@? πnkey ∗ (* Key to update *)
       ca2 ↦ᵣ[th] wca2 ∗ (* New value *)
@@ -954,6 +1007,8 @@ Section KVS_spec_addOrUpdate.
          PC ↦ₚ[th] lupdatePcPerm wret ∗
          cgp ↦ᵣ[th] - ∗
          cra ↦ᵣ[th] - ∗
+         MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+         held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
          ca1 ↦ᵣ[th] WInt 0 ∗
          ca2 ↦ᵣ[th] - ∗
          ctp ↦ᵣ[th] - ∗ (* scratch *)
@@ -980,9 +1035,10 @@ Section KVS_spec_addOrUpdate.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
-      & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+      & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
@@ -991,9 +1047,9 @@ Section KVS_spec_addOrUpdate.
 
     iApply (KVS_add_spec_layer_2
              with "[- $Hkvs_static $Hkvs_inv $Hkvs_logical_inv $Hna
-                    $HPC $Hcgp $Hcra $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
+                    $HPC $Hcgp $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
                     $Ha_user_key $Hm]"); eauto.
-    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hca1 & Hca2 & Hctp & Hct1 & Hct2
+    iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca1 & Hca2 & Hctp & Hct1 & Hct2
               & Ha_user_key
               & [ (Hca0 & Hm) | (Hca0 & Hm) ] )".
 
@@ -1013,17 +1069,21 @@ Section KVS_spec_addOrUpdate.
     (pc_b pc_e pc_a : Addr)
     (wret : LWord)
     (wca1 : LWord)
+    (mie : InterruptStatus)
     :
 
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_addOrUpdate_instrs) ->
     ¬ word_is_uint16 wca1.(lw) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     (
       (* initial register file *)
       PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] - ∗
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ[th] - ∗ (* scratch *)
@@ -1033,6 +1093,8 @@ Section KVS_spec_addOrUpdate.
 
       ( ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
          cra ↦ᵣ[th] - ∗
+         MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+         held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
          ca0 ↦ᵣ[th] WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ[th] - ∗ (* scratch *)
@@ -1042,8 +1104,8 @@ Section KVS_spec_addOrUpdate.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HsubBounds Hnkey_is_uint16 Htgt)
-      "(HPC & Hcra & [%wca0 Hca0] & Hca1 & Hct1 & #Hcode_main & Hpost)".
+    iIntros (HsubBounds Hnkey_is_uint16 Htgt Hroute)
+      "(HPC & Hcra & Hmie & Hheld & [%wca0 Hca0] & Hca1 & Hct1 & #Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
     (* --------------------------------------------------- *)
@@ -1067,7 +1129,7 @@ Section KVS_spec_addOrUpdate.
     iInstr "Hcode".
     (* mov ca1 0; *)
     iInstr "Hcode".
-    (* jalr cnull cra; *)
+    (* Jalr cnull cra *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
@@ -1078,6 +1140,7 @@ Section KVS_spec_addOrUpdate.
     (wret : LWord)
     (wca1 : LWord)
     (F : coPset)
+    (mie : InterruptStatus)
     :
 
     ↑(Nkvs.@"physical") ⊆ F ->
@@ -1085,6 +1148,7 @@ Section KVS_spec_addOrUpdate.
     ¬ word_is_uint16 wca1.(lw) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
 
     ( kvs_static ∗
       na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
@@ -1093,6 +1157,8 @@ Section KVS_spec_addOrUpdate.
       (* initial register file *)
       PC ↦ₚ[th] Cap RX Global KVS_pcc_b KVS_pcc_e kvs_addOrUpdate_pcc_addr ∗
       cra ↦ᵣ[th] wret ∗
+      MIE ↦ₜ[th] mie ∗
+      held (th := th) mie ∗
       ca0 ↦ᵣ[th] - ∗
       ca1 ↦ᵣ[th] wca1 ∗ (* Key to addOrUpdate *)
       ct1 ↦ᵣ[th] - ∗ (* scratch *)
@@ -1100,6 +1166,8 @@ Section KVS_spec_addOrUpdate.
       ( ▷ (na_own (tpool th) F ∗
          PC ↦ₚ[th] lupdatePcPerm wret ∗
          cra ↦ᵣ[th] - ∗
+         MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+         held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
          ca0 ↦ᵣ[th] WInt ASM_FALSE ∗ (* ERROR: map key is not a unint16  *)
          ca1 ↦ᵣ[th] WInt 0 ∗ (* Dummy value *)
          ct1 ↦ᵣ[th] - (* scratch *)
@@ -1108,8 +1176,8 @@ Section KVS_spec_addOrUpdate.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HE Hnkey_is_uint16 Htgt)
-      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hca0 & Hca1 & Hct1 & Hpost)".
+    iIntros (HE Hnkey_is_uint16 Htgt Hroute)
+      "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hct1 & Hpost)".
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
     pose proof (Hcgp_continuous := KVS_size_data).
@@ -1124,8 +1192,8 @@ Section KVS_spec_addOrUpdate.
     assert (kvs_addOrUpdate_pcc_addr = KVS_pcc_b')
       as -> by (rewrite /kvs_addOrUpdate_pcc_addr kvs_addOrUpdate_pcc_off_eq; solve_addr+HKVS_pcc_b').
     iApply (KVS_addOrUpdate_spec_not_uint16_map_key_pre with
-              "[$HPC $Hcra $Hca0 $Hca1 $Hct1 $Hcode Hna Hpost]"); eauto.
-    iNext; iIntros "(HPC & Hcra & Hca0 & Hca1 & Hct1 & _)".
+              "[$HPC $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hct1 $Hcode Hna Hpost]"); eauto.
+    iNext; iIntros "(HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hct1 & _)".
     iApply "Hpost"; iFrame.
   Qed.
 
@@ -1311,15 +1379,15 @@ Section KVS_spec_addOrUpdate.
            (user_key, nkey) ↦(KVS) ⊥)))
       wcgp_caller wcra_caller wcs0_caller wcs1_caller
       b_stk e_stk a_stk arg_rmap cstk kvs_addOrUpdate_nargs kvs_addOrUpdate_min_stack F
-      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off
+      KVS_pcc_b KVS_pcc_e KVS_cgp_b KVS_cgp_e kvs_addOrUpdate_pcc_off InterruptEnabled
       (Cap RO Global b_kvs_exp_tbl e_kvs_exp_tbl kvs_addOrUpdate_exp_tbl_addr).
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hphysical Hlogical Hnkey Huser_key Hca0_arg Hca1_arg Hca2_arg).
     rewrite /switcher_cc_specification_known_to_known_function.
-    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (mie arg_rmap' rmap')
+    iIntros "(#Hkvs_static & #Hkvs & #Hkvs_logical)" (arg_rmap' rmap')
        "(_ & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk
+       & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hheld
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
     iEval (cbn) in "HPC".
@@ -1349,12 +1417,11 @@ Section KVS_spec_addOrUpdate.
     ; simplify_eq.
 
     iApply (KVS_add_spec with
-      "[- $Hkvs_static $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra
+      "[- $Hkvs_static $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra $Hmie $Hheld
        $Hca0 $Hca1 $Hca2 $Hctp $Hct1 $Hct2
        $Huser_key $Huser_kvs $Hkey]"); auto.
-    { apply jalr_target_ok_switcher_return_sentry. }
     iNext.
-    iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & Hca1
+    iIntros "(Hna & HPC & [%wcgp Hcgp] & [%wcra Hcra] & Hmie & Hheld & Hca1
               & [%wca2 Hca2] & [%wctp Hctp] & [%wct1 Hct1]
               & [%wct2 Hct2]
               & Huser_key & Huser_kvs & Hres)".

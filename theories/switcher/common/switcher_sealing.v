@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel memory_region rules proofmode.
 From griotte Require Import switcher clear_registers_spec.
+From griotte Require Export switcher_link.
 
 (** * The switcher's sealing predicate
 
@@ -33,12 +34,14 @@ Section Switcher_entry_point.
       (1) Although we know that they contain zeroes due to the caller's clearing,
           it makes the proofs more annoying, and we never rely on this information anyway.
    *)
-  Program Definition execute_entry_point_register (wcgp wstk : LWord) (nargs : nat) :
+  Program Definition execute_entry_point_register (wcgp wstk : LWord) (nargs : nat)
+    (b : InterruptStatus) :
     (WORLD -n> (leibnizO CmptName) -n> (leibnizO LReg) -n> iPropO Σ) :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
-       ∧ ⌜ ∃ mie, reg !! cra = Some (lword_of_word (Sentry (ret_kind mie) XSRW_ Local b_switcher e_switcher a_switcher_return)) ⌝
+       ∧ ⌜ reg !! cra = Some (lword_of_word (Sentry (ret_kind b) XSRW_ Local
+                                                   b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
        ∗ (∀ (r : RegName) (v : LWord), (⌜r ∈ (dom_arg_rmap nargs)⌝ → ⌜reg !! r = Some v⌝ → interp W C v))
@@ -84,6 +87,10 @@ Section Switcher_entry_point.
       In case of unknown code entry point, we can show this by validity of
       the code and data capability (see [fundamental_execute_entry_point]).
 
+      [b] is the interrupt posture of the entry: the callee starts with MIE
+      at [b] and what the thread holds at [b], and its return sentry
+      restores [b].
+
       [b_tbl] is the base of the callee's export table: the switcher has pushed a
       frame for this call, so the call stack has a frame above the entry
       frame, and its topmost frame records the table word, whose base is
@@ -107,7 +114,8 @@ Section Switcher_entry_point.
       to re-instate validity of the caller's stack.
       This will become clearer in the proof of [switcher_ret_specification].
    *)
-  Program Definition execute_entry_point (b_tbl : Addr) (wpcc wcgp : LWord) (nargs minstk : nat) :
+  Program Definition execute_entry_point (b_tbl : Addr) (wpcc wcgp : LWord) (nargs minstk : nat)
+    (b : InterruptStatus) :
     (WORLD -n> (leibnizO CmptName) -n> iPropO Σ) :=
     (λne (W : WORLD) (C : CmptName),
       ∀ (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) regs b_stk e_stk,
@@ -122,7 +130,7 @@ Section Switcher_entry_point.
             top_error_count cstk = 0 ∧ tf_export_tbl_ok (top_tframe cstk)⌝
          ∗ PC ↦ₚ[th] wpcc
          ∗ (execute_entry_point_register wcgp
-              (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs W C regs)
+              (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs b W C regs)
          ∗ registers_pointsto regs
          ∗ world_resources W C
          ∗ shared_credit C
@@ -133,6 +141,10 @@ Section Switcher_entry_point.
          ∗ ⌜(Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z⌝
          ∗ ◯(CSTK)[th] cstk
          ∗ na_own (tpool th) ⊤
+         (* The callee runs at the posture of its entry. *)
+         ∗ ⌜route_pre th b⌝
+         ∗ MIE ↦ₜ[th] b
+         ∗ held (th := th) b
            -∗ safe[th])
     )%I.
   Solve All Obligations with solve_proper.
@@ -213,7 +225,7 @@ Section Switcher_sealing.
                    ▷ (execute_entry_point (th := t') b_tbl
                             (Cap RX Global bpcc epcc (bpcc ^+ off))
                             (Cap RW Global bcgp ecgp bcgp)
-                            nargs minstk
+                            nargs minstk posture
                             W' C))
       )%I.
   Solve All Obligations with solve_proper.

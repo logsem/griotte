@@ -15,8 +15,10 @@ From griotte Require Export copy_context.
 
 Section CopyContextMacro.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
-    `{MP: MachineParameters}.
+    {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
+    `{MP: MachineParameters} {CR : CritRoute Σ th CL}.
+
+  #[local] Existing Instance elim_modal_cerise_fupd_wp.
 
   (** One word per iteration, from [copy_loop] with [i] words copied. *)
   #[local] Lemma copy_context_loop_spec

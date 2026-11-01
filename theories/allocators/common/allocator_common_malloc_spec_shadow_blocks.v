@@ -15,6 +15,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 Section AllocatorMallocShadowBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorCommonLayoutWf}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_malloc_zero_spec
     (E : coPset) (pc_b pc_e pc_a b finish : Addr) (ι : AId) (q : Qp) (w3 : LWord)

@@ -5,7 +5,7 @@ From griotte Require Export fetch.
 Section Fetch.
   Context
     {Σ : gFunctors}
-      {ceriseg: ceriseG Σ}
+      {ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
       {MP: MachineParameters}
   .
   Lemma fetch_spec

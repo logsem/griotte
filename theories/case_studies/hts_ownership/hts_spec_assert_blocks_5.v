@@ -26,9 +26,11 @@ Section HTS_Return.
   (** Block 23: return through the switcher's return sentry, saved in
       [cs0]: the thread exits. *)
   Lemma hts_return_spec
-    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord)
+    (b : InterruptStatus) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     cstk.(cstk_frames) = [] ->
+    route_pre th b ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
@@ -39,12 +41,14 @@ Section HTS_Return.
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
-    codefrag_pers pc_a hts_main_code
+    codefrag_pers pc_a hts_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros (HsubBounds Hframes)
+    iIntros (HsubBounds Hframes Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & Hcode_main)".
+        & Hcstk & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code hts_main_code "Hcode_main".
     focus_block (hts_block ".Lhts_return") "Hcode_main" of hts_main_blocks at pc_a
@@ -54,8 +58,8 @@ Section HTS_Return.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
   Qed.
 End HTS_Return.
 
@@ -94,7 +98,8 @@ Section HTS_Spec_Assert.
       "(#Hctx & Hret)".
     iDestruct "Hctx" as "(#Hassert & _ & _ & #Hswitcher & #Hswitcher_static & _)".
     iDestruct "Hret" as "(Hframe & Hregs)".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0 & _ & Hcstk
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
+      & Hcs0 & _ & Hcstk
       & Himports & Hcode_main & Hp & _)".
     iDestruct "Himports" as "(_ & Himport_assert & _)".
     iDestruct "Hregs" as (rmap Hdom_rmap) "Hrmap".
@@ -123,11 +128,11 @@ Section HTS_Spec_Assert.
       ["[Hctp _]";"[Hct2 _]";"[Hca2 _]"].
     iApply (assert_success_spec 1 with
       "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1
-        $Hcra $Hcode $Himport_assert]"); auto; try (by intros ?).
+        $Hcra $Hcode $Himport_assert $Hmie $Hheld]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0
-      & Hct1 & _ & Himport_assert)".
+      & Hct1 & Hmie & Hheld & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 23: return, the thread exits *)
@@ -136,6 +141,6 @@ Section HTS_Spec_Assert.
       by (offsets_compute; solve_addr).
     iApply (hts_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk $Hcode_main]"); [done | done].
+               $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 End HTS_Spec_Assert.

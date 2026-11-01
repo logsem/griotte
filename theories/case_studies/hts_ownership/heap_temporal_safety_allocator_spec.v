@@ -56,7 +56,7 @@ Section Heap_Temporal_Safety_Allocator.
       (hts_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_free_pcc_off
+      allocator_free_pcc_off InterruptEnabled
       (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
          (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off))%I.
   Proof. apply allocator_free_switcher_spec. Qed.

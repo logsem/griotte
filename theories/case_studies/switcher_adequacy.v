@@ -18,7 +18,7 @@ Section helpers_switcher_adequacy.
 
   Lemma fundamental_execute_entry_point
     (W : WORLD) (C : CmptName) (b_tbl b_pcc e_pcc b_cgp e_cgp : Addr) (eh ehs : Z)
-    (args minstk off : nat) :
+    (args minstk off : nat) (b : InterruptStatus) :
     let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_heap b_cgp e_cgp ->
     na_inv (tpool th) Ntstack trusted_stack_inv
@@ -32,7 +32,7 @@ Section helpers_switcher_adequacy.
     □ ∀ (W' : WORLD),
     ▷ execute_entry_point b_tbl
         (Cap RX Global b_pcc e_pcc (b_pcc ^+ off)) (Cap RW Global b_cgp e_cgp b_cgp)
-        args minstk W' C.
+        args minstk b W' C.
   Proof.
     intros a_tbl_cgp Hcgp_heap.
     iIntros "#Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
@@ -55,7 +55,8 @@ Section helpers_switcher_adequacy.
       "(#Hthread & #Htv & Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _ & %Htbl_ok) & HPC
                      & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hworld_res & Hcred & %Hcsp_sync & _ & Htframe & Hna)".
+                     & Hrmap & Hworld_res & Hcred & %Hcsp_sync & _ & Htframe & Hna
+                     & %Hroute & HMIE & Hheld)".
     (* The callee, whose export table is at [b_tbl], is the topmost
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
@@ -69,9 +70,9 @@ Section helpers_switcher_adequacy.
       iApply "Hinterp_tbl". }
     pose proof (Hfullmap csp) as [wcsp Hwcsp].
     iDestruct (fundamental with "Hinterp_PCC") as "H_jmp".
-    iSpecialize ("H_jmp" $! cstk Ws Cs regs).
-    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
-    iApply "H_jmp".
+    iDestruct (interp_expression_at b with "H_jmp") as "H_jmp'".
+    iSpecialize ("H_jmp'" $! cstk Ws Cs regs).
+    iApply "H_jmp'".
     iFrame "∗%#".
     iIntros (r v Hr).
     destruct (decide (r = cgp)) as [-> | Hrcgp].
@@ -79,9 +80,11 @@ Section helpers_switcher_adequacy.
       iExact "Hinterp_cgp'".
     }
     destruct (decide (r = cra)) as [-> | Hrcra].
-    { destruct Hregs_cra as [mie Hregs_cra].
-      rewrite Hregs_cra in Hr ; simplify_eq.
-      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]"); done.
+    { rewrite Hregs_cra in Hr ; simplify_eq.
+      iDestruct (thread_in_elim with "Hthread") as %Hth_in.
+      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]").
+      intros ->. destruct th as [t|]; last by specialize (Hroute eq_refl).
+      by eapply cmpt_threads_sep.
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].
     { by rewrite Hregs_csp in Hr ; simplify_eq. }
@@ -102,7 +105,7 @@ Section helpers_switcher_adequacy.
       untrusted. *)
   Lemma fundamental_untrusted_thread
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
-    (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) :
+    (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
     let b_tbl := tf_export_tbl_b ef in
     let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     disjoint_from_heap b_cgp e_cgp →
@@ -127,11 +130,14 @@ Section helpers_switcher_adequacy.
     world_interp W C -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] (entry_cstack ef) -∗
+    ⌜route_pre th b⌝ -∗
+    MIE ↦ₜ[th] b -∗
+    held (th := th) b -∗
     safe[th].
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
-      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk".
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk %Hroute HMIE Hheld".
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
@@ -159,20 +165,20 @@ Section helpers_switcher_adequacy.
       destruct (decide (r = cra)) as [-> | Hrcra].
       { rewrite Hregs_cra in Hr; simplify_eq. rewrite /thread_return_sentry.
         iApply (interp_switcher_return W C InterruptDisabled
-                 with "[$Hinv_switcher $Hswitcher_static]"). }
+                 with "[$Hinv_switcher $Hswitcher_static]"); done. }
       destruct (decide (r = csp)) as [-> | Hrcsp].
       { rewrite Hregs_csp in Hr; simplify_eq.
-        iDestruct "Hstk" as (p g b e a _ _) "#$". }
+        iDestruct "Hstk" as (p g b_s e_s a_s _ _) "#$". }
       rewrite Hregs_zero in Hr; last set_solver+Hrcgp Hrcra Hrcsp.
       simplify_eq. iApply interp_int. }
     iAssert (interp_continuation (entry_cstack ef) [] []) as "Hcont".
     { by rewrite /interp_continuation /interp_cont /=. }
     iDestruct (interp_lea with "Hinterp_pcc") as "Hinterp_PC"; first done.
     iDestruct (fundamental with "Hinterp_PC") as "H_jmp".
-    iSpecialize ("H_jmp" $! (entry_cstack ef) [] [] regs).
-    iEval (rewrite /interp_expression /interp_expr /=) in "H_jmp".
-    iApply "H_jmp".
-    iFrame "∗ #".
+    iDestruct (interp_expression_at b with "H_jmp") as "H_jmp'".
+    iSpecialize ("H_jmp'" $! (entry_cstack ef) [] [] regs).
+    iApply "H_jmp'".
+    iFrame "∗ # %".
   Qed.
 
 End helpers_switcher_adequacy.

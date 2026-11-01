@@ -59,6 +59,7 @@ Section Switcher.
     (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 wcsp : LWord)
+    (b : InterruptStatus)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -87,6 +88,8 @@ Section Switcher.
     ∗ ca0 ↦ᵣ[th] wca0
     ∗ ca1 ↦ᵣ[th] wca1
     ∗ csp ↦ᵣ[th] wcsp
+    ∗ MIE ↦ₜ[th] b
+    ∗ held (th := th) b
     ⊢ safe[th].
   Proof.
     intros Wfixed.
@@ -102,7 +105,7 @@ Section Switcher.
       trusted-stack invariant closed. Only three scratch registers are used: the
       stack, the world and the other registers are not read. *)
   Lemma switcher_ret_thread_exit_specification
-    (cstk : CSTK) (wctp wct0 wct2 : LWord) :
+    (cstk : CSTK) (wctp wct0 wct2 : LWord) (b : InterruptStatus) :
     cstk.(cstk_frames) = [] ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -111,29 +114,32 @@ Section Switcher.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
-    ◯(CSTK)[th] cstk
+    ◯(CSTK)[th] cstk ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     destruct cstk as [ef frms]; cbn; intros ->.
-    iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk)".
+    iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk & Hmie & Hheld)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)"; auto.
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
-    iDestruct (switcher_hazard_open with "Hsave_area Hhazard_slots") as "[Hhazard Hsave_area]";
-      first done.
+    iAssert switcher_hazard with "[Hhazard_cell Hhazard_slots]" as "Hhazard".
+    { rewrite /switcher_hazard. iFrame "Hhazard_cell Hhazard_slots". }
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %Heq; subst cstk'.
     iEval (rewrite switcher_return_block_13) in "HPC".
     (* No frame to pop: to the thread exit *)
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hcode]").
     iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
-    iApply (common_defer_irqs_and_thread_exit_spec with "[- $HPC $Hcode]").
+    iApply (common_defer_irqs_and_thread_exit_spec _ _ b with "[- $HPC $Hcode $Hmie $Hheld]").
+    { intros Hcs. by destruct Huser. }
     iIntros "!> _".
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
-            Hcstk_full Hstk_interp") as "Hna"; [done|done|].
+           "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
+            Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
     iModIntro; iIntros (_); iExact "Hna".
   Qed.
 
@@ -179,7 +185,8 @@ Section Switcher.
        regs[th] rmap ∗
        ca0 ↦ᵣ[th] - ∗
        ca1 ↦ᵣ[th] - ∗
-       csp ↦ᵣ[th] -) -∗
+       csp ↦ᵣ[th] - ∗
+       (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     intros Wfixed.
@@ -188,24 +195,25 @@ Section Switcher.
       "#Hthread #Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
     iApply (trap_safe_exception_entry mcause_ok (λ _ : Z, True%type) ⊤
               with "Hswitcher Hstatic");
-      [done | set_solver | set_solver |].
+      [done | set_solver |].
     iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
-                     & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp])".
+                     & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp] & (%b & Hmie & Hheld & %Hpre))".
     iModIntro.
     iInsertList "Hrmap" [csp;ca0;ca1].
-    iExists _, cstk. iFrame "Hna Hrmap Hcstk".
+    iExists _, cstk, b. iFrame "Hna Hrmap Hcstk Hmie Hheld %".
     iSplit.
     { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap.
       pose proof (all_registers_s_correct r). set_solver. }
     iApply (trap_handler_ok_no_handler with "Hno_handler"); [done | done |].
-    iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna".
+    iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna Hmie Hheld".
     rewrite /registers_pointsto.
     getRegValList [csp].
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
-    iApply (switcher_ret_specification _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n) with
+    iApply (switcher_ret_specification _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n)
+              _ _ _ _ _ InterruptDisabled with
              "[$Hthread $Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
-               $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp]"); try done.
+               $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp $Hmie $Hheld]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }
     { by apply frame_match_set_top_count. }
     { by apply csp_sync_set_top_count. }

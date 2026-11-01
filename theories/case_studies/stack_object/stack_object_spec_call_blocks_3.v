@@ -24,13 +24,14 @@ Section SO_Call_Blocks_3.
   Lemma so_call_blocks_3_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (csp_b csp_e : Addr) (stk_mem : list LWord)
-    (wca1 wct0 wct1 wcs0 wcs1 wcra : LWord) :
+    (wca1 wct0 wct1 wcs0 wcs1 wcra : LWord) (mie : InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     disjoint_from_heap csp_b csp_e ->
     (* The stack frame holds the secret and [z], below the space reserved at
        the top of the stack *)
     (csp_b + 2 + StackEntry_reserved_space <= csp_e)%Z ->
+    route_pre th mie ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
     csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca1 ↦ᵣ[th] wca1 ∗
@@ -42,7 +43,9 @@ Section SO_Call_Blocks_3.
     [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
     pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a so_main_code ∗
-    ▷ (∀ mie a_stk1 a_stk2 stk_mem' stk_res,
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
+    ▷ (∀ a_stk1 a_stk2 stk_mem' stk_res,
         ⌜(a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e⌝ ∗
         ⌜(a_stk2 + 1)%a = Some a_stk1⌝ ∗
         ⌜(csp_b <= a_stk2)%a⌝ ∗
@@ -59,13 +62,16 @@ Section SO_Call_Blocks_3.
         a_stk2 ↦ₐ WInt 0 ∗
         [[csp_b, a_stk2]] ↦ₐ [[stk_mem']] ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
-        codefrag_pers pc_a so_main_code
+        codefrag_pers pc_a so_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap Hstk_size)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap
+      Hstk_size Hroute)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Himport_switcher
-      & Hcode_main & Hpost)".
+      & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
     rewrite /switcher_entry_call.
@@ -157,7 +163,7 @@ Section SO_Call_Blocks_3.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 3 = (pc_a ^+ so_label_offset ".Lso_f_after_call")%a) as ->
       by (offsets_compute; solve_addr).
-    iApply ("Hpost" $! mie a_stk1 a_stk2 stk_mem' [w_res2; w_res1]); iFrame "∗ Hcode_main".
+    iApply ("Hpost" $! a_stk1 a_stk2 stk_mem' [w_res2; w_res1]); iFrame "∗ Hcode_main".
     iPureIntro; repeat split; unfold StackEntry_reserved_space;
       solve_addr+Hstk_size Hstart Hastk1 Hastk2.
   Qed.

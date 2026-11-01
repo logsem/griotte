@@ -6,7 +6,7 @@ From griotte Require Export rules_base.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types c : griotte_lang.expr.
@@ -1747,7 +1747,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
 End griotte_lang_rules.
 
 Section shadow_store_res.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {CL : CritLink Σ}.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
   Lemma wp_store_shadow_imm_res_fetch Ep
      pc_p pc_g pc_b pc_e pc_a pc_π

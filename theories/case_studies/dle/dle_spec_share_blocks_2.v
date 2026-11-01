@@ -23,8 +23,9 @@ Section DLE_Share_Blocks_2.
 
   Lemma dle_share_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
-    (wct0 wct1 wcs0 wcs1 wcra : LWord) :
+    (wct0 wct1 wcs0 wcs1 wcra : LWord) (b : InterruptStatus) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_fetch_switcher")%a ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -32,18 +33,23 @@ Section DLE_Share_Blocks_2.
     cs1 ↦ᵣ[th] wcs1 ∗
     cra ↦ᵣ[th] wcra ∗
     dle_static_mem pc_b pc_a C_f ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e (pc_a ^+ dle_label_offset
+          ".Ldle_overwrite")%a ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ[th] wcra ∗
         cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
-        dle_static_mem pc_b pc_a C_f
+        dle_static_mem pc_b pc_a C_f ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap))
-      "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hmem & Hpost)".
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap) Hroute)
+      "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hmem & Hmie & Hheld & Hpost)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code dle_main_code "Hcode_main".

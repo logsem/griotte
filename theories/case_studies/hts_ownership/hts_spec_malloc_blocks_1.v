@@ -40,7 +40,7 @@ Section HTS_Spec_Malloc.
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
-  Lemma hts_spec_malloc (rmap : LReg) :
+  Lemma hts_spec_malloc (rmap : LReg) (mie : InterruptStatus) :
     cstk.(cstk_frames) = [] ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
@@ -56,6 +56,7 @@ Section HTS_Spec_Malloc.
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    route_pre th mie ->
     hts_ctx ∗
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
@@ -69,15 +70,17 @@ Section HTS_Spec_Malloc.
     interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
     interp_continuation cstk Ws Cs ∗
     ◯(CSTK)[th] cstk ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     (malloc_ret -∗
      safe[th])
     ⊢ safe[th].
   Proof.
     iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
-      Himports_contiguous)
+      Himports_contiguous Hroute)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & Hstatic & Howner & Hworld
-       & #Hinterp_csp & HK & Hcstk & Hcontinue)".
+       & #Hinterp_csp & HK & Hcstk & Hmie & Hheld & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry)".
@@ -237,7 +240,7 @@ Section HTS_Spec_Malloc.
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-         $Hstk $Hcstk $Hmalloc_fun]").
+         $Hstk $Hcstk $Hmalloc_fun $Hmie $Hheld]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { apply stk_start_cursor_ok.
@@ -249,7 +252,6 @@ Section HTS_Spec_Malloc.
     { exact hts_export_tbl_disjoint_from_shadow. }
     { exact hts_allocator_pcc_not_heap. }
     { exact hts_allocator_cgp_not_heap. }
-    { solve_ndisj. }
     { solve_ndisj. }
     { rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { solve_addr. }
@@ -281,6 +283,7 @@ Section HTS_Spec_Malloc.
            reflexivity. }
       subst rcgp rcra rcs0.
       iEval (cbn) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iApply "Hcontinue".
       iEval (rewrite /allocator_malloc_result) in "HQ".
       iDestruct "HQ" as "(Howner_word & [(%Hoom & Howner)|Hok])".
@@ -288,7 +291,7 @@ Section HTS_Spec_Malloc.
         destruct Hoom as [-> ->].
         iLeft. iExists _.
         iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
-        iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
+        iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main Hmie Hheld".
         done.
       + iDestruct "Hok" as (ι b e)
           "(%Hbounds & _ & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
@@ -304,7 +307,7 @@ Section HTS_Spec_Malloc.
         iRight. iExists ι, b.
         iSplit; first (iPureIntro; rewrite /hts_buffer_bounds; solve_addr).
         iFrame "∗#".
-        iPureIntro. split; [exact Hdom_rmap_ret|exact Hstack_revoked].
+        iPureIntro. split_and!; [exact Hroute | exact Hdom_rmap_ret | exact Hstack_revoked].
     - iNamed "Hcall".
       destruct Hrestored as (_ & Hra & Hs0 & _).
       apply load_heap_nonheap in Hra.
@@ -313,10 +316,11 @@ Section HTS_Spec_Malloc.
       apply load_heap_nonheap in Hs0; [|exact thread_return_sentry_not_heap].
       subst rcra rcs0.
       iEval (cbn) in "HPC".
+      iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
       iApply "Hcontinue".
       iLeft. iExists _.
       iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
-      iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main".
+      iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main Hmie Hheld".
       done.
   Qed.
 End HTS_Spec_Malloc.

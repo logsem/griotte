@@ -423,4 +423,16 @@ Qed.
     intros _. by exists p, g, b, e, a.
   Qed.
 
+  (** An instruction never leaves the machine executable. *)
+  Lemma exec_not_executable i p φ : (exec i p φ).1 ≠ Executable.
+  Proof.
+    rewrite /exec. destruct (exec_opt i p φ) as [c|] eqn:Hc; last done.
+    assert (∀ φ' z c', advancePC φ' z = Some c' → c'.1 = NextI) as Hadv.
+    { intros φ' z c' Hadv. rewrite /advancePC in Hadv. repeat case_match; by simplify_eq/=. }
+    destruct i; cbn in Hc; try unfold nextPC, exec_jcond in Hc;
+      repeat (simplify_option_eq || case_match); simplify_eq/=.
+    all: try done.
+    all: try (unfold nextPC in Hc); apply Hadv in Hc; by rewrite Hc.
+  Qed.
+
 End opsem_prop.

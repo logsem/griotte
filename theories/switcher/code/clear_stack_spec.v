@@ -5,7 +5,7 @@ From griotte Require Export clear_stack.
 
 Section ClearStackMacro.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     `{MP: MachineParameters}.
 
   (** Zero the words $[a_lo, a_hi)$ through the capability in [rbase], whose

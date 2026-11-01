@@ -23,29 +23,38 @@ Section Switcher_unwind.
   .
 
   (** From [.Lswitch_just_return], where the exception path resumes a
-      context: the return to [cra]. *)
-  Lemma switcher_just_return_spec (wret : LWord) :
+      context at the posture [b]: the return to [cra]. *)
+  Lemma switcher_just_return_spec (wret : LWord) (b : InterruptStatus) :
+    route_pre th b →
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ[th] wret ∗
     switcher_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
     ( ▷ ( PC ↦ₚ[th] lupdatePcPerm wret ∗
           cra ↦ᵣ[th] wret ∗
+          MIE ↦ₜ[th] default b (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default b (jalr_target_mie wret.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
       ( ⌜jalr_target_ok cnull cra wret.(lw) = false⌝ ∗
-        cra ↦ᵣ[th] wret -∗
+        cra ↦ᵣ[th] wret ∗
+        MIE ↦ₜ[th] b ∗
+        held (th := th) b -∗
         trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
           (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros "(HPC & Hcra & #Hswitcher & Hpost)".
-    iApply (switcher_return_to_caller_spec with "[$HPC $Hcra $Hswitcher $Hpost]").
+    iIntros (Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
+    iApply (switcher_return_to_caller_spec _ b with
+             "[$HPC $Hcra $Hswitcher $Hmie $Hheld $Hpost]"); first done.
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the
       entry point plus the reserved space: [.Lswitch_stack_too_small] sets
       the return values, and the return routine pops the frame already
-      pushed. No register needs to be safe. *)
+      pushed. No register needs to be safe. The call path runs with
+      interrupts disabled. *)
   Lemma switcher_call_stack_too_small_unwind_of_safety
     (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
@@ -60,11 +69,13 @@ Section Switcher_unwind.
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
-    ◯(CSTK)[th] cstk
+    ◯(CSTK)[th] cstk ∗
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    held (th := th) InterruptDisabled
     ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
-      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".
+      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk & Hmie & Hheld)".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -75,8 +86,9 @@ Section Switcher_unwind.
     iNext; iIntros "(HPC & Hca0 & Hca1)".
     iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
-    iApply (switcher_return_unwind with
-             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");
+    iApply (switcher_return_unwind _ _ _ _ _ _ _ _ _ InterruptDisabled with
+             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk
+               $Hmie $Hheld]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     iSplit; iApply interp_int.

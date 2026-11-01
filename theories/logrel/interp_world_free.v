@@ -12,8 +12,9 @@ Section logrel.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation E := (interpO Σ).
   #[local] Notation V := (interpO Σ).
@@ -147,8 +148,9 @@ Section logrel_threads.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
-    {CL : CritLink Σ}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
   #[local] Notation TV := (Thread -d> interpO Σ).
@@ -305,8 +307,8 @@ Section logrel_threads.
 
 End logrel_threads.
 
-(** The trap path of the logical relation, at the core link: trap entry
-    and the trap vector are stated with core WPs. *)
+(** The trap path of the logical relation: trap entry and the trap
+    vector, at the thread's link. *)
 Section logrel_trap.
   Context
     {Σ:gFunctors}
@@ -316,7 +318,9 @@ Section logrel_trap.
     {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   Implicit Types w : (leibnizO LWord).
   Implicit Types W : WORLD.
@@ -347,9 +351,9 @@ Section logrel_trap.
       safe, for a fault in an untrusted compartment ([untrusted_fault]) or
       a fault that the switcher handles ([trusted_fault], instantiated by
       the switcher with [trap_handler_ok ⊤]). Only a fault in an untrusted
-      compartment carries the worlds and the continuation. Trap entry lends
-      MEPCC, mcause and mtval to the trap vector ([trap_entry_out w]) and
-      holds the trap-entry part [Ntrap] of the non-atomic token. *)
+      compartment carries the worlds and the continuation. The trap vector
+      runs with MIE disabled and receives the whole posture of the thread
+      ([trap_vector_safe_pre]). *)
   Definition trap_vector_safe
       (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
     trap_vector_safe_pre interp interp_continuation trusted_fault wvec.
@@ -374,20 +378,25 @@ Section logrel_trap.
     trap_vector_safe trusted_fault wvec -∗
     (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
     registers_pointsto regs -∗
-    na_own (tpool th) (⊤ ∖ ↑Ntrap) -∗
+    na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
-    trap_entry_out w -∗
+    MIE ↦ₜ[th] InterruptDisabled -∗
+    (∃ (b : InterruptStatus) (c v : Z),
+       ⌜route_pre th b⌝ ∗
+       ⌜mcause_ok c⌝ ∗
+       posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
+         (Some (lword_of_word (WInt c))) (Some v)) -∗
     (PC ↦ₚ[th] wvec -∗ safe[th]).
   Proof.
-    iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hout HPC".
-    iApply ("Hsafe" with "[//] Hfault HPC Hout Hregs Hna Hcstk").
+    iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hmie Hpost HPC".
+    iApply ("Hsafe" with "[//] Hfault HPC Hmie Hpost Hregs Hna Hcstk").
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
       leads to the trap vector, where execution is safe. The resources and
       the fault's justification come under an update at the time of the fault (for instance,
-      to close an invariant); the non-atomic token provides the trap-entry
-      token, and the trap vector receives MEPCC, mcause and mtval. *)
+      to close an invariant), with the MIE fragment and what the thread
+      holds at its posture; the trap vector receives the whole posture. *)
   Lemma interp_trap_safe (trusted_fault : CSTK → LWord → LReg → iProp Σ)
     (cstk : CSTK) (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
@@ -396,16 +405,23 @@ Section logrel_trap.
        registers_pointsto regs ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
-       (untrusted_fault cstk regs ∨ trusted_fault cstk w regs)) -∗
+       (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) ∗
+       (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull) "#Hsafe Hres".
     iApply trap_safe_entry_intro.
-    iSplit; last by iIntros "!> %Hv".
-    iMod "Hres" as "(Hregs & Hna & Hcstk & Hfault)".
-    iDestruct (trap_entry_res_split ⊤ with "Hna") as "[Htok Hna]"; first done.
-    iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    by iApply (interp_trap with "Hsafe Hfault Hregs Hna Hcstk Hout HPC").
+    iMod "Hres" as "(Hregs & Hna & Hcstk & Hfault & (%b & Hmie & Hheld & %Hpre))".
+    iModIntro. iExists b. rewrite /held /held_of.
+    iAssert ((if b is InterruptDisabled then handover_res else True) ∗
+             (if b is InterruptDisabled then posture_part (th := th) else True))%I
+      with "[Hheld]" as "[Hho Hpart]".
+    { destruct b; [done | iExact "Hheld"]. }
+    iSplitL "Hmie Hho".
+    { iApply trap_entry_res_unfold. by iFrame. }
+    iIntros "!> Hout HPC".
+    iDestruct (trap_entry_out_posture with "Hout Hpart") as "[Hmie Hpost]"; first done.
+    by iApply (interp_trap with "Hsafe Hfault Hregs Hna Hcstk Hmie Hpost HPC").
   Qed.
 
   (** A fault in an untrusted compartment, from the logical relation: the
@@ -424,13 +440,14 @@ Section logrel_trap.
        (world_resources W C ∗ shared_credit C) ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
-       ◯(CSTK)[th] cstk) -∗
+       ◯(CSTK)[th] cstk ∗
+       (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hth Hreg Htop Hres".
     iApply (interp_trap_safe with "Hsafe"); first done.
-    iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk)".
-    iModIntro. iFrame "Hregs Hna Hcstk". iLeft.
+    iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk & Hposture)".
+    iModIntro. iFrame "Hregs Hna Hcstk Hposture". iLeft.
     iApply (untrusted_fault_intro with "Hth Hreg Htop Hworld Hcont"); done.
   Qed.
 
@@ -444,7 +461,9 @@ Section region_alloc_cmpt.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
     `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   #[local] Notation V := (interpO Σ).
 

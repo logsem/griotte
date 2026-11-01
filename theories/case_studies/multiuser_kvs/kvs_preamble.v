@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
-From griotte Require Import switcher kvs.
+From griotte Require Import switcher switcher_link kvs.
 From griotte Require Export seal_registry.
 
 

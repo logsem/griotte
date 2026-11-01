@@ -11,6 +11,7 @@ From griotte.allocators.ownership Require Import allocator_malloc_spec_states.
 Section AllocatorMallocOwnerBlocks1.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   Lemma allocator_malloc_owner_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (g : Locality) (a : Addr) (o : Z)

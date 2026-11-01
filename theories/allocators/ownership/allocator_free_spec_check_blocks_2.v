@@ -14,6 +14,7 @@ From griotte.allocators.ownership Require Import allocator_free_spec_states.
 Section AllocatorFreeCheckBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   (** On a request in the allocated prefix, the GetTag of block 2 returns
       1 and the checks pass, or it returns 0 on a request whose tag may be
