@@ -10,25 +10,32 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
 Section AllocatorMallocExitBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   (** Block 2: return. *)
   Lemma allocator_malloc_exit_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
+    (mie : InterruptStatus)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 2) ∗
     cra ↦ᵣ wret ∗
+    MIE ↦ₜ mie ∗
+    held mie ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
        £ 1
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow) Htgt.
-    iIntros "(HPC & Hcra & #Hcode_main & Hφ)".
+    intros (Hpc & Hpc_shadow) Htgt Hpre.
+    iIntros "(HPC & Hcra & Hmie & Hposture & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -36,8 +43,9 @@ Section AllocatorMallocExitBlocks.
     focus_block 2 "Hcode_main" of allocator_malloc_exit_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with "[- $HPC $Hcra $Hcode]"); [solve_addr|done|done|].
-    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
+    iApply (allocator_return_spec with
+      "[- $HPC $Hcra $Hmie $Hposture $Hcode]"); [solve_addr|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
@@ -45,16 +53,22 @@ Section AllocatorMallocExitBlocks.
   (** Blocks 0 and 2: set [ALLOC_INVALID] and return. *)
   Lemma allocator_malloc_exit_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
+    (mie : InterruptStatus)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
+    MIE ↦ₜ mie ∗
+    held mie ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
@@ -62,8 +76,8 @@ Section AllocatorMallocExitBlocks.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hpre. pose proof Hbounds as (Hpc & Hpc_shadow).
+    iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -79,25 +93,31 @@ Section AllocatorMallocExitBlocks.
     destruct (decide (ca0 = cnull)) as [|_]; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2).
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode_main]");
-      [done|done|].
-    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hposture $Hcode_main]");
+      [done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Blocks 1 and 2: set [ALLOC_NO_MEMORY] and return. *)
   Lemma allocator_malloc_exit_oom_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
+    (mie : InterruptStatus)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 1) ∗
     cra ↦ᵣ wret ∗
+    MIE ↦ₜ mie ∗
+    held mie ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
@@ -105,8 +125,8 @@ Section AllocatorMallocExitBlocks.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hpre. pose proof Hbounds as (Hpc & Hpc_shadow).
+    iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -121,9 +141,9 @@ Section AllocatorMallocExitBlocks.
     destruct (decide (ca0 = cnull)) as [|_]; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2).
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode_main]");
-      [done|done|].
-    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hposture $Hcode_main]");
+      [done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

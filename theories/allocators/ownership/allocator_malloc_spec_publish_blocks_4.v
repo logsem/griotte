@@ -12,19 +12,24 @@ From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_
 Section AllocatorMallocPublishBlocks4.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorLayoutWf}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   Lemma allocator_malloc_publish_spec
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (ι : AId)
     (wret wca0 : LWord)
+    (mie : InterruptStatus)
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 4) ∗
     cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
+    MIE ↦ₜ mie ∗
+    held mie ∗
     ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
     ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
     ca0 ↦ᵣ wca0 ∗
@@ -34,6 +39,8 @@ Section AllocatorMallocPublishBlocks4.
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ct0 ↦ᵣ Cap RW Global heap_b heap_e finish ∗
        ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
        ca0 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
@@ -44,8 +51,10 @@ Section AllocatorMallocPublishBlocks4.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Hbase Hfinish Hrange Htgt. pose proof Hbounds as (Hpc & Hpc_shadow & Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hct0 & Hct4 & Hca0 & Hca1 & Hslot & #Hcode_main & Hφ)".
+    intros Hbounds Hbase Hfinish Hrange Htgt Hpre. pose proof Hbounds as (Hpc & Hpc_shadow &
+      Hcgp_pc).
+    iIntros "(HPC & Hcgp & Hcra & Hmie & Hposture & Hct0 & Hct4 & Hca0 & Hca1 & Hslot &
+      #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
     unfold allocator_header_words in Hbase.
@@ -77,9 +86,9 @@ Section AllocatorMallocPublishBlocks4.
     change_pc_to
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2).
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hcode]");
-      [by apply allocator_malloc_exit_bounds | done |].
-    iNext. iIntros "(HPC & Hcra & _ & Hlc)".
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hposture $Hcode]");
+      [by apply allocator_malloc_exit_bounds | done | done |].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
