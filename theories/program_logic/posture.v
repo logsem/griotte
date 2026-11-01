@@ -65,6 +65,17 @@ Section handover.
   Lemma handover_res_intro p c v b : handover_at p c v b -∗ handover_res.
   Proof. rewrite handover_res_unseal. iIntros "H". by iExists p, c, v, b. Qed.
 
+  (** The critical-section token, lent out of [handover_res]. *)
+  Lemma handover_res_crit :
+    handover_res -∗
+    na_own crit ⊤ ∗
+    (na_own crit ⊤ -∗ handover_res).
+  Proof.
+    rewrite handover_res_unseal.
+    iIntros "(%p & %c & %v & %b & Hcrit & HU & Hv)". iFrame "Hcrit".
+    iIntros "Hcrit". iExists p, c, v, b. by iFrame.
+  Qed.
+
   (** What the thread holds besides its MIE fragment at posture [b], for the
       part [part] of its posture: nothing at InterruptEnabled. *)
   Definition held_of (part : iProp Σ) (b : InterruptStatus) : iProp Σ :=
@@ -113,6 +124,18 @@ Section posture.
 
   Lemma held_disabled : held InterruptDisabled ⊣⊢ handover_res ∗ @posture_part _ _ _ th CL CR.
   Proof. done. Qed.
+
+  (** The critical-section token, lent out of what the thread holds at
+      InterruptDisabled. *)
+  Lemma held_crit :
+    held InterruptDisabled -∗
+    na_own crit ⊤ ∗
+    (na_own crit ⊤ -∗ held InterruptDisabled).
+  Proof.
+    rewrite held_disabled. iIntros "[Hho $]".
+    iDestruct (handover_res_crit with "Hho") as "[$ Hho]".
+    iIntros "Hcrit". by iApply "Hho".
+  Qed.
 
   (** The whole posture, with optional pins of MPIE, MEPCC, mcause and
       mtval. *)

@@ -607,6 +607,48 @@ Section griotte_lang_rules.
     { congruence. }
   Qed.
 
+  (** A return through a sentry that keeps the interrupt status keeps the
+      link: the thread needs nothing besides its MIE fragment. *)
+  Lemma wp_jalr_success_cnull_kept E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w rsrc wsrc
+      (b : InterruptStatus) dq :
+    decodeInstrW w.(lw) = Jalr cnull rsrc →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    jalr_target_ok cnull rsrc wsrc.(lw) = true →
+    rsrc ≠ cnull →
+    default b (jalr_target_mie wsrc.(lw)) = b →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ rsrc ↦ᵣ wsrc ∗
+        ▷ MIE ↦ₜ b
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ lupdatePcPerm wsrc ∗
+          pc_a ↦ₐ{dq} w ∗
+          rsrc ↦ᵣ wsrc ∗
+          MIE ↦ₜ b
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Htgt Hcnull Hkeep ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hmie) Hφ".
+    iDestruct (map_of_regs_1 with "Hrsrc") as "Hmap".
+    assert (jalr_mie {[rsrc := wsrc]} rsrc b = b) as Hjm.
+    { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
+    iApply (wp_Jalr_link _ _ _ _ _ _ _ _ _ _ _ _ _ True True
+             with "[$HPC $Hmap $Hpc_a $Hmie]");
+      [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
+      | rewrite Hjm; apply link_transfer_si_kept | done |].
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
+    destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
+    { destruct (decide (cnull = cnull)) as [_|Hc]; last done.
+      iDestruct "HT" as "[ (_ & Hmie & _) | [%Hc _] ]"; last done.
+      rewrite Hjm. simplify_lmap_eq.
+      iApply "Hφ". iFrame. iApply (regs_of_map_1 with "Hmap"). }
+    { simplify_lmap_eq. congruence. }
+    { congruence. }
+  Qed.
+
 End griotte_lang_rules.
 
 (** The core rules of the jumps that read or write MIE: a call, whose link
