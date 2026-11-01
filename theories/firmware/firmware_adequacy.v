@@ -1013,6 +1013,15 @@ Section entry.
        | UntrustedBody _ => (cmpt_b_pcc m ^+ export_entry_offset (fw_entry_word fw img i))
        end).
 
+  (** The interrupt posture of the export the thread [i] starts at: the
+      firmware's for a trusted compartment, the one its entry word encodes
+      for an untrusted one. *)
+  Definition fw_entry_posture (fw : firmware) (img : fw_image) (i : nat) : InterruptStatus :=
+    match fc_body (fw_entry_fc fw i) with
+    | TrustedBody b => fe_posture (fw_export_named (ft_entry (fw_thread_of fw i)) (tb_exports b))
+    | UntrustedBody _ => export_entry_posture (fw_entry_word fw img i)
+    end.
+
   Definition fw_entry_cgp (fw : firmware) (img : fw_image) (i : nat) : Word :=
     let m := fw_entry_cmpt fw img i in
     Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m).
@@ -1062,12 +1071,15 @@ Section entry.
   Definition fw_trap_vector (img : fw_image) : trapVector :=
     {| mtcc_vec := fw_mtcc img; mtcc_vec_tagged := eq_refl |}.
 
-  Definition fw_initial_sreg (img : fw_image) (sr : SRegName) : Word :=
+  (** The system registers after the switcher's [mret] into the thread
+      [0]: MIE the posture of its entry, MPIE enabled, [mepcc] its entry. *)
+  Definition fw_initial_sreg (fw : firmware) (img : fw_image) (sr : SRegName) : Word :=
     match sr with
     | mtdc => fw_thread_mtdc img 0
-    | mstatus => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
+    | mstatus => WInt (mstatus_enc (fw_entry_posture fw img 0) InterruptEnabled)
     | mtcc => fw_mtcc img
-    | mepcc | mcause | mtval => WInt 0
+    | mepcc => fw_entry_pc fw img 0
+    | mcause | mtval => WInt 0
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1080,23 +1092,23 @@ Section entry.
     reg σ !! csp = Some (fw_thread_csp img 0) ∧
     reg σ !! cra = Some (fw_thread_cra img) ∧
     (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
-    (∀ sr, sreg σ !! sr = Some (fw_initial_sreg img sr)).
+    (∀ sr, sreg σ !! sr = Some (fw_initial_sreg fw img sr)).
   Proof.
-    rewrite /regs_ok /note /fw_entry_pc /fw_entry_cgp /fw_entry_offset /fw_entry_word
-      /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
+    rewrite /regs_ok /note /fw_initial_sreg /fw_entry_posture /fw_entry_pc /fw_entry_cgp
+      /fw_entry_offset /fw_entry_word /fw_entry_fc /fw_entry_cmpt fw_thread_of_0 /fw_thread0.
     destruct (fw_threads fw) as [|ft fts]; first done.
-    intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmstatus & Hmtcc & Hmepcc & Hmcause
-            & Hmtval).
+    intros (Hpc & Hcgp & Hcsp & Hcra & Hregs & Hmtdc & Hmtcc & Hmepcc & Hmcause & Hmtval).
     destruct (fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft))) as [tb|ub] eqn:Hbody.
-    - destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
+    - destruct Hpc as [Hpc Hmstatus].
+      destruct (fw_cmpt_of_trusted _ _ _ Hbody) as [Hin Hname].
       split_and!; [by exists fts | done..|].
-      intros sr. by destruct sr.
+      intros sr. destruct sr; first [done | by rewrite Hmepcc Hpc].
     - destruct (fw_index_of ue_name (ft_entry ft) (ub_exports ub)) as [k|] eqn:Hk;
         last by destruct Hpc.
-      destruct Hpc as (z & Hz & Hpc).
+      destruct Hpc as (z & Hz & Hpc & Hmstatus).
       destruct (fw_cmpt_of_untrusted _ _ _ _ _ Hbody Hk) as [Hin Hname].
       split_and!; [by exists fts | done | done | by rewrite Hpc Hz /= | done..|].
-      intros sr. by destruct sr.
+      intros sr. destruct sr; first [done | by rewrite Hmstatus Hz | by rewrite Hmepcc Hpc Hz].
   Qed.
 
   Lemma firmware_ok_thread0 fw img σ :
@@ -1467,6 +1479,8 @@ Section ghost_init.
       + (* MTCC: the switcher's capability, outside the heap *)
         apply word_rooted_cap_nonheap. exact (proj1 Hsw_not_heap).
       + by apply word_rooted_cap_disjoint.
+      + (* MEPCC: the entry, outside the heap *)
+        apply word_rooted_cap_nonheap. exact (proj1 (icl_pcc_not_heap _ Hm)).
     - (* The memory avoids the memory-mapped devices. *)
       match goal with |- mem_avoids_mmio (?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM) =>
         replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
@@ -1510,8 +1524,11 @@ Section ghost_init.
       apply word_exec_ok_int.
     - intros sr w Hw. rewrite Hsreg in Hw. injection Hw as <-.
       destruct sr; try by apply word_exec_ok_not_executable.
-      (* MTCC: the switcher's capability, with closed bounds outside the heap *)
-      eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end].
+      + (* MTCC: the switcher's capability, with closed bounds outside the heap *)
+        eapply word_exec_ok_closed; [reflexivity | exact Hsw_not_heap | exact Hsw_end].
+      + (* MEPCC: the entry, with closed bounds outside the heap *)
+        eapply word_exec_ok_closed;
+          [done | exact (icl_pcc_not_heap _ Hm) | exact (icl_pcc_end_not_heap _ Hm)].
     - by intros _.
     - intros sr w Hsr Hw. rewrite Hsreg in Hw. injection Hw as <-.
       (* MTCC is an unsealed executable capability *)
@@ -1519,7 +1536,7 @@ Section ghost_init.
     - intros sr _. eexists. apply Hsreg.
     - exact (Hsreg mtcc).
     - exists 0%Z. exact (Hsreg mtval).
-    - exists InterruptDisabled, InterruptDisabled. exact (Hsreg mstatus).
+    - eexists _, _. exact (Hsreg mstatus).
   Qed.
 End ghost_init.
 

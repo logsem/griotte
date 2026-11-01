@@ -68,25 +68,26 @@ vae_untrusted_entry_initial_state_ok (flag : Addr) (σ : ExecConf) :=
       ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                           -- thread 0, hazard slots
   shadowtbl σ = initial_heap_shadow                                         -- every heap address live
 ── Registers ───────────────────────────────────────────────────────────────
-  ∃ z : Z,                                                                           -- C, export adv, at the offset its entry word encodes
+  ∃ z : Z,                                                           -- C, export adv, at the offset its entry word encodes
     cmpt_exp_tbl_entries C !! 0 = Some (WInt z)
     pcc σ                      = (RX, Global, cmpt_b_pcc C, cmpt_e_pcc C, cmpt_b_pcc C ^+ export_entry_offset z)
+    sreg σ !! mstatus           = Some                               -- interrupts as the posture its entry word encodes
+      (WInt (mstatus_enc (export_entry_posture z) InterruptEnabled))
   reg σ !! cgp = Some (RW, Global, cmpt_b_cgp C, cmpt_e_cgp C, cmpt_b_cgp C)
   reg σ !! csp = Some (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space)
-  reg σ !! cra = Some                                                                -- the switcher's return sentry: a return from the entry exits the thread
+  reg σ !! cra = Some                                                -- the switcher's return sentry: a return from the entry exits the thread
     (E-RetDisable XSRW_,
      Local,
      b_switcher sw,
      e_switcher sw,
      a_switcher_return sw)
-  ∀ r : RegName, r ∉ {[cgp; cra; csp]} → reg σ !! r = Some (WInt 0)                  -- every other register cleared
-  sreg σ !! mtdc    = Some (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0)
-  sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled InterruptDisabled))  -- interrupts disabled
-  sreg σ !! mtcc    = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
-                                                                                     -- exception entry
-  sreg σ !! mepcc   = Some (WInt 0)
-  sreg σ !! mcause  = Some (WInt 0)
-  sreg σ !! mtval   = Some (WInt 0)
+  ∀ r : RegName, r ∉ {[cgp; cra; csp]} → reg σ !! r = Some (WInt 0)  -- every other register cleared
+  sreg σ !! mtdc   = Some (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0)
+  sreg σ !! mtcc   = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
+                                                                     -- exception entry
+  sreg σ !! mepcc  = Some (pcc σ)                                    -- the entry, as the switcher's mret leaves it
+  sreg σ !! mcause = Some (WInt 0)
+  sreg σ !! mtval  = Some (WInt 0)
 ── switcher, layout ────────────────────────────────────────────────────────
   b_switcher sw + 5                                 = Some (a_switcher_call sw)
   a_switcher_call sw + length switcher_instrs       = Some (e_switcher sw)

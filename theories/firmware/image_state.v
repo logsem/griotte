@@ -17,36 +17,38 @@ From griotte Require Import image firmware firmware_ok.
 Section img_state.
   Context `{MP : MachineParameters}.
 
-  (** The first thread, its compartment and the offset of its entry: the
-      firmware's for a trusted export, the one its entry word in [img]
-      encodes for an untrusted one. *)
-  Definition thread0_entry (fw : firmware) (img : fw_image) : string * Z :=
+  (** The first thread, its compartment, and the offset and interrupt
+      posture of its entry: the firmware's for a trusted export, the ones
+      its entry word in [img] encodes for an untrusted one. *)
+  Definition thread0_entry (fw : firmware) (img : fw_image) : string * Z * InterruptStatus :=
     match fw_threads fw with
-    | [] => ("", 0%Z)
+    | [] => ("", 0%Z, InterruptEnabled)
     | ft :: _ =>
-        let off :=
+        let '(off, posture) :=
           match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-          | TrustedBody b => Z.of_nat (fe_offset (fw_export_named (ft_entry ft) (tb_exports b)))
+          | TrustedBody b =>
+              let e := fw_export_named (ft_entry ft) (tb_exports b) in
+              (Z.of_nat (fe_offset e), fe_posture e)
           | UntrustedBody b =>
               match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
               | Some k =>
                   match cmpt_exp_tbl_entries (cmpt_of img (ft_cmpt ft)) !! k with
-                  | Some (WInt z) => export_entry_offset z
-                  | _ => 0%Z
+                  | Some (WInt z) => (export_entry_offset z, export_entry_posture z)
+                  | _ => (0%Z, InterruptEnabled)
                   end
-              | None => 0%Z
+              | None => (0%Z, InterruptEnabled)
               end
           end in
-        (ft_cmpt ft, off)
+        (ft_cmpt ft, off, posture)
     end.
 
   Definition img_pc (fw : firmware) (img : fw_image) : Word :=
-    let '(n, off) := thread0_entry fw img in
+    let '(n, off, _) := thread0_entry fw img in
     let c := cmpt_of img n in
     Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ off).
 
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
-    let c := cmpt_of img (thread0_entry fw img).1 in
+    let c := cmpt_of img (thread0_entry fw img).1.1 in
     let t := thread_of img 0 in
     let sw := img_sw img in
     <[cgp := Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
@@ -56,16 +58,16 @@ Section img_state.
                       (e_stack t ^+ (- StackEntry_reserved_space))]>
             (gset_to_gmap (WInt 0) all_registers_s))).
 
-  Definition img_sregs (img : fw_image) : SReg :=
+  Definition img_sregs (fw : firmware) (img : fw_image) : SReg :=
     let t := thread_of img 0 in
     let sw := img_sw img in
     <[mtdc := Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)]>
-      (<[mstatus := WInt (mstatus_enc InterruptDisabled InterruptDisabled)]>
+      (<[mstatus := WInt (mstatus_enc (thread0_entry fw img).2 InterruptEnabled)]>
          (<[mtcc := Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
                       (a_switcher_call sw ^+
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                            ".Lswitch_csp_check" "exception_entry_asm")%a]>
-            (<[mepcc := WInt 0]>
+            (<[mepcc := img_pc fw img]>
                (<[mcause := WInt 0]> (<[mtval := WInt 0]> ∅))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
@@ -78,7 +80,7 @@ Section img_state.
     initial_heap_memory.
 
   Definition img_state (fw : firmware) (img : fw_image) : ExecConf :=
-    (img_pc fw img, img_regs fw img, img_sregs img, img_mem fw img, initial_heap_shadow).
+    (img_pc fw img, img_regs fw img, img_sregs fw img, img_mem fw img, initial_heap_shadow).
 End img_state.
 
 (** ** Canonical words
