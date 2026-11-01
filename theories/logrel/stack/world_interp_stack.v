@@ -98,17 +98,45 @@ Section WorldInterpStack.
     iExists (w :: ws). iFrame.
   Qed.
 
-  (* Opening the world from a safe-to-share stack region gives [StackOpenWorldResources] *)
-  Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
+  (** The cells of a safe-to-share stack are Temporary keys. *)
+  #[local] Lemma interp_stack_temporary W C g b e a (la : list Addr) :
+    Forall (λ a', (a' ∈ₐ [b, e))) la →
+    interp W C (Cap RWL g b e a) -∗
+    ⌜Forall (λ a', std W !! LNonHeap a' = Some Temporary) la⌝.
+  Proof.
+    iIntros (Hin) "#Hinterp".
+    iDestruct (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp")
+      as "Htemps"; first done.
+    iDestruct (big_sepL_forall with "Htemps") as %Htemps.
+    iPureIntro. eapply Forall_impl; [exact Hin|]. intros x Hx.
+    apply elem_of_finz_seq_between, list_elem_of_lookup_1 in Hx as [i Hi].
+    by eapply Htemps.
+  Qed.
+
+  (** Temporary cells are open in the local map only. *)
+  #[local] Lemma open_perm_app_temporary W (la la' : list Addr) :
+    Forall (λ a', std W !! LNonHeap a' = Some Temporary) la →
+    open_perm W (LNonHeap <$> (la ++ la')) = open_perm W (LNonHeap <$> la').
+  Proof.
+    intros Hla. apply set_eq. intros k.
+    rewrite !elem_of_open_perm fmap_app elem_of_app.
+    split; [|naive_solver]. intros [ [Hk|Hk] HnT]; [|done].
+    exfalso. apply list_elem_of_fmap in Hk as (x & -> & Hx).
+    rewrite Forall_forall in Hla. by apply HnT, Hla.
+  Qed.
+
+  (** Opening the local map on a safe-to-share stack region gives
+      [StackOpenWorldResources]. *)
+  Lemma local_open_stack (W : WORLD) (C : CmptName)
     (la la' : list Addr) (g : Locality) (b e a : Addr) :
     NoDup la ->
     Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) la ->
     la ## la' ->
 
     interp W C (Cap RWL g b e a) ∗
-    world_interp_open W C (LNonHeap <$> la')
+    local_region_map th W C (open_l W (LNonHeap <$> la'))
     -∗
-    world_interp_open W C (LNonHeap <$> (la++la')) ∗
+    local_region_map th W C (open_l W (LNonHeap <$> (la++la'))) ∗
     (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
            ▷ StackOpenWorldResources interp W C la lv).
   Proof.
@@ -124,16 +152,71 @@ Section WorldInterpStack.
       iDestruct (big_sepL_elem_of with "Hrels")
         as "(%p' & %P & %Hfl & %Hpers & #Hrel & %HT & #Hmono & #Hz & #Hrc & #Hwc)".
       { by apply elem_of_finz_seq_between. }
-      iDestruct (open_world_interp_temporary with "Hr Hrel") as "[Hr Hres]"; [|done|].
-      { intros (x & Heq & Hx)%list_elem_of_fmap. simplify_eq.
+      rewrite open_l_cons_T //.
+      iDestruct (l_open_transport with "Hr Hrel") as "[$ Hres]"; [|done|].
+      { intros ((x & Heq & Hx)%list_elem_of_fmap & _)%elem_of_open_l. simplify_eq.
         apply elem_of_app in Hx as [Hx|Hx]; [done|set_solver+Hx Ha_notin_l']. }
       iDestruct "Hres" as (v) "(_ & Hv & HP & Hfmono)".
-      iSplitL "Hr".
-      { iApply (world_interp_open_permutation with "Hr"). intros k. set_solver. }
       iExists (v :: lv). iFrame "Hv Hlv".
       iNext. iDestruct "Hopen_res" as "[Hres Hstates]".
       rewrite /StackOpenWorldResources /StackWorldResources /=.
       iFrame "Hres Hstates %". by iFrame "∗#".
+  Qed.
+
+  (* Opening the world from a safe-to-share stack region gives [StackOpenWorldResources] *)
+  Lemma region_open_list_interp_gen (W : WORLD) (C : CmptName)
+    (la la' : list Addr) (g : Locality) (b e a : Addr) :
+    NoDup la ->
+    Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) la ->
+    la ## la' ->
+
+    interp W C (Cap RWL g b e a) ∗
+    world_interp_open W C (LNonHeap <$> la')
+    -∗
+    world_interp_open W C (LNonHeap <$> (la++la')) ∗
+    (∃ lv, ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+           ▷ StackOpenWorldResources interp W C la lv).
+  Proof.
+    iIntros (Hnodup Hin Hdis) "(#Hinterp & Hr)".
+    iDestruct (interp_stack_temporary with "Hinterp") as %HT; [exact Hin|].
+    rewrite !world_interp_open_eq open_perm_app_temporary //.
+    iDestruct "Hr" as "[$ Hr]".
+    iApply (local_open_stack with "[$Hinterp $Hr]"); done.
+  Qed.
+
+  (** Closing a stack opened in the local map. *)
+  Lemma local_close_stack (W : WORLD) (C : CmptName)
+    (lv : list LWord) (la la' : list Addr) :
+    NoDup la ->
+    la ## la' ->
+    length lv = length la ->
+
+    local_region_map th W C (open_l W (LNonHeap <$> (la++la'))) ∗
+    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗
+    StackOpenWorldResources interp W C la lv
+    -∗
+    local_region_map th W C (open_l W (LNonHeap <$> la')).
+  Proof.
+    revert lv. induction la as [|a0 la IH]; intros lv Hnodup Hdis Hlen_lv;
+      iIntros "(Hr & Ha & [Hres Hstates])"; cbn in * |- *.
+    - done.
+    - destruct lv as [|v lv]; simplify_eq/=.
+      iDestruct "Hres" as
+        "[(%φ & %p & Hφ & #Hfmono & #Hrel & (#Hmono & #Hz & #Hrc & #Hwc & %Hpers) & %Hp) Hres]".
+      iDestruct "Hstates" as "[%HT Hstates]".
+      iDestruct "Ha" as "[Ha Hlv]".
+      apply NoDup_cons in Hnodup as [Hnotin Hnodup].
+      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
+      eapply disjoint_weak in Hdis.
+      rewrite open_l_cons_T //.
+      iDestruct (l_close th W C _ (LNonHeap a0) p (safeC φ) with "Hr Hrel [Hφ Ha]") as "Hr".
+      { intros ((x & Heq & Hx)%list_elem_of_fmap & _)%elem_of_open_l. simplify_eq.
+        apply elem_of_app in Hx as [Hx|Hx]; [done|set_solver+Hx Ha_notin_l']. }
+      { done. }
+      { intros x. apply Hpers. }
+      { iApply heap_key_resource_intro. iExists v. rewrite /TmpRes /=. iFrame "∗#".
+        iPureIntro. by eapply notisO_flowsfrom. }
+      iApply (IH with "[$Hr $Hlv $Hres $Hstates]"); eauto.
   Qed.
 
   (* We can close the world using [StackOpenWorldResources] *)
@@ -151,27 +234,11 @@ Section WorldInterpStack.
     -∗
     world_interp_open W C (LNonHeap <$> la').
   Proof.
-    revert lv. induction la as [|a0 la IH]; intros lv Hnodup Hdis Hlen_lv;
-      iIntros "(Hr & Ha & [Hres Hstates])"; cbn in * |- *.
-    - done.
-    - destruct lv as [|v lv]; simplify_eq/=.
-      iDestruct "Hres" as
-        "[(%φ & %p & Hφ & #Hfmono & #Hrel & (#Hmono & #Hz & #Hrc & #Hwc & %Hpers) & %Hp) Hres]".
-      iDestruct "Hstates" as "[%HT Hstates]".
-      iDestruct "Ha" as "[Ha Hlv]".
-      apply NoDup_cons in Hnodup as [Hnotin Hnodup].
-      pose proof (disjoint_cons _ _ _ Hdis) as Ha_notin_l'.
-      eapply disjoint_weak in Hdis.
-      assert (∀ x, Persistent (safeC φ x)) as HpersL by (intros x; apply Hpers).
-      iDestruct (close_world_interp_temporary W C (LNonHeap <$> (la ++ la')) (LNonHeap a0) p
-                  (safeC φ) v with "[Hr] Hrel [Hφ Ha]") as "[Hr _]".
-      { intros (x & Heq & Hx)%list_elem_of_fmap. simplify_eq.
-        apply elem_of_app in Hx as [Hx|Hx]; [done|set_solver+Hx Ha_notin_l']. }
-      { done. }
-      { iApply (world_interp_open_permutation with "Hr"). intros k. set_solver. }
-      { rewrite /TmpRes /=. iFrame "∗#".
-        iPureIntro. by eapply notisO_flowsfrom. }
-      iApply (IH with "[$Hr $Hlv $Hres $Hstates]"); eauto.
+    iIntros (Hnodup Hdis Hlen_lv) "(Hr & Ha & [Hres #Hstates])".
+    iDestruct (big_sepL_forall with "Hstates") as %HT.
+    rewrite !world_interp_open_eq open_perm_app_temporary; last by apply Forall_lookup.
+    iDestruct "Hr" as "[$ Hr]".
+    iApply (local_close_stack with "[$Hr $Ha $Hres $Hstates]"); done.
   Qed.
 
   (** The keys Temporary in [W]: the unknown ones, then a stack split into a
@@ -193,16 +260,16 @@ Section WorldInterpStack.
       apply list_elem_of_filter. split; [|done]. intros Hxs. apply Hn. eauto.
   Qed.
 
-  (* Revoke a stack region *)
-  Lemma monotone_revoke_stack W C b e a :
+  (* Revoke a stack region in the local map *)
+  Lemma local_revoke_stack W C b e a :
     let la := finz.seq_between b e in
 
     interp W C (Cap RWL Local b e a) ∗
-    world_interp W C
+    local_region_map th W C ∅
     ==∗
     ∃ l_unk_temp,
       ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
-      world_interp (revoke W) C ∗
+      local_region_map th (revoke W) C ∅ ∗
       ▷ StackRevokedResources W C la ∗
       ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
       ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
@@ -221,7 +288,7 @@ Section WorldInterpStack.
                   (proj2 (NoDup_LNonHeap_fmap la) Hla_nodup)
                   (proj2 (Forall_fmap _ _ _) Hla_tmp))
       as (l_unk & Hnodup' & Hall).
-    iMod (world_interp_revoke W C (l_unk ++ (LNonHeap <$> la)) with "Hw")
+    iMod (local_revoke W C (l_unk ++ (LNonHeap <$> la)) with "Hw")
       as "(Hw & HR & %Hrev)"; first by split.
     apply Forall_app in Hrev as [Hrev_unk Hrev_la].
     apply Forall_fmap in Hrev_la.
@@ -236,19 +303,13 @@ Section WorldInterpStack.
     iApply exists_pointsto_list. by iApply revoked_cells.
   Qed.
 
-  (* Revoke a stack region, part of which ($[bs, es)$) has been opened: the
-     open keys are revoked with the others, and closed in the revoked world,
-     where their body is empty. *)
-  Lemma monotone_revoke_stack_open {E : coPset} W C b e a bs es lv ws :
+  (* Revoke a stack region *)
+  Lemma monotone_revoke_stack W C b e a :
     let la := finz.seq_between b e in
-    let ls := finz.seq_between bs es in
-    (b <= bs)%a → (es <= e)%a →
 
     interp W C (Cap RWL Local b e a) ∗
-    world_interp_open W C (LNonHeap <$> ls) ∗
-    ▷ StackOpenWorldResources interp W C ls lv ∗
-    [[ bs , es ]] ↦ₐ [[ ws ]]
-    ={E}=∗
+    world_interp W C
+    ==∗
     ∃ l_unk_temp,
       ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
       world_interp (revoke W) C ∗
@@ -258,8 +319,37 @@ Section WorldInterpStack.
       ▷ RevokedResources W C l_unk_temp ∗
       ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
   Proof.
+    intros la.
+    iIntros "(#Hinterp & Hw)".
+    rewrite world_interp_eq. iDestruct "Hw" as "[Hg Hl]".
+    iMod (local_revoke_stack with "[$Hinterp $Hl]") as (l_unk) "(%Hext & Hl & Hrest)".
+    iModIntro. iExists l_unk. rewrite world_interp_eq. by iFrame "∗%".
+  Qed.
+
+  (* Revoke a stack region in the local map, part of which ($[bs, es)$) has
+     been opened: the open keys are revoked with the others, and closed in
+     the revoked world, where their body is empty. *)
+  Lemma local_revoke_stack_open {E : coPset} W C b e a bs es lv ws :
+    let la := finz.seq_between b e in
+    let ls := finz.seq_between bs es in
+    (b <= bs)%a → (es <= e)%a →
+
+    interp W C (Cap RWL Local b e a) ∗
+    local_region_map th W C (open_l W (LNonHeap <$> ls)) ∗
+    ▷ StackOpenWorldResources interp W C ls lv ∗
+    [[ bs , es ]] ↦ₐ [[ ws ]]
+    ={E}=∗
+    ∃ l_unk_temp,
+      ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
+      local_region_map th (revoke W) C ∅ ∗
+      ▷ StackRevokedResources W C la ∗
+      ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
+      ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
+      ▷ RevokedResources W C l_unk_temp ∗
+      ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+  Proof.
     intros la ls Hbs Hes.
-    iIntros "(#Hinterp & Hr & _ & Hslot)".
+    iIntros "(#Hinterp & Hl & _ & Hslot)".
     iDestruct (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp")
       as "Htemps"; first done.
     iDestruct (big_sepL_forall with "Htemps") as %Htemps.
@@ -307,18 +397,14 @@ Section WorldInterpStack.
     assert (∀ k, k ∈ LNonHeap <$> ls → std W !! k = Some Temporary) as Hls_T.
     { intros k (x & -> & Hx)%list_elem_of_fmap.
       eapply Forall_forall in Hla_tmp; [exact Hla_tmp|]. by apply Hls_la. }
-    iEval (rewrite world_interp_open_eq) in "Hr".
-    assert (open_perm W (LNonHeap <$> ls) = ∅) as ->.
-    { apply set_eq. intros k. rewrite elem_of_open_perm. split; [|set_solver].
-      intros [Hk HnT]. by apply Hls_T in Hk. }
     assert (open_l W (LNonHeap <$> ls) = O) as ->.
     { apply set_eq. intros k. rewrite elem_of_open_l /O elem_of_list_to_set.
       split; [tauto|]. intros Hk. split; [done|]. by apply Hls_T. }
-    iDestruct "Hr" as "[Hg Hl]".
     iDestruct (l_revoke th W C O S HS with "Hl") as "[Hl HR]".
     (* The open keys are Revoked in [revoke W]: they close with no body. *)
     iAssert (local_region_map th (revoke W) C ∅) with "[Hl]" as "Hl".
-    { iDestruct "Hl" as (M) "Hw". iNamed "Hw". iExists M. rewrite /local_region_map_M. iFrame "Hloc %".
+    { iDestruct "Hl" as (M) "Hw". iNamed "Hw". iExists M. rewrite /local_region_map_M.
+      iFrame "Hloc %".
       rewrite -(union_empty_r_L O).
       iApply (rmap_close_all _ _ _ ∅ O with "[] [] Hm"); [set_solver| |].
       - iIntros "!>" (k p φ Hk). rewrite /body_l.
@@ -336,8 +422,7 @@ Section WorldInterpStack.
     iDestruct "HR" as "[HR_unk HR_lr]".
     iModIntro. iExists l_unk.
     iSplit; [iPureIntro; by split|].
-    iSplitL "Hg Hl".
-    { rewrite world_interp_eq. iFrame. }
+    iFrame "Hl".
     iSplit; [by iApply stack_revoked_resources|].
     iSplit; [done|].
     iSplitR "HR_unk"; [|by iFrame].
@@ -348,6 +433,71 @@ Section WorldInterpStack.
     { rewrite Hperm_la big_sepL_app. iFrame. }
     iNext. rewrite /region_pointsto. by iApply exists_pointsto_list.
   Qed.
+
+  (* Revoke a stack region, part of which ($[bs, es)$) has been opened: the
+     open keys are revoked with the others, and closed in the revoked world,
+     where their body is empty. *)
+  Lemma monotone_revoke_stack_open {E : coPset} W C b e a bs es lv ws :
+    let la := finz.seq_between b e in
+    let ls := finz.seq_between bs es in
+    (b <= bs)%a → (es <= e)%a →
+
+    interp W C (Cap RWL Local b e a) ∗
+    world_interp_open W C (LNonHeap <$> ls) ∗
+    ▷ StackOpenWorldResources interp W C ls lv ∗
+    [[ bs , es ]] ↦ₐ [[ ws ]]
+    ={E}=∗
+    ∃ l_unk_temp,
+      ⌜ extract_temporaries_condition W (l_unk_temp ++ (LNonHeap <$> la)) ⌝ ∗
+      world_interp (revoke W) C ∗
+      ▷ StackRevokedResources W C la ∗
+      ▷ ⌜Forall (λ a, std (revoke W) !! LNonHeap a = Some Revoked) la⌝ ∗
+      ▷ (∃ stk_mem, [[ b , e ]] ↦ₐ [[ stk_mem ]]) ∗
+      ▷ RevokedResources W C l_unk_temp ∗
+      ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) l_unk_temp⌝.
+  Proof.
+    intros la ls Hbs Hes.
+    iIntros "(#Hinterp & Hr & Hres & Hslot)".
+    iDestruct (interp_stack_temporary _ _ _ _ _ _ ls with "Hinterp") as %HT.
+    { apply Forall_forall. intros x Hx%elem_of_finz_seq_between. solve_addr. }
+    rewrite world_interp_open_temporary_split; last by apply Forall_fmap.
+    iDestruct "Hr" as "[Hg Hl]".
+    iMod (local_revoke_stack_open with "[$Hinterp $Hl $Hres $Hslot]")
+      as (l_unk) "(%Hext & Hl & Hrest)"; [done..|].
+    iModIntro. iExists l_unk. rewrite world_interp_eq. by iFrame "∗%".
+  Qed.
+
+  (* Reinstate a stack region in the local map *)
+  Lemma local_reinstate_stack {E : coPset} W C la lv :
+     NoDup la →
+     Forall (eq (lword_of_word (WInt 0))) lv ->
+     Forall (fun a => (std W) !! LNonHeap a = Some Revoked) la ->
+
+     local_region_map th W C ∅ -∗
+     StackRevokedResources W C la -∗
+     ([∗ list] a;v ∈ la;lv, a ↦ₐ v)
+
+     ={E}=∗
+
+     local_region_map th (std_update_multiple W la Temporary) C ∅.
+   Proof.
+     iIntros (Hnodup Hlv Hrev) "Hw #Hres Hl".
+     iDestruct (big_sepL2_length with "Hl") as %Hlen.
+     rewrite -(replicate_as_Forall_2 (lword_of_word (WInt 0)) (length la) lv); [|by rewrite Hlen|exact Hlv].
+     rewrite -close_list_std_update_multiple_revoked //.
+     iMod (local_restore W C (LNonHeap <$> la) with "[$Hw Hl]") as "Hw";
+       [|by iModIntro].
+     rewrite /RevokedResources big_sepL_fmap.
+     rewrite /StackRevokedResources /StackWorldResources !big_sepL2_replicate_r //.
+     iDestruct (big_sepL_sep_2 with "Hres Hl") as "H".
+     iApply (big_sepL_mono with "H").
+     iIntros (k x Hx) "[(%φ & %p & Hφ & #Hfmono & #Hrel & (#Hmono & #Hz & #Hrc & #Hwc & %Hpers) & %Hp) Ha]".
+     iExists p, (safeC φ). iSplit; [iPureIntro; intros ?; apply Hpers|].
+     iFrame "Hrel". rewrite /temp_res /TmpRes /=. iExists _. iFrame "Ha".
+     iSplit; [iPureIntro; by eapply notisO_flowsfrom|].
+     iSplitL "Hφ"; [iNext; iApply "Hz"; iExact "Hφ"|].
+     iNext. iApply "Hmono".
+   Qed.
 
   (* Reinstate a stack region *)
   Lemma update_region_revoked_temp_pwl_multiple E W C la lv :
@@ -363,22 +513,9 @@ Section WorldInterpStack.
 
      world_interp (std_update_multiple W la Temporary) C.
    Proof.
-     iIntros (Hnodup Hlv Hrev) "Hw #Hres Hl".
-     iDestruct (big_sepL2_length with "Hl") as %Hlen.
-     rewrite -(replicate_as_Forall_2 (lword_of_word (WInt 0)) (length la) lv); [|by rewrite Hlen|exact Hlv].
-     rewrite -close_list_std_update_multiple_revoked //.
-     iMod (world_interp_restore W C (LNonHeap <$> la) with "[$Hw Hl]") as "Hw";
-       [|by iModIntro].
-     rewrite /RevokedResources big_sepL_fmap.
-     rewrite /StackRevokedResources /StackWorldResources !big_sepL2_replicate_r //.
-     iDestruct (big_sepL_sep_2 with "Hres Hl") as "H".
-     iApply (big_sepL_mono with "H").
-     iIntros (k x Hx) "[(%φ & %p & Hφ & #Hfmono & #Hrel & (#Hmono & #Hz & #Hrc & #Hwc & %Hpers) & %Hp) Ha]".
-     iExists p, (safeC φ). iSplit; [iPureIntro; intros ?; apply Hpers|].
-     iFrame "Hrel". rewrite /temp_res /TmpRes /=. iExists _. iFrame "Ha".
-     iSplit; [iPureIntro; by eapply notisO_flowsfrom|].
-     iSplitL "Hφ"; [iNext; iApply "Hz"; iExact "Hφ"|].
-     iNext. iApply "Hmono".
+     iIntros (Hnodup Hlv Hrev) "Hw Hres Hl".
+     rewrite !world_interp_eq. iDestruct "Hw" as "[$ Hw]".
+     iApply (local_reinstate_stack with "Hw Hres Hl"); done.
    Qed.
 
 End WorldInterpStack.
