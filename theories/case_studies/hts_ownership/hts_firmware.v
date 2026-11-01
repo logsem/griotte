@@ -60,9 +60,13 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
          tb_data    := [
            FWs [Cap RW Global heap_b heap_e (heap_b ^+ 1)]  (* the whole heap *)
          ];
+         (* The allocator's entries run with interrupts disabled, as one
+            critical section. This is temporary: CHERIoT's allocator runs
+            with interrupts enabled under a lock, and these entries move to
+            InterruptEnabled once Griotte has a lock library. *)
          tb_exports := [
-           {| fe_name := "malloc"; fe_offset := allocator_malloc_pcc_off; fe_nargs := allocator_malloc_nargs; fe_min_stack := allocator_malloc_min_stack; fe_posture := InterruptEnabled |};
-           {| fe_name := "free";   fe_offset := allocator_free_pcc_off;   fe_nargs := allocator_free_nargs;   fe_min_stack := allocator_free_min_stack;   fe_posture := InterruptEnabled |}
+           {| fe_name := "malloc"; fe_offset := allocator_malloc_pcc_off; fe_nargs := allocator_malloc_nargs; fe_min_stack := allocator_malloc_min_stack; fe_posture := InterruptDisabled |};
+           {| fe_name := "free";   fe_offset := allocator_free_pcc_off;   fe_nargs := allocator_free_nargs;   fe_min_stack := allocator_free_min_stack;   fe_posture := InterruptDisabled |}
          ];
          tb_error_handler := None;
          tb_error_handler_stackless := None |} |};
