@@ -196,13 +196,14 @@ Section HTS_States.
     a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
       allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     a_alloc_entry_malloc ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+      WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) ∗
     a_alloc_entry_free ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+      WInt (encode_entry_point InterruptDisabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off) ∗
     interp W_init_C C (WSealed ot_switcher C_f) ∗
-    C_f ↦ₑ□{nargs} 1.
+    C_f ↦ₑ□{nargs} 1 ∗
+    ⌜cmpt_shared C = false⌝.
 
   #[global] Instance hts_main_ctx_persistent : Persistent hts_main_ctx.
   Proof. rewrite /hts_main_ctx. tc_solve. Qed.

@@ -24,12 +24,11 @@ Section AllocatorMallocPublishBlocks4.
     (b + n)%a = Some finish ->
     (heap_b < next /\ b < finish /\ finish <= heap_e)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    route_pre th mie ->
+    default mie (jalr_target_mie wret.(lw)) = mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 4) ∗
     cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
-    held mie ∗
     ct0 ↦ᵣ Cap RW Global heap_b heap_e next ∗
     ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
     ca0 ↦ᵣ wca0 ∗
@@ -39,8 +38,7 @@ Section AllocatorMallocPublishBlocks4.
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cgp ↦ᵣ Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
-       held (default mie (jalr_target_mie wret.(lw))) ∗
+       MIE ↦ₜ mie ∗
        ct0 ↦ᵣ Cap RW Global heap_b heap_e finish ∗
        ca4 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
        ca0 ↦ᵣ (Cap RW Global b finish b) @@ ι ∗
@@ -51,9 +49,9 @@ Section AllocatorMallocPublishBlocks4.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Hbase Hfinish Hrange Htgt Hpre. pose proof Hbounds as (Hpc & Hpc_shadow &
+    intros Hbounds Hbase Hfinish Hrange Htgt Hkeep. pose proof Hbounds as (Hpc & Hpc_shadow &
       Hcgp_pc).
-    iIntros "(HPC & Hcgp & Hcra & Hmie & Hposture & Hct0 & Hct4 & Hca0 & Hca1 & Hslot &
+    iIntros "(HPC & Hcgp & Hcra & Hmie & Hct0 & Hct4 & Hca0 & Hca1 & Hslot &
       #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
@@ -86,9 +84,9 @@ Section AllocatorMallocPublishBlocks4.
     change_pc_to
       ((pc_a ^+ allocator_malloc_block_offset 5) ^+ allocator_malloc_exit_block_offset 2).
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hposture $Hcode]");
+    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hcode]");
       [by apply allocator_malloc_exit_bounds | done | done |].
-    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

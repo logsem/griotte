@@ -118,7 +118,7 @@ Section HTS_Spec_Free.
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
-       & #Hadv & #Hentry)".
+       & #Hadv & #Hentry & %Hshared)".
     iDestruct "Hret" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
       & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret

@@ -82,6 +82,7 @@ Section Heap_Temporal_Safety_Main.
 
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     route_pre th mie ->
+    cmpt_shared C = false ->
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
@@ -92,10 +93,10 @@ Section Heap_Temporal_Safety_Main.
       ∗ a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global
           allocator_cgp_b allocator_cgp_e allocator_cgp_b
       ∗ a_alloc_entry_malloc ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+          WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack
             allocator_malloc_pcc_off)
       ∗ a_alloc_entry_free ↦ₐ□
-          WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+          WInt (encode_entry_point InterruptDisabled allocator_free_nargs allocator_free_min_stack
             allocator_free_pcc_off)
       ∗ na_own (tpool th) ⊤
 
@@ -144,7 +145,7 @@ Section Heap_Temporal_Safety_Main.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hstk_min Hp_fresh Hframe_match Hroute)
+      Himports_contiguous Hstk_min Hp_fresh Hframe_match Hroute Hshared)
       "(#Hassert & #Hservice & #Hservice_static & #Hthread & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hcra & Hrmap & Himports & Hcode & Hdata
@@ -159,7 +160,7 @@ Section Heap_Temporal_Safety_Main.
     iDestruct (hts_private_data_initial cgp_b cgp_e Hcgp_contiguous
       with "Hdata") as "Hp".
     iAssert (hts_main_ctx C C_f W_init_C) as "#Hctx".
-    { iFrame "#". }
+    { iFrame "# %". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs cstk0 rmap mie

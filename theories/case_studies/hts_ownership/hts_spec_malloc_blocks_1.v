@@ -83,7 +83,7 @@ Section HTS_Spec_Malloc.
        & #Hinterp_csp & HK & Hcstk & Hmie & Hheld & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
-       & #Hadv & #Hentry)".
+       & #Hadv & #Hentry & %Hshared)".
     iDestruct "Hstatic" as "(Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
