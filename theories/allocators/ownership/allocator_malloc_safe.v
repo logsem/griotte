@@ -28,6 +28,7 @@ Section Heap_Temporal_Safety_Interp.
   (** Execute malloc for an arbitrary caller and return a safe result. *)
   Lemma malloc_exec_entry_point (W : WORLD) (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
+    cmpt_shared C = false ->
     allocator_service_ctx ∗
     allocator_service_static ∗
     allocator_otype_registry ∗
@@ -41,12 +42,12 @@ Section Heap_Temporal_Safety_Interp.
       allocator_malloc_nargs allocator_malloc_min_stack InterruptEnabled W C.
   Proof.
     (* Unpack the entry register map and the caller's continuation. *)
-    iIntros (Hpc_b)
+    iIntros (Hpc_b Hshared)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
         & %Hsync & _ & Hcstk & Hna & %Hroute & Hmie & Hposture)".
-    iEval (rewrite world_resources_exclusive) in "Hworld".
+    iEval (rewrite (world_resources_exclusive W C Hshared)) in "Hworld".
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs #Hzeros]".
@@ -331,6 +332,7 @@ Section Heap_Temporal_Safety_Interp.
     (C : CmptName) :
     allocator_pcc_b ≠ b_switcher ->
     cmpt_threads C ⊆ {[th]} ->
+    cmpt_shared C = false ->
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
     let a_alloc_entry_malloc := (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off) in
     allocator_service_ctx ∗
@@ -351,7 +353,7 @@ Section Heap_Temporal_Safety_Interp.
       (Cap RO g_allocator_exp_tbl allocator_exp_tbl_b allocator_exp_tbl_e
         a_alloc_entry_malloc).
   Proof.
-    intros Hpc_b Hpin a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
+    intros Hpc_b Hpin Hshared a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     subst a_alloc_exp_tbl_cgp a_alloc_entry_malloc.
     iIntros "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #HPCC & #HCGP &
       [#Heh #Hehs] & #Hentry)".
@@ -439,7 +441,7 @@ Section Heap_Temporal_Safety_Interp.
     iNext.
     change (allocator_pcc_b ^+ allocator_malloc_pcc_off) with allocator_malloc_pcc_addr.
     iAssert (no_handler allocator_exp_tbl_b) as "#Hno_handler"; first iFrame "Heh Hehs".
-    iApply (malloc_exec_entry_point W' C Hpc_b).
+    iApply (malloc_exec_entry_point W' C Hpc_b Hshared).
     iFrame "#".
   Qed.
 

@@ -509,6 +509,7 @@ Section Error_Handling_Read_Safe.
     (g_tbl : Locality) (W : WORLD) (C : CmptName) :
     STATS_pcc_b ≠ b_switcher →
     cmpt_threads C ⊆ {[th]} →
+    cmpt_shared C = false →
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
@@ -517,7 +518,7 @@ Section Error_Handling_Read_Safe.
     ot_switcher_prop W C
       (Cap RO g_tbl b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
-    iIntros (Hswitcher Hpin)
+    iIntros (Hswitcher Hpin Hshared)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     pose proof stats_exp_tbl_size as Hstats_exp_tbl_size.
@@ -566,7 +567,7 @@ Section Error_Handling_Read_Safe.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %b_stk %e_stk".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
       & Hworld_C & _ & %Hsync_csp & %Hminstk & Hcstk & Hna & %Hroute & Hmie & Hheld)".
-    iEval (rewrite world_resources_exclusive) in "Hworld_C".
+    iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_C".
     iDestruct "Hregister_state" as
       "(%Hfull & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & #Hinterp_rmap & _)".
     set (cur := stk_start_a b_stk e_stk).

@@ -53,6 +53,7 @@ Section LSE.
     (cgp_b + length lse_main_data)%a = Some cgp_e ->
     is_Some (pc_b + (length_lse_main_imports + length LSE_main_code_run))%a ->
     cmpt_threads C ⊆ {[th]} ->
+    cmpt_shared C = false ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -79,7 +80,7 @@ Section LSE.
     intros imports a_lse_exp_tbl_cgp a_lse_entry_f.
     subst imports a_lse_exp_tbl_cgp a_lse_entry_f.
     iIntros (Hpc_shadow Hcgp_shadow Hcgp_nonheap Hexports_shadow Hpc_nonheap
-               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some Hpin)
+               Hlse_exp_tbl_size Hlse_size_code Hlse_imports Hcgp_size Hentry_some Hpin Hshared)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hlse_code
@@ -113,7 +114,7 @@ Section LSE.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
       & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
-    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
+    iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
     rewrite /registers_pointsto.

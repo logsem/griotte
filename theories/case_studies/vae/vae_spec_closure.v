@@ -69,6 +69,7 @@ Section VAE.
     (cgp_b + length vae_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ VAE_main_code_init))%a ->
     cmpt_threads C ⊆ {[th]} ->
+    cmpt_shared C = false ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -116,7 +117,7 @@ Section VAE.
     intros imports a_vae_exp_tbl_cgp a_vae_entry_awkward.
     subst a_vae_exp_tbl_cgp a_vae_entry_awkward.
     iIntros (Hcgp_shadow Hexports_shadow Hpc_shadow Hpc_heap Hcgp_heap
-               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hpin)
+               Hvae_exp_tbl_size Hvae_size_code Hvae_imports Hcgp_size Hentry_some Hpin Hshared)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hvae_exp_PCC
@@ -150,7 +151,7 @@ Section VAE.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
       & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
-    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
+    iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /registers_pointsto.
@@ -241,6 +242,7 @@ Section VAE.
     { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)
@@ -326,6 +328,7 @@ Section VAE.
     { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill cannot fault: the stack holds it *)

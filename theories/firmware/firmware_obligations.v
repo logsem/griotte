@@ -572,6 +572,7 @@ Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
   (∀ (cthreads : CmptThreads),
      (∀ C, cmpt_threads C ⊆ {[UserThread 0]}) →
      (∀ C, UserThread 0 ∈ cmpt_threads C) →
+     (∀ C, cmpt_shared C = false) →
      ∀ (img : fw_image) (σ : ExecConf)
        (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
        (stsg : STSG Σ) (relg : relGS Σ)
@@ -588,7 +589,8 @@ Proof.
                        cmpt_shared := λ _, false;
                        cmpt_threads_sep := ltac:(intros; set_solver) |} : CmptThreads).
   apply (fw_obligations_of Σ (cthreads := cthreads)); first exact Hentry.
-  apply Hprep; [intros; reflexivity | intros; rewrite /cthreads /=; set_solver].
+  apply Hprep;
+    [intros; reflexivity | intros; rewrite /cthreads /=; set_solver | intros; reflexivity].
 Qed.
 
 (** ** Closing the world of an untrusted compartment *)
@@ -896,6 +898,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
     `{MP : MachineParameters} (fw : firmware) :
   fw_entry_untrusted fw →
   (∀ C, cmpt_threads C = {[UserThread 0]}) →
+  (∀ C, cmpt_shared C = false) →
   (∀ (img : fw_image) (σ : ExecConf)
      (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
      (stsg : STSG Σ) (relg : relGS Σ)
@@ -919,7 +922,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
            W C (fw_thread_csp img 0)) →
   fw_obligations Σ fw.
 Proof.
-  intros Huntrusted Hpin Hsetup. exists cthreads.
+  intros Huntrusted Hpin Hshared Hsetup. exists cthreads.
   intros img σ ceriseb sealsg stsg relg cstackg Hok.
   pose proof Hok as (_ & _ & Hregs & Hwf).
   destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
@@ -1006,5 +1009,6 @@ Proof.
   - by rewrite /regs; simplify_map_eq.
   - rewrite /regs lookup_insert_eq. by rewrite fw_thread_cra_eq.
   - exact Hzero.
+  - exact (Hshared C).
   - by intros [=].
 Qed.

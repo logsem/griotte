@@ -115,6 +115,7 @@ Section helpers_switcher_adequacy.
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    cmpt_shared C = false →
     thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
@@ -135,14 +136,14 @@ Section helpers_switcher_adequacy.
     held (th := th) b -∗
     safe[th].
   Proof.
-    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero Hshared.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
       #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk %Hroute HMIE Hheld".
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
-    iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
-    iPoseProof (shared_credit_exclusive C) as "Hcred".
+    iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld_interp".
+    iPoseProof (shared_credit_exclusive C Hshared) as "Hcred".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The entry compartment, at the top of the call stack, is untrusted
        and holds the thread's stack *)

@@ -178,6 +178,7 @@ Section KVS_spec_erase.
     let a_kvs_exp_tbl_cgp := (b_kvs_exp_tbl ^+ ExportTable_offset_cgp) in
     KVS_pcc_b ≠ b_switcher ->
     cmpt_threads C ⊆ {[th]} ->
+    cmpt_shared C = false ->
     KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
     kvs_otype_registry ∗
     kvs_static ∗
@@ -192,7 +193,7 @@ Section KVS_spec_erase.
     -∗
     ot_switcher_prop W C (Cap RO g_kvs_exp_tbl b_kvs_exp_tbl e_kvs_exp_tbl kvs_erase_exp_tbl_addr).
   Proof.
-    intros a_kvs_exp_tbl_cgp Hpc_switcher Hpin.
+    intros a_kvs_exp_tbl_cgp Hpc_switcher Hpin Hshared.
     subst a_kvs_exp_tbl_cgp.
     iIntros
       "(#Hspred & #Hreg & #Hkvs_static & #Hinv_kvs & #Hinv_kvs_logical & #Hinv_switcher & #Hswitcher_static
@@ -242,7 +243,7 @@ Section KVS_spec_erase.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
       & Hworld_C & _ & %Hsync_csp & _ & Hcstk & Hna & %Hroute & Hmie & Hheld)".
-    iEval (rewrite world_resources_exclusive) in "Hworld_C".
+    iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hkvs_exp_eh Hkvs_exp_ehs".

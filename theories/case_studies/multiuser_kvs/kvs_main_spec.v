@@ -83,6 +83,7 @@ Section KVS_main_spec.
     is_heap_cap (WSealed ot_switcher B_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     route_pre th mie ->
+    cmpt_shared B = false ->
     (
       assert_static b_assert e_assert a_flag ∗
       thread_in th B ∗
@@ -132,7 +133,7 @@ Section KVS_main_spec.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
-               Hframe_match Hroute
+               Hframe_match Hroute Hshared
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Hkvs_static & #Hkvs & #Hkvs_logical
@@ -283,6 +284,7 @@ Section KVS_main_spec.
          | subst rmap_B;
            repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L);
            rewrite Hdom_rmap_ret; set_solver+
+         | exact Hshared
          | ].
     iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk

@@ -1371,7 +1371,7 @@ Section KVS_preamble.
   (** The registry: its invariant holds the contents of every recorded
       key. *)
   Definition kvs_otype_registry {KVS : kvsLayout} : iProp Σ :=
-    registry_inv Nkvs_otype KVS_OTYPE kvs_sealed_obj_resources.
+    registry_inv (tpool th) Nkvs_otype KVS_OTYPE kvs_sealed_obj_resources.
 
   #[global] Instance kvs_otype_registry_persistent {KVS : kvsLayout} :
     Persistent kvs_otype_registry.
@@ -1430,7 +1430,7 @@ Section KVS_preamble.
     destruct w as [ | | | ot sb]; try done.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = KVS_OTYPE) as -> by solve_addr+Hsealed.
-    iMod (registry_acc Nkvs_otype KVS_OTYPE sealed_cap_key static_word_shape
+    iMod (registry_acc (tpool th) Nkvs_otype KVS_OTYPE sealed_cap_key static_word_shape
             kvs_sealed_obj_resources E F Ww C sb π
            with "Hreg Hspred Hinterp Hna")
       as (k) "(%Hkey & %Hshape & Hk & Hna & Hclose)"; [done|done|exact Htag|].
