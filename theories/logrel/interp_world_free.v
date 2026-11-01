@@ -339,11 +339,11 @@ Section logrel_trap.
     thread_in th C -∗
     interp_reg interp W C regs -∗
     top_cmpt_untrusted interp W C cstk -∗
-    world_resources W C ∗ shared_credit C -∗
+    world_resources W C -∗
     interp_continuation cstk Ws Cs -∗
     untrusted_fault cstk regs.
   Proof.
-    iIntros (Hframe) "Hth Hreg Htop [Hworld Hcred] Hcont". iExists W, C, Ws, Cs. by iFrame.
+    iIntros (Hframe) "Hth Hreg Htop Hworld Hcont". iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
   (** The trap vector [wvec] is safe: after trap entry from any PC [w], with
@@ -437,7 +437,7 @@ Section logrel_trap.
     top_cmpt_untrusted interp W C cstk -∗
     (|={⊤}=>
        registers_pointsto regs ∗
-       (world_resources W C ∗ shared_credit C) ∗
+       world_resources W C ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗

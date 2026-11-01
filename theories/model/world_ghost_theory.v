@@ -1066,6 +1066,16 @@ Section world_resources.
   Definition perm_resources C : iProp Σ :=
     if cmpt_shared C then wg_inv C else perm_region_map C ∅.
 
+  Lemma perm_resources_shared C :
+    cmpt_shared C = true →
+    perm_resources C = wg_inv C.
+  Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
+
+  Lemma perm_resources_exclusive C :
+    cmpt_shared C = false →
+    perm_resources C = perm_region_map C ∅.
+  Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
+
   Lemma world_resources_split W C :
     world_resources W C ⊣⊢ local_region_map th W C ∅ ∗ perm_resources C.
   Proof.

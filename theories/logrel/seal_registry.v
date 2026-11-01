@@ -6,9 +6,9 @@ From griotte Require Import proofmode logrel.
 
     The sealing predicate of a trusted sealer, whose sealed objects are
     valid in one compartment each. A sealed object has a key, computed from
-    its payload by [key_of]. The registry of the sealer is one [na_inv] at
-    the namespace [N]: it holds a ghost map from the keys of the registered
-    objects to their compartment, and the resources
+    its payload by [key_of]. The registry of the sealer is one [na_inv] of
+    the pool [pool] at the namespace [N]: it holds a ghost map from the
+    keys of the registered objects to their compartment, and the resources
     [sealed_obj_resources C k] of every registered key [k] of compartment
     [C]. The sealing predicate holds
     nothing but pure facts (the key and the shape of the payload) and the
@@ -63,10 +63,12 @@ Section SealRegistry.
     {seal_registryg : sealRegistryG ObjKey Σ}
   .
 
-  (** The parameters of a registry: its namespace, the otype of its sealer,
-      the key of a payload, a pure condition on the shape of the payload,
-      and the resources of a registered key for a compartment. *)
+  (** The parameters of a registry: the pool of its invariant, its
+      namespace, the otype of its sealer, the key of a payload, a pure
+      condition on the shape of the payload, and the resources of a
+      registered key for a compartment. *)
   Context
+    (pool : na_inv_pool_name)
     (N : namespace)
     (o : OType)
     (key_of : LWord → option ObjKey)
@@ -93,7 +95,7 @@ Section SealRegistry.
   (** The registry: its invariant holds the contents of every recorded
       key. *)
   Definition registry_inv : iProp Σ :=
-    na_inv (tpool th) N
+    na_inv pool N
       (∃ M : gmap ObjKey CmptName,
          ghost_map_auth (seal_registry_name (ObjKey := ObjKey) o) 1 M ∗
          [∗ map] k ↦ C ∈ M, sealed_obj_resources C k).
@@ -166,7 +168,7 @@ Section SealRegistry.
   Proof.
     iIntros "Hauth Hcontents".
     rewrite /registry_inv /registry_auth.
-    iApply (na_inv_alloc (tpool th) E N with "[Hauth Hcontents]").
+    iApply (na_inv_alloc pool E N with "[Hauth Hcontents]").
     iExists M. iFrame "Hauth". iExact "Hcontents".
   Qed.
 
@@ -185,17 +187,17 @@ Section SealRegistry.
     registry_inv -∗
     o ↪ₒ{SealGlobal} registry_propC -∗
     interp W C (WSealed o sb @@? π) -∗
-    na_own (tpool th) F
+    na_own pool F
     ={E}=∗
     ∃ k : ObjKey,
       ⌜ key_of (lforce_global (WSealable sb @@? π)) = Some k ⌝ ∗
       ⌜ shape (lforce_global (WSealable sb @@? π)) ⌝ ∗
       ▷ sealed_obj_resources C k ∗
-      na_own (tpool th) (F ∖ ↑N) ∗
+      na_own pool (F ∖ ↑N) ∗
       (▷ sealed_obj_resources C k ∗
-       na_own (tpool th) (F ∖ ↑N)
+       na_own pool (F ∖ ↑N)
        ={E}=∗
-       na_own (tpool th) F).
+       na_own pool F).
   Proof.
     iIntros (HF HE Htag) "#Hreg #Hspred #Hinterp Hna".
     iDestruct (interp_sb_elim W C o SealGlobal registry_propC sb π Htag
