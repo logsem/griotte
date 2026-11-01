@@ -192,6 +192,18 @@ Proof.
            p NotStuck E e P Φ).
 Qed.
 
+(** The same for a fancy update at the invariants of an instance [ceriseg],
+    in a WP of the thread at [ceriseg]. Not an instance: a file that needs it
+    declares it locally. *)
+Lemma elim_modal_cerise_fupd_wp `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread}
+    {CL : CritLink Σ th} p E e (P : iProp Σ) Φ :
+  ElimModal True p false
+    (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cerise_invGS Σ ceriseg))) E E P) P
+    (WP e @ E {{ Φ }}) (WP e @ E {{ Φ }}).
+Proof.
+  exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG (th := th)) p NotStuck E e P Φ).
+Qed.
+
 (** Texan triples of thread [th], as Iris's. *)
 Notation "'{{{' P } } } e '@[' th ] E {{{ x .. y , 'RET' pat ; Q } } }" :=
   (□ ∀ Φ, P -∗ ▷ (∀ x, .. (∀ y, Q -∗ Φ pat%V) .. ) -∗ WP e @[th] E {{ Φ }})%I

@@ -18,16 +18,7 @@ Section CopyContextMacro.
     {ceriseg:ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     `{MP: MachineParameters} {CR : CritRoute Σ th CL}.
 
-  (* TODO: move to program_logic/state_interp_def.v *)
-  (** A fancy update at the invariants of the instance, in a WP of the
-      thread. *)
-  #[local] Instance elim_modal_cerise_fupd_wp p E e (P : iProp Σ) Φ :
-    ElimModal True p false
-      (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cerise_invGS Σ ceriseg))) E E P) P
-      (WP e @ E {{ Φ }}) (WP e @ E {{ Φ }}).
-  Proof.
-    exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG (th := th)) p NotStuck E e P Φ).
-  Qed.
+  #[local] Existing Instance elim_modal_cerise_fupd_wp.
 
   (** One word per iteration, from [copy_loop] with [i] words copied. *)
   #[local] Lemma copy_context_loop_spec

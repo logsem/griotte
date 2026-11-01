@@ -201,6 +201,73 @@ Section griotte_lang_traps.
     iApply (posture_res_gen_intro with "Hh Hpart").
   Qed.
 
+  (** The fault obligation at the posture [b]: the trap vector receives
+      MIE disabled and the whole posture, with MPIE at [b] and MEPCC,
+      mcause and mtval pinned at the values of trap entry. *)
+  Lemma trap_safe_held_intro P_mcause P_mtval w E Φ (b : InterruptStatus) :
+    route_pre th b →
+    MIE ↦ₜ b -∗
+    held b -∗
+    ▷ (MIE ↦ₜ InterruptDisabled -∗
+       (∃ (b' : InterruptStatus) (c v : Z),
+          ⌜route_pre th b'⌝ ∗
+          ⌜P_mcause c⌝ ∗
+          ⌜P_mtval v⌝ ∗
+          posture_res_gen (Some b') (Some (lmepcc_of_pc w))
+            (Some (lword_of_word (WInt c))) (Some v)) -∗
+       PC ↦ₚ lword_of_word mtcc_vec -∗
+       WP Exec @ E {{ Φ }}) -∗
+    trap_safe_cause P_mcause P_mtval w E Φ.
+  Proof.
+    iIntros (Hpre) "Hmie Hheld Hcont".
+    iApply trap_safe_entry_intro. iModIntro. iExists b. rewrite /held /held_of.
+    iAssert ((if b is InterruptDisabled then handover_res else True) ∗
+             (if b is InterruptDisabled then posture_part (th := th) else True))%I
+      with "[Hheld]" as "[Hho Hpart]".
+    { destruct b; [done | iExact "Hheld"]. }
+    iSplitL "Hmie Hho".
+    { iApply trap_entry_res_unfold. by iFrame. }
+    iIntros "!> Hout HPC".
+    iDestruct (trap_entry_out_handover with "Hout")
+      as "(Hmie & (%c & %v & %Hc & %Hv & Hh) & Hpart')".
+    iApply ("Hcont" with "Hmie [Hh Hpart Hpart'] HPC").
+    iExists b, c, v. do 3 (iSplit; first done).
+    iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
+  Qed.
+
+  (** The fault obligation at the posture [b], as [trap_safe_held_intro],
+      with MPIE pinned at [b]: the trap vector receives the posture of the
+      fault. *)
+  Lemma trap_safe_held_pinned_intro P_mcause P_mtval w E Φ (b : InterruptStatus) :
+    route_pre th b →
+    MIE ↦ₜ b -∗
+    held b -∗
+    ▷ (MIE ↦ₜ InterruptDisabled -∗
+       (∃ c v : Z,
+          ⌜P_mcause c⌝ ∗
+          ⌜P_mtval v⌝ ∗
+          posture_res_gen (Some b) (Some (lmepcc_of_pc w))
+            (Some (lword_of_word (WInt c))) (Some v)) -∗
+       PC ↦ₚ lword_of_word mtcc_vec -∗
+       WP Exec @ E {{ Φ }}) -∗
+    trap_safe_cause P_mcause P_mtval w E Φ.
+  Proof.
+    iIntros (Hpre) "Hmie Hheld Hcont".
+    iApply trap_safe_entry_intro. iModIntro. iExists b. rewrite /held /held_of.
+    iAssert ((if b is InterruptDisabled then handover_res else True) ∗
+             (if b is InterruptDisabled then posture_part (th := th) else True))%I
+      with "[Hheld]" as "[Hho Hpart]".
+    { destruct b; [done | iExact "Hheld"]. }
+    iSplitL "Hmie Hho".
+    { iApply trap_entry_res_unfold. by iFrame. }
+    iIntros "!> Hout HPC".
+    iDestruct (trap_entry_out_handover with "Hout")
+      as "(Hmie & (%c & %v & %Hc & %Hv & Hh) & Hpart')".
+    iApply ("Hcont" with "Hmie [Hh Hpart Hpart'] HPC").
+    iExists c, v. do 2 (iSplit; first done).
+    iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
+  Qed.
+
   (** Stronger cause and value predicates. *)
   Lemma trap_safe_cause_mono (P_mcause P_mcause' P_mtval P_mtval' : Z → Prop) w E Φ :
     (∀ c : Z, P_mcause c → P_mcause' c) →

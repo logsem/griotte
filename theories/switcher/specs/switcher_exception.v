@@ -40,45 +40,6 @@ From griotte Require Export switcher_error_handler switcher_trap_safety.
     ([interp_expr_switcher_return], [interp_switcher_return]), which needs
     the trap vector and would otherwise form an import cycle. *)
 
-(* TODO: move to program_logic/rules/rules_trap_entry.v *)
-Section trap_safe_pinned.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
-    {CR : CritRoute Σ th CL}.
-
-  (** The fault obligation at the posture [b], as [trap_safe_held_intro],
-      with MPIE pinned at [b]: the trap vector receives the posture of the
-      fault. *)
-  Lemma trap_safe_held_pinned_intro P_mcause P_mtval w E Φ (b : InterruptStatus) :
-    route_pre th b →
-    MIE ↦ₜ b -∗
-    held b -∗
-    ▷ (MIE ↦ₜ InterruptDisabled -∗
-       (∃ c v : Z,
-          ⌜P_mcause c⌝ ∗
-          ⌜P_mtval v⌝ ∗
-          posture_res_gen (Some b) (Some (lmepcc_of_pc w))
-            (Some (lword_of_word (WInt c))) (Some v)) -∗
-       PC ↦ₚ lword_of_word mtcc_vec -∗
-       WP Exec @ E {{ Φ }}) -∗
-    trap_safe_cause P_mcause P_mtval w E Φ.
-  Proof.
-    iIntros (Hpre) "Hmie Hheld Hcont".
-    iApply trap_safe_entry_intro. iModIntro. iExists b. rewrite /held /held_of.
-    iAssert ((if b is InterruptDisabled then handover_res else True) ∗
-             (if b is InterruptDisabled then posture_part (th := th) else True))%I
-      with "[Hheld]" as "[Hho Hpart]".
-    { destruct b; [done | iExact "Hheld"]. }
-    iSplitL "Hmie Hho".
-    { iApply trap_entry_res_unfold. by iFrame. }
-    iIntros "!> Hout HPC".
-    iDestruct (trap_entry_out_handover with "Hout")
-      as "(Hmie & (%c & %v & %Hc & %Hv & Hh) & Hpart')".
-    iApply ("Hcont" with "Hmie [Hh Hpart Hpart'] HPC").
-    iExists c, v. do 2 (iSplit; first done).
-    iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
-  Qed.
-End trap_safe_pinned.
-
 Section Switcher_Exception.
   Context
     {Σ:gFunctors}

@@ -517,6 +517,51 @@ Section griotte_lang_rules.
     { congruence. }
   Qed.
 
+  (** [jalr cra cra]: a call through [cra] itself moves the posture as
+      [wp_jalr_success_call_posture]. *)
+  Lemma wp_jalr_success_call_same_posture `{CR : !CritRoute Σ th CL} E pc_p pc_g pc_b pc_e pc_a
+      pc_π pc_a' w wcra (b : InterruptStatus) dq :
+    decodeInstrW w.(lw) = Jalr cra cra →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    jalr_target_ok cra cra wcra.(lw) = true →
+    route_pre th b →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ cra ↦ᵣ wcra ∗
+        ▷ MIE ↦ₜ b ∗
+        ▷ held b
+    }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ lupdatePcPerm wcra ∗
+          pc_a ↦ₐ{dq} w ∗
+          cra ↦ᵣ Sentry (ret_kind b) pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          MIE ↦ₜ default b (jalr_target_mie wcra.(lw)) ∗
+          held (default b (jalr_target_mie wcra.(lw)))
+      }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpca' Htgt Hpre ϕ) "(>HPC & >Hpc_a & >Hrdst & >Hmie & Hheld) Hφ".
+    iDestruct (map_of_regs_1 with "Hrdst") as "Hmap".
+    assert (jalr_mie {[cra := wcra]} cra b = default b (jalr_target_mie wcra.(lw))) as Hjm.
+    { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
+    iApply (wp_Jalr_link _ _ _ _ _ _ _ _ _ _ _ _ _ (held b)
+              (held (jalr_mie {[cra := wcra]} cra b))
+             with "[$HPC $Hmap $Hpc_a $Hmie $Hheld]");
+      [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
+      | by apply link_transfer_si_route |].
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
+    destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
+    { destruct (decide (cra = cnull)) as [Hc|_]; first done.
+      rewrite /jalr_link. destruct (decide (cra = cra)) as [_|Hc]; last done.
+      iDestruct "HT" as "[ (_ & Hmie & HT) | [%Hc _] ]"; last done.
+      rewrite Hjm.
+      iApply "Hφ". iFrame. simplify_lmap_eq.
+      iRegsMap "Hmap"; eauto; iFrame. }
+    { simplify_lmap_eq. congruence. }
+    { congruence. }
+  Qed.
   (** A return ([jalr cnull cra]) moves the posture of the thread to the one
       the return sentry restores; a plain jump keeps it. *)
   Lemma wp_jalr_success_cnull_posture `{CR : !CritRoute Σ th CL} E pc_p pc_g pc_b pc_e pc_a pc_π

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules rules_vcsr.
+From griotte Require Import rules.
 From griotte Require Export posture switcher.
 
 (** The user-thread number of a thread. The context-switch thread has no
@@ -31,37 +31,6 @@ Definition thread_index (th : Thread) : nat :=
 Definition saved_mie_ok (ws : list LWord) : Prop :=
   ∀ w, ws !! Z.to_nat TrustedStack_offset_mstatus = Some w →
        mie_of (get_a w.(lw)) = InterruptDisabled.
-
-(* TODO: move to program_logic/posture.v *)
-Section si_mtdc.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
-
-  (** The fragment of mtdc pins the physical mtdc: zero for zero... *)
-  Lemma SI_mtdc_zero σ :
-    cerise_state_interp σ -∗
-    mtdc ↦ₜ ExceptionScratch (lword_of_word (WInt 0)) -∗
-    ⌜sreg σ !! mtdc = Some (WInt 0)⌝.
-  Proof.
-    iIntros "Hσ Hf". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
-    iDestruct (sys_interp_mtdc_agree with "Hsr Hf") as %[_ Hm]. cbn in Hm.
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her (ls_join_mtdc lsreg)) as (w & Hw & Hrel).
-    rewrite Hm in Hrel. apply reg_phys_no_bounds in Hrel; last done. cbn in Hrel. subst w.
-    done.
-  Qed.
-
-  (** ... and a capability for a trusted-stack value. *)
-  Lemma SI_mtdc_tstack σ p b e a :
-    cerise_state_interp σ -∗
-    mtdc ↦ₜ (Capₗ p _ b e a) -∗
-    ⌜sreg σ !! mtdc ≠ Some (WInt 0)⌝.
-  Proof.
-    iIntros "Hσ Hf". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
-    iDestruct (sys_interp_mtdc_agree with "Hsr Hf") as %[_ [g Hm] ].
-    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her (ls_join_mtdc lsreg)) as (w & Hw & Hrel).
-    rewrite Hm in Hrel. destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. rewrite Hw.
-    iPureIntro. intros Heq. simplify_eq.
-  Qed.
-End si_mtdc.
 
 Section switcher_link.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
@@ -219,66 +188,6 @@ Section switcher_link_pins.
 End switcher_link_pins.
 
 (** * Full-link forms of the rules that move a posture *)
-
-(* TODO: move to program_logic/rules/rules_vcsr.v *)
-Section vcsr_bridge.
-  Context `{ceriseg : ceriseG Σ}.
-
-  Lemma vcsr_frag_pointsto sr v : vcsr_frag sr v ⊣⊢ sr ↦ₓ v.
-  Proof. by rewrite rules_vcsr.vcsr_frag_unseal. Qed.
-End vcsr_bridge.
-
-(* TODO: move to program_logic/rules/rules_Jalr.v *)
-Section jalr_posture.
-  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
-    {CR : CritRoute Σ th CL}.
-
-  (** [jalr cra cra]: a call through [cra] itself moves the posture as
-      [wp_jalr_success_call_posture]. *)
-  Lemma wp_jalr_success_call_same_posture E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w wcra
-      (b : InterruptStatus) dq :
-    decodeInstrW w.(lw) = Jalr cra cra →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    jalr_target_ok cra cra wcra.(lw) = true →
-    route_pre th b →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ cra ↦ᵣ wcra ∗
-        ▷ MIE ↦ₜ b ∗
-        ▷ held b
-    }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ lupdatePcPerm wcra ∗
-          pc_a ↦ₐ{dq} w ∗
-          cra ↦ᵣ Sentry (ret_kind b) pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-          MIE ↦ₜ default b (jalr_target_mie wcra.(lw)) ∗
-          held (default b (jalr_target_mie wcra.(lw)))
-      }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' Htgt Hpre ϕ) "(>HPC & >Hpc_a & >Hrdst & >Hmie & Hheld) Hφ".
-    iDestruct (map_of_regs_1 with "Hrdst") as "Hmap".
-    assert (jalr_mie {[cra := wcra]} cra b = default b (jalr_target_mie wcra.(lw))) as Hjm.
-    { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
-    iApply (wp_Jalr_link _ _ _ _ _ _ _ _ _ _ _ _ _ (held b)
-              (held (jalr_mie {[cra := wcra]} cra b))
-             with "[$HPC $Hmap $Hpc_a $Hmie $Hheld]");
-      [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
-      | by apply link_transfer_si_route |].
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
-    { destruct (decide (cra = cnull)) as [Hc|_]; first done.
-      rewrite /jalr_link. destruct (decide (cra = cra)) as [_|Hc]; last done.
-      iDestruct "HT" as "[ (_ & Hmie & HT) | [%Hc _] ]"; last done.
-      rewrite Hjm.
-      iApply "Hφ". iFrame. simplify_lmap_eq.
-      iRegsMap "Hmap"; eauto; iFrame. }
-    { simplify_lmap_eq. congruence. }
-    { congruence. }
-  Qed.
-End jalr_posture.
 
 (* TODO: move to program_logic/rules/rules_SpecialRW.v *)
 Section mtdc_full.

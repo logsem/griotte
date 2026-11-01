@@ -15,35 +15,6 @@ From griotte Require Import rules_base.
 #[export] Instance InterruptStatus_inhabited : Inhabited InterruptStatus :=
   populate InterruptDisabled.
 
-Section instr_val.
-  Context `{MP : MachineParameters}.
-
-  (* TODO: move to opsem/griotte_opsem_prop.v *)
-  (** An instruction never leaves the machine executable. *)
-  Lemma exec_not_executable i p φ : (exec i p φ).1 ≠ Executable.
-  Proof.
-    rewrite /exec. destruct (exec_opt i p φ) as [c|] eqn:Hc; last done.
-    assert (∀ φ' z c', advancePC φ' z = Some c' → c'.1 = NextI) as Hadv.
-    { intros φ' z c' Hadv. rewrite /advancePC in Hadv. repeat case_match; by simplify_eq/=. }
-    destruct i; cbn in Hc; try unfold nextPC, exec_jcond in Hc;
-      repeat (simplify_option_eq || case_match); simplify_eq/=.
-    all: try done.
-    all: try (unfold nextPC in Hc); apply Hadv in Hc; by rewrite Hc.
-  Qed.
-
-  (* TODO: move to opsem/griotte_opsem_prop.v *)
-  (** One step of an instruction reaches a value, without forks. *)
-  Lemma prim_step_instr_val σ κ e2 σ2 efs :
-    griotte_lang.prim_step (Instr Executable) σ κ e2 σ2 efs →
-    is_Some (griotte_lang.to_val e2) ∧ efs = [].
-  Proof.
-    intros (_ & -> & c & -> & Hstep)%prim_step_exec_inv. split; last done.
-    inversion Hstep as [| |φ p g b e a i c' wa _ _ _ _ Hexec]; subst; try done.
-    pose proof (exec_not_executable i p σ) as Hne.
-    destruct (exec i p σ).1; done.
-  Qed.
-End instr_val.
-
 Section wp_core_full.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}
     {CR : CritRoute Σ th CL}.

@@ -41,6 +41,9 @@ Section vcsr.
   Definition vcsr_frag := vcsr_frag_aux.(unseal).
   #[local] Definition vcsr_frag_unseal : @vcsr_frag = @vcsr_frag_def := vcsr_frag_aux.(seal_eq).
 
+  Lemma vcsr_frag_pointsto sr (v : LWord) : vcsr_frag sr v ⊣⊢ sr ↦ₓ v.
+  Proof. by rewrite vcsr_frag_unseal. Qed.
+
   (** MEPCC and mcause, with any values: what the error path gives back
       first. *)
   Definition vcsr_res_def : iProp Σ :=

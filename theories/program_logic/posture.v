@@ -270,3 +270,33 @@ Lemma link_transfer_si_core `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {t
     (T : iProp Σ) :
   link_transfer_si (CL := link_core) P T T.
 Proof. iIntros (σ σ' _) "($ & _ & $)". done. Qed.
+
+Section si_mtdc.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  (** The fragment of mtdc pins the physical mtdc: zero for zero... *)
+  Lemma SI_mtdc_zero σ :
+    cerise_state_interp σ -∗
+    mtdc ↦ₜ ExceptionScratch (lword_of_word (WInt 0)) -∗
+    ⌜sreg σ !! mtdc = Some (WInt 0)⌝.
+  Proof.
+    iIntros "Hσ Hf". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    iDestruct (sys_interp_mtdc_agree with "Hsr Hf") as %[_ Hm]. cbn in Hm.
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her (ls_join_mtdc lsreg)) as (w & Hw & Hrel).
+    rewrite Hm in Hrel. apply reg_phys_no_bounds in Hrel; last done. cbn in Hrel. subst w.
+    done.
+  Qed.
+
+  (** ... and a capability for a trusted-stack value. *)
+  Lemma SI_mtdc_tstack σ p b e a :
+    cerise_state_interp σ -∗
+    mtdc ↦ₜ (Capₗ p _ b e a) -∗
+    ⌜sreg σ !! mtdc ≠ Some (WInt 0)⌝.
+  Proof.
+    iIntros "Hσ Hf". iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    iDestruct (sys_interp_mtdc_agree with "Hsr Hf") as %[_ [g Hm] ].
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her (ls_join_mtdc lsreg)) as (w & Hw & Hrel).
+    rewrite Hm in Hrel. destruct (reg_phys_and_tag _ _ _ Hrel) as [s ->]. rewrite Hw.
+    iPureIntro. intros Heq. simplify_eq.
+  Qed.
+End si_mtdc.

@@ -365,10 +365,3 @@ Section Revoked_Cells.
     iApply heap_key_resource_intro. by iFrame.
   Qed.
 End Revoked_Cells.
-
-(** The posture after a return through a return sentry of kind
-    [ret_kind b]: [b]. *)
-(* TODO: move to opsem/machine_word.v *)
-Lemma default_jalr_target_mie_ret_kind (m b : InterruptStatus) p g b' e a :
-  default m (jalr_target_mie (Sentry (ret_kind b) p g b' e a)) = b.
-Proof. by destruct b. Qed.
