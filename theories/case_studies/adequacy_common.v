@@ -390,6 +390,66 @@ Section world_init.
 
 End world_init.
 
+(** ** The worlds of the compartments under their regimes *)
+Section world_resources_init_all.
+  (* Threads [0] and [t] meet here: every form names its thread. *)
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+  Context
+    {Σ : gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg : sealStoreG Σ} {stsg : STSG Σ} {relg : relGS Σ}
+    `{MP : MachineParameters}.
+
+  (** The compartments of [Cs] in shared mode. *)
+  Definition shared_of (Cs : gset CmptName) : gset CmptName :=
+    filter (λ C, cmpt_shared C = true) Cs.
+
+  (** The first thread turns the world of each compartment into the world
+      premise of its regime. The map of Permanent regions of each shared
+      compartment goes into its invariant, which the other threads then
+      share. *)
+  Lemma world_resources_init_all (E : coPset) (Wf : CmptName → WORLD) (Cs : gset CmptName) :
+    ([∗ set] C ∈ Cs,
+       world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) (Wf C) C)
+    ={E}=∗
+    ([∗ set] C ∈ Cs, world_resources (th := UserThread 0) (Wf C) C) ∗
+    ([∗ set] C ∈ shared_of Cs, wg_inv C).
+  Proof.
+    iIntros "Hworlds".
+    rewrite /shared_of big_sepS_filter' -big_sepS_sep.
+    iApply big_sepS_fupd.
+    iApply (big_sepS_impl with "Hworlds").
+    iIntros "!>" (C _) "Hworld".
+    case_decide as Hshared.
+    - by iApply (world_resources_init_shared (th := UserThread 0) with "Hworld").
+    - apply not_true_is_false in Hshared.
+      rewrite (world_resources_exclusive (th := UserThread 0) _ _ Hshared).
+      by iFrame.
+  Qed.
+
+  (** Another thread joins the shared compartments with its local maps; it
+      keeps those of the other compartments. *)
+  Lemma world_resources_join_all (t : Thread) (W : WORLD) (Cs : gset CmptName) :
+    ([∗ set] C ∈ shared_of Cs, wg_inv C) -∗
+    ([∗ set] C ∈ Cs, local_region_map t W C ∅) -∗
+    ([∗ set] C ∈ shared_of Cs, world_resources (th := t) W C) ∗
+    ([∗ set] C ∈ filter (λ C, cmpt_shared C = false) Cs, local_region_map t W C ∅).
+  Proof.
+    iIntros "Hinvs Hlocals".
+    rewrite /shared_of !big_sepS_filter' -big_sepS_sep.
+    iCombine "Hinvs Hlocals" as "Hboth".
+    rewrite -big_sepS_sep.
+    iApply (big_sepS_impl with "Hboth").
+    iIntros "!>" (C _) "[Hinv Hlocal]".
+    case_decide as Hshared; case_decide as Hexcl.
+    - by rewrite Hshared in Hexcl.
+    - iSplitL; last done.
+      by iApply (world_resources_join (th := t) with "Hinv Hlocal").
+    - by iFrame.
+    - by apply not_true_is_false in Hshared.
+  Qed.
+End world_resources_init_all.
+
 (** ** Worlds of the adversaries *)
 Section adversary_world.
   Context
