@@ -1,5 +1,5 @@
 From griotte Require Import machine_base.
-From griotte Require Export trap_fault.
+From griotte Require Export trap_fault heap_layout mmio_shadow mmio_revoker mmio.
 
 Class InstructionEncoding := {
     decodeInstr : Z → instr;
@@ -50,126 +50,6 @@ Class WordEncoding := {
             | _, _ => encodeWordType w <> encodeWordType w'
             end;
   }.
-
-Class HeapRegion := {
-    heap_b : Addr;
-    heap_e : Addr;
-    heap_valid : (heap_b < heap_e)%a;
-  }.
-
-Class ShadowRegion := {
-    shadow_b : Addr;
-    shadow_e : Addr;
-    shadow_valid : (shadow_b < shadow_e)%a;
-  }.
-
-(** The revoker is a memory-mapped device at a single address, outside the
-    heap and the shadow region. A store to it sweeps memory; a load from it
-    reads as zero. *)
-Class RevokerRegion := {
-    revoker_addr : Addr;
-  }.
-
-(** Shadow memory is addressed through a separate region, while [ShadowTbl]
-    and shadow points-to are indexed by heap addresses. The machine may use
-    any bijection between these equally sized regions. Translation is checked:
-    precisely the addresses in the source region have an image. *)
-Class HeapShadowTranslation `{HeapRegion} `{ShadowRegion} := {
-    heap_to_shadow : Addr -> option Addr;
-    shadow_to_heap : Addr -> option Addr;
-    heap_shadow_same_size : (heap_e - heap_b = shadow_e - shadow_b)%Z;
-    heap_to_shadow_domain a :
-      is_Some (heap_to_shadow a) <-> withinBounds heap_b heap_e a = true;
-    shadow_to_heap_domain a :
-      is_Some (shadow_to_heap a) <-> withinBounds shadow_b shadow_e a = true;
-    heap_shadow_inverse a s :
-      heap_to_shadow a = Some s <-> shadow_to_heap s = Some a;
-  }.
-#[export] Hint Mode HeapShadowTranslation - - : typeclass_instances.
-
-(** The default translation preserves the offset from the region's base.
-    Checked addition prevents an out-of-range address from wrapping around. *)
-Definition translate_region (b e target a : Addr) : option Addr :=
-  if withinBounds b e a then (target + (a - b))%a else None.
-
-Lemma translate_region_spec (b e target target_e a a' : Addr) :
-  (e - b = target_e - target)%Z ->
-  translate_region b e target a = Some a' <->
-  a ∈ₐ [b, e) ∧ a' ∈ₐ [target, target_e) ∧
-  (a' : Z) = (target + (a - b))%Z.
-Proof.
-  intros Hsize. unfold translate_region.
-  destruct (withinBounds b e a) eqn:Hbounds.
-  - apply withinBounds_true_iff in Hbounds. split.
-    + intros Hadd. split; first done. split; solve_addr.
-    + intros (_ & _ & Heq). solve_addr.
-  - split; first discriminate.
-    intros (Hbounds' & _). apply withinBounds_true_iff in Hbounds'. congruence.
-Qed.
-
-Lemma translate_region_domain (b e target target_e a : Addr) :
-  (e - b = target_e - target)%Z ->
-  is_Some (translate_region b e target a) <-> withinBounds b e a = true.
-Proof.
-  intros Hsize. split.
-  - intros [a' Ha']. apply (translate_region_spec b e target target_e) in Ha'; last done.
-    apply withinBounds_true_iff. exact (proj1 Ha').
-  - intros Hb. unfold translate_region. rewrite Hb.
-    apply withinBounds_true_iff in Hb.
-    destruct (finz_incr_spec MemNum target (a - b)%Z)
-      as [(a' & Ha' & _)|[Hnone Hbad] ].
-    + by exists a'.
-    + solve_addr.
-Qed.
-
-Lemma translate_region_inverse (b e target target_e a a' : Addr) :
-  (e - b = target_e - target)%Z ->
-  translate_region b e target a = Some a' <->
-  translate_region target target_e b a' = Some a.
-Proof.
-  intros Hsize.
-  rewrite (translate_region_spec b e target target_e) //.
-  rewrite (translate_region_spec target target_e b e); last lia.
-  split; intros (? & ? & ?); repeat split; solve_addr.
-Qed.
-
-Definition affine_heap_shadow_translation `{HeapRegion} `{ShadowRegion}
-    (Hsize : (heap_e - heap_b = shadow_e - shadow_b)%Z) : HeapShadowTranslation.
-Proof.
-  refine {| heap_to_shadow := translate_region heap_b heap_e shadow_b;
-            shadow_to_heap := translate_region shadow_b shadow_e heap_b;
-            heap_shadow_same_size := Hsize |}.
-  - intros a. apply (translate_region_domain _ _ _ shadow_e). done.
-  - intros a. apply (translate_region_domain _ _ _ heap_e). lia.
-  - intros a s. apply translate_region_inverse. done.
-Defined.
-
-Section Translation.
-  Context `{HeapRegion} `{ShadowRegion} `{!HeapShadowTranslation}.
-
-  Lemma heap_to_shadow_bounds a s : heap_to_shadow a = Some s ->
-    withinBounds heap_b heap_e a = true ∧ withinBounds shadow_b shadow_e s = true.
-  Proof.
-    intros Ha. split.
-    - apply heap_to_shadow_domain. by exists s.
-    - apply shadow_to_heap_domain. exists a. by apply heap_shadow_inverse.
-  Qed.
-
-  Lemma shadow_to_heap_bounds s a : shadow_to_heap s = Some a ->
-    withinBounds shadow_b shadow_e s = true ∧ withinBounds heap_b heap_e a = true.
-  Proof.
-    intros Ha. apply heap_shadow_inverse in Ha.
-    apply heap_to_shadow_bounds in Ha. tauto.
-  Qed.
-
-  Lemma heap_to_shadow_inj a a' s :
-    heap_to_shadow a = Some s -> heap_to_shadow a' = Some s -> a = a'.
-  Proof. intros Ha Ha'. apply heap_shadow_inverse in Ha, Ha'. congruence. Qed.
-
-  Lemma shadow_to_heap_inj s s' a :
-    shadow_to_heap s = Some a -> shadow_to_heap s' = Some a -> s = s'.
-  Proof. intros Ha Ha'. apply heap_shadow_inverse in Ha, Ha'. congruence. Qed.
-End Translation.
 
 (** The encoding of the value that trap entry writes to mtval for a CHERI
     fault: a cause code and a register number, packed in two fields that a
@@ -260,20 +140,6 @@ Class MachineParameters := {
     mtval_encoding_mixin :: MtvalEncoding;
   }.
 
-(* Region predicates shared by the operational semantics and specifications. *)
-Definition is_heap_address `{HeapRegion} (a : Addr) : bool :=
-  withinBounds heap_b heap_e a.
-
-Definition is_shadow_address `{ShadowRegion} (a : Addr) : bool :=
-  withinBounds shadow_b shadow_e a.
-
-Definition is_revoker_address `{RevokerRegion} (a : Addr) : bool :=
-  bool_decide (a = revoker_addr).
-
-(* Memory-mapped addresses are never memory: the shadow region and the revoker. *)
-Definition is_mmio_address `{ShadowRegion} `{RevokerRegion} (a : Addr) : bool :=
-  is_shadow_address a || is_revoker_address a.
-
 Lemma revoker_not_heap_address `{MachineParameters} :
   is_heap_address revoker_addr = false.
 Proof. exact revoker_not_heap. Qed.
@@ -281,142 +147,6 @@ Proof. exact revoker_not_heap. Qed.
 Lemma revoker_not_shadow_address `{MachineParameters} :
   is_shadow_address revoker_addr = false.
 Proof. exact revoker_not_shadow. Qed.
-
-Lemma is_revoker_address_spec `{RevokerRegion} a :
-  is_revoker_address a = true <-> a = revoker_addr.
-Proof. rewrite /is_revoker_address. apply bool_decide_eq_true. Qed.
-
-Lemma not_mmio_not_shadow `{ShadowRegion} `{RevokerRegion} a :
-  is_mmio_address a = false -> is_shadow_address a = false.
-Proof. rewrite /is_mmio_address. by intros [? ?]%orb_false_iff. Qed.
-
-Lemma not_mmio_not_revoker `{ShadowRegion} `{RevokerRegion} a :
-  is_mmio_address a = false -> is_revoker_address a = false.
-Proof. rewrite /is_mmio_address. by intros [? ?]%orb_false_iff. Qed.
-
-(* Memory capabilities, including sealed ones and sentries, use their base. *)
-Definition heap_cap_base `{HeapRegion} (w : Word) : option Addr :=
-  match memory_cap_base w with
-  | Some b => if is_heap_address b then Some b else None
-  | None => None
-  end.
-
-(** Empty bounds carry no authority, even when their base is in the heap. *)
-Definition heap_authority_base `{HeapRegion} (w : Word) : option Addr :=
-  match w with
-  | WCap _ _ _ b e _ | WSentry _ _ _ _ b e _
-  | WSealed _ (SCap _ _ _ b e _) =>
-      if decide (b < e)%a then heap_cap_base w else None
-  | _ => None
-  end.
-
-Lemma heap_authority_base_heap_cap_base `{HeapRegion} (raw : Word) base :
-  heap_authority_base raw = Some base → heap_cap_base raw = Some base.
-Proof.
-  destruct raw; unfold heap_authority_base; simpl; try discriminate.
-  - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
-  - case_decide; auto; discriminate.
-  - destruct sb; simpl; try discriminate. case_decide; auto; discriminate.
-Qed.
-
-(* Bounds of memory capabilities, including sealed ones and sentries. *)
-Definition memory_cap_bounds (w : Word) : option (Addr * Addr) :=
-  match w with
-  | WCap _ _ _ b e _ | WSentry _ _ _ _ b e _
-  | WSealed _ (SCap _ _ _ b e _) => Some (b, e)
-  | _ => None
-  end.
-
-Lemma heap_authority_base_memory_cap_bounds `{HeapRegion} (w : Word) base :
-  heap_authority_base w = Some base <->
-  ∃ e, memory_cap_bounds w = Some (base, e) ∧ (base < e)%a ∧ is_heap_address base = true.
-Proof.
-  rewrite /heap_authority_base /heap_cap_base /memory_cap_base.
-  destruct_word w; cbn; try (split; [discriminate | intros (? & ? & _); discriminate]).
-  all: try (destruct sb; cbn; try (split; [discriminate | intros (? & ? & _); discriminate])).
-  all: case_decide; destruct (is_heap_address _) eqn:Hheap; split;
-    try (intros; simplify_eq; eauto; fail).
-  all: intros (? & ? & ? & ?); simplify_eq; solve [done | congruence].
-Qed.
-
-(* A word with authority over heap memory: tagged, non-empty, heap base. *)
-Definition has_authority `{HeapRegion} (w : Word) : Prop :=
-  get_tag w = true ∧ ∃ b, heap_authority_base w = Some b.
-
-Definition is_heap_cap `{HeapRegion} (w : Word) : bool :=
-  match heap_cap_base w with Some _ => true | None => false end.
-
-Lemma sealed_cap_nonheap `{HeapRegion} o t p g b e a :
-  is_heap_address b = false ->
-  is_heap_cap (WSealed o (SCap t p g b e a)) = false.
-Proof.
-  intros Hb. rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb /=.
-  reflexivity.
-Qed.
-
-Definition disjoint_from_shadow `{ShadowRegion} (b e : Addr) : Prop :=
-  finz.seq_between b e ## finz.seq_between shadow_b shadow_e.
-
-(* A range that addresses no memory-mapped device. *)
-Definition disjoint_from_mmio `{ShadowRegion} `{RevokerRegion} (b e : Addr) : Prop :=
-  disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e.
-
-Definition disjoint_from_heap `{HeapRegion} (b e : Addr) : Prop :=
-  finz.seq_between b e ## finz.seq_between heap_b heap_e.
-
-(* An empty range is disjoint from the heap regardless of its base.  Keep the
-   base check as well so that even an empty range cannot start in the heap. *)
-Definition not_heap_range `{HeapRegion} (b e : Addr) : Prop :=
-  is_heap_address b = false ∧ disjoint_from_heap b e.
-
-Lemma disjoint_from_heap_not_in `{HeapRegion} (b e a : Addr) :
-  disjoint_from_heap b e →
-  withinBounds b e a = true →
-  is_heap_address a = false.
-Proof.
-  intros Hdisjoint Hbounds. apply not_true_is_false. intros Hheap.
-  apply withinBounds_true_iff in Hbounds, Hheap.
-  rewrite /disjoint_from_heap elem_of_disjoint in Hdisjoint.
-  eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
-Qed.
-
-Lemma disjoint_from_shadow_not_in `{ShadowRegion} (b e a : Addr) :
-  disjoint_from_shadow b e →
-  withinBounds b e a = true →
-  is_shadow_address a = false.
-Proof.
-  intros Hdisjoint Hbounds. apply not_true_is_false. intros Hshadow.
-  apply withinBounds_true_iff in Hbounds, Hshadow.
-  rewrite /disjoint_from_shadow elem_of_disjoint in Hdisjoint.
-  eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
-Qed.
-
-Lemma disjoint_from_mmio_shadow `{ShadowRegion} `{RevokerRegion} (b e : Addr) :
-  disjoint_from_mmio b e → disjoint_from_shadow b e.
-Proof. by intros [? _]. Qed.
-
-Lemma disjoint_from_mmio_not_in `{ShadowRegion} `{RevokerRegion} (b e a : Addr) :
-  disjoint_from_mmio b e →
-  withinBounds b e a = true →
-  is_mmio_address a = false.
-Proof.
-  intros [Hshadow Hrev] Hbounds. rewrite /is_mmio_address.
-  rewrite (disjoint_from_shadow_not_in b e a Hshadow Hbounds) /=.
-  apply bool_decide_eq_false. intros ->. apply Hrev.
-  apply elem_of_finz_seq_between. by apply withinBounds_true_iff.
-Qed.
-
-Lemma disjoint_from_mmio_weaken `{ShadowRegion} `{RevokerRegion} (b e b' e' : Addr) :
-  (b <= b')%a → (e' <= e)%a →
-  disjoint_from_mmio b e → disjoint_from_mmio b' e'.
-Proof.
-  intros Hb He [Hshadow Hrev]. split.
-  - rewrite /disjoint_from_shadow in Hshadow |- *.
-    intros x Hx Hx'. apply (Hshadow x); last done.
-    apply elem_of_finz_seq_between in Hx. apply elem_of_finz_seq_between. solve_addr.
-  - intros Hx. apply Hrev.
-    apply elem_of_finz_seq_between in Hx. apply elem_of_finz_seq_between. solve_addr.
-Qed.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
    fail on capabilities. *)
@@ -455,7 +185,6 @@ Proof. eapply cancel_surj. Qed.
 
 #[global] Instance encode_instrw_inj `{MachineParameters}: Inj (=) (=) encodeInstrW.
 Proof. eapply cancel_inj. Qed.
-
 
 (** Integer encoding of the permission field of a word (see [get_p]). *)
 Definition encodePermSum `{MachineParameters} (p : Perm + SealPerms) : Z :=

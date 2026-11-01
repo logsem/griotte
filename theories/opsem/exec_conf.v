@@ -1,4 +1,4 @@
-From griotte Require Import machine_base.
+From griotte Require Import machine_base mmio_shadow.
 
 (* The machine configuration: the PC, the general registers, the system
    registers, the memory and the shadow table. *)
