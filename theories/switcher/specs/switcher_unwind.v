@@ -66,7 +66,7 @@ Section Switcher_unwind.
     registers_pointsto rmap ∗
     thread_in th C ∗
     switcher_trap_safety ∗
-    world_interp W C ∗
+    world_resources W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk ∗
@@ -75,7 +75,7 @@ Section Switcher_unwind.
     ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
-      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk & Hmie & Hheld)".
+      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_res & Hcont & Hna & Hcstk & Hmie & Hheld)".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -87,7 +87,7 @@ Section Switcher_unwind.
     iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
     iApply (switcher_return_unwind _ _ _ _ _ _ _ _ _ InterruptDisabled with
-             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk
+             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_res $Hcont $Hna $Hcstk
                $Hmie $Hheld]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }

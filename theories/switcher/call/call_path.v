@@ -305,7 +305,8 @@ Section Call_Path.
               r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
           regs₀[th] rmap' ∗
           MIE ↦ₜ[th] posture ∗
-          held (th := th) posture -∗
+          held (th := th) posture ∗
+          £ 1 -∗
           safe[th] )
         ∧
         ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
@@ -352,7 +353,7 @@ Section Call_Path.
       "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hargs $Hregs $Hswitcher $Hmie $Hheld]");
       [done..|].
     iNext; iIntros (arg_rmap' rmap')
-      "(%Harg_rmap' & %Hrmap' & HPC & Hcra & Hargs & Hregs & Hmie & Hheld)".
+      "(%Harg_rmap' & %Hrmap' & HPC & Hcra & Hargs & Hregs & Hmie & Hheld & Hlc)".
     iApply ("Hpost" $! arg_rmap' rmap').
     iFrame "HPC Hcgp Hcra Hcsp Ha_export_table Hargs Hregs Hmie".
     iFrame.

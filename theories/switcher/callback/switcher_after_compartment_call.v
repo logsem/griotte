@@ -334,7 +334,8 @@ Section Switcher_After_Compartment_Call.
     cs0 ↦ᵣ[th] wcs0_old ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
-    world_interp_open Wworld C opened ∗
+    local_region_map th Wworld C (open_l Wworld opened) ∗
+    perm_resources C ∗
     interp_in_mem RWL Wval C wcgp ∗
     interp_in_mem RWL Wval C wcra ∗
     interp_in_mem RWL Wval C wcs1 ∗
@@ -345,7 +346,8 @@ Section Switcher_After_Compartment_Call.
           load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
-        world_interp_open Wworld C opened ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+    perm_resources C ∗
         (interp Wval C rcgp ∗
          interp Wval C rcra ∗
          interp Wval C rcs1 ∗
@@ -363,7 +365,7 @@ Section Switcher_After_Compartment_Call.
   Proof.
     iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
-      & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & #Hnormal_gp & #Hnormal_ra
+      & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hlocal & Hperm & #Hnormal_gp & #Hnormal_ra
       & #Hnormal_s1 & #Hnormal_s0 & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
@@ -376,37 +378,37 @@ Section Switcher_After_Compartment_Call.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
       cs0 csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hworld $Hnormal_s0]"
-      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hworld & #Hactual_s0)".
+      with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hlocal $Hperm $Hnormal_s0]"
+      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hlocal & Hperm & #Hactual_s0)".
     { exact Ha0. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cs1 csp SpillSlot_cs1 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
       cs1 csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld $Hnormal_s1]"
-      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld & #Hactual_s1)".
+      with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hlocal $Hperm $Hnormal_s1]"
+      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hlocal & Hperm & #Hactual_s1)".
     { exact Ha1. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cra csp SpillSlot_pcc *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
       cra csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hworld $Hnormal_ra]"
-      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk3 & Hworld & #Hactual_ra)".
+      with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hlocal $Hperm $Hnormal_ra]"
+      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk3 & Hlocal & Hperm & #Hactual_ra)".
     { exact Ha3. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_interp _ Wworld Wval C opened _ _ _ _ _ _
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_local_interp _ Wworld Wval C opened _ _ _ _ _ _
       cgp csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld $Hnormal_gp]"
-      as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld & #Hactual_gp)".
+      with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hlocal $Hperm $Hnormal_gp]"
+      as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hlocal & Hperm & #Hactual_gp)".
     { exact Ha2. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -417,7 +419,7 @@ Section Switcher_After_Compartment_Call.
     switcher_change_pc_label ".Lswitch_callee_stack_zero".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-    iFrame "Hworld Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
+    iFrame "Hlocal Hperm Hactual_gp Hactual_ra Hactual_s1 Hactual_s0".
     iFrame "HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hlc".
   Qed.
 
@@ -441,7 +443,8 @@ Section Switcher_After_Compartment_Call.
     cs0 ↦ᵣ[th] wcs0_old ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
     switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
-    world_interp_open Wworld C opened ∗
+    local_region_map th Wworld C (open_l Wworld opened) ∗
+    perm_resources C ∗
     (if is_untrusted_caller ccrel then
        interp_in_mem RWL Wval C wcgp ∗
        interp_in_mem RWL Wval C wcra ∗
@@ -454,7 +457,8 @@ Section Switcher_After_Compartment_Call.
           load_heap wcra rcra ∧
           load_heap wcs1 rcs1 ∧
           load_heap wcs0 rcs0⌝ -∗
-        world_interp_open Wworld C opened ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+    perm_resources C ∗
         (if is_untrusted_caller ccrel then
            interp Wval C rcgp ∗
            interp Wval C rcra ∗
@@ -474,14 +478,14 @@ Section Switcher_After_Compartment_Call.
   Proof.
     destruct (is_untrusted_caller ccrel) eqn:Huntrusted.
     { iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
-        "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hworld
+        "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlocal & Hperm
         & (Hnormal_gp & Hnormal_ra & Hnormal_s1 & Hnormal_s0) & #Hswitcher & Hpost)".
       iApply (switcher_restore_spill_interp_spec Wworld Wval C opened
-        with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld
+        with "[$HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hlocal $Hperm
         $Hnormal_gp $Hnormal_ra $Hnormal_s1 $Hnormal_s0 $Hswitcher $Hpost]"); done. }
     iIntros (Hstk_mmio Ha_stk4 Hb_a He_a3)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp
-      & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hworld & _ & #Hswitcher & Hpost)".
+      & (Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3) & Hlocal & Hperm & _ & #Hswitcher & Hpost)".
     rewrite /SpillSlot_size in He_a3.
     unfold SpillSlot_cs1, SpillSlot_cgp, SpillSlot_pcc.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
@@ -493,37 +497,37 @@ Section Switcher_After_Compartment_Call.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_save_restore" "HPC".
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 csp SpillSlot_cs0 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local _ Wworld C opened _ _ _ _ _ _
       cs0 csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hworld]"
-      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hworld)".
+      with "[$HPC $Hcs0 $Hcsp $Ha_stk $Hlocal $Hperm]"
+      as (rcs0) "(%HPs0 & HPC & Hcs0 & Hcsp & Ha_stk & Hlocal & Hperm)".
     { exact Ha0. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cs1 csp SpillSlot_cs1 *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local _ Wworld C opened _ _ _ _ _ _
       cs1 csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hworld]"
-      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hworld)".
+      with "[$HPC $Hcs1 $Hcsp $Ha_stk1 $Hlocal $Hperm]"
+      as (rcs1) "(%HPs1 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hlocal & Hperm)".
     { exact Ha1. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cra csp SpillSlot_pcc *)
-    iInstrApply "Hcode" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
+    iInstrApply "Hcode" (switcher_load_stack_restore_local _ Wworld C opened _ _ _ _ _ _
       cra csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hworld]"
-      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk3 & Hworld)".
+      with "[$HPC $Hcra $Hcsp $Ha_stk3 $Hlocal $Hperm]"
+      as (rcra) "(%HPra & HPC & Hcra & Hcsp & Ha_stk3 & Hlocal & Hperm)".
     { exact Ha3. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
     { rewrite /withinBounds; solve_addr. }
     (* CLoad cgp csp SpillSlot_cgp *)
-    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_world _ Wworld C opened _ _ _ _ _ _
+    iInstrApply "Hcode" with "Hlc'" (switcher_load_stack_restore_local _ Wworld C opened _ _ _ _ _ _
       cgp csp _ _ _ _ _ _ _ _)
-      with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hworld]"
-      as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hworld)".
+      with "[$HPC $Hcgp $Hcsp $Ha_stk2 $Hlocal $Hperm]"
+      as (rcgp) "(%HPgp & HPC & Hcgp & Hcsp & Ha_stk2 & Hlocal & Hperm)".
     { exact Ha2. }
     { eapply disjoint_from_shadow_not_in; first exact Hstk_shadow.
       rewrite /withinBounds; solve_addr. }
@@ -534,7 +538,7 @@ Section Switcher_After_Compartment_Call.
     switcher_change_pc_label ".Lswitch_callee_stack_zero".
     subst hpost.
     iApply ("Hpost" $! rcgp rcra rcs1 rcs0 with "[%]"); first done.
-    iFrame "Hworld HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3
+    iFrame "Hlocal Hperm HPC Hcgp Hcra Hcs1 Hcs0 Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3
       Hlc".
   Qed.
 

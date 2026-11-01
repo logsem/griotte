@@ -25,7 +25,7 @@ Section switcher_helper.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-    #[local] Lemma world_interp_stack_fixing_aux
+    #[local] Lemma local_stack_fixing_aux
       (Wcur W0 : WORLD) (C : CmptName)
       (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
       ccrel
@@ -42,7 +42,7 @@ Section switcher_helper.
       interp W0 C
         (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
-      world_interp Wcur C -∗
+      local_region_map th Wcur C ∅ -∗
       [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
       [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
 
@@ -50,7 +50,7 @@ Section switcher_helper.
 
       £ 1 -∗
       |={⊤}=>
-            world_interp Wfixed C
+            local_region_map th Wfixed C ∅
             ∗ (if (is_untrusted_caller ccrel)
                then True
                else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
@@ -59,7 +59,7 @@ Section switcher_helper.
     Proof.
       intros Wfixed closing_region.
       iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
-        "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
+        "#Hinterp_callee_wstk Hlocal Hstk' Hstk Hrevoked Hlc''".
       rewrite /SpillSlot_size in He_a1 Ha_stk4. change (4 - 1)%Z with 3%Z in He_a1.
 
 
@@ -98,10 +98,9 @@ Section switcher_helper.
       }
       iDestruct (lc_fupd_elim_later with "[$] [$Hstk]") as ">Hstk".
 
-      iDestruct (world_interp_close_resources_to_RevokedResources Wcur W0 C
-        (l ++ closing_region) closing_region Hrelated_pub_W0_Wfixed
-        with "Hworld_interp Hstk")
-        as "[Hworld_interp Hstk]".
+      iDestruct (RevokedResources_mono_pub W0 Wfixed C closing_region closing_region
+        Hrelated_pub_W0_Wfixed with "Hstk")
+        as "Hstk".
       rewrite /CloseRes.
       destruct (is_untrusted_caller ccrel).
       - iDestruct "Hrevoked" as (l')
@@ -173,8 +172,8 @@ Section switcher_helper.
         }
         done.
         }
-        iMod (world_interp_restore Wcur C (l ++ closing_region)
-          with "[$Hworld_interp Hclose_list_res Hframe Hstk]") as "$"; last done.
+        iMod (local_restore Wcur C (l ++ closing_region)
+          with "[$Hlocal Hclose_list_res Hframe Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app.
         iSplitR "Hstk"; last done.
         iApply (big_opL_permutation (o := bi_sep) _
@@ -182,9 +181,95 @@ Section switcher_helper.
           first (symmetry; exact Hl).
         rewrite big_sepL_app. iFrame.
       - iFrame "Hstk'".
-        iMod (world_interp_restore Wcur C (l ++ closing_region)
-          with "[$Hworld_interp Hrevoked Hstk]") as "$"; last done.
+        iMod (local_restore Wcur C (l ++ closing_region)
+          with "[$Hlocal Hrevoked Hstk]") as "$"; last done.
         rewrite /RevokedResources big_sepL_app. iFrame.
+    Qed.
+
+    #[local] Lemma world_interp_stack_fixing_aux
+      (Wcur W0 : WORLD) (C : CmptName)
+      (a_stk a_stk4 b_stk e_stk cur : Addr) (l : list LAddr)
+      ccrel
+      :
+
+      let Wfixed := close_list (l ++ (LNonHeap <$> finz.seq_between b_stk a_stk)) Wcur in
+      let closing_region := LNonHeap <$> finz.seq_between b_stk a_stk in
+
+      (a_stk ^+ (SpillSlot_size - 1) < e_stk)%a ->
+      (b_stk <= a_stk)%a ->
+      (a_stk + SpillSlot_size)%a = Some a_stk4 ->
+
+      related_sts_pub_world W0 Wfixed ->
+      interp W0 C
+        (Cap RWL Local b_stk
+           (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
+      world_interp Wcur C -∗
+      [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
+      [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+
+      CloseRes Wfixed C a_stk l ccrel -∗
+
+      £ 1 -∗
+      |={⊤}=>
+            world_interp Wfixed C
+            ∗ (if (is_untrusted_caller ccrel)
+               then True
+               else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
+              )
+    .
+    Proof.
+      intros Wfixed closing_region.
+      iIntros (He_a1 Hb_a4 Ha_stk4 Hrelated_pub_W0_Wfixed)
+        "#Hinterp_callee_wstk Hworld_interp Hstk' Hstk Hrevoked Hlc''".
+      rewrite !world_interp_eq.
+      iDestruct "Hworld_interp" as "[Hperm Hlocal]".
+      iMod (local_stack_fixing_aux with
+             "Hinterp_callee_wstk Hlocal Hstk' Hstk Hrevoked Hlc''")
+        as "[Hlocal Hstk']"; [done..|].
+      by iFrame.
+    Qed.
+
+    (** At the return, fix the local map on the callee's stack and on the spill
+        area of the topmost frame, whose caller's cursor is [a_stk], once
+        both are zeroed. *)
+    Lemma local_stack_fixing
+      (Wcur W0 : WORLD) (C : CmptName)
+      (b_stk e_stk a_stk : Addr) (l : list LAddr)
+      ccrel
+      :
+      let s := stk_spill_a a_stk in
+      let Wfixed := close_list (l ++ (LNonHeap <$> callee_stk_region b_stk e_stk a_stk)) Wcur in
+
+      switcher_stk_bounds b_stk e_stk a_stk ->
+      related_sts_pub_world W0 Wfixed ->
+      interp W0 C
+        (Cap RWL Local
+           (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
+           (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
+           a_stk) -∗
+      local_region_map th Wcur C ∅ -∗
+      [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] -∗
+      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+
+      CloseRes Wfixed C s l ccrel -∗
+
+      £ 1 -∗
+      |={⊤}=>
+            local_region_map th Wfixed C ∅
+            ∗ (if (is_untrusted_caller ccrel)
+               then True
+               else [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]
+              )
+    .
+    Proof.
+      intros s Wfixed Hbounds; subst s Wfixed.
+      destruct Hbounds as (Hb & Hb3 & Ha4).
+      stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
+      replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
+        by (by destruct (is_untrusted_caller ccrel)).
+      intros Hrelated.
+      iApply (local_stack_fixing_aux Wcur W0 C (stk_spill_a a_stk));
+        [stk_unfold; solve_addr+Hb3 Ha4 | done | stk_unfold; solve_addr+Ha4 | done].
     Qed.
 
     (** At the return, fix the world on the callee's stack and on the spill
@@ -296,21 +381,21 @@ Section switcher_helper.
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
-      world_interp W C -∗
+      world_resources W C -∗
       interp_continuation cstk Ws Cs -∗
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
       MIE ↦ₜ[th] default m (jalr_target_mie wret.(lw)) -∗
       held (th := th) (default m (jalr_target_mie wret.(lw))) -∗
       £ 1 -∗
+      £ 1 -∗
       safe[th].
     Proof.
       iIntros (Hdom Hframe Hpre) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
-        #Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hmie Hheld
-        Hlc".
+        #Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_res HK Hcstk Hna Hmie Hheld
+        Hlc Hlc'".
       iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
-      iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
-      iPoseProof (shared_credit_exclusive C) as "Hcred".
+      iDestruct (shared_credit_refill with "Hlc'") as "Hcred".
       iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
       iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
       iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
@@ -342,7 +427,7 @@ Section switcher_helper.
         iApply "Hcont"; iFrame "HPC".
         iApply (interp_trap_safe_untrusted with "Htrap Hthread Hregs_interp Htop [-]");
           [done | done |].
-        iModIntro. iFrame "Hrmap Hworld_interp Hcred HK Hna Hcstk".
+        iModIntro. iFrame "Hrmap Hworld_res HK Hna Hcstk".
         iExists _. by iFrame "Hmie Hheld". }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
@@ -389,8 +474,9 @@ Section switcher_helper.
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
       interp_continuation cstk Ws Cs -∗
+      £ 1 -∗
       (|={⊤}=>
-         world_interp W C ∗
+         world_resources W C ∗
          na_own (tpool th) ⊤ ∗
          ◯(CSTK)[th] cstk) -∗
       ( PC ↦ₚ[th] lupdatePcPerm wret ∗
@@ -404,13 +490,13 @@ Section switcher_helper.
         trap_safe w ⊤ (HO th) ).
     Proof.
       iIntros (Hdom Hframe Hpre Hpre_ret) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0
-        #Hwca1 #Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hres".
+        #Hwca1 #Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hlc' Hres".
       iSplit.
       - iIntros "(HPC & Hmie & Hheld & Hlc)".
-        iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
+        iMod "Hres" as "(Hworld_res & Hna & Hcstk)".
         iApply (switcher_jump_to_caller_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ m with
                  "Htrap Hthread Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
-                  Hca0 Hca1 Hrmap Hworld_interp HK Hcstk Hna Hmie Hheld Hlc"); done.
+                  Hca0 Hca1 Hrmap Hworld_res HK Hcstk Hna Hmie Hheld Hlc Hlc'"); done.
       - iIntros "_ Hmie Hheld".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
         iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
@@ -436,10 +522,8 @@ Section switcher_helper.
         iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
                  "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres Hmie Hheld]");
           [done | done |].
-        iMod "Hres" as "(Hworld_interp & Hna & Hcstk)".
-        iEval (rewrite -world_resources_exclusive) in "Hworld_interp".
-        iPoseProof (shared_credit_exclusive C) as "Hcred".
-        iFrame "Hrmap HK Hna Hcstk Hworld_interp Hcred".
+        iMod "Hres" as "(Hworld_res & Hna & Hcstk)".
+        iFrame "Hrmap HK Hna Hcstk Hworld_res".
         iExists m. by iFrame "Hmie Hheld".
     Qed.
 
