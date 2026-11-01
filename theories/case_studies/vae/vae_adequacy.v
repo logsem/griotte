@@ -205,6 +205,7 @@ Section vae_obligations.
                          $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
+                         $HMIE $Hheld
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
@@ -219,6 +220,7 @@ Section vae_obligations.
       rewrite !std_update_multiple_loc_sta.
       by simplify_map_eq. }
     { done. }
+    { by rewrite /route_pre. }
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.

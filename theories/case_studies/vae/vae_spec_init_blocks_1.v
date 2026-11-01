@@ -24,12 +24,13 @@ Section VAE_Init_Blocks_1.
   Lemma vae_init_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive)
-    (wct0 wct1 wcs0 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) (mie : InterruptStatus) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     loc W !! i = Some (encode false) ->
+    route_pre th mie ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
@@ -41,7 +42,9 @@ Section VAE_Init_Blocks_1.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (∀ mie, world_interp W C ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
+    ▷ (world_interp W C ∗
         PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
@@ -51,14 +54,16 @@ Section VAE_Init_Blocks_1.
           (pc_a ^+ vae_label_offset ".Lvae_init_return")%a ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
-        codefrag_pers pc_a vae_main_code
+        codefrag_pers pc_a vae_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hsealed_nonheap Hloc)
+               Hcgp_shadow Hsealed_nonheap Hloc Hroute)
       "(#Hawk & Hworld & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
-      & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
+      & Himport_switcher & Himport_C_f & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
     rewrite /switcher_entry_call.
@@ -109,7 +114,9 @@ Section VAE_Init_Blocks_1.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wcra mie)
+      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ vae_label_offset ".Lvae_init_return")%a) as ->
       by (offsets_compute; solve_addr).

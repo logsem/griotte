@@ -85,6 +85,7 @@ Section Checkra_spec.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   #[local] Ltac fail_check_ra :=

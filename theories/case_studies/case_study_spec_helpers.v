@@ -28,6 +28,7 @@ Section Switcher_call_args.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Implicit Types W : WORLD.
@@ -107,6 +108,7 @@ Section Fresh_stack.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   Lemma stk_start_region_split (b e : Addr) (stk_mem : list LWord) :
@@ -342,7 +344,8 @@ Section Revoked_Cells.
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ}
-    `{MP : MachineParameters}.
+    `{MP : MachineParameters}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
 
   (** Revoked keys whose resources hold their cells: no tombstone among
       them. *)
@@ -362,3 +365,10 @@ Section Revoked_Cells.
     iApply heap_key_resource_intro. by iFrame.
   Qed.
 End Revoked_Cells.
+
+(** The posture after a return through a return sentry of kind
+    [ret_kind b]: [b]. *)
+(* TODO: move to opsem/machine_word.v *)
+Lemma default_jalr_target_mie_ret_kind (m b : InterruptStatus) p g b' e a :
+  default m (jalr_target_mie (Sentry (ret_kind b) p g b' e a)) = b.
+Proof. by destruct b. Qed.

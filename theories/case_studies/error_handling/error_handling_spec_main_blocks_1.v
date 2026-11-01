@@ -28,9 +28,10 @@ Section Error_Handling_Main_Blocks_1.
 
   Lemma main_call_adv_spec
     (pc_b pc_e pc_a : Addr) (adv_f : Sealable)
-    (wctp wct1 wcra wcs0 : LWord) :
+    (wctp wct1 wcra wcs0 : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -39,18 +40,23 @@ Section Error_Handling_Main_Blocks_1.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher adv_f ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher adv_f ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
         cs0 ↦ᵣ[th] wcra ∗
-        codefrag_pers pc_a error_handling_main_code
+        codefrag_pers pc_a error_handling_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap)
-      "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main & Hpost)".
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap Hroute)
+      "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main
+      & Hmie & Hheld & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
@@ -88,7 +94,9 @@ Section Error_Handling_Main_Blocks_1.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ctp *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
+      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
       by (offsets_compute; solve_addr).
@@ -98,9 +106,10 @@ Section Error_Handling_Main_Blocks_1.
   Lemma main_call_read_1_spec
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (wca0 wctp wct1 wcra : LWord) :
+    (wca0 wctp wct1 wcra : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -110,20 +119,24 @@ Section Error_Handling_Main_Blocks_1.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_e ∗
         ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher (STATS_read Global) ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
-        codefrag_pers pc_a error_handling_main_code
+        codefrag_pers pc_a error_handling_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size Hroute)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
-      & #Himport_switcher & #Himport_read & #Hcode_main & Hpost)".
+      & #Himport_switcher & #Himport_read & #Hcode_main & Hmie & Hheld & Hpost)".
     assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap
       by (apply sealed_cap_nonheap, stats_export_base_not_heap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
@@ -170,7 +183,9 @@ Section Error_Handling_Main_Blocks_1.
       at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
+      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 1 = (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a) as ->
       by (offsets_compute; solve_addr).

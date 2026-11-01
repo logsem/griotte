@@ -29,7 +29,8 @@ Section vae_untrusted_entry_obligations.
   Lemma vae_untrusted_entry_fw_obligations :
     fw_obligations Σ vae_untrusted_entry_firmware.
   Proof.
-    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]} |} : CmptThreads).
+    pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]};
+                         cmpt_threads_sep := ltac:(intros; set_solver) |} : CmptThreads).
     assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
     assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
     apply (fw_obligations_of_untrusted Σ (cthreads := cthreads));

@@ -172,14 +172,14 @@ Section SO.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
-      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna)".
+      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
     iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hso_exp_eh Hso_exp_ehs".
       iPureIntro. by apply tf_export_tbl_ok_nonzero. }
     iDestruct "Hregister_state" as
-      "(%Hrmap_init & %Hcgp & [%mie_ret %Hcra] & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+      "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
     rewrite /registers_pointsto.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
@@ -214,7 +214,7 @@ Section SO.
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
                "Hthread Hswitcher Hswitcher_static [] [-]");
-        last (iModIntro; iFrame).
+        last (iModIntro; iFrame "∗ %").
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
         pose proof (all_registers_s_correct r) as Hall.
@@ -234,7 +234,7 @@ Section SO.
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
                "Hthread Hswitcher Hswitcher_static [] [-]");
-        last (iModIntro; iFrame).
+        last (iModIntro; iFrame "∗ %").
       { intros r; apply elem_of_dom.
         rewrite !dom_insert_L !dom_delete_L Hrmap_dom.
         pose proof (all_registers_s_correct r) as Hall.
@@ -282,7 +282,7 @@ Section SO.
                 cstk Ws Cs with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
       8: { iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
-           iModIntro; iFrame. }
+           iModIntro; iFrame "∗ %". }
       { exact Hpub_W0_Wrevoked. }
       { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
       { exact Hframe_match. }
@@ -306,7 +306,7 @@ Section SO.
       8: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
-           iModIntro; iFrame. }
+           iModIntro; iFrame "∗ %". }
       { exact Hpub_W0_Wrevoked. }
       { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
       { exact Hframe_match. }
@@ -336,10 +336,10 @@ Section SO.
     (* Blocks 7-9: push the secret, allocate [z], jump to the switcher *)
     iApply (so_call_blocks_3_spec with
              "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
-              $Hcode_main]"); [done|done|done|solve_addr+Hstk_min|].
-    iNext; iIntros (mie a_stk1 a_stk2 stk_tail stk_res)
+              $Hcode_main $Hmie $Hheld]"); [done|done|done|solve_addr+Hstk_min|done|].
+    iNext; iIntros (a_stk1 a_stk2 stk_tail stk_res)
       "(%Hastk1 & %Hastk2 & %Hcsp_b_astk2 & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Hcra & Hres & Hsecret & Hastk2 & Hstk & _ & _)".
+      & Hcra & Hres & Hsecret & Hastk2 & Hstk & _ & _ & Hmie & Hheld)".
 
     (* Reinstate [z] in the world of the call *)
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
@@ -360,13 +360,13 @@ Section SO.
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk
-              $Hinterp_wct1 $HK]").
+              $Hinterp_wct1 $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr+ Hastk1 Hastk2. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { destruct mie; reflexivity. }
+    { solve [reflexivity | match goal with |- context [ret_kind ?m] => destruct m; reflexivity end]. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.
@@ -375,14 +375,14 @@ Section SO.
       iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min Hastk1 Hastk2. }
     iNext.
     clear dependent arg_rmap rmap' stk_mem.
-    iIntros (W4 rmap'' stk_mem l4 rcgp rcra rcs0 callback)
+    iIntros (W4 rmap'' stk_mem l4 rcgp rcra rcs0 callback m)
       "(%Hextract4 & Hl4 & %Hl4_W5 & %Hpub_ext & _ & %Hrmap''_dom & _ & %Hstack_W5
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored)".
+      & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
@@ -392,6 +392,7 @@ Section SO.
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= switcher_base_not_heap /=; reflexivity].
     subst rcgp rcra rcs0.
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2;ca2]
       as ["Hct0";"Hct1";"Hct2";"Hca2"].
@@ -399,11 +400,11 @@ Section SO.
     (* Blocks 10-12: assert that the secret is unchanged, return *)
     iApply (so_return_blocks_4_spec with
              "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
-              $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main]");
+              $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main $Hmie $Hheld]");
       [done|done|exact Hastk2|exact Hastk1|exact Hcsp_b_astk2
-      |exact (jalr_target_ok_switcher_return_sentry mie_ret)|].
+      |exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)|done|].
     iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-                    & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _)".
+                    & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _ & Hmie & Hheld)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
     iInsertRegs "Hrmap" ["Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
@@ -424,7 +425,7 @@ Section SO.
     (* Return to the caller of [f] *)
     iApply (switcher_ret_specification W0 (revoke W4) with
              "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
-              $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing]"); eauto.
+              $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing $Hmie]"); eauto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap''_dom; set_solver+. }
     { iSplit; iApply interp_int. }
   Qed.

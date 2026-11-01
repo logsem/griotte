@@ -21,9 +21,10 @@ Section SO_Run_Blocks_2.
   .
 
   Lemma so_run_return_spec
-    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
+    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (mie : InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     cstk.(cstk_frames) = [] ->
+    route_pre th mie ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
@@ -34,12 +35,14 @@ Section SO_Run_Blocks_2.
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
-    codefrag_pers pc_a so_main_code
+    codefrag_pers pc_a so_main_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & _) Hframes)
+    iIntros ((HsubBounds & Himports_contiguous & _) Hframes Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & Hcode_main)".
+        & Hcstk & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
 
@@ -50,10 +53,12 @@ Section SO_Run_Blocks_2.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
   Qed.
 
 End SO_Run_Blocks_2.

@@ -50,6 +50,8 @@ Section Heap_Temporal_Safety_Main.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
+    (* The posture of the thread *)
+    (mie : InterruptStatus)
 
     :
     let a_alloc_exp_tbl_cgp := (allocator_exp_tbl_b ^+ ExportTable_offset_cgp) in
@@ -79,6 +81,7 @@ Section Heap_Temporal_Safety_Main.
     LNonHeap (cgp_b)%a ∉ dom (std W_init_C) ->
 
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
+    route_pre th mie ->
     (
       assert_static b_assert e_assert a_flag
       ∗ allocator_service_ctx ∗ allocator_service_static
@@ -119,6 +122,8 @@ Section Heap_Temporal_Safety_Main.
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
       ∗ interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ MIE ↦ₜ[th] mie
+      ∗ held (th := th) mie
 
       ⊢ safe[th])%I.
   Proof.
@@ -139,12 +144,12 @@ Section Heap_Temporal_Safety_Main.
     iIntros (Howner_shadow Howner_bounds Howner_nonheap
       Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_shadow Hcgp_heap
       Hrmap_dom Hrmap_init HsubBounds Hcgp_contiguous
-      Himports_contiguous Hstk_min Hp_fresh Hframe_match)
+      Himports_contiguous Hstk_min Hp_fresh Hframe_match Hroute)
       "(#Hassert & #Hservice & #Hservice_static & #Hthread & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hcra & Hrmap & Himports & Hcode & Hdata
        & Howner & Howner_word & Hworld & HK & Hcstk & #Hadv & #Hentry
-       & #Hinterp_csp)".
+       & #Hinterp_csp & Hmie & Hheld)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
     iDestruct (hts_main_imports_pointsto_pers pc_b pc_a owner_a C_f Himports_contiguous
@@ -157,8 +162,8 @@ Section Heap_Temporal_Safety_Main.
     { iFrame "#". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs cstk0 rmap
-      with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap $Howner $Hworld
+      C_f owner_a W_init_C Ws Cs cstk0 rmap mie
+      with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap $Howner $Hworld $Hmie $Hheld
         $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
         $Hcode $Hp $Howner_word]"); try done.

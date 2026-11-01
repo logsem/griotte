@@ -26,12 +26,13 @@ Section VAE_Awkward_Blocks_2.
   Lemma vae_awkward_blocks_2_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (W : WORLD) (C : CmptName) (i : positive)
-    (wret wg wcra wca0 wca1 wct0 wct1 : LWord) :
+    (wret wg wcra wca0 wca1 wct0 wct1 : LWord) (mie : InterruptStatus) :
     vae_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     revoke_condition W ->
     related_sts_priv_world W (<l[i:=true]l>W) ->
+    route_pre th mie ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_set_one")%a ∗
@@ -45,7 +46,9 @@ Section VAE_Awkward_Blocks_2.
     cs1 ↦ᵣ[th] wg ∗
     pc_b ↦ₐ□ switcher_entry_call ∗
     codefrag_pers pc_a vae_main_code ∗
-    ▷ (∀ mie, world_interp (<l[i:=true]l>W) C ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
+    ▷ (world_interp (<l[i:=true]l>W) C ∗
         PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a ∗
@@ -56,14 +59,16 @@ Section VAE_Awkward_Blocks_2.
         cs0 ↦ᵣ[th] wret ∗
         cs1 ↦ᵣ[th] wg ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
-        codefrag_pers pc_a vae_main_code
+        codefrag_pers pc_a vae_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hrevoke Hpriv)
+               Hcgp_shadow Hrevoke Hpriv Hroute)
       "(#Hawk & Hworld & HPC & Hcgp & Hcra & Hca0 & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Himport_switcher & Hcode_main & Hpost)".
+      & Himport_switcher & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     vae_unfold_code.
     rewrite /switcher_entry_call.
@@ -115,7 +120,9 @@ Section VAE_Awkward_Blocks_2.
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wret mie)
+      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 4 = (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a) as ->
       by (offsets_compute; solve_addr).

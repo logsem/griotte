@@ -49,6 +49,8 @@ Section SO.
     (* The capability to the export table of the compartment, as the entry
        frame of the thread records it *)
     (w_main_tbl : LWord)
+    (* The posture of the thread *)
+    (mie : InterruptStatus)
 
     :
 
@@ -74,6 +76,7 @@ Section SO.
     (csp_b + SpillSlot_size + StackEntry_reserved_space <= csp_e)%Z ->
 
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
+    route_pre th mie ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -103,6 +106,8 @@ Section SO.
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 0
       ∗ interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+      ∗ MIE ↦ₜ[th] mie
+      ∗ held (th := th) mie
 
       ⊢ safe[th])%I.
   Proof.
@@ -117,7 +122,7 @@ Section SO.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap
                Hsize_so_exp_tbl Hrmap_dom Hrmap_init HsubBounds
-               Hcgp_contiguous Himports_contiguous Hstk_min Hframe_match)
+               Hcgp_contiguous Himports_contiguous Hstk_min Hframe_match Hroute)
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hso_exp_tbl_PCC
@@ -131,6 +136,7 @@ Section SO.
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
+      & Hmie & Hheld
       )".
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
@@ -148,9 +154,9 @@ Section SO.
     (* Blocks 0-2: fetch the imports and jump to the switcher *)
     iApply (so_run_blocks_1_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Himport_switcher $Himport_C_f
-              $Hcode_main]"); [done|done|].
-    iNext; iIntros (mie) "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & _ & _
-                    & _)".
+              $Hcode_main $Hmie $Hheld]"); [done|done|done|].
+    iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & _ & _
+                    & _ & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hct0"].
     iDestruct (switcher_call_args_0 (revoke W0) C with "Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -172,7 +178,7 @@ Section SO.
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $HentryC_f $Hrmap_arg $Hrmap
               $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk_frag
-              $Hinterp_W1_C_f $HK]").
+              $Hinterp_W1_C_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
@@ -187,9 +193,9 @@ Section SO.
       iApply switcher_cc_fault_stack_fits.
       apply stk_start_spill_fits; unfold SpillSlot_size in Hstk_min |- *; solve_addr+Hstk_min. }
     iNext.
-    iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1)
+    iIntros (W2 rmap'' stk_mem' l' rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & _ & _ & %Hrmap_ret_dom & _ & _ & Hna & _ & _ & Hcstk_frag & HPC
-      & _ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored)".
+      & _ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
@@ -202,7 +208,7 @@ Section SO.
     (* Block 2: return, the thread exits *)
     iApply (so_run_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main]"); [done | done].
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
   Qed.
 
 End SO.

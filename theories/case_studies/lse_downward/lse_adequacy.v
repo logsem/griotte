@@ -178,6 +178,7 @@ Section lse_obligations.
                          $HPC $Hcgp $Hcsp $Hcra $Hregs
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
+                         $HMIE $Hheld
                         ]") as "Hspec"; eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { eapply disjoint_from_shadow_not_in;
@@ -189,6 +190,7 @@ Section lse_obligations.
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }
+    { by rewrite /route_pre. }
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.
   Qed.

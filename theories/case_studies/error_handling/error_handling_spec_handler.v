@@ -111,6 +111,10 @@ Section Error_Handling_Handler.
       ⌜lload_heap (MkLWord (Cap p g b e a) π) w⌝ -∗
       STATS_cgp_b ↦ₐ WInt 1 -∗
       error_state_area rfault -∗
+      ∀ mie : InterruptStatus,
+      ⌜route_pre th mie⌝ -∗
+      MIE ↦ₜ[th] mie -∗
+      held (th := th) mie -∗
       context_resume F (cstack_set_top_count cstk (top_error_count cstk + 2))
         (stats_pcc stats_load_addr) (stats_retry_regs rfault r w).
 
@@ -310,11 +314,11 @@ Section Error_Handling_Handler.
       the lock, returns ForceUnwind, and the switcher unwinds with the
       site's continuation, which receives the [ErrorState] slot and
       [stats_inv]. *)
-  Lemma stats_handler_unwind_return (F : coPset) (cstk : CSTK) (rfault regs : LReg)
-    (mie : InterruptStatus) :
+  Lemma stats_handler_unwind_return (F : coPset) (cstk : CSTK) (rfault regs : LReg) :
     (∀ r, is_Some (regs !! r)) →
-    regs !! cra = Some (handler_return_sentry mie) →
+    regs !! cra = Some (handler_return_sentry InterruptEnabled) →
     regs !! cgp = Some stats_wcgp →
+    route_pre th InterruptEnabled →
     switcher_static -∗
     codefrag_pers STATS_pcc_b stats_code -∗
     PC ↦ₚ[th] stats_pcc (STATS_pcc_b ^+ stats_label ".Lstats_handler_unwind")%a -∗
@@ -323,10 +327,13 @@ Section Error_Handling_Handler.
     error_state_area rfault -∗
     ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
     na_own (tpool th) F -∗
+    MIE ↦ₜ[th] InterruptEnabled -∗
     ▷ unwind_cont F cstk (error_state_area rfault ∗ stats_inv) -∗
     safe[th].
   Proof.
-    iIntros (Hfull Hcra Hcgp) "#Hstatic #Hcode_stats HPC Hregs Hlock Harea Hcstk Hna HU".
+    iIntros (Hfull Hcra Hcgp Hroute)
+      "#Hstatic #Hcode_stats HPC Hregs Hlock Harea Hcstk Hna Hmie HU".
+    iAssert (held (th := th) InterruptEnabled)%I as "Hheld"; first by rewrite held_enabled.
     destruct (Hfull ca0) as [wca0 Hca0].
     iDestruct (registers_pointsto_extract3 _ cgp ca0 cra with "Hregs")
       as "(Hcgp & Hca0 & Hcra & Hregs)"; [done | done | done | done | done | done |].
@@ -334,20 +341,22 @@ Section Error_Handling_Handler.
     pose proof STATS_cgp_disjoint_from_shadow as Hcgp_shadow.
     (* Store cgp 0 0; Mov ca0 ForceUnwind; Jalr cnull cra *)
     iApply (stats_handler_unwind_spec STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e
-              with "[- $HPC $Hcgp $Hca0 $Hcra $Hlock $Hcode_stats]").
+              with "[- $HPC $Hcgp $Hca0 $Hcra $Hlock $Hcode_stats $Hmie $Hheld]").
     { apply stats_code_bounds_layout. }
     { cbn in Hsize_data. solve_addr. }
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       apply withinBounds_true_iff. cbn in Hsize_data. solve_addr. }
-    { by destruct mie. }
-    iNext. iIntros "(HPC & Hcgp & Hca0 & Hcra & Hlock & _)".
+    { done. }
+    { done. }
+    iNext. iIntros "(HPC & Hcgp & Hca0 & Hcra & Hlock & _ & Hmie & _)".
     iDestruct ("Hregs" with "Hcgp Hca0 Hcra") as "Hregs".
     rewrite handler_return_sentry_pc.
     iApply (switcher_handler_return_unwind F cstk (top_error_count cstk + 1)
               (error_state_area rfault ∗ stats_inv)
-             with "Hstatic HPC Hregs Hcstk HU [$Harea $Hlock] Hna").
+             with "Hstatic HPC Hregs Hcstk HU [$Harea $Hlock] Hna Hmie").
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     { by rewrite lookup_total_insert_ne // lookup_total_insert. }
+    { done. }
   Qed.
 
   (** The handler of [stats] satisfies its obligation for [stats_P_fault],
@@ -366,10 +375,10 @@ Section Error_Handling_Handler.
   Proof.
     iIntros "#Hcode_stats #Hpcc". iModIntro.
     iIntros (F cstk w rfault mcause mtval wpc regs). iNext.
-    iIntros "((%HF & %HFtrap) & #Hinv_switcher & #Hstatic) %Htbl %Heven %Hmcause %Hentry
-             %Hinvoc HPC Hregs (_ & %Hshadow & Hes) _ HUP Hcstk Hna".
+    iIntros "(%HF & #Hinv_switcher & #Hstatic) %Htbl %Heven %Hmcause %Hentry
+             %Hinvoc HPC Hregs (_ & %Hshadow & Hes) _ HUP Hcstk Hna %Hroute Hmie".
     destruct Hinvoc as
-      (Hfull & [mie Hcra] & Hcgp &
+      (Hfull & Hcra & Hcgp &
        (Hstores & wcsp & wa0 & Hsr & Hcsp & Hca0 & Hca1 & Hca2) & Hzero).
     (* The obligation of the site *)
     iDestruct "HUP" as "[_ HP]". iNamed "HP".
@@ -422,12 +431,13 @@ Section Error_Handling_Handler.
       iIntros (Hnrep) "(HPC & Hca1 & Hca2 & [%wct0 Hct0] & _)".
       iInsertList "Hregs" [cra; ctp; ct2; ct1; ct0; ca2; ca1; ca0].
       iDestruct "Hcont" as "[_ Hcont]".
-      iApply (stats_handler_unwind_return F cstk rfault _ mie
-               with "Hstatic Hcode_stats HPC Hregs Hlock [Hes Harea_of] Hcstk Hna [Hcont]").
+      iApply (stats_handler_unwind_return F cstk rfault
+               with "Hstatic Hcode_stats HPC Hregs Hlock [Hes Harea_of] Hcstk Hna Hmie [Hcont]").
       { intros r'. apply elem_of_dom. rewrite !dom_insert_L ?dom_delete_L Hdom_regs.
         pose proof (all_registers_s_correct r'). set_solver. }
       { by simplify_map_eq. }
       { by simplify_map_eq. }
+      { done. }
       { iApply ("Harea_of" with "[] Hes"). iPureIntro. apply length_error_state_words. }
       iNext. iApply "Hcont". iPureIntro. by intros [? _]. }
     (* Repairable: the saved capability *)
@@ -457,12 +467,13 @@ Section Error_Handling_Handler.
         "(HPC & Hca0 & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & [%wctp Hctp] & Hes & _)".
       iInsertList "Hregs" [cra; ctp; ct2; ct1; ct0; ca2; ca1; ca0].
       iDestruct "Hcont" as "[_ Hcont]".
-      iApply (stats_handler_unwind_return F cstk rfault _ mie
-               with "Hstatic Hcode_stats HPC Hregs Hlock [Hes Harea_of] Hcstk Hna [Hcont]").
+      iApply (stats_handler_unwind_return F cstk rfault
+               with "Hstatic Hcode_stats HPC Hregs Hlock [Hes Harea_of] Hcstk Hna Hmie [Hcont]").
       { intros r'. apply elem_of_dom. rewrite !dom_insert_L ?dom_delete_L Hdom_regs.
         pose proof (all_registers_s_correct r'). set_solver. }
       { by simplify_map_eq. }
       { by simplify_map_eq. }
+      { done. }
       { iApply ("Harea_of" with "[] Hes"). iPureIntro. apply length_error_state_words. }
       iNext. iApply "Hcont". iPureIntro.
       intros (_ & r2 & p2 & g2 & b2 & e2 & a2 & π2 & (Hidx2 & Hr2) & Hlt & Hout).
@@ -473,16 +484,20 @@ Section Error_Handling_Handler.
     (* Non-empty bounds, base outside the slot: block 7, InstallContext *)
     iIntros (t Hbe Hout Hwrep)
       "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & [%wctp Hctp] & Hes & _)".
+    iAssert (held (th := th) InterruptEnabled)%I as "Hheld"; first by rewrite held_enabled.
     iApply (stats_handler_fix_spec STATS_pcc_b STATS_pcc_e g b e a16 ws
               (mtval_reg_field mtval) t p g' b' e' a' π
-             with "[- $HPC $Hca0 $Hct0 $Hct1 $Hct2 $Hcra $Hes $Hcode_stats]").
+             with "[- $HPC $Hca0 $Hct0 $Hct1 $Hct2 $Hcra $Hes $Hcode_stats $Hmie $Hheld]").
     { apply stats_code_bounds_layout. }
     1-2: rewrite /ErrorState_size in Ha16 Hb_a |- *; solve_addr.
     { done. }
     { apply length_error_state_words. }
     { done. }
-    { by destruct mie. }
-    iNext. iIntros "(HPC & Hca0 & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & Hcra & Hes & _)".
+    { done. }
+    { done. }
+    iNext.
+    iIntros "(HPC & Hca0 & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & Hcra & Hes & _
+              & Hmie & _)".
     set (wrep := MkLWord (WCap t p g' b' e' a') π).
     iInsertList "Hregs" [cra; ctp; ct2; ct1; ct0; ca2; ca1; ca0].
     rewrite handler_return_sentry_pc.
@@ -499,13 +514,13 @@ Section Error_Handling_Handler.
     (* InstallContext, at the token [F] of the site *)
     iApply (switcher_handler_return_install F
               (cstack_set_top_count cstk (top_error_count cstk + 1)) rmap stats_wpcc
-              RWL g b e a16 ws' with "[- ]"); [done | done | done | | | done | | done | | ].
+              RWL g b e a16 ws' with "[- ]"); [done | done | | | done | | done | | ].
     { by rewrite /rmap lookup_total_alt; simplify_map_eq. }
     { by rewrite top_tframe_set_count. }
     { exists a. rewrite /ErrorState_size in Ha16 |- *. solve_addr. }
     { by rewrite /ws' length_insert length_error_state_words. }
     rewrite top_export_tbl_set_count Htbl.
-    iFrame "Hinv_switcher Hstatic Hpcc HPC Hcstk Hna".
+    iFrame "Hinv_switcher Hstatic Hpcc HPC Hcstk Hna Hmie".
     iSplitL "Hregs"; first iExact "Hregs".
     iSplitL "Hes".
     { rewrite /install_region. iExact "Hes". }
@@ -515,7 +530,7 @@ Section Error_Handling_Handler.
       rewrite /error_state_loads_ok Hcsp_rmap /=.
       split_and!; [done | rewrite /ErrorState_size in Ha16 Hb_a |- *; solve_addr..].
     - (* The install succeeds: the retry *)
-      iIntros "Hreg".
+      iIntros "Hreg" (mie Hroute_mie) "Hmie' Hheld' _".
       iDestruct "Hcont" as "[Hcont _]".
       rewrite top_error_count_set_count cstack_set_top_count_twice.
       rewrite (_ : (top_error_count cstk + 1 + 1 = top_error_count cstk + 2)%Z); last lia.
@@ -527,14 +542,15 @@ Section Error_Handling_Handler.
       { rewrite /rmap. by simplify_map_eq. }
       assert (stats_outside_slot rfault b') as Hout_slot
         by (by apply (stats_outside_slot_base rfault g b e a a16 b' Hcsp_f Ha16)).
-      iApply ("Hcont" with "[%] [%] [%] [%] [%] Hlock [Hreg Harea_of]").
+      iSpecialize ("Hcont" with "[%] [%] [%] [%] [%] Hlock [Hreg Harea_of]").
       { split; first done. exists r, p, g', b', e', a', π. split_and!; [by split | done | done]. }
       { by split. }
       { done. }
       { done. }
       { done. }
-      iApply ("Harea_of" with "[] Hreg"). iPureIntro.
-      by rewrite length_insert length_error_state_words.
+      { iApply ("Harea_of" with "[] Hreg"). iPureIntro.
+        by rewrite length_insert length_error_state_words. }
+      iApply ("Hcont" $! mie with "[//] Hmie' Hheld'").
   Qed.
 
 End Error_Handling_Handler.

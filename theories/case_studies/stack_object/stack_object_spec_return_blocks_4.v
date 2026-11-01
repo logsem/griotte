@@ -22,13 +22,14 @@ Section SO_Return_Blocks_4.
   Lemma so_return_blocks_4_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (csp_b csp_e a_stk1 a_stk2 : Addr)
-    (wct0 wct1 wct2 wca2 wcra wret wca0 wca1 : LWord) :
+    (wct0 wct1 wct2 wca2 wcra wret wca0 wca1 : LWord) (mie : InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     disjoint_from_shadow csp_b csp_e ->
     (a_stk2 + 1)%a = Some a_stk1 ->
     (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (csp_b <= a_stk2)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    route_pre th mie ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
     csp ↦ᵣ[th] Cap RWL Local csp_b csp_e a_stk2 ∗
@@ -43,6 +44,8 @@ Section SO_Return_Blocks_4.
     a_stk1 ↦ₐ WInt so_secret ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a so_main_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
         csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
         ct0 ↦ᵣ[th] WInt 0 ∗
@@ -55,14 +58,16 @@ Section SO_Return_Blocks_4.
         ca1 ↦ᵣ[th] WInt 0 ∗
         a_stk1 ↦ₐ WInt so_secret ∗
         (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
-        codefrag_pers pc_a so_main_code
+        codefrag_pers pc_a so_main_code ∗
+        MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+        held (th := th) (default mie (jalr_target_mie wret.(lw)))
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
-               Hastk2 Hastk1 Hcsp_b Htgt)
+               Hastk2 Hastk1 Hcsp_b Htgt Hroute)
       "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
-      & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hpost)".
+      & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hmie & Hheld & Hpost)".
     unfold StackEntry_reserved_space in Hastk1.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
@@ -90,11 +95,11 @@ Section SO_Return_Blocks_4.
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
              "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra
-              $Hcode $Himport_assert]"); auto; try (by intros ?).
+              $Hcode $Himport_assert $Hmie $Hheld]"); auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1
-                    & _ & Himport_assert)".
+                    & Hmie & Hheld & _ & Himport_assert)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 12: return *)
@@ -107,7 +112,9 @@ Section SO_Return_Blocks_4.
     (* Mov ca1 0%Z *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

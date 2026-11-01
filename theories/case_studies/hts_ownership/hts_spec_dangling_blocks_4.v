@@ -8,6 +8,7 @@ From griotte Require Import world_ghost_theory heap_region.
 From griotte Require Import world_interp_stack world_interp.
 From griotte Require Import proofmode register_tactics map_simpl.
 From griotte.case_studies.hts_ownership Require Import hts_spec_states hts_spec_world.
+From griotte Require Import case_study_spec_helpers.
 From griotte.case_studies.hts_ownership Require Import hts_spec_assert_blocks_5.
 
 (** * Segment (d): blocks 16-20
@@ -63,7 +64,8 @@ Section HTS_Spec_Dangling.
     iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 16: return when free failed. *)
       iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & [%wct0 Hct0] & Hcs0 & [%wcra Hcra]
-        & [%wctp Hctp] & [%wct2 Hct2] & Hcstk & %Hframes & Hcode_main)".
+        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)] & Hcstk & %Hframes
+        & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
       focus_block (hts_block ".Lhts_free_result") "Hcode_main" of hts_main_blocks at pc_a as a_free_result Ha_free_result
@@ -77,12 +79,13 @@ Section HTS_Spec_Dangling.
       unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [done | done]. }
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & _ & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
-    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret Hcra] & Hcgp & Hcsp & Hcs0
+    iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
+      & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -169,7 +172,9 @@ Section HTS_Spec_Dangling.
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstr_success "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ _ mie_ret)
+      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_advcall2 ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a) as Ha_next
       by (offsets_compute; solve_addr).
@@ -208,18 +213,18 @@ Section HTS_Spec_Dangling.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
     iApply (switcher_cc_specification (hts_Wfree Wret ι) C
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
-        $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free]").
+        $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
-    { destruct mie; reflexivity. }
+    { destruct mie_ret; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_free).
@@ -227,11 +232,11 @@ Section HTS_Spec_Dangling.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min. }
     iNext.
-    iIntros (Wret2 rmap_after2 stk_after2 lret2 rcgp rcra rcs0 rcs1)
+    iIntros (Wret2 rmap_after2 stk_after2 lret2 rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & _ & _ & %Hdom_rmap_after2 & _ & _
        & Hna & _ & _ & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-       & _ & _ & Hrmap & _ & _ & %Hrestored)".
+       & _ & _ & Hrmap & _ & _ & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hgp_ret2 & Hra_ret2 & Hs0_ret2 & _).
     apply load_heap_nonheap in Hs0_ret2; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret2.
@@ -243,6 +248,7 @@ Section HTS_Spec_Dangling.
            Hpc_nonheap /=. reflexivity. }
     subst rcgp rcra rcs0.
     iEval (cbn) in "HPC".
+    iEval (rewrite default_jalr_target_mie_ret_kind) in "Hmie Hheld".
     iApply "Hcontinue".
     iFrame "∗#%".
   Qed.

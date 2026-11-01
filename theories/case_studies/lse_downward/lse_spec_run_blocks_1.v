@@ -25,11 +25,12 @@ Section LSE_Run_Blocks_1.
   Lemma lse_run_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr)
-    (wct0 wct1 wcs0 wcra : LWord) :
+    (wct0 wct1 wcs0 wcra : LWord) (b : InterruptStatus) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ[th] wct0 ∗
@@ -40,23 +41,28 @@ Section LSE_Run_Blocks_1.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ[th] wcra ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
           (pc_a ^+ lse_label_offset ".Llse_run_return")%a ∗
         cgp_b ↦ₐ WInt 2 ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
-        codefrag_pers pc_a lse_main_code
+        codefrag_pers pc_a lse_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hsealed_nonheap)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow
+               Hsealed_nonheap Hroute)
       "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
-      & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hpost)".
+      & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
     rewrite /switcher_entry_call.
@@ -98,7 +104,9 @@ Section LSE_Run_Blocks_1.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wcra b)
+      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ lse_label_offset ".Llse_run_return")%a) as ->
       by (offsets_compute; solve_addr).

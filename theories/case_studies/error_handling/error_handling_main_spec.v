@@ -119,6 +119,7 @@ Section Error_Handling_Main_Spec.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ct1; ca0; ca1; cs0; cs1 ]} ->
+    route_pre th mie ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     stats_static ∗
@@ -137,7 +138,10 @@ Section Error_Handling_Main_Spec.
     [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem ]] ∗
     ◯(CSTK)[th] cstk ∗
     stats_arg_pre wptr v ∗
-    ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs1 : LWord),
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    held (th := th) InterruptDisabled ∗
+    ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs1 : LWord)
+         (b : InterruptStatus),
         ⌜dom rmap_ret = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝ ∗
         na_own (tpool th) ⊤ ∗
         PC ↦ₚ[th] Cap RX Global pc_b pc_e a_ret ∗
@@ -151,16 +155,19 @@ Section Error_Handling_Main_Spec.
         regs₀[th] rmap_ret ∗
         [[ csp_b, stk_start_a csp_b csp_e ]] ↦ₐ [[ stk_mem' ]] ∗
         ◯(CSTK)[th] cstk ∗
+        ⌜route_pre th b⌝ ∗
+        MIE ↦ₜ[th] b ∗
+        held (th := th) b ∗
         (stats_arg_post wptr v wca0 ∨
          ⌜wca0 = WInt ENOTENOUGHTRUSTEDSTACK⌝ ∗ stats_arg_pre wptr v)
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hpc_nonheap Hcgp_nonheap Hcs0_nonheap Hstk_mmio Hstk_heap Hstk_min
-               Hdom_rmap)
+               Hdom_rmap Hroute)
       "(#Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hct1 & Hca0 & Hca1 & Hrmap
-      & Hstk & Hcstk & HP & Hpost)".
+      & Hstk & Hcstk & HP & Hmie & Hheld & Hpost)".
     iDestruct (stats_arg_pre_cap with "HP") as "[%Hwptr_cap HP]".
     iExtractList "Hrmap" [ca2; ca3; ca4; ca5; ct0] as ["Hca2"; "Hca3"; "Hca4"; "Hca5"; "Hct0"].
     set (arg_rmap := {[ ca0 := wptr; ca1 := wca1; ca2 := wca2; ca3 := wca3; ca4 := wca4;
@@ -193,7 +200,7 @@ Section Error_Handling_Main_Spec.
               stats_read_pcc_off InterruptDisabled (stats_may_fault wptr)
              with "[$Hinv_switcher $Hswitcher_static $Htbl_pcc $Htbl_cgp $Htbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-                 $Hargs $Hrmap $Hstk $Hcstk $Hread $HP Hpost]").
+                 $Hargs $Hrmap $Hstk $Hcstk $Hread $HP $Hmie $Hheld Hpost]").
     all: [> exact Hstk_heap | exact Hstk_mmio
       | apply stk_start_cursor_ok;
         rewrite /SpillSlot_size /StackEntry_reserved_space in Hstk_min |- *;
@@ -205,7 +212,7 @@ Section Error_Handling_Main_Spec.
       | apply Hexport_shadow; solve_addr+Hstats_exp_tbl_size
       | exact stats_exp_tbl_disjoint_from_shadow
       | exact STATS_pcc_base_not_heap | exact STATS_cgp_base_not_heap
-      | solve_ndisj | solve_ndisj
+      | solve_ndisj
       | rewrite /stats_read_exp_tbl_addr /stats_read_exp_tbl_off /stats_entry_read;
         solve_addr+Hstats_exp_tbl_size
       | solve_addr+Hstats_exp_tbl_size
@@ -237,18 +244,18 @@ Section Error_Handling_Main_Spec.
         iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       + iDestruct "HQ" as "[-> HQ]".
         iApply ("Hpost" with "[$Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk
-                  $Hcstk $HQ]").
-        iPureIntro. rewrite Hdom_rmap_ret. set_solver+.
+                  $Hcstk $Hmie $Hheld $HQ]").
+        iPureIntro. split; [rewrite Hdom_rmap_ret; set_solver+ | by destruct mie].
       + iApply ("Hpost" with "[$Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk
-                  $Hcstk HP]").
-        iSplit; first done.
+                  $Hcstk $Hmie $Hheld HP]").
+        iSplit; first done. iSplit; first (iPureIntro; by destruct mie).
         iRight. by iFrame.
       + (* The callee faulted: [ECOMPARTMENTFAIL] *)
         destruct Hwptr_cap as (t & p & g & b & e & a & π & ->).
         destruct t; first done.
         iApply ("Hpost" with "[$Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk
-                  $Hcstk]").
-        iSplit; first done.
+                  $Hcstk $Hmie $Hheld]").
+        iSplit; first done. iSplit; first (iPureIntro; by destruct mie).
         by iLeft.
     - iDestruct "Hcases" as "[@|@]";
         destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _);
@@ -261,11 +268,11 @@ Section Error_Handling_Main_Spec.
         iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
       + iDestruct "HQ" as "[-> HQ]".
         iApply ("Hpost" with "[$Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk
-                  $Hcstk $HQ]").
-        iPureIntro. rewrite Hdom_rmap_ret. set_solver+.
+                  $Hcstk $Hmie $Hheld $HQ]").
+        iPureIntro. split; [rewrite Hdom_rmap_ret; set_solver+ | by destruct mie].
       + iApply ("Hpost" with "[$Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk
-                  $Hcstk HP]").
-        iSplit; first done.
+                  $Hcstk $Hmie $Hheld HP]").
+        iSplit; first done. iSplit; first (iPureIntro; by destruct mie).
         iRight. by iFrame.
   Qed.
 
@@ -274,7 +281,7 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_3_phase_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
     (wca0 wca1 wcra wcs1 : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) :
+    (stk_mem : list LWord) (cstk : CSTK) (b : InterruptStatus) :
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
@@ -285,6 +292,7 @@ Section Error_Handling_Main_Spec.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -306,31 +314,35 @@ Section Error_Handling_Main_Spec.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
-    codefrag_pers pc_a error_handling_main_code
+    codefrag_pers pc_a error_handling_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
-               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
+               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap Hroute)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hx
-      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main)".
+      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
 
     (* Blocks 15-18: the capability of [x] in [ca0], and the jump to the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
     iApply (main_call_read_3_spec with
-             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main]");
-      first exact Hbounds.
-    iIntros "!>" (mie) "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _)".
+             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
+               $Hmie $Hheld]");
+      [exact Hbounds | exact Hroute |].
+    iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
 
     iInsertList "Hrmap" [ctp].
 
     (* The call to [stats_read], known to [main], lending [x] *)
-    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e mie _ thread_return_sentry wcs1 _ wca1
+    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e b _ thread_return_sentry wcs1 _ wca1
               (WInt X_INIT)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
-                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx]");
-      [done | done | | exact thread_return_sentry_not_heap | done | done | done | |].
+                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx
+                    $Hmie $Hheld]");
+      [done | done | | exact thread_return_sentry_not_heap | done | done | done | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
@@ -340,22 +352,22 @@ Section Error_Handling_Main_Spec.
         last (apply withinBounds_true_iff; solve_addr+Hcgp_size).
       iFrame "Hx". iPureIntro.
       split_and!; [done | solve_addr+Hcgp_size | done | done | done]. }
-    iIntros "!>" (wret rmap_ret stk_mem' rcs1)
+    iIntros "!>" (wret rmap_ret stk_mem' rcs1 b')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
-      & Hrmap & Hstk & Hcstk & Hret)".
+      & Hrmap & Hstk & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
     iExtractList "Hrmap" [ctp; ct0; ct1; ct2; ca2]
       as ["[Hctp _]"; "[Hct0 _]"; "[Hct1 _]"; "[Hct2 _]"; "[Hca2 _]"].
     iDestruct "Hret" as "[ [-> _] | [-> _] ]".
     - (* Blocks 19-21: the assert of [X_INIT], and the return *)
       iApply (main_check_3_spec _ _ _ X_INIT with
                "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main]");
-        [exact Hbounds | by right | exact Hframes].
+                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | by right | exact Hframes | exact Hroute'].
     - (* Block 19: the trusted stack is exhausted, return *)
       iApply (main_check_3_spec with
                "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main]");
-        [exact Hbounds | by left | exact Hframes].
+                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | by left | exact Hframes | exact Hroute'].
   Qed.
 
   (** The second call to [stats_read], with the untagged capability of [x],
@@ -363,7 +375,7 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_2_phase_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
     (wca0 wca1 wcra wcs1 : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) :
+    (stk_mem : list LWord) (cstk : CSTK) (b : InterruptStatus) :
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
@@ -374,6 +386,7 @@ Section Error_Handling_Main_Spec.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -395,39 +408,42 @@ Section Error_Handling_Main_Spec.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
-    codefrag_pers pc_a error_handling_main_code
+    codefrag_pers pc_a error_handling_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
-               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
+               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap Hroute)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hx
-      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main)".
+      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
 
     (* Blocks 9-12: the untagged capability of [x] in [ca0], and the jump to
        the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
     iApply (main_call_read_2_spec with
-             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main]");
-      first exact Hbounds.
-    iIntros "!>" (mie) "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _)".
+             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
+               $Hmie $Hheld]");
+      [exact Hbounds | exact Hroute |].
+    iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
     iInsertList "Hrmap" [ctp].
 
     (* The call to [stats_read], known to [main]: the load faults, and the
        handler of [stats] unwinds it *)
-    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e mie _ thread_return_sentry wcs1 _ wca1
+    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e b _ thread_return_sentry wcs1 _ wca1
               (WInt 0)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
-                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx]");
-      [done | done | | exact thread_return_sentry_not_heap | done | done | done | |].
+                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx
+                    $Hmie $Hheld]");
+      [done | done | | exact thread_return_sentry_not_heap | done | done | done | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
-    iSplitR; first by rewrite /stats_arg_pre.
-    iIntros "!>" (wret rmap_ret stk_mem' rcs1)
+    iIntros "!>" (wret rmap_ret stk_mem' rcs1 b')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
-      & Hrmap & Hstk & Hcstk & Hret)".
+      & Hrmap & Hstk & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
     iAssert (⌜∃ z : Z, wret = WInt z ∧ (z = ENOTENOUGHTRUSTEDSTACK ∨ z = ECOMPARTMENTFAIL)⌝)%I
       with "[Hret]" as %(z & -> & Hz).
     { iDestruct "Hret" as "[%Hwret | [%Hwret _] ]"; iPureIntro; eexists;
@@ -439,17 +455,18 @@ Section Error_Handling_Main_Spec.
        [ECOMPARTMENTFAIL] *)
     iApply (main_check_2_spec _ _ _ z with
              "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main]");
-      [exact Hbounds | exact Hz | exact Hframes |].
+               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hz | exact Hframes | exact Hroute' |].
     iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hcstk
-                & _)".
+                & _ & Hmie & Hheld)".
     iInsertList "Hrmap" [ctp; ct0; ct1; ct2; ca2].
 
     (* Blocks 15-21 *)
     iApply (main_read_3_phase_spec with
              "[$Hassert $Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk $Hcstk $Hx
-               $Himport_switcher $Himport_assert $Himport_read $Hcode_main]"); try done.
+               $Himport_switcher $Himport_assert $Himport_read $Hcode_main $Hmie $Hheld]");
+      try done.
     rewrite !dom_insert_L Hdom_rmap_ret.
     pose proof (all_registers_s_correct ctp).
     pose proof (all_registers_s_correct ct0). pose proof (all_registers_s_correct ct1).
@@ -463,7 +480,7 @@ Section Error_Handling_Main_Spec.
   Lemma main_read_1_phase_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e : Addr)
     (wca0 wca1 wcra wcs1 : LWord) (rmap : LReg)
-    (stk_mem : list LWord) (cstk : CSTK) :
+    (stk_mem : list LWord) (cstk : CSTK) (b : InterruptStatus) :
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
@@ -474,6 +491,7 @@ Section Error_Handling_Main_Spec.
     disjoint_from_heap csp_b csp_e ->
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     dom rmap = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]} ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -495,32 +513,36 @@ Section Error_Handling_Main_Spec.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
-    codefrag_pers pc_a error_handling_main_code
+    codefrag_pers pc_a error_handling_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     iIntros (Hswitcher Hbounds Hframes Hcgp_size Hcgp_nonheap Hcgp_shadow
-               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap)
+               Hstk_mmio Hstk_heap Hstk_min Hdom_rmap Hroute)
       "(#Hassert & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap & Hstk & Hcstk & Hx
-      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main)".
+      & #Himport_switcher & #Himport_assert & #Himport_read & #Hcode_main & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
 
     (* Blocks 3-6: the capability of [x] one past its end in [ca0], and the jump
        to the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
     iApply (main_call_read_1_spec with
-             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main]");
-      [exact Hbounds | exact Hcgp_size |].
-    iIntros "!>" (mie) "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _)".
+             "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
+               $Hmie $Hheld]");
+      [exact Hbounds | exact Hcgp_size | exact Hroute |].
+    iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
 
     iInsertList "Hrmap" [ctp].
 
     (* The call to [stats_read], known to [main], lending [x] *)
-    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e mie _ thread_return_sentry wcs1 _ wca1
+    iApply (main_read_call_spec pc_b pc_e _ csp_b csp_e b _ thread_return_sentry wcs1 _ wca1
               (WInt X_INIT)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
-                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx]");
-      [done | done | | exact thread_return_sentry_not_heap | done | done | done | |].
+                    $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hcstk Hx
+                    $Hmie $Hheld]");
+      [done | done | | exact thread_return_sentry_not_heap | done | done | done | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
@@ -530,9 +552,9 @@ Section Error_Handling_Main_Spec.
         last (apply not_true_iff_false; rewrite withinBounds_true_iff; solve_addr+Hcgp_size).
       iFrame "Hx". iPureIntro.
       split_and!; [done | solve_addr+Hcgp_size | done | done | done]. }
-    iIntros "!>" (wret rmap_ret stk_mem' rcs1)
+    iIntros "!>" (wret rmap_ret stk_mem' rcs1 b')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
-      & Hrmap & Hstk & Hcstk & Hret)".
+      & Hrmap & Hstk & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
     iAssert (⌜∃ z : Z, wret = WInt z ∧ (z = ENOTENOUGHTRUSTEDSTACK ∨ z = X_INIT)⌝ ∗
              cgp_b ↦ₐ WInt X_INIT)%I
       with "[Hret]" as "[%Hz Hx]".
@@ -549,17 +571,18 @@ Section Error_Handling_Main_Spec.
        [X_INIT] *)
     iApply (main_check_1_spec _ _ _ z with
              "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main]");
-      [exact Hbounds | exact Hz | exact Hframes |].
+               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hz | exact Hframes | exact Hroute' |].
     iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hcstk
-                & _)".
+                & _ & Hmie & Hheld)".
     iInsertList "Hrmap" [ctp; ct0; ct1; ct2; ca2].
 
     (* Blocks 9-21 *)
     iApply (main_read_2_phase_spec with
              "[$Hassert $Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk $Hcstk $Hx
-               $Himport_switcher $Himport_assert $Himport_read $Hcode_main]"); try done.
+               $Himport_switcher $Himport_assert $Himport_read $Hcode_main $Hmie $Hheld]");
+      try done.
     rewrite !dom_insert_L Hdom_rmap_ret.
     pose proof (all_registers_s_correct ctp).
     pose proof (all_registers_s_correct ct0). pose proof (all_registers_s_correct ct1).
@@ -576,7 +599,7 @@ Section Error_Handling_Main_Spec.
     (adv_f : Sealable) (W0 : WORLD) (Ws : list WORLD) (Cs : list CmptName)
     (* The capability to the export table of [main], as the entry frame of
        the thread records it *)
-    (w_main_tbl : LWord) :
+    (w_main_tbl : LWord) (b : InterruptStatus) :
     let imports := error_handling_main_imports adv_f in
     STATS_pcc_b ≠ b_switcher ->
     main_code_bounds pc_b pc_e pc_a ->
@@ -591,6 +614,7 @@ Section Error_Handling_Main_Spec.
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space + stats_read_min_stack <= csp_e)%Z ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     thread_in th C ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -614,16 +638,18 @@ Section Error_Handling_Main_Spec.
     ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
     interp W0 C (WSealed ot_switcher adv_f) ∗
     adv_f ↦ₑ□{nargs} 0 ∗
-    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e))
+    interp W0 C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
     intros imports. subst imports.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
-               Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match)
+               Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match Hroute)
       "(#Hassert & #Hthread & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & #Himports & #Hcode_main & Hdata
-      & Hworld & HK & Hcstk & #Hinterp_adv & #Hentry_adv & #Hinterp_csp)".
+      & Hworld & HK & Hcstk & #Hinterp_adv & #Hentry_adv & #Hinterp_csp & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
     iDestruct (error_handling_main_imports_pointsto with "Himports")
       as "(Himport_switcher & Himport_assert & Himport_adv & Himport_read)";
@@ -668,9 +694,10 @@ Section Error_Handling_Main_Spec.
       rewrite Hrmap_zero in Hr; [by simplify_eq | done]. }
     iExtractList "Hrmap" [ctp; ct1; cs0] as ["[Hctp _]"; "[Hct1 _]"; "[Hcs0 _]"].
     iApply (main_call_adv_spec with
-             "[- $HPC $Hctp $Hct1 $Hcra $Hcs0 $Himport_switcher $Himport_adv $Hcode_main]");
-      [exact Hbounds | exact Hadv_nonheap |].
-    iIntros "!>" (mie) "(HPC & Hctp & Hct1 & Hcra & Hcs0 & _)".
+             "[- $HPC $Hctp $Hct1 $Hcra $Hcs0 $Himport_switcher $Himport_adv $Hcode_main
+               $Hmie $Hheld]");
+      [exact Hbounds | exact Hadv_nonheap | exact Hroute |].
+    iIntros "!> (HPC & Hctp & Hct1 & Hcra & Hcs0 & _ & Hmie & Hheld)".
 
     (* The call to [adv], unknown to [main]: [stats_inv] is closed *)
     iExtractList "Hrmap" [ca0; ca1; ca2; ca3; ca4; ca5; ct0] as
@@ -686,12 +713,12 @@ Section Error_Handling_Main_Spec.
               stk_mem_free main_adv_arg_rmap _ cstk0 Ws Cs 0 with
              "[$Hthread $Hinv_switcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
                $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hstack_revoked_W1_free $Hcstk $HK
-               $Hinterp_W1_adv Hargs Hx]").
+               $Hinterp_W1_adv $Hmie $Hheld Hargs Hx]").
     all: [> exact Hstk_mmio | exact Hstk_heap | apply stk_start_cursor_ok, Hstk_res_size
       | rewrite dom_insert_L !dom_delete_L Hdom_rmap /dom_arg_rmap /=;
         pose proof (all_registers_s_correct ctp); set_solver
       | apply main_adv_arg_rmap_is_arg
-      | destruct mie; reflexivity
+      | destruct b; reflexivity
       | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
       | ].
     iSplitR; first iExact "Hentry_adv".
@@ -703,10 +730,10 @@ Section Error_Handling_Main_Spec.
                   rewrite /SpillSlot_size /StackEntry_reserved_space /stats_read_min_stack
                     in Hstk_min |- *;
                   solve_addr+Hstk_min).
-    iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1)
+    iIntros "!>" (W2 rmap' stk_mem' l' rcgp rcra rcs0 rcs1 m)
       "(_ & _ & _ & _ & _ & %Hdom_rmap' & _ & _ & Hna & _ & _ & Hcstk & HPC & Hcgp & Hcra
       & Hcs0 & Hcs1 & Hcsp & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ] & Hrmap & Hstk & _
-      & %Hrestored)".
+      & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       last (rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=;
@@ -723,7 +750,7 @@ Section Error_Handling_Main_Spec.
     iApply (main_read_1_phase_spec with
              "[$Hassert $Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk $Hcstk $Hx
-               $Himport_switcher $Himport_assert $Himport_read $Hcode_main]"); done.
+               $Himport_switcher $Himport_assert $Himport_read $Hcode_main $Hmie $Hheld]"); done.
   Qed.
 
 End Error_Handling_Main_Spec.

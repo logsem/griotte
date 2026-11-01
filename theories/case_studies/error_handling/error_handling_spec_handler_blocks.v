@@ -32,6 +32,7 @@ Section Error_Handling_Handler_Blocks.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
+    {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   (** The faults that the handler repairs, from mcause [c] and mtval [v]:
@@ -319,7 +320,8 @@ Section Error_Handling_Handler_Blocks.
       InstallContext. *)
   Lemma stats_handler_fix_spec
     (pc_b pc_e : Addr) (g0 : Locality) (b0 e0 a16 : Addr) (ws : list LWord) (n : Z)
-    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (wcra : LWord) :
+    (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (wcra : LWord)
+    (mie : InterruptStatus) :
     stats_code_bounds pc_b pc_e ->
     (b0 <= a16)%a ->
     (a16 + ErrorState_size <= e0)%Z ->
@@ -327,6 +329,7 @@ Section Error_Handling_Handler_Blocks.
     length ws = Z.to_nat ErrorState_size ->
     (TrustedStack_offset_cra <= n <= TrustedStack_offset_ca5)%Z ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
+    route_pre th mie ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_fix")%a ∗
     ca0 ↦ᵣ[th] Cap RWL g0 b0 e0 a16 ∗
     ct0 ↦ᵣ[th] WInt b ∗
@@ -335,6 +338,8 @@ Section Error_Handling_Handler_Blocks.
     cra ↦ᵣ[th] wcra ∗
     [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ [[ ws ]] ∗
     codefrag_pers pc_b stats_code ∗
+    MIE ↦ₜ[th] mie ∗
+    held (th := th) mie ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
        ca0 ↦ᵣ[th] WInt InstallContext ∗
        ct0 ↦ᵣ[th] - ∗
@@ -343,12 +348,14 @@ Section Error_Handling_Handler_Blocks.
        cra ↦ᵣ[th] wcra ∗
        [[ a16 , a16 ^+ ErrorState_size ]] ↦ₐ
          [[ <[Z.to_nat n := stats_repair_word (MkLWord (WCap t p g b e a) π)]> ws ]] ∗
-       codefrag_pers pc_b stats_code
+       codefrag_pers pc_b stats_code ∗
+       MIE ↦ₜ[th] default mie (jalr_target_mie wcra.(lw)) ∗
+       held (th := th) (default mie (jalr_target_mie wcra.(lw)))
        -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Htgt)
-      "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hcra & Hes & Hcode_stats & Hpost)".
+    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hb0_a16 Ha16_e0 Hes_shadow Hlen Hn Htgt Hroute)
+      "(HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hcra & Hes & Hcode_stats & Hmie & Hheld & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_stats") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     rewrite /ErrorState_size /TrustedStack_offset_cra /TrustedStack_offset_ca5
@@ -373,10 +380,12 @@ Section Error_Handling_Handler_Blocks.
     (* Mov ca0 InstallContext *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iDestruct ("Hes" with "Hes_k") as "Hes".
-    iApply ("Hpost" with "[$HPC $Hca0 $Hcra $Hcode_stats Hct0 Hct1 Hct2 Hes]").
+    iApply ("Hpost" with "[$HPC $Hca0 $Hcra $Hcode_stats $Hmie $Hheld Hct0 Hct1 Hct2 Hes]").
     iSplitL "Hct0"; first by iExists _.
     iSplitL "Hct1"; first by iExists _.
     iSplitL "Hct2"; first by iExists _.
@@ -387,28 +396,33 @@ Section Error_Handling_Handler_Blocks.
   (** Block 8: release the lock, and return ForceUnwind. *)
   Lemma stats_handler_unwind_spec
     (pc_b pc_e cgp_b cgp_e : Addr)
-    (wlock wca0 wcra : LWord) :
+    (wlock wca0 wcra : LWord) (b : InterruptStatus) :
     stats_code_bounds pc_b pc_e ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lstats_handler_unwind")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
     cra ↦ᵣ[th] wcra ∗
     cgp_b ↦ₐ wlock ∗
     codefrag_pers pc_b stats_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
     ▷ (PC ↦ₚ[th] lupdatePcPerm wcra ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] WInt ForceUnwind ∗
         cra ↦ᵣ[th] wcra ∗
         cgp_b ↦ₐ WInt 0 ∗
-        codefrag_pers pc_b stats_code
+        codefrag_pers pc_b stats_code ∗
+        MIE ↦ₜ[th] default b (jalr_target_mie wcra.(lw)) ∗
+        held (th := th) (default b (jalr_target_mie wcra.(lw)))
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt)
-      "(HPC & Hcgp & Hca0 & Hcra & Hlock & Hcode_stats & Hpost)".
+    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt Hroute)
+      "(HPC & Hcgp & Hca0 & Hcra & Hlock & Hcode_stats & Hmie & Hheld & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_stats") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     stats_unfold_code.
@@ -421,7 +435,9 @@ Section Error_Handling_Handler_Blocks.
     (* Mov ca0 ForceUnwind *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.

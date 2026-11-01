@@ -20,7 +20,8 @@ Section SO_World_Return.
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ} {cstackg : CSTACKG Σ}
-    `{MP : MachineParameters}.
+    `{MP : MachineParameters}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
 
   Lemma stack_object_revoked_pointsto_disjoint
       (W : WORLD) (C : CmptName) (l : list LAddr)

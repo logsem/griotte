@@ -32,6 +32,7 @@ Section Lea_To_Base_spec.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th}
   .
 
   Lemma lea_to_base_spec

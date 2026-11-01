@@ -31,9 +31,10 @@ Section Error_Handling_Main_Blocks_3.
   (** Block 21: return through the switcher's return sentry, saved in
       [cs0]: the thread exits. *)
   Lemma main_return_spec
-    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) :
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
+    route_pre th b ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
@@ -44,12 +45,14 @@ Section Error_Handling_Main_Blocks_3.
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
     ◯(CSTK)[th] cstk ∗
-    codefrag_pers pc_a error_handling_main_code
+    codefrag_pers pc_a error_handling_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & #Hcode_main)".
+        & Hcstk & #Hcode_main & Hmie & Hheld)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
@@ -58,17 +61,20 @@ Section Error_Handling_Main_Blocks_3.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
   Qed.
 
   Lemma main_call_read_3_spec
     (pc_b pc_e pc_a : Addr)
     (cgp_b cgp_e : Addr)
-    (wca0 wctp wct1 wcra : LWord) :
+    (wca0 wctp wct1 wcra : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_3")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -78,20 +84,24 @@ Section Error_Handling_Main_Blocks_3.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ 3) ↦ₐ□ WSealed ot_switcher (STATS_read Global) ∗
     codefrag_pers pc_a error_handling_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ca0 ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
         ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher (STATS_read Global) ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_3")%a ∗
-        codefrag_pers pc_a error_handling_main_code
+        codefrag_pers pc_a error_handling_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap))
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hroute)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
-      & #Himport_switcher & #Himport_read & #Hcode_main & Hpost)".
+      & #Himport_switcher & #Himport_read & #Hcode_main & Hmie & Hheld & Hpost)".
     assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap
       by (apply sealed_cap_nonheap, stats_export_base_not_heap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
@@ -138,7 +148,9 @@ Section Error_Handling_Main_Blocks_3.
       at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp *)
-    iInstr "Hcode".
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
+      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 1 = (pc_a ^+ main_label_offset ".Lmain_ret_read_3")%a) as ->
       by (offsets_compute; solve_addr).
@@ -147,10 +159,11 @@ Section Error_Handling_Main_Blocks_3.
 
   Lemma main_check_3_spec
     (pc_b pc_e pc_a : Addr) (v : Z) (cstk : CSTK)
-    (wctp wct0 wct1 wct2 wca2 wcra : LWord) :
+    (wctp wct0 wct1 wct2 wca2 wcra : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
     cstk.(cstk_frames) = [] ->
+    route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -166,12 +179,14 @@ Section Error_Handling_Main_Blocks_3.
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
-    codefrag_pers pc_a error_handling_main_code
+    codefrag_pers pc_a error_handling_main_code ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros (Hbounds Hv Hframes)
+    iIntros (Hbounds Hv Hframes Hroute)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hca0 & Hctp & Hct0 & Hct1
-      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & #Himport_assert & #Hcode_main)".
+      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & #Himport_assert & #Hcode_main & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
@@ -191,7 +206,8 @@ Section Error_Handling_Main_Blocks_3.
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
       iApply (main_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main]"); [exact Hbounds | exact Hframes]. }
+                 $Hcstk $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | exact Hframes | exact Hroute]. }
     (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
     iInstr "Hcode".
     (* Mov ct0 ca0 *)
@@ -205,18 +221,19 @@ Section Error_Handling_Main_Blocks_3.
       at pc_a as a_assert Ha_assert "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     iApply (assert_success_spec 1 with
-             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra $Hcode $Himport_assert]");
+             "[- $Hassert $HPC $Hct2 $Hca2 $Hct0 $Hct1 $Hcra $Hcode $Himport_assert $Hmie $Hheld]");
       auto; try (by intros ?).
     { offsets_compute; solve_addr. }
     { apply withinBounds_true_iff; offsets_compute; solve_addr. }
-    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & _ & _)".
+    iNext; iIntros "(HPC & Hct2 & Hca2 & Hcra & Hct0 & Hct1 & Hmie & Hheld & _ & _)".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 
     (* Block 21: return, the thread exits *)
     change_pc_to (pc_a ^+ main_label_offset ".Lmain_return")%a.
     iApply (main_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk $Hcode_main]"); [exact Hbounds | exact Hframes].
+               $Hcstk $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hframes | exact Hroute].
   Qed.
 
 End Error_Handling_Main_Blocks_3.

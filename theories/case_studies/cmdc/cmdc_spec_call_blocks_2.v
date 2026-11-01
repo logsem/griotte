@@ -25,7 +25,7 @@ Section CMDC_Call_Blocks_2.
       start at the labels [l_call], [l_fetch] and [l_jump], and that returns
       at [l_ret]: the code of the two calls only differs by the import of
       the callee. *)
-  #[local] Ltac cmdc_call_blocks_proof l_call l_fetch l_jump l_ret pc_a pc_b :=
+  #[local] Ltac cmdc_call_blocks_proof l_call l_fetch l_jump l_ret pc_a pc_b wcra b :=
     let hcont := fresh "hcont" in
     let a_fetch1 := fresh "a_fetch1" in
     let a_fetch2 := fresh "a_fetch2" in
@@ -60,7 +60,9 @@ Section CMDC_Call_Blocks_2.
     focus_block (cmdc_block l_jump) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     (* Jalr cra ctp *)
-    iInstr "Hcode";
+    iInstrApply "Hcode"
+      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
+      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|];
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
     assert (a_call ^+ 1 = pc_a ^+ cmdc_label_offset l_ret) as ->
       by (offsets_compute; solve_addr);
@@ -68,8 +70,9 @@ Section CMDC_Call_Blocks_2.
 
   Lemma cmdc_call_blocks_2_spec (c : cmdc_call)
     (pc_b pc_e pc_a : Addr) (B_f C_g : Sealable)
-    (wctp wct1 wcra : LWord) :
+    (wctp wct1 wcra : LWord) (b : InterruptStatus) :
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
+    route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c)) ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -77,33 +80,37 @@ Section CMDC_Call_Blocks_2.
     pc_b ↦ₐ□ switcher_entry_call ∗
     (pc_b ^+ cmdc_call_import c) ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
     codefrag_pers pc_a cmdc_main_code ∗
-    ▷ (∀ mie, PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
+    MIE ↦ₜ[th] b ∗
+    held (th := th) b ∗
+    ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
         ctp ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        cra ↦ᵣ[th] Sentry (ret_kind mie) RX Global pc_b pc_e
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
           (pc_a ^+ cmdc_label_offset (cmdc_return_label c)) ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ cmdc_call_import c) ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
-        codefrag_pers pc_a cmdc_main_code
+        codefrag_pers pc_a cmdc_main_code ∗
+        MIE ↦ₜ[th] InterruptDisabled ∗
+        held (th := th) InterruptDisabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     destruct c; cbn [cmdc_call_label cmdc_return_label cmdc_call_import cmdc_call_target].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
-                   & HC_g_nonheap))
+                   & HC_g_nonheap) Hroute)
       "(HPC & Hctp & Hct1 & Hcra & Himport_switcher & Himport_target
-      & Hcode_main & Hpost)".
+      & Hcode_main & Hmie & Hheld & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     all: unfold_code cmdc_main_code "Hcode_main".
     all: rewrite /switcher_entry_call.
     - (* Call to [B.f], blocks 1-3 *)
       cmdc_call_blocks_proof
         ".Lcmdc_call_B"%string ".Lcmdc_fetch_B_f"%string
-        ".Lcmdc_jump_B"%string ".Lcmdc_return_B"%string pc_a pc_b.
+        ".Lcmdc_jump_B"%string ".Lcmdc_return_B"%string pc_a pc_b wcra b.
     - (* Call to [C.g], blocks 6-8 *)
       cmdc_call_blocks_proof
         ".Lcmdc_call_C"%string ".Lcmdc_fetch_C_g"%string
-        ".Lcmdc_jump_C"%string ".Lcmdc_return_C"%string pc_a pc_b.
+        ".Lcmdc_jump_C"%string ".Lcmdc_return_C"%string pc_a pc_b wcra b.
   Qed.
 
 End CMDC_Call_Blocks_2.

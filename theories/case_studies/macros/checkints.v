@@ -101,6 +101,7 @@ Section Checkints_spec.
     {Σ : gFunctors}
       {ceriseg: ceriseG Σ}
       {MP: MachineParameters}
+      {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
   .
 
   Lemma checkints_loop_spec
