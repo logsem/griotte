@@ -585,6 +585,7 @@ Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
 Proof.
   intros Hentry Hprep.
   pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]};
+                       cmpt_shared := λ _, false;
                        cmpt_threads_sep := ltac:(intros; set_solver) |} : CmptThreads).
   apply (fw_obligations_of Σ (cthreads := cthreads)); first exact Hentry.
   apply Hprep; [intros; reflexivity | intros; rewrite /cthreads /=; set_solver].
