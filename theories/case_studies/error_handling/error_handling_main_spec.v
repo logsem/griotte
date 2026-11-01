@@ -615,6 +615,7 @@ Section Error_Handling_Main_Spec.
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     route_pre th b ->
+    cmpt_shared C = false ->
     assert_static b_assert e_assert a_flag ∗
     thread_in th C ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -646,7 +647,7 @@ Section Error_Handling_Main_Spec.
     intros imports. subst imports.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
     iIntros (Hswitcher Hbounds Hcgp_size Hcgp_nonheap Hcgp_shadow
-               Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match Hroute)
+               Hdom_rmap Hrmap_zero Hstk_min Hadv_nonheap Hframe_match Hroute Hshared)
       "(#Hassert & #Hthread & #Hinv_switcher & #Hswitcher_static & #Hstats_static & #Hinv_stats
       & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & #Himports & #Hcode_main & Hdata
       & Hworld & HK & Hcstk & #Hinterp_adv & #Hentry_adv & #Hinterp_csp & Hmie & Hheld)".
@@ -720,6 +721,7 @@ Section Error_Handling_Main_Spec.
       | apply main_adv_arg_rmap_is_arg
       | destruct b; reflexivity
       | rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity
+      | exact Hshared
       | ].
     iSplitR; first iExact "Hentry_adv".
     iSplitL "Hargs".

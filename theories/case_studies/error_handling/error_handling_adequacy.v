@@ -244,6 +244,7 @@ Section error_handling_obligations.
       | apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap
       | done
       | by rewrite /route_pre
+      | exact (Hshared C)
       | ].
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.

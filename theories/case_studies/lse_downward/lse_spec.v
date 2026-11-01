@@ -76,6 +76,7 @@ Section LSE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     route_pre th b ->
+    cmpt_shared C = false ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -124,7 +125,7 @@ Section LSE.
                Hsize_lse_exp_tbl
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hsealed_nonheap Hframe_match
-               Hroute
+               Hroute Hshared
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -198,6 +199,7 @@ Section LSE.
     { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
