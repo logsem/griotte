@@ -44,7 +44,8 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap & HT)".
-    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ]; cycle 1.
+    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ];
+      cycle 1.
     1,2: iDestruct "HT" as "[ [%Hc _] | [_ Hmie] ]"; first done;
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto;

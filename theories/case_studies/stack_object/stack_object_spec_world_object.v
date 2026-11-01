@@ -21,7 +21,6 @@ Section SO_World_List.
     {sealsg: sealStoreG Σ} {CNames : gset CmptName}
     {stsg : STSG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}
-    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
   .
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.

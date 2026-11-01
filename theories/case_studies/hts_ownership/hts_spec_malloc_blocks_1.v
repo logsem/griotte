@@ -170,9 +170,7 @@ Section HTS_Spec_Malloc.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ctp. *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ thread_return_sentry mie)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ hts_label_offset ".Lhts_malloc_result")%a) as Ha_ret
       by (offsets_compute; solve_addr).

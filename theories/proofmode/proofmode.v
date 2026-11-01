@@ -544,6 +544,13 @@ Qed.
   FramableMachineResource (MPIE_frag b).
 Qed.
 
+(* What the thread holds at its posture, for the posture forms of the MIE
+   writers. *)
+#[export] Instance FramableMachineResource_held `{MachineParameters} `{ceriseG Σ} {th : Thread}
+    {CL : CritLink Σ th} {CR : CritRoute Σ th CL} b :
+  FramableMachineResource (held b).
+Qed.
+
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
   FramableMachineResource (PC ↦ₚ w).
 Qed.
@@ -624,8 +631,8 @@ Qed.
 (* remembering names after auto-framing done by iFrameAuto *)
 
 Ltac2 Type hyp_table_kind :=
-  [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Mem | Codefrag | CodefragPers | Claim
-  | DerefRes ].
+  [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Held | Mem | Codefrag | CodefragPers
+  | Claim | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -654,6 +661,7 @@ Ltac2 record_framed
     | mtdc_lent => ('tt, MtdcLent)
     | (MIE_frag _) => ('tt, Mie)
     | (MPIE_frag _) => ('tt, Mpie)
+    | (held _) => ('tt, Held)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -762,6 +770,12 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
     match! goal with [ |- context [ MPIE_frag ?x ] ] =>
       ltac1:(x name |- change (MPIE_frag x) with (name ∷ MPIE_frag x)%I)
         (Ltac1.of_constr x) (Ltac1.of_constr name)
+    end
+  | Held =>
+    match! goal with [ |- context [ @held ?mp ?s ?g ?t ?cl ?cr ?x ] ] =>
+      let h := '(@held $mp $s $g $t $cl $cr $x) in
+      ltac1:(h name |- change h with (name ∷ h)%I)
+        (Ltac1.of_constr h) (Ltac1.of_constr name)
     end
   | PCReg =>
     match! goal with [ |- context [ (PC ↦ₚ ?x)%I ] ] =>
@@ -1199,8 +1213,9 @@ Ltac solve_jcond_test :=
    (the home value, to return the token), its ghost value is known not to be
    the home value when it leaves another value, and is known to be the home
    value when it lends the token. Fail
-   otherwise, so that the dispatcher tries its next alternative. Other side
-   goals are left to the caller. *)
+   otherwise, so that the dispatcher tries its next alternative. The premise
+   [route_pre] of a posture form is closed from the context or by
+   computation when it can be. Other side goals are left to the caller. *)
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
@@ -1209,6 +1224,8 @@ Ltac instr_commit_lint :=
       tryif has_evar m then idtac else solve [assumption | done | hnf; eexists; reflexivity]
   | |- _ = mtdc_home => solve [assumption | done]
   | |- _ ≠ mtdc_home => solve [assumption | done | congruence]
+  | |- route_pre _ _ =>
+      try solve [assumption | intros ?; reflexivity | intros ?; discriminate | done]
   | _ => idtac
   end.
 

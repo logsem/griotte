@@ -112,9 +112,7 @@ Section SO_Return_Blocks_4.
     (* Mov ca1 0%Z *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     iApply "Hpost"; iFrame "∗ Hcode_main".
   Qed.

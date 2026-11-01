@@ -96,7 +96,8 @@ Section KVS_spec_addOrUpdate_safe.
       ⊢ safe[th])%I.
   Proof.
     iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt Hroute)
-      "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & #Hinterp_wca0
+      "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra &
+        Hmie & Hheld & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hworld & Hpost)".
 
     (* Destruct validity map key *)
@@ -311,15 +312,18 @@ Section KVS_spec_addOrUpdate_safe.
       Hrelated_pub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
 
     iApply (KVS_addOrupdate_spec_safe W0 (revoke W0) C
-              (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
+              (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher
+                a_switcher_return)
               wca0 wca1 wca2 ⊤ InterruptEnabled Hunsealing_shadow
-             with "[$Hspred $Hreg $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra $Hmie $Hheld
+             with "[$Hspred $Hreg $Hkvs_static $Hinv_kvs $Hinv_kvs_logical $Hna $HPC $Hcgp $Hcra
+               $Hmie $Hheld
                     $Hca0 $Hinterp_wca0 $Hca1 $Hca2 $Hinterp_wca2 $Hctp $Hct1 $Hct2 $Hworld_C
                     Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
       [solve_ndisj | solve_ndisj | solve_ndisj | exact Hrelared_priv_W0_W1
       | apply jalr_target_ok_switcher_return_sentry | exact Hroute |].
     iSplit.
-    - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+    - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 &
+      Hct2 & Hworld_C)".
       iAssert (∃ zca0, ca0 ↦ᵣ WInt zca0)%I with "[Hca0]" as "[%zca0 Hca0]".
       { iDestruct "Hca0" as "[$|$]". }
       iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
@@ -351,7 +355,8 @@ Section KVS_spec_addOrUpdate_safe.
       { intros a Ha; apply Htemps; done. }
       { iSplit; iApply interp_int. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
-      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 & Hct2 & Hworld_C)".
+      iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp &
+        Hct1 & Hct2 & Hworld_C)".
       iDestruct "Hca2" as "[% Hca2]"; iDestruct (big_sepM_insert _ _ ca2 with "[$Hrmap $Hca2]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       iDestruct "Hct2" as "[% Hct2]"; iDestruct (big_sepM_insert _ _ ct2 with "[$Hrmap $Hct2]") as "Hrmap".

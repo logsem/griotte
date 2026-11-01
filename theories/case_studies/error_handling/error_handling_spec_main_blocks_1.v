@@ -94,9 +94,7 @@ Section Error_Handling_Main_Blocks_1.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ctp *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a) as ->
       by (offsets_compute; solve_addr).
@@ -183,9 +181,7 @@ Section Error_Handling_Main_Blocks_1.
       at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 1 = (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a) as ->
       by (offsets_compute; solve_addr).

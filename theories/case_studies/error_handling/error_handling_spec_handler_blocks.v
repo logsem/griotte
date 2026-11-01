@@ -380,9 +380,7 @@ Section Error_Handling_Handler_Blocks.
     (* Mov ca0 InstallContext *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iDestruct ("Hes" with "Hes_k") as "Hes".
     iApply ("Hpost" with "[$HPC $Hca0 $Hcra $Hcode_stats $Hmie $Hheld Hct0 Hct1 Hct2 Hes]").
@@ -435,9 +433,7 @@ Section Error_Handling_Handler_Blocks.
     (* Mov ca0 ForceUnwind *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.

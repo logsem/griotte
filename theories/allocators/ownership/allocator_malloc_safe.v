@@ -118,7 +118,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hmie Hposture Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 &
+        Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the registry. *)
       iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -145,7 +146,8 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont
+          $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
@@ -168,7 +170,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hservice Hstatic Hna Hid Ha_owner HPCr Hcgpr Hcrar Hmie Hposture Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hresult)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca2 & Hct0 & Hct1 &
+        Hct2 & Hct3 & Hct4 & Hctp & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".
       + (* Capacity exhausted: restore the caller and return ALLOC_NO_MEMORY. *)
         iDestruct "Hoom" as "(Hid & Hca0 & Hca1)".
@@ -198,7 +201,8 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W (revoke W) C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_NO_MEMORY) (WInt 0)
-          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk
+            $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
@@ -307,7 +311,8 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W Wshare C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (Cap RW Global b e b @@ ι) (WInt 0)
-          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk
+            $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.

@@ -120,9 +120,7 @@ Section VAE_Awkward_Blocks_2.
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wret mie)
-      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 4 = (pc_a ^+ vae_label_offset ".Lvae_awkward_check")%a) as ->
       by (offsets_compute; solve_addr).

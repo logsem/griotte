@@ -159,9 +159,7 @@ Section Error_Handling_Read_Blocks.
     (* Mov ca1 0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.

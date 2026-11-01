@@ -366,7 +366,7 @@ Section SO.
     { stk_unfold; solve_addr+ Hastk1 Hastk2. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
-    { solve [reflexivity | match goal with |- context [ret_kind ?m] => destruct m; reflexivity end]. }
+    { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iSplit; first done.

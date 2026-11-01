@@ -60,9 +60,7 @@ Section CMDC_Call_Blocks_2.
     focus_block (cmdc_block l_jump) "Hcode_main" of cmdc_main_blocks at pc_a as a_call Ha_call "Hcode" "Hcont";
     iHide "Hcont" as hcont;
     (* Jalr cra ctp *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|];
+    iInstr "Hcode";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";
     assert (a_call ^+ 1 = pc_a ^+ cmdc_label_offset l_ret) as ->
       by (offsets_compute; solve_addr);

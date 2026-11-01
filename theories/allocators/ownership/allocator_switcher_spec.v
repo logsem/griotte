@@ -212,15 +212,16 @@ Section AllocatorSwitcherSpec.
     (* MTDC, for the quarantine, from the trusted-stack invariant. *)
     iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
       [solve_ndisj|solve_ndisj|].
-    iDestruct "Hsw" as (a_tstk cstk' tstk_next) "(>%Huser & >Hmtdc & Hsw)".
+    iMod (trusted_stack_inv_open with "Hsw") as (a_tstk cstk' tstk_next) "Hsw".
+    iNamed "Hsw".
     iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
       _ (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rframe InterruptEnabled with
       "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra $Hmie $Hposture
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
       | exact Hbounds | exact Hlen | | | intros _; reflexivity
-      | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry | exact
-        Hroute |].
+      | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry
+      | exact Hroute |].
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
     { intros r w Hr _. subst rframe.
@@ -231,8 +232,9 @@ Section AllocatorSwitcherSpec.
     iNext.
     iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hmie & Hposture & Hca0 & Hca1
       & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hframe & Hmtdc & #Hq & _)".
-    iMod ("Hsw_close" with "[$Hna Hmtdc Hsw]") as "Hna".
-    { iNext. iExists a_tstk, cstk', tstk_next. by iFrame. }
+    iMod ("Hsw_close" with "[$Hna Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID
+      Htstk Hcstk_full Hstk_interp]") as "Hna".
+    { iNext. iExists a_tstk, cstk', tstk_next. by iFrame "∗ %". }
     iEval (cbn) in "HPC".
     subst rframe.
     iDestruct (big_sepM_insert with "Hframe") as "[Hcsp Hframe]".

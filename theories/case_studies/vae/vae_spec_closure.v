@@ -238,7 +238,7 @@ Section VAE.
     { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap1_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
-    { solve [reflexivity | match goal with |- context [ret_kind ?m] => destruct m; reflexivity end]. }
+    { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
     iSplit; first done.
@@ -323,7 +323,7 @@ Section VAE.
     { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
     { exact Hrmap5_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
-    { solve [reflexivity | match goal with |- context [ret_kind ?m] => destruct m; reflexivity end]. }
+    { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_heap /=.
       reflexivity. }
     iSplit; first done.

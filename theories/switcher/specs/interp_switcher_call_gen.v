@@ -197,7 +197,8 @@ Section fundamental.
        values, then close the trusted-stack invariant and run the return routine
        ([switcher_return_unwind]) with the integer return values. *)
     iIntros (Hfull_rmap Hframe)
-      "#Hthread #Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp Hcont Hcstk
+      "#Hthread #Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp Hcont
+        Hcstk
        Hmie Hheld".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -281,7 +282,8 @@ Section fundamental.
        [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull Hframe Hstk_mmio Hlen_lv)
       "#Hthread #Hsafety #Hcs0v #Hcs1v #Hcrav #Hcgpv #Hspv #Htop Hopened Hstk_opened Hrmap Hcont Hcstk
-      Hmie Hheld (%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk
+      Hmie Hheld (%Hstk_bounds & HPC & Hcs0 & Hcs1 & Hctp & Hct2 & Hcsp & Hcra & Hcgp & Hct1 &
+        Hcells & Hstk
       & Hmtdc & Hframeoffset & Hhazard & Htstk)".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[_ #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -465,7 +467,8 @@ Section fundamental.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     iIntros (Hfull Hframe Hstk_mmio Hstk_heap Hlen_lv)
       "#Hthread #Hsafety #Hcs0v #Hcs1v #Hcrav #Hcgpv #Hspv #Htop Hopened Hstk_opened Hrmap Hcont Hcstk
-       Hmie Hheld (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2] & Hctp
+       Hmie Hheld (_ & %Hstk_bounds & %Ha_next & %Ha_next_e & Hcs0 & [%wcs1' Hcs1] & [%wct2' Hct2]
+         & Hctp
        & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Hframe_csp
        & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".
     set (frame := interp_call_frame b e a (lword_of_word (WInt 0))).
@@ -697,7 +700,8 @@ Section fundamental.
              iDestruct (call_regs_insert with "Hrmap Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1")
                as "Hrmap".
              iApply (interp_switcher_call_force_unwind with
-               "Hthread Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp Hcont Hcstk
+               "Hthread Hsafety Hopened Hmtdc Hframeoffset Hhazard Htstk HPC Hrmap Hworld_interp
+                 Hcont Hcstk
                 Hmie Hheld");
                [by apply call_regs_with_full|done]. }
            (* The first store faults, and nothing is written: close the
@@ -778,18 +782,21 @@ Section fundamental.
     { (* The entry point is not sealed by the switcher *)
       iIntros (g_tstk).
       iApply (interp_switcher_call_unseal_fault with
-               "Hthread Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk
+               "Hthread Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont
+                 Hcstk
                 Hmie Hheld");
         done. }
     { (* The trusted stack is exhausted *)
       iIntros (g_tstk).
       iApply (interp_switcher_call_tstack_exhausted with
-               "Hthread Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont Hcstk
+               "Hthread Hsafety Hcs0v Hcs1v Hcrav Hcgpv Hspv Htop Hopened Hstk_opened Hrmap Hcont
+                 Hcstk
                 Hmie Hheld");
         done. }
     { (* The callee-save registers do not fit on the caller's stack *)
       iApply (interp_switcher_call_spill_fault with
-               "Hthread Hsafety Hreg Htop Hopened Hstk_opened Hrmap Hcont Hcstk Hmie Hheld"); done. }
+               "Hthread Hsafety Hreg Htop Hopened Hstk_opened Hrmap Hcont Hcstk Hmie Hheld");
+                 done. }
     iNext; iIntros (g_tstk wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset

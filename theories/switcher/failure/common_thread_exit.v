@@ -36,8 +36,7 @@ Section Common_Thread_Exit.
     iIntros (Hpre) "(HPC & #Hswitcher & Hmie & Hheld & Hpost)".
     switcher_open_label ".Lcommon_defer_irqs_and_thread_exit" "Hswitcher" as "Hcode".
     (* SetMIE InterruptDisabled *)
-    iInstrApply "Hcode" (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ _ b)
-      with "[$HPC $Hmie $Hheld]" as "(HPC & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     (* Halt *)
     iInstr "Hcode".
     switcher_change_pc_label ".Lcommon_thread_exit".

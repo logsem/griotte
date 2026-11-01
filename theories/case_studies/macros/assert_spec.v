@@ -76,9 +76,7 @@ Section Assert_subroutine.
     (* Mov ct1 0. *)
     iInstr "Hprog".
     (* Jalr cnull cra. *)
-    iInstrApply "Hprog"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
-      with "[$HPC $Hrdst $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hprog".
     iApply "Hφ". iFrame "∗".
   Qed.
 
@@ -164,9 +162,7 @@ Section Assert.
     (* Mov rscratch cra. *)
     iInstr "Hcode".
     (* Jalr cra rdst. *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ rdst _ wcra b)
-      with "[$HPC $Hrdst $Hcra $Hmie $Hheld]" as "(HPC & Hrdst & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (cbn) in "HPC".
     (* The return target is the link sentry, executable as the PC is. *)
     iApply (assert_subroutine_success_spec with "[-]"); last iFrame "∗ Hassert"; try done.

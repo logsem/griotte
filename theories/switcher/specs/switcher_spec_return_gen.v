@@ -244,7 +244,8 @@ Section Switcher.
       iSpecialize ("Htopmost_frm" $! Wfixed with "[//]").
       iSpecialize ("Htopmost_frm" $! _ _ _ _ _ _ _ _ _ b).
       iApply ("Htopmost_frm" with
-               "[%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
+               "[%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1
+                 $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
       $Hrmap $Hworld_interp $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna $Hthread $Hmie $Hheld]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iSplit; last (iPureIntro; apply Hpre).

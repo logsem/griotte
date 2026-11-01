@@ -58,8 +58,7 @@ Section Switcher_Zero_Callee_Frame.
       iTrap with "Hfailed".
       done. }
     (* Jalr cnull cra *)
-    iInstrApply "Hcode" with "Hlc" (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ _ _ b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode" with "Hlc".
     iDestruct "Hpost" as "[Hpost _]".
     iApply "Hpost". iFrame "HPC Hcra Hmie Hheld Hlc".
   Qed.

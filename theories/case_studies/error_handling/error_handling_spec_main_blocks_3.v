@@ -61,9 +61,7 @@ Section Error_Handling_Main_Blocks_3.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
     iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
@@ -148,9 +146,7 @@ Section Error_Handling_Main_Blocks_3.
       at pc_a as a_call Ha_call "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra b)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 1 = (pc_a ^+ main_label_offset ".Lmain_ret_read_3")%a) as ->
       by (offsets_compute; solve_addr).

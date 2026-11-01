@@ -441,6 +441,13 @@ Qed.
 Lemma jalr_target_ok_clear_tag rdst rsrc w : jalr_target_ok rdst rsrc (clear_tag w) = false.
 Proof. by destruct w as [| [] | | ? [] ]. Qed.
 
+(** The checks of Jalr do not depend on the posture a return sentry
+    restores. *)
+Lemma jalr_target_ok_ret_kind rdst rsrc b p g b' e a :
+  jalr_target_ok rdst rsrc (Sentry (ret_kind b) p g b' e a) =
+  jalr_target_ok rdst rsrc (Sentry RetEnable p g b' e a).
+Proof. destruct b; first done. rewrite /jalr_target_ok /jalr_sealing_ok /=. by case_decide. Qed.
+
 (** A PC word that is tagged is an unsealed executable capability. *)
 Definition pc_ok (w : Word) : Prop :=
   get_tag w = true → is_sealb w = true ∧ executable_word w = true.

@@ -104,9 +104,7 @@ Section LSE_Run_Blocks_1.
     (* Mov cs0 cra *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wcra b)
-      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_call ^+ 2 = (pc_a ^+ lse_label_offset ".Llse_run_return")%a) as ->
       by (offsets_compute; solve_addr).

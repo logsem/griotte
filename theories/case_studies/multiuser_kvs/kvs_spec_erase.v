@@ -88,7 +88,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
+      His_uint16_nkey Hpkvs_idx Htgt Hroute)
       "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -153,9 +154,7 @@ Section KVS_spec_erase.
       as "HPKVS"; eauto.
     { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
@@ -230,7 +229,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey Hm_nkey] Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey [wnkey
+      Hm_nkey] Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -355,7 +355,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Hm_nkey Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
@@ -442,7 +443,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & [%wk >Hk] & Hpost)".
@@ -531,7 +533,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key His_uint16_nkey Hpkvs_idx Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
+      His_uint16_nkey Hpkvs_idx Htgt Hroute)
       "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -598,9 +601,7 @@ Section KVS_spec_erase.
       iDestruct (kvs_physical_map_close with "[$HPKVS] [Hcgp_opt Hcgp_key Hcgp_val]") as "HPKVS";eauto.
       { iApply destruct_physical_kvs_entry; first solve_addr; iFrame. }
       (* Jalr cnull cra *)
-      iInstrApply "Hcode"
-        (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-        with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+      iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
 
@@ -618,9 +619,7 @@ Section KVS_spec_erase.
       (* jmp (".read_key_ret")%asm; *)
       iInstr "Hcode".
       (* Jalr cnull cra *)
-      iInstrApply "Hcode"
-        (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-        with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+      iInstr "Hcode".
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       iApply "Hpost"; iFrame "∗% Hcode_main Ha_unsealing"; done.
   Qed.
@@ -693,7 +692,8 @@ Section KVS_spec_erase.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey Htgt Hroute)
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey
+      Htgt Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -805,8 +805,10 @@ Section KVS_spec_erase.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Hm_nkey Htgt Hroute)
-      "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Hm_nkey Htgt Hroute)
+      "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld &
+        Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key & Hm & Hpost)".
     iMod (na_inv_acc with "Hkvs_logical_inv Hna")
       as "( (%lkvs & Hlkvs_auth & HLKVS) & Hna & Hkvs_logical_inv_close)"; eauto.
@@ -889,8 +891,10 @@ Section KVS_spec_erase.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey Hbounds_a_user_key Htgt Hroute)
-      "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
+    iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
+      Hbounds_a_user_key Htgt Hroute)
+      "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld &
+        Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
 
     iDestruct (kvs_user_kvs_valid with "Hukvs_auth Hk") as "%Hk".
@@ -975,9 +979,7 @@ Section KVS_spec_erase.
     (* mov ca1 0; *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     iApply "Hpost"; iFrame "∗ Hcode_main".

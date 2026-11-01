@@ -291,7 +291,8 @@ Section AllocatorFree.
       apply (allocator_chain_subrange_spec _ _ _ _ _ _ _ Hchain
         (ex_intro _ r0 (ex_intro _ ι Hentry)) Hbounds Hneq
         (ex_intro _ (o, r1) (ex_intro _ ι1 Hmember))). }
-    iFrame "Hservice Hstatic Hna Hobj Howner HPC Hcgp Hcra Hmie Hposture Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
+    iFrame "Hservice Hstatic Hna Hobj Howner HPC Hcgp Hcra Hmie Hposture Hca0 Hca1 Hca2 Hct0 Hct1
+      Hct2 Hct3 Hct4 Hctp".
     iNext. iIntros "(Hna & _ & Hrest)". iApply "Hpost". iFrame.
   Qed.
 
@@ -391,7 +392,8 @@ Section AllocatorFree.
       destruct (allocator_chain_base_unique _ _ _ _ _ _ _ _ _ _ Hchain Hentry Hmember)
         as (_ & -> & <-).
       by apply HιΩ, (allocator_owners_wf_lookup _ _ _ _ _ _ _ _ Hown_wf Hentry HOid). }
-    iFrame "Hservice Hstatic Hna Hid Hobj Howner HPC Hcgp Hcra Hmie Hposture Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4
+    iFrame "Hservice Hstatic Hna Hid Hobj Howner HPC Hcgp Hcra Hmie Hposture Hca0 Hca1 Hca2 Hct0
+      Hct1 Hct2 Hct3 Hct4
       Hctp".
     iNext. iIntros "(Hna & [Hid _] & Hrest)". iApply "Hpost". iFrame.
   Qed.

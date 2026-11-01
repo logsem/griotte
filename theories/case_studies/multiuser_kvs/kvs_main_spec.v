@@ -233,9 +233,7 @@ Section KVS_main_spec.
     focus_block 8 "Hcode_main" as a_call Ha_call "Hcode" "Hcont"; iHide "Hcode_main" as hcode
     ; clear dependent a_fetch2.
     (* Jalr cra ctp *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ wcra mie)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
 
     (* -- Prepare registers  -- *)

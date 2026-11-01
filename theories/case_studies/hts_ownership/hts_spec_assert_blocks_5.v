@@ -56,9 +56,7 @@ Section HTS_Return.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
     iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").

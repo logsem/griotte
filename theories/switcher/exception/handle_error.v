@@ -105,7 +105,8 @@ Section Handle_Error.
     switcher_hide "Hpost" as hpost.
 
     (* SpecialRW cnull mtdc csp *)
-    iInstrApply "Hcode" (wp_writesr_mtdc_close_full _ _ _ _ _ _ _ _ _ csp _ (ExceptionScratch wmtdc))
+    iInstrApply "Hcode"
+      (wp_writesr_mtdc_close_full _ _ _ _ _ _ _ _ _ csp _ (ExceptionScratch wmtdc))
       with "[$HPC $Hcsp $Hmtdc]" as "(HPC & Hcsp & Hmtdc & Hlent)";
       [by rewrite Hhome | rewrite Hhome; apply mtdc_match_TStack_cap_any |].
     rewrite Hhome.

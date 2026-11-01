@@ -189,7 +189,6 @@ End switcher_link_pins.
 
 (** * Full-link forms of the rules that move a posture *)
 
-(* TODO: move to program_logic/rules/rules_SpecialRW.v *)
 Section mtdc_full.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {swlayout : switcherLayout} {th : Thread}.

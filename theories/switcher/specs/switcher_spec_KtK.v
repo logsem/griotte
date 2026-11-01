@@ -106,7 +106,8 @@ Section Switcher_KtK.
        ∗ na_own (tpool th) F
        ∗ PC ↦ₚ[th] Cap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)
        ∗ cgp ↦ᵣ[th] Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ[th] Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher a_switcher_return
+       ∗ cra ↦ᵣ[th] Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher
+         a_switcher_return
        ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
             rarg ↦ᵣ[th] warg

@@ -21,7 +21,8 @@ Section SO_Run_Blocks_2.
   .
 
   Lemma so_run_return_spec
-    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (mie : InterruptStatus) :
+    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (mie :
+      InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     cstk.(cstk_frames) = [] ->
     route_pre th mie ->
@@ -53,9 +54,7 @@ Section SO_Run_Blocks_2.
     (* Mov cra cs0 *)
     iInstr "Hcode".
     (* Jalr cnull cra *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
     iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").

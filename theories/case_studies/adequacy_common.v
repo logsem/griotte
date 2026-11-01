@@ -307,19 +307,25 @@ Proof.
     cb_trapVector := TV;
     cb_mpie := mpieg;
     cb_posture := postureg;
-    cb_pc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c, mieg_c, mlg_c)
+    cb_pc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c,
+      mieg_c, mlg_c)
                                 (pg_d, rg_d, mtg_d, mieg_d, mlg_d) th).1.1.1.1;
-    cb_regs_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c, mieg_c, mlg_c)
+    cb_regs_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c,
+      mieg_c, mlg_c)
                                 (pg_d, rg_d, mtg_d, mieg_d, mlg_d) th).1.1.1.2;
-    cb_mtdc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c, mieg_c, mlg_c)
+    cb_mtdc_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c,
+      mieg_c, mlg_c)
                                 (pg_d, rg_d, mtg_d, mieg_d, mlg_d) th).1.1.2;
-    cb_mie_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c, mieg_c, mlg_c)
+    cb_mie_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c,
+      mieg_c, mlg_c)
                                 (pg_d, rg_d, mtg_d, mieg_d, mlg_d) th).1.2;
-    cb_mtdc_lent_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c, mtg_c, mieg_c, mlg_c)
+    cb_mtdc_lent_of := λ th, (thread_map (pc_g, reg_heapg, mtdcg, mieg, mlg) gs (pg_c, rg_c,
+      mtg_c, mieg_c, mlg_c)
                                 (pg_d, rg_d, mtg_d, mieg_d, mlg_d) th).2;
     tpool := thread_map pool pools pool_c pool_d |}.
   pose ceriseg := ceriseG_of (base := ceriseb) (UserThread 0).
-  iMod (Hwp ceriseb eq_refl Hhome with "HPC Hreg Hmtdc [HMIE] [Hcrit Hunw Hmepcc Hmcause Hmtval HMPIE]
+  iMod (Hwp ceriseb eq_refl Hhome with "HPC Hreg Hmtdc [HMIE] [Hcrit Hunw Hmepcc Hmcause Hmtval
+    HMPIE]
           Hlent Hmem Hshadow Hclaims Hna [Hgs Hnas]")
     as (CL) "(Hlink & Hwp & #Hflag)".
   { rewrite Hmie0. iExact "HMIE". }

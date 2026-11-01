@@ -183,7 +183,8 @@ Section Heap_Temporal_Safety_Interp.
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
       cgp ↦ᵣ[th] (Cap RW Global allocator_cgp_b allocator_cgp_e allocator_cgp_b @@? None) -∗
-      cra ↦ᵣ[th] (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return
+      cra ↦ᵣ[th] (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher
+        a_switcher_return
                     @@? None) -∗
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wreq -∗
@@ -201,7 +202,8 @@ Section Heap_Temporal_Safety_Interp.
         (delete ct1 (delete ct0 (delete ca2 (delete ca1 (delete ca0
         (delete cra (delete cgp regs)))))))))))) -∗
       safe[th])%I with "[]" as "Hreject".
-    { iIntros (wreq Hinvalid) "Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap".
+    { iIntros (wreq Hinvalid) "Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1
+      Hct2 Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap".
       iExtract "Hrmap" csp as "Hcspr".
       iMod (world_interp_revoke_stack W C b_stk e_stk
         (stk_start_a b_stk e_stk) with "[$Hinterp_csp $Hworld]") as (l)
@@ -220,7 +222,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hservice Hstatic Hna Ha_owner HPCr Hcgpr Hcrar Hmie Hposture Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 &
+        Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the registry. *)
       iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -247,7 +250,8 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont
+          $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
@@ -260,7 +264,8 @@ Section Heap_Temporal_Safety_Interp.
       { intros a Ha. apply Htemps in Ha. exact Ha. }
     }
     destruct Hshape as [Hcap|Hinvalid].
-    2: { iApply ("Hreject" $! (wa1 @@? π) with "[%] Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap").
+    2: { iApply ("Hreject" $! (wa1 @@? π) with "[%] Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0
+      Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap").
          exact Hinvalid. }
     (* A tagged heap argument is a capability of the object [ι] that the
        registry records, whose bounds cover the argument's. *)
@@ -302,7 +307,8 @@ Section Heap_Temporal_Safety_Interp.
           Hca2".
         iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
         iNext.
-        iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
+        iIntros "(Hna & Hid & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 &
+          Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
         (* Close the registry. *)
         iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -329,7 +335,8 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W (revoke W) C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_INVALID) (WInt 0)
-          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk
+            $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
         { exact Hrelated_pub. }
         { apply lregmap_full_dom in Hfull_rmap.
@@ -362,7 +369,8 @@ Section Heap_Temporal_Safety_Interp.
           iLeft. iExact "Hq_old". }
         iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
         iApply ("Hreject" $! (lclear_tag (Cap p g b e a @@? Some ι))
-                 with "[%] Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap").
+                 with "[%] Hcont HPCr Hworld Hcstk Hna Hcgpr Hcrar Hca0 Hca1 Hca2 Hct0 Hct1 Hct2
+                   Hct3 Hct4 Hctp Hcnull Hmie Hposture Hrmap").
         intros next allocations o _ _ (p' & g' & b' & e' & a' & Hcap & _).
         discriminate Hcap. }
       (* Accept: open every cell of [ι], with the right to free it refuting
@@ -382,15 +390,16 @@ Section Heap_Temporal_Safety_Interp.
       (* MTDC, for the quarantine, from the trusted-stack invariant. *)
       iMod (na_inv_acc with "Hswitcher Hna") as "(Hsw & Hna & Hsw_close)";
         [solve_ndisj|solve_ndisj|].
-      iDestruct "Hsw" as (a_tstk cstk' tstk_next) "(>%Huser & >Hmtdc & Hsw)".
+      iMod (trusted_stack_inv_open with "Hsw") as (a_tstk cstk' tstk_next) "Hsw".
+      iNamed "Hsw".
       iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Nallocator_otype ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
         (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
         (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rmap InterruptEnabled
         (HO th) with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
         | exact Hbounds | symmetry; exact Hlen | | | intros _; reflexivity
-        | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry | exact
-          Hroute |].
+        | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry
+        | exact Hroute |].
       { subst rmap. apply lregmap_full_dom in Hfull_rmap.
         repeat rewrite dom_delete_L.
         rewrite Hfull_rmap. set_solver+. }
@@ -407,8 +416,9 @@ Section Heap_Temporal_Safety_Interp.
         Hcrar_post & Hmie & Hposture & Hca0_post & Hca1_post & Hca2_post & Hct0_post &
         Hct1_post & Hct2_post & Hct3_post & Hct4_post & Hctp_post &
         Hrmap & Hmtdc & #Hq & Hlc)".
-      iMod ("Hsw_close" with "[$Hna_post Hmtdc Hsw]") as "Hna_post".
-      { iNext. iExists a_tstk, cstk', tstk_next. by iFrame. }
+      iMod ("Hsw_close" with "[$Hna_post Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID
+        Htstk Hcstk_full Hstk_interp]") as "Hna_post".
+      { iNext. iExists a_tstk, cstk', tstk_next. by iFrame "∗ %". }
       subst rmap. iExtract "Hrmap" csp as "Hcspr".
       (* The world is unchanged: the registry gets [ι ⊒ AQuar] in
          place of the right to free [ι], and the cells of [ι] close as
@@ -449,7 +459,8 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_OK) (WInt 0)
-        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hstk $Hcstk $Hcont $Hworld_rev
+          $Hna_post $HPCr_post $Hrevoked $Hrmap $Hca0_post $Hca1_post $Hcspr
                 $Hmie $Hposture]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.
@@ -479,7 +490,8 @@ Section Heap_Temporal_Safety_Interp.
       iFrame "Hservice Hstatic Hna Hobj Ha_owner HPCr Hcgpr Hcrar Hmie Hposture Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
       iNext.
-      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
+      iIntros "(Hna & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 &
+        Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
       (* Close the registry. *)
       iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hna]") as "Hna".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
@@ -506,7 +518,8 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont
+          $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
       { exact Hrelated_pub. }
       { apply lregmap_full_dom in Hfull_rmap.

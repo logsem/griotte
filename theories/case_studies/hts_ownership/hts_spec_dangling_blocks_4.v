@@ -171,9 +171,7 @@ Section HTS_Spec_Dangling.
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ _ mie_ret)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_advcall2 ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a) as Ha_next
       by (offsets_compute; solve_addr).
@@ -212,7 +210,8 @@ Section HTS_Spec_Dangling.
     { subst adv_arg. rewrite /is_arg_rmap /dom_arg_rmap /=. reflexivity. }
     iApply (switcher_cc_specification (hts_Wfree Wret ι) C
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
+        ".Lhts_prep_assert")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f stk
       adv_arg adv_other cstk Ws Cs 1
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp

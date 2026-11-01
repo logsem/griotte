@@ -65,9 +65,7 @@ Section AllocatorMacros.
     iIntros "(HPC & Hcra & Hmie & Hposture & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     (* Jalr cnull cra. *)
-    iInstrApply "Hcode" with "Hlc"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra _ mie)
-      with "[$HPC $Hcra $Hmie $Hposture]" as "(HPC & Hcra & Hmie & Hposture)"; [done..|].
+    iInstr "Hcode" with "Hlc".
     iApply "Hφ". iFrame "∗ Hcode".
   Qed.
 
@@ -361,7 +359,6 @@ End AllocatorMacros.
 Section AllocatorLayoutFacts.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorCommonLayoutWf}.
-  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_pcc_disjoint_from_shadow :
     disjoint_from_shadow allocator_pcc_b allocator_pcc_e.

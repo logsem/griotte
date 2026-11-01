@@ -201,9 +201,7 @@ Section HTS_Spec_Share.
     focus_block (hts_block ".Lhts_call_adv_1") "Hcode_main" of hts_main_blocks at pc_a as a_advcall Ha_advcall "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ _ mie_ret)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_advcall ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_reload")%a) as Ha_next
       by (offsets_compute; solve_addr).

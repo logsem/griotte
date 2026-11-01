@@ -613,13 +613,15 @@ Section Switcher_Exception.
         [done | done | done |].
       iIntros (rmap' Hfull' Hca0 Hca1) "HPC Hrmap Hmie Hheld".
       iApply (switcher_return_unwind with
-               "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont_K $Hna $Hcstk
+               "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont_K $Hna
+                 $Hcstk
                  $Hmie $Hheld]");
         [done | done | done | done |].
       iSplit; iApply interp_int.
     - (* [ca0] zero: the switcher installs the context *)
       iApply (untrusted_handler_install_safe with
-               "Hthread Hinv_switcher Hstatic Htrap Hregs Htop HPC Hrmap Hworld_interp Hcont_K Hna Hcstk
+               "Hthread Hinv_switcher Hstatic Htrap Hregs Htop HPC Hrmap Hworld_interp Hcont_K Hna
+                 Hcstk
                 Hmie");
         done.
   Qed.
@@ -740,7 +742,8 @@ Section Switcher_Exception.
     iIntros (r v Hv).
     destruct (decide (r = cra)) as [-> | Hr_cra].
     { rewrite Hcra in Hv. simplify_eq.
-      by iApply (interp_handler_return_sentry_gen with "[$Hthread $Hinv_switcher $Hstatic $Htrap]"). }
+      by iApply (interp_handler_return_sentry_gen with "[$Hthread $Hinv_switcher $Hstatic
+        $Htrap]"). }
     destruct (decide (r = cgp)) as [-> | Hr_cgp].
     { rewrite Hcgp_r in Hv. by simplify_eq. }
     destruct (decide (r = csp)) as [-> | Hr_csp].
@@ -1372,7 +1375,8 @@ Section Switcher_Exception.
     cbn in Hfull_rmap.
     getRegValList [ca0;ca1].
     iApply (switcher_return_unwind with
-             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont_K $Hna $Hcstk
+             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont_K $Hna
+               $Hcstk
                $Hmie $Hheld]");
       [done|done|done|done|].
     iSplit; iApply "Hrmap_interp"; done.

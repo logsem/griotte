@@ -130,7 +130,8 @@ Section Switcher_KtK_Call.
       subst rcra; congruence. }
     iIntros "(HPC & Hmie & Hheld & _)".
     iMod ("Hclose_switcher_inv" with
-      "[$Hna $Hcstk_full Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Htstk Hstk_interp]")
+      "[$Hna $Hcstk_full Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Htstk
+        Hstk_interp]")
       as "Hna".
     { iNext. iExists _,_. iFrame "∗ # %". iPureIntro; split; done. }
     iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
@@ -243,7 +244,8 @@ Section Switcher_KtK_Call.
             (* Registers *)
             ∗ PC ↦ₚ[th] Cap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)
             ∗ cgp ↦ᵣ[th] Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-            ∗ cra ↦ᵣ[th] (Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher a_switcher_return)
+            ∗ cra ↦ᵣ[th] (Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher
+              a_switcher_return)
             (* Stack register *)
             ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
             (* All the other registers *)
@@ -314,7 +316,8 @@ Section Switcher_KtK_Call.
              Hb_a HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
-        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk & Hmie & Hheld & Hpost)".
+        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hcstk &
+          Hmie & Hheld & Hpost)".
     stk_unfold.
 
     assert ( exists wr0, rmap !! ct2 = Some wr0) as [wr0 Hwr0].
@@ -359,7 +362,8 @@ Section Switcher_KtK_Call.
         & Hcells & Hstk & Hmtdc & Hframeoffset & Hhazard & Htstk)".
       iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
-        "[$Hclose_switcher_inv $Hna $Hmtdc $Hhazard_cell $Hhazard_slots $Hframeoffset $HthreadID $Htstk
+        "[$Hclose_switcher_inv $Hna $Hmtdc $Hhazard_cell $Hhazard_slots $Hframeoffset $HthreadID
+          $Htstk
           $Hstatic
           $Hcstk_full $Hstk_interp
           $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk

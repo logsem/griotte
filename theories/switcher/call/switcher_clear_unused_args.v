@@ -72,10 +72,7 @@ Section Switcher_Clear_Unused_Args.
     (* [.Lswitch_callee_call] *)
     switcher_open_label ".Lswitch_callee_call" "Hswitcher_call" as "Hcode_call" a_call Ha_call.
     (* Jalr cra cra *)
-    iInstrApply "Hcode_call"
-      (wp_jalr_success_call_same_posture _ _ _ _ _ _ _ _ _
-         (Cap RX Global bpcc epcc a_tgt) b)
-      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode_call".
     rewrite (_ : a_call ^+ 1 = a_switcher_return);
       last (rewrite switcher_return_offset; switcher_addr_eq).
     iApply ("Hpost" $! rmap'); iFrame "HPC Hcra Hregs Hmie Hheld"; done.
@@ -156,9 +153,7 @@ Section Switcher_Clear_Unused_Args.
     iInstr "Hcode".
     { instantiate (1 := (a_zero ^+ 4) ^+ nargs). solve_addr. }
     (* Jalr cnull cs0 *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cs0 _ InterruptDisabled)
-      with "[$HPC $Hcs0 $Hmie $Hheld]" as "(HPC & Hcs0 & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (cbn [jalr_target_mie default lw]) in "Hmie Hheld".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
@@ -175,9 +170,7 @@ Section Switcher_Clear_Unused_Args.
     (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
     all: iInstr "Hcode".
     (* SetMIE InterruptEnabled *)
-    1: iInstrApply "Hcode"
-      (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ InterruptEnabled InterruptDisabled)
-      with "[$HPC $Hmie $Hheld]" as "(HPC & Hmie & Hheld)"; [done..|].
+    1: iInstr "Hcode".
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
            "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");
@@ -238,9 +231,7 @@ Section Switcher_Clear_Unused_Args.
     iInstr "Hcode".
     { instantiate (1 := (a_zero ^+ 4) ^+ nargs). solve_addr. }
     (* Jalr cnull cs0 *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cs0 _ InterruptDisabled)
-      with "[$HPC $Hcs0 $Hmie $Hheld]" as "(HPC & Hcs0 & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     iEval (cbn [jalr_target_mie default lw]) in "Hmie Hheld".
     iDestruct (switch_load_zero_arguments_codefrag with "Hcode") as "Hcode_args".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".
@@ -257,9 +248,7 @@ Section Switcher_Clear_Unused_Args.
     (* Jne .Lswitch_skip_interrupt_enable ct1 0 *)
     all: iInstr "Hcode".
     (* SetMIE InterruptEnabled *)
-    1: iInstrApply "Hcode"
-      (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ InterruptEnabled InterruptDisabled)
-      with "[$HPC $Hmie $Hheld]" as "(HPC & Hmie & Hheld)"; [done..|].
+    1: iInstr "Hcode".
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
            "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");

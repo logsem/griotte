@@ -248,9 +248,7 @@ Section HTS_Spec_Free.
       "Hcode" "Hcont".
     iHide "Hcont" as hcont.
     (* Jalr cra ctp. *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ctp _ _ mie_ret)
-      with "[$HPC $Hctp $Hcra $Hmie $Hheld]" as "(HPC & Hctp & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_freecall ^+ 1 = (pc_a ^+ hts_label_offset ".Lhts_free_result")%a) as Ha_next
       by (offsets_compute; solve_addr).
@@ -283,7 +281,8 @@ Section HTS_Spec_Free.
          (delete ct1 (delete ct0 rmap))))))).
     iPoseProof (hts_free_known_function
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
+        ".Lhts_free_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) b (b ^+ 1) b
       free_arg cstk RW Global ι
       [lword_of_word (Cap RW Global cgp_b cgp_e cgp_b)]
@@ -310,7 +309,8 @@ Section HTS_Spec_Free.
     rewrite /allocator_export_table_entries in Hsize.
     iApply (switcher_cc_specification_known_to_known_end_to_end
       (Cap RW Global cgp_b cgp_e cgp_b)
-      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_free_result")%a)
+      (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
+        ".Lhts_free_result")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) stk free_arg
       free_other cstk
       allocator_free_nargs allocator_free_min_stack ⊤

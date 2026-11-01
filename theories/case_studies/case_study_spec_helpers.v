@@ -344,8 +344,7 @@ Section Revoked_Cells.
     {sealsg : sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ}
-    `{MP : MachineParameters}
-    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
+    `{MP : MachineParameters}.
 
   (** Revoked keys whose resources hold their cells: no tombstone among
       them. *)

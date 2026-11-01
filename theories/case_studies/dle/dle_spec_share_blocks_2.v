@@ -36,7 +36,8 @@ Section DLE_Share_Blocks_2.
     MIE ↦ₜ[th] b ∗
     held (th := th) b ∗
     ▷ (PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_call ∗
-        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a ∗
+        cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e (pc_a ^+ dle_label_offset
+          ".Ldle_overwrite")%a ∗
         ct0 ↦ᵣ[th] switcher_entry_call ∗
         ct1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         cs0 ↦ᵣ[th] wcra ∗
@@ -85,9 +86,7 @@ Section DLE_Share_Blocks_2.
     (* Mov cs1 ct1 *)
     iInstr "Hcode".
     (* Jalr cra ct0 *)
-    iInstrApply "Hcode"
-      (wp_jalr_success_call_posture _ _ _ _ _ _ _ _ _ ct0 _ wcra b)
-      with "[$HPC $Hct0 $Hcra $Hmie $Hheld]" as "(HPC & Hct0 & Hcra & Hmie & Hheld)"; [done..|].
+    iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
     assert (a_callB ^+ 3 = (pc_a ^+ dle_label_offset ".Ldle_overwrite")%a) as ->
       by (offsets_compute; solve_addr).
