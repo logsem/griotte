@@ -2,7 +2,16 @@ From griotte Require Import machine_base.
 
 (* The machine configuration: the PC, the general registers, the system
    registers, the memory and the shadow table. *)
-Definition ExecConf := (Word * Reg * SReg * Mem * ShadowTbl)%type.
+Record ExecConf := MkExecConf {
+  pcc : Word;
+  reg : Reg;
+  sreg : SReg;
+  mem : Mem;
+  shadowtbl : ShadowTbl;
+}.
+
+#[global] Instance ExecConf_inhabited : Inhabited ExecConf :=
+  populate (MkExecConf inhabitant inhabitant inhabitant inhabitant inhabitant).
 
 Inductive ConfFlag : Type :=
 | Executable
@@ -12,22 +21,21 @@ Inductive ConfFlag : Type :=
 
 Definition Conf: Type := ConfFlag * ExecConf.
 
-Definition pcc (ϕ: ExecConf) := (fst (fst (fst (fst ϕ)))).
-Definition reg (ϕ: ExecConf) := (snd (fst (fst (fst ϕ)))).
-Definition sreg (ϕ: ExecConf) := (snd (fst (fst ϕ))).
-Definition mem (ϕ: ExecConf) := (snd (fst ϕ)).
-Definition shadowtbl (ϕ: ExecConf) := snd ϕ.
-
 Definition update_pcc (φ: ExecConf) (w: Word): ExecConf :=
-  (w, reg φ, sreg φ, mem φ, shadowtbl φ).
+  {| pcc := w; reg := reg φ; sreg := sreg φ; mem := mem φ;
+     shadowtbl := shadowtbl φ |}.
 Definition update_reg (φ: ExecConf) (r: RegName) (w: Word): ExecConf :=
-  (pcc φ, <[r:=w]ᵣ>(reg φ), sreg φ, mem φ, shadowtbl φ).
+  {| pcc := pcc φ; reg := <[r:=w]ᵣ>(reg φ); sreg := sreg φ; mem := mem φ;
+     shadowtbl := shadowtbl φ |}.
 Definition update_sreg (φ: ExecConf) (sr: SRegName) (w: Word): ExecConf :=
-  (pcc φ, reg φ, <[sr:=w]>(sreg φ), mem φ, shadowtbl φ).
+  {| pcc := pcc φ; reg := reg φ; sreg := <[sr:=w]>(sreg φ); mem := mem φ;
+     shadowtbl := shadowtbl φ |}.
 Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
-  (pcc φ, reg φ, sreg φ, <[a:=w]>(mem φ), shadowtbl φ).
+  {| pcc := pcc φ; reg := reg φ; sreg := sreg φ; mem := <[a:=w]>(mem φ);
+     shadowtbl := shadowtbl φ |}.
 Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
-  (pcc φ, reg φ, sreg φ, mem φ, <[a:=s]> (shadowtbl φ)).
+  {| pcc := pcc φ; reg := reg φ; sreg := sreg φ; mem := mem φ;
+     shadowtbl := <[a:=s]> (shadowtbl φ) |}.
 
 (** Field updates, written on the right of the configuration so that a
     chain of updates reads in order, one per line: [φ .[r :=ᵣ w]] is

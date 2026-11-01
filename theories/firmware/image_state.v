@@ -80,7 +80,7 @@ Section img_state.
     initial_heap_memory.
 
   Definition img_state (fw : firmware) (img : fw_image) : ExecConf :=
-    (img_pc fw img, img_regs fw img, img_sregs fw img, img_mem fw img, initial_heap_shadow).
+    (MkExecConf (img_pc fw img) (img_regs fw img) (img_sregs fw img) (img_mem fw img) initial_heap_shadow).
 End img_state.
 
 (** ** Canonical words

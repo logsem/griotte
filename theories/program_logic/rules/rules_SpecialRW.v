@@ -73,7 +73,7 @@ Section griotte_lang_rules.
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)
   Lemma specialrw_sregs_phys R C pc (r : Reg) psr m st lpc lreg lsreg lmem regs sregs sr src vold :
-    erasure R C (pc, r, psr, m, st) lpc lreg lsreg lmem →
+    erasure R C (MkExecConf pc r psr m st) lpc lreg lsreg lmem →
     regs ⊆ lreg →
     lregs_phys R regs r →
     sregs ⊆ lsreg →
@@ -83,19 +83,19 @@ Section griotte_lang_rules.
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       (match src with
        | inr rs =>
-           if decide (rs = cnull) then Some (pc, r, psr, m, st)
-           else wsrc ← r !!ᵣ rs; Some (update_sreg (pc, r, psr, m, st) sr (legalise sr wsrc))
-       | inl z => Some (update_sreg (pc, r, psr, m, st) sr (legalise sr (WInt z)))
-       end) = Some (pc, r, psr', m, st) ∧
-      erasure R C (pc, r, psr', m, st) lpc lreg lsreg' lmem ∧
+           if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
+           else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr wsrc))
+       | inl z => Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr (WInt z)))
+       end) = Some (MkExecConf pc r psr' m st) ∧
+      erasure R C (MkExecConf pc r psr' m st) lpc lreg lsreg' lmem ∧
       ((sregs' = sregs ∧ lsreg' = lsreg) ∨
        ∃ nv, sregs' = <[sr := nv]> sregs ∧ lsreg' = <[sr := nv]> lsreg).
   Proof.
     intros Her Hlregs Hregs Hlsregs Dsrc Hvold.
     assert (∀ (v : LWord) pw, reg_word_ok R C v → reg_phys R v pw →
       ∃ psr' lsreg',
-        update_sreg (pc, r, psr, m, st) sr (legalise sr pw) = (pc, r, psr', m, st) ∧
-        erasure R C (pc, r, psr', m, st) lpc lreg lsreg' lmem ∧
+        update_sreg (MkExecConf pc r psr m st) sr (legalise sr pw) = (MkExecConf pc r psr' m st) ∧
+        erasure R C (MkExecConf pc r psr' m st) lpc lreg lsreg' lmem ∧
         lsreg' = <[sr := llegalise sr v]> lsreg) as Hwrite.
     { intros v pw Hok Hw. eexists _, _. split; first done.
       split; last done. by apply erasure_write_sreg. }
@@ -122,13 +122,13 @@ Section griotte_lang_rules.
     sr ≠ mtdc → sr ≠ mstatus →
     (match src with
      | inr rs =>
-         if decide (rs = cnull) then Some (pc, r, psr, m, st)
-         else wsrc ← r !!ᵣ rs; Some (update_sreg (pc, r, psr, m, st) sr (legalise sr wsrc))
-     | inl z => Some (update_sreg (pc, r, psr, m, st) sr (legalise sr (WInt z)))
-     end) = Some (pc, r, psr', m, st) →
-    sys_kept (pc, r, psr, m, st) (pc, r, psr', m, st).
+         if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
+         else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr wsrc))
+     | inl z => Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr (WInt z)))
+     end) = Some (MkExecConf pc r psr' m st) →
+    sys_kept (MkExecConf pc r psr m st) (MkExecConf pc r psr' m st).
   Proof.
-    intros H1 H2 Hφ. destruct src as [z|rs]; cbn in Hφ.
+    intros H1 H2 Hφ. destruct src as [z|rs]; cbn in Hφ; rewrite /update_sreg in Hφ.
     - simplify_eq. by apply sys_kept_insert_sreg.
     - case_decide; first by simplify_eq.
       destruct (r !!ᵣ rs); cbn in Hφ; simplify_eq. by apply sys_kept_insert_sreg.
@@ -531,7 +531,7 @@ Section griotte_lang_rules.
     iMod (sys_interp_set_mtdc _ m m' v _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (Cap pc_p pc_g pc_b pc_e pc_a, r, <[mtdc := and_tag s (lw v)]> psr, mm, st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := and_tag s (lw v)]> psr) mm st)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
@@ -599,7 +599,7 @@ Section griotte_lang_rules.
     iMod (sys_interp_set_mtdc _ m m' v _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (Cap pc_p pc_g pc_b pc_e pc_a, rf, <[mtdc := and_tag s (lw v)]> psr, mm, st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) rf (<[mtdc := and_tag s (lw v)]> psr) mm st)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
@@ -660,7 +660,7 @@ Section griotte_lang_rules.
     iMod (sys_interp_set_mtdc _ m m' _ _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (Cap pc_p pc_g pc_b pc_e pc_a, r, <[mtdc := WInt z]> psr, mm, st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := WInt z]> psr) mm st)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }

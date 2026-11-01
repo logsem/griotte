@@ -74,13 +74,13 @@ Section griotte_lang_rules.
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
-       ("%Her" ∷ ⌜erasure R C (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
+       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
                     (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
         "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
-                     (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
+                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
         "Hsr" ∷ sys_interp lsreg ∗
@@ -92,13 +92,13 @@ Section griotte_lang_rules.
         "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
        ==∗
-       ⌜sys_kept (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) σ'⌝ ∗
+       ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) σ'⌝ ∗
        cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -127,13 +127,13 @@ Section griotte_lang_rules.
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
-       ("%Her" ∷ ⌜erasure R C (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
+       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
                     (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
         "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
-                     (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) = (c, σ')⌝ ∗
+                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
         "Hsr" ∷ sys_interp lsreg ∗
@@ -141,7 +141,7 @@ Section griotte_lang_rules.
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
         "HC" ∷ addr_alloc_auth C ∗
-        "Hlink" ∷ crit_link (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) ∗
+        "Hlink" ∷ crit_link (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) ∗
         "HPC" ∷ PC ↦ₚ (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
@@ -151,7 +151,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -228,7 +228,7 @@ Section griotte_lang_rules.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 ns) "[Hσ1 Hlink] /="; destruct σ1 as [ [ [ [pc r] sr] m] st]; simpl.
+    iIntros (σ1 nt l1 l2 ns) "[Hσ1 Hlink] /="; destruct σ1 as [pc r sr m st]; simpl.
     iDestruct (SI_open with "Hσ1") as "Hσ1". iNamed "Hσ1".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_not_correct _ _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
@@ -339,15 +339,15 @@ Section instruction_closing.
   (** Closes a failed instruction: the state is unchanged. *)
   Lemma instr_close_fail pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
-    ⌜sys_kept (pc, r, sr, m, st) (pc, r, sr, m, st)⌝ ∗
-    cerise_state_interp (pc, r, sr, m, st) ∗ from_option Φ False (to_val (Instr Faulted)).
+    ⌜sys_kept (MkExecConf pc r sr m st) (MkExecConf pc r sr m st)⌝ ∗
+    cerise_state_interp (MkExecConf pc r sr m st) ∗ from_option Φ False (to_val (Instr Faulted)).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -361,9 +361,9 @@ Section instruction_closing.
   Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
-    (match advancePC (pc, r, sr, m, st) n with
-     | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
+    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
+    (match advancePC (MkExecConf pc r sr m st) n with
+     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FaultedV) →
     PC_auth lpc -∗
@@ -373,7 +373,7 @@ Section instruction_closing.
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' retv, ⌜P lpc' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ retv) ==∗
-    ⌜sys_kept (pc, r, sr, m, st) σ'⌝ ∗
+    ⌜sys_kept (MkExecConf pc r sr m st) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -411,12 +411,12 @@ Section instruction_closing.
   Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → LReg → griotte_lang.val → Prop) :
-    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
     regs ⊆ lreg →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
-    (match nextPC (update_reg (pc, r, sr, m, st) dst w) with
-     | Some conf => conf | None => (Faulted, (pc, r, sr, m, st)) end) = (c, σ') →
+    (match nextPC (update_reg (MkExecConf pc r sr m st) dst w) with
+     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st)) end) = (c, σ') →
     reg_phys R v w →
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FaultedV) →
@@ -427,7 +427,7 @@ Section instruction_closing.
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' regs' retv, ⌜P lpc' regs' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
-    ⌜sys_kept (pc, r, sr, m, st) σ'⌝ ∗
+    ⌜sys_kept (MkExecConf pc r sr m st) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -453,7 +453,7 @@ Section instruction_closing.
   Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
     reg_phys R v w →
@@ -466,8 +466,8 @@ Section instruction_closing.
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
-    ⌜sys_kept (pc, r, sr, m, st) (update_reg (update_pcc (pc, r, sr, m, st) pc') dst w)⌝ ∗
-    cerise_state_interp (update_reg (update_pcc (pc, r, sr, m, st) pc') dst w) ∗
+    ⌜sys_kept (MkExecConf pc r sr m st) (update_reg (update_pcc (MkExecConf pc r sr m st) pc') dst w)⌝ ∗
+    cerise_state_interp (update_reg (update_pcc (MkExecConf pc r sr m st) pc') dst w) ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
     iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
@@ -486,7 +486,7 @@ Section instruction_closing.
   Lemma instr_close_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (pc, r, sr, m, st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
     reg_word_ok R C lpc' →
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
@@ -496,8 +496,8 @@ Section instruction_closing.
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
-    ⌜sys_kept (pc, r, sr, m, st) (update_pcc (pc, r, sr, m, st) pc')⌝ ∗
-    cerise_state_interp (update_pcc (pc, r, sr, m, st) pc') ∗
+    ⌜sys_kept (MkExecConf pc r sr m st) (update_pcc (MkExecConf pc r sr m st) pc')⌝ ∗
+    cerise_state_interp (update_pcc (MkExecConf pc r sr m st) pc') ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
     iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -551,8 +551,8 @@ Section instruction_outcomes.
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (∀ R r sr m st, lregs_phys R regs r →
-       exec i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
@@ -576,8 +576,8 @@ Section instruction_outcomes.
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st,
-       exec i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
@@ -597,8 +597,8 @@ Section instruction_outcomes.
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st s1, r !! r1 = Some (and_tag s1 w1.(lw)) →
-       exec i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ{dq} w }}}.
@@ -623,8 +623,8 @@ Section instruction_outcomes.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (∀ r sr m st s1 s2, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
-       exec i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ{dq} w }}}.
@@ -651,8 +651,8 @@ Section instruction_outcomes.
     (∀ r sr m st s1 s2 s3, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
        r !! r3 = Some (and_tag s3 w3.(lw)) →
-       exec i pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-         (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
           ▷ r1 ↦ᵣ w1 ∗
           ▷ r2 ↦ᵣ w2 ∗

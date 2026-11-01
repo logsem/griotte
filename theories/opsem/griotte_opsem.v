@@ -216,7 +216,8 @@ Section opsem.
     sweep_word shadow <$> m.
 
   Definition revoker_sweep (φ : ExecConf) : ExecConf :=
-    (pcc φ, reg φ, sreg φ, sweep_mem (shadowtbl φ) (mem φ), shadowtbl φ).
+    {| pcc := pcc φ; reg := reg φ; sreg := sreg φ;
+       mem := sweep_mem (shadowtbl φ) (mem φ); shadowtbl := shadowtbl φ |}.
 
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with

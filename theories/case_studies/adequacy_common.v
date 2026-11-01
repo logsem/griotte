@@ -83,28 +83,29 @@ Section initial_rootedness.
   Context `{MP: MachineParameters} {TV : trapVector}.
 
   (** The initial condition, with heap roots [R]. *)
-  Lemma ghost_init_cond_roots (R : gset Addr) (pc : Word) (reg : Reg) (sreg : SReg) (m : Mem) :
+  Lemma ghost_init_cond_roots (R : gset Addr) (σ : ExecConf) :
+    shadowtbl σ = initial_heap_shadow →
     (∀ a, a ∈ R → is_heap_address a = true) →
-    mem_rooted R m →
-    word_rooted R pc →
-    (∀ r w, reg !! r = Some w → word_rooted R w) →
-    (∀ sr w, sreg !! sr = Some w → word_rooted R w) →
-    mem_avoids_mmio m →
-    heap_mapped m →
-    reg !! cnull = Some (WInt 0) →
-    mem_exec_ok m →
-    word_exec_ok pc →
-    (∀ r w, reg !! r = Some w → word_exec_ok w) →
-    (∀ sr w, sreg !! sr = Some w → word_exec_ok w) →
-    pc_ok pc →
-    (∀ sr w, is_pc_sreg sr = true → sreg !! sr = Some w → pc_ok w) →
-    (∀ sr, sr ∈ reserved_sregs → is_Some (sreg !! sr)) →
-    sreg !! mtcc = Some mtcc_vec →
-    (∃ z, sreg !! mtval = Some (WInt z)) →
-    (∃ mie mpie, sreg !! mstatus = Some (WInt (mstatus_enc mie mpie))) →
-    ghost_init_cond (pc, reg, sreg, m, initial_heap_shadow) R.
+    mem_rooted R (mem σ) →
+    word_rooted R (pcc σ) →
+    (∀ r w, reg σ !! r = Some w → word_rooted R w) →
+    (∀ sr w, sreg σ !! sr = Some w → word_rooted R w) →
+    mem_avoids_mmio (mem σ) →
+    heap_mapped (mem σ) →
+    reg σ !! cnull = Some (WInt 0) →
+    mem_exec_ok (mem σ) →
+    word_exec_ok (pcc σ) →
+    (∀ r w, reg σ !! r = Some w → word_exec_ok w) →
+    (∀ sr w, sreg σ !! sr = Some w → word_exec_ok w) →
+    pc_ok (pcc σ) →
+    (∀ sr w, is_pc_sreg sr = true → sreg σ !! sr = Some w → pc_ok w) →
+    (∀ sr, sr ∈ reserved_sregs → is_Some (sreg σ !! sr)) →
+    sreg σ !! mtcc = Some mtcc_vec →
+    (∃ z, sreg σ !! mtval = Some (WInt z)) →
+    (∃ mie mpie, sreg σ !! mstatus = Some (WInt (mstatus_enc mie mpie))) →
+    ghost_init_cond σ R.
   Proof.
-    intros HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
+    intros Hσsh HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
       Hreserved Hmtcc Hmtval Hmstatus.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
@@ -113,8 +114,8 @@ Section initial_rootedness.
       by apply elem_of_heap_addresses. }
     constructor; cbn.
     - exact HR.
-    - intros a Ha. by apply Hsh, HR.
-    - intros a Ha. eexists. by apply Hsh.
+    - intros a Ha. rewrite Hσsh. by apply Hsh, HR.
+    - intros a Ha. eexists. rewrite Hσsh. by apply Hsh.
     - intros a w b Ha. by eapply Hm.
     - intros b. by eapply Hpc.
     - intros r w b _ Hw. by eapply Hreg.
@@ -215,27 +216,27 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   {na_invg : na_invariants.na_invG Σ}
   `{MP: MachineParameters} {TV : trapVector}
   (flagN : namespace) (flag : Addr) (H : gset Addr)
-  (pc pc' : Word) (reg reg' : Reg) (sreg sreg' : SReg) (m m' : Mem) (sh sh' : ShadowTbl)
+  (σ σ' : ExecConf)
   (wmtdc : Word) (m0 : mtdc_val) (ms : list mtdc_val) (es : list griotte_lang.expr) :
-  ghost_init_cond (pc, reg, sreg, m, sh) H →
-  reg !! cnull = Some (WInt 0) →
-  sreg !! mtdc = Some wmtdc →
+  ghost_init_cond σ H →
+  reg σ !! cnull = Some (WInt 0) →
+  sreg σ !! mtdc = Some wmtdc →
   mtdc_match m0 (lword_of_word wmtdc) →
   (∀ (ceriseb : ceriseBaseG Σ),
      (* the trap vector of [ceriseb] is the one of the initial state *)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
      (* the home value of thread [0]'s mtdc token is its initial mtdc *)
      @mtdc_home Σ (@cb_mtdc_lent_of Σ ceriseb (UserThread 0)) = m0 →
-     PC ↦ₚ[u 0] lword_of_word pc -∗
-     regs[u 0] (lword_of_word <$> reg) -∗
+     PC ↦ₚ[u 0] lword_of_word (pcc σ) -∗
+     regs[u 0] (lword_of_word <$> reg σ) -∗
      mtdc ↦ₜ[u 0] m0 -∗
      (* thread [0]'s posture: its MIE fragment at the initial MIE, what a
         critical section hands over, and its mtdc token *)
-     MIE ↦ₜ[u 0] mie_st (pc, reg, sreg, m, sh) -∗
+     MIE ↦ₜ[u 0] mie_st σ -∗
      handover_res (ceriseg := ceriseG_of (UserThread 0)) -∗
      @mtdc_lent Σ (@cb_mtdc_lent_of Σ ceriseb (UserThread 0)) -∗
-     ([∗ map] a↦w ∈ m, a ↦ₐ lword_of_word w) -∗
-     ([∗ map] a↦s ∈ sh, a ↦ₛ s) -∗
+     ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) -∗
+     ([∗ map] a↦s ∈ shadowtbl σ, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
      (* the pool of thread [0] in [ceriseb], not the [na_invg] parameter *)
      @na_own Σ (@cb_na_invG Σ ceriseb) (tpool (UserThread 0)) ⊤ -∗
@@ -248,17 +249,16 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      ={⊤}=∗
      (* the link of thread [0], holding its part of the initial state *)
      ∃ CL : CritLink Σ (UserThread 0),
-       crit_link (th := UserThread 0) (pc, reg, sreg, m, sh) ∗
+       crit_link (th := UserThread 0) σ ∗
        WP Exec @[u 0] {{ _, True }} ∗
        inv flagN (flag ↦ₐ WInt 0)) →
-  rtc erased_step ([Exec], (pc, reg, sreg, m, sh)) (es, (pc', reg', sreg', m', sh')) →
-  m' !! flag = Some (WInt 0).
+  rtc erased_step ([Exec], σ) (es, σ') →
+  mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hinit Hnull Hmtdc Hm0 Hwp Hstep.
   pose proof (@wp_invariance Σ griotte_lang _ NotStuck) as WPI. cbn in WPI.
   pose (fun (c: ExecConf) => mem c !! flag = Some (WInt 0%Z)) as state_is_good.
-  specialize (WPI Exec (pc, reg, sreg, m, sh) es (pc', reg', sreg', m', sh')
-                (state_is_good (pc', reg', sreg', m', sh'))).
+  specialize (WPI Exec σ es σ' (state_is_good σ')).
   eapply WPI. 2: assumption. intros Hinv κs. clear WPI.
   iMod (@na_alloc Σ na_invg) as (pool) "Hna".
   (* The pools of the user threads [S k], of the context-switch thread and
@@ -280,17 +280,17 @@ Proof.
   iMod (@posture_init Σ (@cerise_preG_excl Σ cerise_preg) (@cerise_preG_oneshot Σ cerise_preg)
           na_invg) as (postureg) "(Hcrit & Hunw & Hpending)".
   iMod (@mtdc_lent_init Σ (@cerise_preG_excl Σ cerise_preg) m0) as (mlg Hhome) "Hlent".
-  iMod (cerise_ghost_init (pc, reg, sreg, m, sh) H m0 wmtdc Hinit Hmtdc Hm0 Hhome with "Hpending")
+  iMod (cerise_ghost_init σ H m0 wmtdc Hinit Hmtdc Hm0 Hhome with "Hpending")
     as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg)
        "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims & Hmst & Hmepcc & Hmcause & Hmtval)".
   iDestruct "Hmst" as (mie0 mpie0 Hmst) "[HMIE HMPIE]".
   iDestruct "Hmepcc" as (vepcc) "Hmepcc".
   iDestruct "Hmcause" as (vcause) "Hmcause".
   iDestruct "Hmtval" as (ztval) "Hmtval".
-  assert (mie_st (pc, reg, sreg, m, sh) = mie0) as Hmie0.
+  assert (mie_st σ = mie0) as Hmie0.
   { rewrite /mie_st /= in Hmst |- *. by rewrite Hmst /= mie_of_mstatus_enc. }
   iEval (rewrite init_lmem_pointsto) in "Hmem".
-  rewrite (init_lregs_cnull reg Hnull).
+  rewrite (init_lregs_cnull (reg σ) Hnull).
   iDestruct (big_sepL2_nth_l _ _ _ (pg_d, rg_d, mtg_d, mieg_d, mlg_d) with "Hgs") as "Hgs".
   iDestruct (big_sepL_sep with "Hgs") as "[Hgs _]".
   iDestruct (big_sepL2_nth_l _ _ _ pool_d with "Hnas") as "Hnas".

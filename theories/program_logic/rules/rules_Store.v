@@ -278,7 +278,7 @@ Section griotte_lang_rules.
      iIntros (HPm Hinstr Hvpc Dregs Hmem_pc HaStore φ) "(>HPC & >Hmem & >Hfetch & >Hshadow & Hperms & Hdw & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
      iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
-     destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+     destruct σ1 as [pc r sr m st]; cbn.
      iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
      pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
@@ -316,7 +316,7 @@ Section griotte_lang_rules.
      assert (reg_word_ok R C storev) as Hstore_ok by by eapply erasure_lword_of_argument_word.
      destruct (is_cap r1v.(lw)) eqn:Hr1v.
      2: {
-       assert ((Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
+       assert ((Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) = (c, σ2)) as Hstep'.
        { unfold is_cap in Hr1v. destruct r1v as [r1v ?]. cbn in *.
          destruct_word r1v; by simplify_pair_eq. }
        instr_fail Hstep'. apply Store_spec_fail. by eapply Store_fail_const.
@@ -385,7 +385,7 @@ Section griotte_lang_rules.
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
-       rewrite /nextPC /advancePC /= Ha'1 in Hu. simplify_eq.
+       rewrite /nextPC /advancePC /= Ha'1 /update_pcc in Hu. simplify_eq.
        unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
        simplify_pair_eq. cbn.
        iDestruct (big_sepM_delete _ _ heap_a with "Hshadow") as "[Ha Hshadow]"; first exact Hshadowa.
@@ -417,7 +417,7 @@ Section griotte_lang_rules.
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
-       rewrite /nextPC /advancePC /= Ha'1 in Hu. simplify_eq.
+       rewrite /nextPC /advancePC /= Ha'1 /update_pcc in Hu. simplify_eq.
        unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha'1 in Hstep.
        simplify_pair_eq. cbn.
        iMod ((gen_heap_update_inSepM _ _ ea) with "Hm Hmem") as "[Hm Hmem]"; eauto.
@@ -1176,7 +1176,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
     { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1723,7 +1723,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     { intros ι a' _ Ha'. apply (reg_ok_claimed _ _ _ (er_registry _ _ _ _ _ _ _ Her)) in Ha'
         as (x & Hx & Hcov & _). eauto. }
     assert (erasure (revoke_reg K R) (revoke_claims K C)
-              (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, sweep_mem st m, st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr (sweep_mem st m) st)
               (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem)
       as Her1.
     { eapply erasure_revoke; eauto.
@@ -1733,7 +1733,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
               Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π))
       as Hinc by by rewrite /incrementPC /incrementPC_gen Hpca'.
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
-    rewrite /nextPC /advancePC /= Hpca' in Hu. simplify_eq.
+    rewrite /nextPC /advancePC /= Hpca' /update_pcc in Hu. simplify_eq.
     unfold revoker_sweep, nextPC, advancePC in Hstep; cbn in Hstep.
     rewrite Hpca' in Hstep. simplify_eq.
     iMod (PC_update _ _ (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π) with "HPCa HPC")
@@ -1879,7 +1879,7 @@ Section shadow_store_res.
     iNext; iIntros (r sr m st lreg lsreg lmem Rg Cg c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
     { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.

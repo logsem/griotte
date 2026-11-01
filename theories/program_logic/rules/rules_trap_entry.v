@@ -404,7 +404,7 @@ Section griotte_lang_traps.
                   Her' with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
     iMod ("Hrestore" with "HSI [] []") as "(HSI & Hlink & Hpart)".
     { iPureIntro. by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
-    { iPureIntro. destruct σ1 as [ [ [ [pc1 r1] sr1] m1] st1].
+    { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
     iModIntro. iSplitL "HSI Hlink"; first by iFrame.
     iSplitL; last done.

@@ -280,7 +280,7 @@ Section griotte_lang_rules.
       "(>HPC & >Hmem & >Hshadow & Hwit & Hdw & >Hmap) Hφ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
     iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
-    destruct σ1 as [ [ [ [pc r] sr] m] st]; cbn.
+    destruct σ1 as [pc r sr m st]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
@@ -318,7 +318,7 @@ Section griotte_lang_rules.
 
     destruct (is_cap r2v.(lw)) eqn:Hr2v.
     2: {
-      assert ((Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) = (c, σ2)) as Hstep'.
+      assert ((Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) = (c, σ2)) as Hstep'.
       { unfold is_cap in Hr2v. destruct r2v as [r2v ?]; cbn in *.
         destruct_word r2v; by simplify_pair_eq. }
       instr_fail Hstep'. apply Load_spec_failure; [|done..]. by eapply Load_fail_const. }
@@ -362,8 +362,8 @@ Section griotte_lang_rules.
     assert (∃ (v : LWord) (pv : Word),
       reg_word_ok R C v ∧
       reg_phys R v pv ∧
-      (match nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pv) with
-       | Some conf => conf | None => (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2) ∧
+      (match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) r1 pv) with
+       | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) end) = (c, σ2) ∧
       (∀ lpc', incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
          Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw NextIV) ∧
       (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
@@ -396,8 +396,8 @@ Section griotte_lang_rules.
             as (pv & Hpv & Hpvok).
           rewrite Hpv /= in Hstep.
           destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
-          assert ((match nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) r1 pl) with
-                   | Some conf => conf | None => (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ2))
+          assert ((match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) r1 pl) with
+                   | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) end) = (c, σ2))
             as Hstep'.
           { rewrite -Hstep /load_filter in Hpl |- *.
             destruct (heap_cap_base pv) as [base|]; last by simplify_eq.
@@ -1219,7 +1219,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
     { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1304,7 +1304,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
     rewrite Hwa /= in Hstep. destruct s0; cbn in Hstep; rewrite ?Hadd /= in Hstep.
-    all: assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->] by (by simplify_eq).
+    all: assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->] by (by simplify_eq).
     all: instr_fail_close.
   Qed.
 
@@ -1328,7 +1328,7 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
     { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; by simplify_eq. }
     instr_fail_close.

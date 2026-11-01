@@ -110,8 +110,8 @@ Section griotte_lang_rules.
            with "Hsr Hmie Hmpie") as "(Hsr & Hmie & Hmpie)".
     iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
-    iMod (Htr _ (wepcc, r,
-                 <[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
+    iMod (Htr _ (MkExecConf wepcc r
+                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st)
            with "[$HSI $Hlink $Hsmap $Hmpie $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - done.

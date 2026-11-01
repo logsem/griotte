@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
-    set (φc := (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) in Hstep.
+    set (φc := (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) in Hstep.
     rewrite (exec_opt_is_JCond _ _ _ _ _ _ Hi) /exec_jcond /= Hn1' Hn2' /= in Hstep.
     destruct (jcond_test i n1 n2) eqn:Htest.
     - destruct (lz_of_argument_dom regs off) as [imm Himm].

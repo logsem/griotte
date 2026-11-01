@@ -54,9 +54,9 @@ Section griotte_lang_rules.
     unfold regs_of, operands_of in Dregs.
     assert (arg_owned regs rimm) as Hdomr.
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
-    assert (exec_opt (Jmp rimm) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
+    assert (exec_opt (Jmp rimm) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
               (imm ← lz_of_argument regs rimm;
-               advancePC (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) imm)) as HH.
+               advancePC (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) imm)) as HH.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument_dom regs rimm Hdomr) as [imm Himm].

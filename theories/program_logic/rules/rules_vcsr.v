@@ -223,8 +223,8 @@ Section vcsr.
            with "Hsr Hmie Hmpie") as "(Hsr & Hmie & Hmpie)".
     iMod (PC_update _ _ wepcc with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
-    iMod (Htr _ (wepcc', r,
-                 <[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr, m, st)
+    iMod (Htr _ (MkExecConf wepcc' r
+                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st)
            with "[$HSI $Hlink $Hmepcc $Hmcause $Hmpie $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - done.
@@ -258,11 +258,11 @@ Section vcsr.
     regs_of_argument src ∖ {[ cnull ]} ⊆ dom regs →
     (match src with
      | inr rs =>
-         if decide (rs = cnull) then Some (pc, r, psr, m, st)
+         if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
          else wsrc ← r !!ᵣ rs;
-              Some (update_sreg (pc, r, psr, m, st) mstatus (legalise mstatus wsrc))
-     | inl z => Some (update_sreg (pc, r, psr, m, st) mstatus (legalise mstatus (WInt z)))
-     end) = Some (pc, r, psr', m, st) →
+              Some (update_sreg (MkExecConf pc r psr m st) mstatus (legalise mstatus wsrc))
+     | inl z => Some (update_sreg (MkExecConf pc r psr m st) mstatus (legalise mstatus (WInt z)))
+     end) = Some (MkExecConf pc r psr' m st) →
     match mstatus_src_mie regs src with
     | None => psr' = psr
     | Some b =>
@@ -270,7 +270,7 @@ Section vcsr.
                 psr' = <[mstatus := WInt (mstatus_enc b mpie)]> psr
     end.
   Proof.
-    intros Hregs Dsrc Hφ. destruct src as [z|rs]; cbn in *.
+    intros Hregs Dsrc Hφ. destruct src as [z|rs]; cbn in *; rewrite /update_sreg in Hφ.
     - simplify_eq. by eexists.
     - case_decide as Hrs; first by simplify_eq.
       assert (is_Some (regs !!ₗ rs)) as [v Hv].
@@ -326,10 +326,10 @@ Section vcsr.
     { rewrite /regs_of /operands_of in Dregs. set_solver. }
     pose proof (specialrw_mstatus_phys _ _ _ _ _ _ _ _ _ Hregs Dsrc Hφ1) as Hpsr'.
     iAssert (|==> ∃ ls',
-               ⌜erasure R C (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)
+               ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st)
                   (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join ls') lmem⌝ ∗
-               ⌜sys_kept (Cap pc_p pc_g pc_b pc_e pc_a, r, psr, m, st)
-                  (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st)⌝ ∗
+               ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr m st)
+                  (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st)⌝ ∗
                sys_interp ls' ∗
                (if mstatus_src_mie regs src is Some _
                 then MIE ↦ₜ InterruptDisabled ∗ MPIE_frag (default p (mstatus_src_mpie regs src))
@@ -356,7 +356,7 @@ Section vcsr.
               Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
     { by apply incrementPC_add. }
     iApply (instr_close_link_kept with "Hlink").
-    iApply (instr_close_kept_trans _ (Cap pc_p pc_g pc_b pc_e pc_a, r, psr', m, st));
+    iApply (instr_close_kept_trans _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st));
       first exact Hkept.
     case_decide as Hdst.
     - (* The old value is dropped. *)

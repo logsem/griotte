@@ -40,7 +40,7 @@ Section trap_cause.
   (** The logical view as a configuration: the logical words without their
       identifiers. [trap_fault] reads no system register. *)
   Definition lview (lpc : LWord) (lregs : LReg) (lm : LMem) : ExecConf :=
-    (lpc.(lw), lw <$> lregs, ∅, lw <$> lm, heap_shadow).
+    (MkExecConf lpc.(lw) (lw <$> lregs) ∅ (lw <$> lm) heap_shadow).
 
   (** The logical fault at the PC [lpc], from the logical registers [lregs]
       and the logical memory [lm], and its cause. *)
