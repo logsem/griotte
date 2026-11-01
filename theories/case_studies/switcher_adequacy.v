@@ -102,8 +102,9 @@ Section helpers_switcher_adequacy.
       PCC of the compartment's table, its registers are safe (the table's
       CGP, the thread's stack, the switcher's return sentry in [cra],
       zeroes), and its entry compartment, at the top of its call stack, is
-      untrusted. *)
-  Lemma fundamental_untrusted_thread
+      untrusted. The world premise and the carried credit are those of the
+      compartment's regime. *)
+  Lemma fundamental_untrusted_thread_gen
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
     (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
     let b_tbl := tf_export_tbl_b ef in
@@ -115,7 +116,6 @@ Section helpers_switcher_adequacy.
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
-    cmpt_shared C = false →
     thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
@@ -128,7 +128,8 @@ Section helpers_switcher_adequacy.
     entry_stack_interp interp W C ef -∗
     PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
     registers_pointsto regs -∗
-    world_interp W C -∗
+    world_resources W C -∗
+    shared_credit C -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] (entry_cstack ef) -∗
     ⌜route_pre th b⌝ -∗
@@ -136,14 +137,12 @@ Section helpers_switcher_adequacy.
     held (th := th) b -∗
     safe[th].
   Proof.
-    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero Hshared.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
-      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld_interp Hna Hcstk %Hroute HMIE Hheld".
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hcred Hna Hcstk %Hroute HMIE Hheld".
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
-    iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld_interp".
-    iPoseProof (shared_credit_exclusive C Hshared) as "Hcred".
     iDestruct (interp_cap_disjoint with "Hinterp_pcc") as %[_ Hpcc_heap]; first done.
     (* The entry compartment, at the top of the call stack, is untrusted
        and holds the thread's stack *)
@@ -180,6 +179,104 @@ Section helpers_switcher_adequacy.
     iSpecialize ("H_jmp'" $! (entry_cstack ef) [] [] regs).
     iApply "H_jmp'".
     iFrame "∗ # %".
+  Qed.
+
+  (** A thread that starts at an export of an untrusted compartment in
+      exclusive mode runs safely by the FTLR. *)
+  Lemma fundamental_untrusted_thread
+    (W : WORLD) (C : CmptName) (ef : trusted_frame)
+    (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
+    let b_tbl := tf_export_tbl_b ef in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
+    disjoint_from_heap b_cgp e_cgp →
+    ef.(tf_export_tbl) ≠ lword_of_word (WInt 0) →
+    (∀ r, is_Some (regs !! r)) →
+    regs !! cgp = Some (lword_of_word (Cap RW Global b_cgp e_cgp b_cgp)) →
+    regs !! csp = Some ef.(tf_csp) →
+    regs !! cra = Some (lword_of_word thread_return_sentry) →
+    (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    cmpt_shared C = false →
+    thread_in th C -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
+    switcher_static -∗
+    b_tbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₑ□{stackful} eh -∗
+    b_tbl ↦ₑ□{stackless} ehs -∗
+    interp W C (Cap RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (Cap RW Global b_cgp e_cgp b_cgp) -∗
+    entry_stack_interp interp W C ef -∗
+    PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
+    registers_pointsto regs -∗
+    world_interp W C -∗
+    na_own (tpool th) ⊤ -∗
+    ◯(CSTK)[th] (entry_cstack ef) -∗
+    ⌜route_pre th b⌝ -∗
+    MIE ↦ₜ[th] b -∗
+    held (th := th) b -∗
+    safe[th].
+  Proof.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+      Hshared.
+    iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hna Hcstk Hroute HMIE Hheld".
+    iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld".
+    iPoseProof (shared_credit_exclusive C Hshared) as "Hcred".
+    iApply (fundamental_untrusted_thread_gen W C ef b_pcc e_pcc b_cgp e_cgp a_pc eh ehs regs b
+              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+             with "Hthread Hinv_switcher Hswitcher_static Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs
+                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hcred Hna Hcstk Hroute HMIE Hheld").
+  Qed.
+
+  (** A thread that starts at an export of an untrusted compartment in
+      shared mode runs safely by the FTLR. Its world premise is that of the
+      regime: the first thread gets it from [world_resources_init_shared],
+      the others from [world_resources_join]. A thread that starts in [C]
+      has taken no step yet, so it brings the later credit that the world
+      accessor spends on the invariant of [C]. *)
+  Lemma fundamental_untrusted_thread_shared
+    (W : WORLD) (C : CmptName) (ef : trusted_frame)
+    (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
+    let b_tbl := tf_export_tbl_b ef in
+    let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
+    disjoint_from_heap b_cgp e_cgp →
+    ef.(tf_export_tbl) ≠ lword_of_word (WInt 0) →
+    (∀ r, is_Some (regs !! r)) →
+    regs !! cgp = Some (lword_of_word (Cap RW Global b_cgp e_cgp b_cgp)) →
+    regs !! csp = Some ef.(tf_csp) →
+    regs !! cra = Some (lword_of_word thread_return_sentry) →
+    (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    cmpt_shared C = true →
+    thread_in th C -∗
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
+    switcher_static -∗
+    b_tbl ↦ₐ□ Cap RX Global b_pcc e_pcc b_pcc -∗
+    a_tbl_cgp ↦ₐ□ Cap RW Global b_cgp e_cgp b_cgp -∗
+    b_tbl ↦ₑ□{stackful} eh -∗
+    b_tbl ↦ₑ□{stackless} ehs -∗
+    interp W C (Cap RX Global b_pcc e_pcc b_pcc) -∗
+    interp W C (Cap RW Global b_cgp e_cgp b_cgp) -∗
+    entry_stack_interp interp W C ef -∗
+    PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
+    registers_pointsto regs -∗
+    world_resources W C -∗
+    £ 1 -∗
+    na_own (tpool th) ⊤ -∗
+    ◯(CSTK)[th] (entry_cstack ef) -∗
+    ⌜route_pre th b⌝ -∗
+    MIE ↦ₜ[th] b -∗
+    held (th := th) b -∗
+    safe[th].
+  Proof.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+      Hshared.
+    iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hlc Hna Hcstk Hroute HMIE Hheld".
+    iEval (rewrite -(shared_credit_shared C Hshared)) in "Hlc".
+    iApply (fundamental_untrusted_thread_gen W C ef b_pcc e_pcc b_cgp e_cgp a_pc eh ehs regs b
+              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+             with "Hthread Hinv_switcher Hswitcher_static Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs
+                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hlc Hna Hcstk Hroute HMIE Hheld").
   Qed.
 
 End helpers_switcher_adequacy.
