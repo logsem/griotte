@@ -26,6 +26,9 @@ Section trusted_stack_layout.
     tsl_words : Forall trusted_stack_word ts;
     tsl_hazard :
       ts !! Z.to_nat TrustedStack_offset_hazardPointers = Some (Cap WO Global b_hz e_hz b_hz);
+    tsl_saved_mstatus :
+      ∀ w, ts !! Z.to_nat TrustedStack_offset_mstatus = Some w →
+           mie_of (get_a w) = InterruptDisabled;
   }.
 End trusted_stack_layout.
 
@@ -142,16 +145,20 @@ Section adequacy_helpers.
       iPureIntro. split; [done | apply switcher.ot_switcher_size].
     Qed.
 
-    (** The trusted-stack invariant for the thread [th], from its trusted
-        stack with contents [ts], its hazard slots and its call stack. The
-        entry frame of the thread holds the words [w_csp] and [w_tbl], a
-        capability to the export table at [b_tbl], and no error handler
-        invocation. *)
+    (** The trusted-stack invariant for the user thread [th], from its
+        trusted stack with contents [ts], its hazard slots and its call
+        stack, and the register save area of its posture. The entry frame of
+        the thread holds the words [w_csp] and [w_tbl], a capability to the
+        export table at [b_tbl], and no error handler invocation. The home
+        value of the mtdc token of [th] is its trusted stack. *)
     Lemma initialise_switcher_thread
       {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
       (ts : list Word) (w_csp w_tbl : Word) (b_tbl : Addr) :
       let ef := {| tf_csp := lword_of_word w_csp; tf_export_tbl := lword_of_word w_tbl;
                    tf_error_count := 0 |} in
+      th ≠ CtxSwitch ->
+      mtdc_home = Capₗ RWL _ switcher.b_trusted_stack switcher.e_trusted_stack
+                    switcher.b_trusted_stack ->
       trusted_stack_layout switcher.b_trusted_stack switcher.e_trusted_stack
         switcher.b_hazard_slots switcher.e_hazard_slots ts ->
       ts !! Z.to_nat (tstack_frame_offset 0 + TrustedStackFrame_offset_csp) = Some w_csp ->
@@ -165,17 +172,18 @@ Section adequacy_helpers.
       ●(CSTK)[th] (entry_cstack ef) -∗
       mtdc ↦ₜ[th] Capₗ RWL _ switcher.b_trusted_stack switcher.e_trusted_stack switcher.b_trusted_stack
       ={E}=∗
-      na_inv (tpool th) Ntstack trusted_stack_inv.
+      na_inv (tpool th) Ntstack trusted_stack_inv ∗
+      save_area_part th.
     Proof.
-      intros ef Hts Hw_csp Hw_tbl Htbl_cap.
+      intros ef Huser Hhome Hts Hw_csp Hw_tbl Htbl_cap.
       iIntros "Htrusted_stack Hhazard_slots Hcstk_full Hmtdc".
-      destruct Hts as [Htstk_size Hframeoffset [n Hfit] Hw_cnt _ Hhazard_cell].
+      destruct Hts as [Htstk_size Hframeoffset [n Hfit] Hw_cnt _ Hhazard_cell Hsaved].
       iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
       { exact Htstk_size. }
       iDestruct (mkregion_prepare with "[Hhazard_slots]") as ">Hhazard_slots"; auto.
       { apply switcher.hazard_slots_size. }
-      iAssert (|==> switcher_preamble.trusted_stack_inv)%I
-        with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">Hswitcher".
+      iAssert (|==> switcher_preamble.trusted_stack_inv ∗ save_area_part th)%I
+        with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">[Hswitcher Hsave]".
       {
         iAssert ([[ switcher.b_trusted_stack, switcher.e_trusted_stack ]]
                    ↦ₐ [[ lword_of_word <$> ts ]])%I
@@ -225,6 +233,16 @@ Section adequacy_helpers.
           as "[Hsave_area Htrusted_stack]".
         { tstack_unfold; solve_addr. }
         { rewrite length_fmap length_take /finz.dist; subst i_frameoffset; tstack_unfold; solve_addr. }
+        (* The save area without its word [hazardPointers] goes to the posture,
+           which the layout gives the saved MIE InterruptDisabled. *)
+        iDestruct (save_area_split _ (lword_of_word hazard_slots_cap) with "Hsave_area")
+          as "[Hsave_area Hhazard_cell]".
+        { rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
+          by rewrite Hhazard_cell. }
+        iSplitR "Hsave_area".
+        2: { iModIntro. iExists _. iFrame "Hsave_area". iPureIntro.
+             intros w. rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
+             intros (w' & Hw' & ->)%fmap_Some. by apply Hsaved. }
         iDestruct (region_pointsto_cons _ a_threadID with "Htrusted_stack")
           as "[Hframeoffset Htrusted_stack]"; [subst a_threadID; tstack_unfold; solve_addr..|].
         iDestruct (region_pointsto_cons _ a_entry with "Htrusted_stack")
@@ -242,20 +260,37 @@ Section adequacy_helpers.
         iMod (pointsto_persist with "Hexport_table") as "#Hexport_table".
         iModIntro.
         rewrite /trusted_stack_inv.
-        iExists a_entry, (entry_cstack ef), _, _.
+        iExists a_entry, (entry_cstack ef), _.
         rewrite /cstack_interp.
         subst ef. cbn.
         rewrite /trusted_frame_interp /TrustedStackFrame_offset_csp finz_add_0_default /=.
         iFrame "∗ #".
-        iSplit.
-        { iPureIntro. rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
-          by rewrite Hhazard_cell. }
+        iSplit; first done.
+        iSplit; first done.
         iSplit; last (iPureIntro; destruct Htbl_cap as (p & g & e_tbl & a_tbl & -> & Htbl);
                       rewrite /tf_export_tbl_ok /=; split; [by exists p, g, e_tbl, a_tbl | done]).
         iPureIntro; subst a_entry b e; tstack_unfold; split; solve_addr.
       }
       iMod (na_inv_alloc (tpool th) _ Ntstack _ with "Hswitcher") as "#Hswitcher".
-      by iModIntro.
+      by iFrame "Hswitcher Hsave".
+    Qed.
+
+    (** The link of a user thread at its initial state [σ], from what the
+        thread hands over, its save area and its mtdc token: the link takes
+        them at InterruptEnabled, the thread keeps them at
+        InterruptDisabled. *)
+    Lemma crit_link_full_init {swlayout : switcherLayout} (σ : ExecConf) :
+      th ≠ CtxSwitch ->
+      handover_res -∗
+      save_area_part th -∗
+      mtdc_lent -∗
+      crit_link_def th σ ∗ held (th := th) (mie_st σ).
+    Proof.
+      iIntros (Hth) "Hho Hsave Hlent".
+      destruct (mie_st σ) eqn:Hmie.
+      - rewrite /crit_link_def Hmie. destruct th as [t|]; last done.
+        rewrite /posture_part_of. by iFrame.
+      - rewrite /crit_link_def Hmie held_disabled posture_part_user //. by iFrame.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
