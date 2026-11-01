@@ -10,10 +10,13 @@ Class CmptNameG := CmptNameS {
 
 Definition CNames `{CmptNameG} : gset CmptName := list_to_set (enum CmptName).
 
-(** The threads that may run in a compartment. A compartment where a user
-    thread runs has no context-switch thread. *)
+(** The threads that may run in a compartment, and its regime: shared
+    ([cmpt_shared C = true], the map of its Permanent regions behind an
+    invariant) or exclusive. A compartment where a user thread runs has no
+    context-switch thread. *)
 Class CmptThreads {Cname : CmptNameG} := {
   cmpt_threads : CmptName → gset Thread;
+  cmpt_shared : CmptName → bool;
   cmpt_threads_sep C t : UserThread t ∈ cmpt_threads C → CtxSwitch ∉ cmpt_threads C;
 }.
 #[export] Hint Mode CmptThreads ! : typeclass_instances.

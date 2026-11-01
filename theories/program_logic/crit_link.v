@@ -7,8 +7,10 @@ From griotte Require Import resources.
 
     The state interpretation of a thread is completed by a link [crit_link]:
     the part that depends on the interrupt status and on mtdc. A step that
-    keeps MIE and the physical mtdc keeps the link. The link is per thread.
-    Today the link is [True] ([link_core]). *)
+    keeps MIE and the physical mtdc keeps the link. The link is per thread:
+    the core link is [True] ([link_core]); the switcher's link
+    ([crit_link_full]) holds the thread's [handover_res] at
+    InterruptEnabled. *)
 
 (** MIE of a configuration (InterruptDisabled if mstatus is absent). *)
 Definition mie_st (σ : ExecConf) : InterruptStatus :=

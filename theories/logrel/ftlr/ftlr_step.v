@@ -138,30 +138,36 @@ Section ftlr_step.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** The exclusive world accessor at the thread's link: the world
-      resources are the owned world interpretation, which the step uses at
-      [W' := W]; the credit is dropped. The thread holds its posture
-      ([held]) and its MIE fragment, at a posture where it may run; the
-      full-link adapter routes the posture around the core step. *)
+  (** The world accessor at the thread's link, in either regime. The thread
+      holds its posture ([held]) and its MIE fragment, at a posture where it
+      may run. The full-link adapter routes the posture around the core step
+      and lends it the critical-section token; the world resources are
+      opened with the token and the carried credit, the step runs on the
+      owned world interpretation at [W' := W], and the world resources are
+      closed in the step's post, under its later. In exclusive mode the
+      token and the credit are not used. *)
   Lemma world_accessor_full :
     ⊢ world_accessor (λ m, held (th := th) m) (λ m, MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝)%I.
   Proof.
-    iIntros (W C m Ψ) "Hwres Hheld [Hmie %Hpre] _ Hstep".
-    rewrite world_resources_exclusive.
-    iApply (wp_wand with "[Hwres Hheld Hmie Hstep]").
-    { iApply (wp_core_full (th := th) ⊤ m
-                (λ m' v, ∃ W'', ⌜route_pre th m'⌝ ∗ world_interp W'' C ∗ Ψ W'' m' v)%I
+    iIntros (W C m Ψ) "Hwres Hheld [Hmie %Hpre] Hcred Hstep".
+    iApply (wp_wand with "[Hwres Hheld Hmie Hstep Hcred]").
+    { iApply (wp_core_full_crit (th := th) ⊤ m
+                (λ m' v, ∃ W'', ⌜route_pre th m'⌝ ∗ world_resources W'' C ∗ Ψ W'' m' v)%I
                with "Hheld Hmie"); first done.
-      iIntros "Hmie".
-      iSpecialize ("Hstep" $! W with "[] Hwres [$Hmie //]").
+      iIntros "Htok Hmie".
+      iMod (world_resources_acc_credit ⊤ ⊤ with "Hwres Hcred Htok")
+        as "(Hworld & Htok & [_ Hclose])"; [solve_ndisj | solve_ndisj |].
+      iSpecialize ("Hstep" $! W with "[] Hworld [$Hmie //]").
       { iPureIntro. apply related_sts_pub_refl_world. }
-      iApply (wp_wand with "Hstep").
-      iIntros (v) "Hpost". iNext.
-      iDestruct "Hpost" as (W'' m') "(_ & Hworld & [Hmie %Hpre'] & HΨ)".
-      iExists m'. iFrame "Hmie". iExists W''. by iFrame. }
+      iApply (wp_strong_mono with "Hstep"); [done | done |].
+      iIntros (v) "Hpost".
+      iDestruct "Hpost" as (W'' m') "(_ & Hworld & [Hmie Hpre'] & HΨ)".
+      iMod ("Hclose" $! W'' with "Hworld Htok") as "[Hwres Htok]".
+      iModIntro. iNext. iDestruct "Hpre'" as %Hpre'.
+      iExists m'. iFrame "Htok Hmie". iExists W''. by iFrame. }
     iIntros (v) "Hpost". iNext.
-    iDestruct "Hpost" as (m') "(Hheld & Hmie & %W'' & %Hpre' & Hworld & HΨ)".
-    iExists W'', m'. rewrite world_resources_exclusive. by iFrame.
+    iDestruct "Hpost" as (m') "(Hheld & Hmie & %W'' & %Hpre' & Hwres & HΨ)".
+    iExists W'', m'. by iFrame.
   Qed.
 
   (** A fault whose safe-register facts, world and posture come a later
@@ -182,7 +188,7 @@ Section ftlr_step.
        thread_in th C ∗
        interp_reg interp W C regs ∗
        top_cmpt_untrusted interp W C cstk ∗
-       world_resources W C ∗ shared_credit C ∗
+       world_resources W C ∗
        ⌜route_pre th m⌝ ∗
        MIE ↦ₜ[th] m ∗
        held (th := th) m) -∗
@@ -191,7 +197,7 @@ Section ftlr_step.
     iIntros (Hfull) "#Htrap HPC Hregs Hcont Hown Hcstk Hlater".
     iApply (wp_trap with "HPC").
     iApply trap_safe_entry_intro.
-    iDestruct "Hlater" as "(Hframe & Hth & Hreg & Htop & Hworld & Hcred & >%Hpre & >Hmie & Hheld)".
+    iDestruct "Hlater" as "(Hframe & Hth & Hreg & Htop & Hworld & >%Hpre & >Hmie & Hheld)".
     rewrite /held /held_of.
     iAssert (◇ ((if m is InterruptDisabled then handover_res else True) ∗
                 ▷ (if m is InterruptDisabled then posture_part (th := th) else True)))%I
@@ -203,7 +209,7 @@ Section ftlr_step.
     iIntros "!> Hout HPC".
     iDestruct (trap_entry_out_posture with "Hout Hpart") as "[Hmie Hpost]"; first done.
     iDestruct "Hframe" as %Hframe.
-    iApply ("Htrap" $! cstk regs with "[//] [Hth Hreg Htop Hworld Hcred Hcont] HPC Hmie Hpost
+    iApply ("Htrap" $! cstk regs with "[//] [Hth Hreg Htop Hworld Hcont] HPC Hmie Hpost
               Hregs Hown Hcstk").
     iLeft. iExists W, C, Ws, Cs. by iFrame.
   Qed.
@@ -241,10 +247,7 @@ Section ftlr_step.
       iNext. iFrame "Hreg Hwres Hth Hheld Hmie Hpre".
       iSplit; first (iPureIntro; by eapply frame_match_mono).
       iSplit; first (iPureIntro; done).
-      iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
-      (* The trap step gives no credit: the exclusive regime needs none, the
-         shared regime supplies it later. *)
-      iApply shared_credit_exclusive.
+      by iApply (top_cmpt_untrusted_mono_pub with "Htop").
     - (* NextIV *)
       iApply wp_pure_step_later; auto. iNext; iIntros "Hlc".
       (* The credit of the collapse is the next carried credit. *)

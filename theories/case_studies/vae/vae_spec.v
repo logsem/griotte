@@ -81,6 +81,7 @@ Section VAE.
     loc W0 !! i = Some (encode false) ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 C ->
     route_pre th mie ->
+    cmpt_shared C = false ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -129,7 +130,7 @@ Section VAE.
     iIntros (Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap Hsealed_nonheap Hcgp_shadow
                Hsize_vae_exp_tbl Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hloc_i_0 Hframe_match
-               Hroute
+               Hroute Hshared
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
@@ -199,6 +200,7 @@ Section VAE.
     { destruct mie; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

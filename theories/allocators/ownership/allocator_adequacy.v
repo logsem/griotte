@@ -139,10 +139,10 @@ Section allocator_init.
     a_alloc_exp_tbl_cgp ↦ₐ□ Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c) ∗
     no_handler (cmpt_exp_tbl_pcc c) ∗
     a_alloc_entry_malloc ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+      WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack
         allocator_malloc_pcc_off) ∗
     a_alloc_entry_free ↦ₐ□
-      WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+      WInt (encode_entry_point InterruptDisabled allocator_free_nargs allocator_free_min_stack
         allocator_free_pcc_off).
   Proof.
     intros c alloclayout a_alloc_exp_tbl_cgp a_alloc_entry_malloc a_alloc_entry_free

@@ -178,4 +178,77 @@ Section Switcher_Restore_Interp.
     rewrite lload_word_RWL in Hloaded.
     iApply "HΦ". by iFrame "∗#".
   Qed.
+
+  (** [switcher_load_stack_restore_world] over the local map of [Wworld],
+      beside the part of the world premise that holds the map of Permanent
+      regions. *)
+  Lemma switcher_load_stack_restore_local {dq : dfrac} E Wworld C opened
+    pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
+    (raw : LWord) :
+    (a + off)%a = Some ea ->
+    is_shadow_address ea = false ->
+    decodeInstrW wi.(lw) = CLoad dst src off ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
+    withinBounds b e ea = true ->
+    (pc_a + 1)%a = Some pc_a' ->
+    dst ≠ cnull -> src ≠ cnull ->
+    {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+        perm_resources C }}}
+      Instr Executable @[th] E
+    {{{ actual, RET NextIV;
+        ⌜load_heap raw actual⌝ ∗
+        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
+        ea ↦ₐ raw ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+        perm_resources C }}}.
+  Proof.
+    iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & Hlocal & Hperm) HΦ".
+    iPoseProof load_witness_plain_intro as "Hwit".
+    iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
+    iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
+    rewrite lload_word_RWL in Hloaded.
+    iApply "HΦ". by iFrame.
+  Qed.
+
+  (** [switcher_load_stack_restore_interp] over the local map of
+      [Wworld]. *)
+  Lemma switcher_load_stack_restore_local_interp {dq : dfrac} E Wworld Wval C opened
+    pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
+    (raw : LWord) :
+    (a + off)%a = Some ea ->
+    is_shadow_address ea = false ->
+    decodeInstrW wi.(lw) = CLoad dst src off ->
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) ->
+    withinBounds b e ea = true ->
+    (pc_a + 1)%a = Some pc_a' ->
+    dst ≠ cnull -> src ≠ cnull ->
+    {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+        perm_resources C ∗
+        interp_in_mem RWL Wval C raw }}}
+      Instr Executable @[th] E
+    {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
+        PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
+        dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
+        ea ↦ₐ raw ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+        perm_resources C ∗
+        interp Wval C actual }}}.
+  Proof.
+    iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
+      "(HPC & Hi & Hdst & Hsrc & Ha & Hlocal & Hperm & #Hnormal) HΦ".
+    iPoseProof load_witness_plain_intro as "Hwit".
+    iApply (switcher_load_stack_restore_witness with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]"); eauto.
+    iNext. iIntros (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".
+    iDestruct (interp_in_mem_load_post with "Hnormal") as "#Hactual"; first exact Hpost.
+    pose proof (load_post_plain_load_heap RWL raw actual Hpost) as Hloaded.
+    rewrite lload_word_RWL in Hloaded.
+    iApply "HΦ". by iFrame "∗#".
+  Qed.
 End Switcher_Restore_Interp.

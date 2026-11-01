@@ -74,7 +74,7 @@ Section AllocatorOtype.
   (** The registry: its invariant holds the contents of every recorded
       key. *)
   Definition allocator_otype_registry : iProp Σ :=
-    registry_inv Nallocator_otype AllocOtype (λ _, allocator_sealed_obj_resources).
+    registry_inv crit Nallocator_otype AllocOtype (λ _, allocator_sealed_obj_resources).
 
   #[global] Instance allocator_otype_registry_persistent :
     Persistent allocator_otype_registry.
@@ -111,7 +111,7 @@ Section AllocatorOtype.
     allocator_otype_registry -∗
     AllocOtype ↪ₒ{SealGlobal} allocator_otype_propC -∗
     interp Ww C w -∗
-    na_own (tpool th) F
+    na_own crit F
     ={E}=∗
     ∃ (g : Locality) (a : Addr) (id : Z) (Ω : gset AId),
       ⌜ w = lword_of_word (allocator_capability g a) ⌝ ∗
@@ -120,20 +120,20 @@ Section AllocatorOtype.
       a ↦ₐ WInt id ∗
       allocator_owner_id id Ω ∗
       allocator_owned_rights Ω ∗
-      na_own (tpool th) (F ∖ ↑Nallocator_otype) ∗
+      na_own crit (F ∖ ↑Nallocator_otype) ∗
       (∀ Ω',
         a ↦ₐ WInt id ∗
         allocator_owner_id id Ω' ∗
         allocator_owned_rights Ω' ∗
-        na_own (tpool th) (F ∖ ↑Nallocator_otype)
-        ={E}=∗ na_own (tpool th) F).
+        na_own crit (F ∖ ↑Nallocator_otype)
+        ={E}=∗ na_own crit F).
   Proof.
     iIntros (HF HE Htag Hsealed) "#Hreg #Hspred #Hinterp Hna".
     destruct w as [w π].
     destruct w as [ | | | ot sb]; try done.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = AllocOtype) as -> by solve_addr+Hsealed.
-    iMod (registry_acc Nallocator_otype AllocOtype sealed_cap_key static_word_shape
+    iMod (registry_acc crit Nallocator_otype AllocOtype sealed_cap_key static_word_shape
             (λ _, allocator_sealed_obj_resources) E F Ww C sb π
            with "Hreg Hspred Hinterp Hna")
       as (k) "(%Hkey & %Hshape & Hk & Hna & Hclose)"; [done|done|exact Htag|].

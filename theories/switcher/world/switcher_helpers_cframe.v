@@ -24,26 +24,13 @@ Section switcher_helpers_cframe.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
 
-  Lemma world_interp_close_resources_to_RevokedResources Wcur Wsrc C lfull l :
-    related_sts_pub_world Wsrc (close_list lfull Wcur) ->
-    world_interp Wcur C -∗
-    RevokedResources Wsrc C l -∗
-    world_interp Wcur C ∗
-    RevokedResources (close_list lfull Wcur) C l.
-  Proof.
-    iIntros (Hrelated) "Hworld Hres".
-    iSplitL "Hworld"; first done.
-    iApply (RevokedResources_mono_pub Wsrc (close_list lfull Wcur) C l l
-      with "Hres").
-    exact Hrelated.
-  Qed.
-
   (** Helper lemmas for switcher. The lemmas with the suffix [_aux] are
       stated on the literal layout of the spill area, at [s], below the
       cursor of the caller; the others on the stack layout of
       [call_stack.v], with the spill area at [stk_spill_a a_stk] for a
-      caller whose cursor is [a_stk]. *)
-  #[local] Lemma open_world_interp_cframe_aux
+      caller whose cursor is [a_stk]. The lemmas with the prefix [local_]
+      act on the thread's local map only. *)
+  #[local] Lemma local_open_cframe_aux
     (W : WORLD) (C : CmptName) (b_stk e_stk s s4 hi cur : Addr)
     (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
     :
@@ -58,7 +45,7 @@ Section switcher_helpers_cframe.
         cs_cs0 := wcs2;
         cs_cs1 := wcs3
            |} ccrel
-    ∗ world_interp W C
+    ∗ local_region_map th W C ∅
       -∗
     ∃ wastk wastk1 wastk2 wastk3,
       let la := (if (is_untrusted_caller ccrel) then finz.seq_between s (s ^+ SpillSlot_size) else []) in
@@ -68,15 +55,15 @@ Section switcher_helpers_cframe.
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
          else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wcgp0 ∧ wastk3 = wret)⌝)
-      ∗ world_interp_open W C (LNonHeap <$> la).
+      ∗ local_region_map th W C (open_l W (LNonHeap <$> la)).
   Proof.
-    iIntros (Hb_s He_s3 Hs4) "(#Hinterp_callee_wstk & Hcframe_interp & Hworld_interp)".
+    iIntros (Hb_s He_s3 Hs4) "(#Hinterp_callee_wstk & Hcframe_interp & Hlocal)".
     unfold SpillSlot_size in *. change (4 - 1)%Z with 3%Z in He_s3.
-
+    iEval (rewrite -(open_l_nil W) -(fmap_nil LNonHeap)) in "Hlocal".
     rewrite /cframe_stk_own /= /is_untrusted_caller_frm; cbn.
     destruct (is_untrusted_caller ccrel); cycle 1.
     * iExists wcs2, wcs3, wcgp0, wret.
-      iEval (rewrite open_world_interp_empty) in "Hworld_interp"; iFrame "Hworld_interp".
+      iFrame "Hlocal".
       rewrite /StackOpenWorldResources /StackWorldResources.
       iSplitL "Hcframe_interp"; auto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
@@ -85,10 +72,9 @@ Section switcher_helpers_cframe.
       iApply (region_pointsto_cons _ (s ^+ 3)); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
       iApply (region_pointsto_cons _ (s ^+ 4)); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
       by rewrite /region_pointsto finz_seq_between_empty.
-    * iEval (rewrite open_world_interp_empty -(fmap_nil LNonHeap)) in "Hworld_interp".
-      iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between s (s ^+4)) []
-                  with "[$Hinterp_callee_wstk $Hworld_interp]")
-        as "(Hworld_interp & Hres)"; auto.
+    * iDestruct (local_open_stack _ _ (finz.seq_between s (s ^+4)) []
+                  with "[$Hinterp_callee_wstk $Hlocal]")
+        as "(Hlocal & Hres)"; auto.
       { eapply finz_seq_between_NoDup. }
       { clear- Hb_s He_s3 Hs4; apply Forall_forall; intros a' Ha'.
         apply elem_of_finz_seq_between in Ha'; solve_addr.
@@ -99,7 +85,7 @@ Section switcher_helpers_cframe.
       cbn.
       replace ((s ^+ 1) ^+ 1) with (s ^+ 2) by solve_addr+Hs4.
       replace ((s ^+ 2) ^+ 1) with (s ^+ 3) by solve_addr+Hs4.
-      iFrame "Hworld_interp".
+      iFrame "Hlocal".
       iDestruct "Hres" as "(%lv & [Hlv Hres])".
       iDestruct (big_sepL2_length with "Hlv") as "%Hlv_len".
       destruct lv as [|w [|w0 [|w1 [|w2 [|] ] ] ] ]; try done.
@@ -115,7 +101,7 @@ Section switcher_helpers_cframe.
       done.
   Qed.
 
-  #[local] Lemma open_world_interp_callee_stack_aux (W : WORLD) (C : CmptName)
+  #[local] Lemma local_open_callee_stack_aux (W : WORLD) (C : CmptName)
     (b_stk e_stk s s4 cur : Addr) ccrel
     :
     let l_register_save_area :=
@@ -130,10 +116,11 @@ Section switcher_helpers_cframe.
     (s + SpillSlot_size)%a = Some s4 ->
 
     interp W C (Cap RWL Local b_stk (if is_untrusted_caller ccrel then e_stk else s) cur) ∗
-    world_interp_open W C (LNonHeap <$> l_register_save_area)
+    local_region_map th W C (open_l W (LNonHeap <$> l_register_save_area))
     -∗
 
-    world_interp_open W C (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area)) ∗
+    local_region_map th W C
+      (open_l W (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area))) ∗
     (∃ (lv : list LWord),
         ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
@@ -143,10 +130,10 @@ Section switcher_helpers_cframe.
     intros l_register_save_area l_callee_stack_frame;
     subst l_register_save_area l_callee_stack_frame.
     iIntros (Hb_s He_s3 Hs4)
-      "(Hinterp_callee_wstk & Hworld_interp)".
+      "(Hinterp_callee_wstk & Hlocal)".
     unfold SpillSlot_size in *. change (4 - 1)%Z with 3%Z in He_s3.
-    iDestruct (open_world_interp_opening_resources _ _ (finz.seq_between b_stk s)
-                with "[$Hinterp_callee_wstk $Hworld_interp]")
+    iDestruct (local_open_stack _ _ (finz.seq_between b_stk s)
+                with "[$Hinterp_callee_wstk $Hlocal]")
       as "($ & Hres)"; auto.
     { eapply finz_seq_between_NoDup. }
     { clear- Hb_s He_s3 Hs4; apply Forall_forall; intros a' Ha'.
@@ -168,10 +155,9 @@ Section switcher_helpers_cframe.
     }
   Qed.
 
-
-
-  (** Open the spill area of a frame whose caller's cursor is [a_stk]. *)
-  Lemma open_world_interp_cframe
+  (** Open the spill area of a frame whose caller's cursor is [a_stk], in
+      the local map. *)
+  Lemma local_open_cframe
     (W : WORLD) (C : CmptName) (b_stk e_stk a_stk : Addr)
     (wret wcgp0 wcs2 wcs3 : LWord) (ccrel : caller_callee_relation)
     :
@@ -188,7 +174,7 @@ Section switcher_helpers_cframe.
         cs_cs0 := wcs2;
         cs_cs1 := wcs3
            |} ccrel
-    ∗ world_interp W C
+    ∗ local_region_map th W C ∅
       -∗
     ∃ wastk wastk1 wastk2 wastk3,
       let la := (if (is_untrusted_caller ccrel) then finz.seq_between s (s ^+ SpillSlot_size) else []) in
@@ -198,19 +184,19 @@ Section switcher_helpers_cframe.
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
          else (wastk = wcs2 ∧ wastk1 = wcs3 ∧ wastk2 = wcgp0 ∧ wastk3 = wret)⌝)
-      ∗ world_interp_open W C (LNonHeap <$> la).
+      ∗ local_region_map th W C (open_l W (LNonHeap <$> la)).
   Proof.
     intros s Hbounds; subst s.
     destruct Hbounds as (Hb & Hb3 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
     replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
       by (by destruct (is_untrusted_caller ccrel)).
-    apply (open_world_interp_cframe_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
+    apply (local_open_cframe_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
       [done | stk_unfold; solve_addr+Hb3 Ha4 | stk_unfold; solve_addr+Ha4].
   Qed.
 
-  (** Open the callee's stack, below the spill area. *)
-  Lemma open_world_interp_callee_stack (W : WORLD) (C : CmptName) (b_stk e_stk a_stk : Addr)
+  (** Open the callee's stack, below the spill area, in the local map. *)
+  Lemma local_open_callee_stack (W : WORLD) (C : CmptName) (b_stk e_stk a_stk : Addr)
     ccrel
     :
     let s := stk_spill_a a_stk in
@@ -227,10 +213,11 @@ Section switcher_helpers_cframe.
                   (if is_untrusted_caller ccrel then b_stk else stk_callee_b b_stk a_stk)
                   (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
                   a_stk) ∗
-    world_interp_open W C (LNonHeap <$> l_register_save_area)
+    local_region_map th W C (open_l W (LNonHeap <$> l_register_save_area))
     -∗
 
-    world_interp_open W C (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area)) ∗
+    local_region_map th W C
+      (open_l W (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area))) ∗
     (∃ (lv : list LWord),
         ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
@@ -243,10 +230,9 @@ Section switcher_helpers_cframe.
     stk_unfold. change (4 - 1)%Z with 3%Z in Hb3.
     replace (if is_untrusted_caller ccrel then b_stk else b_stk) with b_stk
       by (by destruct (is_untrusted_caller ccrel)).
-    apply (open_world_interp_callee_stack_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
+    apply (local_open_callee_stack_aux W C b_stk e_stk (stk_spill_a a_stk) a_stk);
       [done | stk_unfold; solve_addr+Hb3 Ha4 | stk_unfold; solve_addr+Ha4].
   Qed.
-
 
   Definition CloseRes (Wfixed : WORLD) (C : CmptName)
     (a_stk : Addr) (l : list LAddr ) ccrel : iProp Σ :=

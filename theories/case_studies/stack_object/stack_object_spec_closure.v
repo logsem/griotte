@@ -100,6 +100,7 @@ Section SO.
     (cgp_b + length so_main_data)%a = Some cgp_e ->
     is_Some (pc_b + length (imports ++ SO_main_code_run))%a ->
     cmpt_threads C ⊆ {[th]} ->
+    cmpt_shared C = false ->
 
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
@@ -140,7 +141,7 @@ Section SO.
     intros imports a_so_exp_tbl_cgp a_so_entry_f.
     subst imports a_so_exp_tbl_cgp a_so_entry_f.
     iIntros (Hpc_switcher Hpc_shadow Hexports_shadow Hpc_nonheap Hcgp_nonheap
-               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some Hpin)
+               Hso_exp_tbl_size Hso_size_code Hso_imports Hcgp_size Hentry_some Hpin Hshared)
       "(#Hassert & #Hswitcher & #Hswitcher_static
       & #Himports_main & #Hcode_main
       & #Hso_exp_PCC
@@ -173,7 +174,7 @@ Section SO.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
       & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
-    iEval (rewrite world_resources_exclusive) in "Hworld_interp_C".
+    iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hso_exp_eh Hso_exp_ehs".
@@ -212,6 +213,7 @@ Section SO.
     { (* The checks of [in] fail: [f] is unwound *)
       iIntros (a_f Ha_f) "(Hca0 & Hca1 & Hct1 & [%wcs0' Hcs0] & [%wcs1' Hcs1] & Hcsp)".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
+      iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
                "Hthread Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame "∗ %").
@@ -232,6 +234,7 @@ Section SO.
                "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode_main]"); [done|solve_addr|].
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hca1";"Hca0";"Hcra";"Hcsp";"Hcgp"].
+      iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
       iApply (trap_safe_unwind_logrel W0 C cstk Ws Cs with
                "Hthread Hswitcher Hswitcher_static [] [-]");
         last (iModIntro; iFrame "∗ %").
@@ -369,6 +372,7 @@ Section SO.
     { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; cycle 1.
     { (* The spill of the call to [g] cannot fault: the stack holds it *)

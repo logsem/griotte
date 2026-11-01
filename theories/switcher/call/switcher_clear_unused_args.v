@@ -135,7 +135,8 @@ Section Switcher_Clear_Unused_Args.
             r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else ⌜ w = WInt 0 ⌝ ) ∗
         regs₀[th] rmap' ∗
         MIE ↦ₜ[th] posture ∗
-        held (th := th) posture -∗
+        held (th := th) posture ∗
+        £ 1 -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
@@ -145,7 +146,7 @@ Section Switcher_Clear_Unused_Args.
     iAssert switcher_code as "Hswitcher_skip"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_load_zero_arguments_start" "Hswitcher" as "Hcode" a_zero Ha_zero.
     (* Auipcc cs0 .Lswitch_zero_arguments_start *)
-    iInstr "Hcode".
+    iInstr "Hcode" with "Hlc".
     (* LAnd ct2 ctp 7 *)
     iInstr "Hcode".
     rewrite entry_point_flags_nargs; last lia.

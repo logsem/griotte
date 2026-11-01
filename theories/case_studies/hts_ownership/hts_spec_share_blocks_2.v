@@ -60,7 +60,7 @@ Section HTS_Spec_Share.
       HsubBounds Himports_contiguous) "(#Hthread & #Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
-       & #Hadv & #Hentry)".
+       & #Hadv & #Hentry & %Hshared)".
     iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 5: return when malloc returned an integer. *)
       iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcs0 & [%wcra Hcra]
@@ -274,6 +274,7 @@ Section HTS_Spec_Share.
     { destruct mie_ret; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

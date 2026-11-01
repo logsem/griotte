@@ -86,6 +86,8 @@ Section CMDC.
     revoked_addresses W_init_B (finz.seq_between csp_b csp_e) ->
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
     route_pre th b ->
+    cmpt_shared B = false ->
+    cmpt_shared C = false ->
 
     (
       assert_static b_assert e_assert a_flag
@@ -152,7 +154,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
-               Hrevoked_stack_B Hrevoked_stack_C Hroute)
+               Hrevoked_stack_B Hrevoked_stack_C Hroute Hshared_B Hshared_C)
       "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
@@ -224,6 +226,7 @@ Section CMDC.
     { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared_B. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
@@ -313,6 +316,7 @@ Section CMDC.
     { by rewrite /= ?jalr_target_ok_ret_kind. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared_C. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
@@ -401,6 +405,8 @@ Section CMDC.
     revoked_addresses W_init_B (finz.seq_between csp_b csp_e) ->
     revoked_addresses W_init_C (finz.seq_between csp_b csp_e) ->
     route_pre th b ->
+    cmpt_shared B = false ->
+    cmpt_shared C = false ->
 
     (
       assert_static b_assert e_assert a_flag
@@ -448,7 +454,7 @@ Section CMDC.
                Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_c
                HB_f_nonheap HC_g_nonheap
-               Hrevoked_stack_B Hrevoked_stack_C Hroute)
+               Hrevoked_stack_B Hrevoked_stack_C Hroute Hshared_B Hshared_C)
       "(#Hassert & #Hthread_B & #Hthread_C & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk

@@ -178,9 +178,20 @@ Section AllocatorService.
     ∃ next : Addr, allocator_service_data next.
 
   Definition allocator_service_ctx : iProp Σ :=
-    na_inv (tpool th) Nallocator_service allocator_service_inv.
+    na_inv crit Nallocator_service allocator_service_inv.
 
 End AllocatorService.
+
+Section AllocatorServiceThread.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}
+    {MP : MachineParameters} {layout : allocatorLayout}.
+
+  (** The read-only memory of the service does not depend on the thread. *)
+  Lemma allocator_service_static_thread_indep (t t' : Thread) :
+    allocator_service_static (th := t) ⊣⊢ allocator_service_static (th := t').
+  Proof. by rewrite /allocator_service_static (codefrag_pers_thread_indep t t'). Qed.
+
+End AllocatorServiceThread.
 
 Section AllocatorServiceInitialization.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}

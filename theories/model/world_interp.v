@@ -60,6 +60,13 @@ Section open_keys.
     intros Hk. apply set_eq. intros k'.
     rewrite elem_of_union elem_of_singleton !elem_of_open_l. set_unfold. naive_solver.
   Qed.
+  Lemma open_l_cons_T W l k :
+    std W !! k = Some Temporary → open_l W (k :: l) = {[k]} ∪ open_l W l.
+  Proof.
+    intros Hk. apply set_eq. intros k'.
+    rewrite elem_of_union elem_of_singleton !elem_of_open_l elem_of_cons.
+    naive_solver.
+  Qed.
   Lemma open_perm_add_T W l k :
     std W !! k = Some Temporary → open_perm W ({[k]} ∪ l) = open_perm W l.
   Proof.
@@ -83,6 +90,26 @@ Section open_keys.
   Proof. rewrite elem_of_open_l. tauto. Qed.
   Lemma not_elem_of_open_perm W l k : k ∉ l → k ∉ open_perm W l.
   Proof. rewrite elem_of_open_perm. tauto. Qed.
+
+  (** Temporary keys are open in the local map only. *)
+  Lemma open_perm_temporary W l :
+    Forall (λ k, std W !! k = Some Temporary) l → open_perm W l = ∅.
+  Proof.
+    intros Hl. apply set_eq. intros k. rewrite elem_of_open_perm. split; [|set_solver].
+    intros [Hk HnT]. rewrite Forall_forall in Hl. by apply Hl in Hk.
+  Qed.
+
+  (** Temporary cells are open in the local map only. *)
+  Lemma open_perm_app_temporary W (la la' : list Addr) :
+    Forall (λ a', std W !! LNonHeap a' = Some Temporary) la →
+    open_perm W (LNonHeap <$> (la ++ la')) = open_perm W (LNonHeap <$> la').
+  Proof.
+    intros Hla. apply set_eq. intros k.
+    rewrite !elem_of_open_perm fmap_app elem_of_app.
+    split; [|naive_solver]. intros [ [Hk|Hk] HnT]; [|done].
+    exfalso. apply list_elem_of_fmap in Hk as (x & -> & Hx).
+    rewrite Forall_forall in Hla. by apply HnT, Hla.
+  Qed.
 
 End open_keys.
 

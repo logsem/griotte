@@ -35,7 +35,7 @@ Section hts_obligations.
     fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
     apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -182,7 +182,7 @@ Section hts_obligations.
             AllocOtype ∅ (LNonHeap adv_owner_a) B with "Hreg_auth")
       as "[Hreg_auth #Hel_adv]"; first done.
     iMod (registry_alloc (th := UserThread 0) (seal_registryg := seal_registryg)
-            Nallocator_otype AllocOtype
+            crit Nallocator_otype AllocOtype
             (λ _, allocator_sealed_obj_resources (th := UserThread 0)) _ _
            with "Hreg_auth [Hadv_owner Hid_adv]") as "#Hreg".
     { iApply bi.later_intro.
@@ -208,11 +208,11 @@ Section hts_obligations.
         apply (cmpt_exp_tbl_disjoint_from_heap alloc_cmpt). }
     { iModIntro. iSplit; last iSplit; last done.
       - iApply (malloc_entry_point_spec Global _ B);
-          [exact Halloc_switcher | exact (Hpin B) |].
-        iFrame "Hswitcher_static #".
+          [exact Halloc_switcher | exact (Hshared B) |].
+        iFrame "#".
       - iApply (free_entry_point_spec Global _ B);
-          [exact Halloc_switcher | exact (Hpin B) |].
-        iFrame "Hswitcher_static #". }
+          [exact Halloc_switcher | exact (Hshared B) |].
+        iFrame "#". }
 
     (* 10 - The allocator capability of B, sealed with the allocator's
        otype, is a safe import *)

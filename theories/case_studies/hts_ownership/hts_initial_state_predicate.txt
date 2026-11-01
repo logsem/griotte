@@ -35,9 +35,9 @@ hts_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   cmpt_exp_tbl_handler allocator           = WInt ExportTable_no_handler  -- no error handler
   cmpt_exp_tbl_handler_stackless allocator = WInt ExportTable_no_handler
   cmpt_exp_tbl_entries allocator =
-      [0]  entry InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack allocator_malloc_pcc_off
+      [0]  entry InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack allocator_malloc_pcc_off
                                                                           -- export malloc
-      [1]  entry InterruptEnabled allocator_free_nargs allocator_free_min_stack allocator_free_pcc_off
+      [1]  entry InterruptDisabled allocator_free_nargs allocator_free_min_stack allocator_free_pcc_off
                                                                           -- export free
 ── B (untrusted, B) ────────────────────────────────────────────────────────
   cmpt_imports B =

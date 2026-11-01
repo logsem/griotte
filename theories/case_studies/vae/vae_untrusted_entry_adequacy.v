@@ -30,11 +30,13 @@ Section vae_untrusted_entry_obligations.
     fw_obligations Σ vae_untrusted_entry_firmware.
   Proof.
     pose (cthreads := {| cmpt_threads := λ _, {[UserThread 0]};
+                         cmpt_shared := λ _, false;
                          cmpt_threads_sep := ltac:(intros; set_solver) |} : CmptThreads).
     assert (Hpin : ∀ C', cmpt_threads C' ⊆ {[UserThread 0]}) by (intros; reflexivity).
+    assert (Hshared : ∀ C', cmpt_shared C' = false) by (intros; reflexivity).
     assert (Hin : ∀ C', UserThread 0 ∈ cmpt_threads C') by (intros; rewrite /cthreads /=; set_solver).
     apply (fw_obligations_of_untrusted Σ (cthreads := cthreads));
-      [exact I | intros C'; reflexivity |].
+      [exact I | intros C'; reflexivity | intros C'; reflexivity |].
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)

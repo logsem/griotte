@@ -212,7 +212,6 @@ Section logrel_pre.
       interp_reg interp W C regs ∗
       top_cmpt_untrusted interp W C cstk ∗
       world_resources W C ∗
-      shared_credit C ∗
       thread_in th C ∗
       interp_cont cstk Ws Cs.
 
@@ -496,9 +495,11 @@ Section logrel_expr.
         and therefore stored in the region invariant.
         When the caller is trusted, they are not shared with the callee,
         and therefore _not_ stored in the region invariant.
-      - The region invariant is returned, but open to have the points-to of the stack region out.
-      - Because the region invariant is open, we need to give the user a way to close the region invariant.
-        That's the role of the resources [closing_resources interp W C a v].
+      - The local map is returned, but open to have the points-to of the stack region out,
+        together with the part of the world premise that holds the map of
+        Permanent regions, [perm_resources C].
+      - Because the local map is open on the stack region,
+        [StackOpenWorldResources] gives the user what it needs to close it.
       - Finally, we have the [interp_cont] of the (depoped) stack frame (we don't see it in this def,
         but we see it in the definition of [interp_cont] later),
         and the fragmental view of the call-stack [cstk].
@@ -552,8 +553,10 @@ Section logrel_expr.
          (* points-to predicate of the stack region *)
          ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
          ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
-         (* World interpretation *)
-         ∗ world_interp_open W C (LNonHeap <$> shared_stk_region)
+         (* The local map, open on the shared stack region, and the part of
+            the world premise that holds the map of Permanent regions *)
+         ∗ local_region_map th W C (open_l W (LNonHeap <$> shared_stk_region))
+         ∗ perm_resources C
          (* Bookkeeping resources for the opened world *)
          ∗ StackOpenWorldResources interp W C shared_stk_region callee_stk_mem
          (* Continuation *)

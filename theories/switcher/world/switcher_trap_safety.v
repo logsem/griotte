@@ -132,7 +132,7 @@ Section Switcher_trap_safety.
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
-    world_interp W C -∗
+    world_resources W C -∗
     interp_continuation cstk Ws Cs -∗
     unwind_cont ⊤ cstk True.
   Proof.
@@ -279,7 +279,7 @@ Section Switcher_trap_safety.
       ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)) -∗
     (|={⊤}=>
        registers_pointsto rmap ∗
-       world_interp W C ∗
+       world_resources W C ∗
        interp_cont interp cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
@@ -288,11 +288,11 @@ Section Switcher_trap_safety.
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hthread #Hsafety Hcase Hres".
     iApply (trap_safe_unwind_of_safety with "Hsafety"); [done |].
-    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk & Hposture)".
+    iMod "Hres" as "(Hrmap & Hworld_res & Hcont & Hna & Hcstk & Hposture)".
     iModIntro. iFrame "Hrmap Hna Hcstk Hposture". iRight.
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iNamed "Hsafety".
-    iPoseProof (logrel_unwind_cont_gen with "Hthread Hinv_switcher Hstatic Htrap Hworld_interp Hcont")
+    iPoseProof (logrel_unwind_cont_gen with "Hthread Hinv_switcher Hstatic Htrap Hworld_res Hcont")
       as "HU"; [done |].
     iDestruct "Hcase" as "[%Hpc | [Hnh %Hset] ]".
     - by iApply (trap_handler_ok_switcher with "HU").

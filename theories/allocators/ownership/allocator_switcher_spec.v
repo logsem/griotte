@@ -65,7 +65,7 @@ Section AllocatorSwitcherSpec.
       (allocator_malloc_result S a_owner id Ω n) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_malloc_nargs allocator_malloc_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_malloc_pcc_off InterruptEnabled
+      allocator_malloc_pcc_off InterruptDisabled
       (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
          (allocator_exp_tbl_b ^+ allocator_malloc_exp_tbl_off)).
   Proof.
@@ -73,7 +73,7 @@ Section AllocatorSwitcherSpec.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hposture & (Hid & Ha_owner) & Hpost)".
+        & Hargs & Hrmap & Hstk & Hcstk & %_ & Hmie & Hposture & (Hid & Ha_owner) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
       ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -88,14 +88,16 @@ Section AllocatorSwitcherSpec.
     iDestruct "Hctp" as "[Hctp %Hctp]".
     iDestruct "Hcnull" as "[Hcnull %Hcnull]".
     simplify_eq.
-    iApply (allocator_malloc_valid_correct S ⊤ ⊤ g_owner a_owner id Ω n None _ InterruptEnabled
-      with "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $HPC $Hcgp $Hcra $Hmie $Hposture
+    iDestruct (held_crit with "Hposture") as "[Hcrit Hheld_back]".
+    iApply (allocator_malloc_valid_correct S ⊤ ⊤ g_owner a_owner id Ω n None _ InterruptDisabled
+      with "[- $Hservice $Hstatic $Hcrit $Hid $Ha_owner $HPC $Hcgp $Hcra $Hmie
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hn
-      | apply jalr_target_ok_switcher_return_sentry | exact Hroute |].
+      | apply jalr_target_ok_switcher_return_sentry | reflexivity |].
     iNext.
-    iIntros "(Hna & Ha_owner & HPC & Hcgp & Hcra & Hmie & Hposture & Hca2 & Hct0 & Hct1 & Hct2
+    iIntros "(Hcrit & Ha_owner & HPC & Hcgp & Hcra & Hmie & Hca2 & Hct0 & Hct1 & Hct2
       & Hct3 & Hct4 & Hctp & Hres)".
+    iDestruct ("Hheld_back" with "Hcrit") as "Hposture".
     iEval (cbn) in "HPC".
     iExtractList "Hrmap" [cs0;cs1] as
       ["[Hcs0 %Hcs0]";"[Hcs1 %Hcs1]"].
@@ -170,7 +172,7 @@ Section AllocatorSwitcherSpec.
       (allocator_free_result a_owner id Ω ι) wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk arg_rmap cstk allocator_free_nargs allocator_free_min_stack ⊤
       allocator_pcc_b allocator_pcc_e allocator_cgp_b allocator_cgp_e
-      allocator_free_pcc_off InterruptEnabled
+      allocator_free_pcc_off InterruptDisabled
       (Cap RO Global allocator_exp_tbl_b allocator_exp_tbl_e
          (allocator_exp_tbl_b ^+ allocator_free_exp_tbl_off))%I.
   Proof.
@@ -179,7 +181,7 @@ Section AllocatorSwitcherSpec.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(_ & %Hargdom & %Hrmapdom & Hna & HPC & Hcgp & Hcra & Hcsp
-        & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hposture
+        & Hargs & Hrmap & Hstk & Hcstk & %_ & Hmie & Hposture
         & (Hid & %HιΩ & Ha_owner & #Hobj & Hheld & Hmem) & Hpost)".
     iEval (cbn) in "HPC".
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0] as
@@ -214,14 +216,15 @@ Section AllocatorSwitcherSpec.
       [solve_ndisj|solve_ndisj|].
     iMod (trusted_stack_inv_open with "Hsw") as (a_tstk cstk' tstk_next) "Hsw".
     iNamed "Hsw".
-    iApply (allocator_free_valid_correct ⊤ (⊤ ∖ ↑Ntstack) g_owner a_owner id Ω p g ι b e a ws
-      _ (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rframe InterruptEnabled with
-      "[- $Hservice $Hstatic $Hna $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra $Hmie $Hposture
+    iDestruct (held_crit with "Hposture") as "[Hcrit Hheld_back]".
+    iApply (allocator_free_valid_correct ⊤ ⊤ g_owner a_owner id Ω p g ι b e a ws
+      _ (Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack) rframe InterruptDisabled with
+      "[- $Hservice $Hstatic $Hcrit $Hid $Ha_owner $Hobj $Hheld $HPC $Hcgp $Hcra $Hmie
        $Hca0 $Hca1 $Hca2 $Hct0 $Hct1 $Hct2 $Hca3 $Hca4 $Hctp $Hframe $Hmtdc $Hmem]");
       [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact HιΩ
       | exact Hbounds | exact Hlen | | | intros _; reflexivity
       | intros vm [g_tstk ->] _; done | apply jalr_target_ok_switcher_return_sentry
-      | exact Hroute |].
+      | reflexivity |].
     { subst rframe rmap0. rewrite !dom_insert_L !dom_delete_L Hrmapdom
         /dom_arg_rmap /=. set_solver+. }
     { intros r w Hr _. subst rframe.
@@ -230,8 +233,9 @@ Section AllocatorSwitcherSpec.
         try done.
       by rewrite (Hzero _ _ Hr). }
     iNext.
-    iIntros "(Hna & Hid & Ha_owner & HPC & Hcgp & Hcra & Hmie & Hposture & Hca0 & Hca1
+    iIntros "(Hcrit & Hid & Ha_owner & HPC & Hcgp & Hcra & Hmie & Hca0 & Hca1
       & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hframe & Hmtdc & #Hq & _)".
+    iDestruct ("Hheld_back" with "Hcrit") as "Hposture".
     iMod ("Hsw_close" with "[$Hna Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID
       Htstk Hcstk_full Hstk_interp]") as "Hna".
     { iNext. iExists a_tstk, cstk', tstk_next. by iFrame "∗ %". }

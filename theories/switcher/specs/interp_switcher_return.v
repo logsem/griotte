@@ -113,7 +113,7 @@ Section fundamental.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
-    world_interp W C ∗
+    world_resources W C ∗
     interp_cont interp cstk Ws Cs ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk ∗
@@ -126,17 +126,18 @@ Section fundamental.
        - when the frame to pop is the entry frame, the thread exits:
          [switcher_return_exit_path_spec], [switcher_return_exit_close];
        - otherwise, [switcher_return_path_world_spec]: pop the trusted
-         stack; obtain the caller's stack frame ([open_world_interp_cframe],
-         [open_world_interp_callee_stack]); restore the callee-save
+         stack; obtain the caller's stack frame in the local map
+         ([local_open_cframe], [local_open_callee_stack]); restore the callee-save
          registers, clear the stack frame and the registers, and jump to the
          caller;
        - close the trusted-stack invariant ([switcher_return_pop_close]);
        - when the caller is trusted, use the continuation relation;
-       - when the caller is untrusted, close the world and
+       - when the caller is untrusted, close the local map and
          [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
       "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hthread & #Hinv_switcher & #[Hcode _] & #Htrap
-        & Hworld_interp & Hcont_K & Hna & Hcstk & Hmie & Hheld)".
+        & Hworld_res & Hcont_K & Hna & Hcstk & Hmie & Hheld)".
+    iDestruct (world_resources_split with "Hworld_res") as "[Hlocal Hperm]".
     iDestruct (ret_regs_extract_full with "Hrmap")
       as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
           & %rmap0 & %Hrmap0 & Hrmap)"; [done|done|done|].
@@ -208,10 +209,10 @@ Section fundamental.
     iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)
-    iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
+    iDestruct (local_open_cframe with "[$Hcframe_interp $Hlocal]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
-          & Hclose_res & %Hwastks & Hworld_interp)";
+          & Hclose_res & %Hwastks & Hlocal)";
     eauto.
     rewrite -/(interp_cont).
     iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
@@ -242,15 +243,15 @@ Section fundamental.
       iDestruct (StackWorldResource_interp_in_mem with "Hsave0") as "$". }
     iDestruct (switcher_stk_cells_region_4 with "Hstk'") as "Hcells";
       first (stk_unfold; solve_addr+Ha4).
-    iDestruct (open_world_interp_callee_stack
-                with "[$Hinterp_callee_wstk $Hworld_interp]")
-      as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
+    iDestruct (local_open_callee_stack
+                with "[$Hinterp_callee_wstk $Hlocal]")
+      as "(Hlocal & (%lv & Hstk & Hres))"; eauto.
     iModIntro.
     iExists _, wastk, wastk1, wastk2, wastk3, lv.
-    iFrame "Hcells Hstk Hworld_interp Hnormal".
+    iFrame "Hcells Hstk Hlocal Hperm Hnormal".
     iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
-      "(%Hloaded & Hworld_interp & Hinterp_loaded & %Harg_rmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
-      & Hstk_register_save & Hstk & Hrmap & _)".
+      "(%Hloaded & Hlocal & Hperm & Hinterp_loaded & %Harg_rmap' & Hcra & Hcgp & Hcs0 & Hcs1
+      & Hcsp & Hstk_register_save & Hstk & Hrmap & [Hlc_ret _])".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
 
     (* Depop the topmost frame of the call-stack and close the switcher's
@@ -275,7 +276,7 @@ Section fundamental.
     destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
       destruct Hwastks as (-> & -> & -> & ->).
-      iEval (rewrite app_nil_r) in "Hworld_interp".
+      iEval (rewrite app_nil_r) in "Hlocal".
 
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
@@ -296,17 +297,17 @@ Section fundamental.
       iSpecialize ("Htopmost_frm" $! _ _ _ _ _ _ _ _ _ b).
       iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread
+      $Hrmap $Hstk_register_save $Hstk $Hlocal $Hperm $Hres $Hcont_K $Hcstk_frag $Hna $Hthread
       $Hmie $Hheld]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iSplit; last (iPureIntro; apply Hpre).
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
-    - (* Case where caller is untrusted, we close the world and jump to the
-         return address *)
+    - (* Case where caller is untrusted, we close the local map and jump to
+         the return address *)
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
-      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk $Hres]") as "Hworld_interp".
+      iDestruct (local_close_stack with "[$Hlocal $Hstk $Hres]") as "Hlocal".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha4 Hs4.
         intros a Ha Ha'.
@@ -325,12 +326,12 @@ Section fundamental.
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
-      iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)))) in "Hworld_interp".
-      iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
+      iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)))) in "Hlocal".
+      iDestruct (local_close_stack with "[$Hlocal $Hstk_register_save $Hclose_res]") as "Hlocal".
       { apply finz_seq_between_NoDup. }
       { set_solver. }
       { subst lv'; by rewrite /region_addrs_zeroes length_replicate finz_seq_between_length. }
-      rewrite fmap_nil -open_world_interp_empty.
+      rewrite fmap_nil open_l_nil.
 
       rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
       (* The untrusted caller recorded that its topmost compartment is
@@ -339,9 +340,9 @@ Section fundamental.
       iApply (switcher_jump_to_caller_cases_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ b with
                "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 Htop_caller Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
-                Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|apply Hpre|apply Hpre|].
+                Hrmap Hcont_K Hlc_ret [Hupd Hlocal Hperm]"); [done|done|apply Hpre|apply Hpre|].
       iMod "Hupd" as "[Hna Hcstk_frag]".
-      by iFrame.
+      iModIntro. rewrite world_resources_split. by iFrame.
   Qed.
 
 End fundamental.

@@ -514,6 +514,15 @@ Section codefrag.
 
 End codefrag.
 
+Section codefrag_thread.
+  Context {Σ:gFunctors} {ceriseb:ceriseBaseG Σ}.
+
+  (** Persistent code does not depend on the thread. *)
+  Lemma codefrag_pers_thread_indep (t t' : Thread) (a0 : Addr) (cs : list Word) :
+    @codefrag_pers Σ (ceriseG_of t) a0 cs ⊣⊢ @codefrag_pers Σ (ceriseG_of t') a0 cs.
+  Proof. by rewrite !codefrag_pers_unseal. Qed.
+End codefrag_thread.
+
 Section region_addrs_zeroes.
 
   Definition region_addrs_zeroes (b e : Addr) : list LWord :=

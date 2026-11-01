@@ -29,7 +29,7 @@ Section lse_obligations.
     fw_obligations Σ lse_firmware.
   Proof.
     apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.

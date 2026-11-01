@@ -179,6 +179,7 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖
         ({[ cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
+    cmpt_shared C = false ->
     thread_in th C
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
@@ -239,7 +240,7 @@ Section KVS_Main_Blocks.
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap Hshared)
       "(#Hthread & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
@@ -254,7 +255,8 @@ Section KVS_Main_Blocks.
        $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget $Hmie $Hheld Hargs Hpost]");
       [exact Hstk_shadow | exact Hstk_heap | exact Hb_a | exact Hrmap
-      | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap |].
+      | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap
+      | exact Hshared |].
     iSplitR; first iExact "Hentry".
     iSplitL "Hargs".
     { iApply (big_sepM_impl with "Hargs").

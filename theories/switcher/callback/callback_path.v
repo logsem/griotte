@@ -223,7 +223,8 @@ Section Callback_Path.
         ∃ opened (wcs0' wcs1' wcgp' wcra' : LWord) (stk_mem : list LWord),
         switcher_stk_cells (stk_spill_a a) wcs0' wcs1' wcgp' wcra' ∗
         [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
-        world_interp_open Wworld C opened ∗
+        local_region_map th Wworld C (open_l Wworld opened) ∗
+        perm_resources C ∗
         (if is_untrusted_caller ccrel then
            interp_in_mem RWL Wval C wcgp' ∗
            interp_in_mem RWL Wval C wcra' ∗
@@ -233,7 +234,8 @@ Section Callback_Path.
         ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs1 rcs0,
           ⌜ load_heap wcgp' rcgp ∧ load_heap wcra' rcra ∧
             load_heap wcs1' rcs1 ∧ load_heap wcs0' rcs0 ⌝ ∗
-          world_interp_open Wworld C opened ∗
+          local_region_map th Wworld C (open_l Wworld opened) ∗
+          perm_resources C ∗
           (if is_untrusted_caller ccrel then
              interp Wval C rcgp ∗
              interp Wval C rcra ∗
@@ -286,15 +288,15 @@ Section Callback_Path.
                     & Hlc)".
     (* The logical step: the spill area, the callee's stack, the open world *)
     iMod ("Hmid" with "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hlc]")
-      as (opened wcs0' wcs1' wcgp' wcra' stk_mem) "(Hcells & Hstk & Hworld & Hmem & Hpost)".
+      as (opened wcs0' wcs1' wcgp' wcra' stk_mem) "(Hcells & Hstk & Hlocal & Hperm & Hmem & Hpost)".
     (* [.Lswitch_callee_save_restore]: restore the callee-save registers *)
     rewrite /stk_saved_a -/(stk_spill_a a).
     iApply (switcher_restore_spill_world_spec Wworld Wval C opened ccrel with
-      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hworld $Hmem
+      "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hcsp $Hcells $Hlocal $Hperm $Hmem
         $Hswitcher]");
       [done|done|done|clear -Hba3; stk_unfold; solve_addr|].
     iNext; iIntros (rcgp rcra rcs1 rcs0 Hrestored)
-      "(Hworld & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlc)".
+      "(Hlocal & Hperm & Hinterps & HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hcsp & Hcells & Hlc)".
     iEval (rewrite Hspill_top) in "Hcsp".
     (* [.Lswitch_callee_stack_zero]: clear the frame and the registers,
        and return *)
@@ -303,7 +305,7 @@ Section Callback_Path.
         $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
-      "[$Hworld $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap $Hlc]").
+      "[$Hlocal $Hperm $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap $Hlc]").
     iPureIntro; split; done.
   Qed.
 

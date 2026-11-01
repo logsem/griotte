@@ -76,6 +76,7 @@ Section DROE.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W_init_C C ->
     route_pre th b ->
+    cmpt_shared C = false ->
     (
       assert_static b_assert e_assert a_flag
       ∗ thread_in th C
@@ -123,7 +124,7 @@ Section DROE.
     iIntros (Hpc_shadow Hpc_nonheap Hcgp_shadow Hcgp_range Hcs1_nonheap
                Hrmap_dom Hrmap_init HsubBounds
                Hcgp_contiguous Himports_contiguous Hstk_min Hcgp_b Hcgp_a Hsealed_nonheap Hframe_match
-               Hroute
+               Hroute Hshared
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
@@ -199,6 +200,7 @@ Section DROE.
     { destruct b; reflexivity. }
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
+    { exact Hshared. }
     iSplit; first done.
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)

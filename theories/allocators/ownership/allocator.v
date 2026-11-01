@@ -339,9 +339,9 @@ Section Allocator.
   Proof. reflexivity. Qed.
 
   Definition allocator_export_table_entries : list Word :=
-    [WInt (encode_entry_point InterruptEnabled allocator_malloc_nargs allocator_malloc_min_stack
+    [WInt (encode_entry_point InterruptDisabled allocator_malloc_nargs allocator_malloc_min_stack
              allocator_malloc_pcc_off);
-     WInt (encode_entry_point InterruptEnabled allocator_free_nargs allocator_free_min_stack
+     WInt (encode_entry_point InterruptDisabled allocator_free_nargs allocator_free_min_stack
              allocator_free_pcc_off)].
 
   (** This executable implementation uses affine translation, without

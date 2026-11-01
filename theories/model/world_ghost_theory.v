@@ -90,6 +90,15 @@ Section world_ghost_theory.
     world_interp W C ⊣⊢ world_interp_open W C [].
   Proof. by rewrite world_interp_eq world_interp_open_eq open_perm_nil open_l_nil. Qed.
 
+  (** A world open on Temporary keys only is the closed map of Permanent
+      regions beside the local map open on those keys. *)
+  Lemma world_interp_open_temporary_split W C s :
+    Forall (λ k, std W !! k = Some Temporary) s →
+    world_interp_open W C s ⊣⊢
+    perm_region_map C ∅ ∗
+    local_region_map th W C (open_l W s).
+  Proof. intros Hs. by rewrite world_interp_open_eq open_perm_temporary. Qed.
+
   Lemma open_world_interp_temporary (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
     a ∉ s ->
     (std W) !! a = Some Temporary ->
@@ -358,6 +367,24 @@ Section world_ghost_theory.
 
   (* Revocation of the world *)
 
+  (** Revocation of the local map. *)
+  Lemma local_revoke W C s :
+    extract_temporaries_condition W s ->
+    local_region_map th W C ∅
+    ==∗
+    local_region_map th (revoke W) C ∅ ∗
+    ▷ RevokedResources W C s ∗
+    ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) s⌝.
+  Proof.
+    intros Hext. pose proof (extract_temporaries_condition_revoke _ _ Hext) as Hrev.
+    destruct Hext as [Hnodup HaS].
+    iIntros "Hl".
+    iDestruct (l_revoke th W C ∅ (list_to_set s) with "Hl") as "[$ HR]".
+    { intros k. rewrite elem_of_list_to_set HaS. set_solver. }
+    iModIntro. iSplitL; [|done]. iNext.
+    rewrite /RevokedResources RevokedRes_list //.
+  Qed.
+
   Lemma world_interp_revoke W C s :
     extract_temporaries_condition W s ->
     world_interp W C
@@ -366,14 +393,23 @@ Section world_ghost_theory.
     ▷ RevokedResources W C s ∗
     ⌜Forall (λ a, std (revoke W) !! a = Some Revoked) s⌝.
   Proof.
-    intros Hext. pose proof (extract_temporaries_condition_revoke _ _ Hext) as Hrev.
-    destruct Hext as [Hnodup HaS].
-    rewrite !world_interp_eq.
-    iIntros "[$ Hl]".
-    iDestruct (l_revoke th W C ∅ (list_to_set s) with "Hl") as "[$ HR]".
-    { intros k. rewrite elem_of_list_to_set HaS. set_solver. }
-    iModIntro. iSplitL; [|done]. iNext.
-    rewrite /RevokedResources RevokedRes_list //.
+    intros Hext. rewrite !world_interp_eq.
+    iIntros "[$ Hl]". by iApply local_revoke.
+  Qed.
+
+  Lemma local_restore W C l :
+    local_region_map th W C ∅ ∗
+    RevokedResources (close_list l W) C l
+    ==∗
+    local_region_map th (close_list l W) C ∅.
+  Proof.
+    iIntros "(Hl & HR)".
+    rewrite /RevokedResources.
+    iDestruct (RevokedRes_list_sub with "HR") as "HR".
+    rewrite close_list_close_set close_set_dom.
+    iDestruct (RevokedRes_subseteq _ _ _ _ (list_to_set l ∩ dom (std W) ∖ ∅) with "HR") as "HR";
+      [set_solver|].
+    iModIntro. iApply (l_restore_open with "Hl HR"). set_solver.
   Qed.
 
   Lemma world_interp_restore W C l :
@@ -383,13 +419,24 @@ Section world_ghost_theory.
     world_interp (close_list l W) C.
   Proof.
     rewrite !world_interp_eq.
-    iIntros "([$ Hl] & HR)".
+    iIntros "([$ Hl] & HR)". iApply (local_restore with "[$Hl $HR]").
+  Qed.
+
+  (* Restoration of the local map, after revocation. *)
+  Lemma local_restore_world (W W' : WORLD) (C : CmptName) (s : list LAddr) :
+    related_sts_pub_world W (reinstate W' s) →
+    local_region_map th W' C ∅ -∗
+    RevokedResources W C s
+    ==∗
+    local_region_map th (reinstate W' s) C ∅.
+  Proof.
+    rewrite /reinstate close_list_close_set close_set_dom.
+    iIntros (Hpub) "Hl HR".
     rewrite /RevokedResources.
     iDestruct (RevokedRes_list_sub with "HR") as "HR".
-    rewrite close_list_close_set close_set_dom.
-    iDestruct (RevokedRes_subseteq _ _ _ _ (list_to_set l ∩ dom (std W) ∖ ∅) with "HR") as "HR";
+    iDestruct (RevokedRes_subseteq _ _ _ _ (list_to_set s ∩ dom (std W') ∖ ∅) with "HR") as "HR";
       [set_solver|].
-    iModIntro. iApply (l_restore_open with "Hl HR"). set_solver.
+    iModIntro. iApply (l_restore_from with "Hl HR"); [set_solver|done].
   Qed.
 
   (* Restoration of the world, after revocation. *)
@@ -400,14 +447,8 @@ Section world_ghost_theory.
     ==∗
     world_interp (reinstate W' s) C.
   Proof.
-    rewrite /reinstate close_list_close_set close_set_dom.
     rewrite !world_interp_eq.
-    iIntros (Hpub) "[$ Hl] HR".
-    rewrite /RevokedResources.
-    iDestruct (RevokedRes_list_sub with "HR") as "HR".
-    iDestruct (RevokedRes_subseteq _ _ _ _ (list_to_set s ∩ dom (std W') ∖ ∅) with "HR") as "HR";
-      [set_solver|].
-    iModIntro. iApply (l_restore_from with "Hl HR"); [set_solver|done].
+    iIntros (Hpub) "[$ Hl] HR". by iApply (local_restore_world with "Hl HR").
   Qed.
 
   (** ** Revocation by separation.
@@ -419,6 +460,34 @@ Section world_ghost_theory.
 
       This is an argument by separation.
    *)
+
+  Lemma local_revoked_by_separation
+    (W : WORLD) (C' : CmptName)
+    (k : LAddr) (w : LWord) (q : Qp) :
+    k ∈ dom (std W) →
+    heap_key_live_share k q
+    ∗ local_region_map th W C' ∅
+    ∗ laddr_addr k ↦ₐ w
+    ==∗
+    heap_key_live_share k q
+    ∗ local_region_map th W C' ∅
+    ∗ laddr_addr k ↦ₐ w
+    ∗ ⌜ std W !! k = Some Revoked ⌝
+  .
+  Proof.
+    iIntros ([ρ Hρ]%elem_of_dom_std) "(Hshare & Hw & Ha)".
+    destruct ρ; [|by iFrame].
+    iExFalso.
+    iDestruct "Hw" as "(%M & Hw)". iNamed "Hw".
+    assert (is_Some (M !! k)) as [ [γp p] HM].
+    { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
+    iDestruct "Hm" as "(_ & _ & Hb)".
+    iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HM|].
+    iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l Hρ /temp_res.
+    iDestruct (heap_key_resource_live_share with "Hshare Hb") as "[(%v & _ & Hv & _) _]".
+    rewrite key_pointsto_eq. iDestruct "Hv" as "[Hv _]".
+    iApply (addr_dupl_false with "Ha Hv").
+  Qed.
 
   Lemma world_interp_revoked_by_separation
     (W : WORLD) (C' : CmptName)
@@ -434,18 +503,31 @@ Section world_ghost_theory.
     ∗ ⌜ std W !! k = Some Revoked ⌝
   .
   Proof.
-    iIntros ([ρ Hρ]%elem_of_dom_std) "(Hshare & Hw & Ha)".
-    destruct ρ; [|by iFrame].
-    iExFalso. rewrite world_interp_eq.
-    iDestruct "Hw" as "[_ (%M & Hw)]". iNamed "Hw".
-    assert (is_Some (M !! k)) as [ [γp p] HM].
-    { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
-    iDestruct "Hm" as "(_ & _ & Hb)".
-    iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HM|].
-    iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l Hρ /temp_res.
-    iDestruct (heap_key_resource_live_share with "Hshare Hb") as "[(%v & _ & Hv & _) _]".
-    rewrite key_pointsto_eq. iDestruct "Hv" as "[Hv _]".
-    iApply (addr_dupl_false with "Ha Hv").
+    rewrite !world_interp_eq.
+    iIntros (Hk) "(Hshare & [$ Hl] & Ha)".
+    by iApply (local_revoked_by_separation with "[$Hshare $Hl $Ha]").
+  Qed.
+
+  Lemma local_revoked_by_separation_many
+    (W : WORLD) (C : CmptName)
+    (la : list Addr) (lw : list LWord) :
+    Forall (λ a, LNonHeap a ∈ dom (std W)) la →
+    local_region_map th W C ∅
+    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
+    ==∗
+    local_region_map th W C ∅
+    ∗ ([∗ list] a;w ∈ la;lw, a ↦ₐ w)
+    ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
+  .
+  Proof.
+    revert lw. induction la as [|a la IH]; iIntros (lw Hdom) "[Hw Hl]".
+    - iFrame. iPureIntro. constructor.
+    - iDestruct (big_sepL2_cons_inv_l with "Hl") as (w lw' ->) "[Ha Hl]".
+      apply Forall_cons in Hdom as [Ha Hdom].
+      iMod (local_revoked_by_separation W C (LNonHeap a) w 1%Qp with "[$Hw $Ha]")
+        as "(_ & Hw & Ha & %Hrev)"; [done|].
+      iMod (IH with "[$Hw $Hl]") as "($ & Hl & %Hrevs)"; [done|].
+      iFrame. iPureIntro. by constructor.
   Qed.
 
   Lemma world_interp_revoked_by_separation_many
@@ -460,14 +542,9 @@ Section world_ghost_theory.
     ∗ ⌜ Forall (λ a, std W !! LNonHeap a = Some Revoked) la⌝
   .
   Proof.
-    revert lw. induction la as [|a la IH]; iIntros (lw Hdom) "[Hw Hl]".
-    - iFrame. iPureIntro. constructor.
-    - iDestruct (big_sepL2_cons_inv_l with "Hl") as (w lw' ->) "[Ha Hl]".
-      apply Forall_cons in Hdom as [Ha Hdom].
-      iMod (world_interp_revoked_by_separation W C (LNonHeap a) w 1%Qp with "[$Hw $Ha]")
-        as "(_ & Hw & Ha & %Hrev)"; [done|].
-      iMod (IH with "[$Hw $Hl]") as "($ & Hl & %Hrevs)"; [done|].
-      iFrame. iPureIntro. by constructor.
+    rewrite !world_interp_eq.
+    iIntros (Hla) "([$ Hl] & Hcells)".
+    by iApply (local_revoked_by_separation_many with "[$Hl $Hcells]").
   Qed.
 
   (** ** Extension of the world interpretation for safety invariants. *)
@@ -899,14 +976,38 @@ Section world_interp_Pre.
 
 End world_interp_Pre.
 
+(** ** The invariant of a shared compartment
+
+    The map of the Permanent regions of a shared compartment [C] lives in a
+    critical-section invariant of the pool [crit]. It is stated without a
+    thread, so that one invariant serves every thread. *)
+Section wg_inv.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {relg : relGS Σ}
+  .
+  Implicit Types C : CmptName.
+
+  Definition Nwg C : namespace := nroot .@ "wg" .@ C.
+
+  Definition wg_inv C : iProp Σ := na_inv crit (Nwg C) (perm_region_map C ∅).
+
+  #[global] Instance wg_inv_persistent C : Persistent (wg_inv C).
+  Proof. apply _. Qed.
+End wg_inv.
+
 (** The world premise of a thread under the regime of the compartment [C]
     ([world_resources W C]), and the credit it carries from one step to the
     next ([shared_credit C]). A compartment in exclusive mode owns its world
-    interpretation and carries no credit. *)
+    interpretation and carries no credit. A shared compartment owns its
+    local map and shares the map of its Permanent regions through
+    [wg_inv C]; it carries a later credit. *)
 Section world_resources.
   Context
     {Σ:gFunctors}
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {cthreads : CmptThreads}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -916,13 +1017,14 @@ Section world_resources.
   Implicit Types C : CmptName.
 
   Definition world_resources_def (W : WORLD) (C : CmptName) : iProp Σ :=
-    world_interp W C.
+    if cmpt_shared C then (local_region_map th W C ∅ ∗ wg_inv C)%I else world_interp W C.
   #[local] Definition world_resources_aux : seal (@world_resources_def). Proof. by eexists. Qed.
   Definition world_resources := world_resources_aux.(unseal).
   #[local] Definition world_resources_unseal :
     @world_resources = @world_resources_def := world_resources_aux.(seal_eq).
 
-  Definition shared_credit_def (C : CmptName) : iProp Σ := True.
+  Definition shared_credit_def (C : CmptName) : iProp Σ :=
+    if cmpt_shared C then (£ 1)%I else True%I.
   #[local] Definition shared_credit_aux : seal (@shared_credit_def). Proof. by eexists. Qed.
   Definition shared_credit := shared_credit_aux.(unseal).
   #[local] Definition shared_credit_unseal :
@@ -930,17 +1032,198 @@ Section world_resources.
 
   (** In exclusive mode, the world premise is the owned world interpretation. *)
   Lemma world_resources_exclusive W C :
+    cmpt_shared C = false →
     world_resources W C ⊣⊢ world_interp W C.
-  Proof. by rewrite world_resources_unseal. Qed.
+  Proof. intros Hsh. by rewrite world_resources_unseal /world_resources_def Hsh. Qed.
+
+  (** In shared mode, the world premise is the local map and the invariant. *)
+  Lemma world_resources_shared W C :
+    cmpt_shared C = true →
+    world_resources W C ⊣⊢ local_region_map th W C ∅ ∗ wg_inv C.
+  Proof. intros Hsh. by rewrite world_resources_unseal /world_resources_def Hsh. Qed.
 
   (** A later credit refills the carried credit. *)
   Lemma shared_credit_refill C :
     £ 1 -∗ shared_credit C.
-  Proof. rewrite shared_credit_unseal. by iIntros "_". Qed.
+  Proof.
+    rewrite shared_credit_unseal /shared_credit_def.
+    destruct (cmpt_shared C); [by iIntros "$" | by iIntros "_"].
+  Qed.
 
   (** In exclusive mode, the carried credit is free. *)
   Lemma shared_credit_exclusive C :
+    cmpt_shared C = false →
     ⊢ shared_credit C.
-  Proof. by rewrite shared_credit_unseal. Qed.
+  Proof. intros Hsh. by rewrite shared_credit_unseal /shared_credit_def Hsh. Qed.
+
+  (** In shared mode, the carried credit is a later credit. *)
+  Lemma shared_credit_shared C :
+    cmpt_shared C = true →
+    shared_credit C ⊣⊢ £ 1.
+  Proof. intros Hsh. by rewrite shared_credit_unseal /shared_credit_def Hsh. Qed.
+
+  (** The part of the world premise that holds the map of Permanent
+      regions: the invariant in shared mode, the map itself in exclusive
+      mode. *)
+  Definition perm_resources C : iProp Σ :=
+    if cmpt_shared C then wg_inv C else perm_region_map C ∅.
+
+  (** In shared mode, the Permanent part is the invariant. *)
+  Lemma perm_resources_shared C :
+    cmpt_shared C = true →
+    perm_resources C = wg_inv C.
+  Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
+
+  (** In exclusive mode, it is the owned map of Permanent regions. *)
+  Lemma perm_resources_exclusive C :
+    cmpt_shared C = false →
+    perm_resources C = perm_region_map C ∅.
+  Proof. intros Hsh. by rewrite /perm_resources Hsh. Qed.
+
+  Lemma world_resources_split W C :
+    world_resources W C ⊣⊢
+    local_region_map th W C ∅ ∗
+    perm_resources C.
+  Proof.
+    rewrite world_resources_unseal /world_resources_def /perm_resources.
+    destruct (cmpt_shared C); first done.
+    by rewrite world_interp_eq comm.
+  Qed.
+
+  (** Access to the map of Permanent regions, in either mode, with the
+      critical-section token. Two closers: with the map in hand, and with
+      the map under a later. *)
+  Lemma perm_resources_acc E F C :
+    ↑Nwg C ⊆ E →
+    ↑Nwg C ⊆ F →
+    perm_resources C -∗
+    na_own crit F
+    ={E}=∗
+    ▷ perm_region_map C ∅ ∗
+    na_own crit (F ∖ ↑Nwg C) ∗
+    ((perm_region_map C ∅ -∗
+      na_own crit (F ∖ ↑Nwg C)
+      ={E}=∗
+      perm_resources C ∗ na_own crit F) ∧
+     (▷ perm_region_map C ∅ -∗
+      na_own crit (F ∖ ↑Nwg C)
+      ={E}=∗
+      ▷ perm_resources C ∗ na_own crit F)).
+  Proof.
+    iIntros (HE HF) "Hp Htok". rewrite /perm_resources.
+    destruct (cmpt_shared C).
+    - iDestruct "Hp" as "#Hinv".
+      iMod (na_inv_acc with "Hinv Htok") as "(Hp & Htok & Hclose)"; [done | done |].
+      iModIntro. iFrame "Hp Htok". iSplit.
+      + iIntros "Hp Htok". iMod ("Hclose" with "[$Hp $Htok]") as "$". by iFrame "Hinv".
+      + iIntros "Hp Htok". iMod ("Hclose" with "[$Hp $Htok]") as "$". by iFrame "Hinv".
+    - iDestruct (na_own_acc (F ∖ ↑Nwg C) with "Htok") as "[Htok Hback]"; first set_solver.
+      iModIntro. iFrame "Hp Htok". iSplit.
+      + iIntros "$ Htok". iModIntro. by iApply "Hback".
+      + iIntros "$ Htok". iModIntro. by iApply "Hback".
+  Qed.
+
+  (** Access to the world interpretation, in either mode, with the
+      critical-section token, which exclusive mode does not use. Two
+      closers: with the world in hand, and with the world under a later. *)
+  Lemma world_resources_acc E F W C :
+    ↑Nwg C ⊆ E →
+    ↑Nwg C ⊆ F →
+    world_resources W C -∗
+    na_own crit F
+    ={E}=∗
+    ▷ world_interp W C ∗
+    na_own crit (F ∖ ↑Nwg C) ∗
+    ((∀ W', world_interp W' C -∗
+            na_own crit (F ∖ ↑Nwg C)
+            ={E}=∗
+            world_resources W' C ∗ na_own crit F) ∧
+     (∀ W', ▷ world_interp W' C -∗
+            na_own crit (F ∖ ↑Nwg C)
+            ={E}=∗
+            ▷ world_resources W' C ∗ na_own crit F)).
+  Proof.
+    iIntros (HE HF) "Hw Htok".
+    iEval (rewrite world_resources_split) in "Hw". iDestruct "Hw" as "[Hl Hp]".
+    iMod (perm_resources_acc with "Hp Htok") as "(Hp & $ & Hclose)"; [done | done |].
+    iModIntro. iSplitL "Hp Hl".
+    { rewrite world_interp_eq. iNext. iFrame. }
+    iSplit.
+    - iIntros (W') "Hw Htok". iDestruct "Hclose" as "[Hclose _]".
+      iEval (rewrite world_interp_eq) in "Hw". iDestruct "Hw" as "[Hp Hl]".
+      iMod ("Hclose" with "Hp Htok") as "[Hp $]".
+      iModIntro. rewrite world_resources_split. iFrame.
+    - iIntros (W') "Hw Htok". iDestruct "Hclose" as "[_ Hclose]".
+      iEval (rewrite world_interp_eq) in "Hw". iDestruct "Hw" as "[Hp Hl]".
+      iMod ("Hclose" with "Hp Htok") as "[Hp $]".
+      iModIntro. rewrite world_resources_split. iNext. iFrame.
+  Qed.
+
+  (** The same with the carried credit: the opened world is not under a
+      later. *)
+  Lemma world_resources_acc_credit E F W C :
+    ↑Nwg C ⊆ E →
+    ↑Nwg C ⊆ F →
+    world_resources W C -∗
+    shared_credit C -∗
+    na_own crit F
+    ={E}=∗
+    world_interp W C ∗
+    na_own crit (F ∖ ↑Nwg C) ∗
+    ((∀ W', world_interp W' C -∗
+            na_own crit (F ∖ ↑Nwg C)
+            ={E}=∗
+            world_resources W' C ∗ na_own crit F) ∧
+     (∀ W', ▷ world_interp W' C -∗
+            na_own crit (F ∖ ↑Nwg C)
+            ={E}=∗
+            ▷ world_resources W' C ∗ na_own crit F)).
+  Proof.
+    iIntros (HE HF) "Hw Hcred Htok".
+    destruct (cmpt_shared C) eqn:Hsh.
+    - iEval (rewrite shared_credit_shared //) in "Hcred".
+      iMod (world_resources_acc with "Hw Htok") as "(Hw & $ & $)"; [done | done |].
+      iApply (lc_fupd_elim_later with "Hcred Hw").
+    - iEval (rewrite world_resources_exclusive //) in "Hw".
+      iDestruct (na_own_acc (F ∖ ↑Nwg C) with "Htok") as "[Htok Hback]"; first set_solver.
+      iModIntro. iFrame "Hw Htok". iSplit.
+      + iIntros (W') "Hw Htok". rewrite world_resources_exclusive //.
+        iModIntro. iFrame "Hw". by iApply "Hback".
+      + iIntros (W') "Hw Htok". rewrite world_resources_exclusive //.
+        iModIntro. iFrame "Hw". by iApply "Hback".
+  Qed.
+
+  (** The initial conversion, in shared mode: the map of Permanent regions
+      goes into the invariant, which other threads can then share. *)
+  Lemma world_resources_init_shared E W C :
+    cmpt_shared C = true →
+    world_interp W C
+    ={E}=∗
+    world_resources W C ∗ wg_inv C.
+  Proof.
+    iIntros (Hsh) "Hw". rewrite world_interp_eq world_resources_shared //.
+    iDestruct "Hw" as "[Hp $]".
+    iMod (na_inv_alloc crit E (Nwg C) with "Hp") as "#Hinv".
+    by iFrame "Hinv".
+  Qed.
+
+  (** The initial conversion, in either mode. *)
+  Lemma world_resources_init E W C :
+    world_interp W C
+    ={E}=∗
+    world_resources W C.
+  Proof.
+    iIntros "Hw". destruct (cmpt_shared C) eqn:Hsh.
+    - by iMod (world_resources_init_shared with "Hw") as "[$ _]".
+    - by rewrite world_resources_exclusive.
+  Qed.
+
+  (** A thread joins a shared compartment with its local map. *)
+  Lemma world_resources_join W C :
+    cmpt_shared C = true →
+    wg_inv C -∗
+    local_region_map th W C ∅ -∗
+    world_resources W C.
+  Proof. iIntros (Hsh) "Hinv Hl". rewrite world_resources_shared //. iFrame. Qed.
 
 End world_resources.

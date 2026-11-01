@@ -94,9 +94,12 @@ Section Switcher.
   Proof.
     intros Wfixed.
     iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hthread & #Hswitcher & #Hstatic & Hres)".
+      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hcstk & Hcont & Hworld_interp
+        & Hres)".
+    iMod (world_resources_init (th := th) with "Hworld_interp") as "Hworld".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
-    by iApply (switcher_ret_specification_gen with "[$Hthread $Hsafety $Hres]").
+    by iApply (switcher_ret_specification_gen with
+                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hcstk $Hcont $Hworld $Hres]").
   Qed.
 
   (** A return through the switcher's return entry at the thread's entry call

@@ -12,7 +12,7 @@ From griotte.allocators.common Require Import allocator_common_malloc_spec_exit_
 Section AllocatorMallocSizeCheckBlocks2.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   Lemma allocator_malloc_size_check_valid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wtmp : LWord)
@@ -64,18 +64,16 @@ Section AllocatorMallocSizeCheckBlocks2.
     (φ : language.val griotte_lang → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    route_pre th mie ->
+    default mie (jalr_target_mie wret.(lw)) = mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_invalid_offset) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
-    held mie ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
-       held (default mie (jalr_target_mie wret.(lw))) ∗
+       MIE ↦ₜ mie ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_code ∗
@@ -83,13 +81,13 @@ Section AllocatorMallocSizeCheckBlocks2.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt Hpre.
-    iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hkeep.
+    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & #Hcode_main & Hφ)".
     iDestruct (allocator_malloc_exit_acc with "Hcode_main") as "#Hcode".
     iApply (allocator_malloc_exit_reject_spec with
-      "[- $HPC $Hcra $Hmie $Hposture $Hca0 $Hca1 $Hcode]");
+      "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hcode]");
       [by apply allocator_malloc_exit_bounds | done | done |].
-    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & _ & Hlc)".
+    iNext. iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
@@ -100,19 +98,17 @@ Section AllocatorMallocSizeCheckBlocks2.
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_positive_size wreq.(lw) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    route_pre th mie ->
+    default mie (jalr_target_mie wret.(lw)) = mie ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
-    held mie ∗
     ca0 ↦ᵣ wca0 ∗
     ca1 ↦ᵣ wreq ∗
     ca3 ↦ᵣ wtmp ∗
     codefrag_pers pc_a allocator_malloc_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
-       held (default mie (jalr_target_mie wret.(lw))) ∗
+       MIE ↦ₜ mie ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        ca3 ↦ᵣ - ∗
@@ -121,9 +117,9 @@ Section AllocatorMallocSizeCheckBlocks2.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Hinvalid Htgt Hpre. pose proof Hbounds as (Hpc & _ & _).
+    intros Hbounds Hinvalid Htgt Hkeep. pose proof Hbounds as (Hpc & _ & _).
     destruct wreq as [wreq π]; cbn in Hinvalid.
-    iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & Hct3 & #Hcode_main & Hφ)".
+    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & Hct3 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_unfold_code "Hcode_main".
 
@@ -154,9 +150,9 @@ Section AllocatorMallocSizeCheckBlocks2.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset).
       iApply (allocator_malloc_reject_spec with
-        "[- $HPC $Hcra $Hmie $Hposture $Hca0 $Hca1 $Hcode_main]");
+        "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hcode_main]");
         [done|done|done|].
-      iNext. iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & _ & Hlc)".
+      iNext. iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & _ & Hlc)".
       iApply "Hφ". iFrame "∗ Hcode_main".
     - assert (Hnonzero : WInt (encodeWordType wreq - encodeWordType (WInt 0)) ≠ WInt 0).
       { pose proof (encodeWordType_correct wreq (WInt 0)) as Hencode.
@@ -171,9 +167,9 @@ Section AllocatorMallocSizeCheckBlocks2.
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
       change_pc_to (pc_a ^+ allocator_malloc_invalid_offset).
       iApply (allocator_malloc_reject_spec with
-        "[- $HPC $Hcra $Hmie $Hposture $Hca0 $Hca1 $Hcode_main]");
+        "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hcode_main]");
         [done|done|done|].
-      iNext. iIntros "(HPC & Hcra & Hmie & Hposture & Hca0 & Hca1 & _ & Hlc)".
+      iNext. iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & _ & Hlc)".
       iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

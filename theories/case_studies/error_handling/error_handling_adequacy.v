@@ -31,7 +31,7 @@ Section error_handling_obligations.
     fw_obligations Σ error_handling_firmware.
   Proof.
     apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -172,6 +172,7 @@ Section error_handling_obligations.
     { iApply (stats_read_entry_point_spec Global fw_world0 C).
       - exact Hstats_switcher.
       - exact (Hpin C).
+      - exact (Hshared C).
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
     iDestruct (seal_main_export (th := UserThread 0) fw_world0 C stats_read_sb
                 with "Hseal_switcher Hot_switcher_read") as "#Hinterp_read"; [done| |].
@@ -243,6 +244,7 @@ Section error_handling_obligations.
       | apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap
       | done
       | by rewrite /route_pre
+      | exact (Hshared C)
       | ].
     iModIntro.
     iApply (wp_mono with "Hspec"); auto.

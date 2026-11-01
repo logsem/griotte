@@ -31,7 +31,7 @@ Section AllocatorMacros.
     {ceriseg : ceriseG Σ}
     {MP : MachineParameters}
   .
-  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
+  Context {th : Thread} {CL : CritLink Σ th}.
 
   (** The existing fetch macro proof specialized to an arbitrary WP mask, so
       allocator calls can keep the non-atomic service invariant open. *)
@@ -45,27 +45,26 @@ Section AllocatorMacros.
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
     disjoint_from_shadow pc_b pc_e ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    route_pre th mie ->
+    default mie (jalr_target_mie wret.(lw)) = mie ->
 
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
-    held mie ∗
     codefrag_pers pc_a code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
-         MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
-         held (default mie (jalr_target_mie wret.(lw))) ∗
+         MIE ↦ₜ mie ∗
          codefrag_pers pc_a code ∗
          £ 1
          -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros code Hpc Hdisjoint Htgt Hpre; subst code.
-    iIntros "(HPC & Hcra & Hmie & Hposture & #Hcode & Hφ)".
+    intros code Hpc Hdisjoint Htgt Hkeep; subst code.
+    iIntros "(HPC & Hcra & Hmie & #Hcode & Hφ)".
     codefrag_facts "Hcode".
     (* Jalr cnull cra. *)
-    iInstr "Hcode" with "Hlc".
+    iInstrApply "Hcode" with "Hlc" (wp_jalr_success_cnull_kept _ _ _ _ _ _ _ _ _ cra wret mie)
+      with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie)".
     iApply "Hφ". iFrame "∗ Hcode".
   Qed.
 

@@ -644,10 +644,17 @@ Section Switcher_Spec_Exception.
       is needed for a fault outside the switcher. The destination
       [error_state_written] of the [ErrorState] goes to the continuation
       reached. The cause satisfies the cause predicate [P_mcause] of fault
-      causes, the value the value predicate [P_mtval]. *)
+      causes, the value the value predicate [P_mtval]. The caller may hold
+      the critical-section token, lent out of the posture: it gives the
+      posture without it ([posture_lent]), a resource [crit_loan], and a closing
+      hook, which the path calls, at any number of stores, before every
+      change of the posture and every nested fault; the hook gives the
+      token back and turns the destination into [error_state_closed],
+      which the continuations receive. *)
   Lemma switcher_exception_path_spec (P_mcause P_mtval : Z → Prop)
     (F : coPset) (cstk : CSTK) (R_resume : iProp Σ)
-    (error_state_written : nat → iProp Σ) (rmap : LReg) (w : LWord)
+    (error_state_written : nat → iProp Σ) (crit_loan : iProp Σ)
+    (error_state_closed : nat → iProp Σ) (rmap : LReg) (w : LWord)
     (b : InterruptStatus) (cause tval : Z) :
     (∀ c, P_mcause c → mcause_ok c) ->
     ↑Ntstack ⊆ F ->
@@ -660,17 +667,19 @@ Section Switcher_Spec_Exception.
     PC ↦ₚ[th] lword_of_word mtcc_vec ∗
     registers_pointsto rmap ∗
     MIE ↦ₜ[th] InterruptDisabled ∗
-    posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
+    posture_lent (th := th) (Some b) (Some (lmepcc_of_pc w))
       (Some (lword_of_word (WInt cause))) (Some tval) ∗
+    crit_loan ∗
     na_own (tpool th) F ∗
     (if decide (trap_no_resume w) then ◯(CSTK)[th] cstk else R_resume) ∗
     (⌜¬ switcher_fault_pc w⌝ → handler_header cstk) ∗
     error_state_written 0 ∗
     path_es_acc cstk w rmap error_state_written ∗
-    ▷ ( path_unwind_k F cstk w rmap error_state_written ∧
-        path_resume_k F R_resume rmap w b error_state_written ∧
-        path_nested_k F cstk w rmap error_state_written ∧
-        path_invoke_k P_mcause P_mtval F cstk rmap w error_state_written )
+    ▷ ( ∀ k, crit_loan -∗ error_state_written k ={⊤}=∗ na_own crit ⊤ ∗ error_state_closed k ) ∗
+    ▷ ( path_unwind_k F cstk w rmap error_state_closed ∧
+        path_resume_k F R_resume rmap w b error_state_closed ∧
+        path_nested_k F cstk w rmap error_state_closed ∧
+        path_invoke_k P_mcause P_mtval F cstk rmap w error_state_closed )
     ⊢ safe[th].
   Proof.
     (* Outline of the proof:
@@ -693,8 +702,8 @@ Section Switcher_Spec_Exception.
        - give the save area back to the posture, and close the
          trusted-stack invariant. *)
     iIntros (HP_mcause HF Hfull Hcause Htval)
-      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & Hna & Hcstk & #Hheader
-       & Hwritten & #Hes_acc & Hpost)".
+      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & Hcrit_loan & Hna & Hcstk
+       & #Hheader & Hwritten & #Hes_acc & Hhook & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & %Hmtcc & _)".
     rewrite Hmtcc.
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
@@ -708,9 +717,9 @@ Section Switcher_Spec_Exception.
       - iPureIntro. by intros. }
     (* The posture: the volatile registers, the save area and the mtdc
        token *)
-    iDestruct (posture_res_gen_unfold with "Hposture")
+    iDestruct "Hposture"
       as "[(%vepcc & %vcause & %vtval & %vmpie & %Hb & %Hp & %Hc & %Hv
-            & Hcrit & HU & Hmepcc & Hmcause & Hmtval & Hmpie) Hpart]".
+            & HU & Hmepcc & Hmcause & Hmtval & Hmpie) Hpart]".
     cbn in Hb, Hp, Hc, Hv. subst vepcc vcause vtval vmpie.
     iEval (rewrite posture_part_user //) in "Hpart".
     iDestruct "Hpart" as "[(%ws & %Hws_ok & Hholed) Hlent]".
@@ -786,8 +795,9 @@ Section Switcher_Spec_Exception.
           & Hframeoffset)".
       pose proof (Hcstk_eq (or_intror (proj2 Hswitcher_fault))) as Heq_cstk; subst cstk'.
       rewrite decide_True; last exact (or_intror (proj2 Hswitcher_fault)).
-      iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-        as "Hho".
+      iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+      iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+        as "Hho"; first iExact "Hcrit".
       iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
         [done | save_area_hazard | done |].
       iSpecialize ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full [Hstk_interp]").
@@ -805,8 +815,9 @@ Section Switcher_Spec_Exception.
       iIntros (Hresume wct0' wct1' wctp')
         "(HPC & Hcsp & Hct0 & Hct1 & Hctp & Hca0 & Hca1 & Hct2 & Hmtdc & Hlent & Hsave_area
           & Hframeoffset)".
-      iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-        as "Hho".
+      iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+      iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+        as "Hho"; first iExact "Hcrit".
       iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                    $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave_area $Hmie $Hho $Hlent $Hcode]").
@@ -912,8 +923,9 @@ Section Switcher_Spec_Exception.
             & Hcsp_cell & Hcell)".
         iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
         iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-        iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-          as "Hho".
+        iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+        iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+          as "Hho"; first iExact "Hcrit".
         iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
           [done | done | done |].
         iSpecialize ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full Hstk_interp").
@@ -967,8 +979,9 @@ Section Switcher_Spec_Exception.
           iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
             as "Htf".
           iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-          iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-            as "Hho".
+          iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+          iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+            as "Hho"; first iExact "Hcrit".
           iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
             [done | done | done |].
           iSpecialize ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full Hstk_interp").
@@ -1000,14 +1013,15 @@ Section Switcher_Spec_Exception.
           rewrite Hsave'_cause.
           (* The posture is given back, and the invariant closed, before the
              [cjalr] *)
-          iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-            as "Hho".
+          iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+          iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+            as "Hho"; first iExact "Hcrit".
           iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
             [done | done | done |].
           iMod ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full Hstk_interp")
             as "Hna".
           (* The invocation *)
-          iApply (switcher_exception_invoke _ _ _ _ _ _ error_state_written Stackless p ehs
+          iApply (switcher_exception_invoke _ _ _ _ _ _ error_state_closed Stackless p ehs
                     cause tval
                    with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                           $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Hehs
@@ -1051,8 +1065,11 @@ Section Switcher_Spec_Exception.
              iIntros (Hnok k off Hk Hoff)
                "(Hcsp & Hct0 & [%wcs1_f Hcs1] & Hca0 & Hca1 & [%wca2_f Hca2] & [%wca3_f Hca3]
                  & [%wca4_f Hca4] & Hsave_area & Hwritten & Hmtval)".
-             iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-               as "Hho".
+             iApply trap_safe_fupd.
+             iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+             iModIntro.
+             iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+               as "Hho"; first iExact "Hcrit".
              iDestruct (save_area_release with "Hsave_area Hho Hlent")
                as "[Hheld Hhazard_cell]"; [done | done | done |].
              iSpecialize ("Hclose" with
@@ -1073,14 +1090,15 @@ Section Switcher_Spec_Exception.
                "(HPC & Hcsp & Hct0 & Hcs1 & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hsave_area
                  & Hwritten & Hmtval)".
              rewrite Hsave'_cause.
-             iDestruct (handover_res_intro with "[$Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
-               as "Hho".
+             iMod ("Hhook" with "Hcrit_loan Hwritten") as "[Hcrit Hwritten]".
+             iDestruct (handover_res_intro with "[Hcrit $HU $Hmepcc $Hmcause $Hmtval $Hmpie]")
+               as "Hho"; first iExact "Hcrit".
              iDestruct (save_area_release with "Hsave_area Hho Hlent")
                as "[Hheld Hhazard_cell]"; [done | done | done |].
              iMod ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full Hstk_interp")
                as "Hna".
              (* The invocation *)
-             iApply (switcher_exception_invoke _ _ _ _ _ _ error_state_written Stackful p eh
+             iApply (switcher_exception_invoke _ _ _ _ _ _ error_state_closed Stackful p eh
                        cause tval
                       with "[$HPC $Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                              $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hcode $Hpcc $Hcgp_cell $Heh
