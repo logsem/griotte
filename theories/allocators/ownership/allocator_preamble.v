@@ -186,15 +186,7 @@ Section AllocatorServiceThread.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
 
-  (* TODO: move to program_logic/memory_region.v *)
-  (** Persistent code does not depend on the thread. *)
-  Lemma codefrag_pers_thread_indep (t t' : Thread) (a0 : Addr) (cs : list Word) :
-    @codefrag_pers Σ (ceriseG_of t) a0 cs ⊣⊢ @codefrag_pers Σ (ceriseG_of t') a0 cs.
-  Proof.
-    by rewrite /codefrag_pers !(seal_eq (memory_region.codefrag_pers_aux (ceriseg := _))).
-  Qed.
-
-  (** Nor does the read-only memory of the service. *)
+  (** The read-only memory of the service does not depend on the thread. *)
   Lemma allocator_service_static_thread_indep (t t' : Thread) :
     allocator_service_static (th := t) ⊣⊢ allocator_service_static (th := t').
   Proof. by rewrite /allocator_service_static (codefrag_pers_thread_indep t t'). Qed.

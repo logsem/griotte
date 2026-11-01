@@ -125,18 +125,6 @@ Section posture.
   Lemma held_disabled : held InterruptDisabled ⊣⊢ handover_res ∗ @posture_part _ _ _ th CL CR.
   Proof. done. Qed.
 
-  (** The critical-section token, lent out of what the thread holds at
-      InterruptDisabled. *)
-  Lemma held_crit :
-    held InterruptDisabled -∗
-    na_own crit ⊤ ∗
-    (na_own crit ⊤ -∗ held InterruptDisabled).
-  Proof.
-    rewrite held_disabled. iIntros "[Hho $]".
-    iDestruct (handover_res_crit with "Hho") as "[$ Hho]".
-    iIntros "Hcrit". by iApply "Hho".
-  Qed.
-
   (** The whole posture, with optional pins of MPIE, MEPCC, mcause and
       mtval. *)
   Definition posture_res_def (ob : option InterruptStatus) (op oc : option LWord) (ov : option Z)
@@ -157,6 +145,46 @@ Section posture.
        handover_at p c v b) ∗
     @posture_part _ _ _ th CL CR.
   Proof. by rewrite posture_res_unseal. Qed.
+
+  (** The posture without the critical-section token, with optional pins
+      of MPIE, MEPCC, mcause and mtval. *)
+  Definition posture_lent (ob : option InterruptStatus) (op oc : option LWord) (ov : option Z)
+    : iProp Σ :=
+    (∃ p c v b,
+       ⌜opt_pin ob b⌝ ∗ ⌜opt_pin op p⌝ ∗ ⌜opt_pin oc c⌝ ∗ ⌜opt_pin ov v⌝ ∗
+       unwedged ∗
+       volatile_csr_at p c v b) ∗
+    @posture_part _ _ _ th CL CR.
+
+  (** The critical-section token, lent out of the whole posture. *)
+  Lemma posture_res_gen_lend ob op oc ov :
+    posture_res_gen ob op oc ov ⊣⊢ na_own crit ⊤ ∗ posture_lent ob op oc ov.
+  Proof.
+    rewrite posture_res_gen_unfold /posture_lent /handover_at. iSplit.
+    - iIntros "[(%p & %c & %v & %b & ? & ? & ? & ? & $ & HU & Hv) $]".
+      iExists p, c, v, b. by iFrame.
+    - iIntros "[Hcrit [(%p & %c & %v & %b & ? & ? & ? & ? & HU & Hv) $] ]".
+      iExists p, c, v, b. by iFrame.
+  Qed.
+
+  (** The critical-section token, lent out of what the thread holds at
+      InterruptDisabled. *)
+  Lemma held_lend :
+    held InterruptDisabled ⊣⊢ na_own crit ⊤ ∗ posture_lent None None None None.
+  Proof.
+    rewrite held_disabled handover_res_unfold /posture_lent /handover_at. iSplit.
+    - iIntros "[(%p & %c & %v & %b & $ & HU & Hv) $]".
+      iExists p, c, v, b. by iFrame.
+    - iIntros "[Hcrit [(%p & %c & %v & %b & _ & _ & _ & _ & HU & Hv) $] ]".
+      iExists p, c, v, b. by iFrame.
+  Qed.
+
+  (** [held_lend] as a wand, for a client that gives the token back. *)
+  Lemma held_crit :
+    held InterruptDisabled -∗
+    na_own crit ⊤ ∗
+    (na_own crit ⊤ -∗ held InterruptDisabled).
+  Proof. rewrite held_lend. iIntros "[$ Hlent] Hcrit". iFrame. Qed.
 
   Lemma posture_res_gen_intro p c v b :
     handover_at p c v b -∗

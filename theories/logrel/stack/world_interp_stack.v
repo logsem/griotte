@@ -99,7 +99,7 @@ Section WorldInterpStack.
   Qed.
 
   (** The cells of a safe-to-share stack are Temporary keys. *)
-  #[local] Lemma interp_stack_temporary W C g b e a (la : list Addr) :
+  #[local] Lemma interp_stack_temporary_list W C g b e a (la : list Addr) :
     Forall (λ a', (a' ∈ₐ [b, e))) la →
     interp W C (Cap RWL g b e a) -∗
     ⌜Forall (λ a', std W !! LNonHeap a' = Some Temporary) la⌝.
@@ -111,18 +111,6 @@ Section WorldInterpStack.
     iPureIntro. eapply Forall_impl; [exact Hin|]. intros x Hx.
     apply elem_of_finz_seq_between, list_elem_of_lookup_1 in Hx as [i Hi].
     by eapply Htemps.
-  Qed.
-
-  (** Temporary cells are open in the local map only. *)
-  #[local] Lemma open_perm_app_temporary W (la la' : list Addr) :
-    Forall (λ a', std W !! LNonHeap a' = Some Temporary) la →
-    open_perm W (LNonHeap <$> (la ++ la')) = open_perm W (LNonHeap <$> la').
-  Proof.
-    intros Hla. apply set_eq. intros k.
-    rewrite !elem_of_open_perm fmap_app elem_of_app.
-    split; [|naive_solver]. intros [ [Hk|Hk] HnT]; [|done].
-    exfalso. apply list_elem_of_fmap in Hk as (x & -> & Hx).
-    rewrite Forall_forall in Hla. by apply HnT, Hla.
   Qed.
 
   (** Opening the local map on a safe-to-share stack region gives
@@ -178,7 +166,7 @@ Section WorldInterpStack.
            ▷ StackOpenWorldResources interp W C la lv).
   Proof.
     iIntros (Hnodup Hin Hdis) "(#Hinterp & Hr)".
-    iDestruct (interp_stack_temporary with "Hinterp") as %HT; [exact Hin|].
+    iDestruct (interp_stack_temporary_list with "Hinterp") as %HT; [exact Hin|].
     rewrite !world_interp_open_eq open_perm_app_temporary //.
     iDestruct "Hr" as "[$ Hr]".
     iApply (local_open_stack with "[$Hinterp $Hr]"); done.
@@ -458,7 +446,7 @@ Section WorldInterpStack.
   Proof.
     intros la ls Hbs Hes.
     iIntros "(#Hinterp & Hr & Hres & Hslot)".
-    iDestruct (interp_stack_temporary _ _ _ _ _ _ ls with "Hinterp") as %HT.
+    iDestruct (interp_stack_temporary_list _ _ _ _ _ _ ls with "Hinterp") as %HT.
     { apply Forall_forall. intros x Hx%elem_of_finz_seq_between. solve_addr. }
     rewrite world_interp_open_temporary_split; last by apply Forall_fmap.
     iDestruct "Hr" as "[Hg Hl]".

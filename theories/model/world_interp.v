@@ -99,6 +99,18 @@ Section open_keys.
     intros [Hk HnT]. rewrite Forall_forall in Hl. by apply Hl in Hk.
   Qed.
 
+  (** Temporary cells are open in the local map only. *)
+  Lemma open_perm_app_temporary W (la la' : list Addr) :
+    Forall (λ a', std W !! LNonHeap a' = Some Temporary) la →
+    open_perm W (LNonHeap <$> (la ++ la')) = open_perm W (LNonHeap <$> la').
+  Proof.
+    intros Hla. apply set_eq. intros k.
+    rewrite !elem_of_open_perm fmap_app elem_of_app.
+    split; [|naive_solver]. intros [ [Hk|Hk] HnT]; [|done].
+    exfalso. apply list_elem_of_fmap in Hk as (x & -> & Hx).
+    rewrite Forall_forall in Hla. by apply HnT, Hla.
+  Qed.
+
 End open_keys.
 
 Section standard_world_interp.

@@ -491,4 +491,306 @@ Section wp_interp.
       iApply "Hreb". by iFrame "Hk0 Hφ0".
   Qed.
 
+  (** The cells-store accessors over a split world: the local map held now,
+      the map of Permanent regions only under a later, as the trap vector gets
+      them from [wg_inv C] with no later credit. The tombstone/live decision
+      and the cell points-to come out under [◇]. *)
+
+  (** Split twin of [open_world_interp_next_cases]: the local map now, the
+      map of Permanent regions under a later; the case split under [◇]. *)
+  Lemma open_world_split_next_cases W C s π a p' P p g :
+    persistent_cond P →
+    addr_key π a ∉ s →
+    region_rel W C (addr_key π a) p' P p g -∗
+    local_region_map th W C (open_l W s) -∗
+    ▷ perm_region_map C (open_perm W s) -∗
+    ◇ ((∃ ρ v, ⌜ρ = InPerm → isWL p = false⌝ ∗
+          ⌜ρ = InPerm → std W !! addr_key π a ≠ Some Temporary⌝ ∗
+          region_rel_part ρ W C (addr_key π a) p' P ∗
+          local_region_map th W C (open_l W ({[ addr_key π a ]} ∪ s)) ∗
+          ▷ perm_region_map C (open_perm W ({[ addr_key π a ]} ∪ s)) ∗
+          addr_key π a ↦ₖ v ∗
+          ▷ ▷ pc_content ρ W C P v)
+       ∨ (∃ ι, ⌜π = Some ι⌝ ∗ ι ⊒ AQuar ∗
+          local_region_map th W C (open_l W s) ∗
+          ▷ perm_region_map C (open_perm W s))).
+  Proof.
+    iIntros (Hpers Hnin) "#Hrel Hl Hg".
+    assert (∀ x, Persistent (safeGC P x)) as HpersG by (intros x; apply (Hpers (_, _, _))).
+    assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
+    iDestruct (region_rel_part_of with "Hrel") as (ρ Hρ) "#Hpart".
+    destruct ρ.
+    - iPoseProof "Hpart" as "Hr". rewrite /region_rel_part /region_rel_perm.
+      destruct (decide (std W !! addr_key π a = Some Temporary)) as [HT|HnT].
+      + (* Temporary in the local world: the local body decides, the
+           Permanent body (under a later) rules the live cell out *)
+        assert (addr_key π a ∉ open_l W s) as Hkl by (by apply not_elem_of_open_l).
+        assert (addr_key π a ∉ open_perm W s) as Hkg by (by apply not_elem_of_open_perm).
+        iDestruct "Hl" as (M) "Hw". iNamed "Hw".
+        assert (is_Some (M !! addr_key π a)) as [ [γp p1] HM].
+        { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
+        iDestruct "Hm" as "(Ha & #Hks & Hb)".
+        iDestruct (big_sepM_lookup with "Hks") as "[#Hel _]"; [exact HM|].
+        iDestruct (big_sepM_lookup_acc with "Hb") as "[Hbk Hclose]"; [exact HM|].
+        rewrite decide_False //.
+        iDestruct "Hbk" as (φ1) "(%Hp1 & #Hsp & Hbody)".
+        iDestruct ("Hclose" with "[Hbody]") as "Hb".
+        { iExists φ1. by iFrame "∗#%". }
+        iAssert (local_region_map th W C (open_l W s)) with "[Ha Hb Hloc]" as "Hl".
+        { iExists M. rewrite /local_region_map_M /rmap. by iFrame "∗#%". }
+        iAssert (rel_l th C (addr_key π a) p1 φ1) as "#Hrl".
+        { rewrite rel_l_eq. iExists γp. by iFrame "#". }
+        iAssert (▷ ((perm_region_map C (open_perm W s) ∗
+                     ∃ a' ι, ⌜addr_key π a = LHeap a' ι⌝ ∗ ι ⊒ AQuar) ∨
+                    ∃ v, addr_key π a ↦ₖ v))%I
+          with "[Hg]" as "[(Hg & >(%a' & %ι & %Hk & #Hq))|>(%v & Hv)]".
+        { iNext.
+          iDestruct (perm_open with "Hg Hr") as "[Hg (%φ' & %Hp' & #Hr' & Hb & _)]"; [done|].
+          iDestruct (heap_key_open_cases with "Hb")
+            as "[(%v & _ & Hv & _)|(%a' & %ι & %Hk & #Hq)]".
+          - iRight. by iExists v.
+          - iLeft. iSplitL.
+            + iApply (perm_close with "Hg Hr' []"); [done|].
+              rewrite /body_perm Hk. by iApply heap_key_close_tomb.
+            + iExists a', ι. by iFrame "Hq". }
+        * iModIntro. iRight. iExists ι.
+          destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
+          rewrite addr_key_Some in Hk. injection Hk as -> ->.
+          by iFrame "Hq Hl Hg".
+        * iExFalso.
+          iApply (l_excl_not_T _ _ _ _ _ _ _ (addr_key π a ↦ₖ v) with "[] [] Hl Hrl Hv");
+            [done|done| |].
+          -- iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+          -- iIntros "!>" (a'' ι'' Hk) "Hq Hv". rewrite Hk.
+             iApply (heap_pointsto_quar_false with "Hv Hq").
+      + rewrite (open_l_add_nT _ _ _ HnT) (open_perm_add_nT _ _ _ HnT).
+        iAssert (▷ (perm_region_map C ({[addr_key π a]} ∪ open_perm W s) ∗
+                    heap_key_resource (addr_key π a) (∃ w, PermRes C (addr_key π a) p' (safeGC P) w)))%I
+          with "[Hg]" as "[Hg Hres]".
+        { iNext. iApply (perm_open_transport with "Hg Hr"). by apply not_elem_of_open_perm. }
+        iDestruct (bi.later_mono _ _ (heap_key_open_cases _ _) with "Hres")
+          as "[Hres|>(%a' & %ι & %Hk & #Hq)]".
+        * iDestruct "Hres" as (v) "(_ & >Hc & HP)".
+          iModIntro. iLeft. iExists InPerm, v. iFrame "Hl Hg Hpart Hc HP %".
+          iPureIntro. by intros _.
+        * iModIntro. iRight. iExists ι.
+          destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
+          rewrite addr_key_Some in Hk Hnin HnT |- *. injection Hk as -> ->.
+          iSplit; first done. iFrame "Hq Hl". iNext.
+          iApply (perm_close with "Hg Hr []"); [by apply not_elem_of_open_perm|].
+          by iApply heap_key_close_tomb.
+    - iPoseProof "Hpart" as "(Hrl & %HT & _)".
+      rewrite (open_l_add_T _ _ _ HT) (open_perm_add_T _ _ _ HT).
+      iDestruct (l_open_transport with "Hl Hrl") as "[Hl Hres]";
+        [by apply not_elem_of_open_l|done|].
+      iDestruct (heap_key_open_cases with "Hres") as "[Hres|(%a' & %ι & %Hk & #Hq)]".
+      + iDestruct "Hres" as (v) "(_ & Hc & HP & _)".
+        iModIntro. iLeft. iExists InLocal, v. iFrame "Hl Hg Hpart Hc".
+        iSplit; [iPureIntro; by intros ?|]. iSplit; [iPureIntro; by intros ?|].
+        iNext. by iNext.
+      + iModIntro. iRight. iExists ι.
+        destruct π as [ι'|]; [|by rewrite addr_key_None in Hk].
+        rewrite addr_key_Some in Hk Hnin HT |- *. injection Hk as -> ->.
+        iSplit; first done. iFrame "Hq Hg".
+        iApply (l_close with "Hl Hrl []"); [by apply not_elem_of_open_l|done..|].
+        by iApply heap_key_close_tomb.
+  Qed.
+
+  (** Split twin of [pc_close_next]: closing an opened region from its
+      cell and its content one later away, the map of Permanent regions
+      under a later. *)
+  Lemma pc_close_split W C s k p' P w ρ :
+    k ∉ s →
+    persistent_cond P →
+    isO p' = false →
+    (ρ = InPerm → std W !! k ≠ Some Temporary) →
+    local_region_map th W C (open_l W ({[k]} ∪ s)) -∗
+    ▷ perm_region_map C (open_perm W ({[k]} ∪ s)) -∗
+    region_rel_part ρ W C k p' P -∗
+    k ↦ₖ w -∗
+    ▷ pc_content ρ W C P w -∗
+    local_region_map th W C (open_l W s) ∗ ▷ perm_region_map C (open_perm W s).
+  Proof.
+    iIntros (Hks Hpers HpO HnT) "Hl Hg #Hpart Hc HP".
+    assert (∀ x, Persistent (safeGC P x)) as HpersG by (intros x; apply (Hpers (_, _, _))).
+    assert (∀ x, Persistent (safeC P x)) as HpersL by (intros x; apply Hpers).
+    destruct ρ.
+    - specialize (HnT eq_refl).
+      rewrite (open_l_add_nT _ _ _ HnT) (open_perm_add_nT _ _ _ HnT).
+      iFrame "Hl". iNext.
+      iApply (perm_close with "Hg Hpart [Hc HP]"); [by apply not_elem_of_open_perm|].
+      iApply heap_key_resource_intro. iExists w. rewrite /PermRes. by iFrame "∗%".
+    - iDestruct "Hpart" as "(Hrl & %HT & #Hmono)".
+      rewrite (open_l_add_T _ _ _ HT) (open_perm_add_T _ _ _ HT).
+      iFrame "Hg".
+      iApply (l_close with "Hl Hrl [Hc HP]"); [by apply not_elem_of_open_l|done..|].
+      iApply heap_key_resource_intro. iExists w. rewrite /TmpRes. iFrame "∗%".
+      iNext. iApply "Hmono".
+  Qed.
+
+  (** Split twin of [world_interp_cells_store_acc_heap]: the stores through
+      a heap capability, the local map now, the map of Permanent regions
+      under a later. *)
+  Lemma world_split_cells_store_acc_heap (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e a : Addr) (ι : AId) (ws : list LWord) :
+    writeAllowed p = true →
+    (b <= a)%a →
+    (a < e)%a →
+    interp W C (Cap p g b e a @@? Some ι) -∗
+    ([∗ list] v ∈ ws, interp W C v) -∗
+    local_region_map th W C ∅ -∗
+    ▷ perm_region_map C ∅ -∗
+    ◇ ((ι ⊒ AQuar ∗ local_region_map th W C ∅ ∗ ▷ perm_region_map C ∅) ∨
+       ∃ D : nat → iProp Σ,
+         D 0 ∗
+         cells_store_acc D p e a (Some ι) ws ∗
+         ▷ (∀ i, D i -∗ local_region_map th W C ∅ ∗ ▷ perm_region_map C ∅)).
+  Proof.
+    iIntros (Hwa Hb Hae) "#Hinterp_dst #Hws Hl Hg".
+    iEval (rewrite -(open_l_nil W)) in "Hl".
+    iEval (rewrite -(open_perm_nil W)) in "Hg".
+    assert (withinBounds b e (a ^+ 0) = true) as Hwb0
+      by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (write_allowed_inv _ _ (a ^+ 0) with "Hinterp_dst")
+      as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hwcond0 & _)";
+      [solve_addr | by rewrite Hwa |].
+    assert (isO p0 = false) as HnO0.
+    { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
+    iMod (open_world_split_next_cases W C [] (Some ι) (a ^+ 0) p0 P0 p g
+            with "Hrel0 Hl Hg")
+      as "[(%ρ0 & %v0 & %Hρ0wl & %HnT0 & #Hpart0 & Hl & Hg & Hk0 & Hφ0)
+          | (%ι' & %Hι' & #Hq & Hl & Hg)]";
+      [done | set_solver |..]; cycle 1.
+    { injection Hι' as <-. iModIntro. iLeft.
+      rewrite open_l_nil open_perm_nil. by iFrame "Hq Hl Hg". }
+    set (k0 := addr_key (Some ι) (a ^+ 0)).
+    set (s0 := {[k0]} ∪ ([] : list LAddr)).
+    pose proof (pc_content_persistent ρ0 W C P0 v0 Hpers0).
+    iDestruct "Hφ0" as "#Hφ0".
+    iModIntro. iRight.
+    iExists (λ i, local_region_map th W C (open_l W s0) ∗
+      ▷ perm_region_map C (open_perm W s0) ∗
+      match i with
+      | 0 => k0 ↦ₖ v0
+      | S _ => ∃ v, k0 ↦ₖ v ∗ pc_content ρ0 W C P0 v
+      end)%I.
+    iFrame "Hl Hg Hk0".
+    iSplitR.
+    - iIntros "!>" (i Hi Hie) "(Hl & Hg & Hk)".
+      set (ea := a ^+ i).
+      assert (withinBounds b e ea = true) as Hwb
+        by (apply withinBounds_true_iff; subst ea; solve_addr).
+      iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
+        [by apply writeAllowed_nonO | done |].
+      (* The store of [ws !!! i] into an open cell [k] of the world *)
+      iAssert (∀ (k : LAddr) ρ (P : interpO Σ) v,
+        ⌜k = addr_key (Some ι) ea⌝ -∗
+        ⌜ρ = InPerm → isWL p = false⌝ -∗
+        ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) -∗
+        k ↦ₖ v -∗
+        ∃ q, ea ↦ₐ v ∗ deref_res (Some ι) q ∗
+          ▷ (ea ↦ₐ lstore_word p (ws !!! i) -∗ deref_res (Some ι) q -∗
+             k ↦ₖ lstore_word p (ws !!! i) ∗
+             pc_content ρ W C P (lstore_word p (ws !!! i))))%I as "Hstore".
+      { iIntros (k ρ P v -> Hρwl) "#Hwcond Hk".
+        iDestruct (addr_key_pointsto with "Hk") as "[Ha Hshare]".
+        iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+        iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
+        iExists (deref_share dw). iFrame "Ha Hdw".
+        iIntros "!> Ha Hdw".
+        iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
+        iDestruct ("Hshare" with "Hdw") as "Hshare".
+        iDestruct (addr_key_pointsto_join with "Ha Hshare") as "$".
+        iApply (pc_content_wcond with "Hwcond"); first done.
+        destruct (lookup_lt_is_Some_2 ws i) as [wi Hwi]; first lia.
+        rewrite (list_lookup_total_correct _ _ _ Hwi).
+        by iApply (big_sepL_lookup with "Hws"). }
+      destruct i as [|j].
+      + iDestruct ("Hstore" $! k0 ρ0 P0 v0 with "[//] [//] Hwcond0 Hk")
+          as (q) "(Ha & Hdw & Hclose)".
+        iModIntro. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
+        iIntros "!> Ha Hdw". iModIntro. iFrame "Hl Hg".
+        iExists _. iApply ("Hclose" with "Ha Hdw").
+      + iDestruct "Hk" as (vk) "[Hk Hck]".
+        iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
+          as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)";
+          [subst ea; solve_addr | by rewrite Hwa |].
+        assert (isO p' = false) as HnO.
+        { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
+        assert (addr_key (Some ι) ea ∉ s0) as Hnotin.
+        { rewrite /s0 /k0 /ea !addr_key_Some.
+          intros Hin. apply elem_of_union in Hin as [Hin|Hin]; last set_solver.
+          apply list_elem_of_singleton in Hin. injection Hin as Heq. solve_addr. }
+        iMod (open_world_split_next_cases W C s0 (Some ι) ea p' P p g
+                with "Hrel Hl Hg")
+          as "[(%ρ & %v & %Hρwl & %HnT & #Hpart & Hl & Hg & Hki & _) | (%ι' & %Hι' & #Hq & _)]";
+          [done | exact Hnotin |..]; cycle 1.
+        { injection Hι' as <-. iExFalso.
+          iEval (rewrite /k0 addr_key_Some) in "Hk".
+          iApply (heap_pointsto_quar_false with "Hk Hq"). }
+        iDestruct ("Hstore" $! (addr_key (Some ι) ea) ρ P v
+                    with "[//] [//] Hwcond Hki")
+          as (q) "(Ha & Hdw & Hclose)".
+        iModIntro. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
+        iIntros "!> Ha Hdw".
+        iDestruct ("Hclose" with "Ha Hdw") as "[Hki Hres]".
+        iDestruct (pc_close_split with "Hl [Hg] Hpart Hki [Hres]") as "[Hl Hg]";
+          [exact Hnotin|done|done|done|by iNext|by iNext|].
+        iModIntro. iFrame "Hl Hg". iExists vk. iFrame "Hk Hck".
+    - iIntros "!>" (i) "(Hl & Hg & Hk)".
+      iAssert (∃ v, k0 ↦ₖ v ∗ ▷ pc_content ρ0 W C P0 v)%I with "[Hk]" as (v) "[Hk Hc]".
+      { destruct i as [|j].
+        - iExists v0. iFrame "Hk Hφ0".
+        - iDestruct "Hk" as (v) "[Hk Hc]". iExists v. iFrame "Hk". by iNext. }
+      iDestruct (pc_close_split W C [] with "Hl Hg Hpart0 Hk Hc") as "[Hl Hg]";
+        [set_solver|done|done|done|].
+      rewrite open_l_nil open_perm_nil. iFrame "Hl Hg".
+  Qed.
+
+  (** Split twin of [world_interp_cells_store_acc]: the stores through a
+      non-heap capability, the split world at every step. *)
+  Lemma world_split_cells_store_acc (W : WORLD) (C : CmptName)
+    (p : Perm) (g : Locality) (b e a : Addr) (π : option AId) (ws : list LWord) :
+    writeAllowed p = true →
+    (b <= a)%a →
+    π = None →
+    interp W C (Cap p g b e a @@? π) -∗
+    ([∗ list] v ∈ ws, interp W C v) -∗
+    cells_store_acc (λ _, local_region_map th W C ∅ ∗ ▷ perm_region_map C ∅)%I p e a π ws.
+  Proof.
+    iIntros (Hwa Hb ->) "#Hinterp_dst #Hws".
+    iIntros "!>" (i Hi Hie) "[Hl Hg]".
+    iEval (rewrite -(open_l_nil W)) in "Hl".
+    iEval (rewrite -(open_perm_nil W)) in "Hg".
+    set (ea := a ^+ i).
+    assert (ea ∈ₐ [b, e)) as Hbounds by (subst ea; solve_addr).
+    assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
+      as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)"; [solve_addr | by rewrite Hwa |].
+    assert (isO p' = false) as HnO.
+    { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
+    iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
+      [by eapply writeAllowed_nonO | done |].
+    iMod (open_world_split_next_cases W C [] None ea p' P p g with "Hrel Hl Hg")
+      as "[(%ρ & %v & %Hρwl & %HnT & #Hpart & Hl & Hg & Ha & _) | (%ι & % & _)]";
+      [done | set_solver | | done].
+    iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
+    iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
+    iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
+    iModIntro. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
+    iIntros "!> Ha Hdw".
+    iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
+    iDestruct ("Hshare" with "Hdw") as "Hshare".
+    set (v' := lstore_word p (ws !!! i)).
+    iAssert (pc_content ρ W C P v') as "Hinterp'".
+    { iApply (pc_content_wcond with "Hwcond"); first done.
+      destruct (lookup_lt_is_Some_2 ws i) as [wi Hwi]; first lia.
+      rewrite (list_lookup_total_correct _ _ _ Hwi).
+      by iApply (big_sepL_lookup with "Hws"). }
+    iDestruct (addr_key_pointsto_join None with "Ha Hshare") as "Ha".
+    iDestruct (pc_close_split W C [] with "Hl [Hg] Hpart Ha [Hinterp']") as "[Hl Hg]";
+      [set_solver|done|done|done|by iNext|by iNext|].
+    iModIntro. rewrite open_l_nil open_perm_nil. iFrame "Hl Hg".
+  Qed.
+
 End wp_interp.
