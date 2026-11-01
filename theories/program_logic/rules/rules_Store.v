@@ -356,6 +356,7 @@ Section griotte_lang_rules.
      assert (Hallow : reg_allows_store_imm regs r1 imm p g b e a ea)
        by (repeat split; auto; by rewrite Hr1l).
      specialize (HaStore p g b e a ea storev Hallow HSV).
+     rewrite /is_mmio_address /mmio_store /shadow_store in Hstep.
      destruct (is_shadow_address ea) eqn:Hshadow.
      - destruct (proj2 (shadow_to_heap_domain ea) Hshadow) as [heap_a Htranslate].
        rewrite Htranslate /= in Hstep.
@@ -375,7 +376,7 @@ Section griotte_lang_rules.
          - iDestruct (HPm with "HR HC Hperms") as %Hok; first done.
            iPureIntro. by right. }
        pose proof (erasure_shadow_store _ _ _ _ _ _ _ _ _ _ _ heap_a status Her ltac:(eauto) Hsok) as Her1.
-       rewrite /update_shadowtbl /= in Hstep.
+       rewrite /set_shadowtbl /= in Hstep.
        destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
        2: {
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
@@ -1715,8 +1716,8 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
       assert (is_Some (regs !!ₗ r2)) as [lv Hl].
       { eapply llookup_reg_of_dom; [exact Dregs | rewrite /regs_of /operands_of /=; set_solver+]. }
       destruct (llookup_reg_phys _ _ _ _ _ Hregs Hl) as (s2 & Hr2 & _). eauto. }
-    rewrite /exec /= Hwv Hr1 /= Hadd /= Hwa Hwb /= revoker_not_shadow_address /=
-      in Hstep.
+    rewrite /exec /= Hwv Hr1 /= Hadd /= Hwa Hwb /= /is_mmio_address /mmio_store
+      revoker_not_shadow_address /= in Hstep.
     rewrite (proj2 (is_revoker_address_spec revoker_addr) eq_refl) /= in Hstep.
     (* The ghost update *)
     iMod (revoke_ghost_update K R C with "HR HC Hpre") as "(HR & HC & Hpost & %HK)".

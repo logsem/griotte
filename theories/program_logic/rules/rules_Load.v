@@ -370,6 +370,7 @@ Section griotte_lang_rules.
          Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw FaultedV))
       as (v & pv & Hok & Hpv & Hstep' & Hsucc & Hfailure).
     {
+      rewrite /is_mmio_address /mmio_load /shadow_load /revoker_load in Hstep.
       destruct (is_shadow_address ea) eqn:Hshadow.
       - destruct HaLoad as (heap_a & Htranslate & revoked & Hlookup).
         rewrite Htranslate /= (Hshadow_valid _ _ Hlookup) /= in Hstep.

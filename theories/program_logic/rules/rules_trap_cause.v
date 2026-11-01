@@ -167,7 +167,8 @@ Section trap_cause.
     cause_rel S φl φp →
     fault_rel S src (load_fault φl src imm) (load_fault φp src imm).
   Proof.
-    intros Hrel. rewrite /load_fault.
+    intros Hrel.
+    rewrite /load_fault /mmio_load_fault /is_mmio_address /shadow_load_fault /revoker_load_fault.
     destruct (lookup_reg_rel _ _ _ src Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
       [| | by left].
     - (* Exact copy: the same branches; memory agrees on the heap base, and
@@ -209,7 +210,8 @@ Section trap_cause.
     cause_rel S φl φp →
     fault_rel S dst (store_fault φl dst ρ imm) (store_fault φp dst ρ imm).
   Proof.
-    intros Hrel. rewrite /store_fault.
+    intros Hrel.
+    rewrite /store_fault /mmio_store_fault /is_mmio_address /shadow_store_fault /revoker_store_fault.
     destruct (word_of_argument_rel _ _ _ ρ Hrel) as [t t' Ht|]; last by left.
     destruct (lookup_reg_rel _ _ _ dst Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
       [| | by left].
@@ -440,7 +442,9 @@ Section trap_cause.
     fault_is_access (load_fault φf src imm) = false →
     load_fault φ src imm = load_fault φf src imm.
   Proof.
-    intros Hsrc Hmem Hsh. rewrite /load_fault Hsrc Hsh.
+    intros Hsrc Hmem Hsh.
+    rewrite /load_fault /mmio_load_fault /is_mmio_address /shadow_load_fault /revoker_load_fault
+      Hsrc Hsh.
     destruct (reg φ !!ᵣ src) as [w|]; last done. cbn.
     destruct (data_cap_check readAllowed PermitLoadViolation src w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
@@ -456,7 +460,9 @@ Section trap_cause.
     fault_is_access (store_fault φf dst ρ imm) = false →
     store_fault φ dst ρ imm = store_fault φf dst ρ imm.
   Proof.
-    intros Hdst Hρ Hmem. rewrite /store_fault Hdst.
+    intros Hdst Hρ Hmem.
+    rewrite /store_fault /mmio_store_fault /is_mmio_address /shadow_store_fault /revoker_store_fault
+      Hdst.
     assert (word_of_argument (reg φf) ρ = word_of_argument (reg φ) ρ) as ->.
     { destruct ρ as [z|r]; first done. cbn. by rewrite (Hρ r eq_refl). }
     destruct (word_of_argument (reg φ) ρ) as [t|]; last done.

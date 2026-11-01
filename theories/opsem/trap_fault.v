@@ -111,3 +111,10 @@ Proof.
     [apply elem_of_enum | done |].
   by rewrite (inj f _ _ Hy).
 Qed.
+
+(** The default fault, for a fault that the PC checks do not explain and
+    that no instruction check reports: a bounds violation on the PC. It is
+    the fault of a jump out of the address space, which cheriot-sail
+    reports at the next fetch; the other cases are unreachable from a
+    correct PC (an absent register, a PC that cannot advance). *)
+Definition fault_default : fault := FaultCheri BoundsViolation CheriPCC.

@@ -297,7 +297,8 @@ Section Error_Handling_Read_Safe.
         { pose proof stats_load_pc_correct as Hpc.
           rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
           rewrite /lm !lookup_fmap lookup_insert_eq /=
-            ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault.
+            ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault
+            /mmio_load_fault /is_mmio_address /revoker_load_fault.
           rewrite /lookup_reg /= !lookup_fmap lookup_insert_eq /=.
           destruct (decide (ca0 = cnull)) as [Hc | _]; first done.
           rewrite /data_cap_check Hra addr_add_0 Hwb Hnot_shadow.

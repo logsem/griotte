@@ -36,6 +36,10 @@ Definition update_mem (φ: ExecConf) (a: Addr) (w: Word): ExecConf :=
 Definition update_shadowtbl (φ: ExecConf) (a: Addr) (s: AllocStatus): ExecConf :=
   {| pcc := pcc φ; reg := reg φ; sreg := sreg φ; mem := mem φ;
      shadowtbl := <[a:=s]> (shadowtbl φ) |}.
+(** The shadow table replaced by [sh], as a store to the shadow region gives
+    it. *)
+Definition set_shadowtbl (φ: ExecConf) (sh: ShadowTbl): ExecConf :=
+  {| pcc := pcc φ; reg := reg φ; sreg := sreg φ; mem := mem φ; shadowtbl := sh |}.
 
 (** Field updates, written on the right of the configuration so that a
     chain of updates reads in order, one per line: [φ .[r :=ᵣ w]] is

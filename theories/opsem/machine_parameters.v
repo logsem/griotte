@@ -121,10 +121,8 @@ Class MachineParameters := {
     instruction_encoding_mixin :: InstructionEncoding;
     permission_encoding_mixin :: PermissionEncoding;
     word_encoding_mixin :: WordEncoding;
-    encodeAllocStatus : AllocStatus -> Z;
-    decodeAllocStatus : Z -> AllocStatus;
-    decode_encode_alloc_status_inv s :
-      decodeAllocStatus (encodeAllocStatus s) = s;
+    (* The encoding of allocation statuses, for the shadow region *)
+    alloc_status_encoding_mixin :: AllocStatusEncoding;
     (* Machine parameters for the heap and the shadow regions *)
     heap_mixin :: HeapRegion;
     shadow_mixin :: ShadowRegion;

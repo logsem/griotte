@@ -1,4 +1,4 @@
-From griotte Require Import machine_base heap_layout.
+From griotte Require Import machine_base heap_layout trap_fault.
 
 (** Entries are keyed by heap addresses. Direct accesses through a capability
     into the shadow region use [shadow_to_heap] to obtain this key. Loading a
@@ -133,3 +133,57 @@ Proof.
   rewrite /disjoint_from_shadow elem_of_disjoint in Hdisjoint.
   eapply Hdisjoint; apply elem_of_finz_seq_between; eauto.
 Qed.
+
+(** The encoding of allocation statuses as integers, as loads from and
+    stores to the shadow region see them. *)
+Class AllocStatusEncoding := {
+    encodeAllocStatus : AllocStatus -> Z;
+    decodeAllocStatus : Z -> AllocStatus;
+    decode_encode_alloc_status_inv s :
+      decodeAllocStatus (encodeAllocStatus s) = s;
+  }.
+(* No [Hint Mode]: the class has no parameter, hence no input position. *)
+
+Definition get_shadow_address (a : Addr) : Addr := a.
+
+(** * The shadow device
+
+    A load from or a store to the shadow region acts on the shadow table,
+    at the heap address that the shadow address translates to. *)
+Section shadow_device.
+  Context `{HeapRegion} `{ShadowRegion} `{!HeapShadowTranslation} `{AllocStatusEncoding}.
+
+  (** A load from the shadow address [ea] reads the status of its heap
+      address, encoded. *)
+  Definition shadow_load (sh : ShadowTbl) (ea : Addr) : option Word :=
+    heap_a ← shadow_to_heap ea;
+    status ← sh !! heap_a;
+    Some (WInt (encodeAllocStatus status)).
+
+  (** A store to the shadow address [ea]: an integer decodes to an
+      allocation status; any other word fails. *)
+  Definition shadow_store (sh : ShadowTbl) (ea : Addr) (w : Word) : option ShadowTbl :=
+    heap_a ← shadow_to_heap ea;
+    match w with
+    | WInt z => Some (<[heap_a := decodeAllocStatus z]> sh)
+    | _ => None
+    end.
+
+  (** The access faults of the shadow region: a load whose heap address has
+      no entry, a store of a non-integer. *)
+  Definition shadow_load_fault (sh : ShadowTbl) (ea : Addr) : fault :=
+    match shadow_to_heap ea with
+    | Some heap_a =>
+        match sh !! heap_a with
+        | None => FaultLoadAccess ea
+        | Some _ => fault_default
+        end
+    | None => fault_default
+    end.
+
+  Definition shadow_store_fault (ea : Addr) (w : Word) : fault :=
+    match w with
+    | WInt _ => fault_default
+    | _ => FaultStoreAccess ea
+    end.
+End shadow_device.
