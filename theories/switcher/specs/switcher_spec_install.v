@@ -3,7 +3,7 @@ From griotte Require Import memory_region rules rules_vcsr proofmode.
 From griotte Require Export logrel switcher switcher_preamble switcher_error_handler.
 From griotte Require Import switcher_exception_states.
 From griotte.switcher.exception Require Import common_context_install
-  handle_error_handler_invoke handle_error_install_context.
+  handle_error_install_context.
 From griotte Require Import map_simpl register_tactics.
 
 (** * Installation of the context of an error handler
@@ -136,15 +136,21 @@ Section Switcher_Spec_Install.
 
   (** ** The installation *)
 
-  (** From the handler's return, at InterruptEnabled, with [ca0] zero, for
-      the call stack [cstk] whose topmost table has the PCC [wpcc] and whose
-      topmost frame's table word is set, at a token [F] that contains the
-      trusted-stack invariant: the [ErrorState] is read at the handler's
+  (** From [.Lhandle_error_install_context], once the handler's return has
+      disabled interrupts with [ca0] zero ([handle_error_handler_return_spec]),
+      for the call stack [cstk] whose topmost table has the PCC [wpcc] and
+      whose topmost frame's table word is set, at a token [F] that contains
+      the trusted-stack invariant: the [ErrorState] is read at the handler's
       [csp] through the accessor, and the context it holds is resumed, or a
-      load faults. *)
+      load faults. The caller may hold the critical-section token, lent out
+      of the posture: it gives the posture without it ([posture_lent]), a
+      resource [Tok], a later credit (for the trusted-stack invariant), and
+      a closing hook, which the installation calls
+      before the [mret] and before a fault; the hook gives the token back and
+      turns the source into [Lc], which the continuations receive. *)
   Lemma switcher_install_context_spec
     (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
-    (L : nat → list LWord → iProp Σ) :
+    (L : nat → list LWord → iProp Σ) (Tok : iProp Σ) (Lc : nat → list LWord → iProp Σ) :
     ↑Ntstack ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
     nonZero (rmap !!! ca0).(lw) = false ->
@@ -152,9 +158,12 @@ Section Switcher_Spec_Install.
 
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
-    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_handler_return" ∗
+    PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_install_context" ∗
     registers_pointsto rmap ∗
-    MIE ↦ₜ[th] InterruptEnabled ∗
+    MIE ↦ₜ[th] InterruptDisabled ∗
+    posture_lent (th := th) None None None None ∗
+    Tok ∗
+    £ 1 ∗
     na_own (tpool th) F ∗
     ◯(CSTK)[th] cstk ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
@@ -163,16 +172,19 @@ Section Switcher_Spec_Install.
        ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( install_nested_k F cstk rmap L ∧
-        install_resume_k F cstk rmap wpcc L )
+    ▷ ( ∀ i ls, Tok -∗ L i ls ={⊤}=∗ na_own crit ⊤ ∗ Lc i ls ) ∗
+    ▷ ( install_nested_k F cstk rmap Lc ∧
+        install_resume_k F cstk rmap wpcc Lc )
     ⊢ safe[th].
   Proof.
     iIntros (HF Hfull Hnz Htbl_set)
-      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
+      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hmie & Hposture & HTok & Hlc_inv & Hna & Hcstk & #Hpcc
+       & HL & Hacc & Hhook & Hpost)".
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | done |].
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
+    iMod (lc_fupd_elim_later with "Hlc_inv Hstk_interp") as "Hstk_interp".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     rewrite /registers_pointsto.
@@ -184,17 +196,11 @@ Section Switcher_Spec_Install.
     assert (rmap !!! csp = wcsp) as Hrmap_csp by (rewrite lookup_total_alt Hwcsp; done).
     rewrite Hrmap_ca0 in Hnz. rewrite Hrmap_csp.
 
-    (* [.Lhandle_error_handler_return]: the handler's return, with [ca0]
-       zero; the posture comes back from the link *)
-    iApply (handle_error_handler_return_spec with "[- $HPC $Hca0 $Hcode $Hmie]");
-      first (intros Hc; by destruct Huser).
-    iNext; iSplit.
-    { iIntros (Hnz') "_". by rewrite Hnz in Hnz'. }
-    iIntros (_) "(HPC & Hca0 & Hmie & Hheld)".
-
     (* The save area of the posture, joined with [hazardPointers] *)
-    iEval (rewrite held_disabled posture_part_user //) in "Hheld".
-    iDestruct "Hheld" as "(Hho & (%ws & %Hws_ok & Hholed) & Hlent)".
+    iDestruct "Hposture"
+      as "[(%vepcc & %vcause & %vtval & %vmpie & _ & _ & _ & _ & HU & Hvol) Hpart]".
+    iEval (rewrite posture_part_user //) in "Hpart".
+    iDestruct "Hpart" as "[(%ws & %Hws_ok & Hholed) Hlent]".
     iDestruct (save_area_join with "[$Hholed $Hhazard_cell]") as "Hsave_area".
     set (save_area := <[Z.to_nat TrustedStack_offset_hazardPointers :=
                          lword_of_word hazard_slots_cap]> ws).
@@ -269,11 +275,16 @@ Section Switcher_Spec_Install.
       iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
       destruct (Hdrop_ok save' Hdrop) as [Hhz' Hok'].
+      (* The closing hook gives the token back *)
+      iApply trap_safe_fupd.
+      iMod ("Hhook" with "HTok HL") as "[Hcrit HL]".
+      iModIntro.
+      iDestruct (handover_res_intro with "[Hcrit $HU $Hvol]") as "Hho"; first iExact "Hcrit".
       iDestruct (save_area_release with "Hsave_area Hho Hlent") as "[Hheld Hhazard_cell]";
         [done | done | done |].
       iSpecialize ("Hclose" with "Hmtdc Hhazard_cell Hframeoffset Hcstk_full Hstk_interp").
       iDestruct "Hpost" as "[Hnested _]".
-      iApply (switcher_install_nested_finish F cstk off rmap L i ls with
+      iApply (switcher_install_nested_finish F cstk off rmap Lc i ls with
                "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
                  $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $HL $Hmie $Hheld $Hnested]");
         [done | done |].
@@ -298,6 +309,9 @@ Section Switcher_Spec_Install.
       assert (save'' !!! Z.to_nat TrustedStack_offset_hazardPointers =
                 lword_of_word hazard_slots_cap) as Hhz_total.
       { by apply list_lookup_total_correct. }
+      (* The closing hook gives the token back *)
+      iMod ("Hhook" with "HTok HL") as "[Hcrit HL]".
+      iDestruct (handover_res_intro with "[Hcrit $HU $Hvol]") as "Hho"; first iExact "Hcrit".
       (* [.Lcommon_context_install], at InterruptDisabled with the posture *)
       iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1

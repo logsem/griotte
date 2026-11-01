@@ -44,6 +44,8 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    (* The caller's compartment is in exclusive mode *)
+    cmpt_shared C = false ->
 
     (* The thread runs in the caller's compartment *)
     thread_in th C
@@ -131,7 +133,7 @@ Section Switcher.
 
     ⊢ safe[th].
   Proof.
-    iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap Hsh)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
     & Hmie & Hheld & Hpost)".
@@ -161,6 +163,9 @@ Section Switcher.
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
       as Hloaded by (repeat split; assumption).
+    iAssert (world_interp (revoke W2) C) with "[Hworld]" as "Hworld".
+    { iEval (rewrite world_resources_split perm_resources_exclusive //) in "Hworld".
+      rewrite world_interp_eq. iDestruct "Hworld" as "[$ $]". }
     iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
         $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
@@ -185,6 +190,8 @@ Section Switcher.
     (* The caller returns to a valid target, outside the heap *)
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     is_heap_cap wcra_caller.(lw) = false ->
+    (* The caller's compartment is in exclusive mode *)
+    cmpt_shared C = false ->
 
     (* The thread runs in the caller's compartment *)
     thread_in th C
@@ -270,7 +277,7 @@ Section Switcher.
 
     ⊢ safe[th].
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap Hsh)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
     & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
     & Hmie & Hheld & Hpost)".
@@ -280,8 +287,24 @@ Section Switcher.
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
     1-7: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld Hpost".
+      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
     iFrame "Htarget_v".
+    iFrame "%".
+    iSplit; last by iDestruct "Hpost" as "[_ $]".
+    iDestruct "Hpost" as "[Hpost _]".
+    iNext.
+    iIntros (W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m) "Hnew".
+    iDestruct "Hnew" as
+      "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
+      & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
+      & Hrmap & Hstk & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
+    iAssert (world_interp (revoke W2) C) with "[Hworld]" as "Hworld".
+    { iEval (rewrite world_resources_split perm_resources_exclusive //) in "Hworld".
+      rewrite world_interp_eq. iDestruct "Hworld" as "[$ $]". }
+    iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
+      "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
+        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
     iFrame "%".
   Qed.
 

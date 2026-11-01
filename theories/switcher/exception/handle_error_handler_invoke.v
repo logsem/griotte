@@ -145,7 +145,8 @@ Section Handle_Error_Handler_Invoke.
           PC ↦ₚ[th] switcher_label_pc ".Lhandle_error_install_context" ∗
           ca0 ↦ᵣ[th] wca0 ∗
           MIE ↦ₜ[th] InterruptDisabled ∗
-          held (th := th) InterruptDisabled -∗
+          held (th := th) InterruptDisabled ∗
+          £ 2 -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
@@ -154,7 +155,7 @@ Section Handle_Error_Handler_Invoke.
     (* At InterruptEnabled, the thread holds nothing besides MIE *)
     iAssert (held (th := th) InterruptEnabled) as "Hen"; first done.
     (* SetMIE InterruptDisabled *)
-    iInstrApply "Hcode"
+    iInstrApply "Hcode" with "Hlc0"
       (wp_setmie_success_posture _ _ _ _ _ _ _ _ _ InterruptDisabled InterruptEnabled)
       with "[$HPC $Hmie]" as "(HPC & Hmie & Hheld)"; [done..|].
     destruct (nonZero wca0.(lw)) eqn:Hnz.
@@ -165,10 +166,12 @@ Section Handle_Error_Handler_Invoke.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[//]"). iFrame "HPC Hca0 Hmie Hheld".
     - (* Jne .Lcommon_force_unwind ca0 0 *)
-      iInstrApply "Hcode" wp_jnez_success_next_any with "[$HPC $Hca0]" as "(HPC & Hca0)".
+      iInstrApply "Hcode" with "Hlc1" wp_jnez_success_next_any with "[$HPC $Hca0]"
+        as "(HPC & Hca0)".
       switcher_change_pc_label ".Lhandle_error_install_context".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[//]"). iFrame "HPC Hca0 Hmie Hheld".
+      iApply (lc_split 1 1). iFrame "Hlc0 Hlc1".
   Qed.
 
 End Handle_Error_Handler_Invoke.
