@@ -738,4 +738,42 @@ Section opsem.
   Definition trap_halts (φ : ExecConf) : bool :=
     negb (get_tag (pcc φ)) && negb (get_tag (sreg_word φ mtcc)).
 
+  (** * Interrupts and ticks *)
+
+  (** The causes of the interrupts the machine takes: the machine timer
+      interrupt and the machine external interrupt. *)
+  Definition irq_causes : list Z :=
+    [(MCAUSE_INTR + MCAUSE_MTIME)%Z; (MCAUSE_INTR + MCAUSE_MEXTERN)%Z].
+
+  (** Interrupts are enabled when the MIE bit of mstatus is set. *)
+  Definition irq_enabled (φ : ExecConf) : Prop :=
+    mie_of (get_a (sreg_word φ mstatus)) = InterruptEnabled.
+
+  (** Interrupt entry with cause [c], as sail-riscv's [handle_interrupt]
+      with cheriot-sail's [handle_trap_extension]: as [enter_exc] with mtval 0, except that MEPCC receives the PC as it
+      is. The interrupt is taken before the fetch, so no fetch check has
+      cleared the tag of a PC out of its bounds. *)
+  Definition enter_irq (c : Z) (φ : ExecConf) : ExecConf :=
+    let mie := mie_of (get_a (sreg_word φ mstatus)) in
+    φ .[mepcc   :=ₛᵣ pcc φ]
+      .[mstatus :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
+      .[mcause  :=ₛᵣ WInt c]
+      .[mtval   :=ₛᵣ WInt MTVAL_NONE]
+      .[PC      := sreg_word φ mtcc].
+
+  (** A tick of the timer: only [mtime] changes. *)
+  Definition tick (φ : ExecConf) : ExecConf := φ .[TD := time_dev_tick (timedevs φ)].
+
+  (** The steps the hardware may take between two instructions, besides the
+      next instruction: an interrupt, when interrupts are enabled, with
+      either cause, and a tick of the timer, at any time. No device state
+      decides when either happens. *)
+  Inductive async_step : ExecConf → ExecConf → Prop :=
+  | step_irq φ c :
+      c ∈ irq_causes →
+      irq_enabled φ →
+      async_step φ (enter_irq c φ)
+  | step_tick φ :
+      async_step φ (tick φ).
+
 End opsem.

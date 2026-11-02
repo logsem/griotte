@@ -18,58 +18,82 @@ Class cerise_na_invs Σ :=
   }.
 #[export] Hint Mode cerise_na_invs - : typeclass_instances.
 
-(** The logical PC: a single exclusive value, whose authoritative part is in
-    the state interpretation. The PC is not a general register. *)
-Definition pcUR := excl_authUR (leibnizO LWord).
-
+(** The logical PC: a single value, whose authoritative part is in the state
+    interpretation. The fragment is fractional; [PC_frag] is the full one.
+    The PC is not a general register. *)
 Class pcG Σ := PcG {
-  pc_inG :: inG Σ pcUR;
+  pc_inG :: ghost_mapG Σ unit LWord;
   pc_name : gname;
 }.
 #[export] Hint Mode pcG - : typeclass_instances.
 
-Class pcGpreS Σ := { pc_preG_inG :: inG Σ pcUR }.
+Class pcGpreS Σ := { pc_preG_inG :: ghost_mapG Σ unit LWord }.
 #[export] Hint Mode pcGpreS - : typeclass_instances.
-Definition pcΣ : gFunctors := #[GFunctor pcUR].
+Definition pcΣ : gFunctors := ghost_mapΣ unit LWord.
 #[global] Instance subG_pcGpreS {Σ} : subG pcΣ Σ → pcGpreS Σ.
 Proof. solve_inG. Qed.
 
 Section pc_resource.
   Context `{!pcG Σ}.
 
-  Definition PC_auth (lpc : LWord) : iProp Σ := own pc_name (●E (lpc : leibnizO LWord)).
-  Definition PC_frag (lpc : LWord) : iProp Σ := own pc_name (◯E (lpc : leibnizO LWord)).
+  Definition PC_auth (lpc : LWord) : iProp Σ := ghost_map_auth pc_name 1 {[ tt := lpc ]}.
+  Definition PC_fragq (dq : dfrac) (lpc : LWord) : iProp Σ := tt ↪[pc_name]{dq} lpc.
+  Definition PC_frag (lpc : LWord) : iProp Σ := PC_fragq (DfracOwn 1) lpc.
 
   #[global] Instance PC_auth_timeless lpc : Timeless (PC_auth lpc).
-  Proof. apply _. Qed.
+  Proof. rewrite /PC_auth. apply _. Qed.
+  #[global] Instance PC_fragq_timeless dq lpc : Timeless (PC_fragq dq lpc).
+  Proof. rewrite /PC_fragq. apply _. Qed.
   #[global] Instance PC_frag_timeless lpc : Timeless (PC_frag lpc).
-  Proof. apply _. Qed.
+  Proof. rewrite /PC_frag. apply _. Qed.
+
+  Lemma PC_agreeq dq lpc lpc' : PC_auth lpc -∗ PC_fragq dq lpc' -∗ ⌜lpc = lpc'⌝.
+  Proof.
+    iIntros "Ha Hf". iDestruct (ghost_map_lookup with "Ha Hf") as %Hl.
+    by rewrite lookup_singleton_eq in Hl; simplify_eq.
+  Qed.
 
   Lemma PC_agree lpc lpc' : PC_auth lpc -∗ PC_frag lpc' -∗ ⌜lpc = lpc'⌝.
-  Proof.
-    iIntros "Ha Hf". iCombine "Ha Hf" gives %Hv.
-    by apply excl_auth_agree_L in Hv.
-  Qed.
+  Proof. apply PC_agreeq. Qed.
 
   Lemma PC_update lpc lpc' lpc'' : PC_auth lpc -∗ PC_frag lpc' ==∗ PC_auth lpc'' ∗ PC_frag lpc''.
   Proof.
-    iIntros "Ha Hf". iMod (own_update_2 with "Ha Hf") as "[$ $]"; last done.
-    apply excl_auth_update.
+    iIntros "Ha Hf". iMod (ghost_map_update lpc'' with "Ha Hf") as "[Ha $]".
+    by rewrite /PC_auth insert_singleton.
+  Qed.
+
+  Lemma PC_frag_excl_q dq lpc lpc' : PC_frag lpc -∗ PC_fragq dq lpc' -∗ False.
+  Proof.
+    iIntros "H1 H2". iDestruct (ghost_map_elem_valid_2 with "H1 H2") as %[Hv _].
+    apply dfrac_valid_own_l in Hv. by destruct (irreflexivity (<)%Qp 1%Qp).
   Qed.
 
   Lemma PC_frag_excl lpc lpc' : PC_frag lpc -∗ PC_frag lpc' -∗ False.
+  Proof. apply PC_frag_excl_q. Qed.
+
+  (** Two halves: agreement, and the full fragment back. *)
+  Lemma PC_frag_split lpc :
+    PC_frag lpc ⊣⊢ PC_fragq (DfracOwn (1/2)) lpc ∗ PC_fragq (DfracOwn (1/2)) lpc.
   Proof.
-    iIntros "H1 H2". iCombine "H1 H2" gives %Hv.
-    by apply excl_auth_frag_op_valid in Hv.
+    rewrite /PC_frag /PC_fragq. iSplit.
+    - iIntros "[$ $]".
+    - iIntros "[H1 H2]". by iCombine "H1 H2" as "H".
+  Qed.
+
+  Lemma PC_halves_merge lpc lpc' :
+    PC_fragq (DfracOwn (1/2)) lpc -∗ PC_fragq (DfracOwn (1/2)) lpc' -∗
+    ⌜lpc = lpc'⌝ ∗ PC_frag lpc.
+  Proof.
+    iIntros "H1 H2". iDestruct (ghost_map_elem_agree with "H1 H2") as %<-.
+    iSplit; first done. rewrite PC_frag_split. iFrame.
   Qed.
 End pc_resource.
 
 Lemma PC_init `{!pcGpreS Σ} (lpc : LWord) :
   ⊢ |==> ∃ (pg : pcG Σ), PC_auth lpc ∗ PC_frag lpc.
 Proof.
-  iMod (own_alloc (●E (lpc : leibnizO LWord) ⋅ ◯E (lpc : leibnizO LWord))) as (γ) "[Ha Hf]".
-  { apply excl_auth_valid. }
-  iModIntro. iExists (PcG _ _ γ). iFrame.
+  iMod (ghost_map_alloc {[ tt := lpc ]}) as (γ) "[Ha Hf]".
+  rewrite big_sepM_singleton. iModIntro. iExists (PcG _ _ γ). iFrame.
 Qed.
 
 (** * The per-thread system registers and MPIE

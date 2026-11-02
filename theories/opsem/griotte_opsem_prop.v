@@ -404,6 +404,55 @@ Qed.
         apply pc_ok_untagged, get_tag_clear_tag.
   Qed.
 
+  (** Interrupt entry and ticks preserve the tagged-PC invariant: the PC
+      receives MTCC, MEPCC receives the PC, and a tick changes neither. *)
+  Lemma enter_irq_sys_pc_ok c φ :
+    sys_pc_ok φ → sys_pc_ok (enter_irq c φ).
+  Proof.
+    intros [Hpc Hsr]. rewrite /enter_irq /sreg_word. split.
+    - cbn. destruct (sreg φ !! mtcc) as [w|] eqn:Hmtcc; cbn; last done.
+      by apply (Hsr mtcc).
+    - intros sr w Hsr_pc. cbn. destruct sr; try done.
+      + rewrite !lookup_insert_ne //. by apply Hsr.
+      + rewrite (lookup_insert_ne _ mtval) // (lookup_insert_ne _ mcause) //
+          (lookup_insert_ne _ mstatus) // lookup_insert_eq.
+        by intros [= <-].
+  Qed.
+
+  Lemma tick_sys_pc_ok φ : sys_pc_ok φ → sys_pc_ok (tick φ).
+  Proof. by apply sys_pc_ok_ext. Qed.
+
+  Lemma async_step_sys_pc_ok φ φ' : sys_pc_ok φ → async_step φ φ' → sys_pc_ok φ'.
+  Proof.
+    intros Hinv Hstep. destruct Hstep.
+    - by apply enter_irq_sys_pc_ok.
+    - by apply tick_sys_pc_ok.
+  Qed.
+
+  (** At a PC that is correct or untagged, interrupt entry is exception
+      entry with mtval 0. *)
+  Lemma enter_irq_enter_exc c φ :
+    isCorrectPCb (pcc φ) = true ∨ get_tag (pcc φ) = false →
+    enter_irq c φ = enter_exc (c, MTVAL_NONE) φ.
+  Proof.
+    rewrite /enter_irq /enter_exc /mepcc_of_pc.
+    by intros [-> | ->]; rewrite ?andb_false_r.
+  Qed.
+
+  (** A tick changes only [mtime]. *)
+  Lemma tick_pcc φ : pcc (tick φ) = pcc φ.
+  Proof. done. Qed.
+  Lemma tick_reg φ : reg (tick φ) = reg φ.
+  Proof. done. Qed.
+  Lemma tick_sreg φ : sreg (tick φ) = sreg φ.
+  Proof. done. Qed.
+  Lemma tick_mem φ : mem (tick φ) = mem φ.
+  Proof. done. Qed.
+  Lemma tick_shadowtbl φ : shadowtbl (tick φ) = shadowtbl φ.
+  Proof. done. Qed.
+  Lemma tick_mtimecmp φ : td_mtimecmp (timedevs (tick φ)) = td_mtimecmp (timedevs φ).
+  Proof. done. Qed.
+
   (*--- Trap causes ---*)
 
   (** Every trap cause is one of the named causes, all below 8 but the CHERI
