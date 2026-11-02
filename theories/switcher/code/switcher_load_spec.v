@@ -49,14 +49,16 @@ Section Switcher_Restore.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hl
                       |Hfail].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;

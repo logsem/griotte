@@ -321,127 +321,147 @@ Section Handle_Error_Install_Context.
     iPoseProof ("Hacc" $! p g b e a π with "[%] [%]") as "#Hacc_es".
     { done. }
     { split; [done | solve_addr]. }
+    (* The rest of the path, once the first word [v0] is loaded. *)
+    iAssert (∀ v0 : LWord,
+               PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher (pc_a ^+ 9) -∗
+               cra ↦ᵣ[th] v0 -∗
+               csp ↦ᵣ[th] (Cap p g b e a @@? π) -∗
+               L 1 ([] ++ [v0]) -∗
+               safe[th])%I
+      with "[-HPC Hcra Hcsp HL]" as "Hnext".
+    { iIntros (v0) "HPC Hcra Hcsp HL".
+      (* GetA cra cra *)
+      iInstr "Hcode".
+      destruct (lea_result_is_Some wpcc (get_a v0.(lw) - get_a wpcc.(lw))) as [wpc Hwpc].
+      (* SetA ct2 ct0 cra *)
+      iInstrApply "Hcode" (wp_seta_success_reg_any_src _ _ _ _ _ _ _ _ _ _ _ _ _ wpc)
+        with "[$HPC $Hct0 $Hcra $Hct2]" as "(HPC & Hct0 & Hcra & Hct2)".
+      { by rewrite seta_result_lea_result. }
+      assert (resumed_pc wpcc (get_a v0.(lw)) = wpc) as Hresumed
+        by (by rewrite /resumed_pc Hwpc).
+      (* Lea ca2 csp TrustedStack_offset_cra *)
+      iInstr "Hcode".
+      { transitivity (Some (a ^+ 1)); solve_addr. }
+      (* Lea ca3 ct1 TrustedStack_offset_cra *)
+      iInstr "Hcode".
+      { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
+      (* The destination of the copy: the words 1-15 of the register save area *)
+      assert ((b_trusted_stack + 21)%a = Some tstack_save_end) as Hsave_end.
+      { rewrite /tstack_save_end. tstack_unfold. solve_addr. }
+      pose proof (tstack_save_cell_ok 20 ltac:(lia)) as (_ & Hts_20 & _).
+      rewrite /withinBounds in Hts_20.
+      destruct (lookup_lt_is_Some_2 save 0%nat) as [w0 Hw0]; first lia.
+      assert (save = w0 :: take 15 (drop 1 save) ++ drop 16 save) as Hsave_eq.
+      { destruct save as [|w0' rest]; first done.
+        cbn in Hw0 |- *. injection Hw0 as ->. by rewrite take_drop. }
+      iEval (rewrite {1}Hsave_eq) in "Hsave".
+      iEval (rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr])
+        in "Hsave".
+      iDestruct "Hsave" as "[Hs0 Hsave]".
+      iEval (rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
+             [|solve_addr|rewrite length_take length_drop Hlen /finz.dist; solve_addr])
+        in "Hsave".
+      iDestruct "Hsave" as "[Hdst Hrest]".
+      iEval (rewrite (_ : b_trusted_stack ^+ 16 = (b_trusted_stack ^+ 1) ^+ 15);
+             last solve_addr) in "Hdst".
+      iDestruct (cells_load_acc_tail L p e a π 15 v0 with "[]") as "Hacc_tail".
+      { rewrite /cells_load_acc. iModIntro. iExact "Hacc_es". }
+      (* copy_context_asm ca3 ca2 cs1 ca4 *)
+      iApply (copy_context_load_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+                (take 15 (drop 1 save)) _ _ (λ i ls, L (S i) (v0 :: ls))
+               with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HL $Hacc_tail $Hdst]").
+      all: try done.
+      all: try (rewrite length_take length_drop Hlen; done).
+      all: try (lazymatch goal with
+                | |- environments.envs_entails _ _ => fail
+                | |- disjoint_from_shadow _ _ => fail
+                | |- _ ∉ _ => fail
+                | _ => cbn; solve_addr
+                end).
+      { rewrite /disjoint_from_shadow elem_of_disjoint in Hts_shadow |- *.
+        intros x Hx HR. eapply Hts_shadow; last exact HR.
+        apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
+        solve_addr. }
+      { clear; set_solver. }
+      iNext. iSplit.
+      - iIntros (j ls wd' Hj Hls Hwd' Hout) "Hca2 Hca3 Hcs1 Hca4 Hdst HL".
+        iDestruct "Hpost" as "[Hfailed _]".
+        iSpecialize ("Hfailed" with "[%]").
+        { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
+            %error_state_loads_ok_inv.
+          cbn in Hw'; simplify_eq.
+          rewrite /ErrorState_size in He'. solve_addr. }
+        rewrite (_ : (pc_a ^+ 13%nat) ^+ 1 = pc_a ^+ 14); last solve_addr.
+        destruct (Hfault 14%Z ltac:(lia)) as [Hpc_k Htnr].
+        rewrite Hpc_k.
+        iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
+                 with "[//] [%] [%] [-]").
+        { rewrite /= length_app length_drop Hwd' Hlen. lia. }
+        { cbn [drop]. rewrite drop_app_length' //. }
+        rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
+        rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
+          [|solve_addr|rewrite Hwd' /finz.dist; solve_addr].
+        rewrite (_ : (b_trusted_stack ^+ 1) ^+ 15 = b_trusted_stack ^+ 16); last solve_addr.
+        iFrame.
+      - iIntros (ls wscratch' Hls) "HPC Hca2 Hca3 Hcs1 Hca4 Hdst HL".
+        rewrite (_ : (pc_a ^+ 13%nat) ^+ length (copy_context_instrs ca3 ca2 cs1 ca4) =
+                     pc_a ^+ 20); last (cbn; solve_addr).
+        assert ((a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell)
+          as Ha_cnt by (subst a_cnt_cell; tstack_unfold; solve_addr).
+        (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
+        iInstr "Hcode".
+        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
+        { done. }
+        { split; auto. subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
+        rewrite lload_word_RWL.
+        (* Add cs1 cs1 1 *)
+        iInstr "Hcode".
+        (* Store ctp cs1 TrustedStackFrame_offset_errorHandlerCount *)
+        iInstr "Hcode".
+        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
+        { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
+        iEval (rewrite lstore_word_isWL //) in "Hcnt".
+        (* Mov csp ct1 *)
+        iInstr "Hcode".
+        (* Jmp .Lcommon_context_install *)
+        iInstr "Hcode".
+        { transitivity (Some (a_switcher_call ^+ off_cci)); [solve_addr | done]. }
+        iDestruct "Hpost" as "[_ Hpost]".
+        iApply ("Hpost" $! g_tstk (v0 :: ls) with "[%] [%] [-]").
+        { cbn; rewrite Hls; done. }
+        { eexists _, _, _, _; split_and!; done. }
+        rewrite /= Hresumed (list_lookup_total_correct _ _ _ Hw0) drop_0.
+        rewrite (list_fmap_ext (lstore_word RWL) id ls); last (intros; by apply lstore_word_isWL).
+        rewrite list_fmap_id.
+        rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
+        rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
+          [|solve_addr|rewrite Hls /finz.dist; solve_addr].
+        rewrite (_ : (b_trusted_stack ^+ 1) ^+ 15 = b_trusted_stack ^+ 16); last solve_addr.
+        iFrame. }
     iMod ("Hacc_es" $! 0%nat [] with "[%] [%] HL")
-      as (v dqv wit dw) "(%Hsh & %Hπ & Hes0 & Hwit & Hdw & Hclose)".
+      as "[ (%v & %dqv & %wit & %dw & %Hsh & %Hπ & Hes0 & Hwit & Hdw & Hclose)
+          | (%Hexp & %Hπ & Hclose) ]".
     { rewrite /ErrorState_size; lia. }
     { solve_addr. }
-    rewrite (_ : a ^+ 0%nat = a) in Hsh |- *; last solve_addr.
-    (* CLoad cra csp TrustedStack_offset_mepcc *)
-    iInstrApply "Hcode"
-      (wp_load_witness_imm_one_inbounds_deref _ _ _ _ _ _ _ cra csp
-         TrustedStack_offset_mepcc)
-      with "[$HPC $Hcra $Hcsp $Hes0 $Hwit $Hdw]"
-      as (v0) "(%Hload & HPC & Hcra & Hcsp & Hes0 & Hwit & Hdw)".
-    { rewrite /withinBounds; solve_addr. }
-    iMod ("Hclose" $! v0 with "[//] Hes0 Hwit Hdw") as "HL".
-    (* GetA cra cra *)
-    iInstr "Hcode".
-    destruct (lea_result_is_Some wpcc (get_a v0.(lw) - get_a wpcc.(lw))) as [wpc Hwpc].
-    (* SetA ct2 ct0 cra *)
-    iInstrApply "Hcode" (wp_seta_success_reg_any_src _ _ _ _ _ _ _ _ _ _ _ _ _ wpc)
-      with "[$HPC $Hct0 $Hcra $Hct2]" as "(HPC & Hct0 & Hcra & Hct2)".
-    { by rewrite seta_result_lea_result. }
-    assert (resumed_pc wpcc (get_a v0.(lw)) = wpc) as Hresumed
-      by (by rewrite /resumed_pc Hwpc).
-    (* Lea ca2 csp TrustedStack_offset_cra *)
-    iInstr "Hcode".
-    { transitivity (Some (a ^+ 1)); solve_addr. }
-    (* Lea ca3 ct1 TrustedStack_offset_cra *)
-    iInstr "Hcode".
-    { pose proof (tstack_save_cell_ok 1 ltac:(lia)) as (Hts_1 & _). exact Hts_1. }
-    (* The destination of the copy: the words 1-15 of the register save area *)
-    assert ((b_trusted_stack + 21)%a = Some tstack_save_end) as Hsave_end.
-    { rewrite /tstack_save_end. tstack_unfold. solve_addr. }
-    pose proof (tstack_save_cell_ok 20 ltac:(lia)) as (_ & Hts_20 & _).
-    rewrite /withinBounds in Hts_20.
-    destruct (lookup_lt_is_Some_2 save 0%nat) as [w0 Hw0]; first lia.
-    assert (save = w0 :: take 15 (drop 1 save) ++ drop 16 save) as Hsave_eq.
-    { destruct save as [|w0' rest]; first done.
-      cbn in Hw0 |- *. injection Hw0 as ->. by rewrite take_drop. }
-    iEval (rewrite {1}Hsave_eq) in "Hsave".
-    iEval (rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr])
-      in "Hsave".
-    iDestruct "Hsave" as "[Hs0 Hsave]".
-    iEval (rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
-           [|solve_addr|rewrite length_take length_drop Hlen /finz.dist; solve_addr])
-      in "Hsave".
-    iDestruct "Hsave" as "[Hdst Hrest]".
-    iEval (rewrite (_ : b_trusted_stack ^+ 16 = (b_trusted_stack ^+ 1) ^+ 15);
-           last solve_addr) in "Hdst".
-    iDestruct (cells_load_acc_tail L p e a π 15 v0 with "[]") as "Hacc_tail".
-    { rewrite /cells_load_acc. iModIntro. iExact "Hacc_es". }
-    (* copy_context_asm ca3 ca2 cs1 ca4 *)
-    iApply (copy_context_load_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-              (take 15 (drop 1 save)) _ _ (λ i ls, L (S i) (v0 :: ls))
-             with "[- $HPC $Hcopy $Hca2 $Hca3 $Hcs1 $Hca4 $HL $Hacc_tail $Hdst]").
-    all: try done.
-    all: try (rewrite length_take length_drop Hlen; done).
-    all: try (lazymatch goal with
-              | |- environments.envs_entails _ _ => fail
-              | |- disjoint_from_shadow _ _ => fail
-              | |- _ ∉ _ => fail
-              | _ => cbn; solve_addr
-              end).
-    { rewrite /disjoint_from_shadow elem_of_disjoint in Hts_shadow |- *.
-      intros x Hx HR. eapply Hts_shadow; last exact HR.
-      apply elem_of_finz_seq_between. apply elem_of_finz_seq_between in Hx.
-      solve_addr. }
-    { clear; set_solver. }
-    iNext. iSplit.
-    - iIntros (j ls wd' Hj Hls Hwd' Hout) "Hca2 Hca3 Hcs1 Hca4 Hdst HL".
-      iDestruct "Hpost" as "[Hfailed _]".
-      iSpecialize ("Hfailed" with "[%]").
-      { right. intros (p' & g' & b' & e' & a' & Hw' & Hra' & Hb' & He')
-          %error_state_loads_ok_inv.
-        cbn in Hw'; simplify_eq.
-        rewrite /ErrorState_size in He'. solve_addr. }
-      rewrite (_ : (pc_a ^+ 13%nat) ^+ 1 = pc_a ^+ 14); last solve_addr.
-      destruct (Hfault 14%Z ltac:(lia)) as [Hpc_k Htnr].
-      rewrite Hpc_k.
-      iApply ("Hfailed" $! (off_eic + 14)%Z (S j) (v0 :: ls) (w0 :: wd' ++ drop 16 save)
-               with "[//] [%] [%] [-]").
-      { rewrite /= length_app length_drop Hwd' Hlen. lia. }
-      { cbn [drop]. rewrite drop_app_length' //. }
-      rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
-      rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
-        [|solve_addr|rewrite Hwd' /finz.dist; solve_addr].
-      rewrite (_ : (b_trusted_stack ^+ 1) ^+ 15 = b_trusted_stack ^+ 16); last solve_addr.
-      iFrame.
-    - iIntros (ls wscratch' Hls) "HPC Hca2 Hca3 Hcs1 Hca4 Hdst HL".
-      rewrite (_ : (pc_a ^+ 13%nat) ^+ length (copy_context_instrs ca3 ca2 cs1 ca4) =
-                   pc_a ^+ 20); last (cbn; solve_addr).
-      assert ((a_tstk + TrustedStackFrame_offset_errorHandlerCount)%a = Some a_cnt_cell)
-        as Ha_cnt by (subst a_cnt_cell; tstack_unfold; solve_addr).
-      (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
-      iInstr "Hcode".
-      { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
-      { done. }
-      { split; auto. subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
-      rewrite lload_word_RWL.
-      (* Add cs1 cs1 1 *)
-      iInstr "Hcode".
-      (* Store ctp cs1 TrustedStackFrame_offset_errorHandlerCount *)
-      iInstr "Hcode".
-      { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
-      { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
-      iEval (rewrite lstore_word_isWL //) in "Hcnt".
-      (* Mov csp ct1 *)
-      iInstr "Hcode".
-      (* Jmp .Lcommon_context_install *)
-      iInstr "Hcode".
-      { transitivity (Some (a_switcher_call ^+ off_cci)); [solve_addr | done]. }
-      iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" $! g_tstk (v0 :: ls) with "[%] [%] [-]").
-      { cbn; rewrite Hls; done. }
-      { eexists _, _, _, _; split_and!; done. }
-      rewrite /= Hresumed (list_lookup_total_correct _ _ _ Hw0) drop_0.
-      rewrite (list_fmap_ext (lstore_word RWL) id ls); last (intros; by apply lstore_word_isWL).
-      rewrite list_fmap_id.
-      rewrite (region_pointsto_cons _ (b_trusted_stack ^+ 1)); [|solve_addr|solve_addr].
-      rewrite (region_pointsto_split _ _ (b_trusted_stack ^+ 16));
-        [|solve_addr|rewrite Hls /finz.dist; solve_addr].
-      rewrite (_ : (b_trusted_stack ^+ 1) ^+ 15 = b_trusted_stack ^+ 16); last solve_addr.
-      iFrame.
+    - rewrite (_ : a ^+ 0%nat = a) in Hsh |- *; last solve_addr.
+      (* CLoad cra csp TrustedStack_offset_mepcc *)
+      iInstrApply "Hcode"
+        (wp_load_witness_imm_one_inbounds_deref _ _ _ _ _ _ _ cra csp
+           TrustedStack_offset_mepcc)
+        with "[$HPC $Hcra $Hcsp $Hes0 $Hwit $Hdw]"
+        as (v0) "(%Hload & HPC & Hcra & Hcsp & Hes0 & Hwit & Hdw)".
+      { rewrite /withinBounds; solve_addr. }
+      iMod ("Hclose" $! v0 with "[//] Hes0 Hwit Hdw") as "HL".
+      iApply ("Hnext" with "HPC Hcra Hcsp HL").
+    - subst π.
+      rewrite (_ : a ^+ 0%nat = a) in Hexp; last solve_addr.
+      (* CLoad cra csp TrustedStack_offset_mepcc *)
+      iInstrApply "Hcode" (wp_load_success_from_timedev _ cra csp)
+        with "[$HPC $Hcra $Hcsp]"
+        as (z) "(HPC & Hcra & Hcsp)".
+      { split; [done | rewrite /withinBounds; solve_addr]. }
+      iMod ("Hclose" $! z) as "HL".
+      iApply ("Hnext" with "HPC Hcra Hcsp HL").
   Qed.
 
 End Handle_Error_Install_Context.

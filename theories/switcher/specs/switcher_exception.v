@@ -443,7 +443,7 @@ Section Switcher_Exception.
       - iDestruct "Hes" as "(%Hprov & $ & $)". by rewrite Hcsp in Hprov. }
     iDestruct (error_state_cells_acc with "Hcells") as (v) "[Hv Hclose]";
       [exact Hcsp | done | done | done |].
-    iModIntro. iExists v, 1%Qp. iFrame "Hv". iSplit.
+    iModIntro. iLeft. iExists v, 1%Qp. iFrame "Hv". iSplit.
     { iPureIntro. eapply (error_state_lent_not_shadow (rmap !!! csp)); try done.
       by rewrite Hcsp. }
     iSplitR; first iApply deref_res_none.

@@ -361,31 +361,38 @@ Section switcher_helpers_cframe.
           rewrite elem_of_LNonHeap_fmap elem_of_finz_seq_between in Hcontra.
           solve_addr+Hcontra Ha_stk4.
         }
+        iDestruct (interp_cap_disjoint_wl with "Hinterp_callee_wstk") as %[Hstk_mmio _];
+          first done.
+        assert (∀ a', a' ∈ₐ [b_stk, e_stk) → is_exposed_mmio_address a' = false)
+          as Hstk_nexp.
+        { intros a' Ha'. apply (disjoint_from_exposed_mmio_not_in b_stk e_stk).
+          - by apply disjoint_from_mmio_exposed.
+          - apply withinBounds_true_iff. solve_addr+Ha'. }
         assert (a_stk ∈ₐ [b_stk, e_stk)) as Hbound0
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C a_stk cur b_stk e_stk RWL Local None
-          Hbound0 I with "Hinterp_callee_wstk")
+          Hbound0 (Hstk_nexp _ Hbound0) I with "Hinterp_callee_wstk")
           as (p_astk0 φ_astk0) "(%Hp_astk0 & _ & (#Hrel_astk0 & _ & _) & _ & Hwcond_astk0 & Hrcond_astk0)".
         assert (addr_key None a_stk = LNonHeap a_stk) as Hkey_astk0 by done.
         rewrite Hkey_astk0.
         assert ((a_stk ^+1) ∈ₐ [b_stk, e_stk)) as Hbound1
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+1) cur b_stk e_stk RWL Local None
-          Hbound1 I with "Hinterp_callee_wstk")
+          Hbound1 (Hstk_nexp _ Hbound1) I with "Hinterp_callee_wstk")
           as (p_astk1 φ_astk1) "(%Hp_astk1 & _ & (#Hrel_astk1 & _ & _) & _ & Hwcond_astk1 & Hrcond_astk1)".
         assert (addr_key None (a_stk ^+1) = LNonHeap (a_stk ^+1)) as Hkey_astk1 by done.
         rewrite Hkey_astk1.
         assert ((a_stk ^+2) ∈ₐ [b_stk, e_stk)) as Hbound2
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+2) cur b_stk e_stk RWL Local None
-          Hbound2 I with "Hinterp_callee_wstk")
+          Hbound2 (Hstk_nexp _ Hbound2) I with "Hinterp_callee_wstk")
           as (p_astk2 φ_astk2) "(%Hp_astk2 & _ & (#Hrel_astk2 & _ & _) & _ & Hwcond_astk2 & Hrcond_astk2)".
         assert (addr_key None (a_stk ^+2) = LNonHeap (a_stk ^+2)) as Hkey_astk2 by done.
         rewrite Hkey_astk2.
         assert ((a_stk ^+3) ∈ₐ [b_stk, e_stk)) as Hbound3
           by solve_addr+Hb_a4 He_a1.
         iDestruct (write_allowed_inv W0 C (a_stk ^+3) cur b_stk e_stk RWL Local None
-          Hbound3 I with "Hinterp_callee_wstk")
+          Hbound3 (Hstk_nexp _ Hbound3) I with "Hinterp_callee_wstk")
           as (p_astk3 φ_astk3) "(%Hp_astk3 & _ & (#Hrel_astk3 & _ & _) & _ & Hwcond_astk3 & Hrcond_astk3)".
         assert (addr_key None (a_stk ^+3) = LNonHeap (a_stk ^+3)) as Hkey_astk3 by done.
         rewrite Hkey_astk3.

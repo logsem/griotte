@@ -348,7 +348,7 @@ Section Switcher_Call_World.
     iExists b_stk, e_stk, a_stk.
     iFrame "Hframe".
     iPureIntro.
-    repeat split; try done; try solve_addr; try (by destruct Hstk_mmio); naive_solver.
+    split_and!; try done; try solve_addr; naive_solver.
   Qed.
 
   (** The trusted-stack invariant, open during the call routine: the resources
@@ -536,7 +536,7 @@ Section Switcher_Call_World.
     assert (disjoint_from_mmio b (a ^+ - (4)) ∧ disjoint_from_heap b (a ^+ - (4)))
       as [Hshadow Hheap].
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption]. solve_addr. }
-    iApply interp_unfold. iSimpl.
+    iApply interp_unfold. iSimpl. iLeft.
     iSplit; last first.
     { iSplit; first (iPureIntro; exact Hshadow). by iApply heap_cap_ok_disjoint. }
     rewrite /StackRevokedResources /StackWorldResources big_sepL2_replicate_r; last done.
