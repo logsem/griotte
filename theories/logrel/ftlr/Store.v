@@ -74,6 +74,7 @@ Section fundamental.
     read_reg_prov regs r1 None
     → reg_allows_store_imm regs r1 imm p g b e a pc_a
     → PermFlowsTo pc_p pc_p'
+    → is_exposed_mmio_address pc_a = false
     → (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
     -∗ region_rel_part ρ W C (LNonHeap pc_a) pc_p' P
     -∗ world_interp_open W C [LNonHeap pc_a]
@@ -82,7 +83,7 @@ Section fundamental.
        ⌜PermFlowsTo p pc_p' ∧ (ρ = InPerm → isWL p = false)⌝ ∗
        ▷ pc_store_cond W C ρ P p.
   Proof.
-    intros Hπ Hrar Hfl.
+    intros Hπ Hrar Hfl Hnexp.
     pose proof (store_prov_eq imm Hrar Hπ) as Hr1.
     destruct Hrar as (_ & Hadd & Hwa & Hwb).
     iIntros "Hreg #Hinva Hw Ha".
@@ -182,6 +183,8 @@ Section fundamental.
     read_reg_inr regs r1 t0 p0 g0 b0 e0 a0
     → read_reg_prov regs r1 π0
     → PermFlowsTo p p'
+    → (∀ p g b e a ea, reg_allows_store_imm regs r1 imm p g b e a ea →
+                       is_exposed_mmio_address ea = false)
     → lword_of_argument regs r2 = Some storev
     → interp W C (Cap p g b e a @@? None)
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → interp W C v)
@@ -194,7 +197,7 @@ Section fundamental.
               ⌜wd.(lprov) = Some ι⌝ ∗ ι ⊒ AQuar ∗
               world_interp_open W C [LNonHeap a] ∗ a ↦ₐ w_pc)).
   Proof.
-    iIntros (HVr1 Hπ Hfl Hwoa) "#HVPCr #Hreg #Hinva Hworld_interp Hapc".
+    iIntros (HVr1 Hπ Hfl Hnexp Hwoa) "#HVPCr #Hreg #Hinva Hworld_interp Hapc".
     rewrite /allow_store_res.
     destruct (a0 + imm)%a as [ea0|] eqn:Hea.
     2: { iModIntro. iLeft. iFrame "Hapc". iExists t0,p0,g0,b0,e0,a0,π0,storev. iFrame "%".
@@ -217,7 +220,7 @@ Section fundamental.
     iAssert (interp W C (Cap p0 g0 b0 e0 a0 @@? π0)) as "#Hvsrc".
     { iApply ("Hreg" $! r1 _ Hsrc). }
     iDestruct (write_allowed_inv _ _ ea0 with "Hvsrc")
-      as (p'' P'' Hflp'' Hcond_pers'') "(#Hrel'' & Hzcond'' & Hwcond'' & _)"; auto
+      as (p'' P'' Hflp'' Hcond_pers'') "(#Hrel'' & Hzcond'' & Hwcond'' & _)"; eauto
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
     assert (withinBounds b0 e0 ea0 = true) as Hbounds.
     { by rewrite /withinBounds Hle Hge. }
@@ -421,6 +424,30 @@ Section fundamental.
     iDestruct (if_later with "Hwcond") as "Hwcond'"; eauto.
   Qed.
 
+  (** The destination of a store reaches an exposed device, or no address
+      it may store to is an exposed device. *)
+  #[local] Lemma store_exposed_mmio_cases (imm : Z) (regs : LReg) (dst : RegName)
+    (t0 : bool) (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr) :
+    read_reg_inr regs dst t0 p0 g0 b0 e0 a0 →
+    (∀ p g b e a ea, reg_allows_store_imm regs dst imm p g b e a ea →
+                     is_exposed_mmio_address ea = false) ∨
+    (∃ ea, reg_allows_store_imm regs dst imm p0 g0 b0 e0 a0 ea ∧
+           is_exposed_mmio_address ea = true).
+  Proof.
+    intros HVdst.
+    destruct (a0 + imm)%a as [ea0|] eqn:Hadd0.
+    - destruct (decide (reg_allows_store_imm regs dst imm p0 g0 b0 e0 a0 ea0))
+        as [Hallows0|Hallows0];
+        [destruct (is_exposed_mmio_address ea0) eqn:Hexp0; [by right; exists ea0|] |].
+      all: left; intros p g b e a ea Hallows.
+      all: destruct (store_inr_eq imm Hallows HVdst) as (-> & -> & -> & -> & ->).
+      all: pose proof Hallows as (_ & Hadd & _); rewrite Hadd0 in Hadd; injection Hadd as <-.
+      all: done.
+    - left; intros p g b e a ea Hallows.
+      destruct (store_inr_eq imm Hallows HVdst) as (-> & -> & -> & -> & ->).
+      pose proof Hallows as (_ & Hadd & _). congruence.
+  Qed.
+
    Lemma store_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
      (p p' : Perm) (g : Locality) (b e a : Addr) (w : LWord)
      (ρ : region_part) (dst : RegName) (src : Z + RegName) (P : D) :
@@ -454,6 +481,53 @@ Section fundamental.
       - destruct (Hsome' r) as [wr Hwr].
         exists (if decide (r = cnull) then lnull else wr).
         rewrite /lword_of_argument /llookup_reg. by case_decide.
+    }
+
+    (* The destination reaches an exposed device, or only memory. *)
+    destruct (store_exposed_mmio_cases imm regs dst t0 p0 g0 b0 e0 a0 HVdst)
+      as [Hnexp | (ea & Hallows & Hexp)]; cycle 1.
+    { (* A device store: no memory is written. *)
+      assert (∀ p1 g1 b1 e1 a1 ea1,
+                 reg_allows_store_imm regs dst imm p1 g1 b1 e1 a1 ea1 → ea1 = ea) as Hea.
+      { intros p1 g1 b1 e1 a1 ea1 Hallow1.
+        destruct (store_inr_eq imm Hallow1 HVdst) as (-> & -> & -> & -> & ->).
+        destruct Hallow1 as (_ & Hadd1 & _). destruct Hallows as (_ & Hadd & _).
+        congruence. }
+      iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I as "Hshadow".
+      { iNext. by rewrite big_sepM_empty. }
+      iAssert ([∗ set] k ∈ (∅ : gset Addr), shadow_store_perm k)%I as "Hperms".
+      { by rewrite big_sepS_empty. }
+      iAssert (▷ ([∗ map] k↦v ∈ (∅ : LMem), k ↦ₐ v))%I as "Hmem".
+      { iNext. by rewrite big_sepM_empty. }
+      iAssert (deref_witness_res DerefNoId) as "Hdw"; first done.
+      iApply (wp_store_shadow_imm_fetch (CL := link_core) _ p g b e a None dst src imm w ∅ regs
+                ∅ ∅ _ DerefNoId with "[$HPC $Ha $Hmem $Hshadow $Hperms $Hdw $Hmap]"); eauto.
+      { rewrite /subseteq /map_subseteq. intros rr _.
+        apply elem_of_dom. apply Hsome. }
+      { intros p1 g1 b1 e1 a1 ea1 storev1 Hallow1 _.
+        rewrite (Hea _ _ _ _ _ _ Hallow1).
+        rewrite (exposed_mmio_not_shadow _ Hexp).
+        rewrite /is_exposed_mmio_address in Hexp. by rewrite Hexp. }
+      iNext. iIntros (lpc' mem' shadow' retv) "(%HSpec & HPC & Ha & _ & _ & _ & _ & Hmap)".
+      destruct HSpec as
+        [p1 g1 b1 e1 a1 ea1 storev1 oldv1 Harg1 Hallow1 Hshadow1 Hlookup1 _ _ _
+        |p1 g1 b1 e1 a1 ea1 heap_a1 v1 old_status1 Harg1 Hallow1 Hshadow1 Htranslate1 Hlookup1 _ _ _
+        |p1 g1 b1 e1 a1 ea1 v1 Harg1 Hallow1 Htd1 Hmtimecmp1 _ _ _ Hincr
+        |_ _ Hfail ->].
+      - exfalso. by rewrite lookup_empty in Hlookup1.
+      - exfalso. by rewrite lookup_empty in Hlookup1.
+      - (* The device takes the store; the PC's cell is unchanged. *)
+        apply incrementPC_Some_inv in Hincr
+          as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
+        injection HPC as <- <- <- <- <- <- <-.
+        iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+        iNext.
+        iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp"); auto.
+        iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+        iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+        iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
     }
 
     (* Step 1: open the region, if necessary,
@@ -499,8 +573,10 @@ Section fundamental.
 
     destruct HSpec as [p1 g1 b1 e1 a1 ea1 storev1 oldv1
         Harg1 Hallow1 Hshadow1 Hlookup1 -> Hshadow_eq1 Hincr
-      |p0 g0 b0 e0 a0 ea0 heap_a0 z0 π0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0
-        Hold0 Hmem_eq0 Hshadow_eq0 Hincr0|].
+      |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0
+        Hold0 Hmem_eq0 Hshadow_eq0 Hincr0
+      |p0 g0 b0 e0 a0 ea0 v0 Harg0 Hallow0 Htd0 Hmtimecmp0 Hnone0 Hmem_eq0 Hshadow_eq0 Hincr0
+      |].
     { apply incrementPC_Some_inv in Hincr
         as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
       injection HPC as <- <- <- <- <- <- <-.
@@ -518,6 +594,11 @@ Section fundamental.
       iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
     }
     { exfalso. pose proof (Hnonshadow p0 g0 b0 e0 a0 ea0 Hallow0). congruence. }
+    { (* The destination is owned memory, not a device. *)
+      exfalso. pose proof Hallow0 as (Hdst0 & Hadd0 & Hwa0 & Hwb0).
+      destruct (allow_store_implies_storev_imm _ _ _ _ _ _ _ _ _ _ _ _
+                  HStoreAP Hdst0 Harg0 Hwa0 Hadd0 Hwb0) as [oldv0 Hold0].
+      congruence. }
     { subst mem'.
       iDestruct (mem_map_recover_res_fault imm with "HStoreMem Hmem") as "[Hworld_interp Ha]".
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".

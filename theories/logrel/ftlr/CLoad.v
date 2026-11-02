@@ -86,6 +86,7 @@ Section fundamental.
     read_reg_prov regs r1 None
     → reg_allows_load_imm regs r1 imm p g b e a pc_a
     → PermFlowsTo pc_p pc_p'
+    → is_exposed_mmio_address pc_a = false
     → thread_in th C
     -∗ (∀ (r1 : RegName) v, ⌜regs !! r1 = Some v⌝ → (interp W C v))
     -∗ region_rel_part ρ W C (LNonHeap pc_a) pc_p' P
@@ -93,7 +94,7 @@ Section fundamental.
     -∗ pc_a ↦ₐ w_pc
     -∗ world_interp_open W C [LNonHeap pc_a] ∗ pc_a ↦ₐ w_pc ∗ ⌜PermFlowsTo p pc_p'⌝.
   Proof.
-    intros Hπ Hrar Hfl.
+    intros Hπ Hrar Hfl Hnexp.
     pose proof (load_prov_eq imm Hrar Hπ) as Hr1.
     destruct Hrar as (_ & Hadd & Hwa & Hwb).
     iIntros "#Hth Hreg #Hinva Hw Ha".
@@ -133,6 +134,8 @@ Section fundamental.
     read_reg_inr regs src t p g b e a
     → read_reg_prov regs src π
     → PermFlowsTo p_pc p_pc'
+    → (∀ p g b e a ea, reg_allows_load_imm regs src imm p g b e a ea →
+                       is_exposed_mmio_address ea = false)
     → thread_in th C
     -∗ (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)
     -∗ interp W C (Cap p_pc g_pc b_pc e_pc a_pc @@? None)
@@ -145,7 +148,7 @@ Section fundamental.
               ⌜ws.(lprov) = Some ι⌝ ∗ ι ⊒ AQuar ∗
               world_interp_open W C [LNonHeap a_pc] ∗ a_pc ↦ₐ w_pc)).
   Proof.
-    iIntros (HVsrc Hπ Hfl) "#Hth #Hreg #Hinterp_pc #Hinva Hworld_interp Hapc".
+    iIntros (HVsrc Hπ Hfl Hnexp) "#Hth #Hreg #Hinterp_pc #Hinva Hworld_interp Hapc".
     rewrite /allow_load_res.
     destruct (a + imm)%a as [ea|] eqn:Hadd; cycle 1.
     { iModIntro. iLeft. iFrame "Hapc". iExists t,p,g,b,e,a,π. iFrame "%". by rewrite Hadd. }
@@ -167,7 +170,7 @@ Section fundamental.
     iAssert (interp W C (Cap p g b e a @@? π)) as "#Hvsrc".
     { iApply ("Hreg" $! src _ Hsrc). }
     iDestruct (read_allowed_inv _ _ ea with "Hth Hvsrc")
-      as (p0 P0 Hflp0 Hcond_pers0) "(#Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; auto
+      as (p0 P0 Hflp0 Hcond_pers0) "(#Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)"; eauto
     ; first (split; [by apply Z.leb_le | by apply Z.ltb_lt]).
     assert (withinBounds b e ea = true) as Hbounds.
     { by rewrite /withinBounds Hle Hge. }
@@ -393,6 +396,30 @@ Section fundamental.
       apply not_elem_of_cons; split; last apply not_elem_of_nil. done.
   Qed.
 
+  (** The source of a load reaches an exposed device, or no address it may
+      load from is an exposed device. *)
+  #[local] Lemma load_exposed_mmio_cases (imm : Z) (regs : LReg) (src : RegName)
+    (t0 : bool) (p0 : Perm) (g0 : Locality) (b0 e0 a0 : Addr) :
+    read_reg_inr regs src t0 p0 g0 b0 e0 a0 →
+    (∀ p g b e a ea, reg_allows_load_imm regs src imm p g b e a ea →
+                     is_exposed_mmio_address ea = false) ∨
+    (∃ ea, reg_allows_load_imm regs src imm p0 g0 b0 e0 a0 ea ∧
+           is_exposed_mmio_address ea = true).
+  Proof.
+    intros HVsrc.
+    destruct (a0 + imm)%a as [ea0|] eqn:Hadd0.
+    - destruct (decide (reg_allows_load_imm regs src imm p0 g0 b0 e0 a0 ea0))
+        as [Hallows0|Hallows0];
+        [destruct (is_exposed_mmio_address ea0) eqn:Hexp0; [by right; exists ea0|] |].
+      all: left; intros p g b e a ea Hallows.
+      all: destruct (load_inr_eq imm Hallows HVsrc) as (-> & -> & -> & -> & ->).
+      all: pose proof Hallows as (_ & Hadd & _); rewrite Hadd0 in Hadd; injection Hadd as <-.
+      all: done.
+    - left; intros p g b e a ea Hallows.
+      destruct (load_inr_eq imm Hallows HVsrc) as (-> & -> & -> & -> & ->).
+      pose proof Hallows as (_ & Hadd & _). congruence.
+  Qed.
+
   Lemma load_case (imm : Z) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_part) (dst src : RegName) (P:D) :
@@ -426,6 +453,65 @@ Section fundamental.
       by repeat eexists.
     }
 
+    (* The source reaches an exposed device, or only memory. *)
+    destruct (load_exposed_mmio_cases imm regs src t0 p0 g0 b0 e0 a0 HVsrc)
+      as [Hnexp | (ea & Hallows & Hexp)]; cycle 1.
+    { (* A device load: the memory is the PC's cell only. *)
+      iClear "Hrcond'".
+      assert (∀ p1 g1 b1 e1 ea1,
+                 reg_allows_load_offset regs src imm p1 g1 b1 e1 ea1 → ea1 = ea) as Hea.
+      { intros p1 g1 b1 e1 ea1 Hallow1.
+        destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow1) as [a1 Hallow1'].
+        destruct (load_inr_eq imm Hallow1' HVsrc) as (-> & -> & -> & -> & ->).
+        destruct Hallow1' as (_ & Hadd1 & _). destruct Hallows as (_ & Hadd & _).
+        congruence. }
+      (* The PC's address is not a device. *)
+      iDestruct (interp_cap_disjoint with "Hinv_interp") as %[Hpc_mmio _];
+        first by destruct Hp.
+      assert (is_exposed_mmio_address a = false) as Hpc_nexp.
+      { apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in b e); first done.
+        apply withinBounds_true_iff. solve_addr. }
+      iPoseProof load_witness_plain_intro as "Hwit".
+      iDestruct (memMap_resource_1 with "Ha") as "Hmem".
+      iApply (wp_load_witness_imm (CL := link_core) _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId
+                with "[$HPC $Hmem $Hwit $Hmap //]"); eauto.
+      { rewrite /subseteq /map_subseteq. intros rr _.
+        apply elem_of_dom. apply Hsome. }
+      { by rewrite lookup_insert_eq. }
+      { intros p1 g1 b1 e1 ea1 Hallow1. rewrite (Hea _ _ _ _ _ Hallow1).
+        rewrite (exposed_mmio_not_shadow _ Hexp) (exposed_mmio_not_revoker _ Hexp).
+        rewrite /is_exposed_mmio_address in Hexp. by rewrite Hexp. }
+      iNext. iIntros (lpc' regs' retv) "(%HSpec & HPC & Hmem & _ & _ & Hmap)".
+      iDestruct (memMap_resource_1 with "Hmem") as "Ha".
+      destruct HSpec as [p1 g1 b1 e1 ea1 loadv loadv' Hallow1 Hsh Hl Hpost Hincr ->
+                        |p1 g1 b1 e1 ea1 heap_a revoked Hallow1 Hsh
+                        |p1 g1 b1 e1 ea1 Hallow1 Hrev
+                        |p1 g1 b1 e1 ea1 z Hallow1 Htd Hnone Hincr ->
+                        |Hfail].
+      (* The PC's cell is memory, the source's address a device. *)
+      1: exfalso; rewrite (Hea _ _ _ _ _ Hallow1) in Hl;
+         apply lookup_insert_Some in Hl as [ [-> _] | [_ Hl] ]; [congruence|by simplify_map_eq].
+      1: exfalso; rewrite (Hea _ _ _ _ _ Hallow1) in Hsh;
+         by rewrite (exposed_mmio_not_shadow _ Hexp) in Hsh.
+      1: exfalso; rewrite (Hea _ _ _ _ _ Hallow1) in Hrev;
+         by rewrite (exposed_mmio_not_revoker _ Hexp) in Hrev.
+      - (* The device reads as an integer. *)
+        apply incrementPC_Some_inv in Hincr
+          as (tpc & ppc & gpc & bpc & epc & apc & apc' & πpc & HPC & Hapc' & ->).
+        injection HPC as <- <- <- <- <- <- <-.
+        iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
+        iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+        iNext.
+        iApply (ftlr_post_next with "HPC Hmap [] [] Hworld_interp").
+        { by apply full_map_linsert. }
+        { iApply (interp_linsert with "Hreg"). iIntros (_). iApply interp_int. }
+        iApply "IH". iApply (interp_next_PC with "Hinv_interp"); eauto.
+      - subst regs'.
+        iDestruct ("WorldRes" with "[$Ha $Hw]") as "WorldRes".
+        iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+        iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); eauto.
+    }
+
     (* Step 1: open the region, if necessary, and store all the resources obtained from the region in allow_load_res imm *)
     iMod (create_load_res imm with "Hthread Hreg Hinv_interp Hinva Hworld_interp Ha")
       as "[ [HLoadRes Ha] | (%ι & %ws & %Hws & %Hauth & %Hι & #Hq & Hworld_interp & Ha)]"; eauto.
@@ -456,10 +542,13 @@ Section fundamental.
     iAssert (⌜∀ p0 g0 b0 e0 a0 ea0,
       reg_allows_load_imm regs src imm p0 g0 b0 e0 a0 ea0 →
       is_mmio_address ea0 = false⌝)%I as %Hnonmmio.
-    { iIntros (p0 g0 b0 e0 a0 ea0 (Hsrc & Hadd & Hra & Hwb)).
+    { iIntros (p0 g0 b0 e0 a0 ea0 Hallow0).
+      pose proof Hallow0 as (Hsrc & Hadd & Hra & Hwb).
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc) as (Hsrc_null & π0 & Hsrc').
-      iApply (interp_cap_not_mmio with "[Hreg]"); eauto using readAllowed_nonO.
-      by iApply "Hreg".
+      iDestruct ("Hreg" $! src _ Hsrc') as "Hvsrc".
+      iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea0 with "Hvsrc")
+        as %[ [Hmmio _] | (Hexp & _)]; [by apply readAllowed_nonO|done|done|].
+      by rewrite (Hnexp _ _ _ _ _ _ Hallow0) in Hexp.
     }
 
     iPoseProof load_witness_plain_intro as "Hwit".
@@ -472,16 +561,20 @@ Section fundamental.
     { intros p0 g0 b0 e0 ea0 Hallow.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'].
       pose proof (Hnonmmio _ _ _ _ _ _ Hallow') as Hmmio.
+      apply orb_false_iff in Hmmio as [Hmmio ->].
       apply orb_false_iff in Hmmio as [-> ->].
       by eapply allow_load_implies_loadv_imm. }
     iNext. iIntros (lpc' regs' retv) "(%HSpec & HPC & Hmem & _ & _ & Hmap)".
     destruct HSpec as [p0 g0 b0 e0 ea loadv loadv' Hallow Hsh Hl Hpost Hincr ->
                     |p0 g0 b0 e0 ea heap_a revoked Hallow Hsh
                     |p0 g0 b0 e0 ea Hallow Hrev
+                    |p0 g0 b0 e0 ea z Hallow Htd
                     |Hfail].
-    (* A valid capability never reaches the shadow region or the revoker. *)
-    2,3: exfalso; destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'];
+    (* A memory capability never reaches the shadow region, the revoker or a
+       time device. *)
+    2,3,4: exfalso; destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 Hallow'];
          pose proof (Hnonmmio _ _ _ _ _ _ Hallow') as Hmmio;
+         apply orb_false_iff in Hmmio as [Hmmio ?];
          apply orb_false_iff in Hmmio as [? ?]; congruence.
     2: { subst regs'.
          iDestruct (mem_map_recover_res_fault with "Hmem HLoadMem") as "[Hworld_interp Ha]".
