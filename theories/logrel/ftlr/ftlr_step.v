@@ -77,7 +77,9 @@ Section ftlr_step_generic.
     replace (isO (BPerm _ WL _ _)) with false by (cbn; destruct rx; done).
     cbn.
     destruct rx; auto.
-    iDestruct "Hinv_interp" as "[_ [%Hcontra _] ]". naive_solver.
+    iDestruct "Hinv_interp" as "[ [_ [%Hcontra _] ] | %Hexp]"; first naive_solver.
+    (* An exposed-device capability is not write-local. *)
+    destruct Hexp as (_ & _ & Hwl & _). discriminate.
   Qed.
 
   (** The region resources of the address pointed to by a safe, correct PC. *)
@@ -108,11 +110,15 @@ Section ftlr_step_generic.
     destruct (isO p) eqn: HnO.
     { destruct Hp as [Hexec _]; eapply executeAllowed_nonO in Hexec; congruence. }
     destruct (has_sreg_access p) eqn:HpXRS; first done.
-    iDestruct "Hinv" as "[#Hinv [%Hpwl_cond _] ]".
+    iDestruct "Hinv" as "[ [#Hinv [%Hpwl_cond _] ] | %Hexp]"; cycle 1.
+    { (* An exposed-device capability is not executable. *)
+      destruct Hp as [Hexec _]. destruct Hexp as (_ & Hnexec & _). congruence. }
     iDestruct (extract_from_region_inv _ _ a with "Hinv") as "H";auto.
     assert (readAllowed p = true) as Hra.
     { destruct Hp as [Hexec _]; by eapply executeAllowed_is_readAllowed. }
     iApply (interp_in_registers with "Hth Hw [Hreg] [H]"); eauto.
+    apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in b e); first naive_solver.
+    apply withinBounds_true_iff. solve_addr.
   Qed.
 
 End ftlr_step_generic.

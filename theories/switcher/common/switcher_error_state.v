@@ -150,6 +150,15 @@ Section Switcher_error_state.
     repeat case_match; try done. intros (? & ? & ?). split_and!; [done | lia | solve_addr].
   Qed.
 
+  (** The [ErrorState] below the cursor reaches no exposed device. When it
+      does, a store of the [ErrorState] may fault although the room and
+      store tests pass. *)
+  Definition error_state_mmio_free (wcsp : LWord) : Prop :=
+    match wcsp.(lw) with
+    | Cap _ _ _ _ a => disjoint_from_exposed_mmio (a ^+ (- ErrorState_size)) a
+    | _ => True
+    end.
+
   (** When the room test passes but the stores do not succeed, either the
       first store of the stackful setup, through the moved stack pointer
       [wct0] at the base of the [ErrorState], faults ([wct0] is a sealing

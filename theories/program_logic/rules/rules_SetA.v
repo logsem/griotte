@@ -92,7 +92,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     unfold regs_of, operands_of in Hri, Dregs.
@@ -106,7 +106,7 @@ Section griotte_lang_rules.
     rewrite /exec /= (lz_of_argument_incl R regs r _ argz) /= in Hstep; [|done|done].
     rewrite Hsrc /= in Hstep.
     destruct (decide ((is_sealed srcv.(lw) || is_sentry srcv.(lw)) = true)) as [Hsl | Hsl].
-    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag srcv) (clear_tag srcv.(lw)) _ _ _
+    { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lclear_tag srcv) (clear_tag srcv.(lw)) _ _ _
          (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
          with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -118,7 +118,7 @@ Section griotte_lang_rules.
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     destruct srcv as [ [ n | [t p g b e a | t p g b e a] | | ] π]; cbn in Hstep.
     4,5: by exfalso; apply Hsl.
-    1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WInt argz @@? π) _ _ _ _
+    1: { iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (WInt argz @@? π) _ _ _ _
          (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
          with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -127,7 +127,7 @@ Section griotte_lang_rules.
       { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
       iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
     - destruct (z_to_addr argz) as [a'|] eqn:Hoffset; cbn in Hstep.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WCap t p g b e a' @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (WCap t p g b e a' @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -137,7 +137,7 @@ Section griotte_lang_rules.
         { intros lpc' Hi. eapply SetA_spec_success_cap; eauto. }
         { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
         iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (Cap⁻ p g b e a @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (Cap⁻ p g b e a @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -148,7 +148,7 @@ Section griotte_lang_rules.
         { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
         iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - destruct (z_to_otype argz) as [a'|] eqn:Hoffset; cbn in Hstep.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange t p g b e a' @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (WSealRange t p g b e a' @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
         { intros lpc' Hi. eapply SetA_spec_success_sr; eauto. }
         { intros Hi. apply SetA_spec_failure; [|done..]. eapply SetA_fail_overflow_PC; eauto. }
         iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (SealRange⁻ p g b e a @@? π) _ _ _ _
+      + iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (SealRange⁻ p g b e a @@? π) _ _ _ _
           (λ lpc' regs' retv, SetA_spec _ regs dst src arg lpc' regs' retv)
           with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
         { exact Her. } { exact Hlregs. } { exact Hdst. }

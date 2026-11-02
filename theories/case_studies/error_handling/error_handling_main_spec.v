@@ -180,8 +180,7 @@ Section Error_Handling_Main_Spec.
                   wcs0 wcs1 csp_b csp_e (stk_start_a csp_b csp_e) arg_rmap cstk wptr v
                  with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats]")
       as "Hread"; [done | | done |].
-    { eapply disjoint_from_shadow_weaken;
-        [| | exact (disjoint_from_mmio_shadow _ _ Hstk_mmio)];
+    { eapply disjoint_from_mmio_weaken; [| | exact Hstk_mmio];
         rewrite /stk_callee_b /stk_callee_e /stk_start_a /SpillSlot_size
           /StackEntry_reserved_space /stats_read_min_stack in Hstk_min |- *;
         solve_addr+Hstk_min. }

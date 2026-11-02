@@ -72,8 +72,8 @@ Section griotte_lang_rules.
 
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)
-  Lemma specialrw_sregs_phys R C pc (r : Reg) psr m st lpc lreg lsreg lmem regs sregs sr src vold :
-    erasure R C (MkExecConf pc r psr m st) lpc lreg lsreg lmem →
+  Lemma specialrw_sregs_phys R C pc (r : Reg) psr m st td lpc lreg lsreg lmem regs sregs sr src vold :
+    erasure R C (MkExecConf pc r psr m st td) lpc lreg lsreg lmem →
     regs ⊆ lreg →
     lregs_phys R regs r →
     sregs ⊆ lsreg →
@@ -83,19 +83,19 @@ Section griotte_lang_rules.
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       (match src with
        | inr rs =>
-           if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
-           else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr wsrc))
-       | inl z => Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr (WInt z)))
-       end) = Some (MkExecConf pc r psr' m st) ∧
-      erasure R C (MkExecConf pc r psr' m st) lpc lreg lsreg' lmem ∧
+           if decide (rs = cnull) then Some (MkExecConf pc r psr m st td)
+           else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st td) sr (legalise sr wsrc))
+       | inl z => Some (update_sreg (MkExecConf pc r psr m st td) sr (legalise sr (WInt z)))
+       end) = Some (MkExecConf pc r psr' m st td) ∧
+      erasure R C (MkExecConf pc r psr' m st td) lpc lreg lsreg' lmem ∧
       ((sregs' = sregs ∧ lsreg' = lsreg) ∨
        ∃ nv, sregs' = <[sr := nv]> sregs ∧ lsreg' = <[sr := nv]> lsreg).
   Proof.
     intros Her Hlregs Hregs Hlsregs Dsrc Hvold.
     assert (∀ (v : LWord) pw, reg_word_ok R C v → reg_phys R v pw →
       ∃ psr' lsreg',
-        update_sreg (MkExecConf pc r psr m st) sr (legalise sr pw) = (MkExecConf pc r psr' m st) ∧
-        erasure R C (MkExecConf pc r psr' m st) lpc lreg lsreg' lmem ∧
+        update_sreg (MkExecConf pc r psr m st td) sr (legalise sr pw) = (MkExecConf pc r psr' m st td) ∧
+        erasure R C (MkExecConf pc r psr' m st td) lpc lreg lsreg' lmem ∧
         lsreg' = <[sr := llegalise sr v]> lsreg) as Hwrite.
     { intros v pw Hok Hw. eexists _, _. split; first done.
       split; last done. by apply erasure_write_sreg. }
@@ -118,15 +118,15 @@ Section griotte_lang_rules.
 
   (** The physical write of [SpecialRW] to a register other than MTDC and
       mstatus keeps MIE and mtdc. *)
-  Lemma specialrw_sys_kept pc (r : Reg) psr m st psr' sr src :
+  Lemma specialrw_sys_kept pc (r : Reg) psr m st td psr' sr src :
     sr ≠ mtdc → sr ≠ mstatus →
     (match src with
      | inr rs =>
-         if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
-         else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr wsrc))
-     | inl z => Some (update_sreg (MkExecConf pc r psr m st) sr (legalise sr (WInt z)))
-     end) = Some (MkExecConf pc r psr' m st) →
-    sys_kept (MkExecConf pc r psr m st) (MkExecConf pc r psr' m st).
+         if decide (rs = cnull) then Some (MkExecConf pc r psr m st td)
+         else wsrc ← r !!ᵣ rs; Some (update_sreg (MkExecConf pc r psr m st td) sr (legalise sr wsrc))
+     | inl z => Some (update_sreg (MkExecConf pc r psr m st td) sr (legalise sr (WInt z)))
+     end) = Some (MkExecConf pc r psr' m st td) →
+    sys_kept (MkExecConf pc r psr m st td) (MkExecConf pc r psr' m st td).
   Proof.
     intros H1 H2 Hφ. destruct src as [z|rs]; cbn in Hφ; rewrite /update_sreg in Hφ.
     - simplify_eq. by apply sys_kept_insert_sreg.
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Dsregs φ) "(>HPC & >Hpc_a & >Hmap & >Hsmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_valid with "Hsr Hsmap") as %[Hlsregs Hdomsys].
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
@@ -168,7 +168,7 @@ Section griotte_lang_rules.
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     destruct (Hdomsys sr) as [Hsr_mtdc Hsr_mst]; first by eapply elem_of_dom_2.
-    destruct (specialrw_sregs_phys R C _ r psr m st _ lreg (ls_join lsreg) lmem regs sregs sr src
+    destruct (specialrw_sregs_phys R C _ r psr m st td _ lreg (ls_join lsreg) lmem regs sregs sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
     { rewrite /regs_of /operands_of in Dregs. set_solver. } { done. }
@@ -176,7 +176,7 @@ Section griotte_lang_rules.
     destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
     { (* The PC increment fails: the state is unchanged. *)
-      pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
+      pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
       rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
       assert (∀ φ', pcc φ' = Cap pc_p pc_g pc_b pc_e pc_a → nextPC φ' = None) as Hfail'.
@@ -193,13 +193,13 @@ Section griotte_lang_rules.
       iModIntro. iExists (ls_insert_sh lsreg sr nv). iFrame. iPureIntro.
       by rewrite ls_join_insert_sh. }
     rewrite -Hls' in Her1.
-    pose proof (specialrw_sys_kept _ _ _ _ _ _ _ _ Hsr_mtdc Hsr_mst Hφ1) as Hkept.
+    pose proof (specialrw_sys_kept _ _ _ _ _ _ _ _ _ Hsr_mtdc Hsr_mst Hφ1) as Hkept.
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
     case_decide as Hdst.
     - (* The old value is dropped. *)
-      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
+      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
-      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
         (λ lpc' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs
            dst sr src lpc' regs sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
@@ -210,11 +210,11 @@ Section griotte_lang_rules.
       { intros Hi'. rewrite /incrementPC in Hi. congruence. }
       iIntros (lpc'' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - (* [dst] receives the old value. *)
-      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _
-        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her1 Hokold Hrelold) Hi)
+      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _
+        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her1 Hokold Hrelold) Hi)
         as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
         (λ lpc' regs' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs
            sregs dst sr src lpc' regs' sregs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
@@ -459,7 +459,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hdst φ) "(>HPC & >Hpc_a & >Hdst & >Hmtdc_f) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
-    iNext; iIntros (r psr mm st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc_f") as %[Hmeq Hmatch].
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & Hrel).
@@ -467,7 +467,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= in Hstep.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
     destruct (decide (dst = cnull)) as [Hc|_]; first done. cbn in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (ls_vmtdc lsreg) wold _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (ls_vmtdc lsreg) wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                           regs' = <[dst := ls_vmtdc lsreg]ₗ> {[dst := wdst]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
@@ -514,7 +514,7 @@ Section griotte_lang_rules.
       "(>HPC & >Hpc_a & >Hsrc & >Hmtdc_f & HT & HL) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); first done.
-    iNext; iIntros (r psr mm st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & _).
     assert ({[src := v]} !!ₗ src = Some v) as Hsv.
@@ -525,19 +525,19 @@ Section griotte_lang_rules.
     destruct (decide (src = cnull)) as [Hc|_]; first done.
     rewrite Hrs /= in Hstep.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
       as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' v) in Her1. cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' v _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := and_tag s (lw v)]> psr) mm st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := and_tag s (lw v)]> psr) mm st td)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
-    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
       (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
@@ -581,7 +581,7 @@ Section griotte_lang_rules.
       "(>HPC & >Hpc_a & >Hr & >Hmtdc_f & HT & HL) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); first done.
-    iNext; iIntros (rf psr mm st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (rf psr mm st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc_f") as %[Hmeq Hmatch].
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & Hrelold).
@@ -593,23 +593,23 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= in Hstep.
     destruct (decide (r = cnull)) as [Hc|_]; first done.
     rewrite Hrs /= in Hstep.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ _ mtdc v (and_tag s (lw v)) Her Hok Hrel)
       as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' v) in Her1. cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' v _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) rf (<[mtdc := and_tag s (lw v)]> psr) mm st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) rf (<[mtdc := and_tag s (lw v)]> psr) mm st td)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                           regs' = <[r := ls_vmtdc lsreg]ₗ> {[r := v]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { exact Hlregs. } { right. set_solver. } { exact Hokold. }
-    { destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _
-        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold Her1 Hokold Hrelold)
+    { destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _
+        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold Her1 Hokold Hrelold)
         (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
       rewrite /update_reg /= in Hu Hstep |- *. by rewrite Hu in Hstep |- *. }
     { exact Hrelold. }
@@ -648,25 +648,25 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hm' Htr Hcl φ) "(>HPC & >Hpc_a & >Hmtdc_f & HT & HL) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); first done.
-    iNext; iIntros (r psr mm st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & _).
     rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= in Hstep.
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
-    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ mtdc (lword_of_word (WInt z)) (WInt z)
+    pose proof (erasure_write_sreg _ _ _ _ _ _ _ _ _ _ _ _ mtdc (lword_of_word (WInt z)) (WInt z)
                   Her (reg_word_ok_int _ _ _ _) (reg_phys_lword_of_word _ _)) as Her1.
     rewrite llegalise_mtdc -(ls_join_set_mtdc lsreg m' (lword_of_word (WInt z))) in Her1.
     cbn [legalise] in Her1, Hstep.
     iMod (sys_interp_set_mtdc _ m m' _ _ _ Hm' Hcl with "Hsr Hmtdc_f HL")
       as "(Hsr & Hmtdc_f & HL)".
     iApply (instr_close_link_transfer _ _ _ _
-              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := WInt z]> psr) mm st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mtdc := WInt z]> psr) mm st td)
               with "Hlink HT"); [by apply link_transfer_si_of | |].
     { intros Hk. eapply mtdc_written_kept; last exact Hk.
       by rewrite /mtdc_written /mie_st /= lookup_insert_ne. }
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
-    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
       (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }

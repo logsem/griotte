@@ -77,7 +77,9 @@ Section switcher_helper.
         }
 
         iDestruct (interp_WL_addr_key with "Hvalid") as %Hkeys; first done.
-        iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
+        iDestruct (interp_cap_disjoint_wl with "Hvalid") as %[Hstk_mmio _]; first done.
+        iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H";
+          auto using disjoint_from_mmio_exposed.
         iClear "#"; clear -Hrelated_pub_W0_Wfixed Hkeys.
         rewrite /region_pointsto /RevokedResources big_sepL_fmap.
         rewrite big_sepL2_replicate_r; last by rewrite finz_seq_between_length.

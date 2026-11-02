@@ -101,7 +101,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hi Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep.
     rewrite /regs_of in Dregs.
     erewrite operands_of_is_JCond in Dregs; eauto.
@@ -111,20 +111,20 @@ Section griotte_lang_rules.
     destruct (lz_of_argument_dom regs arg2) as [n2 Hn2].
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
-    set (φc := (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) in Hstep.
+    set (φc := (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) in Hstep.
     rewrite (exec_opt_is_JCond _ _ _ _ _ _ Hi) /exec_jcond /= Hn1' Hn2' /= in Hstep.
     destruct (jcond_test i n1 n2) eqn:Htest.
     - destruct (lz_of_argument_dom regs off) as [imm Himm].
       { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
       apply (lz_of_argument_incl _ _ r _ _ Hregs) in Himm as Himm'.
       rewrite Himm' /= in Hstep.
-      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
+      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
         (λ lpc' retv, JCond_spec i _ regs off arg1 arg2 lpc' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
       { intros. by eapply JCond_spec_success_jmp. }
       { intros. constructor. by eapply JCond_fail_PC_overflow_jmp. }
       iIntros (lpc' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-    - iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+    - iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
         (λ lpc' retv, JCond_spec i _ regs off arg1 arg2 lpc' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
       { intros. by eapply JCond_spec_success_next. }

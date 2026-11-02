@@ -88,8 +88,9 @@ Section logrel_fix.
               | WCap t (BPerm _ WL _ _) Global _ _ _ (* WL Global capabilities are never safe-to-share *)
                 => False
               | WCap t p g b e a =>
-                  interp_cap_body interp th W C p g b e w.(lprov)
-                  ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov)
+                  (interp_cap_body interp th W C p g b e w.(lprov)
+                   ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov))
+                  ∨ ⌜exposed_mmio_cap p b e w.(lprov)⌝
               | _ => False
               end)%I.
   Solve All Obligations with auto;solve_proper.
@@ -168,11 +169,14 @@ Section logrel_fix.
     all: match goal with
     | |- context [WCap _ ?p ?g _ _ _] =>
         change (dist n
-          (interp_cap_body x th W C p g b e π ∗
-            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I
-          (interp_cap_body y th W C p g b e π ∗
-            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I);
-        f_equiv; exact (interp_cap_body_contractive th W C p g b e π n x y Hdist)
+          ((interp_cap_body x th W C p g b e π ∗
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+           ∨ ⌜exposed_mmio_cap p b e π⌝)%I
+          ((interp_cap_body y th W C p g b e π ∗
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+           ∨ ⌜exposed_mmio_cap p b e π⌝)%I);
+        apply bi.or_ne;
+        [f_equiv; exact (interp_cap_body_contractive th W C p g b e π n x y Hdist)|done]
     end.
   Qed.
 
@@ -245,7 +249,7 @@ Section logrel_fix.
         else
           if (has_sreg_access p)
           then False
-          else ([∗ list] a ∈ finz.seq_between b e,
+          else (([∗ list] a ∈ finz.seq_between b e,
                   ∃ (p' : Perm) (P:V),
                     ⌜PermFlowsTo p p'⌝
                     ∗ ⌜persistent_cond P⌝
@@ -260,21 +264,27 @@ Section logrel_fix.
                              else wcond_nwl P C (interp th))
                        else True))
                ∗ ⌜(if isWL p then g = Local else True) ∧
-                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)%I).
+                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+               ∨ ⌜exposed_mmio_cap p b e π⌝)%I).
   Proof.
+    (* Rewriting the pure conjunctions with [bi.pure_and] unfolds
+       [disjoint_from_mmio]: rewrite them as propositions instead. *)
     pose proof (interp_cap_body_eq interp th W C p g b e π) as Hbody.
     destruct p as [rx wp dl dro].
     destruct rx, wp, g; cbn [isO has_sreg_access isWL].
     all: rewrite -?Hbody.
-    all: rewrite ?bi.pure_and ?bi.persistent_and_sep.
-    all: rewrite ?(bi.pure_True (Local = Local) eq_refl).
-    all: try
-      (rewrite (bi.pure_False (Global = Local)); [|discriminate]).
-    all: rewrite ?bi.sep_True ?bi.True_sep ?bi.False_sep.
-    all: try (rewrite (comm bi_sep _ False%I) bi.sep_False).
-    all: rewrite ?bi.sep_False ?bi.False_sep.
-    all: rewrite -?(bi.persistent_and_sep ⌜disjoint_from_shadow b e⌝
-      ⌜revoker_addr ∉ finz.seq_between b e⌝) -?bi.pure_and.
+    all: try (rewrite (_ : ((True ∧ disjoint_from_mmio b e) ↔ disjoint_from_mmio b e));
+              [|naive_solver]).
+    all: try (rewrite (_ : ((Local = Local ∧ disjoint_from_mmio b e) ↔ disjoint_from_mmio b e));
+              [|naive_solver]).
+    all: try (rewrite (_ : ((Global = Local ∧ disjoint_from_mmio b e) ↔ False));
+              [|naive_solver]).
+    all: try reflexivity.
+    (* A write-local Global capability: both disjuncts are false. *)
+    all: rewrite (_ : (exposed_mmio_cap _ b e π ↔ False));
+      [|split; [intros (_ & _ & Hwl & _); discriminate|done] ].
+    all: rewrite ?bi.False_sep ?bi.sep_False ?bi.False_or ?bi.or_False.
+    all: rewrite (comm bi_sep _ False%I) ?bi.sep_False ?bi.False_sep.
     all: reflexivity.
   Qed.
 

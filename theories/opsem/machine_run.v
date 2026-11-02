@@ -16,7 +16,7 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
         else machine_run fuel (Executable, enter_exc (trap_cause φ, trap_tval φ) φ)
     | (Halted, _) => Some Halted
     | (NextI, φ) => machine_run fuel (Executable, φ)
-    | (Executable, (MkExecConf pc r sr m st)) =>
+    | (Executable, (MkExecConf pc r sr m st td)) =>
         if isCorrectPCb pc
         then (
             let a := match pc with
@@ -30,13 +30,13 @@ Fixpoint machine_run `{MachineParameters} (fuel: nat) (c: Conf): option ConfFlag
                      end
             in
             match m !! a with
-            | None => machine_run fuel (Faulted, (MkExecConf pc r sr m st))
+            | None => machine_run fuel (Faulted, (MkExecConf pc r sr m st td))
             | Some wa =>
                 let i := decodeInstrW wa in
-                let c' := exec i p (MkExecConf pc r sr m st) in
+                let c' := exec i p (MkExecConf pc r sr m st td) in
                 machine_run fuel (c'.1,  c'.2)
             end
-          ) else machine_run fuel (Faulted, (MkExecConf pc r sr m st))
+          ) else machine_run fuel (Faulted, (MkExecConf pc r sr m st td))
     end
   end.
 
@@ -52,7 +52,7 @@ Fixpoint machine_run_conf `{MachineParameters} (fuel : nat) (c : Conf) : option 
         else machine_run_conf fuel (Executable, enter_exc (trap_cause φ, trap_tval φ) φ)
     | (Halted, φ) => Some (Halted, φ)
     | (NextI, φ) => machine_run_conf fuel (Executable, φ)
-    | (Executable, (MkExecConf pc r sr m st)) =>
+    | (Executable, (MkExecConf pc r sr m st td)) =>
         if isCorrectPCb pc
         then (
             let a := match pc with
@@ -66,13 +66,13 @@ Fixpoint machine_run_conf `{MachineParameters} (fuel : nat) (c : Conf) : option 
                      end
             in
             match m !! a with
-            | None => machine_run_conf fuel (Faulted, (MkExecConf pc r sr m st))
+            | None => machine_run_conf fuel (Faulted, (MkExecConf pc r sr m st td))
             | Some wa =>
                 let i := decodeInstrW wa in
-                let c' := exec i p (MkExecConf pc r sr m st) in
+                let c' := exec i p (MkExecConf pc r sr m st td) in
                 machine_run_conf fuel (c'.1, c'.2)
             end
-          ) else machine_run_conf fuel (Faulted, (MkExecConf pc r sr m st))
+          ) else machine_run_conf fuel (Faulted, (MkExecConf pc r sr m st td))
     end
   end.
 
@@ -104,7 +104,7 @@ Lemma machine_run_correct `{MachineParameters} fuel cf (φ: ExecConf) cf':
             ([Instr cf'], φ').
 Proof.
   revert cf cf' φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
-  cbn. intros cf cf' [wpc r sr m st] Hc.
+  cbn. intros cf cf' [wpc r sr m st td] Hc.
   destruct cf; simplify_eq.
   - (* Executable: the fetch and the instruction, then the rest of the run. *)
     destruct (isCorrectPCb wpc) eqn:HPC.
@@ -140,7 +140,7 @@ Lemma machine_run_conf_correct `{MachineParameters} fuel cf (φ : ExecConf) cf' 
   rtc erased_step ([Seq (Instr cf)], φ) ([Instr cf'], φ').
 Proof.
   revert cf φ. induction fuel as [|fuel IHfuel]; first (cbn; done).
-  cbn. intros cf [wpc r sr m st] Hc.
+  cbn. intros cf [wpc r sr m st td] Hc.
   destruct cf; simplify_eq.
   - (* Executable: the fetch and the instruction, then the rest of the run. *)
     destruct (isCorrectPCb wpc) eqn:HPC.

@@ -113,6 +113,8 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (b_switcher sw) (e_switcher sw)
   disjoint_from_shadow (b_switcher sw) (e_switcher sw)
   revoker_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
+  mtime_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
+  mtimecmp_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
   is_heap_address (e_switcher sw) = false  -- closed bounds outside the heap
 ── assert, layout ──────────────────────────────────────────────────────────
   b_assert asrt + length assert_subroutine_instrs = Some (cap_assert asrt)
@@ -121,10 +123,14 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (b_assert asrt) (e_assert asrt)
   disjoint_from_shadow (b_assert asrt) (e_assert asrt)
   revoker_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
+  mtime_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
+  mtimecmp_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
   is_heap_address (e_assert asrt) = false                    -- closed bounds outside the heap
   not_heap_range (flag_assert asrt) (flag_assert asrt ^+ 1)  -- flag
   disjoint_from_shadow (flag_assert asrt) (flag_assert asrt ^+ 1)
   revoker_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
+  mtime_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
+  mtimecmp_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
 ── main, layout ────────────────────────────────────────────────────────────
   cmpt_b_pcc main + length (cmpt_imports main)                         = Some (cmpt_a_code main)
   cmpt_a_code main + length (cmpt_code main)                           = Some (cmpt_e_pcc main)
@@ -136,15 +142,23 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (cmpt_b_pcc main) (cmpt_e_pcc main)                      -- main, PCC range
   disjoint_from_shadow (cmpt_b_pcc main) (cmpt_e_pcc main)
   revoker_addr ∉ finz.seq_between (cmpt_b_pcc main) (cmpt_e_pcc main)
+  mtime_addr ∉ finz.seq_between (cmpt_b_pcc main) (cmpt_e_pcc main)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_pcc main) (cmpt_e_pcc main)
   not_heap_range (cmpt_b_cgp main) (cmpt_e_cgp main)                      -- main, CGP range
   disjoint_from_shadow (cmpt_b_cgp main) (cmpt_e_cgp main)
   revoker_addr ∉ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main)
+  mtime_addr ∉ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_cgp main) (cmpt_e_cgp main)
   not_heap_range (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)  -- main, static sealed
   disjoint_from_shadow (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
   revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
+  mtime_addr ∉ finz.seq_between (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_static_sealed main) (cmpt_e_static_sealed main)
   not_heap_range (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)  -- main, export table
   disjoint_from_shadow (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
   revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
+  mtime_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc main) (cmpt_exp_tbl_entries_end main)
   is_heap_address (cmpt_e_pcc main) = false                               -- closed PCC bounds outside the heap
   (4%nat < cmpt_e_pcc main - cmpt_b_pcc main)%Z                           -- export entry inside the PCC range
   Forall (word_rooted ∅)                                                  -- no heap capability (no heap root)
@@ -170,15 +184,23 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (cmpt_b_pcc B) (cmpt_e_pcc B)                      -- B, PCC range
   disjoint_from_shadow (cmpt_b_pcc B) (cmpt_e_pcc B)
   revoker_addr ∉ finz.seq_between (cmpt_b_pcc B) (cmpt_e_pcc B)
+  mtime_addr ∉ finz.seq_between (cmpt_b_pcc B) (cmpt_e_pcc B)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_pcc B) (cmpt_e_pcc B)
   not_heap_range (cmpt_b_cgp B) (cmpt_e_cgp B)                      -- B, CGP range
   disjoint_from_shadow (cmpt_b_cgp B) (cmpt_e_cgp B)
   revoker_addr ∉ finz.seq_between (cmpt_b_cgp B) (cmpt_e_cgp B)
+  mtime_addr ∉ finz.seq_between (cmpt_b_cgp B) (cmpt_e_cgp B)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_cgp B) (cmpt_e_cgp B)
   not_heap_range (cmpt_b_static_sealed B) (cmpt_e_static_sealed B)  -- B, static sealed
   disjoint_from_shadow (cmpt_b_static_sealed B) (cmpt_e_static_sealed B)
   revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed B) (cmpt_e_static_sealed B)
+  mtime_addr ∉ finz.seq_between (cmpt_b_static_sealed B) (cmpt_e_static_sealed B)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_static_sealed B) (cmpt_e_static_sealed B)
   not_heap_range (cmpt_exp_tbl_pcc B) (cmpt_exp_tbl_entries_end B)  -- B, export table
   disjoint_from_shadow (cmpt_exp_tbl_pcc B) (cmpt_exp_tbl_entries_end B)
   revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc B) (cmpt_exp_tbl_entries_end B)
+  mtime_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc B) (cmpt_exp_tbl_entries_end B)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc B) (cmpt_exp_tbl_entries_end B)
   is_heap_address (cmpt_e_pcc B) = false                            -- closed PCC bounds outside the heap
   Forall (word_rooted ∅)                                            -- no heap capability (no heap root)
     (cmpt_imports B ++
@@ -203,15 +225,23 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (cmpt_b_pcc C) (cmpt_e_pcc C)                      -- C, PCC range
   disjoint_from_shadow (cmpt_b_pcc C) (cmpt_e_pcc C)
   revoker_addr ∉ finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)
+  mtime_addr ∉ finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_pcc C) (cmpt_e_pcc C)
   not_heap_range (cmpt_b_cgp C) (cmpt_e_cgp C)                      -- C, CGP range
   disjoint_from_shadow (cmpt_b_cgp C) (cmpt_e_cgp C)
   revoker_addr ∉ finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)
+  mtime_addr ∉ finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_cgp C) (cmpt_e_cgp C)
   not_heap_range (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)  -- C, static sealed
   disjoint_from_shadow (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
   revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
+  mtime_addr ∉ finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_static_sealed C) (cmpt_e_static_sealed C)
   not_heap_range (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)  -- C, export table
   disjoint_from_shadow (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
   revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
+  mtime_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc C) (cmpt_exp_tbl_entries_end C)
   is_heap_address (cmpt_e_pcc C) = false                            -- closed PCC bounds outside the heap
   Forall (word_rooted ∅)                                            -- no heap capability (no heap root)
     (cmpt_imports C ++
@@ -231,15 +261,21 @@ cmdc_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   not_heap_range (b_stack t0) (e_stack t0)                  -- stack
   disjoint_from_shadow (b_stack t0) (e_stack t0)
   revoker_addr ∉ finz.seq_between (b_stack t0) (e_stack t0)
+  mtime_addr ∉ finz.seq_between (b_stack t0) (e_stack t0)
+  mtimecmp_addr ∉ finz.seq_between (b_stack t0) (e_stack t0)
   not_heap_range (b_trusted_stack t0) (e_trusted_stack t0)  -- trusted stack
   disjoint_from_shadow (b_trusted_stack t0) (e_trusted_stack t0)
   revoker_addr ∉ finz.seq_between (b_trusted_stack t0) (e_trusted_stack t0)
+  mtime_addr ∉ finz.seq_between (b_trusted_stack t0) (e_trusted_stack t0)
+  mtimecmp_addr ∉ finz.seq_between (b_trusted_stack t0) (e_trusted_stack t0)
   b_trusted_stack t0 ≠ 0                                    -- trusted stack not at address 0
   (4%nat + StackEntry_reserved_space ≤ 100%nat)%Z           -- minimum stack size of the entry
   b_hazard t0 + 2 = Some (e_hazard t0)
   not_heap_range (b_hazard t0) (e_hazard t0)                -- hazard slots
   disjoint_from_shadow (b_hazard t0) (e_hazard t0)
   revoker_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
+  mtime_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
+  mtimecmp_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
 ── image, layout ───────────────────────────────────────────────────────────
   ranges_disjoint                                                   -- pairwise disjoint
       [00]  [b_switcher sw, e_switcher sw)                          -- switcher

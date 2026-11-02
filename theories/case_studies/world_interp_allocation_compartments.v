@@ -48,7 +48,7 @@ Section region_alloc_cmpt.
     pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     iIntros "#Hrel_pcc #Hrel_data".
     iSplit.
-    - iEval (rewrite interp_unfold /=).
+    - iEval (rewrite interp_unfold /=). iLeft.
       iSplitR; last (iSplit; [iPureIntro; exact Hpcc_shadow|iApply heap_cap_ok_disjoint; exact Hpcc_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
@@ -68,7 +68,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply zcond_interp_cmpt_threads).
       iSplit; first (iNext ; by iApply rcond_g_interp_cmpt_threads).
       done.
-    - iEval (rewrite interp_unfold /=).
+    - iEval (rewrite interp_unfold /=). iLeft.
       iSplitR; last (iSplit; [iPureIntro; exact Hcgp_shadow|iApply heap_cap_ok_disjoint; exact Hcgp_heap]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
@@ -188,7 +188,7 @@ Section region_alloc_cmpt.
           rewrite !andb_True in Hp.
           destruct Hp as [ [ [] ] ]; done.
         }
-        rewrite Hwl.
+        rewrite Hwl. iLeft.
         iSplitR; cycle 1.
         { assert (finz.seq_between b e ⊆
             finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt)) as Hbounds.
@@ -196,10 +196,7 @@ Section region_alloc_cmpt.
             apply elem_of_finz_seq_between; solve_addr. }
           iSplit.
           - iPureIntro. split; first done.
-            pose proof Hcgp_shadow as [Hcgp_sh Hcgp_rev]. split.
-            + rewrite /disjoint_from_shadow in Hcgp_sh |- *.
-              set_solver+Hbounds Hcgp_sh.
-            + set_solver+Hbounds Hcgp_rev.
+            eapply disjoint_from_mmio_weaken; [| | exact Hcgp_shadow]; solve_addr.
           - iApply heap_cap_ok_disjoint.
             rewrite /disjoint_from_heap in Hcgp_heap |- *.
             set_solver+Hbounds Hcgp_heap.

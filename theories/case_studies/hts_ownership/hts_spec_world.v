@@ -92,7 +92,7 @@ Section HTS_World.
     iMod (world_interp_extend_perm (revoke W_init_C) C (LHeap b ι) (WInt 0) RW (safeGC interp_nonlocal)
       with "Hworld Hbuf_perm") as "(Hworld & #Hrel_b)".
     iAssert (interp (hts_Wshare W_init_C) C (hts_buffer b @@ ι)) as "#Hinterp_buf".
-    { iEval (rewrite /hts_buffer interp_unfold /=).
+    { iEval (rewrite /hts_buffer interp_unfold /=). iLeft.
       iSplitL.
       { rewrite /interp_cap_body.
         rewrite (finz_seq_between_cons b); last solve_addr.
@@ -106,20 +106,30 @@ Section HTS_World.
         iSplit; first (iNext; by iApply rcond_g_interp_nonlocal).
         iNext; iApply wcond_nwl_interp_nonlocal. }
       iSplit.
-      { iPureIntro. split.
-        { rewrite /disjoint_from_shadow elem_of_disjoint.
+      { iPureIntro.
+        destruct time_devs_not_heap as [Hmtime_heap Hmtimecmp_heap].
+        rewrite /disjoint_from_mmio /disjoint_from_time_devs. split_and!.
+        - rewrite /disjoint_from_shadow elem_of_disjoint.
           intros a Ha Hsh.
           pose proof heap_shadow_disjoint as Hdisj.
           rewrite elem_of_disjoint in Hdisj.
           eapply Hdisj; last exact Hsh.
           apply elem_of_finz_seq_between.
           apply elem_of_finz_seq_between in Ha.
+          solve_addr.
+        - intros Hrev%elem_of_finz_seq_between.
+          pose proof revoker_not_heap as Hrev_heap.
+          apply not_true_iff_false in Hrev_heap.
+          apply Hrev_heap, withinBounds_true_iff.
+          solve_addr.
+        - intros Hdev%elem_of_finz_seq_between.
+          apply not_true_iff_false in Hmtime_heap.
+          apply Hmtime_heap, withinBounds_true_iff.
+          solve_addr.
+        - intros Hdev%elem_of_finz_seq_between.
+          apply not_true_iff_false in Hmtimecmp_heap.
+          apply Hmtimecmp_heap, withinBounds_true_iff.
           solve_addr. }
-        intros Hrev%elem_of_finz_seq_between.
-        pose proof revoker_not_heap as Hrev_heap.
-        apply not_true_iff_false in Hrev_heap.
-        apply Hrev_heap, withinBounds_true_iff.
-        solve_addr. }
       iIntros (_). iSplit; first (iPureIntro; done).
       iExists b, (b ^+ 1). iFrame "Hobj". iPureIntro. solve_addr. }
     assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C))

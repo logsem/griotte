@@ -141,7 +141,10 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[#A [%Hconditions #Hheap] ]".
+    iDestruct "HA" as "[ [#A [%Hconditions #Hheap] ] | %Hexp]"; cycle 1.
+    { iRight. iPureIntro.
+      eapply (exposed_mmio_cap_weaken p p' b b e e π); [solve_addr | solve_addr | exact Hp | exact Hexp]. }
+    iLeft.
     destruct Hconditions as [Hpwl_cond Hshadow].
     iSplit; cycle 1.
     { iSplit; last by iApply (heap_cap_ok_perm with "Hheap").
@@ -595,6 +598,9 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
+    iDestruct "HA" as "[HA | %Hexp]"; cycle 1.
+    { iRight. iPureIntro. by eapply exposed_mmio_cap_weaken. }
+    iLeft.
     iDestruct "HA" as "[A [%Hconditions #Hok] ]".
     destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hshadow' : disjoint_from_mmio b' e').

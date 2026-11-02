@@ -49,19 +49,19 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     unfold regs_of, operands_of in Dregs.
     assert (arg_owned regs rimm) as Hdomr.
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
-    assert (exec_opt (Jmp rimm) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+    assert (exec_opt (Jmp rimm) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
               (imm ← lz_of_argument regs rimm;
-               advancePC (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) imm)) as HH.
+               advancePC (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) imm)) as HH.
     { rewrite -(lz_of_argument_phys R regs r rimm Hregs Hdomr). done. }
     rewrite HH in Hstep. clear HH.
     destruct (lz_of_argument_dom regs rimm Hdomr) as [imm Himm].
     rewrite Himm in Hstep. cbn [mbind option_bind] in Hstep.
-    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
+    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ imm _ _ _
       (λ lpc' retv, Jmp_spec _ regs rimm lpc' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]"); first done; first done.
     { intros. by eapply Jmp_spec_success. }

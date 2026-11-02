@@ -256,6 +256,7 @@ Section SO_World_Object.
       W0 (l_revoked ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     object ## finz.seq_between csp_b csp_e ->
     readAllowed p = true ->
+    disjoint_from_exposed_mmio b e ->
     (t = true ∨ (e <= b)%a) ->
     thread_in th C
     ∗ interp W0 C (WCap t p g b e cur @@? π)
@@ -291,7 +292,7 @@ Section SO_World_Object.
         ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]).
   Proof.
     intros W1 object temps perms rest.
-    iIntros (Hextract Hobject_stack Hread Htag_or_empty)
+    iIntros (Hextract Hobject_stack Hread Hobject_nexp Htag_or_empty)
       "(#Hthread & #Hinterp_wca0_W0 & Hworld_interp_C & Hl_revoked & Hstk & Hlc)".
     destruct t; cycle 1.
     { destruct Htag_or_empty as [Htag | Hempty]; first discriminate.
@@ -732,7 +733,8 @@ Section SO_World_Object.
         iApply heap_cap_O_key_temp_transfer; last by iApply "Hx".
         apply HT_W2. by eapply list_elem_of_lookup_2. }
       destruct (has_sreg_access p); first done.
-      iDestruct "Hinterp_wca0_W0" as "[Hinterp $]".
+      iDestruct "Hinterp_wca0_W0" as "[ [Hinterp Hconds] | %Hexp]"; last by iRight.
+      iLeft. iFrame "Hconds".
       iClear "∗".
       iApply (big_sepL_impl with "Hinterp").
       iModIntro.
@@ -750,7 +752,8 @@ Section SO_World_Object.
 
   (** Revoke the world [W0] of the call to [f], and open the region of the
       readable stack object [(t, p, g, b, e, a)], tagged or empty, which
-      does not overlap with the stack frame $[csp_b, csp_e)$. The first closing puts the cells of
+      does not overlap with the stack frame $[csp_b, csp_e)$ and reaches no
+      exposed device. The first closing puts the cells of
       the object back in the world, provided that they contain integers,
       and gives back the stack frame. The second closing, used when
       [checkints] faults, puts the object back unchanged in the revoked
@@ -761,6 +764,7 @@ Section SO_World_Object.
       (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
       (csp_b csp_e : Addr) :
     readAllowed p = true ->
+    disjoint_from_exposed_mmio b e ->
     (t = true ∨ (e <= b)%a) ->
     finz.seq_between b e ## finz.seq_between csp_b csp_e ->
     thread_in th C -∗
@@ -796,7 +800,7 @@ Section SO_World_Object.
            RevokedResources W0 C l_revoked ∗
            [[csp_b, csp_e]] ↦ₐ [[stk_mem]])).
   Proof.
-    iIntros (Hp Htag_or_empty Hno_overlap) "#Hthread #Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
+    iIntros (Hp Hobject_nexp Htag_or_empty Hno_overlap) "#Hthread #Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
       as (l_revoked) "(%Hextract & Hworld_interp_C & Hstack_revoked & _
                        & >[%stk_mem Hstk] & Hl_revoked & _)".
@@ -804,7 +808,7 @@ Section SO_World_Object.
             W0 C t p g b e a π csp_b csp_e l_revoked stk_mem
            with "[$Hthread $Hinterp_object $Hworld_interp_C $Hl_revoked $Hstk $Hlc]")
       as "[(%object_mem & _ & %Hobject & Hobject & Hclose) | Htomb]";
-      [done|done|done|done| |].
+      [done|done|done|done|done| |].
     - iModIntro.
       iExists l_revoked, stk_mem.
       iFrame "∗%".

@@ -44,7 +44,9 @@ Section WorldInterpStack.
     destruct g.
     { iEval (rewrite interp_unfold /=) in "Hinterp". done. }
     iDestruct (interp_WL_addr_key with "Hinterp") as %Hkeys; first done.
-    iDestruct (write_allowed_inv_full_cap with "Hinterp") as "Hrels"; first done.
+    iDestruct (interp_cap_disjoint_wl with "Hinterp") as %[Hmmio _]; first done.
+    iDestruct (write_allowed_inv_full_cap with "Hinterp") as "Hrels";
+      [done | by apply disjoint_from_mmio_exposed |].
     iApply (big_sepL_impl with "Hrels"). iIntros "!> %k %x %Hx".
     rewrite Forall_lookup in Hkeys. rewrite (Hkeys _ _ Hx).
     iIntros "(%p' & %P & %Hfl & %Hpers & Hrel & Hz & Hrc & Hwc)".

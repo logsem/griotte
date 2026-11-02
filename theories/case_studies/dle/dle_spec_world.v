@@ -73,7 +73,7 @@ Section DLE_World.
     (* And prove that the RW_DL capability pointing to it is safe *)
     iAssert (interp W2 C (Cap RW_DL Local cgp_b (cgp_b ^+ 1) cgp_b))
       as "#Hinterp_cgp_b".
-    { iEval (rewrite interp_unfold); iEval (cbn).
+    { iEval (rewrite interp_unfold); iEval (cbn). iLeft.
       iSplit; cycle 1.
       { pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1))
           as [Hsub_shadow Hsub_heap];
@@ -137,7 +137,7 @@ Section DLE_World.
 
     (* The RW_DL capability pointing to [cgp_b+1] is safe *)
     iSplit.
-    { iEval (rewrite interp_unfold); iEval (cbn).
+    { iEval (rewrite interp_unfold); iEval (cbn). iLeft.
       iSplit; cycle 1.
       { pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1) (cgp_b ^+ 2))
           as [Hsub_shadow Hsub_heap];

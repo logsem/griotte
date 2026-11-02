@@ -8,7 +8,8 @@ From griotte Require Export copy_context.
     is a region of memory owned by the caller; the destination is generic:
     each store goes through a per-cell accessor [cells_store_acc], so that
     the destination may be owned by the caller or opened from an invariant,
-    and a store past the end of the destination capability faults.
+    and a store past the end of the destination capability, or to an
+    exposed device, faults.
     In [copy_context_load_spec], the source is generic: each load goes
     through a per-cell accessor [cells_load_acc], and a load past the end
     of the source capability faults; the destination is owned. *)
@@ -52,7 +53,7 @@ Section CopyContextMacro.
     cells_store_acc D p_d e_d a_d π_d ws ∗
     ▷ ( ( ∀ j : nat,
           ⌜(j < 15)%nat⌝ -∗
-          ⌜(e_d <= a_d + j)%Z⌝ -∗
+          ⌜(e_d <= a_d + j)%Z ∨ is_exposed_mmio_address (a_d ^+ j) = true⌝ -∗
           src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ j) -∗
           dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ j) @@? π_d) -∗
           scratch ↦ᵣ - -∗
@@ -102,46 +103,83 @@ Section CopyContextMacro.
       iApply ("Hfailed" $! i with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD [HPC]").
       { solve_addr. }
       by rewrite (_ : pc_a ^+ Z.to_nat 2 = pc_a ^+ 2); last solve_addr. }
-    iMod ("Hacc" $! i with "[%] [%] HD") as (v q) "(%Hsh_d & Hcell & Hderef & Hclose)".
+    (* The rest of the iteration: the fault at an exposed device, or the
+       stored word. *)
+    iAssert ((⌜is_exposed_mmio_address (a_d ^+ i) = true⌝ -∗
+              dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ i) @@? π_d) -∗
+              scratch ↦ᵣ - -∗
+              D i -∗
+              PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
+              WP Seq (Instr Faulted) {{ φ }}) ∧
+             (PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 3) -∗
+              scratch ↦ᵣ wi -∗
+              dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ i) @@? π_d) -∗
+              D (S i) -∗
+              WP Exec {{ φ }}))%I
+      with "[Hsrc Hcounter Hws Hpost]" as "Hnext".
+    { iSplit.
+      { iIntros (Hexp) "Hdst Hscratch HD HPC".
+        iDestruct "Hpost" as "[Hfailed _]".
+        iApply ("Hfailed" $! i with "[//] [] Hsrc Hdst Hscratch Hcounter Hws HD HPC").
+        by iRight. }
+      iIntros "HPC Hscratch Hdst HD".
+      (* Add counter counter (-1) *)
+      iInstr "Hcode".
+      (* Lea dst dst 1 *)
+      iInstr "Hcode".
+      { transitivity (Some (a_d ^+ S i)); solve_addr. }
+      (* Lea src src 1 *)
+      iInstr "Hcode".
+      { transitivity (Some (a_s ^+ S i)); solve_addr. }
+      destruct (decide (i = 14)) as [-> | Hi14].
+      - (* Jne -5 counter 0 *)
+        iInstr "Hcode".
+        iDestruct "Hpost" as "[_ Hpost]".
+        iApply ("Hpost" with "[%] HPC Hsrc Hdst Hscratch Hcounter Hws HD").
+        solve_addr.
+      - (* Jne -5 counter 0 *)
+        iInstr "Hcode".
+        { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
+        { transitivity (Some (pc_a ^+ 1)); solve_addr. }
+        replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
+        iApply ("IH" $! (S i) with "[] HPC Hsrc Hdst Hscratch Hcounter Hws HD Hpost").
+        iPureIntro; lia. }
+    iMod ("Hacc" $! i with "[%] [%] HD")
+      as "[ (%v & %q & %Hsh_d & Hcell & Hderef & Hclose) | (%Hexp & %Hπ_d & HD & Hclose) ]".
     { lia. }
     { done. }
-    (* Store dst scratch 0 *)
-    iInstrApply "Hcode"
-      (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-      with "[$HPC $Hscratch $Hdst $Hcell $Hderef]"
-      as "(HPC & Hscratch & Hdst & Hcell & Hderef)".
-    { rewrite /withinBounds; solve_addr. }
-    { solve_addr. }
-    rewrite -(list_lookup_total_correct _ _ _ Hwi).
-    iMod ("Hclose" with "Hcell Hderef") as "HD".
-    (* Add counter counter (-1) *)
-    iInstr "Hcode".
-    (* Lea dst dst 1 *)
-    iInstr "Hcode".
-    { transitivity (Some (a_d ^+ S i)); solve_addr. }
-    (* Lea src src 1 *)
-    iInstr "Hcode".
-    { transitivity (Some (a_s ^+ S i)); solve_addr. }
-    destruct (decide (i = 14)) as [-> | Hi14].
-    - (* Jne -5 counter 0 *)
-      iInstr "Hcode".
-      iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" with "[%] HPC Hsrc Hdst Hscratch Hcounter Hws HD").
-      solve_addr.
-    - (* Jne -5 counter 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-      { transitivity (Some (pc_a ^+ 1)); solve_addr. }
-      replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
-      iApply ("IH" $! (S i) with "[] HPC Hsrc Hdst Hscratch Hcounter Hws HD Hpost").
-      iPureIntro; lia.
+    - (* Store dst scratch 0 *)
+      iInstrApply "Hcode"
+        (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
+        with "[$HPC $Hscratch $Hdst $Hcell $Hderef]"
+        as "(HPC & Hscratch & Hdst & Hcell & Hderef)".
+      { rewrite /withinBounds; solve_addr. }
+      { solve_addr. }
+      rewrite -(list_lookup_total_correct _ _ _ Hwi).
+      iMod ("Hclose" with "Hcell Hderef") as "HD".
+      rewrite (list_lookup_total_correct _ _ _ Hwi).
+      iDestruct "Hnext" as "[_ Hnext]".
+      iApply ("Hnext" with "HPC Hscratch Hdst HD").
+    - subst π_d.
+      (* Store dst scratch 0 *)
+      iInstrApply "Hcode" (wp_store_timedev_reg _ _ _ _ _ _ _ (pc_a ^+ 3))
+        with "[$HPC $Hscratch $Hdst]"
+        as (retv) "[(-> & HPC & Hscratch & Hdst) | (-> & HPC & Hscratch & Hdst)]".
+      { rewrite /withinBounds; solve_addr. }
+      + iDestruct "Hnext" as "[Hfailed _]".
+        iApply ("Hfailed" with "[//] Hdst [$Hscratch] HD [HPC]").
+        by rewrite (_ : pc_a ^+ Z.to_nat 2 = pc_a ^+ 2); last solve_addr.
+      + iMod ("Hclose" with "HD") as "HD".
+        iDestruct "Hnext" as "[_ Hnext]".
+        iApply ("Hnext" with "HPC Hscratch Hdst HD").
   Qed.
 
   (** [copy_context_asm dst src scratch counter] copies the 15 words [ws]
       of the region at [a_s] to the cells from [a_d], through the
       accessor of the destination. A store past the end [e_d] of the
-      destination capability faults at [pc_a ^+ 2], with [j] words
-      copied: the continuation receives the fault, before trap entry. *)
+      destination capability, or to an exposed device (cell [j] in
+      bounds), faults at [pc_a ^+ 2], with [j] words copied: the
+      continuation receives the fault, before trap entry. *)
   Lemma copy_context_spec
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (dst src scratch counter : RegName)
@@ -172,7 +210,7 @@ Section CopyContextMacro.
     cells_store_acc D p_d e_d a_d π_d ws ∗
     ▷ ( ( ∀ j : nat,
           ⌜(j < 15)%nat⌝ -∗
-          ⌜(e_d <= a_d + j)%Z⌝ -∗
+          ⌜(e_d <= a_d + j)%Z ∨ is_exposed_mmio_address (a_d ^+ j) = true⌝ -∗
           src ↦ᵣ Cap p_s g_s b_s e_s (a_s ^+ j) -∗
           dst ↦ᵣ (Cap p_d g_d b_d e_d (a_d ^+ j) @@? π_d) -∗
           scratch ↦ᵣ - -∗
@@ -295,63 +333,82 @@ Section CopyContextMacro.
       iTrap with ("Hfailed" $! i ls wd with
                    "[//] [//] [//] [%] Hsrc Hdst [$Hscratch] Hcounter Hwd HL").
       solve_addr. }
+    (* The rest of the iteration, once the word [v'] is loaded. *)
+    iAssert (∀ v' : LWord,
+               PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
+               scratch ↦ᵣ v' -∗
+               src ↦ᵣ (Cap p_s g_s b_s e_s (a_s ^+ i) @@? π_s) -∗
+               L (S i) (ls ++ [v']) -∗
+               WP Exec {{ φ }})%I
+      with "[Hdst Hcounter Hwd Hpost]" as "Hnext".
+    { iIntros (v') "HPC Hscratch Hsrc HL".
+      destruct (lookup_lt_is_Some_2 wd i) as [wi Hwi]; first lia.
+      iDestruct (big_sepL_insert_acc _ _ i with "Hwd") as "[Hwi Hwd]"; first exact Hwi.
+      iPoseProof deref_res_none as "Hderef".
+      (* Store dst scratch 0 *)
+      iInstrApply "Hcode"
+        (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
+        with "[$HPC $Hscratch $Hdst $Hwi $Hderef]"
+        as "(HPC & Hscratch & Hdst & Hwi & _)".
+      { eapply disjoint_from_shadow_not_in; [exact Hshadow_d | rewrite /withinBounds; solve_addr]. }
+      { rewrite /withinBounds; solve_addr. }
+      { solve_addr. }
+      iDestruct ("Hwd" with "Hwi") as "Hwd".
+      (* Add counter counter (-1) *)
+      iInstr "Hcode".
+      (* Lea dst dst 1 *)
+      iInstr "Hcode".
+      { transitivity (Some (a_d ^+ S i)); solve_addr. }
+      (* Lea src src 1 *)
+      iInstr "Hcode".
+      { transitivity (Some (a_s ^+ S i)); solve_addr. }
+      assert (take (S i) (<[i:=lstore_word p_d v']> wd) = lstore_word p_d <$> ls ++ [v'])
+        as Htake'.
+      { rewrite (take_S_r _ _ (lstore_word p_d v')); last (apply list_lookup_insert_eq; lia).
+        rewrite take_insert decide_False; last lia.
+        by rewrite fmap_app Htake. }
+      destruct (decide (i = 14)) as [-> | Hi14].
+      - (* Jne -5 counter 0 *)
+        iInstr "Hcode".
+        iDestruct "Hpost" as "[_ Hpost]".
+        rewrite take_ge in Htake'; last (rewrite length_insert; lia).
+        iEval (rewrite Htake') in "Hwd".
+        rewrite (_ : (15 - 14%nat + -1)%Z = 0%Z); last lia.
+        iApply ("Hpost" with "[%] [HPC] Hsrc Hdst Hscratch Hcounter Hwd HL").
+        { rewrite length_app /=; lia. }
+        { iExact "HPC". }
+      - (* Jne -5 counter 0 *)
+        iInstr "Hcode".
+        { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
+        { transitivity (Some (pc_a ^+ 1)); solve_addr. }
+        replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
+        iApply ("IH" $! (<[i:=lstore_word p_d v']> wd) (ls ++ [v']) (S i)
+                 with "[%] [%] [%] [%] HPC Hsrc Hdst Hscratch Hcounter Hwd HL Hpost").
+        + by rewrite length_insert.
+        + rewrite length_app /=; lia.
+        + exact Htake'.
+        + lia. }
     iMod ("Hacc" $! i ls with "[%] [%] HL")
-      as (v dq wit dw) "(%Hsh_s & %Hπ & Hcell & Hwit & Hdw & Hclose)".
+      as "[ (%v & %dq & %wit & %dw & %Hsh_s & %Hπ & Hcell & Hwit & Hdw & Hclose)
+          | (%Hexp & %Hπ & Hclose) ]".
     { lia. }
     { solve_addr. }
-    (* CLoad scratch src 0 *)
-    iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds_deref _ _ _ _ _ _ _ scratch src 0)
-      with "[$HPC $Hscratch $Hsrc $Hcell $Hwit $Hdw]"
-      as (v') "(%Hload & HPC & Hscratch & Hsrc & Hcell & Hwit & Hdw)".
-    { solve_addr. }
-    { rewrite /withinBounds; solve_addr. }
-    iMod ("Hclose" $! v' with "[//] Hcell Hwit Hdw") as "HL".
-    destruct (lookup_lt_is_Some_2 wd i) as [wi Hwi]; first lia.
-    iDestruct (big_sepL_insert_acc _ _ i with "Hwd") as "[Hwi Hwd]"; first exact Hwi.
-    iPoseProof deref_res_none as "Hderef".
-    (* Store dst scratch 0 *)
-    iInstrApply "Hcode"
-      (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-      with "[$HPC $Hscratch $Hdst $Hwi $Hderef]"
-      as "(HPC & Hscratch & Hdst & Hwi & _)".
-    { eapply disjoint_from_shadow_not_in; [exact Hshadow_d | rewrite /withinBounds; solve_addr]. }
-    { rewrite /withinBounds; solve_addr. }
-    { solve_addr. }
-    iDestruct ("Hwd" with "Hwi") as "Hwd".
-    (* Add counter counter (-1) *)
-    iInstr "Hcode".
-    (* Lea dst dst 1 *)
-    iInstr "Hcode".
-    { transitivity (Some (a_d ^+ S i)); solve_addr. }
-    (* Lea src src 1 *)
-    iInstr "Hcode".
-    { transitivity (Some (a_s ^+ S i)); solve_addr. }
-    assert (take (S i) (<[i:=lstore_word p_d v']> wd) = lstore_word p_d <$> ls ++ [v'])
-      as Htake'.
-    { rewrite (take_S_r _ _ (lstore_word p_d v')); last (apply list_lookup_insert_eq; lia).
-      rewrite take_insert decide_False; last lia.
-      by rewrite fmap_app Htake. }
-    destruct (decide (i = 14)) as [-> | Hi14].
-    - (* Jne -5 counter 0 *)
-      iInstr "Hcode".
-      iDestruct "Hpost" as "[_ Hpost]".
-      rewrite take_ge in Htake'; last (rewrite length_insert; lia).
-      iEval (rewrite Htake') in "Hwd".
-      rewrite (_ : (15 - 14%nat + -1)%Z = 0%Z); last lia.
-      iApply ("Hpost" with "[%] [HPC] Hsrc Hdst Hscratch Hcounter Hwd HL").
-      { rewrite length_app /=; lia. }
-      { iExact "HPC". }
-    - (* Jne -5 counter 0 *)
-      iInstr "Hcode".
-      { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
-      { transitivity (Some (pc_a ^+ 1)); solve_addr. }
-      replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
-      iApply ("IH" $! (<[i:=lstore_word p_d v']> wd) (ls ++ [v']) (S i)
-               with "[%] [%] [%] [%] HPC Hsrc Hdst Hscratch Hcounter Hwd HL Hpost").
-      + by rewrite length_insert.
-      + rewrite length_app /=; lia.
-      + exact Htake'.
-      + lia.
+    - (* CLoad scratch src 0 *)
+      iInstrApply "Hcode" (wp_load_witness_imm_one_inbounds_deref _ _ _ _ _ _ _ scratch src 0)
+        with "[$HPC $Hscratch $Hsrc $Hcell $Hwit $Hdw]"
+        as (v') "(%Hload & HPC & Hscratch & Hsrc & Hcell & Hwit & Hdw)".
+      { solve_addr. }
+      { rewrite /withinBounds; solve_addr. }
+      iMod ("Hclose" $! v' with "[//] Hcell Hwit Hdw") as "HL".
+      iApply ("Hnext" with "HPC Hscratch Hsrc HL").
+    - subst π_s.
+      (* CLoad scratch src 0 *)
+      iInstrApply "Hcode" (wp_load_success_from_timedev _ scratch src)
+        with "[$HPC $Hscratch $Hsrc]"
+        as (z) "(HPC & Hscratch & Hsrc)".
+      { rewrite /withinBounds; split; [done | solve_addr]. }
+      iMod ("Hclose" $! z) as "HL".
+      iApply ("Hnext" with "HPC Hscratch Hsrc HL").
   Qed.
 
   (** [copy_context_asm dst src scratch counter] copies the 15 words at

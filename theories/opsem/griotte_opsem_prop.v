@@ -166,14 +166,14 @@ Qed.
   Qed.
 
   Lemma step_exec_inv
-    (regs: Reg) (sregs : SReg) (mem : Mem) (shadow : ShadowTbl)
+    (regs: Reg) (sregs : SReg) (mem : Mem) (shadow : ShadowTbl) (td : TimeDevs)
     (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (w : Word)
     (instr : instr) (c: ConfFlag) (σ: ExecConf) :
     isCorrectPC (WCap t p g b e a) →
     mem !! a = Some w →
     decodeInstrW w = instr →
-    step (Executable, (MkExecConf (WCap t p g b e a) regs sregs mem shadow)) (c, σ) →
-    exec instr p (MkExecConf (WCap t p g b e a) regs sregs mem shadow) = (c, σ).
+    step (Executable, (MkExecConf (WCap t p g b e a) regs sregs mem shadow td)) (c, σ) →
+    exec instr p (MkExecConf (WCap t p g b e a) regs sregs mem shadow td) = (c, σ).
   Proof.
     intros Hpc Hm Hinstr. inversion 1; cbn in *.
     1,2: congruence.
@@ -280,6 +280,9 @@ Qed.
   Proof. done. Qed.
 
   Lemma revoker_sweep_shadowtbl φ : shadowtbl (revoker_sweep φ) = shadowtbl φ.
+  Proof. done. Qed.
+
+  Lemma revoker_sweep_timedevs φ : timedevs (revoker_sweep φ) = timedevs φ.
   Proof. done. Qed.
 
   Lemma dom_revoker_sweep_mem φ : dom (mem (revoker_sweep φ)) = dom (mem φ).

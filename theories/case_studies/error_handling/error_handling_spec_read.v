@@ -68,23 +68,24 @@ Section Error_Handling_Read.
   Qed.
 
   (** The switcher invokes the handler of [stats] for a fault at the load,
-      with a stack that has room for the [ErrorState], at an even count
-      below the limit. *)
+      with a stack that has room for the [ErrorState] and reaches no
+      exposed device there, at an even count below the limit. *)
   Lemma stats_read_handler_runs (cstk : CSTK) (rfault : LReg) (g : Locality) (b e a : Addr) :
     STATS_pcc_b ≠ b_switcher →
     rfault !!! csp = lword_of_word (Cap RWL g b e a) →
     (b + ErrorState_size <= a)%Z → (a <= e)%a →
+    disjoint_from_exposed_mmio (a ^+ (- ErrorState_size)) a →
     Z.even (top_error_count cstk) = true →
     (top_error_count cstk + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     stackful_handler_runs cstk (stats_pcc stats_load_addr) rfault
       stats_handler_pcc_off stats_wpcc.
   Proof.
-    intros Hswitcher Hcsp Hba Hae Heven Hmax Htbl.
+    intros Hswitcher Hcsp Hba Hae Hnexp Heven Hmax Htbl.
     pose proof STATS_size_imports as Hsize_imports.
     pose proof STATS_size_code as Hsize_code.
     rewrite /stackful_handler_runs Hcsp.
-    split_and!; try done.
+    split_and!; try done; try (rewrite /error_state_mmio_free /=; done).
     - rewrite /switcher_fault_pc /lmepcc_of_pc /= get_b_mepcc_of_pc /=.
       intros Hb. apply Hswitcher. solve_addr.
     - (* [csp] has authority: its range is not empty *)
@@ -111,7 +112,7 @@ Section Error_Handling_Read.
   (** The fault site of [stats]: a fault at the load, with mcause in
       [P_mcause] and mtval in [P_mtval], with the lock held,
       [na_own (⊤ ∖ ↑Nstats)], and a stack with room for the [ErrorState],
-      outside the shadow table, at an even count below the limit. The site
+      outside the memory-mapped devices, at an even count below the limit. The site
       lends the slot of the [ErrorState], and gives the handler
       [stats_P_fault]: the lock, the saved capability of a repairable
       fault, and its continuations. The switcher invokes the handler, so
@@ -125,7 +126,7 @@ Section Error_Handling_Read.
     rfault !!! cgp = stats_wcgp →
     jalr_target_ok cnull cra (rfault !!! cra).(lw) = true →
     (b + ErrorState_size <= a)%Z → (a <= e)%a →
-    disjoint_from_shadow (a ^+ (- ErrorState_size)) a →
+    disjoint_from_mmio (a ^+ (- ErrorState_size)) a →
     top_export_tbl cstk = b_stats_exp_tbl →
     Z.even (top_error_count cstk) = true →
     (top_error_count cstk + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z →
@@ -147,9 +148,11 @@ Section Error_Handling_Read.
     trap_safe_cause P_mcause P_mtval (stats_pcc stats_load_addr) ⊤
       (HO th).
   Proof.
-    iIntros (HP_mcause Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hshadow
+    iIntros (HP_mcause Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hmmio
                Htbl Heven Hmax Htbl_set Hsaved Hroute)
       "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hlock Harea Hmie Hheld Hcont".
+    pose proof (disjoint_from_mmio_shadow _ _ Hmmio) as Hshadow.
+    pose proof (disjoint_from_mmio_exposed _ _ Hmmio) as Hnexp.
     pose proof Ntstack_Nstats as Hdisj_stats.
     iApply (trap_safe_exception_entry P_mcause P_mtval (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
@@ -304,7 +307,7 @@ Section Error_Handling_Read.
     (* CLoad ca0 ca0 0 *)
     iInstr_fail "Hcode".
     { (* The checks of the capability fail *)
-      intros reg sreg mem st s1 Hr. apply exec_opt_exec_none. cbn. rewrite /lookup_reg Hr /=.
+      intros reg sreg mem st td s1 Hr. apply exec_opt_exec_none. cbn. rewrite /lookup_reg Hr /=.
       destruct (decide (ca0 = cnull)) as [Hcnull | _]; first done.
       destruct wptr as [w π]. cbn in Hcheck |- *. destruct s1; cbn [and_tag].
       - destruct w as [z | [ [] p g b e a | t p g b e a ] | k t p g b e a | ot sb ];
@@ -482,8 +485,8 @@ Section Error_Handling_Read.
       the load at the base, and the callee returns at count 2), and it is
       unwound for an untagged capability ([may_fault = true]). The caller
       runs with [na_own ⊤] ([stats_read] opens [stats_inv]), and the
-      callee's stack is outside the shadow table (the switcher stores the
-      [ErrorState] there). The base of the pointer is outside the
+      callee's stack is outside the memory-mapped devices (the switcher
+      stores the [ErrorState] there). The base of the pointer is outside the
       [ErrorState] slot of the callee: the caller lends its cell, and the
       callee holds the slot. *)
   Lemma stats_read_spec_known_to_known
@@ -492,7 +495,7 @@ Section Error_Handling_Read.
     (arg_rmap : LReg) (cstk : CSTK)
     (wptr v : LWord) :
     STATS_pcc_b ≠ b_switcher →
-    disjoint_from_shadow (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) →
+    disjoint_from_mmio (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) →
     arg_rmap !! ca0 = Some wptr →
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -507,7 +510,7 @@ Section Error_Handling_Read.
       STATS_pcc_b STATS_pcc_e STATS_cgp_b STATS_cgp_e stats_read_pcc_off InterruptDisabled
       (Cap RO Global b_stats_exp_tbl e_stats_exp_tbl stats_read_exp_tbl_addr).
   Proof.
-    iIntros (Hswitcher Hstk_shadow Hwptr)
+    iIntros (Hswitcher Hstk_mmio Hwptr)
       "(#Hinv_switcher & #Hswitcher_static & #Hstatic & #Hinv_stats)".
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
@@ -680,7 +683,7 @@ Section Error_Handling_Read.
         { rewrite Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
         { rewrite /ErrorState_size. solve_addr. }
         { done. }
-        { apply (disjoint_from_shadow_weaken bc ec es cur); [done | done | exact Hstk_shadow]. }
+        { apply (disjoint_from_mmio_weaken bc ec es cur); [done | done | exact Hstk_mmio]. }
         1-2: done.
         { by apply Z.leb_le. }
         { done. }
@@ -781,7 +784,7 @@ Section Error_Handling_Read.
       { rewrite Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
       { rewrite /ErrorState_size. solve_addr. }
       { done. }
-      { apply (disjoint_from_shadow_weaken bc ec es cur); [done | done | exact Hstk_shadow]. }
+      { apply (disjoint_from_mmio_weaken bc ec es cur); [done | done | exact Hstk_mmio]. }
       1-2: done.
       { by apply Z.leb_le. }
       { done. }

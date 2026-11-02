@@ -80,7 +80,12 @@ Section img_state.
     initial_heap_memory.
 
   Definition img_state (fw : firmware) (img : fw_image) : ExecConf :=
-    (MkExecConf (img_pc fw img) (img_regs fw img) (img_sregs fw img) (img_mem fw img) initial_heap_shadow).
+    {| pcc := img_pc fw img;
+       reg := img_regs fw img;
+       sreg := img_sregs fw img;
+       mem := img_mem fw img;
+       shadowtbl := initial_heap_shadow;
+       timedevs := {| td_mtime := 0; td_mtimecmp := 0 |} |}.
 End img_state.
 
 (** ** Canonical words
@@ -217,17 +222,32 @@ Section checks.
       congruence.
   Qed.
 
+  (** The address [a] is outside [b, e). *)
+  Definition addr_apart (a b e : Addr) : bool :=
+    bool_decide (a < b)%a || bool_decide (e <= a)%a.
+
+  Lemma addr_apart_not_in a b e :
+    addr_apart a b e = true → a ∉ finz.seq_between b e.
+  Proof.
+    rewrite elem_of_finz_seq_between.
+    intros [Ha|Ha]%orb_true_iff; apply bool_decide_eq_true in Ha; solve_addr.
+  Qed.
+
   Definition mmio_apart (b e : Addr) : bool :=
     range_apart b e shadow_b shadow_e &&
-    (bool_decide (revoker_addr < b)%a || bool_decide (e <= revoker_addr)%a).
+    addr_apart revoker_addr b e &&
+    addr_apart mtime_addr b e &&
+    addr_apart mtimecmp_addr b e.
 
   Lemma disjoint_from_mmio_check b e :
     mmio_apart b e = true → disjoint_from_mmio b e.
   Proof.
-    intros [Hsh Hrev]%andb_true_iff. split.
+    intros [ [ [Hsh Hrev]%andb_true_iff Hmtime]%andb_true_iff Hmtimecmp]%andb_true_iff.
+    rewrite /disjoint_from_mmio /disjoint_from_time_devs. split_and!.
     - by apply range_apart_disjoint.
-    - rewrite elem_of_finz_seq_between.
-      apply orb_true_iff in Hrev as [Hrev|Hrev]; apply bool_decide_eq_true in Hrev; solve_addr.
+    - by apply addr_apart_not_in.
+    - by apply addr_apart_not_in.
+    - by apply addr_apart_not_in.
   Qed.
 
   (** A word that is not executable, or whose bounds are outside the heap. *)

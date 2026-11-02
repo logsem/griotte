@@ -92,7 +92,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Htr φ) "(>HPC & >Hpc_a & >Hmap & >Hmie & HT) Hφ".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %<-.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
     assert (∃ vst, ls_join lsreg !! mstatus = Some vst) as [vst Hvst'].
@@ -150,7 +150,7 @@ Section griotte_lang_rules.
       apply fmap_Some in Hz as (mie' & Htm & Hzeq). rewrite Hvmpie in Hzeq.
       assert (jalr_mie regs rsrc (ls_mie lsreg) = mie') as Hjm.
       { by rewrite /jalr_mie H'rsrc Htm. }
-      pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
+      pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
                     (lword_of_word (WInt (mstatus_enc mie' (ls_mpie lsreg))))
                     (WInt z) Her) as Her1.
       specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
@@ -158,7 +158,7 @@ Section griotte_lang_rules.
       rewrite -ls_join_set_mstatus in Her1.
       iMod (sys_interp_set_mie _ _ mie' with "Hsr Hmie") as "[Hsr Hmie]".
       iApply (instr_close_link_transfer _ _ _ _
-                (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mstatus := WInt z]> sr) m st)
+                (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mstatus := WInt z]> sr) m st td)
                 with "Hlink HT"); [exact Htr | |].
       { intros Hk. eapply mie_move_kept; last exact Hk. split_and!.
         - done.
@@ -166,7 +166,7 @@ Section griotte_lang_rules.
         - by rewrite /= lookup_insert_ne. }
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].
       + iApply (instr_close_set_pc (Cap pc_p pc_g pc_b pc_e pc_a) r
-                  (<[mstatus := WInt z]> sr) m st _ lreg _ lmem R C _ (lupdatePcPerm wsrc)
+                  (<[mstatus := WInt z]> sr) m st td _ lreg _ lmem R C _ (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her1.
         * by apply reg_word_ok_lupdatePcPerm.
@@ -177,7 +177,7 @@ Section griotte_lang_rules.
              by rewrite decide_True.
           -- iLeft. rewrite Hjm. by iFrame.
       + iApply (instr_close_reg_set_pc (Cap pc_p pc_g pc_b pc_e pc_a) r
-                  (<[mstatus := WInt z]> sr) m st _ lreg _ lmem R C _ rdst
+                  (<[mstatus := WInt z]> sr) m st td _ lreg _ lmem R C _ rdst
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her1.
@@ -193,12 +193,12 @@ Section griotte_lang_rules.
           -- iLeft. rewrite Hjm. by iFrame.
     - assert (jalr_mie regs rsrc (ls_mie lsreg) = ls_mie lsreg) as Hjm.
       { rewrite /jalr_mstatus fmap_None in Hmie. by rewrite /jalr_mie H'rsrc Hmie. }
-      iApply (instr_close_link_transfer _ _ _ _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
+      iApply (instr_close_link_transfer _ _ _ _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)
                 with "Hlink HT"); [exact Htr | |].
       { intros Hk. eapply mie_move_kept; last exact Hk.
         split_and!; [done | by rewrite Hjm | done]. }
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].
-      + iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
+      + iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her.
         * by apply reg_word_ok_lupdatePcPerm.
@@ -208,7 +208,7 @@ Section griotte_lang_rules.
           -- iPureIntro. eapply Jalr_spec_success; [exact H'rsrc | exact Hok | exact Hpca' |].
              by rewrite decide_True.
           -- iLeft. rewrite Hjm. by iFrame.
-      + iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
+      + iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ rdst
                   (link @@? pc_π) link (lupdatePcPerm wsrc)
                   with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
         * exact Her.
@@ -245,7 +245,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hcra Hret φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     assert (∃ vst, ls_join lsreg !! mstatus = Some vst) as [vst Hvst'].
     { eexists. apply ls_join_mstatus. }
     rewrite Hinstr in Hstep.
@@ -283,7 +283,7 @@ Section griotte_lang_rules.
     assert (reg_phys R (link @@? pc_π) link) as Hrellink by (by apply reg_phys_no_id).
     iApply (instr_close_link_kept with "Hlink").
     destruct (decide (rdst = cnull)) as [Hnull | Hnull].
-    - iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
+    - iApply (instr_close_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ (lupdatePcPerm wsrc)
                 with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
       + exact Her.
       + by apply reg_word_ok_lupdatePcPerm.
@@ -292,7 +292,7 @@ Section griotte_lang_rules.
       + iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. intros mie.
         eapply Jalr_spec_success; [exact H'rsrc | exact Hok | exact Hpca' |].
         by rewrite decide_True.
-    - iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ rdst
+    - iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ rdst
                 (link @@? pc_π) link (lupdatePcPerm wsrc)
                 with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap").
       + exact Her.
@@ -404,7 +404,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc & >Hrdst) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hrsrc $Hrdst $Hpc_a]"); [done | done | | ].
-    - intros r sr m st s1 s2 Hr1 _.
+    - intros r sr m st td s1 s2 Hr1 _.
       rewrite /exec /= /lookup_reg /=.
       destruct (decide (rsrc = cnull)) as [->|Hne]; first done.
       rewrite Hr1 /= jalr_target_checks.
@@ -430,7 +430,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hrsrc) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hrsrc $Hpc_a]"); [done | done | | ].
-    - intros rf sr m st s1 Hr1.
+    - intros rf sr m st td s1 Hr1.
       rewrite /exec /= /lookup_reg /=.
       destruct (decide (rsrc = cnull)) as [->|Hne]; first done.
       rewrite Hr1 /= jalr_target_checks.
@@ -456,7 +456,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hfail ϕ) "(>HPC & >Hpc_a & >Hr) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hr $Hpc_a]"); [done | done | | ].
-    - intros rf sr m st s1 Hr1.
+    - intros rf sr m st td s1 Hr1.
       rewrite /exec /= /lookup_reg /=.
       destruct (decide (r = cnull)) as [->|Hne]; first done.
       rewrite Hr1 /= jalr_target_checks.

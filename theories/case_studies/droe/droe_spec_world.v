@@ -73,7 +73,7 @@ Section DROE_World.
     iAssert (∀ W, interp W C (Cap RO_DRO Global cgp_b (cgp_b ^+ 1) cgp_b))%I
       as "#Hinterp_cgp_b".
     { iIntros (W).
-      iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
+      iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn). iLeft.
       iSplit; last (
         pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
@@ -125,7 +125,7 @@ Section DROE_World.
 
     iAssert (interp (revoke W0) C (Cap RO_DRO Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1)))
       as "#Hinterp_W3_C_a".
-    { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn).
+    { iEval (cbn). iEval (rewrite interp_unfold). iEval (cbn). iLeft.
       iSplit; last (
         pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1) (cgp_b ^+ 2)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))

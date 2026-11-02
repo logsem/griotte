@@ -314,11 +314,15 @@ Section Switcher_Spec_Exception.
     intros ?? (_ & _ & Hev & Hmax & _). destruct Hcount as [Hodd | Hover]; [congruence | lia].
   Qed.
 
-  (** The switcher's stores of the [ErrorState] fault. *)
+  (** The switcher's stores of the [ErrorState] fault, or reach an exposed
+      device. *)
   #[local] Lemma handler_skipped_stores (cstk : CSTK) (w : LWord) (rmap : LReg) :
-    ¬ error_state_stores_ok (rmap !!! csp) →
+    ¬ error_state_stores_ok (rmap !!! csp) ∨ ¬ error_state_mmio_free (rmap !!! csp) →
     ⊢ handler_skipped cstk w rmap.
-  Proof. intros Hnok. apply handler_skipped_pure. by intros ?? (_ & _ & _ & _ & _ & Hok & _). Qed.
+  Proof.
+    intros Hnok. apply handler_skipped_pure.
+    intros ?? (_ & _ & _ & _ & _ & Hok & Hfree & _). by destruct Hnok.
+  Qed.
 
   (** No stackful handler is declared, there is no room for the
       [ErrorState], or the tag of the stack pointer can be stripped. *)
@@ -330,7 +334,7 @@ Section Switcher_Spec_Exception.
   Proof.
     iIntros (Hcond) "#Heh !> (%eh' & %wpcc & #Heh' & _ & %Hruns)".
     iDestruct (handler_stackful_agree with "Heh Heh'") as %<-.
-    destruct Hruns as (_ & _ & _ & _ & Hsome & Hok & Hstrip & _).
+    destruct Hruns as (_ & _ & _ & _ & Hsome & Hok & _ & Hstrip & _).
     destruct Hcond as [Hnone | Hstrip']; [|done|done].
     move: Hok. rewrite /error_state_stores_ok /error_state_fits.
     repeat case_match; naive_solver.
@@ -347,7 +351,7 @@ Section Switcher_Spec_Exception.
     iIntros (Htgt) "#Heh #Hpcc !> (%eh' & %wpcc' & #Heh' & #Hpcc' & %Hruns)".
     iDestruct (handler_stackful_agree with "Heh Heh'") as %<-.
     iDestruct (pointsto_agree with "Hpcc Hpcc'") as %<-.
-    destruct Hruns as (_ & _ & _ & _ & _ & _ & _ & Htgt'). congruence.
+    destruct Hruns as (_ & _ & _ & _ & _ & _ & _ & _ & Htgt'). congruence.
   Qed.
 
   (** The forced unwind, from [.Lcommon_force_unwind], once the closing of

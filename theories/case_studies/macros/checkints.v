@@ -485,4 +485,184 @@ Section Checkints_spec.
     iApply "Hφ"; iFrame "∗ Hcode_main"; eauto.
   Qed.
 
+  (** [checkints] over exposed devices: each load gives an integer, and no
+      points-to of the range is needed. *)
+  Lemma checkints_loop_timedev_spec
+    (r r1 r2 : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr)
+    (φ : language.val griotte_lang → iPropI Σ) :
+
+    let checkints_loop := (checkints_loop_instrs r r1 r2) in
+    let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2)) in
+    executeAllowed pc_p = true →
+    SubBounds pc_b pc_e pc_a a_last →
+    a ∈ₐ [b, e) ->
+    readAllowed p = true ->
+    Forall is_exposed_mmio_address (finz.seq_between b e) ->
+    r ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ Cap p g b e a
+    ∗ ▷ r1 ↦ᵣ w1
+    ∗ ▷ r2 ↦ᵣ w2
+    ∗ ▷ codefrag_pers pc_a checkints_loop
+    ∗ ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
+          ∗ r ↦ᵣ Cap p g b e (finz.max b e)
+          ∗ r1 ↦ᵣ WInt 0%Z
+          ∗ r2 ↦ᵣ WInt e%Z
+          ∗ codefrag_pers pc_a checkints_loop
+          -∗ WP Exec {{ φ }} )
+    ⊢ WP Exec {{ v, φ v }}.
+  Proof.
+    intros checkints a_last ; subst checkints a_last.
+    iIntros (Hvpc Hcont Hae Hra Hdevs Hrcnull Hr1cnull Hr2cnull)
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & Hk)".
+    iLöb as "IH" forall (a Hae w1 w2).
+    codefrag_facts "Hcode_main".
+    iEval (cbn) in "HPC".
+    assert (is_time_device_address a = true) as Hdev.
+    { rewrite Forall_forall in Hdevs.
+      apply Is_true_true_1, Hdevs, elem_of_finz_seq_between. solve_addr. }
+
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
+    (* CLoad r1 r 0. *)
+    iInstrApply "Hcode" (wp_load_success_from_timedev _ r1 r)
+      with "[$HPC $Hr1 $Hr]"
+      as (z) "(HPC & Hr1 & Hr)".
+    { split; first done. apply withinBounds_true_iff; solve_addr. }
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    rewrite /checkints_loop_instrs.
+
+    focus_block 1 "Hcode_main" as a_checkint Ha_checkint "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
+    (* GetWType r2 r1. *)
+    iInstr "Hcode".
+    (* Sub r2 r2 (encodeWordType wt_int). *)
+    iInstr "Hcode".
+    replace (encodeWordType (WInt z) - encodeWordType wt_int)%Z with 0%Z.
+    2: { rewrite (encodeWordType_correct_int z 0) /wt_int; lia. }
+    (* Jne 2 r2 0; Jmp 2. *)
+    iGo "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+
+    focus_block 2 "Hcode_main" as a_cond Ha_cond "Hcode" "Hcont"; iHide "Hcode_main" as hcode ; clear Ha_checkint a_checkint.
+    (* Lea r r 1. *)
+    iInstr "Hcode".
+    { transitivity (Some (a^+1)); auto; solve_addr. }
+    (* GetA r1 r. *)
+    iInstr "Hcode".
+    (* GetE r2 r. *)
+    iInstr "Hcode".
+    (* Lt r1 r1 r2. *)
+    iInstr "Hcode".
+    destruct (decide ((a + 1%nat)%Z < e)%Z) as [Hae' | Hae']; cycle 1.
+    - replace (a ^+ 1) with e by solve_addr.
+      replace (e <? e)%Z with false by solve_addr.
+      (* Jne _ r1 0. *)
+      iInstr "Hcode".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      replace (finz.max b e) with e by solve_addr.
+      replace (a_cond ^+ 5) with (pc_a ^+ length (checkints_loop_instrs r r1 r2)) by solve_addr.
+      iApply "Hk"; iFrame "∗ Hcode_main".
+    - replace ((a ^+ 1) <? e)%Z with true by solve_addr.
+      (* Jne _ r1 0. *)
+      iInstr "Hcode".
+      { transitivity (Some pc_a); auto; solve_addr. }
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iApply ("IH" with "[] [$] [$] [$] [$] [Hk]"); eauto.
+      { iPureIntro; solve_addr. }
+  Qed.
+
+  Lemma checkints_timedev_spec
+    (r r1 r2 : RegName)
+    (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
+    (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr)
+    (φ : language.val griotte_lang → iPropI Σ) :
+
+    let checkints := (checkints_instrs r r1 r2) in
+    let a_last := (pc_a ^+ length checkints) in
+    executeAllowed pc_p = true →
+    SubBounds pc_b pc_e pc_a a_last →
+    readAllowed p = true ->
+    Forall is_exposed_mmio_address (finz.seq_between b e) ->
+    r ≠ cnull ->
+    r1 ≠ cnull ->
+    r2 ≠ cnull ->
+
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a
+    ∗ ▷ r ↦ᵣ Cap p g b e a
+    ∗ ▷ r1 ↦ᵣ w1
+    ∗ ▷ r2 ↦ᵣ w2
+    ∗ ▷ codefrag_pers pc_a checkints
+    ∗ ▷ ( PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
+          ∗ r ↦ᵣ Cap p g b e (finz.max b e)
+          ∗ r1 ↦ᵣ WInt 0%Z
+          ∗ r2 ↦ᵣ WInt 0%Z
+          ∗ codefrag_pers pc_a checkints
+          ∗ £ 2
+          -∗ WP Exec {{ φ }} )
+    ⊢ WP Exec {{ φ }}.
+  Proof.
+    intros checkints a_last ; subst checkints a_last.
+    iIntros (Hvpc Hcont Hra Hdevs Hrcnull Hr1cnull Hr2cnull)
+      "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & Hk)".
+    codefrag_facts "Hcode_main".
+    rewrite /checkints_instrs.
+
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
+    iApply (lea_to_base_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode]"); eauto.
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & _)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+
+    focus_block 1 "Hcode_main" as a_init Ha_init "Hcode" "Hcont"; iHide "Hcode_main" as hcode.
+    (* GetB r1 r. *)
+    iInstr "Hcode" with "Hlc".
+    (* GetE r2 r. *)
+    iInstr "Hcode" with "Hlc".
+    (* Lt r1 r1 r2. *)
+    iInstr "Hcode".
+    (* Sub r1 r1 1. *)
+    iInstr "Hcode".
+    destruct (decide (b < e)%a) as [Hbe|Hbe]; cycle 1.
+    { apply Z.ltb_nlt in Hbe; rewrite Hbe ; cbn.
+      replace (0 - 1%nat)%Z with (-1)%Z by lia.
+      (* Jne _ r1 0. *)
+      iInstr "Hcode".
+      { transitivity (Some (a_init ^+ 16)); auto; solve_addr. }
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      focus_block 3 "Hcode_main" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear Ha_init a_init.
+      (* Mov r1 0. *)
+      iInstr "Hcode".
+      (* Mov r2 0. *)
+      iInstr "Hcode".
+      unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      replace (a_end ^+ 2) with (pc_a ^+ 24%nat) by solve_addr.
+      replace (finz.max b e) with b by solve_addr.
+      iApply "Hk"; iFrame "∗ Hcode_main".
+    }
+
+    apply Z.ltb_lt in Hbe; rewrite Hbe; cbn.
+    replace (1 - 1%nat)%Z with 0%Z by lia.
+    (* Jne _ r1 0. *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    focus_block 2 "Hcode_main" as a_loop Ha_loop "Hcode" "Hcont"; iHide "Hcode_main" as hcode
+    ; clear Ha_init a_init.
+    iApply (checkints_loop_timedev_spec with "[- $HPC $Hr $Hr1 $Hr2 $Hcode]"); eauto.
+    { solve_addr. }
+    iNext; iIntros "(HPC & Hr & Hr1 & Hr2 & _)".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+
+    focus_block 3 "Hcode_main" as a_end Ha_end "Hcode" "Hcont"; iHide "Hcode_main" as hcode; clear Ha_loop a_loop.
+    (* Mov r1 0. *)
+    iInstr "Hcode".
+    (* Mov r2 0. *)
+    iInstr "Hcode".
+    unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    replace (a_end ^+ 2) with (pc_a ^+ 24%nat) by solve_addr.
+    iApply "Hk"; iFrame "∗ Hcode_main".
+  Qed.
+
 End Checkints_spec.

@@ -1,5 +1,5 @@
 From griotte Require Import machine_base.
-From griotte Require Export trap_fault heap_layout mmio_shadow mmio_revoker mmio.
+From griotte Require Export trap_fault heap_layout cap_bits mmio_shadow mmio_revoker mmio_timer mmio.
 
 Class InstructionEncoding := {
     decodeInstr : Z → instr;
@@ -134,6 +134,19 @@ Class MachineParameters := {
     revoker_mixin :: RevokerRegion;
     revoker_not_heap : withinBounds heap_b heap_e revoker_addr = false;
     revoker_not_shadow : withinBounds shadow_b shadow_e revoker_addr = false;
+    (* Machine parameters for the time devices *)
+    time_dev_mixin :: TimeDevRegion;
+    time_devs_not_heap :
+      withinBounds heap_b heap_e mtime_addr = false ∧
+      withinBounds heap_b heap_e mtimecmp_addr = false;
+    time_devs_not_shadow :
+      withinBounds shadow_b shadow_e mtime_addr = false ∧
+      withinBounds shadow_b shadow_e mtimecmp_addr = false;
+    time_devs_not_revoker :
+      mtime_addr ≠ revoker_addr ∧ mtimecmp_addr ≠ revoker_addr;
+    (* The bit encoding of capabilities, for capability stores to the
+       shadow region and the time devices *)
+    cap_bits_mixin :: CapBitsEncoding;
     (* The encoding of mtval for a CHERI fault *)
     mtval_encoding_mixin :: MtvalEncoding;
   }.
@@ -145,6 +158,13 @@ Proof. exact revoker_not_heap. Qed.
 Lemma revoker_not_shadow_address `{MachineParameters} :
   is_shadow_address revoker_addr = false.
 Proof. exact revoker_not_shadow. Qed.
+
+Lemma time_device_not_heap_address `{MachineParameters} a :
+  is_time_device_address a = true -> is_heap_address a = false.
+Proof.
+  intros [-> | ->]%is_time_device_address_spec; rewrite /is_heap_address;
+    [apply (proj1 time_devs_not_heap) | apply (proj2 time_devs_not_heap)].
+Qed.
 
 (* Lift the encoding / decoding between Z and instructions on Words: simplify
    fail on capabilities. *)

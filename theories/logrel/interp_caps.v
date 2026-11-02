@@ -27,13 +27,16 @@ Section logrel.
   Lemma interp_cap_regions (W : WORLD) (C : CmptName) p g b e a π :
     isO p = false →
     interp W C (Cap p g b e a @@? π) -∗
-    ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π.
+    ⌜disjoint_from_mmio b e ∨ exposed_mmio_cap p b e π⌝ ∗ heap_cap_ok p b e π.
   Proof.
     iIntros (HnonO) "Hinterp".
     rewrite interp_unfold interp1_eq HnonO.
     destruct (has_sreg_access p); first done.
-    iDestruct "Hinterp" as "[_ [%Hregions #Hok] ]".
-    iFrame "Hok". iPureIntro. naive_solver.
+    iDestruct "Hinterp" as "[ [_ [%Hregions #Hok] ] | %Hexp]".
+    - iFrame "Hok". iPureIntro. left. naive_solver.
+    - iSplit; first (iPureIntro; by right).
+      iIntros "%Hne". destruct Hexp as (-> & Hexp_rest).
+      iPureIntro. eapply exposed_mmio_cap_disjoint_heap. split; [done|exact Hexp_rest].
   Qed.
 
   Lemma region_rel_heap_cap_O_key W C k p' P p g :
@@ -61,7 +64,14 @@ Section logrel.
     rewrite interp_unfold interp1_eq.
     destruct (isO p); first by iIntros "$".
     destruct (has_sreg_access p); first by iIntros "H".
-    iIntros "[#Hlist [%Hconditions #Hok] ]".
+    iIntros "[ [#Hlist [%Hconditions #Hok] ] | %Hexp]"; cycle 1.
+    { rewrite /heap_cap_O_valid. iSplit.
+      - iIntros "%Hne". destruct Hexp as (-> & Hexp_rest).
+        iPureIntro. eapply exposed_mmio_cap_disjoint_heap. split; [done|exact Hexp_rest].
+      - iApply big_sepL_forall. iIntros (k x Hx%list_elem_of_lookup_2 Hheap).
+        exfalso. apply elem_of_finz_seq_between in Hx.
+        rewrite (exposed_mmio_not_heap x) in Hheap; first done.
+        apply (exposed_mmio_cap_in _ _ _ _ _ Hexp), withinBounds_true_iff. solve_addr. }
     rewrite /heap_cap_O_valid.
     iFrame "Hok".
     iApply (big_sepL_impl with "Hlist").
@@ -78,6 +88,7 @@ Section logrel.
     iIntros (Hexec) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow #Hheap]";
       first by eapply executeAllowed_nonO.
+    destruct Hshadow as [Hshadow | (_ & Hnexec & _)]; last congruence.
     iSplit; first done.
     destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
     { iPureIntro. rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
@@ -95,6 +106,7 @@ Section logrel.
     iIntros (Hwl) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow #Hheap]";
       first (apply isWL_nonO; exact Hwl).
+    destruct Hshadow as [Hshadow | (_ & _ & Hnwl & _)]; last congruence.
     iSplit; first done.
     destruct (decide (b < e)%a) as [Hnonempty|Hempty]; last first.
     { iPureIntro. rewrite /disjoint_from_heap finz_seq_between_empty; [set_solver|solve_addr]. }
@@ -111,24 +123,62 @@ Section logrel.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as "[%Hshadow _]"; auto.
-    iPureIntro. eapply disjoint_from_shadow_not_in; last eauto.
-    by apply disjoint_from_mmio_shadow.
+    iPureIntro. destruct Hshadow as [Hmmio | Hexp].
+    - eapply disjoint_from_shadow_not_in; last eauto.
+      by apply disjoint_from_mmio_shadow.
+    - by eapply exposed_mmio_not_shadow, exposed_mmio_cap_in.
   Qed.
 
-  Lemma interp_cap_not_mmio (W : WORLD) (C : CmptName) p g b e a a' π :
-    isO p = false →
-    withinBounds b e a' = true →
-    interp W C (Cap p g b e a @@? π) -∗ ⌜is_mmio_address a' = false⌝.
+  (** An address of a valid capability is memory, or an exposed device
+      reached through a capability without identifier, Execute or
+      write-local permission. *)
+  Lemma interp_cap_mem_or_exposed_mmio (W : WORLD) (C : CmptName) p g b e a a' π :
+    isO p = false → withinBounds b e a' = true →
+    interp W C (Cap p g b e a @@? π) -∗
+    ⌜(is_mmio_address a' = false ∧ is_exposed_mmio_address a' = false) ∨
+     (is_exposed_mmio_address a' = true ∧ π = None ∧
+      executeAllowed p = false ∧ isWL p = false)⌝.
   Proof.
     iIntros (HnonO Hbounds) "Hinterp".
     iDestruct (interp_cap_regions with "Hinterp") as "[%Hmmio _]"; auto.
-    iPureIntro. eapply disjoint_from_mmio_not_in; eauto.
+    iPureIntro. destruct Hmmio as [Hmmio | Hexp].
+    - left. pose proof (disjoint_from_mmio_not_in b e a' Hmmio Hbounds) as Hnmmio.
+      split; first done. by apply not_mmio_not_exposed_mmio.
+    - right. pose proof (exposed_mmio_cap_in _ _ _ _ _ Hexp Hbounds) as Hdev.
+      destruct Hexp as (Hπ & Hexec & Hwl & _). done.
   Qed.
 
   (* Inversion lemmas about interp  *)
   (** The per-address part of a valid memory capability. *)
   Lemma interp_cap_addr (W : WORLD) (C : CmptName) p g (b e a a' : Addr) π :
     isO p = false →
+    (b ≤ a' ∧ a' < e)%Z →
+    is_exposed_mmio_address a' = false →
+    interp W C (Cap p g b e a @@? π) -∗
+    ∃ (p' : Perm) (P:V),
+      ⌜PermFlowsTo p p'⌝
+      ∗ ⌜persistent_cond P⌝
+      ∗ region_rel W C (addr_key π a') p' P p g
+      ∗ ▷ zcond P C
+      ∗ (if readAllowed p'
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp)
+         else True)
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True).
+  Proof.
+    iIntros (HnO Hin Hnexp) "Hinterp".
+    rewrite interp_unfold interp1_eq HnO.
+    destruct (has_sreg_access p) eqn:HnXSR; auto.
+    iDestruct "Hinterp" as "[ [Hinterp [%Hloc _] ] | %Hexp]"; cycle 1.
+    { exfalso. rewrite (exposed_mmio_cap_in _ _ _ _ a' Hexp) in Hnexp; first done.
+      apply withinBounds_true_iff. solve_addr. }
+    iDestruct (extract_from_region_inv with "Hinterp")
+      as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)"; eauto.
+    iExists p', P'. by iFrame "∗%".
+  Qed.
+
+  (** An executable capability is never an exposed-device capability. *)
+  Lemma interp_cap_addr_exec (W : WORLD) (C : CmptName) p g (b e a a' : Addr) π :
+    executeAllowed p = true →
     (b ≤ a' ∧ a' < e)%Z →
     interp W C (Cap p g b e a @@? π) -∗
     ∃ (p' : Perm) (P:V),
@@ -141,13 +191,33 @@ Section logrel.
          else True)
       ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True).
   Proof.
-    iIntros (HnO Hin) "Hinterp".
-    rewrite interp_unfold interp1_eq HnO.
-    destruct (has_sreg_access p) eqn:HnXSR; auto.
-    iDestruct "Hinterp" as "[Hinterp [%Hloc _] ]".
-    iDestruct (extract_from_region_inv with "Hinterp")
-      as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)"; eauto.
-    iExists p', P'. by iFrame "∗%".
+    iIntros (Hexec Hin) "#Hinterp".
+    iDestruct (interp_cap_disjoint with "Hinterp") as %[Hmmio _]; first done.
+    iApply (interp_cap_addr with "Hinterp"); [by apply executeAllowed_nonO|done|].
+    apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in b e); first done.
+    apply withinBounds_true_iff. solve_addr.
+  Qed.
+
+  (** A write-local capability is never an exposed-device capability. *)
+  Lemma interp_cap_addr_wl (W : WORLD) (C : CmptName) p g (b e a a' : Addr) π :
+    isWL p = true →
+    (b ≤ a' ∧ a' < e)%Z →
+    interp W C (Cap p g b e a @@? π) -∗
+    ∃ (p' : Perm) (P:V),
+      ⌜PermFlowsTo p p'⌝
+      ∗ ⌜persistent_cond P⌝
+      ∗ region_rel W C (addr_key π a') p' P p g
+      ∗ ▷ zcond P C
+      ∗ (if readAllowed p'
+         then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp)
+         else True)
+      ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True).
+  Proof.
+    iIntros (Hwl Hin) "#Hinterp".
+    iDestruct (interp_cap_disjoint_wl with "Hinterp") as %[Hmmio _]; first done.
+    iApply (interp_cap_addr with "Hinterp"); [by apply isWL_nonO|done|].
+    apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in b e); first done.
+    apply withinBounds_true_iff. solve_addr.
   Qed.
 
   (** The read condition of a capability at the running thread. *)
@@ -162,6 +232,7 @@ Section logrel.
 
   Lemma read_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
     (b ≤ a' ∧ a' < e)%Z →
+    is_exposed_mmio_address a' = false →
     readAllowed p →
     ⊢ thread_in th C -∗
     (interp W C (Cap p g b e a @@? π)) →
@@ -174,11 +245,11 @@ Section logrel.
       ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
   .
   Proof.
-    iIntros (Hin Ra) "#Hth #Hinterp".
+    iIntros (Hin Hnexp Ra) "#Hth #Hinterp".
     apply Is_true_eq_true in Ra.
     iDestruct (interp_cap_addr with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)";
-      [by eapply readAllowed_nonO|done|].
+      [by eapply readAllowed_nonO|done|done|].
     pose proof (readAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iDestruct (rcond_sel_here with "Hth Hrcond") as "Hrcond_here".
@@ -188,6 +259,7 @@ Section logrel.
   Lemma read_allowed_inv_many (W : WORLD) (C : CmptName) (a b e: Addr) p g l π :
     readAllowed p →
     Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
+    Forall (λ a', is_exposed_mmio_address a' = false) l →
     ⊢ thread_in th C -∗
     (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l,
@@ -201,9 +273,10 @@ Section logrel.
               ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
-    induction l; iIntros (Hra Hin) "#Hth #Hinterp"; first done.
+    induction l as [|a0 l IHl]; iIntros (Hra Hin Hnexp) "#Hth #Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
+    apply Forall_cons in Hnexp. destruct Hnexp as [Hnexp_a0 Hnexp].
     iDestruct (read_allowed_inv _ _ a0 with "Hth Hinterp")
       as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hrcond_P & Hwcond_P)"
     ; auto.
@@ -213,6 +286,7 @@ Section logrel.
 
   Lemma read_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g π :
     readAllowed p →
+    disjoint_from_exposed_mmio b e →
     ⊢ thread_in th C -∗
     (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e),
@@ -226,8 +300,8 @@ Section logrel.
               ∗ (if writeAllowed p' then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp) else True)
           ).
   Proof.
-    iIntros (Hra) "Hth Hinterp".
-    iApply (read_allowed_inv_many with "Hth Hinterp"); eauto.
+    iIntros (Hra Hnexp) "Hth Hinterp".
+    iApply (read_allowed_inv_many with "Hth Hinterp"); [done| |exact Hnexp].
     apply Forall_forall.
     intros a' Ha'.
     by apply elem_of_finz_seq_between.
@@ -236,6 +310,7 @@ Section logrel.
   (* Inversion lemmas about about when W-capability *)
   Lemma write_allowed_inv (W : WORLD) (C : CmptName) (a' a b e: Addr) p g π :
     (b ≤ a' ∧ a' < e)%Z →
+    is_exposed_mmio_address a' = false →
     writeAllowed p →
     ⊢ (interp W C (Cap p g b e a @@? π)) →
     ∃ (p' : Perm) (P:V),
@@ -247,11 +322,11 @@ Section logrel.
       ∗ (if readAllowed p' then ▷ (if isGlobal g then rcond_g P C p' (λ t, interp (th := t)) else rcond_l P C p' interp) else True)
   .
   Proof.
-    iIntros (Hin Ra) "#Hinterp".
+    iIntros (Hin Hnexp Ra) "#Hinterp".
     apply Is_true_eq_true in Ra.
     iDestruct (interp_cap_addr with "Hinterp")
       as (p' P' Hfl' Hpers') "(Hrel & Hzcond & Hrcond & Hwcond)";
-      [by eapply writeAllowed_nonO|done|].
+      [by eapply writeAllowed_nonO|done|done|].
     pose proof (writeAllowed_flowsto _ _ Hfl' Ra) as Ra'.
     rewrite Ra'.
     iExists p',P'; iFrame "#∗%".
@@ -260,6 +335,7 @@ Section logrel.
   Lemma write_allowed_inv_many (W : WORLD) (C : CmptName) (a b e: Addr) p g l π :
     writeAllowed p →
     Forall (fun a' : Addr => (a' ∈ₐ [b, e)) ) l ->
+    Forall (λ a', is_exposed_mmio_address a' = false) l →
     ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ l,
           (
@@ -272,9 +348,10 @@ Section logrel.
               ∗ ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
           ).
   Proof.
-    induction l; iIntros (Hra Hin) "#Hinterp"; first done.
+    induction l as [|a0 l IHl]; iIntros (Hra Hin Hnexp) "#Hinterp"; first done.
     simpl.
     apply Forall_cons in Hin. destruct Hin as [Hin_a0 Hin].
+    apply Forall_cons in Hnexp. destruct Hnexp as [Hnexp_a0 Hnexp].
     iDestruct (write_allowed_inv _ _ a0 with "Hinterp")
       as (p' P) "(%Hperm_flow & %Hpers_P & Hrel_P & Hzcond_P & Hwcond_P & Hrcond_P)"
     ; auto.
@@ -284,6 +361,7 @@ Section logrel.
 
   Lemma write_allowed_inv_full_cap (W : WORLD) (C : CmptName) (a b e: Addr) p g π :
     writeAllowed p →
+    disjoint_from_exposed_mmio b e →
     ⊢ (interp W C (Cap p g b e a @@? π)) →
     [∗ list] a' ∈ (finz.seq_between b e),
           (
@@ -296,8 +374,8 @@ Section logrel.
               ∗ ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
           ).
   Proof.
-    iIntros (Hra) "Hinterp".
-    iApply (write_allowed_inv_many with "Hinterp"); eauto.
+    iIntros (Hra Hnexp) "Hinterp".
+    iApply (write_allowed_inv_many with "Hinterp"); [done| |exact Hnexp].
     apply Forall_forall.
     intros a' Ha'.
     by apply elem_of_finz_seq_between.
@@ -321,8 +399,8 @@ Section logrel.
   Proof.
     intros Hp Hb. iIntros "Hinterp".
     eapply withinBounds_le_addr in Hb.
-    iDestruct (interp_cap_addr with "Hinterp") as (p' P' Hfl' Hpers') "(Hrel & _)";
-      [by eapply isWL_nonO|done|].
+    iDestruct (interp_cap_addr_wl with "Hinterp") as (p' P' Hfl' Hpers') "(Hrel & _)";
+      [done|done|].
     rewrite /region_rel Hp. by iDestruct "Hrel" as "(_ & % & _)".
   Qed.
 
@@ -457,6 +535,7 @@ Section logrel.
   Lemma interp_in_registers
     (W : WORLD) (C : CmptName)
     (regs : leibnizO LReg) (p : Perm) (g : Locality) (b e a : Addr):
+      is_exposed_mmio_address a = false →
       thread_in th C
     -∗ world_interp W C
     -∗ (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v)%I
@@ -482,7 +561,7 @@ Section logrel.
             else emp)
        ).
   Proof.
-    iIntros "#Hth Hw #Hreg #H".
+    iIntros (Hnexp) "#Hth Hw #Hreg #H".
     iDestruct "H" as (p0 P0 Hflp0 Hperscond_P0) "(Hrel0 & Hzcond0 & Hrcond0 & Hwcond0)".
     iDestruct (region_rel_parts with "Hrel0") as (ρ0) "#Hpart0".
     (* A register reaching [a] without identifier reaches the region of the PC. *)
@@ -494,7 +573,7 @@ Section logrel.
       iDestruct ("Hreg" $! r _ Hsome) as "Hinterp_w".
       apply withinBounds_le_addr in Hvw.
       iDestruct (interp_cap_addr with "Hinterp_w") as (p1 P1 Hfl1 _) "(Hrel1 & _)";
-        [done|done|].
+        [done|done|done|].
       iDestruct (region_rel_parts with "Hrel1") as (ρ1) "Hpart1".
       iDestruct (region_rel_part_agree_nonheap with "Hw Hpart1 Hpart0") as "[$ ->]".
       done. }

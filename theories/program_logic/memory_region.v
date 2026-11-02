@@ -543,6 +543,94 @@ End region_addrs_zeroes.
 #[global] Notation "[[ b , e ]] ↦ₐ [[ 0…0 ]]" := (region_pointsto b e (region_addrs_zeroes b e))
   (at level 20, format "[[  b ,  e  ]]  ↦ₐ  [[  0…0  ]]") : bi_scope.
 
+(** * Exposed MMIO
+
+    The memory-mapped devices that a valid capability may reach: the time
+    devices. A device belongs to this set only if no thread and no
+    invariant owns an exact value of it: a load from it gives some
+    integer, and a store to it changes no resource. *)
+Section exposed_mmio.
+  Context `{MP: MachineParameters}.
+
+  Definition is_exposed_mmio_address (a : Addr) : bool := is_time_device_address a.
+
+  (* A range that reaches no exposed device. *)
+  Definition disjoint_from_exposed_mmio (b e : Addr) : Prop :=
+    Forall (λ a, is_exposed_mmio_address a = false) (finz.seq_between b e).
+
+  (** A capability that reaches only exposed devices: no identifier, no
+      Execute, not write-local. *)
+  Definition exposed_mmio_cap (p : Perm) (b e : Addr) (π : option AId) : Prop :=
+    π = None ∧ executeAllowed p = false ∧ isWL p = false ∧
+    Forall is_exposed_mmio_address (finz.seq_between b e).
+
+  Lemma not_mmio_not_exposed_mmio a :
+    is_mmio_address a = false → is_exposed_mmio_address a = false.
+  Proof. apply not_mmio_not_time_device. Qed.
+
+  Lemma exposed_mmio_not_shadow a :
+    is_exposed_mmio_address a = true → is_shadow_address a = false.
+  Proof. apply time_device_not_shadow_address. Qed.
+
+  Lemma exposed_mmio_not_revoker a :
+    is_exposed_mmio_address a = true → is_revoker_address a = false.
+  Proof. apply time_device_not_revoker_address. Qed.
+
+  Lemma exposed_mmio_not_heap a :
+    is_exposed_mmio_address a = true → is_heap_address a = false.
+  Proof. apply time_device_not_heap_address. Qed.
+
+  Lemma disjoint_from_mmio_exposed b e :
+    disjoint_from_mmio b e → disjoint_from_exposed_mmio b e.
+  Proof.
+    intros Hmmio. apply Forall_forall. intros a Ha.
+    apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in b e a Hmmio).
+    apply elem_of_finz_seq_between in Ha. apply withinBounds_true_iff. solve_addr.
+  Qed.
+
+  Lemma disjoint_from_exposed_mmio_not_in b e a :
+    disjoint_from_exposed_mmio b e →
+    withinBounds b e a = true →
+    is_exposed_mmio_address a = false.
+  Proof.
+    intros Hall Hin%withinBounds_true_iff. rewrite /disjoint_from_exposed_mmio Forall_forall in Hall.
+    apply Hall, elem_of_finz_seq_between. solve_addr.
+  Qed.
+
+  Lemma exposed_mmio_cap_in p b e π a :
+    exposed_mmio_cap p b e π →
+    withinBounds b e a = true →
+    is_exposed_mmio_address a = true.
+  Proof.
+    intros (_ & _ & _ & Hall) Hin%withinBounds_true_iff. rewrite Forall_forall in Hall.
+    apply Is_true_true_1, Hall, elem_of_finz_seq_between. solve_addr.
+  Qed.
+
+  Lemma exposed_mmio_cap_disjoint_heap p b e π :
+    exposed_mmio_cap p b e π → disjoint_from_heap b e.
+  Proof.
+    intros Hexp. rewrite /disjoint_from_heap elem_of_disjoint.
+    intros x Hx Hh.
+    apply elem_of_finz_seq_between in Hx, Hh.
+    assert (is_heap_address x = false) as Hnh.
+    { apply exposed_mmio_not_heap, (exposed_mmio_cap_in p b e π); first done.
+      apply withinBounds_true_iff. solve_addr. }
+    rewrite /is_heap_address in Hnh.
+    rewrite (proj2 (withinBounds_true_iff _ _ _)) in Hnh; [discriminate|solve_addr].
+  Qed.
+
+  Lemma exposed_mmio_cap_weaken p p' b b' e e' π :
+    (b <= b')%a → (e' <= e)%a → PermFlowsTo p' p →
+    exposed_mmio_cap p b e π → exposed_mmio_cap p' b' e' π.
+  Proof.
+    intros Hb He Hp (Hπ & Hexec & Hwl & Hall).
+    split_and!; eauto using notexecuteAllowed_flowsfrom, notisWL_flowsfrom.
+    rewrite Forall_forall in Hall. apply Forall_forall. intros x Hx. apply Hall.
+    apply elem_of_finz_seq_between in Hx. apply elem_of_finz_seq_between. solve_addr.
+  Qed.
+
+End exposed_mmio.
+
 Section cells_store.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
 
@@ -550,7 +638,9 @@ Section cells_store.
       permission [p], end [e] and identifier [π]. [D i] holds once the
       first [i] cells are written. Each store of a cell below [e] gets cell
       [i], outside the shadow table, with the liveness of [π], and gives it
-      back with the stored word. *)
+      back with the stored word. Or cell [i] is an exposed device, reached
+      without identifier: [D i] is kept, for a store that faults, and a
+      store that succeeds gives [D (S i)] back from it. *)
   Definition cells_store_acc (D : nat → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (ws : list LWord) : iProp Σ :=
     □ ∀ i : nat,
@@ -558,14 +648,18 @@ Section cells_store.
       ⌜(a + i < e)%Z⌝ -∗
       D i
       ={⊤}=∗
-      ∃ (v : LWord) (q : Qp),
+      (∃ (v : LWord) (q : Qp),
         ⌜is_shadow_address (a ^+ i) = false⌝ ∗
         (a ^+ i) ↦ₐ v ∗
         deref_res π q ∗
         ▷ ((a ^+ i) ↦ₐ lstore_word p (ws !!! i) -∗
            deref_res π q
            ={⊤}=∗
-           D (S i)).
+           D (S i))) ∨
+      (⌜is_exposed_mmio_address (a ^+ i) = true⌝ ∗
+       ⌜π = None⌝ ∗
+       D i ∗
+       ▷ (D i ={⊤}=∗ D (S i))).
 
   #[global] Instance cells_store_acc_persistent D p e a π ws :
     Persistent (cells_store_acc D p e a π ws).
@@ -593,7 +687,8 @@ Section cells_load.
       cells are loaded, [ls] the loaded words. Each load of a cell below
       [e] gets cell [i], outside the shadow table, with a status witness
       and a dereference witness of [π], and gives it back with the loaded
-      word. *)
+      word. Or cell [i] is an exposed device, reached without identifier:
+      any integer may be loaded from it. *)
   Definition cells_load_acc (L : nat → list LWord → iProp Σ) (p : Perm) (e a : Addr)
     (π : option AId) (n : nat) : iProp Σ :=
     □ ∀ (i : nat) (ls : list LWord),
@@ -601,7 +696,7 @@ Section cells_load.
       ⌜(a + i < e)%Z⌝ -∗
       L i ls
       ={⊤}=∗
-      ∃ (v : LWord) (dq : dfrac) (wit : load_witness) (dw : deref_witness),
+      (∃ (v : LWord) (dq : dfrac) (wit : load_witness) (dw : deref_witness),
         ⌜is_shadow_address (a ^+ i) = false⌝ ∗
         ⌜π = deref_id dw⌝ ∗
         (a ^+ i) ↦ₐ{dq} v ∗
@@ -613,7 +708,10 @@ Section cells_load.
              load_witness_res wit -∗
              deref_witness_res dw
              ={⊤}=∗
-             L (S i) (ls ++ [v'])).
+             L (S i) (ls ++ [v']))) ∨
+      (⌜is_exposed_mmio_address (a ^+ i) = true⌝ ∗
+       ⌜π = None⌝ ∗
+       ▷ (∀ z : Z, |={⊤}=> L (S i) (ls ++ [lword_of_word (WInt z)]))).
 
   #[global] Instance cells_load_acc_persistent L p e a π n :
     Persistent (cells_load_acc L p e a π n).
@@ -647,7 +745,7 @@ Section cells_load.
     destruct (lookup_lt_is_Some_2 ws i Hi) as [v Hv].
     iEval (rewrite (region_pointsto_cells a a' ws Ha')) in "Hws".
     iDestruct (big_sepL_lookup_acc with "Hws") as "[Ha Hclose]"; first exact Hv.
-    iModIntro. iExists v, (DfracOwn 1), LoadPlain, DerefNoId.
+    iModIntro. iLeft. iExists v, (DfracOwn 1), LoadPlain, DerefNoId.
     iFrame "Ha". iSplit.
     { iPureIntro. eapply disjoint_from_shadow_not_in; first exact Hshadow.
       apply withinBounds_true_iff. solve_addr. }

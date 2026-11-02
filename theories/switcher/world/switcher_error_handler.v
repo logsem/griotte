@@ -485,9 +485,9 @@ Section Switcher_error_handler.
       stack [cstk]: no branch of the exception path before the handler
       unwinds or faults (the fault is outside the switcher, the cell of the
       table is set, the count is even and below the limit, the handler is
-      declared, the switcher's stores of the [ErrorState] succeed and the
-      tag of the stack pointer cannot be stripped, and the target of the
-      [cjalr] is valid). *)
+      declared, the switcher's stores of the [ErrorState] pass the store
+      test and reach no exposed device and the tag of the stack pointer
+      cannot be stripped, and the target of the [cjalr] is valid). *)
   Definition stackful_handler_runs (cstk : CSTK) (w : LWord) (rmap : LReg)
     (eh : Z) (wpcc : LWord) : Prop :=
     ¬ switcher_fault_pc w ∧
@@ -496,6 +496,7 @@ Section Switcher_error_handler.
     (top_error_count cstk + 1 <= MAX_FAULTS_PER_COMPARTMENT_CALL)%Z ∧
     eh ≠ ExportTable_no_handler ∧
     error_state_stores_ok (rmap !!! csp) ∧
+    error_state_mmio_free (rmap !!! csp) ∧
     ¬ tag_strippable (rmap !!! csp) ∧
     jalr_target_ok cra cra (handler_word wpcc eh).(lw) = true.
 
