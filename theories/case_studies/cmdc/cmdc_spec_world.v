@@ -69,10 +69,10 @@ Section CMDC_World.
 
     (* The capability pointing to [a] is safe to share *)
     iSplit.
-    { iEval (rewrite interp_unfold). iEval (cbn).
+    { iEval (rewrite interp_unfold). iEval (cbn). iLeft.
       iSplitL; last first.
       { iSplit.
-        - iPureIntro. split.
+        - iPureIntro. split; [|split].
           + pose proof (not_mmio_not_shadow _ Ha_mmio) as Ha_shadow.
             rewrite /disjoint_from_shadow elem_of_disjoint.
             intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
@@ -84,6 +84,15 @@ Section CMDC_World.
             assert (revoker_addr = a) as Heq by solve_addr+Ha' Ha_e.
             rewrite -Heq /is_revoker_address bool_decide_eq_false in Ha_rev.
             by apply Ha_rev.
+          + pose proof (not_mmio_not_time_device _ Ha_mmio) as Ha_td.
+            apply orb_false_iff in Ha_td as [Ha_mtime Ha_mtimecmp].
+            split; intros Ha'; apply elem_of_finz_seq_between in Ha'.
+            * assert (mtime_addr = a) as Heq by solve_addr+Ha' Ha_e.
+              rewrite -Heq bool_decide_eq_false in Ha_mtime.
+              by apply Ha_mtime.
+            * assert (mtimecmp_addr = a) as Heq by solve_addr+Ha' Ha_e.
+              rewrite -Heq bool_decide_eq_false in Ha_mtimecmp.
+              by apply Ha_mtimecmp.
         - iApply heap_cap_ok_disjoint.
           rewrite /disjoint_from_heap elem_of_disjoint.
           intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.

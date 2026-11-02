@@ -496,7 +496,7 @@ Section adversary_world.
   Proof.
     iIntros (Hmmio Hheap Htemp) "#Hrel".
     rewrite /stk_start_a.
-    iEval (rewrite interp_unfold /=).
+    iEval (rewrite interp_unfold /=). iLeft.
     iSplit.
     { iApply big_sepL_intro; iModIntro.
       iIntros (k a Ha).

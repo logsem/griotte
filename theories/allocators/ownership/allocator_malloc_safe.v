@@ -249,20 +249,26 @@ Section Heap_Temporal_Safety_Interp.
           destruct Hbounds as (Hb & Hbe & He).
           split; [solve_addr|solve_addr]. }
         assert (disjoint_from_mmio b e) as Hshadow.
-        { split.
+        { destruct Hbounds as (Hb & Hbe & He).
+          destruct time_devs_not_heap as [Hmtime_heap Hmtimecmp_heap].
+          rewrite /disjoint_from_mmio /disjoint_from_time_devs. split_and!.
           - unfold disjoint_from_shadow. intros a Ha Hsa.
             apply (heap_shadow_disjoint a); last exact Hsa.
             apply elem_of_finz_seq_between in Ha.
-            apply elem_of_finz_seq_between.
-            destruct Hbounds as (Hb & Hbe & He). solve_addr.
+            apply elem_of_finz_seq_between. solve_addr.
           - intros Hrev%elem_of_finz_seq_between.
             pose proof revoker_not_heap as Hrev_heap.
             apply not_true_iff_false in Hrev_heap.
-            apply Hrev_heap, withinBounds_true_iff.
-            destruct Hbounds as (Hb & Hbe & He). solve_addr. }
+            apply Hrev_heap, withinBounds_true_iff. solve_addr.
+          - intros Hdev%elem_of_finz_seq_between.
+            apply not_true_iff_false in Hmtime_heap.
+            apply Hmtime_heap, withinBounds_true_iff. solve_addr.
+          - intros Hdev%elem_of_finz_seq_between.
+            apply not_true_iff_false in Hmtimecmp_heap.
+            apply Hmtimecmp_heap, withinBounds_true_iff. solve_addr. }
         iAssert (interp Wshare C (Cap RW Global b e b @@ ι))
           with "[]" as "#Hinterp_result".
-        { iEval (rewrite interp_unfold interp1_eq /=).
+        { iEval (rewrite interp_unfold interp1_eq /=). iLeft.
           iSplit; last (iSplit; [iPureIntro; split; [exact I|assumption] |
             iIntros (_); iSplit; [iPureIntro; done |
               iExists b, e; iFrame "Hobj"; iPureIntro; solve_addr] ]).

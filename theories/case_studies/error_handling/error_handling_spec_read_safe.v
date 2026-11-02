@@ -90,9 +90,34 @@ Section Error_Handling_Read_Safe.
     iIntros (Hdecode Hcorrect_pc Hpca' Hr Hra Hwb Hnin_s φ)
       "(#Hth & #Hinterp_src & HPC & Hi & Hsrc & Hworld_interp) Hφ".
     apply withinBounds_true_iff in Hwb as Hbounds.
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ a with "Hinterp_src")
+      as %[ [Hmmio Hnexp] | (Hexp & -> & _ & _)]; [by eapply readAllowed_nonO|done| |].
+    2: { (* An exposed device: the load gives an integer *)
+         rewrite /is_exposed_mmio_address in Hexp.
+         iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
+         iDestruct (memMap_resource_1_dq with "Hi") as "Hmem".
+         (* CLoad r r 0. *)
+         iApply (wp_load_success_timedev (th := th) E pc_p pc_g pc_b pc_e pc_a
+                   None r r wi _ _ dq p g b e a
+                   with "[$HPC $Hmem $Hmap]").
+         { exact Hdecode. }
+         { exact Hcorrect_pc. }
+         { rewrite /regs_of /operands_of dom_insert_L; set_solver+. }
+         { by simplify_map_eq. }
+         { split_and!; [|done..].
+           rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
+         { intros v Hv. rewrite llookup_reg_not_cnull // in Hv. by simplify_map_eq. }
+         { exact Hexp. }
+         { by rewrite /incrementPC /incrementPC_gen Hpca'. }
+         iNext. iIntros (z) "(HPC & Hmem & Hmap)".
+         iDestruct (memMap_resource_1_dq with "Hmem") as "Hi".
+         rewrite linsert_reg_not_cnull // insert_insert_eq.
+         iDestruct (regs_of_map_1 with "Hmap") as "Hsrc".
+         iApply "Hφ"; iRight. iExists (lword_of_word (WInt z)).
+         iFrame "∗%". iSplit; first done. iApply interp_int. }
     (* Open the region of [a], as [wp_load_interp_imm] *)
     iDestruct (read_allowed_inv _ _ a with "Hth Hinterp_src")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |..].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | done | auto |..].
     iDestruct (open_world_interp_next_cases W C s π a p' P p g
                 with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
@@ -131,6 +156,7 @@ Section Error_Handling_Read_Safe.
       rewrite addr_add_0 in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
@@ -138,8 +164,9 @@ Section Error_Handling_Read_Safe.
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z0 Hallow Htdev Hl
                       |Hfail -> ->].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
@@ -298,11 +325,12 @@ Section Error_Handling_Read_Safe.
           rewrite /lfault /lview /trap_fault /=. rewrite /= in Hpc. rewrite Hpc.
           rewrite /lm !lookup_fmap lookup_insert_eq /=
             ?decode_encode_instrW_inv ?decode_encode_instr_inv /instr_fault /load_fault
-            /mmio_load_fault /is_mmio_address /revoker_load_fault.
+            /mmio_load_fault /is_mmio_address /revoker_load_fault /time_dev_load_fault.
           rewrite /lookup_reg /= !lookup_fmap lookup_insert_eq /=.
           destruct (decide (ca0 = cnull)) as [Hc | _]; first done.
           rewrite /data_cap_check Hra addr_add_0 Hwb Hnot_shadow.
           destruct (is_revoker_address a); first done.
+          destruct (is_time_device_address a); first done.
           rewrite /= !lookup_fmap lookup_insert_ne // lookup_singleton_eq /=.
           destruct (heap_cap_base (lw wa)) as [base|] eqn:Hbase; last done.
           by destruct (heap_shadow_lookup base (heap_cap_base_heap _ _ Hbase)) as [? ->]. }
@@ -605,8 +633,7 @@ Section Error_Handling_Read_Safe.
       (Hb_es & Hes_cur & Hcur_e).
     { rewrite /es /cur /stk_start_a /ErrorState_size /StackEntry_reserved_space in Hminstk |- *.
       split_and!; solve_addr. }
-    iDestruct (interp_cap_regions with "Hinterp_csp") as %[Hcsp_mmio _]; first done.
-    pose proof (disjoint_from_mmio_shadow _ _ Hcsp_mmio) as Hstk_shadow.
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_csp") as %[Hcsp_mmio _]; first done.
 
     set (slot := finz.seq_between es cur).
     (* The load, in the world open on nothing *)
@@ -653,7 +680,7 @@ Section Error_Handling_Read_Safe.
       { rewrite Hcra_fault. apply jalr_target_ok_switcher_return_sentry. }
       { rewrite /ErrorState_size. solve_addr. }
       { done. }
-      { apply (disjoint_from_shadow_weaken b_stk e_stk es cur); [done | done | exact Hstk_shadow]. }
+      { apply (disjoint_from_mmio_weaken b_stk e_stk es cur); [done | done | exact Hcsp_mmio]. }
       { done. }
       { by rewrite Hcount. }
       { rewrite Hcount /MAX_FAULTS_PER_COMPARTMENT_CALL. lia. }
@@ -720,8 +747,8 @@ Section Error_Handling_Read_Safe.
             apply jalr_target_ok_switcher_return_sentry. }
           { rewrite /ErrorState_size. solve_addr. }
           { done. }
-          { apply (disjoint_from_shadow_weaken b_stk e_stk es cur);
-              [done | done | exact Hstk_shadow]. }
+          { apply (disjoint_from_mmio_weaken b_stk e_stk es cur);
+              [done | done | exact Hcsp_mmio]. }
           { by rewrite /cstk2 top_export_tbl_set_count. }
           { by rewrite /cstk2 top_error_count_set_count Hcount. }
           { rewrite /cstk2 top_error_count_set_count Hcount /MAX_FAULTS_PER_COMPARTMENT_CALL. lia. }

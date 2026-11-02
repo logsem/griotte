@@ -56,6 +56,10 @@ Section SO_World_Call.
     iIntros "(#Hthread & #Hinterp_stack & Hworld_interp & Ha_stk1)".
     destruct Hbounds as (Hstack_b_stk1 & Hastk1_stk2 & Hastk2_stack_e).
     assert (addr_key None a_stk1 = LNonHeap a_stk1) as Hkey_stk1 by done.
+    iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hstack_mmio _]; first done.
+    assert (is_exposed_mmio_address a_stk1 = false) as Hastk1_nexp.
+    { apply not_mmio_not_exposed_mmio, (disjoint_from_mmio_not_in stack_b stack_e); first done.
+      apply withinBounds_true_iff. solve_addr. }
 
     (* The freshly zeroed stack address is the closing resource required by
        [world_interp_restore_world]: its predicate holds for [0] under a
@@ -114,7 +118,7 @@ Section SO_World_Call.
     iAssert (interp W3 C (Cap RWL Local a_stk1 a_stk2 a_stk1))%I
       as "#Hinterp_fresh".
     { iEval (rewrite interp_unfold interp1_eq).
-      cbn.
+      cbn. iLeft.
       iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.
       { rewrite /disjoint_from_heap elem_of_disjoint in Hheap.

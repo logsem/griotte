@@ -74,6 +74,44 @@ Section SO_Checkints_Blocks_2.
     iApply "Hpost"; iFrame "∗% Hcode_main".
   Qed.
 
+  (** Block 6 over exposed devices: each load of [checkints] gives an
+      integer, and no points-to of [in] is needed. *)
+  Lemma so_checkints_blocks_2_timedev_spec
+    (pc_b pc_e pc_a : Addr) (C_f : Sealable)
+    (p : Perm) (g : Locality) (b e a : Addr)
+    (wcs0 wcs1 : LWord) :
+    so_code_bounds pc_b pc_e pc_a C_f ->
+    readAllowed p = true ->
+    Forall is_exposed_mmio_address (finz.seq_between b e) ->
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_checkints")%a ∗
+    ca0 ↦ᵣ[th] Cap p g b e a ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cs1 ↦ᵣ[th] wcs1 ∗
+    codefrag_pers pc_a so_main_code ∗
+    ▷ (PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
+       ca0 ↦ᵣ[th] Cap p g b e (finz.max b e) ∗
+       cs0 ↦ᵣ[th] WInt 0 ∗
+       cs1 ↦ᵣ[th] WInt 0 ∗
+       codefrag_pers pc_a so_main_code ∗
+       £ 2
+       -∗ safe[th])
+    ⊢ safe[th].
+  Proof.
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hp Hdevs)
+      "(HPC & Hca0 & Hcs0 & Hcs1 & Hcode_main & Hpost)".
+    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
+    so_unfold_code.
+
+    (* Block 6: each load of [in] gives an integer *)
+    focus_block (so_block ".Lso_f_checkints") "Hcode_main" of so_main_blocks at pc_a as a_checkints Ha_checkints "Hcode" "Hcont".
+    iHide "Hcont" as hcont.
+    iApply (checkints_timedev_spec with "[- $HPC $Hca0 $Hcs0 $Hcs1 $Hcode]"); eauto.
+    iNext; iIntros "(HPC & Hca0 & Hcs0 & Hcs1 & _ & Hlc)".
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    change_pc_to (pc_a ^+ so_label_offset ".Lso_f_alloc")%a.
+    iApply "Hpost"; iFrame "∗ Hcode_main".
+  Qed.
+
   (** Failure path of block 6: [checkints] fails on an untagged, non-empty
       stack object [in]. *)
   Lemma so_checkints_blocks_2_untagged_spec
