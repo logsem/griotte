@@ -72,15 +72,15 @@ Section griotte_lang_rules.
     ▷ PC ↦ₚ (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
     ▷ pc_a ↦ₐ{dq} w -∗
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
+    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (td : TimeDevs) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
-       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
+       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)
                     (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
         "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
-                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) = (c, σ')⌝ ∗
+                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
         "Hsr" ∷ sys_interp lsreg ∗
@@ -92,13 +92,13 @@ Section griotte_lang_rules.
         "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
        ==∗
-       ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) σ'⌝ ∗
+       ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) σ'⌝ ∗
        cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st td]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -125,15 +125,15 @@ Section griotte_lang_rules.
     ▷ PC ↦ₚ (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) -∗
     ▷ pc_a ↦ₐ{dq} w -∗
     ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
+    ▷ (∀ (r : Reg) (sr : SReg) (m : Mem) (st : ShadowTbl) (td : TimeDevs) (lreg : LReg) (lsreg : LSys) (lmem : LMem)
        (R : RegState) (C : gmap Addr AddrClaim) (c : ConfFlag) (σ' : ExecConf),
-       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
+       ("%Her" ∷ ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)
                     (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem⌝ ∗
         "%Hlregs" ∷ ⌜regs ⊆ lreg⌝ ∗
         "%Hregs" ∷ ⌜lregs_phys R regs r⌝ ∗
         "%Hpc_a" ∷ ⌜lmem !! pc_a = Some w⌝ ∗
         "%Hstep" ∷ ⌜exec (decodeInstrW w.(lw)) pc_p
-                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) = (c, σ')⌝ ∗
+                     (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) = (c, σ')⌝ ∗
         "HPCa" ∷ PC_auth (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hr" ∷ gen_heap_interp lreg ∗
         "Hsr" ∷ sys_interp lsreg ∗
@@ -141,7 +141,7 @@ Section griotte_lang_rules.
         "Hst" ∷ gen_heap_interp st ∗
         "HR" ∷ reg_auth R ∗
         "HC" ∷ addr_alloc_auth C ∗
-        "Hlink" ∷ crit_link (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) ∗
+        "Hlink" ∷ crit_link (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) ∗
         "HPC" ∷ PC ↦ₚ (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∗
         "Hpc_a" ∷ pc_a ↦ₐ{dq} w ∗
         "Hmap" ∷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y))
@@ -151,7 +151,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=". destruct σ1 as [pc r sr m st td]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -228,7 +228,7 @@ Section griotte_lang_rules.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 ns) "[Hσ1 Hlink] /="; destruct σ1 as [pc r sr m st]; simpl.
+    iIntros (σ1 nt l1 l2 ns) "[Hσ1 Hlink] /="; destruct σ1 as [pc r sr m st td]; simpl.
     iDestruct (SI_open with "Hσ1") as "Hσ1". iNamed "Hσ1".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     pose proof (erasure_pc_not_correct _ _ _ _ _ _ _ Her Hnpc) as Hnpc'. cbn in Hnpc'.
@@ -267,7 +267,7 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
@@ -285,7 +285,7 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
     iApply (wp_instr_step _ _ _ _ _ _ _ _ _ ∅ with "Hpc Hpca [] "); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hpc_a"; last (cbn; iApply "Hφ"; iFrame).
@@ -337,17 +337,17 @@ Section instruction_closing.
       ([sys_kept]): they do not change the system registers. *)
 
   (** Closes a failed instruction: the state is unchanged. *)
-  Lemma instr_close_fail pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+  Lemma instr_close_fail pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
-    ⌜sys_kept (MkExecConf pc r sr m st) (MkExecConf pc r sr m st)⌝ ∗
-    cerise_state_interp (MkExecConf pc r sr m st) ∗ from_option Φ False (to_val (Instr Faulted)).
+    ⌜sys_kept (MkExecConf pc r sr m st td) (MkExecConf pc r sr m st td)⌝ ∗
+    cerise_state_interp (MkExecConf pc r sr m st td) ∗ from_option Φ False (to_val (Instr Faulted)).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -358,12 +358,12 @@ Section instruction_closing.
   (** Closes an instruction that only moves the PC by [n], as the physical
       [advancePC φ n]. The spec [P] holds of the new PC on success, and of
       the old one on failure. *)
-  Lemma instr_close_pc_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+  Lemma instr_close_pc_update pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → griotte_lang.val → Prop) :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
-    (match advancePC (MkExecConf pc r sr m st) n with
-     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st)) end) = (c, σ') →
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
+    (match advancePC (MkExecConf pc r sr m st td) n with
+     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
     (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
     (incrementPC_gen lpc n = None → P lpc FaultedV) →
     PC_auth lpc -∗
@@ -373,19 +373,19 @@ Section instruction_closing.
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' retv, ⌜P lpc' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ retv) ==∗
-    ⌜sys_kept (MkExecConf pc r sr m st) σ'⌝ ∗
+    ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
+    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
       iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
       iSplitR "Hφ HPC Hmap".
       + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
       + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
-    - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) in Hstep.
+    - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
   Qed.
@@ -408,15 +408,15 @@ Section instruction_closing.
       as the physical [nextPC (update_reg φ dst v)]. The spec [P] holds of
       the new PC and owned registers on success, and of the old ones on
       failure. *)
-  Lemma instr_close_reg_update pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+  Lemma instr_close_reg_update pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
       (P : LWord → LReg → griotte_lang.val → Prop) :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     regs ⊆ lreg →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
-    (match nextPC (update_reg (MkExecConf pc r sr m st) dst w) with
-     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st)) end) = (c, σ') →
+    (match nextPC (update_reg (MkExecConf pc r sr m st td) dst w) with
+     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
     reg_phys R v w →
     (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
     (incrementPC lpc = None → P lpc regs FaultedV) →
@@ -427,14 +427,14 @@ Section instruction_closing.
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (∀ lpc' regs' retv, ⌜P lpc' regs' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
-    ⌜sys_kept (MkExecConf pc r sr m st) σ'⌝ ∗
+    ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
     rewrite /update_reg /= in Hstep.
     destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
+    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
       rewrite Hu in Hstep. simplify_eq.
       iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
       iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
@@ -442,7 +442,7 @@ Section instruction_closing.
       iSplitR "Hφ HPC Hmap".
       + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
       + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
-    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
+    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
       rewrite /nextPC Hfail in Hstep.
       simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
@@ -450,10 +450,10 @@ Section instruction_closing.
 
   (** Closes an instruction that sets the PC to [lpc'] and writes one
       register, as the physical [update_reg (update_pcc φ pc') dst w]. *)
-  Lemma instr_close_reg_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+  Lemma instr_close_reg_set_pc pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
     reg_phys R v w →
@@ -466,14 +466,14 @@ Section instruction_closing.
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
-    ⌜sys_kept (MkExecConf pc r sr m st) (update_reg (update_pcc (MkExecConf pc r sr m st) pc') dst w)⌝ ∗
-    cerise_state_interp (update_reg (update_pcc (MkExecConf pc r sr m st) pc') dst w) ∗
+    ⌜sys_kept (MkExecConf pc r sr m st td) (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w)⌝ ∗
+    cerise_state_interp (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w) ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
     iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
       "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her1 Hokpc Hwpc Hpcok) as Her2.
     iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
@@ -483,10 +483,10 @@ Section instruction_closing.
   Qed.
 
   (** Closes a step that only sets the PC. *)
-  Lemma instr_close_set_pc pc (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem R C
+  Lemma instr_close_set_pc pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (lpc' : LWord) (pc' : Word)
       (Φ : griotte_lang.val → iProp Σ) :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg (ls_join lsreg) lmem →
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     reg_word_ok R C lpc' →
     reg_phys R lpc' pc' →
     pc_ok lpc'.(lw) →
@@ -496,12 +496,12 @@ Section instruction_closing.
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
     (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
-    ⌜sys_kept (MkExecConf pc r sr m st) (update_pcc (MkExecConf pc r sr m st) pc')⌝ ∗
-    cerise_state_interp (update_pcc (MkExecConf pc r sr m st) pc') ∗
+    ⌜sys_kept (MkExecConf pc r sr m st td) (update_pcc (MkExecConf pc r sr m st td) pc')⌝ ∗
+    cerise_state_interp (update_pcc (MkExecConf pc r sr m st td) pc') ∗
     from_option Φ False (to_val (Instr NextI)).
   Proof.
     iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
     iSplitR "Hφ HPC Hmap".
@@ -550,9 +550,9 @@ Section instruction_outcomes.
   #[local] Lemma wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ R r sr m st, lregs_phys R regs r →
-       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
-         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
+    (∀ R r sr m st td, lregs_phys R regs r →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
@@ -564,8 +564,8 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
-    rewrite Hinstr (Hfailed R r sr m st Hregs) in Hstep. simplify_eq.
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
+    rewrite Hinstr (Hfailed R r sr m st td Hregs) in Hstep. simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
@@ -575,9 +575,9 @@ Section instruction_outcomes.
   Lemma wp_instr_faulted_0 E pc_p pc_g pc_b pc_e pc_a pc_π w i dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st,
-       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
-         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
+    (∀ r sr m st td,
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
@@ -586,7 +586,7 @@ Section instruction_outcomes.
     iApply (wp_instr_faulted_map _ _ _ _ _ _ _ _ _ ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st _. apply Hfailed.
+    - intros R r sr m st td _. apply Hfailed.
     - by rewrite big_sepM_empty.
     - iNext. iIntros "(HPC & Hmem & _)".
       iApply "Hφ". iFrame.
@@ -596,9 +596,9 @@ Section instruction_outcomes.
   Lemma wp_instr_faulted_1 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st s1, r !! r1 = Some (and_tag s1 w1.(lw)) →
-       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
-         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
+    (∀ r sr m st td s1, r !! r1 = Some (and_tag s1 w1.(lw)) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ pc_a ↦ₐ{dq} w }}}.
@@ -609,7 +609,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st Hincl.
+    - intros R r sr m st td Hincl.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
@@ -621,10 +621,10 @@ Section instruction_outcomes.
   Lemma wp_instr_faulted_2 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st s1 s2, r !! r1 = Some (and_tag s1 w1.(lw)) →
+    (∀ r sr m st td s1 s2, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
-       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
-         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ r1 ↦ᵣ w1 ∗ ▷ r2 ↦ᵣ w2 ∗ ▷ pc_a ↦ₐ{dq} w }}}
       Instr Executable @ E
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ r1 ↦ᵣ w1 ∗ r2 ↦ᵣ w2 ∗ pc_a ↦ₐ{dq} w }}}.
@@ -635,7 +635,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st Hincl.
+    - intros R r sr m st td Hincl.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       by eapply Hfailed.
@@ -648,11 +648,11 @@ Section instruction_outcomes.
   Lemma wp_instr_faulted_3 E pc_p pc_g pc_b pc_e pc_a pc_π w i r1 w1 r2 w2 r3 w3 dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ r sr m st s1 s2 s3, r !! r1 = Some (and_tag s1 w1.(lw)) →
+    (∀ r sr m st td s1 s2 s3, r !! r1 = Some (and_tag s1 w1.(lw)) →
        r !! r2 = Some (and_tag s2 w2.(lw)) →
        r !! r3 = Some (and_tag s3 w3.(lw)) →
-       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
-         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st))) →
+       exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
+         (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
           ▷ r1 ↦ᵣ w1 ∗
           ▷ r2 ↦ᵣ w2 ∗
@@ -673,7 +673,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st Hincl.
+    - intros R r sr m st td Hincl.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r3 w3 Hincl) as [s3 Hl3]; first by simplify_map_eq.

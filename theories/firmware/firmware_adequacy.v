@@ -1405,24 +1405,24 @@ Section ghost_init.
     rewrite /fw_ranges. intros t. rewrite !elem_of_app !elem_of_cons. naive_solver.
   Qed.
 
-  Lemma firmware_ok_ghost_init_cond fw img w_pc regs sregs m sh :
-    firmware_ok fw img (MkExecConf w_pc regs sregs m sh) →
-    ghost_init_cond (TV := fw_trap_vector img) (MkExecConf w_pc regs sregs m sh) (fw_set (fw_heap_roots fw)) ∧
+  Lemma firmware_ok_ghost_init_cond fw img w_pc regs sregs m sh td :
+    firmware_ok fw img (MkExecConf w_pc regs sregs m sh td) →
+    ghost_init_cond (TV := fw_trap_vector img) (MkExecConf w_pc regs sregs m sh td) (fw_set (fw_heap_roots fw)) ∧
     regs !! cnull = Some (WInt 0).
   Proof.
     intros Hok.
     pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
     pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
     destruct Hok as (Hcmpts_ok & [Hmem Hsh] & Hregs & Hwf).
-    change (mem (MkExecConf w_pc regs sregs m sh)) with m in Hmem.
-    change (shadowtbl (MkExecConf w_pc regs sregs m sh)) with sh in Hsh.
+    change (mem (MkExecConf w_pc regs sregs m sh td)) with m in Hmem.
+    change (shadowtbl (MkExecConf w_pc regs sregs m sh td)) with sh in Hsh.
     rewrite /note in Hmem Hsh. subst m sh.
     destruct (regs_ok_inv _ _ _ Hregs)
       as ([fts Hthreads] & Hentry & Hname & Hpc & Hcgp & Hcsp & Hcra & Hzero & Hsreg).
     clear Hregs.
-    change (pcc (MkExecConf w_pc regs sregs _ _)) with w_pc in Hpc.
-    change (reg (MkExecConf w_pc regs sregs _ _)) with regs in Hcgp, Hcsp, Hcra, Hzero.
-    change (sreg (MkExecConf w_pc regs sregs _ _)) with sregs in Hsreg.
+    change (pcc (MkExecConf w_pc regs sregs _ _ _)) with w_pc in Hpc.
+    change (reg (MkExecConf w_pc regs sregs _ _ _)) with regs in Hcgp, Hcsp, Hcra, Hzero.
+    change (sreg (MkExecConf w_pc regs sregs _ _ _)) with sregs in Hsreg.
     subst w_pc.
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hentry) as Hm. rewrite Hname in Hm.
     pose proof (img_wf_switcher_layout _ _ 0 _ H0 Hwf) as Hsw.
@@ -2024,20 +2024,20 @@ Theorem firmware_adequacy (Σ : gFunctors)
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
 Proof.
   intros [cthreads Hobl] Hok Hstep.
-  destruct σ as [w_pc regs sregs m sh].
-  destruct σ' as [w_pc' regs' sregs' m' sh'].
+  destruct σ as [w_pc regs sregs m sh td].
+  destruct σ' as [w_pc' regs' sregs' m' sh' td'].
   pose proof Hok as (_ & [_ Hsh] & Hregs & Hwf).
-  change (shadowtbl (MkExecConf w_pc regs sregs m sh)) with sh in Hsh. rewrite /note in Hsh.
+  change (shadowtbl (MkExecConf w_pc regs sregs m sh td)) with sh in Hsh. rewrite /note in Hsh.
   destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _ & _ & _ & _ & _ & _ & _ & Hsreg).
   clear Hregs.
-  change (sreg (MkExecConf w_pc regs sregs m sh)) with sregs in Hsreg.
+  change (sreg (MkExecConf w_pc regs sregs m sh td)) with sregs in Hsreg.
   pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
   pose proof (img_wf_switcher_layout _ _ _ _ H0 Hwf) as Hsw.
   pose proof (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf) as Hts.
   pose proof (img_wf_assert_layout _ _ Hwf) as Hasrt.
   destruct (img_wf_otypes _ _ Hwf) as [Hot_nodup _].
   apply NoDup_cons in Hot_nodup as [Hot_notin Hot_nodup].
-  destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
+  destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
   (* The program-logic resources of the initial state. The mtdc of the user
      thread [S k] holds its trusted stack. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
@@ -2052,7 +2052,7 @@ Proof.
   iEval (setoid_rewrite bi.sep_assoc) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
   (* The initial MIE is the posture of the entry of the user thread [0]. *)
-  assert (mie_st (MkExecConf w_pc regs sregs m sh) = fw_entry_posture fw img 0) as Hmie.
+  assert (mie_st (MkExecConf w_pc regs sregs m sh td) = fw_entry_posture fw img 0) as Hmie.
   { rewrite /mie_st /= Hsreg /= mie_of_mstatus_enc //. }
   (* The seal store, the call stacks and the worlds. *)
   iMod (initialise_world (ceriseg := ceriseG_of (UserThread 0))
@@ -2068,12 +2068,12 @@ Proof.
   iDestruct "Hseal_store" as "[Hseal_switcher Hotypes]".
   (* The memory and the registers, by part. *)
   iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0))
-              fw img (MkExecConf w_pc regs sregs m sh) Hok with "Hmem")
+              fw img (MkExecConf w_pc regs sregs m sh td) Hok with "Hmem")
     as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthreads_mem)".
   iEval (rewrite Hthreads big_sepL_cons) in "Hthreads_mem".
   iDestruct "Hthreads_mem" as "[Hthread0 Hthreads_mem]".
   iDestruct (firmware_ok_regs_split (ceriseg := ceriseG_of (UserThread 0))
-              fw img (MkExecConf w_pc regs sregs m sh) Hok with "[$HPC $Hreg]")
+              fw img (MkExecConf w_pc regs sregs m sh td) Hok with "[$HPC $Hreg]")
     as "(HPC & Hcgp & Hcsp & Hcra & Hregs)".
   subst sh.
   (* The assert library. *)
@@ -2094,7 +2094,7 @@ Proof.
   iMod (fw_threads_trusted_stack_inv_alloc fw img fts ⊤ Hwf H0 Hthreads with "Hothers") as "_".
   (* The link of the user thread [0] at the initial state, and its posture. *)
   iDestruct (crit_link_full_init (th := UserThread 0) (swlayout := fw_switcher_layout img)
-               (MkExecConf w_pc regs sregs m initial_heap_shadow) ltac:(done)
+               (MkExecConf w_pc regs sregs m initial_heap_shadow td) ltac:(done)
               with "Hho Hsave Hlent") as "[Hlink Hheld]".
   rewrite Hmie.
   (* The obligations of the trusted code. *)

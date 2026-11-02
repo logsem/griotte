@@ -139,7 +139,7 @@ Section mmio_revoker_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hallow Hnoid Hpca' φ) "(HPC & Hpc_a & Hmap & Hpre) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The physical step: the sweep, then the PC increment. The revoker
        capability has no identifier and non-empty bounds: its copy is exact. *)
@@ -164,7 +164,7 @@ Section mmio_revoker_rules.
     { intros ι a' _ Ha'. apply (reg_ok_claimed _ _ _ (er_registry _ _ _ _ _ _ _ Her)) in Ha'
         as (x & Hx & Hcov & _). eauto. }
     assert (erasure (revoke_reg K R) (revoke_claims K C)
-              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr (sweep_mem st m) st)
+              (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr (sweep_mem st m) st td)
               (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem)
       as Her1.
     { eapply erasure_revoke; eauto.
@@ -173,7 +173,7 @@ Section mmio_revoker_rules.
     assert (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
               Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π))
       as Hinc by by rewrite /incrementPC /incrementPC_gen Hpca'.
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
     rewrite /nextPC /advancePC /= Hpca' /update_pcc in Hu. simplify_eq.
     unfold revoker_sweep, nextPC, advancePC in Hstep; cbn in Hstep.
     rewrite Hpca' in Hstep. simplify_eq.

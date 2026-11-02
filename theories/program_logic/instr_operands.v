@@ -312,10 +312,10 @@ Section erasure_PC.
 
   (* The PC increment on a copy of the PC gives the same copy of the
      incremented PC. *)
-  Lemma incrementPC_gen_phys R (lpc lpc' : LWord) pc (r : Reg) sr m st n :
+  Lemma incrementPC_gen_phys R (lpc lpc' : LWord) pc (r : Reg) sr m st td n :
     reg_phys R lpc pc →
     incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', advancePC (MkExecConf pc r sr m st) n = Some (NextI, (MkExecConf pc' r sr m st)) ∧
+    ∃ pc', advancePC (MkExecConf pc r sr m st td) n = Some (NextI, (MkExecConf pc' r sr m st td)) ∧
            reg_phys R lpc' pc'.
   Proof.
     intros Hpc Hi.
@@ -326,10 +326,10 @@ Section erasure_PC.
     - by apply (reg_phys_derive _ (WCap t p g b e a @@? π)).
   Qed.
 
-  Lemma incrementPC_gen_phys_fail R (lpc : LWord) pc (r : Reg) sr m st n :
+  Lemma incrementPC_gen_phys_fail R (lpc : LWord) pc (r : Reg) sr m st td n :
     reg_phys R lpc pc →
     incrementPC_gen lpc n = None →
-    advancePC (MkExecConf pc r sr m st) n = None.
+    advancePC (MkExecConf pc r sr m st td) n = None.
   Proof.
     intros Hpc Hi. destruct (reg_phys_and_tag _ _ _ Hpc) as [s ->].
     rewrite /incrementPC_gen in Hi. rewrite /advancePC /=.
@@ -340,14 +340,14 @@ Section erasure_PC.
 
   (* The PC increment keeps erasure: the incremented PC keeps the bounds, the
      tag and the identifier of the PC. *)
-  Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem n :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg lsreg lmem →
+  Lemma erasure_incrementPC_gen R C (pc : Word) (r : Reg) sr m st td lpc lpc' (lreg : LReg) lsreg lmem n :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = Some lpc' →
-    ∃ pc', advancePC (MkExecConf pc r sr m st) n = Some (NextI, (MkExecConf pc' r sr m st)) ∧
-           erasure R C (MkExecConf pc' r sr m st) lpc' lreg lsreg lmem.
+    ∃ pc', advancePC (MkExecConf pc r sr m st td) n = Some (NextI, (MkExecConf pc' r sr m st td)) ∧
+           erasure R C (MkExecConf pc' r sr m st td) lpc' lreg lsreg lmem.
   Proof.
     intros Her Hi.
-    destruct (incrementPC_gen_phys _ _ _ _ r sr m st _ (er_pc _ _ _ _ _ _ _ Her) Hi)
+    destruct (incrementPC_gen_phys _ _ _ _ r sr m st td _ (er_pc _ _ _ _ _ _ _ Her) Hi)
       as (pc' & Hu & Hpc').
     exists pc'. split; first done.
     apply incrementPC_gen_Some_inv in Hi as (t & p & g & b & e & a & a' & π & -> & Ha' & ->).
@@ -355,17 +355,17 @@ Section erasure_PC.
     constructor; cbn in *; try done.
   Qed.
 
-  Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st lpc lpc' (lreg : LReg) lsreg lmem :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg lsreg lmem →
+  Lemma erasure_incrementPC R C (pc : Word) (r : Reg) sr m st td lpc lpc' (lreg : LReg) lsreg lmem :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg lsreg lmem →
     incrementPC lpc = Some lpc' →
-    ∃ pc', nextPC (MkExecConf pc r sr m st) = Some (NextI, (MkExecConf pc' r sr m st)) ∧
-           erasure R C (MkExecConf pc' r sr m st) lpc' lreg lsreg lmem.
+    ∃ pc', nextPC (MkExecConf pc r sr m st td) = Some (NextI, (MkExecConf pc' r sr m st td)) ∧
+           erasure R C (MkExecConf pc' r sr m st td) lpc' lreg lsreg lmem.
   Proof. apply erasure_incrementPC_gen. Qed.
 
-  Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st lpc (lreg : LReg) lsreg lmem n :
-    erasure R C (MkExecConf pc r sr m st) lpc lreg lsreg lmem →
+  Lemma erasure_incrementPC_fail R C (pc : Word) (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem n :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg lsreg lmem →
     incrementPC_gen lpc n = None →
-    advancePC (MkExecConf pc r sr m st) n = None.
+    advancePC (MkExecConf pc r sr m st td) n = None.
   Proof. intros Her. apply incrementPC_gen_phys_fail with R, Her. Qed.
 End erasure_PC.
 

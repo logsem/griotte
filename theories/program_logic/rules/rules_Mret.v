@@ -74,7 +74,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Dsregs Htr φ) "(>HPC & >Hpc_a & >Hsmap & >Hmie & >Hmpie & HT) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %<-.
     iDestruct (sys_interp_mpie_agree with "Hsr Hmpie") as %<-.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
@@ -97,13 +97,13 @@ Section griotte_lang_rules.
     injection Hstep as <- <-.
     rewrite /update_pcc /update_sreg /=.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
       (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
       (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     rewrite -ls_join_set_mstatus in Her1.
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
                   ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mepcc))).
     iMod (sys_interp_set_mstatus _ _ _ (ls_mpie lsreg) InterruptEnabled
@@ -111,7 +111,7 @@ Section griotte_lang_rules.
     iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
     iMod (Htr _ (MkExecConf wepcc r
-                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st)
+                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st td)
            with "[$HSI $Hlink $Hsmap $Hmpie $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - done.
@@ -214,7 +214,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hxsr φ) "H Hφ".
     iApply (wp_instr_faulted_0 with "H Hφ"); [exact Hinstr | exact Hvpc |].
-    intros r sr m st. by rewrite /exec /= Hxsr.
+    intros r sr m st td. by rewrite /exec /= Hxsr.
   Qed.
 
 End griotte_lang_rules.

@@ -304,7 +304,7 @@ Section Error_Handling_Read.
     (* CLoad ca0 ca0 0 *)
     iInstr_fail "Hcode".
     { (* The checks of the capability fail *)
-      intros reg sreg mem st s1 Hr. apply exec_opt_exec_none. cbn. rewrite /lookup_reg Hr /=.
+      intros reg sreg mem st td s1 Hr. apply exec_opt_exec_none. cbn. rewrite /lookup_reg Hr /=.
       destruct (decide (ca0 = cnull)) as [Hcnull | _]; first done.
       destruct wptr as [w π]. cbn in Hcheck |- *. destruct s1; cbn [and_tag].
       - destruct w as [z | [ [] p g b e a | t p g b e a ] | k t p g b e a | ot sb ];

@@ -88,7 +88,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     rewrite /regs_of in Dregs.
@@ -101,11 +101,11 @@ Section griotte_lang_rules.
     { eapply arg_owned_of_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
     apply (lz_of_argument_incl _ _ r _ _ Hregs) in Hn2 as Hn2'.
 
-    assert (exec_opt i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) = nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) dst (WInt (denote i n1 n2)))) as HH.
+    assert (exec_opt i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) = nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) dst (WInt (denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1' Hn2'; cbn. }
     rewrite HH in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt (denote i n1 n2))) _ _ _ _
       (λ lpc' regs' retv, BinOp_spec i _ regs dst arg1 arg2 lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }

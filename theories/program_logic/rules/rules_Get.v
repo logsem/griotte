@@ -108,12 +108,12 @@ Section griotte_lang_rules.
         regs' = regs →
         Get_spec i lpc regs dst src lpc' regs' FaultedV.
 
-  Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st (wsrc : Word) :
+  Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st td (wsrc : Word) :
     is_Get i dst src →
     lookup_reg src r = Some wsrc →
-    exec_opt i p (MkExecConf pc r sr m st) =
+    exec_opt i p (MkExecConf pc r sr m st td) =
       match denote i wsrc with
-      | Some z => nextPC (update_reg (MkExecConf pc r sr m st) dst (WInt z))
+      | Some z => nextPC (update_reg (MkExecConf pc r sr m st td) dst (WInt z))
       | None => None
       end.
   Proof.
@@ -152,18 +152,18 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
     erewrite operands_of_is_Get in Hri; eauto.
     destruct (Hri src) as [wsrc [H'src _] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
-    rewrite (exec_opt_Get _ _ _ _ _ _ _ _ _ _ Hinstr Hsrc) denote_and_tag in Hstep.
+    rewrite (exec_opt_Get _ _ _ _ _ _ _ _ _ _ _ Hinstr Hsrc) denote_and_tag in Hstep.
     destruct (decide (get_i = GetTag dst src ∧ s = false ∧ get_tag wsrc.(lw) = true))
       as [(-> & -> & Ht) | Hexact].
     { (* The physical tag is cleared. *)
       rewrite Ht /= in Hstep.
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt 0)) _ _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt 0)) _ _ _ _
         (λ lpc' regs' retv, Get_spec (GetTag dst src) _ regs dst src lpc' regs' retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
       { exact Her. } { exact Hlregs. }
@@ -182,7 +182,7 @@ Section griotte_lang_rules.
     rewrite Hden in Hstep.
     destruct (denote_is_Get _ _ _ wsrc.(lw) Hinstr) as [z Hwsrc].
     rewrite Hwsrc in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
       (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
     { exact Her. } { exact Hlregs. }
@@ -447,14 +447,14 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hdecode Hvpc Dregs HP φ) "(>HPC & >Hpc_a & Hdw & HPr & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     iDestruct (HP with "HC HPr") as %HΦc.
     rewrite Hdecode /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
     destruct (Hri src) as [v [Hv Hv'] ]; first by set_solver+.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv) as (s & Hsrc & Hrel).
-    rewrite (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ ltac:(unfold is_Get; tauto)
+    rewrite (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ _ ltac:(unfold is_Get; tauto)
                Hsrc) /= in Hstep.
     rewrite get_tag_and_tag in Hstep.
     (* The result is a copy of the logical tag. *)
@@ -473,7 +473,7 @@ Section griotte_lang_rules.
         pose proof (reg_phys_observe _ _ _ _ _ _ (er_registry _ _ _ _ _ _ _ Her)
                       (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hv) Hrel Htw Hab) as Hobs.
         destruct (lprov v); [by destruct Hobs as (? & ? & ? & ?) | done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (Z.b2z (s && get_tag v.(lw))))) _ _ _ _
       (λ lpc' regs' retv,
          (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧

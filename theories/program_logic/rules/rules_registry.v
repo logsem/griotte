@@ -225,7 +225,7 @@ Section rules_registry.
     iModIntro. iFrame "Hr".
     iApply (SI_close σ lpc (<[r := lclear_tag v]> lreg) lsreg lmem R C
               with "HPCa Hlr Hsr Hm Hst HR HC").
-    destruct σ as [pc rg sr m st].
+    destruct σ as [pc rg sr m st td].
     assert (quar_or_dead s) as Hqd.
     { rewrite /quar_or_dead. destruct s; cbn in Hs; try lia; auto. }
     pose proof Her as Her'.
@@ -235,7 +235,7 @@ Section rules_registry.
     { destruct Hrel as [_ Hstrip]. by eapply Hstrip. }
     assert (r ≠ cnull) as Hr.
     { intros ->. rewrite (Hcnull _ Hv) in Hauth. by inversion Hauth. }
-    pose proof (erasure_insert_reg _ _ _ _ _ _ _ _ _ _ _ r (lclear_tag v) (clear_tag v.(lw))
+    pose proof (erasure_insert_reg _ _ _ _ _ _ _ _ _ _ _ _ r (lclear_tag v) (clear_tag v.(lw))
                   Hr Her (reg_word_ok_lclear_tag _ _ _)) as Her_new.
     cbn in Hw. rewrite (insert_id rg) in Her_new; last exact Hw.
     apply Her_new.

@@ -196,7 +196,7 @@ Section vcsr.
       "(>HPC & >Hpc_a & >Hmepcc & >Hmcause & >Hmie & >Hmpie & HT) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %<-.
     iDestruct (sys_interp_mpie_agree with "Hsr Hmpie") as %<-.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
@@ -210,13 +210,13 @@ Section vcsr.
     injection Hstep as <- <-.
     rewrite /update_pcc /update_sreg /=.
     (* The new mstatus, then the new PC: MEPCC satisfies the PC invariant. *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
       (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
       (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     rewrite -ls_join_set_mstatus in Her1.
-    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ wepcc wepcc' Her1) as Her2.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ wepcc wepcc' Her1) as Her2.
     specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
                   ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mepcc))).
     iMod (sys_interp_set_mstatus _ _ _ (ls_mpie lsreg) InterruptEnabled
@@ -224,7 +224,7 @@ Section vcsr.
     iMod (PC_update _ _ wepcc with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
     iMod (Htr _ (MkExecConf wepcc' r
-                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st)
+                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st td)
            with "[$HSI $Hlink $Hmepcc $Hmcause $Hmpie $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - done.
@@ -253,16 +253,16 @@ Section vcsr.
     end.
 
   (** The physical mstatus after [SpecialRW _ mstatus src]. *)
-  Lemma specialrw_mstatus_phys R (regs : LReg) pc (r : Reg) psr m st src psr' :
+  Lemma specialrw_mstatus_phys R (regs : LReg) pc (r : Reg) psr m st td src psr' :
     lregs_phys R regs r →
     regs_of_argument src ∖ {[ cnull ]} ⊆ dom regs →
     (match src with
      | inr rs =>
-         if decide (rs = cnull) then Some (MkExecConf pc r psr m st)
+         if decide (rs = cnull) then Some (MkExecConf pc r psr m st td)
          else wsrc ← r !!ᵣ rs;
-              Some (update_sreg (MkExecConf pc r psr m st) mstatus (legalise mstatus wsrc))
-     | inl z => Some (update_sreg (MkExecConf pc r psr m st) mstatus (legalise mstatus (WInt z)))
-     end) = Some (MkExecConf pc r psr' m st) →
+              Some (update_sreg (MkExecConf pc r psr m st td) mstatus (legalise mstatus wsrc))
+     | inl z => Some (update_sreg (MkExecConf pc r psr m st td) mstatus (legalise mstatus (WInt z)))
+     end) = Some (MkExecConf pc r psr' m st td) →
     match mstatus_src_mie regs src with
     | None => psr' = psr
     | Some b =>
@@ -309,13 +309,13 @@ Section vcsr.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Dregs Hen φ) "(>HPC & >Hpc_a & >Hmap & >Hres) Hφ".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
     set (vold := lword_of_word (WInt (mstatus_enc (ls_mie lsreg) (ls_mpie lsreg)))).
     assert (ls_join lsreg !! mstatus = Some vold) as Hvold' by apply ls_join_mstatus.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
-    destruct (specialrw_sregs_phys R C _ r psr m st _ lreg (ls_join lsreg) lmem regs
+    destruct (specialrw_sregs_phys R C _ r psr m st td _ lreg (ls_join lsreg) lmem regs
                 {[mstatus := vold]} mstatus src vold Her Hlregs Hregs)
       as (sregs' & psr' & lsreg' & _ & Hφ1 & _ & _).
     { by apply map_singleton_subseteq_l. }
@@ -324,12 +324,12 @@ Section vcsr.
     cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
     assert (regs_of_argument src ∖ {[ cnull ]} ⊆ dom regs) as Dsrc.
     { rewrite /regs_of /operands_of in Dregs. set_solver. }
-    pose proof (specialrw_mstatus_phys _ _ _ _ _ _ _ _ _ Hregs Dsrc Hφ1) as Hpsr'.
+    pose proof (specialrw_mstatus_phys _ _ _ _ _ _ _ _ _ _ Hregs Dsrc Hφ1) as Hpsr'.
     iAssert (|==> ∃ ls',
-               ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st)
+               ⌜erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st td)
                   (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join ls') lmem⌝ ∗
-               ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr m st)
-                  (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st)⌝ ∗
+               ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr m st td)
+                  (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st td)⌝ ∗
                sys_interp ls' ∗
                (if mstatus_src_mie regs src is Some _
                 then MIE ↦ₜ InterruptDisabled ∗ MPIE_frag (default p (mstatus_src_mpie regs src))
@@ -356,12 +356,12 @@ Section vcsr.
               Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hi.
     { by apply incrementPC_add. }
     iApply (instr_close_link_kept with "Hlink").
-    iApply (instr_close_kept_trans _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st));
+    iApply (instr_close_kept_trans _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r psr' m st td));
       first exact Hkept.
     case_decide as Hdst.
     - (* The old value is dropped. *)
-      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
-      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
+      iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
         (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hres]").
       { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
@@ -370,10 +370,10 @@ Section vcsr.
       iIntros (lpc'' retv [-> ->]) "HPC Hmap". iApply ("Hφ" $! vold).
       subst dst. rewrite specialrw_regs_cnull. by iFrame.
     - (* [dst] receives the old value. *)
-      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _
-        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her1 Hokold Hrelold) Hi)
+      destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _
+        (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her1 Hokold Hrelold) Hi)
         as (pc' & Hu & _).
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
+      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
         (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                             regs' = <[dst := vold]> regs ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hres]").
@@ -446,14 +446,14 @@ Section vcsr.
       as Dregs.
     { rewrite /regs_of /operands_of /regs_of_argument dom_singleton_L; set_solver. }
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %<-.
     iDestruct (sys_interp_mpie_agree with "Hsr Hmpie") as %<-.
     set (vold := lword_of_word (WInt (mstatus_enc (ls_mie lsreg) (ls_mpie lsreg)))).
     assert (ls_join lsreg !! mstatus = Some vold) as Hvold' by apply ls_join_mstatus.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     pose proof (er_sreg_words _ _ _ _ _ _ _ Her _ _ Hvold') as Hokold.
-    destruct (specialrw_sregs_phys R C _ r psr m st _ lreg (ls_join lsreg) lmem {[dst := wdst]}
+    destruct (specialrw_sregs_phys R C _ r psr m st td _ lreg (ls_join lsreg) lmem {[dst := wdst]}
                 {[mstatus := vold]} mstatus (inr cnull) vold Her Hlregs Hregs)
       as (sregs' & psr' & lsreg' & _ & Hφ1 & _ & _).
     { by apply map_singleton_subseteq_l. }
@@ -466,10 +466,10 @@ Section vcsr.
     { by apply incrementPC_add. }
     iApply (instr_close_link_kept with "Hlink").
     case_decide as Hdc; first done.
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _
-      (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her Hokold Hrelold) Hi)
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _
+      (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold Her Hokold Hrelold) Hi)
       as (pc' & Hu & _).
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
+    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
                           regs' = <[dst := vold]> {[dst := wdst]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmie Hmpie]").

@@ -683,7 +683,7 @@ Section wp_interp.
       a fault, and the registers and the memory are unchanged. *)
   #[local] Ltac load_same_fault :=
     iApply (wp_instr_faulted_1 with "[$HPC $Hsrc $Hi]"); [done | done | | ];
-    [ intros ? ? ? ? s1 Hrr; rewrite /exec /= /lookup_reg Hrr /= decide_False //;
+    [ intros ? ? ? ? ? s1 Hrr; rewrite /exec /= /lookup_reg Hrr /= decide_False //;
       destruct s1; cbn; try done
     | iIntros "!> (HPC & Hsrc & Hi)"; iApply "Hφ"; iLeft; by iFrame ].
 

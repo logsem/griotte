@@ -150,7 +150,7 @@ Section KVS_getFullKey.
       iClear "Hi".
       (* CLoad rdst rdst 0. *)
       iInstr_fail "Hcode".
-      { intros r sr m st s1 Hr.
+      { intros r sr m st td s1 Hr.
         rewrite /exec /= /lookup_reg /= Hr /= decide_False //.
         destruct wsealkey as [ [z | sb | t p g b e a | o sb] π0]; try destruct sb; by destruct s1. }
       iTrap with "Hfailed". }

@@ -278,7 +278,7 @@ Section griotte_lang_rules.
      iIntros (HPm Hinstr Hvpc Dregs Hmem_pc HaStore φ) "(>HPC & >Hmem & >Hfetch & >Hshadow & Hperms & Hdw & >Hmap) Hφ".
      iApply wp_lift_atomic_base_step_no_fork; auto.
      iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
-     destruct σ1 as [pc r sr m st]; cbn.
+     destruct σ1 as [pc r sr m st td]; cbn.
      iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
      iDestruct (PC_agree with "HPCa HPC") as %->.
      pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
@@ -316,7 +316,7 @@ Section griotte_lang_rules.
      assert (reg_word_ok R C storev) as Hstore_ok by by eapply erasure_lword_of_argument_word.
      destruct (is_cap r1v.(lw)) eqn:Hr1v.
      2: {
-       assert ((Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) = (c, σ2)) as Hstep'.
+       assert ((Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) = (c, σ2)) as Hstep'.
        { unfold is_cap in Hr1v. destruct r1v as [r1v ?]. cbn in *.
          destruct_word r1v; by simplify_pair_eq. }
        instr_fail Hstep'. apply Store_spec_fail. by eapply Store_fail_const.
@@ -375,14 +375,14 @@ Section griotte_lang_rules.
          - iPureIntro. left. by eapply lookup_weaken.
          - iDestruct (HPm with "HR HC Hperms") as %Hok; first done.
            iPureIntro. by right. }
-       pose proof (erasure_shadow_store _ _ _ _ _ _ _ _ _ _ _ heap_a status Her ltac:(eauto) Hsok) as Her1.
+       pose proof (erasure_shadow_store _ _ _ _ _ _ _ _ _ _ _ _ heap_a status Her ltac:(eauto) Hsok) as Her1.
        rewrite /set_shadowtbl /= in Hstep.
        destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
        2: {
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
          unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
-       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
+       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
@@ -406,7 +406,7 @@ Section griotte_lang_rules.
        destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her Hlmea) as (pwea & Hmea & _).
        rewrite (mem_avoids_mmio_not_revoker _ _ _ Hmmio Hmea) Hmea in Hstep.
        rewrite /update_mem /= in Hstep.
-       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
+       pose proof (erasure_store _ _ _ _ _ _ _ _ _ _ _ _ ea (lstore_word p storev) _ _ Her Hlmea
          (reg_phys_mem_word_ok _ _ _ _ (reg_word_ok_lstore_word _ _ p _ Hstore_ok)
             (reg_phys_lstore_word _ p _ _ Hrelv))) as Her1.
        destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hregs'.
@@ -414,7 +414,7 @@ Section griotte_lang_rules.
          pose proof Hregs' as Ha'. eapply incrementPC_None_inv in Ha'; [|reflexivity].
          unfold nextPC, advancePC in Hstep; cbn in Hstep; rewrite Ha' in Hstep.
          instr_fail Hstep. apply Store_spec_fail. by apply Store_fail_invalid_PC. }
-       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
+       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hregs') as (pc'' & Hu & Her2).
        pose proof Hregs' as Ha'.
        apply incrementPC_Some_inv in Ha' as (t' & p' & g' & b' & e' & a' & a'1 & π' & Heq & Ha'1 & ->).
        injection Heq as <- <- <- <- <- <- <-.
@@ -1010,7 +1010,7 @@ Section griotte_lang_rules.
     Proof.
     iIntros (Hinstr Hvpc Hcap Hsrc φ) "(HPC & Hi & Hs & Hd) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 s2 H1 H2.
+    { intros r sr m st td s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= (decide_False _ _ Hsrc) /=.
       case_decide; [done|].
       destruct wdst as [wd ?]; cbn in Hcap.
@@ -1063,7 +1063,7 @@ Section griotte_lang_rules.
     Proof.
     iIntros (Hinstr Hvpc Hwa Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 s2 H1 H2.
+    { intros r sr m st td s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       destruct (a + imm)%a; cbn; [by rewrite Hwa | done]. }
@@ -1090,7 +1090,7 @@ Section griotte_lang_rules.
     Proof.
     iIntros (Hinstr Hvpc Hwa Hdst φ) "(HPC & Hi & Hd) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 H1.
+    { intros r sr m st td s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       destruct (a + imm)%a; cbn; [by rewrite Hwa | done]. }
@@ -1121,7 +1121,7 @@ Section griotte_lang_rules.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hwb Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 s2 H1 H2.
+    { intros r sr m st td s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       by rewrite Hadd /= Hwb andb_false_r. }
@@ -1149,7 +1149,7 @@ Section griotte_lang_rules.
     Proof.
     iIntros (Hinstr Hvpc Hadd Hwb Hdst φ) "(HPC & Hi & Hd) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 H1.
+    { intros r sr m st td s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       by rewrite Hadd /= Hwb andb_false_r. }
@@ -1174,10 +1174,10 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hdst Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) as [-> ->].
     { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.
@@ -1427,7 +1427,7 @@ Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π 
     Proof.
     iIntros (Hinstr Hvpc Hadd Hsrc Hdst φ) "(HPC & Hi & Hs & Hd) Hφ".
     iApply (wp_instr_faulted_2 with "[$HPC $Hs $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 s2 H1 H2.
+    { intros r sr m st td s1 s2 H1 H2.
       rewrite /exec /= /lookup_reg H1 H2 /= !decide_False //.
       destruct s2; cbn; last done.
       by rewrite Hadd. }
@@ -1453,7 +1453,7 @@ Lemma wp_store_fail_z_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π
     Proof.
     iIntros (Hinstr Hvpc Hadd Hdst φ) "(HPC & Hi & Hd) Hφ".
     iApply (wp_instr_faulted_1 with "[$HPC $Hd $Hi]"); [done | done | | ].
-    { intros r sr m st s1 H1.
+    { intros r sr m st td s1 H1.
       rewrite /exec /= /lookup_reg H1 /= !decide_False //.
       destruct s1; cbn; last done.
       by rewrite Hadd. }
@@ -1522,10 +1522,10 @@ Section shadow_store_res.
   Proof.
     iIntros (Hinstr Hvpc Hdst Hcap φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
-    iNext; iIntros (r sr m st lreg lsreg lmem Rg Cg c σ') "@".
+    iNext; iIntros (r sr m st td lreg lsreg lmem Rg Cg c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
     rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) as [-> ->].
+    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) as [-> ->].
     { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
       all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
     instr_fail_close.

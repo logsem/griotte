@@ -68,7 +68,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Htr φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
-    iNext; iIntros (r psr m st lreg lsreg lmem R C c σ') "@".
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %Hb.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
     pose proof (ls_join_mstatus lsreg) as Hvst'.
@@ -86,7 +86,7 @@ Section griotte_lang_rules.
     destruct (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) as [lpc'|] eqn:Hi;
       cycle 1.
     { (* The PC increment fails: the state and the link are unchanged. *)
-      pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
+      pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her Hi) as Hfail.
       rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
       simplify_eq.
@@ -96,13 +96,13 @@ Section griotte_lang_rules.
       - iPureIntro. apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC.
       - iRight. by iFrame. }
     (* The new mstatus *)
-    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ mstatus
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
                   (lword_of_word (WInt (mstatus_enc mie (ls_mpie lsreg))))
                   (WInt (mstatus_enc mie (ls_mpie lsreg))) Her) as Her1.
     specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
                   ltac:(apply reg_phys_lword_of_word)).
     rewrite -ls_join_set_mstatus in Her1.
-    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
+    destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
     rewrite /nextPC /advancePC /update_pcc /= in Hu. rewrite /update_sreg /update_pcc /nextPC /advancePC /= in Hstep.
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; last done. simplify_eq.
     cbn [reg sreg mem pcc shadowtbl fst snd].
@@ -110,7 +110,7 @@ Section griotte_lang_rules.
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
     iMod (Htr _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a') r
-                 (<[mstatus := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr) m st)
+                 (<[mstatus := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr) m st td)
            with "[$HSI $Hlink $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - by rewrite Hmie_st.
@@ -198,7 +198,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hxsr φ) "H Hφ".
     iApply (wp_instr_faulted_0 with "H Hφ"); [exact Hinstr | exact Hvpc |].
-    intros r sr m st. by rewrite /exec /= Hxsr.
+    intros r sr m st td. by rewrite /exec /= Hxsr.
   Qed.
 
 End griotte_lang_rules.
