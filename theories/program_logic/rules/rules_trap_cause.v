@@ -113,6 +113,12 @@ Section trap_cause.
     by rewrite revoker_not_heap_address in Ha.
   Qed.
 
+  Lemma heap_not_time_device a : is_heap_address a = true → is_time_device_address a = false.
+  Proof.
+    intros Ha. destruct (is_time_device_address a) eqn:Ht; last done.
+    by rewrite (time_device_not_heap_address _ Ht) in Ha.
+  Qed.
+
   Lemma shadow_to_heap_heap s a : shadow_to_heap s = Some a → is_heap_address a = true.
   Proof. intros Hs. by destruct (shadow_to_heap_bounds _ _ Hs). Qed.
 
@@ -168,7 +174,8 @@ Section trap_cause.
     fault_rel S src (load_fault φl src imm) (load_fault φp src imm).
   Proof.
     intros Hrel.
-    rewrite /load_fault /mmio_load_fault /is_mmio_address /shadow_load_fault /revoker_load_fault.
+    rewrite /load_fault /mmio_load_fault /is_mmio_address /shadow_load_fault /revoker_load_fault
+      /time_dev_load_fault.
     destruct (lookup_reg_rel _ _ _ src Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
       [| | by left].
     - (* Exact copy: the same branches; memory agrees on the heap base, and
@@ -182,6 +189,7 @@ Section trap_cause.
         by destruct (cr_shadow_l _ _ _ Hrel ha Hha_heap) as [? ->],
           (cr_shadow_p _ _ _ Hrel ha Hha_heap) as [? ->]. }
       destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea); first done.
       destruct (cr_mem _ _ _ Hrel ea) as [x' y' [_ Hb]|]; last done.
       rewrite Hb. destruct (heap_cap_base y') as [base|] eqn:Hbase; last done.
       pose proof (heap_cap_base_heap _ _ Hbase) as Hbase_heap.
@@ -198,7 +206,7 @@ Section trap_cause.
       destruct (a + imm)%a as [ea|]; last done.
       destruct (withinBounds b e ea) eqn:Hwb; last done.
       pose proof (Hheap p g b e a ea eq_refl Hwb) as Hea.
-      rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea).
+      rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea) (heap_not_time_device _ Hea).
       destruct (rel_mem_mapped _ _ _ ea Hrel Hea) as [x' ->].
       destruct (heap_cap_base x') as [base|] eqn:Hbase; last done.
       by destruct (cr_shadow_l _ _ _ Hrel base (heap_cap_base_heap _ _ Hbase)) as [? ->].
@@ -211,7 +219,8 @@ Section trap_cause.
     fault_rel S dst (store_fault φl dst ρ imm) (store_fault φp dst ρ imm).
   Proof.
     intros Hrel.
-    rewrite /store_fault /mmio_store_fault /is_mmio_address /shadow_store_fault /revoker_store_fault.
+    rewrite /store_fault /mmio_store_fault /is_mmio_address /shadow_store_fault /revoker_store_fault
+      /time_dev_store_fault.
     destruct (word_of_argument_rel _ _ _ ρ Hrel) as [t t' Ht|]; last by left.
     destruct (lookup_reg_rel _ _ _ dst Hrel) as [x y [-> | (-> & Hstrip & Hheap)] |];
       [| | by left].
@@ -223,6 +232,8 @@ Section trap_cause.
       destruct (is_shadow_address ea).
       { destruct Ht as [-> | ->]; first done. by destruct t as [| [] | | ? [] ]. }
       destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea).
+      { destruct Ht as [-> | ->]; first done. by destruct t as [| [] | | ? [] ]. }
       by destruct (cr_mem _ _ _ Hrel ea).
     - (* Untagged physical copy: a tag violation; a stale capability writes
          mapped heap memory. *)
@@ -234,7 +245,7 @@ Section trap_cause.
       destruct (a + imm)%a as [ea|]; last done.
       destruct (withinBounds b e ea) eqn:Hwb; last done.
       pose proof (Hheap p g b e a ea eq_refl Hwb) as Hea.
-      rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea).
+      rewrite (heap_not_shadow _ Hea) (heap_not_revoker _ Hea) (heap_not_time_device _ Hea).
       by destruct (rel_mem_mapped _ _ _ ea Hrel Hea) as [x' ->].
   Qed.
 
@@ -449,6 +460,7 @@ Section trap_cause.
     destruct (data_cap_check readAllowed PermitLoadViolation src w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
+    destruct (is_time_device_address ea); first done.
     destruct (mem φf !! ea) as [x|] eqn:Hx; last done.
     by rewrite (lookup_weaken _ _ _ _ Hx Hmem).
   Qed.
@@ -470,6 +482,7 @@ Section trap_cause.
     destruct (data_cap_check writeAllowed PermitStoreViolation dst w imm) as [f|ea]; first done.
     destruct (is_shadow_address ea); first done.
     destruct (is_revoker_address ea); first done.
+    destruct (is_time_device_address ea); first done.
     destruct (mem φf !! ea) as [x|] eqn:Hx; last done.
     by rewrite (lookup_weaken _ _ _ _ Hx Hmem).
   Qed.

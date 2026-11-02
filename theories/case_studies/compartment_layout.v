@@ -618,13 +618,16 @@ Section CmptLayout.
     intros a Ha.
     rewrite /initial_heap_memory /heap_addresses dom_gset_to_gmap
       elem_of_list_to_set in Ha.
-    rewrite /is_mmio_address. apply orb_false_iff. split.
+    rewrite /is_mmio_address. apply orb_false_iff. split; [apply orb_false_iff; split |].
     - apply not_true_is_false. intros Hshadow.
       apply (heap_shadow_disjoint a); first done.
       apply elem_of_finz_seq_between, withinBounds_true_iff. exact Hshadow.
     - apply bool_decide_eq_false. intros ->.
       apply elem_of_finz_seq_between, withinBounds_true_iff in Ha.
       by rewrite revoker_not_heap in Ha.
+    - apply not_true_is_false. intros Htd%time_device_not_heap_address.
+      apply elem_of_finz_seq_between, withinBounds_true_iff in Ha.
+      by rewrite /is_heap_address Ha in Htd.
   Qed.
 
   (** The initial heap memory covers the heap. *)

@@ -30,6 +30,25 @@ Section mem_avoids_mmio.
     mem_avoids_mmio m → m !! a = Some w → is_revoker_address a = false.
   Proof. intros. eapply not_mmio_not_revoker, mem_avoids_mmio_lookup; eauto. Qed.
 
+  Lemma mem_avoids_mmio_not_time_device m a w :
+    mem_avoids_mmio m → m !! a = Some w → is_time_device_address a = false.
+  Proof. intros. eapply not_mmio_not_time_device, mem_avoids_mmio_lookup; eauto. Qed.
+
+  (** A time device is neither in the shadow region nor the revoker. *)
+  Lemma time_device_not_shadow_address a :
+    is_time_device_address a = true → is_shadow_address a = false.
+  Proof.
+    intros [-> | ->]%is_time_device_address_spec; rewrite /is_shadow_address;
+      [apply (proj1 time_devs_not_shadow) | apply (proj2 time_devs_not_shadow)].
+  Qed.
+
+  Lemma time_device_not_revoker_address a :
+    is_time_device_address a = true → is_revoker_address a = false.
+  Proof.
+    intros [-> | ->]%is_time_device_address_spec; apply bool_decide_eq_false_2;
+      [apply (proj1 time_devs_not_revoker) | apply (proj2 time_devs_not_revoker)].
+  Qed.
+
   Lemma mem_avoids_mmio_insert m a w :
     is_mmio_address a = false → mem_avoids_mmio m → mem_avoids_mmio (<[a := w]> m).
   Proof.
@@ -1070,6 +1089,12 @@ Section erasure.
     - done.
     - by apply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mtcc).
   Qed.
+
+  (** The erasure reads no time device. *)
+  Lemma erasure_set_timedevs R C σ lpc lreg lsreg lmem td :
+    erasure R C σ lpc lreg lsreg lmem →
+    erasure R C (σ .[TD := td]) lpc lreg lsreg lmem.
+  Proof. by intros []; constructor. Qed.
 
   (** A logical PC that is not correct has a physical copy that is not
       correct either. *)

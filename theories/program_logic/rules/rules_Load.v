@@ -395,7 +395,7 @@ Section griotte_lang_rules.
         + destruct HaLoad as (loadv & Hlookup).
           destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hlookup))
             as (pv & Hpv & Hpvok).
-          rewrite Hpv /= in Hstep.
+          rewrite (mem_avoids_mmio_not_time_device _ _ _ Hmmio Hpv) Hpv /= in Hstep.
           destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
           assert ((match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) r1 pl) with
                    | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ2))
