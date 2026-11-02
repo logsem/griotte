@@ -202,24 +202,22 @@ Definition error_handling_demo_adv_cgp : Addr :=
     the pointer into the [ErrorState] slot was unwound, [ECOMPARTMENTFAIL]
     stored in its third. *)
 Remark error_handling_demo_adv_results :
-  ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Exec], error_handling_demo_state)
-      ([Instr Halted], (MkExecConf pc' reg' sreg' mem' sh'))
-    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ)
-    ∧ mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL).
+  ∃ σ',
+    rtc erased_step ([Exec], error_handling_demo_state) ([Instr Halted], σ')
+    ∧ mem σ' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ)
+    ∧ mem σ' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL).
 Proof.
   pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
                 error_handling_demo_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state)
           with
-          | Some (Halted, (MkExecConf _ _ _ mem' _)) =>
-              mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ) ∧
-              mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL)
+          | Some (Halted, σ') =>
+              mem σ' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ) ∧
+              mem σ' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL)
           | _ => False
           end) as Hres by (vm_compute; split; reflexivity).
-  destruct (machine_run_conf _ _) as [ [ [] [pc' reg' sreg' mem' sh'] ] | ];
-    try done.
-  exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hres].
+  destruct (machine_run_conf _ _) as [ [ [] σ'] | ]; try done.
+  exists σ'. split; [by apply Hrun | exact Hres].
 Qed.
 
 (** ** Without the error handler
@@ -259,20 +257,18 @@ Definition error_handling_no_handler_state : ExecConf :=
   img_state error_handling_no_handler_firmware error_handling_no_handler_image.
 
 Remark error_handling_no_handler_assert_fails :
-  ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Exec], error_handling_no_handler_state)
-      ([Instr Halted], (MkExecConf pc' reg' sreg' mem' sh'))
-    ∧ mem' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
+  ∃ σ',
+    rtc erased_step ([Exec], error_handling_no_handler_state) ([Instr Halted], σ')
+    ∧ mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
 Proof.
   pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
                 error_handling_no_handler_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_no_handler_state)
           with
-          | Some (Halted, (MkExecConf _ _ _ mem' _)) =>
-              mem' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z)
+          | Some (Halted, σ') =>
+              mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z)
           | _ => False
           end) as Hflag by (vm_compute; reflexivity).
-  destruct (machine_run_conf _ _) as [ [ [] [pc' reg' sreg' mem' sh'] ] | ];
-    try done.
-  exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hflag].
+  destruct (machine_run_conf _ _) as [ [ [] σ'] | ]; try done.
+  exists σ'. split; [by apply Hrun | exact Hflag].
 Qed.
