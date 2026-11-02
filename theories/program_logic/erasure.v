@@ -251,6 +251,10 @@ Proof. by destruct s, w as [| [] | | ? [] ]. Qed.
 Lemma clear_tag_and_tag s w : clear_tag (and_tag s w) = clear_tag w.
 Proof. destruct s; by rewrite ?and_tag_true ?and_tag_false ?clear_tag_idempotent. Qed.
 
+(** A device sees the bits of a stored word, which ignore the tag. *)
+Lemma word_to_bits_and_tag `{CapBitsEncoding} s w : word_to_bits (and_tag s w) = word_to_bits w.
+Proof. by rewrite -word_to_bits_clear_tag clear_tag_and_tag word_to_bits_clear_tag. Qed.
+
 (** The field reads ignore the tag. *)
 Lemma get_a_and_tag s w : get_a (and_tag s w) = get_a w.
 Proof. rewrite and_tag_if. destruct s; auto using get_a_clear_tag. Qed.

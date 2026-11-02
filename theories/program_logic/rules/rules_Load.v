@@ -160,6 +160,13 @@ Section griotte_lang_rules.
       mem !! ea = None →
       incrementPC lpc = None →
       Load_failure_spec lpc regs r1 r2 imm mem shadow wit dw
+  | Load_fail_invalid_PC_timedev_imm p g b e a ea:
+      lw <$> regs !!ₗ r2 = Some (Cap p g b e a) →
+      (a + imm)%a = Some ea →
+      is_time_device_address ea = true →
+      mem !! ea = None →
+      incrementPC lpc = None →
+      Load_failure_spec lpc regs r1 r2 imm mem shadow wit dw
   (* A source with an identifier not covered by the witness may have been
      revoked: its physical copy is untagged. *)
   | Load_fail_revoked p g b e a π:
@@ -229,14 +236,24 @@ Section griotte_lang_rules.
     regs' = <[ r1 := lword_of_word (WInt 0) ]ₗ> regs →
     Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
 
+  (* A time device reads as an integer, the value of its register, which the
+     logical state does not record. *)
+  | Load_spec_success_timedev p g b e a z :
+    reg_allows_load_offset regs r2 imm p g b e a →
+    is_time_device_address a = true →
+    mem !! a = None →
+    incrementPC lpc = Some lpc' →
+    regs' = <[ r1 := lword_of_word (WInt z) ]ₗ> regs →
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
+
   | Load_spec_failure :
     Load_failure_spec lpc regs r1 r2 imm mem shadow wit dw ->
     lpc' = lpc ->
     regs' = regs ->
     Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw FaultedV.
 
-  (* Own the source location, or its shadow entry; the revoker needs no
-     resource. *)
+  (* Own the source location, or its shadow entry; neither the revoker nor a
+     time device needs a resource. *)
   Definition allow_load_mem_or_shadow_offset (r : RegName) (imm : Z)
       (regs : LReg) (mem : LMem) (shadow : ShadowTbl) :=
     ∀ p g b e ea,
@@ -244,6 +261,7 @@ Section griotte_lang_rules.
       if is_shadow_address ea then
         ∃ heap_a, shadow_to_heap ea = Some heap_a ∧ is_Some (shadow !! heap_a)
       else if is_revoker_address ea then True
+      else if is_time_device_address ea then True
       else ∃ loadv, mem !! ea = Some loadv.
 
   Definition allow_load_mem_or_shadow (r : RegName) (regs : LReg)
@@ -392,24 +410,37 @@ Section griotte_lang_rules.
           split.
           * intros. by eapply Load_spec_success_revoker.
           * intros. apply Load_spec_failure; [|done..]. by eapply Load_fail_invalid_PC_revoker_imm; eauto; rewrite Hr'2.
-        + destruct HaLoad as (loadv & Hlookup).
-          destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hlookup))
-            as (pv & Hpv & Hpvok).
-          rewrite (mem_avoids_mmio_not_time_device _ _ _ Hmmio Hpv) Hpv /= in Hstep.
-          destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
-          assert ((match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) r1 pl) with
-                   | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ2))
-            as Hstep'.
-          { rewrite -Hstep /load_filter in Hpl |- *.
-            destruct (heap_cap_base pv) as [base|]; last by simplify_eq.
-            destruct (st !! base) as [ []|]; simplify_eq; done. }
-          destruct (load_post_choose _ _ _ _ _ _ _ _ Hreg Hwit Hpvok Hpl) as (loadv' & Hpost & Hok' & Hphys).
-          exists loadv', pl.
-          split; first done. split; first done.
-          split; first exact Hstep'.
-          split.
-          * intros. by eapply Load_spec_success.
-          * intros. apply Load_spec_failure; [|done..]. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
+        + destruct (is_time_device_address ea) eqn:Htdev.
+          * rewrite /time_dev_load /= in Hstep.
+            assert (mem !! ea = None) as Hnone.
+            { destruct (mem !! ea) as [v|] eqn:Hv; last done.
+              destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hv)) as (pv & Hpv & _).
+              by rewrite (mem_avoids_mmio_not_time_device _ _ _ Hmmio Hpv) in Htdev. }
+            exists (lword_of_word (WInt (time_dev_value td ea))), (WInt (time_dev_value td ea)).
+            split; first apply reg_word_ok_int. split; first apply reg_phys_lword_of_word.
+            split; first exact Hstep.
+            split.
+            -- intros. by eapply Load_spec_success_timedev.
+            -- intros. apply Load_spec_failure; [|done..].
+               by eapply Load_fail_invalid_PC_timedev_imm; eauto; rewrite Hr'2.
+          * destruct HaLoad as (loadv & Hlookup).
+            destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hlookup))
+              as (pv & Hpv & Hpvok).
+            rewrite Hpv /= in Hstep.
+            destruct (load_filter_is_Some R C st p pv Hreg) as [pl Hpl].
+            assert ((match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) r1 pl) with
+                     | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ2))
+              as Hstep'.
+            { rewrite -Hstep /load_filter in Hpl |- *.
+              destruct (heap_cap_base pv) as [base|]; last by simplify_eq.
+              destruct (st !! base) as [ []|]; simplify_eq; done. }
+            destruct (load_post_choose _ _ _ _ _ _ _ _ Hreg Hwit Hpvok Hpl) as (loadv' & Hpost & Hok' & Hphys).
+            exists loadv', pl.
+            split; first done. split; first done.
+            split; first exact Hstep'.
+            split.
+            -- intros. by eapply Load_spec_success.
+            -- intros. apply Load_spec_failure; [|done..]. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
     }
     iApply bupd_fupd.
     iApply (instr_close_link_kept with "Hlink").
@@ -477,12 +508,14 @@ Section griotte_lang_rules.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -500,6 +533,12 @@ Section griotte_lang_rules.
       iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
       iApply "HΦ". iRight. iExists actual. by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -712,11 +751,12 @@ Section griotte_lang_rules.
       destruct (allow_load_implies_loadv_imm _ _ _ _ _ _ _ _ _ _ HaLoad Hallow') as [loadv Hl].
       destruct (Hordinary _ _ _ _ _ _ _ Hallow' Hl) as [-> _].
       pose proof Hallow' as (_ & _ & _ & _).
-      destruct (is_revoker_address ea); eauto. }
+      destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea); eauto. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
     iApply "Hφ". iFrame. iPureIntro.
     destruct Hspec as [p g b e ea loadv loadv' Hallow Hsh Hl Hpost Hinc Hregs'
-                      |p g b e ea heap_a revoked Hallow Hsh|p g b e ea Hallow Hrev Hinc|Hfail].
+                      |p g b e ea heap_a revoked Hallow Hsh|p g b e ea Hallow Hrev Hinc|p g b e ea z Hallow Htdev Hnone _ _|Hfail].
     - left. destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a Hallow'].
       destruct (Hordinary _ _ _ _ _ _ _ Hallow' Hl) as [_ Hh].
       rewrite (load_post_not_heap_cap _ _ _ _ Hh Hpost) in Hregs'.
@@ -724,6 +764,9 @@ Section griotte_lang_rules.
     - exfalso. destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a Hallow'].
       destruct (allow_load_implies_loadv_imm _ _ _ _ _ _ _ _ _ _ HaLoad Hallow') as [loadv Hl].
       destruct (Hordinary _ _ _ _ _ _ _ Hallow' Hl) as [Hsh' _]. congruence.
+    - exfalso. destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a Hallow'].
+      destruct (allow_load_implies_loadv_imm _ _ _ _ _ _ _ _ _ _ HaLoad Hallow') as [loadv Hl].
+      all: try congruence.
     - exfalso. destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a Hallow'].
       destruct (allow_load_implies_loadv_imm _ _ _ _ _ _ _ _ _ _ HaLoad Hallow') as [loadv Hl].
       all: try congruence.
@@ -806,13 +849,17 @@ Section griotte_lang_rules.
     { intros p g b e a Hallow. rewrite (Hnonshadow _ _ _ _ _ Hallow).
       pose proof Hallow as (Hsrc & Hra & Hwb).
       destruct (allow_load_implies_loadv _ _ _ _ _ _ _ _ HaLoad Hsrc Hra Hwb) as [loadv Hl].
-      destruct (is_revoker_address a); eauto. }
+      destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); eauto. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
     iApply "Hφ". iFrame. iPureIntro.
     destruct Hspec as [p g b e a loadv loadv' Hallow Hsh Hl Hpost Hinc Hregs'
-                      |p g b e a heap_a revoked Hallow Hsh|p g b e a Hallow Hrev Hnone Hinc|Hfail].
+                      |p g b e a heap_a revoked Hallow Hsh|p g b e a Hallow Hrev Hnone Hinc|p g b e a z Hallow Htdev Hnone Hinc _|Hfail].
     - exists p, g, b, e, a, loadv, loadv'. by destruct Hpost.
     - exfalso. by rewrite (Hnonshadow _ _ _ _ _ Hallow) in Hsh.
+    - exfalso. pose proof Hallow as (Hsrc & Hra & Hwb).
+      destruct (allow_load_implies_loadv _ _ _ _ _ _ _ _ HaLoad Hsrc Hra Hwb) as [loadv Hl].
+      all: try congruence.
     - exfalso. pose proof Hallow as (Hsrc & Hra & Hwb).
       destruct (allow_load_implies_loadv _ _ _ _ _ _ _ _ HaLoad Hsrc Hra Hwb) as [loadv Hl].
       all: try congruence.
@@ -889,7 +936,10 @@ Section griotte_lang_rules.
     try (match goal with H : is_revoker_address ?a = true,
                          H' : is_shadow_address ?a = true |- _ =>
            apply is_revoker_address_spec in H; subst;
-           by rewrite revoker_not_shadow_address in H' end).
+           by rewrite revoker_not_shadow_address in H' end);
+    try (match goal with H : is_time_device_address ?a = true,
+                         H' : is_shadow_address ?a = true |- _ =>
+           by rewrite (time_device_not_shadow_address _ H) in H' end).
 
   Lemma wp_load_success_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a ea πs (imm : Z) pc_a' dq dq' q :
     is_shadow_address ea = false →
@@ -1439,12 +1489,14 @@ Section griotte_lang_rules.
       rewrite finz_add_0 in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -1465,6 +1517,12 @@ Section griotte_lang_rules.
       iSplitR; first (iPureIntro; by destruct Hpost).
       iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite finz_add_0 in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -1493,7 +1551,7 @@ Section griotte_lang_rules.
     intros Hr2 Hid Hea Hra Hwb Hsh [v Hv] Hpca' Hfail.
     destruct Hfail as [w0 Hw0 Hcap|? ? ? ? ? H|? ? ? ? ? H H0|? ? ? ? ? ? H H0 H1
                       |? ? ? ? ? ? ? ? H H0 H1 H2 H3 Hinc|? ? ? ? ? ? ? ? H H0 H1|? ? ? ? ? ? H H0 H1 H2 Hinc
-                      |? ? ? ? ? π H Hπ].
+                      |? ? ? ? ? ? H H0 H1 H2 Hinc|? ? ? ? ? π H Hπ].
     all: try (by apply Hπ, (Hid _ H)).
     all: try (rewrite Hr2 in H; simplify_eq).
     - rewrite Hw0 /= in Hr2. injection Hr2 as Hw. rewrite Hw in Hcap. discriminate.
@@ -1547,12 +1605,14 @@ Section griotte_lang_rules.
       rewrite finz_add_0 in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hlookup Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -1571,6 +1631,12 @@ Section griotte_lang_rules.
       iApply "Hφ". iFrame.
       iPureIntro; by destruct Hpost.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite finz_add_0 in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -1775,11 +1841,13 @@ Section load_exact.
     all: try (by rewrite !dom_insert_L).
     all: try (by rewrite big_sepM_empty).
     { intros p0 g0 b0 e0 ea (Hreg & _ & _). simplify_map_eq. rewrite Hshadow.
-      destruct (is_revoker_address ea); eauto. }
+      destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea); eauto. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 a0 loadv loadv' Hallow Hsh Hlook Hpost Hinc Hregs'
                       | p0 g0 b0 e0 a0 heap_a revoked Hallow Hsh _ Hlook _
                       | p0 g0 b0 e0 a0 Hallow Hrevk Hlook _
+                      | p0 g0 b0 e0 a0 z Hallow Htdev Hlook _ _
                       | Hfail].
     - destruct Hallow as (Hreg & _ & _). simplify_map_eq.
       destruct Hpost as (_ & _ & Hnone & _).
@@ -1792,6 +1860,7 @@ Section load_exact.
       cbn. rewrite Hneq.
       iApply "Hφ". iFrame.
     - by rewrite lookup_empty in Hlook.
+    - destruct Hallow as (Hreg & _ & _). simplify_map_eq.
     - destruct Hallow as (Hreg & _ & _). simplify_map_eq.
     - exfalso. destruct Hfail.
       all: simplify_map_eq; cbn in *; try congruence.
@@ -1886,13 +1955,15 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); first done.
       eexists. by simplify_map_eq. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hl _ _
                       |Hfail -> ->].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
@@ -1968,12 +2039,14 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -1991,6 +2064,12 @@ Section load_exact.
       iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
       iApply "HΦ". by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2066,6 +2145,7 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); first done.
       eexists. exact Hmem_a. }
     { exact Hdom. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
@@ -2076,6 +2156,7 @@ Section load_exact.
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2092,6 +2173,12 @@ Section load_exact.
       iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
       iApply "HΦ". by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite Hmem_a in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2174,6 +2261,7 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); first done.
       eexists. exact Hmem_a. }
     { exact Hdom. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & Hdw & Hmap)".
@@ -2184,6 +2272,7 @@ Section load_exact.
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2199,6 +2288,12 @@ Section load_exact.
       iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; eauto.
       iApply "HΦ". by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite Hmem_a in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2258,12 +2353,14 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hwit & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2281,6 +2378,12 @@ Section load_exact.
       iDestruct (memMap_resource_2ne_dq with "Hmem") as "[Hi Ha]"; auto.
       iApply "HΦ". by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite lookup_insert_ne // lookup_insert_eq in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2354,6 +2457,7 @@ Section load_exact.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); first done.
       eexists. exact Hmem_a. }
     { exact Hdom. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
@@ -2364,6 +2468,7 @@ Section load_exact.
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv actual Hallow Hsh Hlookup Hactual Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh _ Hlookup _
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hlookup _
+                      |p0 g0 b0 e0 ea0 z Hallow Htdev Hlookup _ _
                       |Hfail -> ->].
     - destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
@@ -2380,6 +2485,12 @@ Section load_exact.
       iDestruct (regs_of_map_1 with "Hmap") as "Hsrc".
       iApply "HΦ". by iFrame.
     - exfalso. by rewrite lookup_empty in Hlookup.
+    - exfalso.
+      destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
+      destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').
+      rewrite lookup_insert_eq in Hsrc0'. injection Hsrc0' as <- <- <- <- <- <-.
+      rewrite Hea in Haddr. injection Haddr as <-.
+      by rewrite Hmem_a in Hlookup.
     - exfalso.
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)].
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0').

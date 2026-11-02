@@ -15,42 +15,6 @@ Section mmio_shadow_rules.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
 
-  (* The tactic of the same name in [rules_Load.v], which is local to its
-     section. *)
-  #[local] Ltac load_fail_contra :=
-    exfalso;
-    lazymatch goal with Hfail : Load_failure_spec _ _ _ _ _ _ _ _ _ |- _ => destruct Hfail end;
-    simplify_map_eq; cbn in *; try congruence;
-    try (match goal with H : _ ≠ deref_id (deref_witness_of _ _) |- _ =>
-           rewrite deref_id_witness_of in H; congruence end);
-    try (match goal with H : ?π ≠ None, Hn : ∀ v : LWord, ?lhs = Some v → lprov v = None,
-                         Hr : ?lhs = Some (_ @@? ?π) |- _ => by apply H, (Hn _ Hr) end);
-    try (match goal with H : (_ + 0)%a = None |- _ => rewrite finz_add_0 in H; discriminate end);
-    try (match goal with H : (_ + 0)%a = Some _ |- _ => rewrite finz_add_0 in H; simplify_eq end);
-    try (match goal with H : _ ∨ _ |- _ => destruct H; congruence end);
-    try (match goal with H : load_post _ _ _ _ |- _ =>
-           apply load_post_not_heap_cap in H;
-           [subst | first [done | assumption | by rewrite /is_heap_cap /=] ] end);
-    try (match goal with H : incrementPC _ = None |- _ =>
-           eapply incrementPC_None_inv in H; [|first [reflexivity | by simplify_map_eq] ]; congruence end);
-    try (match goal with H : incrementPC _ = None |- _ =>
-           rewrite /incrementPC /incrementPC_gen in H; simplify_map_eq;
-           rewrite /lload_word /lift_word /load_word /= in H;
-           repeat (case_match; simplify_eq); congruence end);
-    try (match goal with H : incrementPC _ = None |- _ =>
-           rewrite /incrementPC /incrementPC_gen in H; simplify_map_eq;
-           rewrite /lload_word /lift_word /load_word /= in H;
-           match type of H with context [isDL ?p] => destruct (isDL p), (isDRO p) end;
-           cbn in H; repeat case_match; congruence end);
-    try (match goal with H : lw ?w = _, H' : is_cap (lw ?w) = false |- _ =>
-           rewrite H in H'; discriminate end);
-    try (match goal with H : ?t !! ?k = Some _, H' : ?t !! ?k = Some _ |- _ =>
-           rewrite H in H'; simplify_eq; congruence end);
-    try (match goal with H : is_revoker_address ?a = true,
-                         H' : is_shadow_address ?a = true |- _ =>
-           apply is_revoker_address_spec in H; subst;
-           by rewrite revoker_not_shadow_address in H' end).
-
   (* Reading a shadow-table entry returns its Boolean value as an integer. *)
   Lemma wp_load_success_shadow E pc_p pc_g pc_b pc_e pc_a pc_π
     dst src w regs mem dq shadow sdq p g b e a heap_a revoked lpc' :
@@ -91,6 +55,7 @@ Section mmio_shadow_rules.
       [p0 g0 b0 e0 a0 v0 v0' (Hsrc0 & _) Hshadow0
       |p0 g0 b0 e0 a0 heap_a0 revoked0 (Hsrc0 & _) Hshadow0 Htranslate0 Hlookup0 Hinc0
       |p0 g0 b0 e0 a0 (Hsrc0 & _) Hrev0
+      |p0 g0 b0 e0 a0 z (Hsrc0 & _) Htdev0 _ _ _
       |Hfail].
     - rewrite Hsrc in Hsrc0. simplify_eq. congruence.
     - rewrite Hsrc in Hsrc0. simplify_eq. rewrite Hlookup in Hlookup0. simplify_eq.
@@ -98,7 +63,27 @@ Section mmio_shadow_rules.
     - rewrite Hsrc in Hsrc0. simplify_eq. exfalso.
       apply is_revoker_address_spec in Hrev0. subst.
       by rewrite revoker_not_shadow_address in Hshadow.
-    - load_fail_contra.
+    - rewrite Hsrc in Hsrc0. simplify_eq. exfalso.
+      by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow.
+    - exfalso.
+      destruct Hfail as
+        [w0 Hsrc0 Hcap0|p0 g0 b0 e0 a0 Hsrc0|p0 g0 b0 e0 a0 Hsrc0 Hadd0
+        |p0 g0 b0 e0 a0 ea0 Hsrc0 Hadd0 Hperm0
+        |p0 g0 b0 e0 a0 ea0 loadv0 loadv0' Hsrc0 Hadd0 Hshadow0 _ _ _
+        |p0 g0 b0 e0 a0 ea0 heap_a0 revoked0 _ _ _ _ _ Hinc0
+        |p0 g0 b0 e0 a0 ea0 Hsrc0 Hadd0 Hrev0 _ _
+        |p0 g0 b0 e0 a0 ea0 Hsrc0 Hadd0 Htdev0 _ _
+        |p0 g0 b0 e0 a0 π0 Hsrc0 Hπ0].
+      all: try (rewrite Hsrc in Hsrc0; simplify_eq).
+      all: try (rewrite finz_add_0 in Hadd0; simplify_eq).
+      + rewrite Hsrc0 /= in Hsrc. simplify_eq. by rewrite Hsrc in Hcap0.
+      + by destruct Hperm0; congruence.
+      + congruence.
+      + congruence.
+      + apply is_revoker_address_spec in Hrev0. subst.
+        by rewrite revoker_not_shadow_address in Hshadow.
+      + by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow.
+      + by apply Hπ0, (Hnoid _ Hsrc0).
   Qed.
 
   Lemma wp_load_success_from_shadow E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a pc_a' heap_a revoked dq sdq πs :
@@ -176,13 +161,14 @@ Section mmio_shadow_rules.
     iApply (wp_store_fetch with "[$HPC $Hfetch $Hmem $Hshadow $Hperms $Hmap]"); eauto.
     { intros p0 g0 b0 e0 a0 v0 (Hdst0 & _) Harg0.
       destruct Hallow as (Hdst & _). rewrite Hdst in Hdst0. simplify_eq.
-      rewrite Hshadow. intros _. exists heap_a. split_and!; [done|done|].
-      intros z Hz. cbn in Hz. simplify_eq. by rewrite decode_encode_alloc_status_inv. }
+      rewrite Hshadow. exists heap_a. split_and!; [done|done|].
+      by rewrite decode_encode_alloc_status_inv. }
     iNext. iIntros (lpc0 mem0 shadow0 retv) "(%Hspec & HPC & Hfetch & Hmem & Hshadow & Hperms & Hmap)".
     destruct Hallow as (Hdst & Hwa & Hwb).
     destruct Hspec as
       [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Hlookup0 -> -> Hinc0
-      |p0 g0 b0 e0 a0 ea0 heap_a0 z0 π0 old_status0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Htranslate0 Hlookup0 -> -> Hinc0
+      |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Htranslate0 Hlookup0 -> -> Hinc0
+      |p0 g0 b0 e0 a0 ea0 v0 Harg0 (Hdst0 & Hadd0 & _) Htdev0 _ _ _ _ _
       |Hmem_eq Hshadow_eq Hfail].
     - rewrite Hdst in Hdst0. simplify_eq.
       rewrite finz_add_0 in Hadd0. simplify_eq. congruence.
@@ -190,22 +176,27 @@ Section mmio_shadow_rules.
       rewrite finz_add_0 in Hadd0. simplify_eq.
       try (rewrite Harg in Harg0; simplify_eq). try (rewrite Hinc in Hinc0; simplify_eq).
       iApply "Hφ". rewrite decode_encode_alloc_status_inv. iFrame.
+    - exfalso. rewrite Hdst in Hdst0. simplify_eq.
+      rewrite finz_add_0 in Hadd0. simplify_eq.
+      by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow.
     - exfalso. destruct Hfail as
         [w0 Hreg0 Hcap0|p0 g0 b0 e0 a0 Hreg0|p0 g0 b0 e0 a0 Hreg0 Hadd0|
          p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 Hbounds0|Hpc0|
-         p0 g0 b0 e0 a0 ea0 v0 Hreg0 Hadd0 Hshadow0 Harg0 Hbad0|
          p0 g0 b0 e0 a0 π0 Hreg0 Hπ0|
-         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _].
+         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _ _|
+         p0 g0 b0 e0 a0 ea0 storev0 Hreg0 Hadd0 Htdev0 _ _ _].
       + rewrite Hreg0 in Hdst. by destruct w0; simplify_eq/=.
       + rewrite Hreg0 in Hdst. simplify_eq.
       + rewrite finz_add_0 in Hadd0. discriminate.
       + rewrite finz_add_0 in Hadd0. simplify_eq.
         destruct Hbounds0; congruence.
       + congruence.
-      + try (rewrite Harg in Harg0; simplify_eq). by apply (Hbad0 _ eq_refl).
       + by apply Hπ0, (Hnoid _ Hreg0).
       + rewrite Hreg0 in Hdst. simplify_eq.
         rewrite finz_add_0 in Hadd0. simplify_eq. congruence.
+      + rewrite Hreg0 in Hdst. simplify_eq.
+        rewrite finz_add_0 in Hadd0. simplify_eq.
+        by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow.
   Qed.
 
   (** Point form of the shadow store, storing the current bit. *)
@@ -305,12 +296,13 @@ Section mmio_shadow_store_res.
     all: try (by rewrite ?dom_insert ?dom_singleton_L; set_solver+).
     { intros p0 g0 b0 e0 a0 ea0 v0 (Hdst0 & Hadd0 & _) Harg0.
       simplify_map_eq. rewrite finz_add_0 in Hadd0. simplify_eq.
-      rewrite Hshadow. intros _. exists heap_a. split_and!; [done|by simplify_map_eq|].
-      intros z Hz. right. set_solver. }
+      rewrite Hshadow. exists heap_a. split_and!; [done|by simplify_map_eq|].
+      right. set_solver. }
     iNext. iIntros (lpc' mem' shadow' retv) "(%Hspec & HPC & Hi & Hmem & Hshadow & Hperms & _ & Hmap)".
     destruct Hspec as
       [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Hlookup0 -> -> Hinc0
-      |p0 g0 b0 e0 a0 ea0 heap_a0 z0 π0 old_status0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Htranslate0 Hlookup0 -> -> Hinc0
+      |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 (Hdst0 & Hadd0 & _) Hshadow0 Htranslate0 Hlookup0 -> -> Hinc0
+      |p0 g0 b0 e0 a0 ea0 v0 Harg0 (Hdst0 & Hadd0 & _) Htdev0 _ _ _ _ _
       |Hmem_eq Hshadow_eq Hfail].
     - simplify_map_eq.
     - simplify_map_eq. rewrite finz_add_0 in Hadd0. simplify_eq.
@@ -319,14 +311,17 @@ Section mmio_shadow_store_res.
       iEval (rewrite big_sepS_singleton) in "Hperms".
       try (rewrite /incrementPC /incrementPC_gen in Hinc0; simplify_map_eq).
       iApply "Hφ". iFrame.
+    - exfalso. simplify_map_eq. rewrite finz_add_0 in Hadd0. simplify_eq.
+      by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow.
     - exfalso. destruct Hfail as
         [w0 Hreg0 Hcap0|p0 g0 b0 e0 a0 Hreg0|p0 g0 b0 e0 a0 Hreg0 Hadd0|
          p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 Hbounds0|Hpc0|
-         p0 g0 b0 e0 a0 ea0 v0 Hreg0 Hadd0 Hshadow0 Harg0 Hbad0|p0 g0 b0 e0 a0 π0 Hreg0 Hπ0|
-         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _];
+         p0 g0 b0 e0 a0 π0 Hreg0 Hπ0|
+         p0 g0 b0 e0 a0 ea0 Hreg0 Hadd0 _ _ Hshadow0 _ _ _|
+         p0 g0 b0 e0 a0 ea0 storev0 Hreg0 Hadd0 Htdev0 _ _ _];
         simplify_map_eq; try (rewrite finz_add_0 in Hadd0; simplify_eq); try congruence.
+      all: try (by rewrite (time_device_not_shadow_address _ Htdev0) in Hshadow).
       all: try (destruct Hbounds0; congruence).
       all: try (rewrite /incrementPC /incrementPC_gen in Hpc0; simplify_map_eq).
-      all: try (by apply (Hbad0 _ eq_refl)).
   Qed.
 End mmio_shadow_store_res.
