@@ -348,10 +348,11 @@ Section translation.
 
   (** *** Layout conditions *)
 
-  (** Outside the heap, the shadow region and the revoker
+  (** Outside the heap, the shadow region, the revoker and the time devices
       ([disjoint_from_mmio], unfolded). *)
   Definition range_ok (b e : Addr) : Prop :=
-    not_heap_range b e ∧ disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e.
+    not_heap_range b e ∧ disjoint_from_shadow b e ∧ revoker_addr ∉ finz.seq_between b e ∧
+    mtime_addr ∉ finz.seq_between b e ∧ mtimecmp_addr ∉ finz.seq_between b e.
 
   (** The regions of a compartment, named. *)
   Definition cmpt_ranges (fc : fw_cmpt) : list (string * Addr * Addr) :=

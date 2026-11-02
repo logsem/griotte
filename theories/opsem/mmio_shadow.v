@@ -1,4 +1,4 @@
-From griotte Require Import machine_base heap_layout trap_fault.
+From griotte Require Import machine_base heap_layout trap_fault cap_bits.
 
 (** Entries are keyed by heap addresses. Direct accesses through a capability
     into the shadow region use [shadow_to_heap] to obtain this key. Loading a
@@ -151,7 +151,8 @@ Definition get_shadow_address (a : Addr) : Addr := a.
     A load from or a store to the shadow region acts on the shadow table,
     at the heap address that the shadow address translates to. *)
 Section shadow_device.
-  Context `{HeapRegion} `{ShadowRegion} `{!HeapShadowTranslation} `{AllocStatusEncoding}.
+  Context `{HeapRegion} `{ShadowRegion} `{!HeapShadowTranslation} `{AllocStatusEncoding}
+    `{CapBitsEncoding}.
 
   (** A load from the shadow address [ea] reads the status of its heap
       address, encoded. *)
@@ -160,17 +161,14 @@ Section shadow_device.
     status ← sh !! heap_a;
     Some (WInt (encodeAllocStatus status)).
 
-  (** A store to the shadow address [ea]: an integer decodes to an
-      allocation status; any other word fails. *)
+  (** A store to the shadow address [ea]: the bits of the word decode to an
+      allocation status. *)
   Definition shadow_store (sh : ShadowTbl) (ea : Addr) (w : Word) : option ShadowTbl :=
     heap_a ← shadow_to_heap ea;
-    match w with
-    | WInt z => Some (<[heap_a := decodeAllocStatus z]> sh)
-    | _ => None
-    end.
+    Some (<[heap_a := decodeAllocStatus (word_to_bits w)]> sh).
 
   (** The access faults of the shadow region: a load whose heap address has
-      no entry, a store of a non-integer. *)
+      no entry. A store raises none. *)
   Definition shadow_load_fault (sh : ShadowTbl) (ea : Addr) : fault :=
     match shadow_to_heap ea with
     | Some heap_a =>
@@ -181,9 +179,5 @@ Section shadow_device.
     | None => fault_default
     end.
 
-  Definition shadow_store_fault (ea : Addr) (w : Word) : fault :=
-    match w with
-    | WInt _ => fault_default
-    | _ => FaultStoreAccess ea
-    end.
+  Definition shadow_store_fault (ea : Addr) (w : Word) : fault := fault_default.
 End shadow_device.

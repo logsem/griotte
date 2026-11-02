@@ -282,6 +282,9 @@ Qed.
   Lemma revoker_sweep_shadowtbl φ : shadowtbl (revoker_sweep φ) = shadowtbl φ.
   Proof. done. Qed.
 
+  Lemma revoker_sweep_timedevs φ : timedevs (revoker_sweep φ) = timedevs φ.
+  Proof. done. Qed.
+
   Lemma dom_revoker_sweep_mem φ : dom (mem (revoker_sweep φ)) = dom (mem φ).
   Proof. apply dom_sweep_mem. Qed.
 

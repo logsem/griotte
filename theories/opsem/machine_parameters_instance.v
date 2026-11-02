@@ -93,6 +93,12 @@ Proof. by destruct s. Qed.
     revoker_addr := @finz.FinZ MemNum 4%Z eq_refl eq_refl
   |}.
 
+#[local] Definition default_time_dev_region : TimeDevRegion := {|
+    mtime_addr := @finz.FinZ MemNum 5%Z eq_refl eq_refl;
+    mtimecmp_addr := @finz.FinZ MemNum 6%Z eq_refl eq_refl;
+    mtime_mtimecmp_ne := ltac:(by intros ?%(f_equal finz.to_z))
+  |}.
+
 (** CHERIoT's [CauseCode] values ([sdk/include/cheri.h]). *)
 #[local] Definition CauseCode_BoundsViolation : Z := 0x01.
 #[local] Definition CauseCode_TagViolation : Z := 0x02.
@@ -248,5 +254,10 @@ Qed.
   revoker_mixin := default_revoker_region;
   revoker_not_heap := eq_refl;
   revoker_not_shadow := eq_refl;
+  time_dev_mixin := default_time_dev_region;
+  time_devs_not_heap := conj eq_refl eq_refl;
+  time_devs_not_shadow := conj eq_refl eq_refl;
+  time_devs_not_revoker := ltac:(split; by intros ?%(f_equal finz.to_z));
+  cap_bits_mixin := {| cap_to_bits := λ _, 0 |};
   mtval_encoding_mixin := cheriot_mtval_encoding
 |}.
