@@ -1100,6 +1100,61 @@ Section erasure.
     erasure R C (σ .[TD := td]) lpc lreg lsreg lmem.
   Proof. by intros []; constructor. Qed.
 
+  Lemma erasure_tick R C σ lpc lreg lsreg lmem :
+    erasure R C σ lpc lreg lsreg lmem → erasure R C (tick σ) lpc lreg lsreg lmem.
+  Proof. apply erasure_set_timedevs. Qed.
+
+  (** The logical system registers after interrupt entry with cause [c]: as
+      [lsregs_enter_exc] with value 0, except that MEPCC receives the word
+      of the logical PC as it is, without identifier. *)
+  Definition lsregs_enter_irq (c : Z) (σ : ExecConf) (lpc : LWord) (lsreg : LSReg) : LSReg :=
+    <[mtval := lword_of_word (WInt MTVAL_NONE)]>
+      (<[mcause := lword_of_word (WInt c)]>
+         (<[mstatus := lword_of_word
+                         (WInt (mstatus_enc InterruptDisabled
+                                  (mie_of (get_a (sreg_word σ mstatus)))))]>
+            (<[mepcc := lword_of_word lpc.(lw)]> lsreg))).
+
+  (** Interrupt entry, for either cause: the PC receives MTCC. *)
+  Lemma erasure_enter_irq R C σ lpc lreg lsreg lmem c vtcc :
+    erasure R C σ lpc lreg lsreg lmem →
+    lsreg !! mtcc = Some vtcc →
+    erasure R C (enter_irq c σ) vtcc lreg (lsregs_enter_irq c σ lpc lsreg) lmem.
+  Proof.
+    intros Her Htcc.
+    assert (reg_word_ok R C (lword_of_word lpc.(lw)) ∧ pc_ok (lword_of_word lpc.(lw)).(lw))
+      as [Hepcc_ok Hepcc_pc].
+    { cbn. destruct (get_tag lpc.(lw)) eqn:Ht.
+      - pose proof (erasure_pc_tagged_no_id _ _ _ _ _ _ _ Her Ht) as Hπ.
+        destruct lpc as [w π]; cbn in *; subst π. split.
+        + apply (er_pc_word _ _ _ _ _ _ _ Her).
+        + apply (er_pc_ok _ _ _ _ _ _ _ Her).
+      - split; [by apply reg_word_ok_untagged | by apply pc_ok_untagged]. }
+    destruct σ as [pc r sr m st td].
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
+    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc.
+    assert (∀ x (z : Z), is_pc_sreg x = false →
+      ∀ pc' r' sr' m' st' td' lpc' lsreg',
+        erasure R C (MkExecConf pc' r' sr' m' st' td') lpc' lreg lsreg' lmem →
+        erasure R C (MkExecConf pc' r' (<[x := WInt z]> sr') m' st' td') lpc' lreg
+          (<[x := lword_of_word (WInt z)]> lsreg') lmem) as Hint.
+    { intros x z Hx ?????????. apply erasure_insert_sreg; first done.
+      - apply reg_word_ok_int.
+      - by intros.
+      - by rewrite Hx.
+      - apply reg_phys_lword_of_word. }
+    rewrite /enter_irq /lsregs_enter_irq /update_sreg /update_pcc /sreg_word /=.
+    rewrite Hwtcc /=.
+    apply (erasure_set_pc R C pc _ _ _ _ _ lpc _ _ _ vtcc wtcc).
+    - apply Hint; first done. apply Hint; first done. apply Hint; first done.
+      change (pcc (MkExecConf pc r sr m st td)) with pc.
+      apply erasure_insert_sreg; [done | done | by intros | by intros _ |].
+      rewrite Hpc. apply reg_phys_lword_of_word.
+    - by apply (er_sreg_words _ _ _ _ _ _ _ Her mtcc).
+    - done.
+    - by apply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mtcc).
+  Qed.
+
   (** A logical PC that is not correct has a physical copy that is not
       correct either. *)
   Lemma erasure_pc_not_correct R C σ lpc lreg lsreg lmem :
