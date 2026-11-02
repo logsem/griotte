@@ -181,16 +181,15 @@ Qed.
     assert library is still zero. [error_handling_demo_adv_results] shows
     the results of [adv]'s last two calls. *)
 Theorem error_handling_runs_and_gracefully_halts :
-  ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Exec], error_handling_demo_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
+  ∃ σ',
+    rtc erased_step ([Exec], error_handling_demo_state) ([Instr Halted], σ')
+    ∧ mem σ' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_correct (N.to_nat 15000%N) Executable error_handling_demo_state Halted)
     as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [ [ [ [ [pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  destruct Hrun as [σ' Hrun].
+  exists σ'. split; first exact Hrun.
   exact (error_handling_adequacy _ _ _ _ error_handling_demo_ok Hrun).
 Qed.
 
@@ -205,7 +204,7 @@ Definition error_handling_demo_adv_cgp : Addr :=
 Remark error_handling_demo_adv_results :
   ∃ pc' reg' sreg' mem' sh',
     rtc erased_step ([Exec], error_handling_demo_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+      ([Instr Halted], (MkExecConf pc' reg' sreg' mem' sh'))
     ∧ mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ)
     ∧ mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL).
 Proof.
@@ -213,12 +212,12 @@ Proof.
                 error_handling_demo_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state)
           with
-          | Some (Halted, (_, _, _, mem', _)) =>
+          | Some (Halted, (MkExecConf _ _ _ mem' _)) =>
               mem' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ) ∧
               mem' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL)
           | _ => False
           end) as Hres by (vm_compute; split; reflexivity).
-  destruct (machine_run_conf _ _) as [ [ [] [ [ [ [pc' reg'] sreg'] mem'] sh'] ] | ];
+  destruct (machine_run_conf _ _) as [ [ [] [pc' reg' sreg' mem' sh'] ] | ];
     try done.
   exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hres].
 Qed.
@@ -262,18 +261,18 @@ Definition error_handling_no_handler_state : ExecConf :=
 Remark error_handling_no_handler_assert_fails :
   ∃ pc' reg' sreg' mem' sh',
     rtc erased_step ([Exec], error_handling_no_handler_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh'))
+      ([Instr Halted], (MkExecConf pc' reg' sreg' mem' sh'))
     ∧ mem' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
 Proof.
   pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
                 error_handling_no_handler_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_no_handler_state)
           with
-          | Some (Halted, (_, _, _, mem', _)) =>
+          | Some (Halted, (MkExecConf _ _ _ mem' _)) =>
               mem' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z)
           | _ => False
           end) as Hflag by (vm_compute; reflexivity).
-  destruct (machine_run_conf _ _) as [ [ [] [ [ [ [pc' reg'] sreg'] mem'] sh'] ] | ];
+  destruct (machine_run_conf _ _) as [ [ [] [pc' reg' sreg' mem' sh'] ] | ];
     try done.
   exists pc', reg', sreg', mem', sh'. split; [by apply Hrun | exact Hflag].
 Qed.

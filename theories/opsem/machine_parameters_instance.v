@@ -230,9 +230,11 @@ Qed.
     decodeWordType := decode_word_type;
     encodeWordType_correct := encode_word_type_correct
   |};
-  encodeAllocStatus := encode_alloc_status;
-  decodeAllocStatus := decode_alloc_status;
-  decode_encode_alloc_status_inv := decode_encode_alloc_status;
+  alloc_status_encoding_mixin := {|
+    encodeAllocStatus := encode_alloc_status;
+    decodeAllocStatus := decode_alloc_status;
+    decode_encode_alloc_status_inv := decode_encode_alloc_status
+  |};
   heap_mixin := default_heap_region;
   shadow_mixin := default_shadow_region;
   heap_shadow_translation_mixin :=

@@ -54,8 +54,8 @@ Section griotte_lang_rules.
     { destruct src as [| r0]; eauto; cbn.
       destruct (Hri r0) as [? [? ?] ]; first set_solver+. eauto. }
     destruct (lword_of_argument_phys _ _ _ _ _ Hregs Hwsrc) as (s & Hsrc & Hrel).
-    assert (exec_opt (Mov dst src) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+    assert (exec_opt (Mov dst src) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+              nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) dst
                 (and_tag s wsrc.(lw)))) as HH.
     { cbn. by rewrite Hsrc. }
     rewrite HH in Hstep.

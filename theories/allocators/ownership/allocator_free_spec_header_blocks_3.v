@@ -140,7 +140,7 @@ Section AllocatorFreeHeaderBlocks3.
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr1)). }
     (* Sub ca3 ca3 (encodeAllocStatus ShadowQuarantined). *)
     iInstr "Hcode".
-    change (match MP with {| encodeAllocStatus := f |} => f end ShadowQuarantined)
+    change (match _ with {| encodeAllocStatus := f |} => f end ShadowQuarantined)
       with (encodeAllocStatus ShadowQuarantined).
     destruct (decide (s1 = ShadowQuarantined)) as [->|Hs1q]; last first.
     { assert (Hneq : WInt (encodeAllocStatus s1 - encodeAllocStatus ShadowQuarantined) ≠ WInt 0).
@@ -169,7 +169,7 @@ Section AllocatorFreeHeaderBlocks3.
     { split; first done. exact (proj2 (heap_to_shadow_bounds _ _ Htr2)). }
     (* Sub ca3 ca3 (encodeAllocStatus ShadowLive). *)
     iInstr "Hcode".
-    change (match MP with {| encodeAllocStatus := f |} => f end ShadowLive)
+    change (match _ with {| encodeAllocStatus := f |} => f end ShadowLive)
       with (encodeAllocStatus ShadowLive).
     destruct (decide (s2 = ShadowLive)) as [->|Hs2l]; last first.
     { assert (Hneq : WInt (encodeAllocStatus s2 - encodeAllocStatus ShadowLive) ≠ WInt 0).

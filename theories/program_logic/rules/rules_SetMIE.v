@@ -103,14 +103,14 @@ Section griotte_lang_rules.
                   ltac:(apply reg_phys_lword_of_word)).
     rewrite -ls_join_set_mstatus in Her1.
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
-    rewrite /nextPC /advancePC /= in Hu. rewrite /update_sreg /update_pcc /nextPC /advancePC /= in Hstep.
+    rewrite /nextPC /advancePC /update_pcc /= in Hu. rewrite /update_sreg /update_pcc /nextPC /advancePC /= in Hstep.
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; last done. simplify_eq.
     cbn [reg sreg mem pcc shadowtbl fst snd].
     iMod (sys_interp_set_mie _ _ mie with "Hsr Hmie") as "[Hsr Hmie]".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
-    iMod (Htr _ (Cap pc_p pc_g pc_b pc_e pc_a', r,
-                 <[mstatus := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr, m, st)
+    iMod (Htr _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a') r
+                 (<[mstatus := WInt (mstatus_enc mie (ls_mpie lsreg))]> psr) m st)
            with "[$HSI $Hlink $HT]") as "(HSI & Hlink & HT)".
     { split_and!.
       - by rewrite Hmie_st.

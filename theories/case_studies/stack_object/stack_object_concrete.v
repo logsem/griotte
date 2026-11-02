@@ -85,14 +85,13 @@ Qed.
     [so_demo_state] runs to [Halted], and [so_adequacy] applies to it:
     the flag of the assert library is still zero. *)
 Theorem so_runs_and_gracefully_halts :
-  ∃ pc' reg' sreg' mem' sh',
-    rtc erased_step ([Exec], so_demo_state)
-      ([Instr Halted], (pc', reg', sreg', mem', sh'))
-    ∧ mem' !! flag_assert (img_asrt so_demo_image) = Some (WInt 0%Z).
+  ∃ σ',
+    rtc erased_step ([Exec], so_demo_state) ([Instr Halted], σ')
+    ∧ mem σ' !! flag_assert (img_asrt so_demo_image) = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_correct (N.to_nat 7000%N) Executable so_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
-  destruct Hrun as [ [ [ [ [pc' reg'] sreg'] mem'] sh'] Hrun].
-  exists pc', reg', sreg', mem', sh'. split; first exact Hrun.
+  destruct Hrun as [σ' Hrun].
+  exists σ'. split; first exact Hrun.
   exact (so_adequacy _ _ _ _ so_demo_ok Hrun).
 Qed.

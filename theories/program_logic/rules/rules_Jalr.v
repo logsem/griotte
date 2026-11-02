@@ -158,7 +158,7 @@ Section griotte_lang_rules.
       rewrite -ls_join_set_mstatus in Her1.
       iMod (sys_interp_set_mie _ _ mie' with "Hsr Hmie") as "[Hsr Hmie]".
       iApply (instr_close_link_transfer _ _ _ _
-                (Cap pc_p pc_g pc_b pc_e pc_a, r, <[mstatus := WInt z]> sr, m, st)
+                (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r (<[mstatus := WInt z]> sr) m st)
                 with "Hlink HT"); [exact Htr | |].
       { intros Hk. eapply mie_move_kept; last exact Hk. split_and!.
         - done.
@@ -193,7 +193,7 @@ Section griotte_lang_rules.
           -- iLeft. rewrite Hjm. by iFrame.
     - assert (jalr_mie regs rsrc (ls_mie lsreg) = ls_mie lsreg) as Hjm.
       { rewrite /jalr_mstatus fmap_None in Hmie. by rewrite /jalr_mie H'rsrc Hmie. }
-      iApply (instr_close_link_transfer _ _ _ _ (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)
+      iApply (instr_close_link_transfer _ _ _ _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)
                 with "Hlink HT"); [exact Htr | |].
       { intros Hk. eapply mie_move_kept; last exact Hk.
         split_and!; [done | by rewrite Hjm | done]. }

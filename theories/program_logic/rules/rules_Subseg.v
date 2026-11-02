@@ -197,8 +197,8 @@ Section griotte_lang_rules.
           Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 lpc' (<[dst := w']ₗ> regs) NextIV) ∧
         (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
           Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV) ∧
-        (match nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst pw) with
-         | Some conf => conf | None => (Faulted, (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st)) end) = (c, σ'))
+        (match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) dst pw) with
+         | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st)) end) = (c, σ'))
       as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
     { destruct wd as [ | [t p g b e a | t p g b e a] | | ];
         try discriminate Hwsrc.
@@ -901,8 +901,8 @@ Section griotte_lang_rules.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hd) as (sd & Hdst' & Hreld).
     pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd1) as Hr1'.
     pose proof (llookup_reg_phys_int _ _ _ _ _ _ Hregs Hd2) as Hr2'.
-    assert (exec_opt (Subseg dst dst (inr r1) (inr r2)) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst
+    assert (exec_opt (Subseg dst dst (inr r1) (inr r2)) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+              nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) dst
                 (WCap sd p g b' e' a))) as HH.
     { rewrite /exec_opt /= Hdst' Hr1' Hr2' /=.
       rewrite Hn1 Hn2 Hwb Hle' /= !andb_true_r. done. }

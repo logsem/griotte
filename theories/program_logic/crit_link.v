@@ -59,7 +59,7 @@ Proof. rewrite /sys_kept /mie_st. by intros ->. Qed.
 
 (** A write to a system register other than MTDC and mstatus. *)
 Lemma sys_kept_insert_sreg (pc : Word) (r : Reg) (sr : SReg) m st x w :
-  x ≠ mtdc → x ≠ mstatus → sys_kept (pc, r, sr, m, st) (pc, r, <[x := w]> sr, m, st).
+  x ≠ mtdc → x ≠ mstatus → sys_kept (MkExecConf pc r sr m st) (MkExecConf pc r (<[x := w]> sr) m st).
 Proof. intros H1 H2. rewrite /sys_kept /mie_st /=. by rewrite !lookup_insert_ne. Qed.
 
 (** The link-transfer premise of a step that may change MIE or mtdc: [P]

@@ -172,8 +172,8 @@ Qed.
     isCorrectPC (WCap t p g b e a) →
     mem !! a = Some w →
     decodeInstrW w = instr →
-    step (Executable, (WCap t p g b e a, regs, sregs, mem, shadow)) (c, σ) →
-    exec instr p (WCap t p g b e a, regs, sregs, mem, shadow) = (c, σ).
+    step (Executable, (MkExecConf (WCap t p g b e a) regs sregs mem shadow)) (c, σ) →
+    exec instr p (MkExecConf (WCap t p g b e a) regs sregs mem shadow) = (c, σ).
   Proof.
     intros Hpc Hm Hinstr. inversion 1; cbn in *.
     1,2: congruence.
@@ -205,8 +205,9 @@ Qed.
     ∃ φ', (exec i p φ = (Faulted, φ') ) ∨ (exec i p φ = (NextI, φ')) ∨
           (exec i p φ = (Halted, φ')).
   Proof.
-    unfold exec, exec_opt, exec_jcond.
-    repeat case_match; simplify_eq; eauto;rename H0 into Heqo.
+    rewrite /exec. destruct (exec_opt i p φ) as [c|] eqn:Heqo; last eauto.
+    rewrite /exec_opt /exec_jcond in Heqo.
+    repeat case_match; simplify_eq; eauto.
     (* Create more goals through *_of_argument, now that some have been pruned *)
     all: repeat destruct (addr_of_argument (reg φ) _)
     ; repeat destruct (otype_of_argument (reg φ) _)
@@ -218,6 +219,8 @@ Qed.
     all: repeat destruct (sreg _ !! _); cbn in *; repeat case_match.
     all: repeat destruct (finz.incr _ _); cbn in *; repeat case_match.
     all: repeat destruct (mem _ !! _); cbn in *; repeat case_match.
+    all: repeat destruct (mmio_load _ _); cbn in *; repeat case_match.
+    all: repeat destruct (mmio_store _ _ _); cbn in *; repeat case_match.
     all: repeat destruct (shadow_to_heap _); cbn in *; repeat case_match.
     all: repeat destruct (shadowtbl _ !! _); cbn in *; repeat case_match.
     all: simplify_eq; try by exfalso.
@@ -334,7 +337,7 @@ Qed.
     sys_pc_ok φ → exec_opt i p φ = Some c → sys_pc_ok c.2.
   Proof.
     intros Hinv Hexec.
-    rewrite /exec_opt /exec_jcond in Hexec.
+    rewrite /exec_opt /exec_jcond /mmio_load /mmio_store in Hexec.
     destruct i; cbn in Hexec.
     all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
     (* Every instruction but Jalr and Mret writes the PC through [advancePC]. *)

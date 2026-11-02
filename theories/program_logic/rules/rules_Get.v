@@ -111,9 +111,9 @@ Section griotte_lang_rules.
   Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st (wsrc : Word) :
     is_Get i dst src →
     lookup_reg src r = Some wsrc →
-    exec_opt i p (pc, r, sr, m, st) =
+    exec_opt i p (MkExecConf pc r sr m st) =
       match denote i wsrc with
-      | Some z => nextPC (update_reg (pc, r, sr, m, st) dst (WInt z))
+      | Some z => nextPC (update_reg (MkExecConf pc r sr m st) dst (WInt z))
       | None => None
       end.
   Proof.

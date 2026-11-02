@@ -56,8 +56,8 @@ Section griotte_lang_rules.
     iNext; iIntros (r sr m st lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
-    assert (exec_opt (Auipcc dst imm) pc_p (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) =
-              nextPC (update_reg (Cap pc_p pc_g pc_b pc_e pc_a, r, sr, m, st) dst v.(lw)))
+    assert (exec_opt (Auipcc dst imm) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) =
+              nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st) dst v.(lw)))
       as HH.
     { rewrite /v /auipcc_word /exec_opt /pcc /=. by destruct (pc_a + imm)%a. }
     rewrite HH in Hstep.
