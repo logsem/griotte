@@ -10,6 +10,11 @@ Definition MCAUSE_STORE_ACCESS_FAULT : Z := 7.
     [MCAUSE_THREAD_EXIT], [sdk/include/priv/riscv.h]). *)
 Definition MCAUSE_THREAD_EXIT : Z := 24.
 Definition MCAUSE_CHERI : Z := 28.
+(** The interrupt bit of mcause (bit 31) and the interrupt codes, with the
+    names and values of CHERIoT's [sdk/include/priv/riscv.h]. *)
+Definition MCAUSE_INTR : Z := 2 ^ 31.
+Definition MCAUSE_MTIME : Z := 7.
+Definition MCAUSE_MEXTERN : Z := 11.
 
 (** The value that trap entry writes to mtval for a fault that has none
     (an illegal instruction: cheriot-sail's default, without the
