@@ -151,8 +151,12 @@ Section wp_interp.
     set (ea := a ^+ i).
     assert (ea ∈ₐ [b, e)) as Hbounds by (subst ea; solve_addr).
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst")
+      as %[ [Hmmio Hnexp] | (Hexp & _ & _ & _)]; [by eapply writeAllowed_nonO | done | |].
+    2: { iModIntro. iRight. iSplit; first done. iSplit; first done.
+         iFrame "Hworld_interp". iIntros "!> HD !>". iExact "HD". }
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
-      as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)"; [solve_addr | by rewrite Hwa |].
+      as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)"; [solve_addr | done | by rewrite Hwa |].
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
       [by eapply writeAllowed_nonO | done |].
     iDestruct (open_world_interp_cases W C None ea p' P p g with "Hrel Hworld_interp")
@@ -162,7 +166,7 @@ Section wp_interp.
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
     iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
-    iModIntro. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
+    iModIntro. iLeft. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
     iIntros "!> Ha Hdw".
     iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
@@ -196,8 +200,13 @@ Section wp_interp.
     set (ea := a ^+ i).
     assert (ea ∈ₐ [b, e)) as Hbounds by (subst ea; solve_addr).
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_src")
+      as %[ [Hmmio Hnexp] | (Hexp & _ & _ & _)]; [by eapply readAllowed_nonO | done | |].
+    2: { iModIntro. iRight. iSplit; first done. iSplit; first done.
+         iIntros "!>" (z) "!>". iFrame "Hworld_interp".
+         rewrite big_sepL_app /=. iFrame "Hls". iSplit; last done. iApply interp_int. }
     iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | done | auto |].
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
       [by eapply readAllowed_nonO | done |].
     iDestruct (open_world_interp_cases W C None ea p' P p g with "Hrel Hworld_interp")
@@ -207,7 +216,7 @@ Section wp_interp.
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iPoseProof load_witness_plain_intro as "Hwit".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
-    iModIntro. iExists v, (DfracOwn 1), LoadPlain, dw.
+    iModIntro. iLeft. iExists v, (DfracOwn 1), LoadPlain, dw.
     iFrame "Ha Hwit Hdw". iSplit; first done. iSplit; first done.
     iIntros "!>" (v' Hpost) "Ha _ Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
@@ -270,9 +279,13 @@ Section wp_interp.
     iIntros (Hwa Hb Hae) "#Hinterp_dst #Hws Hworld_interp".
     assert (withinBounds b e (a ^+ 0) = true) as Hwb0
       by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ (a ^+ 0) with "Hinterp_dst") as %Hmem_0;
+      [by apply writeAllowed_nonO | done |].
+    assert (is_exposed_mmio_address (a ^+ 0) = false) as Hnexp_0
+      by (destruct Hmem_0 as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
     iDestruct (write_allowed_inv _ _ (a ^+ 0) with "Hinterp_dst")
       as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hwcond0 & _)";
-      [solve_addr | by rewrite Hwa |].
+      [solve_addr | done | by rewrite Hwa |].
     assert (isO p0 = false) as HnO0.
     { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
     iDestruct (open_world_interp_cases W C (Some ι) (a ^+ 0) p0 P0 p g
@@ -305,6 +318,10 @@ Section wp_interp.
         by (apply withinBounds_true_iff; subst ea; solve_addr).
       iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
         [by apply writeAllowed_nonO | done |].
+      iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hmem_ea;
+        [by apply writeAllowed_nonO | done |].
+      assert (is_exposed_mmio_address ea = false) as Hnexp_ea
+        by (destruct Hmem_ea as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
       (* The store of [ws !!! i] into an open cell [k] of the world *)
       iAssert (∀ (k : LAddr) ρ (P : interpO Σ) v,
         ⌜k = addr_key (Some ι) ea⌝ -∗
@@ -331,13 +348,13 @@ Section wp_interp.
       destruct i as [|j].
       + iDestruct ("Hstore" $! k0 ρ0 P0 v0 with "[//] [//] Hwcond0 Hk")
           as (q) "(Ha & Hdw & Hclose)".
-        iModIntro. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
+        iModIntro. iLeft. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
         iIntros "!> Ha Hdw". iModIntro. iFrame "Hworld_open".
         iExists _. iApply ("Hclose" with "Ha Hdw").
       + iDestruct "Hk" as (vk) "[Hk Hck]".
         iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
           as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)";
-          [subst ea; solve_addr | by rewrite Hwa |].
+          [subst ea; solve_addr | done | by rewrite Hwa |].
         assert (addr_key (Some ι) ea ∉ [k0]) as Hnotin.
         { rewrite /k0 /ea !addr_key_Some list_elem_of_singleton.
           intros Heq. injection Heq as Heq. solve_addr. }
@@ -352,7 +369,7 @@ Section wp_interp.
         iDestruct ("Hstore" $! (addr_key (Some ι) ea) ρ P v
                     with "[//] [//] Hwcond Hki")
           as (q) "(Ha & Hdw & Hclose)".
-        iModIntro. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
+        iModIntro. iLeft. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
         iIntros "!> Ha Hdw".
         iDestruct ("Hclose" with "Ha Hdw") as "Hres".
         iDestruct ("Hcl" with "Hres") as "Hres".
@@ -389,9 +406,13 @@ Section wp_interp.
     iIntros (Hra Hb Hae) "#Hth #Hinterp_src Hworld_interp".
     assert (withinBounds b e (a ^+ 0) = true) as Hwb0
       by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ (a ^+ 0) with "Hinterp_src") as %Hmem_0;
+      [by apply readAllowed_nonO | done |].
+    assert (is_exposed_mmio_address (a ^+ 0) = false) as Hnexp_0
+      by (destruct Hmem_0 as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
     iDestruct (read_allowed_inv _ _ (a ^+ 0) with "Hth Hinterp_src")
       as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hrcond0 & _)";
-      [solve_addr | by rewrite Hra |].
+      [solve_addr | done | by rewrite Hra |].
     assert (isO p0 = false) as HnO0.
     { apply readAllowed_nonO. by eapply readAllowed_flowsto. }
     iDestruct (open_world_interp_cases W C (Some ι) (a ^+ 0) p0 P0 p g
@@ -421,6 +442,10 @@ Section wp_interp.
         by (apply withinBounds_true_iff; subst ea; solve_addr).
       iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hnot_shadow;
         [by apply readAllowed_nonO | done |].
+      iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_src") as %Hmem_ea;
+        [by apply readAllowed_nonO | done |].
+      assert (is_exposed_mmio_address ea = false) as Hnexp_ea
+        by (destruct Hmem_ea as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
       (* The load of an open cell [k] of the world *)
       iAssert (∀ (k : LAddr) ρ (P : interpO Σ) p' v,
         ⌜k = addr_key (Some ι) ea⌝ -∗
@@ -454,7 +479,7 @@ Section wp_interp.
       + iDestruct ("Hload" $! k0 ρ0 P0 p0 v0 with "[//] [//] [//] Hrcond0 Hφ0 Hk0")
           as (dw Hdw) "(Ha & Hdw & Hclose)".
         iPoseProof load_witness_plain_intro as "Hwit".
-        iModIntro. iExists v0, (DfracOwn 1), LoadPlain, dw.
+        iModIntro. iLeft. iExists v0, (DfracOwn 1), LoadPlain, dw.
         iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
         iIntros "!>" (v' Hpost) "Ha _ Hdw".
         iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hk0 #Hv']".
@@ -462,7 +487,7 @@ Section wp_interp.
         by iFrame "Hls Hv'".
       + iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
           as (p' P Hflows Hpers) "(#Hrel & _ & #Hrcond & _)";
-          [subst ea; solve_addr | by rewrite Hra |].
+          [subst ea; solve_addr | done | by rewrite Hra |].
         assert (addr_key (Some ι) ea ∉ [k0]) as Hnotin.
         { rewrite /k0 /ea !addr_key_Some list_elem_of_singleton.
           intros Heq. injection Heq as Heq. solve_addr. }
@@ -479,7 +504,7 @@ Section wp_interp.
                     with "[//] [//] [//] Hrcond Hφ Hki")
           as (dw Hdw) "(Ha & Hdw & Hclose)".
         iPoseProof load_witness_plain_intro as "Hwit".
-        iModIntro. iExists v, (DfracOwn 1), LoadPlain, dw.
+        iModIntro. iLeft. iExists v, (DfracOwn 1), LoadPlain, dw.
         iFrame "Ha Hdw Hwit". iSplit; first done. iSplit; first done.
         iIntros "!>" (v' Hpost) "Ha _ Hdw".
         iDestruct ("Hclose" with "[//] Ha Hdw") as "[Hki #Hv']".
@@ -652,9 +677,13 @@ Section wp_interp.
     iEval (rewrite -(open_perm_nil W)) in "Hg".
     assert (withinBounds b e (a ^+ 0) = true) as Hwb0
       by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ (a ^+ 0) with "Hinterp_dst") as %Hmem_0;
+      [by apply writeAllowed_nonO | done |].
+    assert (is_exposed_mmio_address (a ^+ 0) = false) as Hnexp_0
+      by (destruct Hmem_0 as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
     iDestruct (write_allowed_inv _ _ (a ^+ 0) with "Hinterp_dst")
       as (p0 P0 Hflows0 Hpers0) "(#Hrel0 & _ & #Hwcond0 & _)";
-      [solve_addr | by rewrite Hwa |].
+      [solve_addr | done | by rewrite Hwa |].
     assert (isO p0 = false) as HnO0.
     { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
     iMod (open_world_split_next_cases W C [] (Some ι) (a ^+ 0) p0 P0 p g
@@ -683,6 +712,10 @@ Section wp_interp.
         by (apply withinBounds_true_iff; subst ea; solve_addr).
       iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
         [by apply writeAllowed_nonO | done |].
+      iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hmem_ea;
+        [by apply writeAllowed_nonO | done |].
+      assert (is_exposed_mmio_address ea = false) as Hnexp_ea
+        by (destruct Hmem_ea as [ [_ Hn] | (_ & Hnone & _)]; [exact Hn | discriminate Hnone]).
       (* The store of [ws !!! i] into an open cell [k] of the world *)
       iAssert (∀ (k : LAddr) ρ (P : interpO Σ) v,
         ⌜k = addr_key (Some ι) ea⌝ -∗
@@ -709,13 +742,13 @@ Section wp_interp.
       destruct i as [|j].
       + iDestruct ("Hstore" $! k0 ρ0 P0 v0 with "[//] [//] Hwcond0 Hk")
           as (q) "(Ha & Hdw & Hclose)".
-        iModIntro. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
+        iModIntro. iLeft. iExists v0, q. iFrame "Ha Hdw". iSplit; first done.
         iIntros "!> Ha Hdw". iModIntro. iFrame "Hl Hg".
         iExists _. iApply ("Hclose" with "Ha Hdw").
       + iDestruct "Hk" as (vk) "[Hk Hck]".
         iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
           as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)";
-          [subst ea; solve_addr | by rewrite Hwa |].
+          [subst ea; solve_addr | done | by rewrite Hwa |].
         assert (isO p' = false) as HnO.
         { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
         assert (addr_key (Some ι) ea ∉ s0) as Hnotin.
@@ -732,7 +765,7 @@ Section wp_interp.
         iDestruct ("Hstore" $! (addr_key (Some ι) ea) ρ P v
                     with "[//] [//] Hwcond Hki")
           as (q) "(Ha & Hdw & Hclose)".
-        iModIntro. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
+        iModIntro. iLeft. iExists v, q. iFrame "Ha Hdw". iSplit; first done.
         iIntros "!> Ha Hdw".
         iDestruct ("Hclose" with "Ha Hdw") as "[Hki Hres]".
         iDestruct (pc_close_split with "Hl [Hg] Hpart Hki [Hres]") as "[Hl Hg]";
@@ -761,13 +794,17 @@ Section wp_interp.
   Proof.
     iIntros (Hwa Hb ->) "#Hinterp_dst #Hws".
     iIntros "!>" (i Hi Hie) "[Hl Hg]".
-    iEval (rewrite -(open_l_nil W)) in "Hl".
-    iEval (rewrite -(open_perm_nil W)) in "Hg".
     set (ea := a ^+ i).
     assert (ea ∈ₐ [b, e)) as Hbounds by (subst ea; solve_addr).
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst")
+      as %[ [Hmmio Hnexp] | (Hexp & _ & _ & _)]; [by eapply writeAllowed_nonO | done | |].
+    2: { iModIntro. iRight. iSplit; first done. iSplit; first done.
+         iFrame "Hl Hg". iIntros "!> HD !>". iExact "HD". }
+    iEval (rewrite -(open_l_nil W)) in "Hl".
+    iEval (rewrite -(open_perm_nil W)) in "Hg".
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
-      as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)"; [solve_addr | by rewrite Hwa |].
+      as (p' P Hflows Hpers) "(#Hrel & _ & #Hwcond & _)"; [solve_addr | done | by rewrite Hwa |].
     assert (isO p' = false) as HnO.
     { apply writeAllowed_nonO. by eapply writeAllowed_flowsto. }
     iDestruct (interp_cap_not_shadow _ _ _ _ _ _ _ ea with "Hinterp_dst") as %Hnot_shadow;
@@ -778,7 +815,7 @@ Section wp_interp.
     iDestruct (addr_key_pointsto with "Ha") as "[Ha Hshare]".
     iDestruct (key_share_deref with "Hshare") as (dw Hdw) "[Hdw Hshare]".
     iEval (rewrite deref_witness_res_deref_res -Hdw) in "Hdw".
-    iModIntro. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
+    iModIntro. iLeft. iExists v, (deref_share dw). iFrame "Ha Hdw". iSplit; first done.
     iIntros "!> Ha Hdw".
     iEval (rewrite Hdw -deref_witness_res_deref_res) in "Hdw".
     iDestruct ("Hshare" with "Hdw") as "Hshare".

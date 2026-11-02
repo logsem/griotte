@@ -176,7 +176,8 @@ Section monotone.
       iIntros "!>" (n x Hx) "Hx %Hheap".
       iApply heap_cap_O_key_mono_pub; [done|]. by iApply "Hx". }
     destruct (has_sreg_access p); first done.
-    iDestruct "Hw" as "[Hw [%Hlocal #Hok] ]".
+    iDestruct "Hw" as "[ [Hw [%Hlocal #Hok] ] | %Hexp]"; last by iRight.
+    iLeft.
     iFrame "Hok". iSplit; last (iPureIntro; naive_solver).
     iApply (big_sepL_mono with "Hw").
     iIntros (n y Hsome) "Hy".

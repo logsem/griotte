@@ -114,9 +114,48 @@ Section wp_interp.
       iApply "Hφ". iLeft. by iFrame.
     }
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst")
+      as %[ [Hmmio Hnexp] | (Hexp & -> & _ & _)]; [by eapply writeAllowed_nonO|done| |].
+    2: { (* An exposed device: the store succeeds on [mtimecmp] and changes no
+            resource, or faults. *)
+         rewrite /is_exposed_mmio_address in Hexp.
+         iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hne]".
+         iAssert (▷ ([∗ map] k↦y ∈ (∅ : LMem), k ↦ₐ y))%I as "Hmem".
+         { iNext. by rewrite big_sepM_empty. }
+         iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I as "Hshadow".
+         { iNext. by rewrite big_sepM_empty. }
+         iAssert ([∗ set] k ∈ (∅ : gset Addr), shadow_store_perm k)%I as "Hperms".
+         { by rewrite big_sepS_empty. }
+         iAssert (deref_witness_res DerefNoId) as "Hdw"; first done.
+         iApply (wp_store_shadow_imm_fetch _ pc_p pc_g pc_b pc_e pc_a None rdst (inr rsrc) imm wi ∅ _
+                   ∅ ∅ dq DerefNoId with "[$HPC $Hi $Hmem $Hshadow $Hperms $Hdw $Hmap]");
+           [done|done| | |].
+         { rewrite /regs_of /operands_of !dom_insert_L; set_solver+. }
+         { intros p0 g0 b0 e0 a0 ea0 storev0 (Hdst0 & Hadd0 & _) _.
+           destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst0) as (_ & π0 & Hdst0').
+           rewrite lookup_insert_ne // lookup_insert_eq in Hdst0'. injection Hdst0' as <- <- <- <- <- <-.
+           rewrite Hea in Hadd0. injection Hadd0 as <-.
+           by rewrite (time_device_not_shadow_address _ Hexp) Hexp. }
+         iNext. iIntros (lpc' mem' shadow' retv) "(%Hspec & HPC & Hi & _ & _ & _ & _ & Hmap)".
+         destruct Hspec as
+           [p0 g0 b0 e0 a0 ea0 storev0 oldv0 Harg0 Hallow0 Hshadow0 Hlookup0 _ _ _
+           |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0 Hlookup0 _ _ _
+           |p0 g0 b0 e0 a0 ea0 v0 Harg0 Hallow0 Htdev0 Hmtimecmp0 _ _ _ Hinc
+           |_ _ Hfail ->].
+         - exfalso. by rewrite lookup_empty in Hlookup0.
+         - exfalso. by rewrite lookup_empty in Hlookup0.
+         - apply incrementPC_Some_inv in Hinc
+             as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+           injection HPC as <- <- <- <- <- <- <-.
+           rewrite Hpca' in Hapc. injection Hapc as <-.
+           iDestruct (regs_of_map_2 with "Hmap") as "[Hsrc Hdst]"; first done.
+           iApply "Hφ"; iRight. iExists p, g, b, e, a, None, ea. iFrame "∗%".
+           iPureIntro. split; first done. solve_addr.
+         - iDestruct (regs_of_map_2 with "Hmap") as "[Hsrc Hdst]"; first done.
+           iApply "Hφ". iLeft. by iFrame. }
 
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hwcond & Hrcond)";[solve_addr|auto|..].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hwcond & Hrcond)";[solve_addr|done|auto|..].
     iDestruct (open_world_interp_cases W C π ea p' P p g with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
       [done|..].
@@ -277,9 +316,48 @@ Section wp_interp.
       iApply "Hφ". iLeft. by iFrame.
     }
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_dst")
+      as %[ [Hmmio Hnexp] | (Hexp & -> & _ & _)]; [by eapply writeAllowed_nonO|done| |].
+    2: { (* An exposed device: the store succeeds on [mtimecmp] and changes no
+            resource, or faults. *)
+         rewrite /is_exposed_mmio_address in Hexp.
+         iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
+         iAssert (▷ ([∗ map] k↦y ∈ (∅ : LMem), k ↦ₐ y))%I as "Hmem".
+         { iNext. by rewrite big_sepM_empty. }
+         iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I as "Hshadow".
+         { iNext. by rewrite big_sepM_empty. }
+         iAssert ([∗ set] k ∈ (∅ : gset Addr), shadow_store_perm k)%I as "Hperms".
+         { by rewrite big_sepS_empty. }
+         iAssert (deref_witness_res DerefNoId) as "Hdw"; first done.
+         iApply (wp_store_shadow_imm_fetch _ pc_p pc_g pc_b pc_e pc_a None rdst (inl z) imm wi ∅ _
+                   ∅ ∅ dq DerefNoId with "[$HPC $Hi $Hmem $Hshadow $Hperms $Hdw $Hmap]");
+           [done|done| | |].
+         { rewrite /regs_of /operands_of dom_insert_L; set_solver+. }
+         { intros p0 g0 b0 e0 a0 ea0 storev0 (Hdst0 & Hadd0 & _) _.
+           destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst0) as (_ & π0 & Hdst0').
+           rewrite lookup_insert_eq in Hdst0'. injection Hdst0' as <- <- <- <- <- <-.
+           rewrite Hea in Hadd0. injection Hadd0 as <-.
+           by rewrite (time_device_not_shadow_address _ Hexp) Hexp. }
+         iNext. iIntros (lpc' mem' shadow' retv) "(%Hspec & HPC & Hi & _ & _ & _ & _ & Hmap)".
+         destruct Hspec as
+           [p0 g0 b0 e0 a0 ea0 storev0 oldv0 Harg0 Hallow0 Hshadow0 Hlookup0 _ _ _
+           |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0 Hlookup0 _ _ _
+           |p0 g0 b0 e0 a0 ea0 v0 Harg0 Hallow0 Htdev0 Hmtimecmp0 _ _ _ Hinc
+           |_ _ Hfail ->].
+         - exfalso. by rewrite lookup_empty in Hlookup0.
+         - exfalso. by rewrite lookup_empty in Hlookup0.
+         - apply incrementPC_Some_inv in Hinc
+             as (tpc & ppc & gpc & bpc & epc & apc & apc'' & πpc & HPC & Hapc & ->).
+           injection HPC as <- <- <- <- <- <- <-.
+           rewrite Hpca' in Hapc. injection Hapc as <-.
+           iDestruct (regs_of_map_1 with "Hmap") as "Hdst".
+           iApply "Hφ"; iRight. iExists p, g, b, e, a, None, ea. iFrame "∗%".
+           iPureIntro. split; first done. solve_addr.
+         - iDestruct (regs_of_map_1 with "Hmap") as "Hdst".
+           iApply "Hφ". iLeft. by iFrame. }
 
     iDestruct (write_allowed_inv _ _ ea with "Hinterp_dst")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hwcond & Hrcond)";[solve_addr|auto|..].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hwcond & Hrcond)";[solve_addr|done|auto|..].
     iDestruct (open_world_interp_cases W C π ea p' P p g with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
       [done|..].
@@ -599,9 +677,32 @@ Section wp_interp.
       iApply "Hφ". iLeft. by iFrame.
     }
     assert (withinBounds b e ea = true) as Hwb by (apply withinBounds_true_iff; solve_addr).
-
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ ea with "Hinterp_src")
+      as %[ [Hmmio Hnexp] | (Hexp & -> & _ & _)]; [by eapply readAllowed_nonO|done| |].
+    2: { (* An exposed device: the load gives an integer. *)
+         rewrite /is_exposed_mmio_address in Hexp.
+         iDestruct (map_of_regs_2 with "Hsrc Hdst") as "[Hmap %Hsrc_dst]".
+         iDestruct (memMap_resource_1_dq with "Hi") as "Hmem".
+         iApply (wp_load_success_timedev_imm (th := th) (CL := CL th) E pc_p pc_g pc_b pc_e pc_a
+                   None rdst rsrc imm wi _ _ (DfracOwn 1) p g b e a ea
+                   with "[$HPC $Hmem $Hmap]").
+         { exact Hdecode_wi. }
+         { exact Hcorrect_pc. }
+         { rewrite /regs_of /operands_of !dom_insert_L; set_solver+. }
+         { by simplify_map_eq. }
+         { split_and!; [|done..].
+           rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
+         { intros v Hv. rewrite llookup_reg_not_cnull // in Hv. by simplify_map_eq. }
+         { exact Hexp. }
+         { by rewrite /incrementPC /incrementPC_gen Hpca'. }
+         iNext. iIntros (z) "(HPC & Hmem & Hmap)".
+         iDestruct (memMap_resource_1_dq with "Hmem") as "Hi".
+         rewrite linsert_reg_not_cnull // (insert_insert_ne _ rdst rsrc) // insert_insert_eq.
+         iDestruct (regs_of_map_2 with "Hmap") as "(Hsrc & Hdst)"; first done.
+         iApply "Hφ"; iRight. iExists p, g, b, e, a, None, ea, (lword_of_word (WInt z)).
+         iFrame "∗%". iSplit; first done. iSplit; first done. iApply interp_int. }
     iDestruct (read_allowed_inv _ _ ea with "Hth Hinterp_src")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)";[solve_addr|auto|..].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)";[solve_addr|done|auto|..].
     iDestruct (open_world_interp_cases W C π ea p' P p g with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
       [done|..].
@@ -631,14 +732,16 @@ Section wp_interp.
       rewrite Hea in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       destruct (is_revoker_address ea); first done.
+      destruct (is_time_device_address ea); first done.
       eexists. by simplify_map_eq. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & Hdw & Hmap)".
     iDestruct ("Hshare" with "Hdw") as "Hshare".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z0 Hallow Htdev Hl
                       |Hfail -> ->].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
@@ -735,8 +838,32 @@ Section wp_interp.
     apply withinBounds_true_iff in Hwb as Hbounds.
     pose proof (Hclosed p g b e a eq_refl Hwb) as Hnin_s. cbn in Hnin_s.
     (* Open the region of [a], as [wp_load_interp_imm] *)
+    iDestruct (interp_cap_mem_or_exposed_mmio _ _ _ _ _ _ _ a with "Hinterp_src")
+      as %[ [Hmmio Hnexp] | (Hexp & -> & _ & _)]; [by eapply readAllowed_nonO|done| |].
+    2: { (* An exposed device: the load gives an integer. *)
+         rewrite /is_exposed_mmio_address in Hexp.
+         iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
+         iDestruct (memMap_resource_1_dq with "Hi") as "Hmem".
+         iApply (wp_load_success_timedev (th := th) (CL := CL th) E pc_p pc_g pc_b pc_e pc_a
+                   None r r wi _ _ dq p g b e a
+                   with "[$HPC $Hmem $Hmap]").
+         { exact Hdecode. }
+         { exact Hcorrect_pc. }
+         { rewrite /regs_of /operands_of dom_insert_L; set_solver+. }
+         { by simplify_map_eq. }
+         { split_and!; [|done..].
+           rewrite llookup_reg_not_cnull //. by simplify_map_eq. }
+         { intros v Hv. rewrite llookup_reg_not_cnull // in Hv. by simplify_map_eq. }
+         { exact Hexp. }
+         { by rewrite /incrementPC /incrementPC_gen Hpca'. }
+         iNext. iIntros (z) "(HPC & Hmem & Hmap)".
+         iDestruct (memMap_resource_1_dq with "Hmem") as "Hi".
+         rewrite linsert_reg_not_cnull // insert_insert_eq.
+         iDestruct (regs_of_map_1 with "Hmap") as "Hsrc".
+         iApply "Hφ"; iRight. iExists (lword_of_word (WInt z)).
+         iFrame "∗%". iSplit; first done. iApply interp_int. }
     iDestruct (read_allowed_inv _ _ a with "Hth Hinterp_src")
-      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | auto |..].
+      as (p' P Hflows Hpers) "(#Hrel & Hzcond & #Hrcond & Hwcond)"; [solve_addr | done | auto |..].
     iDestruct (open_world_interp_next_cases W C s π a p' P p g
                 with "Hrel Hworld_interp")
       as "[(%ρ & %Hρwl & #Hpart & Hworld_interp & (%w & WorldRes)) | (%ι & -> & #Hq & Hworld_interp)]";
@@ -772,6 +899,7 @@ Section wp_interp.
       rewrite addr_add_0 in Haddr. injection Haddr as <-.
       rewrite Hnot_shadow.
       case_match; first done.
+      case_match; first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
@@ -779,8 +907,9 @@ Section wp_interp.
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z0 Hallow Htdev Hl
                       |Hfail -> ->].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;
@@ -907,14 +1036,16 @@ Section wp_interp.
       rewrite addr_add_0 in Haddr. injection Haddr as <-.
       rewrite Hshadow.
       destruct (is_revoker_address a); first done.
+      destruct (is_time_device_address a); first done.
       eexists. by simplify_map_eq. }
     { by rewrite !dom_insert_L. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hmem & _ & _ & _ & Hmap)".
     destruct Hspec as [p0 g0 b0 e0 ea0 loadv loadv' Hallow Hsh Hl Hpost Hinc ->
                       |p0 g0 b0 e0 ea0 heap_a revoked Hallow Hsh
                       |p0 g0 b0 e0 ea0 Hallow Hrev Hl
+                      |p0 g0 b0 e0 ea0 z0 Hallow Htdev Hl
                       |Hfail].
-    2,3: exfalso;
+    2,3,4: exfalso;
       destruct (reg_allows_load_offset_imm _ _ _ _ _ _ _ _ Hallow) as [a0 (Hsrc0 & Haddr & _)];
       destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hsrc0) as (_ & π0 & Hsrc0');
       rewrite lookup_insert_eq in Hsrc0'; injection Hsrc0' as <- <- <- <- <- <-;

@@ -199,29 +199,34 @@ Section logrel_threads.
            iIntros "!>" (k x _) "H %Hh". iDestruct ("H" with "[//]") as "[H|[] ]".
            by iLeft. }
       (* The other permissions, one goal each, with explicit arguments. *)
-      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+           iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm Orx permissions.W dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
       1: iDestruct "Hw" as "[]".
-      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+           iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm R Ow dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
-      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+           iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm R permissions.W dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
       1: iDestruct "Hw" as "[]".
-      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+           iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm X Ow dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
-      1: { iDestruct "Hw" as "(Hbody & Hmmio & Hok)". iFrame "Hmmio Hok".
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+           iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm X permissions.W dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
@@ -281,6 +286,7 @@ Section logrel_threads.
       alone. *)
   Lemma wg_holder_write (t : Thread) W C p (b e a a' : Addr) w :
     isWL p = false → writeAllowed p = true → (b ≤ a' ∧ a' < e)%Z →
+    is_exposed_mmio_address a' = false →
     isLocalWord w.(lw) = false →
     interp (th := t) W C (Cap p Global b e a) -∗
     interp (th := t) W C w -∗
@@ -288,10 +294,10 @@ Section logrel_threads.
     ▷ ∃ v, LNonHeap a' ↦ₖ v ∗
       (LNonHeap a' ↦ₖ w -∗ perm_region_map C ∅).
   Proof.
-    iIntros (Hwl Hwa Hin Hloc) "#Hcap #Hw Hg".
+    iIntros (Hwl Hwa Hin Hnexp Hloc) "#Hcap #Hw Hg".
     iDestruct (interp_cap_addr (th := t) W C p Global b e a a' None with "Hcap")
       as (p' P Hfl Hpers) "(Hrel & _ & _ & Hwcond)";
-      [by apply writeAllowed_nonO|done|].
+      [by apply writeAllowed_nonO|done|done|].
     rewrite (writeAllowed_flowsto _ _ Hfl Hwa) /region_rel Hwl /= /region_rel_perm.
     iDestruct (open_perm_region_map C ∅ (LNonHeap a') p' with "Hg Hrel") as "[Hg Hres]";
       first set_solver.
