@@ -9,6 +9,15 @@ Import uPred.
     [interp1] is over the family of the threads' relations, in a section
     without thread. The definitions are at the links of the threads'
     family [CL], with their routing laws [CR]. *)
+
+(** The causes with which the trap vector is entered: a fault's cause, or,
+    at the context-switch thread, the environment call's. *)
+Definition mcause_ok_at (th : Thread) (c : Z) : Prop :=
+  mcause_ok c ∨ (th = CtxSwitch ∧ c = MCAUSE_ECALL_MACHINE).
+
+Lemma mcause_ok_at_fault th c : mcause_ok c → mcause_ok_at th c.
+Proof. by left. Qed.
+
 Section logrel_pre.
 
   Context
@@ -239,7 +248,7 @@ Section logrel_pre.
       MIE ↦ₜ[th] InterruptDisabled -∗
       (∃ (b : InterruptStatus) (c v : Z),
          ⌜route_pre th b⌝ ∗
-         ⌜mcause_ok c⌝ ∗
+         ⌜mcause_ok_at th c⌝ ∗
          posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
            (Some (lword_of_word (WInt c))) (Some v)) -∗
       registers_pointsto regs -∗
@@ -293,13 +302,14 @@ Section logrel_pre.
     MIE ↦ₜ[th] InterruptDisabled ∗
     ∃ (b' : InterruptStatus) (c v : Z),
       ⌜route_pre th b'⌝ ∗
-      ⌜mcause_ok c⌝ ∗
+      ⌜mcause_ok_at th c⌝ ∗
       posture_res_gen (th := th) (Some b') (Some (lmepcc_of_pc w))
         (Some (lword_of_word (WInt c))) (Some v).
   Proof.
     iIntros (Hpre) "Hout Hpart".
     iDestruct (trap_entry_out_handover with "Hout") as "($ & (%c & %v & %Hc & _ & Hh) & Hpart')".
-    iExists b, c, v. iSplit; first done. iSplit; first done.
+    iExists b, c, v. iSplit; first done.
+    iSplit; first (iPureIntro; by apply mcause_ok_at_fault).
     iApply (posture_res_gen_intro with "Hh"). destruct b; [iExact "Hpart'" | iExact "Hpart"].
   Qed.
 

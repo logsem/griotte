@@ -389,7 +389,7 @@ Section logrel_trap.
     MIE ↦ₜ[th] InterruptDisabled -∗
     (∃ (b : InterruptStatus) (c v : Z),
        ⌜route_pre th b⌝ ∗
-       ⌜mcause_ok c⌝ ∗
+       ⌜mcause_ok_at th c⌝ ∗
        posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
          (Some (lword_of_word (WInt c))) (Some v)) -∗
     (PC ↦ₚ[th] wvec -∗ safe[th]).
