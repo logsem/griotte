@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Import named_props_extra.
 From griotte Require Import region_keys resources heap_region.
-From griotte Require Export stdpp_extra griotte_lang sts_ghost region_keys rmap.
+From griotte Require Export stdpp_extra sts_ghost region_keys rmap.
 From griotte Require Export world_std_sts world_std_revocation.
 
 (** * Owned region maps

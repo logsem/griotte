@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode environments spec_patterns.
 From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
-From griotte Require Export iris_extra stdpp_extra griotte_lang.
+From griotte Require Export iris_extra stdpp_extra.
 From griotte Require Export machine_base state_interp posture register_file machine_instructions.
 From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
@@ -13,8 +13,8 @@ Import core_link.
 Ltac inv_base_step :=
   repeat match goal with
          | _ => progress simplify_map_eq/= (* simplify memory stuff *)
-         | H : to_val _ = Some _ |- _ => apply of_to_val in H
-         | H : _ = of_val ?v |- _ =>
+         | H : griotte_lang.to_val _ = Some _ |- _ => apply griotte_lang.of_to_val in H
+         | H : _ = griotte_lang.of_val ?v |- _ =>
            is_var v; destruct v; first[discriminate H|injection H as H]
          | H : griotte_lang.prim_step ?e _ _ _ _ _ |- _ =>
            try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable *)
@@ -198,12 +198,13 @@ Section griotte_lang_rules.
     (sys_kept σ1 σ' → P σ0 σ') →
     crit_link σ0 -∗ T1 -∗
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
-          from_option (λ v, T2 -∗ Ψ v) False (to_val (Instr c))) -∗
-    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗ from_option Ψ False (to_val (Instr c)).
+          from_option (λ v, T2 -∗ Ψ v) False (griotte_lang.to_val (griotte_lang.Instr c))) -∗
+    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗
+         from_option Ψ False (griotte_lang.to_val (griotte_lang.Instr c)).
   Proof.
     iIntros (Htr HP) "Hlink HT >(%Hk & HSI & HΨ)".
     iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
-    destruct (to_val (Instr c)); cbn; [by iApply "HΨ" | done].
+    destruct (griotte_lang.to_val (griotte_lang.Instr c)); cbn; [by iApply "HΨ" | done].
   Qed.
 
   (** A closing that keeps MIE and mtdc from a state that keeps them. *)
@@ -345,9 +346,10 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
+    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ griotte_lang.FaultedV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (MkExecConf pc r sr m st td)⌝ ∗
-    cerise_state_interp (MkExecConf pc r sr m st td) ∗ from_option Φ False (to_val (Instr Faulted)).
+    cerise_state_interp (MkExecConf pc r sr m st td) ∗
+    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr Faulted)).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -364,8 +366,8 @@ Section instruction_closing.
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     (match advancePC (MkExecConf pc r sr m st td) n with
      | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
-    (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
-    (incrementPC_gen lpc n = None → P lpc FaultedV) →
+    (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' griotte_lang.NextIV) →
+    (incrementPC_gen lpc n = None → P lpc griotte_lang.FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -374,7 +376,7 @@ Section instruction_closing.
     (∀ lpc' retv, ⌜P lpc' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ retv) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
-    cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
+    cerise_state_interp σ' ∗ from_option Φ False (griotte_lang.to_val (griotte_lang.Instr c)).
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
@@ -418,8 +420,8 @@ Section instruction_closing.
     (match nextPC (update_reg (MkExecConf pc r sr m st td) dst w) with
      | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
     reg_phys R v w →
-    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
-    (incrementPC lpc = None → P lpc regs FaultedV) →
+    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) griotte_lang.NextIV) →
+    (incrementPC lpc = None → P lpc regs griotte_lang.FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -428,7 +430,7 @@ Section instruction_closing.
     (∀ lpc' regs' retv, ⌜P lpc' regs' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
-    cerise_state_interp σ' ∗ from_option Φ False (to_val (Instr c)).
+    cerise_state_interp σ' ∗ from_option Φ False (griotte_lang.to_val (griotte_lang.Instr c)).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
@@ -465,10 +467,10 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ griotte_lang.NextIV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w)⌝ ∗
     cerise_state_interp (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w) ∗
-    from_option Φ False (to_val (Instr NextI)).
+    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr NextI)).
   Proof.
     iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
       "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -495,10 +497,10 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ griotte_lang.NextIV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (update_pcc (MkExecConf pc r sr m st td) pc')⌝ ∗
     cerise_state_interp (update_pcc (MkExecConf pc r sr m st td) pc') ∗
-    from_option Φ False (to_val (Instr NextI)).
+    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr NextI)).
   Proof.
     iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.

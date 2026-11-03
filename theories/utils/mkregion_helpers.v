@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From iris.program_logic Require Import adequacy.
 From Stdlib Require Import Eqdep_dec.
-From griotte Require Import stdpp_extra iris_extra griotte_lang
+From griotte Require Import stdpp_extra iris_extra
      memory_region rules_base rules.
 From griotte Require Import disjoint_regions_tactics.
 

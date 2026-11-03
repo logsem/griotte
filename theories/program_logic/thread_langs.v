@@ -6,7 +6,7 @@
 
     - [kind]: [UserK] for a user thread, [CtxK] for the context-switch
       thread; [kind_of] on [Thread].
-    - [texpr k], [tval k]: [griotte_lang]'s expressions and values, plus
+    - [expr k], [tval k]: [griotte_lang]'s expressions and values, plus
       the switch values [TSwV s] ([YieldV], [ExitV], [ResumedV]). The kind
       is a phantom index: it makes [tlang k] a distinct canonical language
       per kind.
@@ -22,13 +22,13 @@
       interrupts enabled.
     - [tlang k]: an ectxi language over [step], with the [Seq] context of
       [griotte_lang] and one more base step, the collapse
-      [TSeq (TInstr (TSw s))] to [TInstr (TSw s)].
+      [Seq (Instr (TSw s))] to [Instr (TSw s)].
     - [hw_of], [wellshaped]; simulation (a) ([sim_a]), (b) ([sim_b],
       [sim_b_hw]); [wellshaped_step]; thread determinism
       ([tlang_base_determ]); a user thread never gets stuck
       ([user_reducible]); the context-switch thread is stuck exactly at the
       device ([ctx_reducible_iff]); interrupts and ticks find a thread at
-      [TExec] or a switch value ([async_at_thread]).
+      [Exec] or a switch value ([async_at_thread]).
 
     Sources. The switch instructions follow CHERIoT's switcher ([entry.S]):
     the exit marker is its [csrw mcause, MCAUSE_THREAD_EXIT], an immediate
@@ -63,56 +63,57 @@ Proof. solve_decision. Defined.
 
 (** The flag of a thread expression: a configuration flag, or a switch. *)
 Inductive tflag := TF (c : ConfFlag) | TSw (s : sw).
+Coercion TF : ConfFlag >-> tflag.
 
 #[global] Instance ConfFlag_eq_dec : EqDecision ConfFlag.
 Proof. solve_decision. Defined.
 #[global] Instance tflag_eq_dec : EqDecision tflag.
 Proof. solve_decision. Defined.
 
-Inductive texpr (k : kind) :=
-| TInstr (f : tflag)
-| TSeq (e : texpr k).
-Arguments TInstr {k} f.
-Arguments TSeq {k} e.
+Inductive expr (k : kind) :=
+| Instr (f : tflag)
+| Seq (e : expr k).
+Arguments Instr {k} f.
+Arguments Seq {k} e.
 
 Inductive tval (k : kind) :=
-| THaltedV
-| TFaultedV
-| TNextIV
+| HaltedV
+| FaultedV
+| NextIV
 | TSwV (s : sw).
-Arguments THaltedV {k}.
-Arguments TFaultedV {k}.
-Arguments TNextIV {k}.
+Arguments HaltedV {k}.
+Arguments FaultedV {k}.
+Arguments NextIV {k}.
 Arguments TSwV {k} s.
 
 Notation YieldV := (TSwV YieldS).
 Notation ExitV := (TSwV ExitS).
 Notation ResumedV := (TSwV ResumedS).
 
-(** The program of a thread, as [Exec] for [griotte_lang]. *)
-Notation TExec := (TSeq (TInstr (TF Executable))).
+(** The program of a thread, as [griotte_lang.Exec]. *)
+Notation Exec := (Seq (Instr (TF Executable))).
 
-Definition tof_val {k} (v : tval k) : texpr k :=
+Definition of_val {k} (v : tval k) : expr k :=
   match v with
-  | THaltedV => TInstr (TF Halted)
-  | TFaultedV => TInstr (TF Faulted)
-  | TNextIV => TInstr (TF NextI)
-  | TSwV s => TInstr (TSw s)
+  | HaltedV => Instr (TF Halted)
+  | FaultedV => Instr (TF Faulted)
+  | NextIV => Instr (TF NextI)
+  | TSwV s => Instr (TSw s)
   end.
 
-Definition tto_val {k} (e : texpr k) : option (tval k) :=
+Definition to_val {k} (e : expr k) : option (tval k) :=
   match e with
-  | TInstr (TF Halted) => Some THaltedV
-  | TInstr (TF Faulted) => Some TFaultedV
-  | TInstr (TF NextI) => Some TNextIV
-  | TInstr (TSw s) => Some (TSwV s)
+  | Instr (TF Halted) => Some HaltedV
+  | Instr (TF Faulted) => Some FaultedV
+  | Instr (TF NextI) => Some NextIV
+  | Instr (TSw s) => Some (TSwV s)
   | _ => None
   end.
 
-Lemma tto_of_val {k} (v : tval k) : tto_val (tof_val v) = Some v.
+Lemma tto_of_val {k} (v : tval k) : to_val (of_val v) = Some v.
 Proof. by destruct v. Qed.
 
-Lemma tof_to_val {k} (e : texpr k) v : tto_val e = Some v → tof_val v = e.
+Lemma tof_to_val {k} (e : expr k) v : to_val e = Some v → of_val v = e.
 Proof. destruct e as [ [ []|s]|e]; intros Hv; simplify_eq/=; done. Qed.
 
 (** * Switch instructions *)
@@ -138,11 +139,11 @@ Definition is_switch_instr (k : kind) (i : instr) : Prop := is_Some (sw_of k i).
 Proof. rewrite /is_switch_instr. apply _. Defined.
 
 (** The evaluation context of a thread: the [Seq] of the program. *)
-Inductive tectx_item (k : kind) := TSeqCtx.
-Arguments TSeqCtx {k}.
+Inductive tectx_item (k : kind) := SeqCtx.
+Arguments SeqCtx {k}.
 
-Definition tfill_item {k} (Ki : tectx_item k) (e : texpr k) : texpr k :=
-  match Ki with TSeqCtx => TSeq e end.
+Definition tfill_item {k} (Ki : tectx_item k) (e : expr k) : expr k :=
+  match Ki with SeqCtx => Seq e end.
 
 Section thread_langs.
   Context `{MachineParameters}.
@@ -183,48 +184,48 @@ Section thread_langs.
   (** * The thread languages *)
 
   Inductive tbase (k : kind) :
-      texpr k → ExecConf → list Empty_set → texpr k → ExecConf → list (texpr k) → Prop :=
+      expr k → ExecConf → list Empty_set → expr k → ExecConf → list (expr k) → Prop :=
   | TS_instr σ c σ' :
       step (Executable, σ) (c, σ') →
       ¬ blocked k σ σ' →
-      tbase k (TInstr (TF Executable)) σ [] (TInstr (tres k σ c)) σ' []
+      tbase k (Instr (TF Executable)) σ [] (Instr (tres k σ c)) σ' []
   | TS_seq σ :
-      tbase k (TSeq (TInstr (TF NextI))) σ [] (TSeq (TInstr (TF Executable))) σ []
+      tbase k (Seq (Instr (TF NextI))) σ [] (Seq (Instr (TF Executable))) σ []
   | TS_halt σ :
-      tbase k (TSeq (TInstr (TF Halted))) σ [] (TInstr (TF Halted)) σ []
+      tbase k (Seq (Instr (TF Halted))) σ [] (Instr (TF Halted)) σ []
   | TS_trap σ :
       trap_halts σ = false →
-      tbase k (TSeq (TInstr (TF Faulted))) σ []
-        (TSeq (TInstr (TF Executable))) (enter_exc (trap_cause σ, trap_tval σ) σ) []
+      tbase k (Seq (Instr (TF Faulted))) σ []
+        (Seq (Instr (TF Executable))) (enter_exc (trap_cause σ, trap_tval σ) σ) []
   | TS_trap_halt σ :
       trap_halts σ = true →
-      tbase k (TSeq (TInstr (TF Faulted))) σ [] (TInstr (TF Faulted)) σ []
+      tbase k (Seq (Instr (TF Faulted))) σ [] (Instr (TF Faulted)) σ []
   (* The collapse of a switch: the switch value reaches the top level. *)
   | TS_switch σ s :
-      tbase k (TSeq (TInstr (TSw s))) σ [] (TInstr (TSw s)) σ [].
+      tbase k (Seq (Instr (TSw s))) σ [] (Instr (TSw s)) σ [].
 
   Lemma tval_stuck k e σ κ e' σ' efs :
-    tbase k e σ κ e' σ' efs → tto_val e = None.
+    tbase k e σ κ e' σ' efs → to_val e = None.
   Proof. intros Hb. by inversion Hb. Qed.
 
   Lemma tfill_item_val k (Ki : tectx_item k) e :
-    is_Some (tto_val (tfill_item Ki e)) → is_Some (tto_val e).
+    is_Some (to_val (tfill_item Ki e)) → is_Some (to_val e).
   Proof. intros [v ?]. destruct Ki; simplify_option_eq; eauto. Qed.
 
   #[local] Instance tfill_item_inj k (Ki : tectx_item k) : Inj (=) (=) (tfill_item Ki).
   Proof. destruct Ki; intros ???; simplify_eq; auto with f_equal. Qed.
 
   Lemma tbase_ctx_step_val k (Ki : tectx_item k) e σ1 κ e2 σ2 efs :
-    tbase k (tfill_item Ki e) σ1 κ e2 σ2 efs → is_Some (tto_val e).
+    tbase k (tfill_item Ki e) σ1 κ e2 σ2 efs → is_Some (to_val e).
   Proof. destruct Ki; inversion_clear 1; simplify_option_eq; eauto. Qed.
 
   Lemma tfill_item_no_val_inj k (Ki1 Ki2 : tectx_item k) e1 e2 :
-    tto_val e1 = None → tto_val e2 = None →
+    to_val e1 = None → to_val e2 = None →
     tfill_item Ki1 e1 = tfill_item Ki2 e2 → Ki1 = Ki2.
   Proof. intros. by destruct Ki1, Ki2. Qed.
 
   Lemma tlang_mixin k :
-    EctxiLanguageMixin (@tof_val k) (@tto_val k) (@tfill_item k) (tbase k).
+    EctxiLanguageMixin (@of_val k) (@to_val k) (@tfill_item k) (tbase k).
   Proof.
     constructor;
       apply _ || eauto using tto_of_val, tof_to_val, tval_stuck,
@@ -252,14 +253,14 @@ Section thread_lang_pure.
       |intros ????? Hbase; inversion Hbase; done].
 
   #[global] Instance tpure_seq_done k :
-    PureExec True 1 (TSeq (TInstr (TF NextI)) : texpr k) TExec.
+    PureExec True 1 (Seq (Instr (TF NextI)) : expr k) Exec.
   Proof. solve_exec_pure k. Qed.
   #[global] Instance tpure_seq_halted k :
-    PureExec True 1 (TSeq (TInstr (TF Halted)) : texpr k) (TInstr (TF Halted)).
+    PureExec True 1 (Seq (Instr (TF Halted)) : expr k) (Instr (TF Halted)).
   Proof. solve_exec_pure k. Qed.
   (** The collapse of a switch. *)
   #[global] Instance tpure_seq_switch k s :
-    PureExec True 1 (TSeq (TInstr (TSw s)) : texpr k) (TInstr (TSw s)).
+    PureExec True 1 (Seq (Instr (TSw s)) : expr k) (Instr (TSw s)).
   Proof. solve_exec_pure k. Qed.
 End thread_lang_pure.
 
@@ -297,7 +298,7 @@ Section thread_lang_props.
 
   (** The context-switch thread enables interrupts only by [Mret]. *)
   Lemma ctx_instr_irq_enabled σ κ e' σ' efs :
-    tbase CtxK (TInstr (TF Executable)) σ κ e' σ' efs →
+    tbase CtxK (Instr (TF Executable)) σ κ e' σ' efs →
     irq_enabled σ' → decoded_instr σ = Some Mret.
   Proof.
     intros Hb Hen. inversion Hb; subst.
@@ -325,12 +326,12 @@ Section thread_lang_props.
     - congruence.
   Qed.
 
-  Lemma tprim_step_nil k (e : texpr k) σ κ e' σ' efs :
+  Lemma tprim_step_nil k (e : expr k) σ κ e' σ' efs :
     @language.prim_step (tlang k) e σ κ e' σ' efs → κ = [] ∧ efs = [].
   Proof. intros Hs. destruct Hs as [K e1 e2 _ _ Hb]. by inversion Hb. Qed.
 
-  Lemma tprim_val_stuck k (e : texpr k) σ κ e' σ' efs :
-    @language.prim_step (tlang k) e σ κ e' σ' efs → tto_val e = None.
+  Lemma tprim_val_stuck k (e : expr k) σ κ e' σ' efs :
+    @language.prim_step (tlang k) e σ κ e' σ' efs → to_val e = None.
   Proof.
     intros Hs. change (@language.to_val (tlang k) e = None).
     by eapply language.val_stuck.
@@ -339,36 +340,36 @@ Section thread_lang_props.
   (** * The hardware image of a thread expression *)
 
   (** Inside the program, a switch expression is the hardware's
-      [Instr NextI]. *)
-  Fixpoint hw_in {k} (e : texpr k) : expr :=
+      [griotte_lang.Instr NextI]. *)
+  Fixpoint hw_in {k} (e : expr k) : griotte_lang.expr :=
     match e with
-    | TInstr (TF c) => Instr c
-    | TInstr (TSw _) => Instr NextI
-    | TSeq e => Seq (hw_in e)
+    | Instr (TF c) => griotte_lang.Instr c
+    | Instr (TSw _) => griotte_lang.Instr NextI
+    | Seq e => griotte_lang.Seq (hw_in e)
     end.
 
   (** On whole programs: a switch value at the top level is the hardware's
-      [Exec], the state where the next instruction (or an interrupt)
-      happens. *)
-  Definition hw_of {k} (e : texpr k) : expr :=
+      [griotte_lang.Exec], the state where the next instruction (or an
+      interrupt) happens. *)
+  Definition hw_of {k} (e : expr k) : griotte_lang.expr :=
     match e with
-    | TInstr (TSw _) => Exec
+    | Instr (TSw _) => griotte_lang.Exec
     | _ => hw_in e
     end.
 
-  (** Well-shaped: a whole program [TSeq (TInstr f)], or a value. *)
-  Definition wellshaped {k} (e : texpr k) : Prop :=
-    (∃ f, e = TSeq (TInstr f)) ∨ is_Some (tto_val e).
+  (** Well-shaped: a whole program [Seq (Instr f)], or a value. *)
+  Definition wellshaped {k} (e : expr k) : Prop :=
+    (∃ f, e = Seq (Instr f)) ∨ is_Some (to_val e).
 
-  Lemma hw_of_switch {k} s : hw_of (TInstr (TSw s) : texpr k) = Exec.
+  Lemma hw_of_switch {k} s : hw_of (Instr (TSw s) : expr k) = griotte_lang.Exec.
   Proof. done. Qed.
 
-  Lemma hw_in_tres k σ c : hw_in (TInstr (tres k σ c) : texpr k) = Instr c.
+  Lemma hw_in_tres k σ c : hw_in (Instr (tres k σ c) : expr k) = griotte_lang.Instr c.
   Proof. rewrite /tres. by destruct c, (decoded_instr σ ≫= sw_of k). Qed.
 
-  Lemma tfill_seq_instr {k} (K : list (tectx_item k)) (e : texpr k) f :
-    @ectxi_language.fill (tlang_ectxi k) K e = TSeq (TInstr f) →
-    K = [] ∨ (K = [TSeqCtx] ∧ e = TInstr f).
+  Lemma tfill_seq_instr {k} (K : list (tectx_item k)) (e : expr k) f :
+    @ectxi_language.fill (tlang_ectxi k) K e = Seq (Instr f) →
+    K = [] ∨ (K = [SeqCtx] ∧ e = Instr f).
   Proof.
     induction K as [|Ki K _] using rev_ind; [by left|].
     rewrite fill_app /=. destruct Ki. intros [= He]. right.
@@ -379,15 +380,15 @@ Section thread_lang_props.
   (** The instruction step under the program's [Seq]. *)
   Lemma sim_instr k σ c σ' :
     step (Executable, σ) (c, σ') →
-    hw_core (hw_of (TSeq (TInstr (TF Executable)) : texpr k)) σ
-            (hw_of (TSeq (TInstr (tres k σ c)) : texpr k)) σ'.
+    hw_core (hw_of (Seq (Instr (TF Executable)) : expr k)) σ
+            (hw_of (Seq (Instr (tres k σ c)) : expr k)) σ'.
   Proof.
     intros Hs. rewrite /tres.
     destruct c, (decoded_instr σ ≫= sw_of k); apply HC_seq, HC_base; by constructor.
   Qed.
 
   (** Well-shapedness is preserved. *)
-  Lemma wellshaped_step k (e : texpr k) σ κ e' σ' efs :
+  Lemma wellshaped_step k (e : expr k) σ κ e' σ' efs :
     wellshaped e → @language.prim_step (tlang k) e σ κ e' σ' efs → wellshaped e'.
   Proof.
     rewrite /wellshaped. intros [ [f ->]|[v Hv] ] Hs; last first.
@@ -402,7 +403,7 @@ Section thread_lang_props.
 
   (** Simulation (a): every step of a well-shaped thread expression is a
       hardware step, up to [hw_of]. *)
-  Lemma sim_a k (e : texpr k) σ κ e' σ' efs :
+  Lemma sim_a k (e : expr k) σ κ e' σ' efs :
     wellshaped e →
     @language.prim_step (tlang k) e σ κ e' σ' efs →
     hw_core (hw_of e) σ (hw_of e') σ'.
@@ -416,7 +417,7 @@ Section thread_lang_props.
       match goal with H : step _ _ |- _ => by apply sim_instr end.
   Qed.
 
-  Lemma sim_a_hw k (e : texpr k) σ κ e' σ' efs :
+  Lemma sim_a_hw k (e : expr k) σ κ e' σ' efs :
     wellshaped e →
     @language.prim_step (tlang k) e σ κ e' σ' efs →
     hw_prim_step (hw_of e) σ [] (hw_of e') σ' [].
@@ -425,7 +426,7 @@ Section thread_lang_props.
   (** Simulation (b): a hardware step from [hw_of e] that is neither an
       interrupt nor a tick is matched by a step of the thread, when the
       thread can step. *)
-  Lemma sim_b k (e : texpr k) σ h' σ' :
+  Lemma sim_b k (e : expr k) σ h' σ' :
     wellshaped e →
     @reducible (tlang k) e σ →
     hw_core (hw_of e) σ h' σ' →
@@ -437,11 +438,11 @@ Section thread_lang_props.
     by exists e1.
   Qed.
 
-  Lemma sim_b_hw k (e : texpr k) σ κ h' σ' efs :
+  Lemma sim_b_hw k (e : expr k) σ κ h' σ' efs :
     wellshaped e →
     @reducible (tlang k) e σ →
     hw_prim_step (hw_of e) σ κ h' σ' efs →
-    ¬ (hw_of e = Exec ∧ h' = Exec ∧ async_step σ σ') →
+    ¬ (hw_of e = griotte_lang.Exec ∧ h' = griotte_lang.Exec ∧ async_step σ σ') →
     ∃ e'', @language.prim_step (tlang k) e σ [] e'' σ' [] ∧ hw_of e'' = h'.
   Proof.
     intros Hw Hr Hh Hna.
@@ -453,32 +454,32 @@ Section thread_lang_props.
 
   (** A user thread steps from every well-shaped non-value: it has no
       device. *)
-  Lemma user_reducible σ (e : texpr UserK) :
-    wellshaped e → tto_val e = None → @reducible (tlang UserK) e σ.
+  Lemma user_reducible σ (e : expr UserK) :
+    wellshaped e → to_val e = None → @reducible (tlang UserK) e σ.
   Proof.
     intros [ [f ->]|[v Hv] ] Hnv; [|congruence].
     destruct f as [ [] | s].
     - destruct (normal_always_step σ) as (c & σ' & Hs).
-      exists [], (TSeq (TInstr (tres UserK σ c))), σ', [].
-      apply (fill_prim_step (Λ := tlang_ectx UserK) [TSeqCtx] (TInstr (TF Executable))).
+      exists [], (Seq (Instr (tres UserK σ c))), σ', [].
+      apply (fill_prim_step (Λ := tlang_ectx UserK) [SeqCtx] (Instr (TF Executable))).
       apply (base_prim_step (Λ := tlang_ectx UserK)).
       apply TS_instr; [done|apply user_not_blocked].
-    - exists [], (TInstr (TF Halted)), σ, [].
+    - exists [], (Instr (TF Halted)), σ, [].
       apply (base_prim_step (Λ := tlang_ectx UserK)). constructor.
     - destruct (trap_halts σ) eqn:Hth.
-      + exists [], (TInstr (TF Faulted)), σ, [].
+      + exists [], (Instr (TF Faulted)), σ, [].
         apply (base_prim_step (Λ := tlang_ectx UserK)). by constructor.
-      + exists [], TExec, (enter_exc (trap_cause σ, trap_tval σ) σ), [].
+      + exists [], Exec, (enter_exc (trap_cause σ, trap_tval σ) σ), [].
         apply (base_prim_step (Λ := tlang_ectx UserK)). by constructor.
-    - exists [], TExec, σ, [].
+    - exists [], Exec, σ, [].
       apply (base_prim_step (Λ := tlang_ectx UserK)). constructor.
-    - exists [], (TInstr (TSw s)), σ, [].
+    - exists [], (Instr (TSw s)), σ, [].
       apply (base_prim_step (Λ := tlang_ectx UserK)). constructor.
   Qed.
 
   (** The context-switch thread is stuck exactly at the device. *)
   Lemma ctx_reducible_iff σ :
-    @reducible (tlang CtxK) TExec σ ↔
+    @reducible (tlang CtxK) Exec σ ↔
     ∀ c σ', step (Executable, σ) (c, σ') → ¬ ctx_blocked σ σ'.
   Proof.
     split.
@@ -490,16 +491,17 @@ Section thread_lang_props.
         destruct (step_deterministic _ _ _ _ _ _ Hstep Hstep') as [-> ->].
         by apply Hnb.
     - intros Hnb. destruct (normal_always_step σ) as (c & σ' & Hs).
-      exists [], (TSeq (TInstr (tres CtxK σ c))), σ', [].
-      apply (fill_prim_step (Λ := tlang_ectx CtxK) [TSeqCtx] (TInstr (TF Executable))).
+      exists [], (Seq (Instr (tres CtxK σ c))), σ', [].
+      apply (fill_prim_step (Λ := tlang_ectx CtxK) [SeqCtx] (Instr (TF Executable))).
       apply (base_prim_step (Λ := tlang_ectx CtxK)).
       apply TS_instr; [done|]. exact (Hnb c σ' Hs).
   Qed.
 
-  (** Interrupts and ticks happen at [Exec] ([hw_async_only_exec]): for a
-      thread, at [TExec] or at a switch value. *)
-  Lemma async_at_thread {k} (e : texpr k) :
-    wellshaped e → hw_of e = Exec → e = TExec ∨ ∃ s, e = TInstr (TSw s).
+  (** Interrupts and ticks happen at the hardware's [Exec]
+      ([hw_async_only_exec]): for a thread, at [Exec] or at a switch
+      value. *)
+  Lemma async_at_thread {k} (e : expr k) :
+    wellshaped e → hw_of e = griotte_lang.Exec → e = Exec ∨ ∃ s, e = Instr (TSw s).
   Proof.
     intros [ [f ->]|[v Hv] ] Hh.
     - destruct f as [ [] | s]; simplify_eq/=. by left.

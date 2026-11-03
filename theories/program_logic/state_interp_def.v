@@ -1,7 +1,7 @@
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
-From griotte Require Import griotte_lang named_props_extra.
-From griotte Require Export resources crit_link.
+From griotte Require Import named_props_extra.
+From griotte Require Export resources crit_link thread_langs.
 
 (** The logical system registers of a step, in one argument: the shared
     heap [ls_sh] (without MTDC and mstatus), the ghost value [ls_mtdc] of

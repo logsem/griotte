@@ -6,7 +6,7 @@
       [True].
     - [memG_irisG_k]: the Iris instance of thread [th] over
       [tlang (kind_of th)], with [memG_irisG]'s state interpretation and
-      the device clause; the notation [WPT e @[th] {{ Φ }}].
+      the device clause; the notation [WP e @[th] {{ Φ }}].
     - [wp_instr_step_sw], [wp_instr_step_sw_link]: the instruction step of
       a thread. The device is discharged inside: a step it blocks
       contradicts what the continuation returns. The value is read through
@@ -45,34 +45,37 @@ Definition dev_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
 }.
 
 (** The WP of thread [th] in its thread language. *)
-Notation "'WPT' e '@[' th ] E {{ Φ } }" :=
+Notation "'WP' e '@[' th ] E {{ Φ } }" :=
   (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG_k (th := th) (ceriseg := ceriseG_of th)))
      NotStuck E e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
-   format "'[hv' 'WPT'  e  '/' '@[' th ]  E  '/' {{  Φ  } } ']'") : bi_scope.
-Notation "'WPT' e '@[' th ] {{ Φ } }" :=
+   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  Φ  } } ']'") : bi_scope.
+Notation "'WP' e '@[' th ] {{ Φ } }" :=
   (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG_k (th := th) (ceriseg := ceriseG_of th)))
      NotStuck ⊤ e%E Φ)
   (at level 20, th custom thread, e, Φ at level 200,
-   format "'[hv' 'WPT'  e  '/' '@[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
+   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
 
 (** The embedding of [griotte_lang]'s values. *)
 Definition tval_of_val {k} (v : griotte_lang.val) : tval k :=
-  match v with HaltedV => THaltedV | FaultedV => TFaultedV | NextIV => TNextIV end.
+  match v with
+  | griotte_lang.HaltedV => HaltedV | griotte_lang.FaultedV => FaultedV
+  | griotte_lang.NextIV => NextIV
+  end.
 
 (** The value of a step of instruction [i] at kind [k]: [NextIV] is the
     switch value when [i] is a switch instruction of [k]. *)
 Definition tval_sw {k} (k' : kind) (i : instr) (v : griotte_lang.val) : tval k :=
   match v with
-  | NextIV => if sw_of k' i is Some s then TSwV s else TNextIV
+  | griotte_lang.NextIV => if sw_of k' i is Some s then TSwV s else NextIV
   | _ => tval_of_val v
   end.
 
 Lemma tres_from_option `{MachineParameters} {PROP : bi} k σ (c : ConfFlag) i
     (Φ : tval k → PROP) :
   decoded_instr σ = Some i →
-  from_option Φ False%I (tto_val (TInstr (tres k σ c) : texpr k)) =
-  from_option (λ v, Φ (tval_sw k i v)) False%I (to_val (Instr c)).
+  from_option Φ False%I (to_val (Instr (tres k σ c) : expr k)) =
+  from_option (λ v, Φ (tval_sw k i v)) False%I (griotte_lang.to_val (griotte_lang.Instr c)).
 Proof.
   rewrite /tres. intros ->. cbn. rewrite /tval_sw.
   destruct c; cbn; [done..|]. by destruct (sw_of k i).
@@ -174,8 +177,8 @@ Section rules_t.
        ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) σ'⌝ ∗
        cerise_state_interp σ' ∗
        from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False
-         (to_val (Instr c)))
-    -∗ WP TInstr (TF Executable) @ E {{ Φ }}.
+         (griotte_lang.to_val (griotte_lang.Instr c)))
+    -∗ WP Instr (TF Executable) @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
@@ -254,8 +257,8 @@ Section rules_t.
        (cerise_state_interp σ' ∗ crit_link σ') ∗
        dev_post (kind_of th) (decodeInstrW w.(lw)) σ' ∗
        from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False
-         (to_val (Instr c)))
-    -∗ WP TInstr (TF Executable) @ E {{ Φ }}.
+         (griotte_lang.to_val (griotte_lang.Instr c)))
+    -∗ WP Instr (TF Executable) @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
@@ -312,10 +315,10 @@ End rules_t.
 (** [elim_modal_base_fupd_wp], for the WP of a thread language. *)
 #[global] Instance elim_modal_base_fupd_wp_t `{MP : MachineParameters} {Σ}
     {ceriseb : ceriseBaseG Σ} (th : Thread) {CL : CritLink Σ th} p E
-    (e : texpr (kind_of th)) (P : iProp Σ) Φ :
+    (e : expr (kind_of th)) (P : iProp Σ) Φ :
   ElimModal True p false
     (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cb_invG Σ ceriseb))) E E P) P
-    (WPT e @[th] E {{ Φ }}) (WPT e @[th] E {{ Φ }}).
+    (WP e @[th] E {{ Φ }}) (WP e @[th] E {{ Φ }}).
 Proof.
   exact (elim_modal_fupd_wp (irisGS_gen0 := memG_irisG_k (th := th) (ceriseg := ceriseG_of th))
            p NotStuck E e P Φ).
@@ -324,7 +327,7 @@ Qed.
 (** [elim_modal_cerise_fupd_wp], for the WP of a thread language. Not an
     instance, as the original. *)
 Lemma elim_modal_cerise_fupd_wp_t `{MP : MachineParameters} `{ceriseg : ceriseG Σ}
-    {th : Thread} {CL : CritLink Σ th} p E (e : texpr (kind_of th)) (P : iProp Σ) Φ :
+    {th : Thread} {CL : CritLink Σ th} p E (e : expr (kind_of th)) (P : iProp Σ) Φ :
   ElimModal True p false
     (@fupd _ (@bi_fupd_fupd _ (@uPred_bi_fupd HasLc Σ (@cerise_invGS Σ ceriseg))) E E P) P
     (WP e @ E {{ Φ }}) (WP e @ E {{ Φ }}).
@@ -336,7 +339,7 @@ Section si_upd_t.
   Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
   (** [wp_si_upd], for the WP of a thread language. *)
-  Lemma wp_si_upd_t s E (e : texpr (kind_of th)) Φ P :
+  Lemma wp_si_upd_t s E (e : expr (kind_of th)) Φ P :
     language.to_val e = None →
     (|~{E}~> P) -∗ (P -∗ WP e @ s; E {{ Φ }}) -∗ WP e @ s; E {{ Φ }}.
   Proof.
@@ -348,7 +351,7 @@ Section si_upd_t.
     iApply ("Hwp" $! σ ns κ κs nt with "[$Hσ $Hlink $Hdev]").
   Qed.
 
-  #[global] Instance elim_modal_si_upd_wp_t p s E (e : texpr (kind_of th)) P Φ :
+  #[global] Instance elim_modal_si_upd_wp_t p s E (e : expr (kind_of th)) P Φ :
     ElimModal (language.to_val e = None) p false (|~{E}~> P) P
       (WP e @ s; E {{ Φ }}) (WP e @ s; E {{ Φ }}).
   Proof.
@@ -358,10 +361,10 @@ Section si_upd_t.
 End si_upd_t.
 
 (** [wp_instr] for the thread languages: binds the instruction under the
-    program's [TSeq]. The language of [fill] is given: it is not inferred
-    from [[TSeqCtx]]. *)
+    program's [Seq]. The language of [fill] is given: it is not inferred
+    from [[SeqCtx]]. *)
 Ltac wp_instr_t :=
-  iApply (wp_bind (@fill (tlang_ectx _) [TSeqCtx]));
+  iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx]));
   let X := fresh in
   set X := (fill _);
   cbv in X;
