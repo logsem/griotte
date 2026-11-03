@@ -1049,6 +1049,14 @@ Section erasure.
     - split; [by apply reg_word_ok_untagged | by apply pc_ok_untagged].
   Qed.
 
+  (** A correct PC is its own MEPCC. *)
+  Lemma lmepcc_of_pc_correct p g b e a :
+    isCorrectPC (Cap p g b e a) → lmepcc_of_pc (Cap p g b e a) = Cap p g b e a.
+  Proof.
+    intros Hpc%isCorrectPCb_isCorrectPC.
+    rewrite /lmepcc_of_pc /mepcc_of_pc /=. cbn in Hpc. by rewrite Hpc.
+  Qed.
+
   (** The logical system registers after trap entry with cause [c] and value
       [v]: MEPCC receives the logical PC, untagged on a fetch fault
       ([lmepcc_of_pc]), and mstatus, mcause and mtval receive the integers

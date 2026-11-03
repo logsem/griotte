@@ -4,7 +4,7 @@ From griotte Require Export logrel interp_weakening monotone.
 From griotte Require Export
   ftlr_base ftlr_step
   Jmp JCond Jalr Mov CLoad Store BinOp Restrict
-  Subseg Get ClearTag Lea SetA Seal UnSeal SpecialRW SetMIE Mret FailHalt Auipcc.
+  Subseg Get ClearTag Lea SetA Seal UnSeal SpecialRW SetMIE Mret Ecall FailHalt Auipcc.
 From griotte Require Import register_tactics.
 Import CoreWPNotations.
 
@@ -71,8 +71,9 @@ Section fundamental_generic.
     iExists regs', pc. iFrame. by iApply interp_expression_at.
   Qed.
 
-  (** The case lemmas of all the instructions: Jalr sees the posture, the
-      others frame it. *)
+  (** The case lemmas of the instructions other than the environment call,
+      which the step lemma dispatches: Jalr sees the posture, the others
+      frame it. *)
   Lemma ftlr_instr_cases :
     ∀ W C regs p p' g b e a w i ρ P m,
       i ≠ Ecall → ftlr_instr_at m W C regs p p' g b e a w i ρ P.

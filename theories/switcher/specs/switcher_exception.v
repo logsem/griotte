@@ -1296,7 +1296,7 @@ Section Switcher_Exception.
       "Hfault HPC Hmie Hpost Hrmap Hna Hcstk".
     iMod (trusted_stack_inv_user F with "Hinv_switcher Hna") as "[%Huser Hna]"; first done.
     assert (∀ c, P_mcause c → mcause_ok c) as HP_ok.
-    { intros c Hc. destruct (HP_mcause c Hc) as [? | [Hcs _] ]; [done | contradiction]. }
+    { intros c Hc. destruct (HP_mcause c Hc) as [Hok | [Hcs _] ]; [done | contradiction]. }
     iDestruct "Hfault" as "[ [-> Huntrusted] | Hhandled]".
     { iApply (exception_entry_untrusted_safe with
                "Hinv_switcher Hstatic IH Huntrusted HPC Hmie Hpost Hrmap Hna Hcstk"); done. }

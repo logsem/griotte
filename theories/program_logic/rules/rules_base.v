@@ -8,21 +8,6 @@ From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
 Import core_link.
 
-(* --------------------------- LTAC DEFINITIONS ----------------------------------- *)
-
-Ltac inv_base_step :=
-  repeat match goal with
-         | _ => progress simplify_map_eq/= (* simplify memory stuff *)
-         | H : griotte_lang.to_val _ = Some _ |- _ => apply griotte_lang.of_to_val in H
-         | H : _ = griotte_lang.of_val ?v |- _ =>
-           is_var v; destruct v; first[discriminate H|injection H as H]
-         | H : griotte_lang.prim_step ?e _ _ _ _ _ |- _ =>
-           try (is_var e; fail 1); (* inversion yields many goals if [e] is a variable *)
-           (*    and can thus better be avoided. *)
-           let φ := fresh "φ" in
-           inversion H as [| φ]; subst φ; clear H
-         end.
-
 (* ------------------------- the thread languages ------------------------------ *)
 
 (** The opsem reads an absent mstatus as 0, the program logic as
@@ -30,13 +15,6 @@ Ltac inv_base_step :=
 Lemma irq_enabled_mie_st `{MachineParameters} σ :
   irq_enabled σ ↔ mie_st σ = InterruptEnabled.
 Proof. rewrite /irq_enabled /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
-
-(** The embedding of [griotte_lang]'s values. *)
-Definition tval_of_val {k} (v : griotte_lang.val) : tval k :=
-  match v with
-  | griotte_lang.HaltedV => HaltedV | griotte_lang.FaultedV => FaultedV
-  | griotte_lang.NextIV => NextIV
-  end.
 
 (** The value of a configuration flag, if it is one. *)
 Definition flag_val {k} (c : ConfFlag) : option (tval k) :=
@@ -46,13 +24,6 @@ Definition flag_val {k} (c : ConfFlag) : option (tval k) :=
   | Faulted => Some FaultedV
   | NextI => Some NextIV
   end.
-
-Lemma flag_val_to_val k c : flag_val c = to_val (Instr (TF c) : expr k).
-Proof. by destruct c. Qed.
-
-Lemma flag_val_hw k c :
-  flag_val c = (tval_of_val <$> griotte_lang.to_val (griotte_lang.Instr c) : option (tval k)).
-Proof. by destruct c. Qed.
 
 (** The value of a step of instruction [i] at kind [k]: [NextIV] is the
     switch value when [i] is a switch instruction of [k]. *)
@@ -147,6 +118,78 @@ Section ctx_irq.
     case_decide; [iLeft|]; iPureIntro; by apply Hpre.
   Qed.
 End ctx_irq.
+
+Section exc_entry.
+  Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
+
+  (** Exception entry on the ghost state, from the opened state
+      interpretation at [σ], the PC [lpc], MIE [b], the unwedged token and
+      the volatile registers: MEPCC receives [lmepcc_of_pc lpc], mcause and
+      mtval the cause [cv], MPIE receives [b], MIE is disabled, and the PC
+      receives the trap vector. *)
+  Lemma enter_exc_update σ cv lpc lreg lsreg lmem R C p c v mpie b :
+    erasure R C σ lpc lreg (ls_join lsreg) lmem →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗
+    sys_interp lsreg -∗
+    gen_heap_interp lmem -∗
+    gen_heap_interp (shadowtbl σ) -∗
+    reg_auth R -∗
+    addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    MIE ↦ₜ b -∗
+    unwedged -∗
+    volatile_csr_at p c v mpie
+    ==∗
+    ⌜mie_st σ = b⌝ ∗
+    ⌜mie_st (enter_exc cv σ) = InterruptDisabled⌝ ∗
+    cerise_state_interp (enter_exc cv σ) ∗
+    PC ↦ₚ lword_of_word mtcc_vec ∗
+    MIE ↦ₜ InterruptDisabled ∗
+    vol_lent (lmepcc_of_pc lpc) (lword_of_word (WInt cv.1)) cv.2 b.
+  Proof.
+    iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f HU
+      (Hmepcc & Hmcause & Hmtval & Hmpie_f)".
+    iDestruct (sys_interp_mie_agree with "Hsr Hmie_f") as %<-.
+    destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
+    iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
+    pose proof (erasure_enter_exc _ _ _ _ _ _ _ cv _ Her Htcc) as Her'.
+    (* mstatus: MIE is disabled and MPIE receives MIE. *)
+    set (mie_old := mie_of (get_a (sreg_word σ mstatus))).
+    assert (mie_old = ls_mie lsreg) as Hmie_old.
+    { rewrite -Hmie_st /mie_old /mie_st /sreg_word.
+      destruct (sreg σ !! mstatus); done. }
+    iMod (sys_interp_set_mstatus _ _ _ InterruptDisabled mie_old with "Hsr Hmie_f Hmpie_f")
+      as "(Hsr & Hmie_f & Hmpie_f)".
+    (* MEPCC, mcause, mtval and the PC. *)
+    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2].
+    iMod (gen_heap_update _ _ _ (lmepcc_of_pc lpc) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.1)) with "Hsr Hmcause")
+      as "[Hsr Hmcause]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.2)) with "Hsr Hmtval")
+      as "[Hsr Hmtval]".
+    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
+    pose (ls' := MkLSys
+      (<[mtval := lword_of_word (WInt cv.2)]>
+        (<[mcause := lword_of_word (WInt cv.1)]>
+          (<[mepcc := lmepcc_of_pc lpc]> (ls_sh lsreg))))
+      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
+    assert (lsregs_enter_exc cv σ lpc (ls_join lsreg) = ls_join ls') as Hjoin.
+    { apply map_eq. intros i.
+      rewrite /lsregs_enter_exc /ls' /ls_join /lsregs_join /mie_old /=.
+      destruct i; by simplify_map_eq. }
+    rewrite Hjoin in Her'.
+    iAssert (sys_interp ls') with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsys".
+    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
+      iFrame "Hsr Hmtcc Hmpie Hmtdc Hlent Hmie". iSplit; first done.
+      iPureIntro. split; by simplify_map_eq. }
+    iPoseProof (SI_close (enter_exc cv σ) mtcc_vec lreg ls' lmem R C Her'
+                  with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
+    iModIntro. iSplit; first done. iSplit.
+    { by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
+    rewrite Hmie_old. iFrame.
+  Qed.
+End exc_entry.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
@@ -492,7 +535,6 @@ Section griotte_lang_rules.
   Qed.
 
   (* ----------------------------------- FAIL RULES ---------------------------------- *)
-  (* Bind Scope expr_scope with language.expr griotte_lang. *)
 
   Lemma wp_notCorrectPC:
     forall E (w : LWord),

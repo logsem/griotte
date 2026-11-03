@@ -349,7 +349,7 @@ Section griotte_lang_traps.
       - iFrame "Hho". iIntros "!>" (σ2) "$ %Hd %Hm !>". iSplit; last done.
         iApply (crit_link_stable with "Hlink"); congruence. }
     iDestruct (handover_res_unfold with "Hho")
-      as (p0 c0 v0 b0) "(Hcrit & HU & Hmepcc & Hmcause & Hmtval & Hmpie_f)".
+      as (p0 c0 v0 b0) "(Hcrit & HU & Hvcsr)".
     iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
     (* The trap vector is an executable capability, so its physical copy is
@@ -370,41 +370,10 @@ Section griotte_lang_traps.
     iNext. iIntros (e2 σ2 efs Hstep) "_".
     inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts |]; subst; last congruence.
     iMod "Hclose" as "_".
-    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
-      as Her'.
-    (* mstatus: MIE is disabled and MPIE receives MIE. *)
-    set (mie_old := mie_of (get_a (sreg_word σ1 mstatus))).
-    assert (mie_old = ls_mie lsreg) as Hmie_old.
-    { rewrite -Hmie_st /mie_old /mie_st /sreg_word.
-      destruct (sreg σ1 !! mstatus); done. }
-    iMod (sys_interp_set_mstatus _ _ _ InterruptDisabled mie_old with "Hsr Hmie_f Hmpie_f")
-      as "(Hsr & Hmie_f & Hmpie_f)".
-    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2].
-    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
-           with "Hsr Hmcause") as "[Hsr Hmcause]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
-           with "Hsr Hmtval") as "[Hsr Hmtval]".
-    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    pose (ls' := MkLSys
-      (<[mtval := lword_of_word (WInt (trap_tval σ1))]>
-        (<[mcause := lword_of_word (WInt (trap_cause σ1))]>
-          (<[mepcc := lmepcc_of_pc w]> (ls_sh lsreg))))
-      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
-    assert (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w (ls_join lsreg) = ls_join ls')
-      as Hjoin.
-    { apply map_eq. intros i.
-      rewrite /lsregs_enter_exc /ls' /ls_join /lsregs_join /mie_old /=.
-      destruct i; by simplify_map_eq. }
-    rewrite Hjoin in Her'.
-    iAssert (sys_interp ls') with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsys".
-    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
-      iFrame "Hsr Hmtcc Hmpie Hmtdc Hlent Hmie". iSplit; first done.
-      iPureIntro. split; by simplify_map_eq. }
-    iPoseProof (SI_close (enter_exc (trap_cause σ1, trap_tval σ1) σ1) mtcc_vec lreg ls' lmem R C
-                  Her' with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
-    assert (mie_st (enter_exc (trap_cause σ1, trap_tval σ1) σ1) = InterruptDisabled) as Hoff'.
-    { by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
+    iMod (enter_exc_update σ1 (trap_cause σ1, trap_tval σ1)
+            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f HU Hvcsr")
+      as "(_ & %Hoff' & HSI & HPC & Hmie_f & HU & Hmepcc & Hmcause & Hmtval & Hmpie_f)";
+      first exact Her.
     iMod ("Hrestore" with "HSI [//] []") as "(HSI & Hlink & Hpart)".
     { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
@@ -413,7 +382,7 @@ Section griotte_lang_traps.
       iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
     iApply ("HΦ" with "[$Hmie_f $Hcrit $HU $Hmepcc Hmcause Hmtval Hmpie_f Hpart] HPC").
-    rewrite Hmie_old. iFrame "Hmpie_f Hpart".
+    iFrame "Hmpie_f Hpart".
     iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
   Qed.
 

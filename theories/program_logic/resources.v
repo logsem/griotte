@@ -461,12 +461,11 @@ Definition curUR := excl_authUR (leibnizO (option (Thread * TState))).
     The other system registers, MPIE and the names of the postures are
     shared. The shared fields are [::] fields, the per-thread maps are not,
     so typeclass search finds a per-thread heap only through [ceriseG_of].
-    The shared fields other than
-    [na_invG] have a low priority: with a thread in scope, the invariants,
-    the memory, the shadow table, the system registers, the registry, the
-    address claims and [mtcc_vec] elaborate through [ceriseG_of] as in the
-    rule library; without one, through the base. Both are the same
-    resources. *)
+    The shared fields other than [na_invG] have a low priority: with a
+    thread in scope, the invariants, the memory, the shadow table, the
+    system registers, the registry, the address claims and [mtcc_vec]
+    elaborate through [ceriseG_of] as in the rule library; without one,
+    through the base. Both are the same resources. *)
 Class ceriseBaseG Σ := CeriseBaseG {
   cb_invG :: invGS Σ | 100;
   cb_na_invG :: na_invariants.na_invG Σ;

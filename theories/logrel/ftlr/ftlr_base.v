@@ -12,12 +12,14 @@ From griotte Require Import monotone interp_weakening.
     fundamental theorem. *)
 Module CoreWPNotations.
   Notation "'WP' e '@core[' th ] {{ Φ } }" :=
-    (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
+    (@wp _ _ _ _
+       (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
        NotStuck ⊤ e%E Φ)
     (at level 20, th custom thread, e, Φ at level 200,
      format "'[hv' 'WP'  e  '/' '@core[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
   Notation "'WP' e '@core[' th ] {{ v , Q } }" :=
-    (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
+    (@wp _ _ _ _
+       (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
        NotStuck ⊤ e%E (λ v, Q))
     (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
      format "'[hv' 'WP'  e  '/' '@core[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.

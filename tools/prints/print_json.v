@@ -472,6 +472,7 @@ Ltac2 asm_instr_s (i : constr) : string :=
   | assembler.Asm_Griotte.CsrMIE InterruptEnabled ?sr ?m => f "csrsi" [r sr; e m]
   | assembler.Asm_Griotte.CsrMIE InterruptDisabled ?sr ?m => f "csrci" [r sr; e m]
   | assembler.Asm_Griotte.Mret => "mret"
+  | assembler.Asm_Griotte.Ecall => "ecall"
   | assembler.Asm_Griotte.Fail => "fail"
   | assembler.Asm_Griotte.Halt => "halt"
   | assembler.Asm_Griotte.GetTag ?d ?s => f "gettag" [r d; r s]

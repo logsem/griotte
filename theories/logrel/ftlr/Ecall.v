@@ -10,23 +10,6 @@ Import CoreWPNotations.
     cases: the environment call consumes the lent volatile part, and its
     post-state keeps the values that the step pins in it. *)
 
-(** A correct PC is its own MEPCC. *)
-Lemma lmepcc_of_pc_correct p g b e a :
-  isCorrectPC (Cap p g b e a) → lmepcc_of_pc (Cap p g b e a) = Cap p g b e a.
-Proof.
-  intros Hpc%isCorrectPCb_isCorrectPC.
-  rewrite /lmepcc_of_pc /mepcc_of_pc /=. cbn in Hpc. by rewrite Hpc.
-Qed.
-
-(** The PC after an environment call at a correct PC is a capability with
-    the same permission, locality and bounds. *)
-Lemma yield_resume_pc_cap p g b e a :
-  ∃ a', yield_resume_pc (Cap p g b e a) = Cap p g b e a'.
-Proof.
-  rewrite /yield_resume_pc /incrementPC /incrementPC_gen /=.
-  destruct (a + 1)%a as [a'|]; eauto.
-Qed.
-
 (** The value of an environment call, by kind. *)
 Lemma tval_sw_ecall_cases (th : Thread) (v : tval (kind_of th)) :
   v = tval_sw (kind_of th) Ecall NextIV →

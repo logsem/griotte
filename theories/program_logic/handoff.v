@@ -24,6 +24,15 @@ Definition pc_dq (b : InterruptStatus) : dfrac :=
     [ecall]. *)
 Definition yield_resume_pc (p : LWord) : LWord := default p (incrementPC p).
 
+(** The PC after an environment call at a capability is a capability with
+    the same permission, locality and bounds. *)
+Lemma yield_resume_pc_cap p g b e a :
+  ∃ a', yield_resume_pc (Cap p g b e a) = Cap p g b e a'.
+Proof.
+  rewrite /yield_resume_pc /incrementPC /incrementPC_gen /=.
+  destruct (a + 1)%a as [a'|]; eauto.
+Qed.
+
 Section cur.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
 
