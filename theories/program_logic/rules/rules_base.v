@@ -180,7 +180,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "(Hσ & Hlink & Hirq) /=". destruct σ1 as [pc r sr m st td]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "(Hσ & %Hrdom & Hlink & Hirq) /=". destruct σ1 as [pc r sr m st td]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (ctx_irq_si_held with "Hirq HPC") as "[%Hoff HPC]".
@@ -209,12 +209,15 @@ Section griotte_lang_rules.
     iNext. iIntros (e2 σ2 efs Hpstep).
     inversion Hpstep as [σx c σ' Hstep Hnb'| | | | |]; subst.
     iIntros "_". iSplitR; first done.
+    assert (dom (reg σ2) = all_registers_s) as Hrdom'.
+    { exact (step_reg_dom (_, _) (_, _) Hrdom Hstep). }
     eapply step_exec_inv in Hstep; eauto; cbn in Hstep.
     rewrite (mem_word_ok_decode _ _ _ _ Hok) in Hstep.
     iMod ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $HPC $Hpc_a $Hmap]")
       as "(%Hk & $ & HΦ)"; first by iFrame "%".
     iModIntro. iSplitL "Hlink".
-    - iSplitL "Hlink"; first (iApply (crit_link_stable with "Hlink"); by destruct Hk).
+    - iSplitR; first (iPureIntro; exact Hrdom').
+      iSplitL "Hlink"; first (iApply (crit_link_stable with "Hlink"); by destruct Hk).
       by iApply ctx_irq_si_kept.
     - by rewrite (tres_from_option _ _ _ _ _ Hdec).
   Qed.
@@ -260,7 +263,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "(Hσ & Hlink & Hirq) /=". destruct σ1 as [pc r sr m st td]; cbn.
+    iIntros (σ1 ns l1 l2 nt) "(Hσ & %Hrdom & Hlink & Hirq) /=". destruct σ1 as [pc r sr m st td]; cbn.
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iMod "HPC". iMod "Hpc_a". iMod "Hmap".
     iDestruct (ctx_irq_si_held with "Hirq HPC") as "[%Hoff HPC]".
@@ -289,11 +292,14 @@ Section griotte_lang_rules.
     iNext. iIntros (e2 σ2 efs Hpstep).
     inversion Hpstep as [σx c σ' Hstep Hnb'| | | | |]; subst.
     iIntros "_". iSplitR; first done.
+    assert (dom (reg σ2) = all_registers_s) as Hrdom'.
+    { exact (step_reg_dom (_, _) (_, _) Hrdom Hstep). }
     eapply step_exec_inv in Hstep; eauto; cbn in Hstep.
     rewrite (mem_word_ok_decode _ _ _ _ Hok) in Hstep.
     iMod ("Hcont" with "[$HPCa $Hr $Hsr $Hm $Hst $HR $HC $Hlink $HPC $Hpc_a $Hmap]")
       as "([$ $] & Hpost & HΦ)"; first by iFrame "%".
-    iModIntro. iSplitL "Hpost"; first by iApply ctx_irq_post_si.
+    iModIntro. iSplitL "Hpost".
+    { iSplitR; first (iPureIntro; exact Hrdom'). by iApply ctx_irq_post_si. }
     by rewrite (tres_from_option _ _ _ _ _ Hdec).
   Qed.
   (** Closes a step that keeps MIE and mtdc, under [wp_instr_step_link]. *)
@@ -354,7 +360,7 @@ Section griotte_lang_rules.
     intros *. intros Hnpc.
     iIntros (ϕ) "HPC Hϕ".
     iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 nt l1 l2 ns) "(Hσ1 & Hlink & Hirq) /="; destruct σ1 as [pc r sr m st td]; simpl.
+    iIntros (σ1 nt l1 l2 ns) "(Hσ1 & %Hrdom & Hlink & Hirq) /="; destruct σ1 as [pc r sr m st td]; simpl.
     iDestruct (SI_open with "Hσ1") as "Hσ1". iNamed "Hσ1".
     iDestruct (ctx_irq_si_held with "Hirq HPC") as "[%Hoff HPC]".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -371,7 +377,8 @@ Section griotte_lang_rules.
     iModIntro. iSplitR; auto. iSplitR "Hϕ HPC"; last by iApply "Hϕ".
     iFrame "Hlink". iSplitL "HPCa Hr Hsr Hm Hst HR HC".
     - iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
-    - iApply (ctx_irq_si_kept _ _ _ Hoff). apply sys_kept_refl.
+    - iSplitR; first (iPureIntro; done).
+      iApply (ctx_irq_si_kept _ _ _ Hoff). apply sys_kept_refl.
   Qed.
 
   Lemma wp_notCorrectPC_tag E (w : LWord) :
@@ -398,7 +405,7 @@ Section griotte_lang_rules.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
-    iApply (wp_instr_step (regs := ∅) with "Hpc Hpca [] "); eauto.
+    iApply (wp_instr_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "Hpc Hpca [] "); eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -416,7 +423,7 @@ Section griotte_lang_rules.
   Proof.
     intros Hinstr Hvpc.
     iIntros (φ) "[Hpc Hpca] Hφ".
-    iApply (wp_instr_step (regs := ∅) with "Hpc Hpca [] "); eauto.
+    iApply (wp_instr_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "Hpc Hpca [] "); eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec /= in Hstep. simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -433,13 +440,13 @@ Section griotte_lang_rules.
     WP e @ E {{ Φ }}.
   Proof.
     iIntros (He) "Hr' HΦ".
-    rewrite wp_unfold /wp_pre He.
-    iIntros (σ1 ns κ κs nt) "(Hσ & Hlink & Hirq) /=".
+    rewrite wp_unfold /wp_pre /= He.
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (gen_heap_valid with "Hr Hr'") as %Hlookup.
     iSpecialize ("HΦ" with "[%] Hr'").
     { intros ->. by eapply er_cnull. }
-    iApply ("HΦ" $! σ1 ns κ κs nt). iFrame "Hlink Hirq".
+    iApply ("HΦ" $! σ1 ns κ κs nt). iFrame "Hlink Hirq %".
     iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
   Qed.
 
@@ -699,7 +706,7 @@ Section instruction_outcomes.
     {{{ RET FaultedV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hmem) Hφ".
-    iApply (wp_instr_faulted_map (regs := ∅) with "[$HPC $Hmem]").
+    iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
     - intros R r sr m st td _. apply Hfailed.
@@ -721,7 +728,7 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hmem) Hφ".
     iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-    iApply (wp_instr_faulted_map (regs := <[r1 := w1]> ∅)
+    iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i (<[r1 := w1]> ∅)
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
@@ -747,7 +754,8 @@ Section instruction_outcomes.
   Proof.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hmem) Hφ".
     iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
-    iApply (wp_instr_faulted_map (regs := <[r1 := w1]> (<[r2 := w2]> ∅))
+    iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i
+      (<[r1 := w1]> (<[r2 := w2]> ∅))
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
@@ -784,8 +792,8 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hr1 & >Hr2 & >Hr3 & >Hmem) Hφ".
     iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap %Hne]".
     destruct Hne as (? & ? & ?).
-    iApply (wp_instr_faulted_map
-      (regs := <[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅)))
+    iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i
+      (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅)))
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.

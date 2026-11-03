@@ -311,7 +311,7 @@ Section griotte_lang_traps.
     rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
     iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "(Hσ & Hlink & Hirq) /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     (* The whole PC fragment refutes the parked half: the clause is
        dropped, and re-established after the entry, at MIE disabled. *)
@@ -411,7 +411,8 @@ Section griotte_lang_traps.
     { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
     iModIntro. iSplitL "HSI Hlink".
-    { iFrame "HSI Hlink". iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
+    { iFrame "HSI Hlink". iSplitR; first (iPureIntro; exact Hrdom).
+      iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
     iApply ("HΦ" with "[$Hmie_f $Hcrit $HU $Hmepcc Hmcause Hmtval Hmpie_f Hpart] HPC").
     rewrite Hmie_old. iFrame "Hmpie_f Hpart".

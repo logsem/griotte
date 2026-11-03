@@ -127,15 +127,16 @@ Definition ctx_irq_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind
   end.
 
 (** The Iris instance of thread [th], over its thread language: invariants
-    for memory, and a state interpretation for (mem,reg), with the link of
-    the critical sections and the context-switch thread's interrupt
-    clause. *)
+    for memory, and a state interpretation for (mem,reg), with the total
+    register file, the link of the critical sections and the
+    context-switch thread's interrupt clause. *)
 #[global] Instance memG_irisG `{MachineParameters} {Σ} {th : Thread} {ceriseg : ceriseG Σ}
     {CL : CritLink Σ th} :
   irisGS (tlang (kind_of th)) Σ := {
   iris_invGS := cerise_invG;
   state_interp σ _ κs _ :=
-    (cerise_state_interp σ ∗ @crit_link Σ th CL σ ∗ ctx_irq_si (kind_of th) σ)%I;
+    (cerise_state_interp σ ∗ ⌜dom (reg σ) = all_registers_s⌝ ∗ @crit_link Σ th CL σ ∗
+     ctx_irq_si (kind_of th) σ)%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _

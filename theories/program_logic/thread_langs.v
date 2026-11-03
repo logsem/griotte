@@ -393,7 +393,7 @@ Section thread_lang_props.
   #[global] Instance is_atomic_correct k s (e : expr k) : is_atomic e → @Atomic (tlang k) s e.
   Proof.
     intros Ha. destruct e as [f|e]; last by destruct Ha.
-    apply strongly_atomic_atomic, ectx_language_atomic.
+    apply strongly_atomic_atomic, (ectx_language_atomic (Λ := tlang_ectx k)).
     - intros σ e' κ σ' efs Hstep. inversion Hstep as [σx c σ'' Hs _| | | | |]; subst.
       apply step_not_executable in Hs.
       destruct c; try (exfalso; by apply Hs); rewrite /tres; repeat case_match; by eexists.

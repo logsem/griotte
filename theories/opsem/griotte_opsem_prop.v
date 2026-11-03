@@ -407,6 +407,46 @@ Qed.
     intros Hinv Hsteps. induction Hsteps; eauto using step_sys_pc_ok.
   Qed.
 
+  (** * The register file only grows *)
+
+  Lemma insert_reg_dom r w (regs : Reg) : dom regs ⊆ dom (<[r:=w]ᵣ> regs).
+  Proof. rewrite /insert_reg. case_decide; [done|]. rewrite dom_insert_L. set_solver. Qed.
+
+  Lemma advancePC_reg φ imm c : advancePC φ imm = Some c → reg c.2 = reg φ.
+  Proof. rewrite /advancePC. repeat case_match; intros; by simplify_eq/=. Qed.
+
+  Lemma exec_opt_reg_dom i p φ c :
+    exec_opt i p φ = Some c → dom (reg φ) ⊆ dom (reg c.2).
+  Proof.
+    intros Hexec.
+    rewrite /exec_opt /exec_jcond /mmio_load /mmio_store in Hexec.
+    destruct i; cbn -[enter_exc] in Hexec.
+    all: repeat (case_match || simplify_option_eq); simplify_eq/=; try done.
+    (* Every instruction writes registers only by [insert_reg]. *)
+    all: try match goal with
+      | Hup : advancePC _ _ = Some _ |- _ => rewrite (advancePC_reg _ _ _ Hup) /=
+      | Hup : nextPC _ = Some _ |- _ => rewrite (advancePC_reg _ _ _ Hup) /=
+      end.
+    all: repeat (etrans; [|apply insert_reg_dom]); try done.
+  Qed.
+
+  Lemma exec_reg_dom i p φ : dom (reg φ) ⊆ dom (reg (exec i p φ).2).
+  Proof.
+    rewrite /exec. destruct (exec_opt i p φ) eqn:Hexec; last done.
+    by eapply exec_opt_reg_dom.
+  Qed.
+
+  (** The machine keeps a total register file. *)
+  Lemma step_reg_dom σ σ' :
+    dom (reg σ.2) = all_registers_s → step σ σ' → dom (reg σ'.2) = all_registers_s.
+  Proof.
+    intros Hdom Hstep. apply (anti_symm (⊆)).
+    - intros r _. apply all_registers_s_correct.
+    - rewrite -Hdom.
+      destruct Hstep as [| |φ p g b e a i c wa _ _ _ _ <-]; try done.
+      apply exec_reg_dom.
+  Qed.
+
   (** Interrupt entry and ticks preserve the tagged-PC invariant: the PC
       receives MTCC, MEPCC receives the PC, and a tick changes neither. *)
   Lemma enter_irq_sys_pc_ok c φ :
