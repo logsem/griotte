@@ -241,6 +241,21 @@ Canonical Structure tlang_ectx `{MachineParameters} (k : kind) :=
 Canonical Structure tlang `{MachineParameters} (k : kind) :=
   LanguageOfEctx (tlang_ectx k).
 
+#[export] Hint Extern 20 (PureExec _ _ _) => progress simpl : typeclass_instances.
+
+(** The [IntoVal] and [AsVal] hints of [griotte_lang.v], for [tlang]. *)
+#[export] Hint Extern 5 (IntoVal _ _) => eapply tof_to_val; fast_done : typeclass_instances.
+#[export] Hint Extern 10 (IntoVal _ _) =>
+  rewrite /IntoVal; eapply tof_to_val; rewrite /= !tto_of_val /=; solve [ eauto ]
+  : typeclass_instances.
+#[export] Hint Extern 5 (AsVal _) => eexists; eapply tof_to_val; fast_done : typeclass_instances.
+#[export] Hint Extern 10 (AsVal _) =>
+  eexists; rewrite /IntoVal; eapply tof_to_val; rewrite /= !tto_of_val /=; solve [ eauto ]
+  : typeclass_instances.
+
+#[export] Instance Reflexive_ofe_equiv_Word : (Reflexive (ofe_equiv (leibnizO Word))).
+Proof. intro; reflexivity. Qed.
+
 Section thread_lang_pure.
   Context `{MachineParameters}.
 
@@ -335,6 +350,56 @@ Section thread_lang_props.
   Proof.
     intros Hs. change (@language.to_val (tlang k) e = None).
     by eapply language.val_stuck.
+  Qed.
+
+  (** * Instruction steps reach a value *)
+
+  Lemma step_not_executable σ c σ' : step (Executable, σ) (c, σ') → c ≠ Executable.
+  Proof.
+    intros Hs. inversion Hs as [| |φ p g b e a i c' wa _ _ _ _ Hexec]; subst; try done.
+    apply exec_not_executable.
+  Qed.
+
+  Lemma tbase_instr_val k σ κ e2 σ2 efs :
+    tbase k (Instr Executable) σ κ e2 σ2 efs → is_Some (to_val e2) ∧ efs = [].
+  Proof.
+    intros Hb. inversion Hb as [σx c σ' Hstep _| | | | |]; subst. split; [|done].
+    apply step_not_executable in Hstep.
+    destruct c; try (exfalso; by apply Hstep); rewrite /tres; repeat case_match; by eexists.
+  Qed.
+
+  (** One step of an instruction reaches a value, without forks. *)
+  Lemma tprim_step_instr_val k σ κ e2 σ2 efs :
+    @language.prim_step (tlang k) (Instr Executable) σ κ e2 σ2 efs →
+    is_Some (to_val e2) ∧ efs = [].
+  Proof.
+    intros Hs. destruct Hs as [K e1 e1' He1 -> Hb].
+    destruct K as [|Ki K _] using rev_ind.
+    - simpl in He1. subst e1. by apply (tbase_instr_val k σ κ e1' σ2 efs).
+    - exfalso. pose proof (eq_sym He1) as He.
+      change (@ectxi_language.fill (tlang_ectxi k) (K ++ [Ki]) e1 = Instr (TF Executable)) in He.
+      rewrite fill_app /= in He. by destruct Ki.
+  Qed.
+
+  (** * Atomic expressions *)
+
+  Definition is_atomic {k} (e : expr k) : Prop :=
+    match e with
+    | Instr _ => True
+    | _ => False
+    end.
+
+  #[global] Instance is_atomic_correct k s (e : expr k) : is_atomic e → @Atomic (tlang k) s e.
+  Proof.
+    intros Ha. destruct e as [f|e]; last by destruct Ha.
+    apply strongly_atomic_atomic, ectx_language_atomic.
+    - intros σ e' κ σ' efs Hstep. inversion Hstep as [σx c σ'' Hs _| | | | |]; subst.
+      apply step_not_executable in Hs.
+      destruct c; try (exfalso; by apply Hs); rewrite /tres; repeat case_match; by eexists.
+    - intros K e' He _. destruct K as [|Ki K _] using rev_ind; first done.
+      exfalso.
+      change (Instr f = @ectxi_language.fill (tlang_ectxi k) (K ++ [Ki]) e') in He.
+      rewrite fill_app /= in He. by destruct Ki.
   Qed.
 
   (** * The hardware image of a thread expression *)
@@ -509,3 +574,10 @@ Section thread_lang_props.
   Qed.
 
 End thread_lang_props.
+
+Ltac solve_atomic :=
+  apply is_atomic_correct; simpl; repeat split;
+    rewrite ?tto_of_val; eapply mk_is_Some; fast_done.
+
+#[export] Hint Extern 0 (Atomic _ _) => solve_atomic : core.
+#[export] Hint Extern 0 (Atomic _ _) => solve_atomic : typeclass_instances.

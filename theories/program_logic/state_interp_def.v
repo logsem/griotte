@@ -116,13 +116,25 @@ Section state_interp.
     "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
 End state_interp.
 
-(* invariants for memory, and a state interpretation for (mem,reg), with
-   the link of the critical sections *)
+(** The clause of the context-switch device. At [CtxK], interrupts are
+    disabled, or half of the PC fragment is parked there (after a resuming
+    [mret]); at [UserK], [True]. *)
+Definition dev_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
+    (σ : ExecConf) : iProp Σ :=
+  match k with
+  | UserK => True
+  | CtxK => ⌜mie_st σ = InterruptDisabled⌝ ∨ ∃ lpc, PC_fragq (DfracOwn (1/2)) lpc
+  end.
+
+(** The Iris instance of thread [th], over its thread language: invariants
+    for memory, and a state interpretation for (mem,reg), with the link of
+    the critical sections and the clause of the context-switch device. *)
 #[global] Instance memG_irisG `{MachineParameters} {Σ} {th : Thread} {ceriseg : ceriseG Σ}
     {CL : CritLink Σ th} :
-  irisGS griotte_lang Σ := {
+  irisGS (tlang (kind_of th)) Σ := {
   iris_invGS := cerise_invG;
-  state_interp σ _ κs _ := (cerise_state_interp σ ∗ @crit_link Σ th CL σ)%I;
+  state_interp σ _ κs _ :=
+    (cerise_state_interp σ ∗ @crit_link Σ th CL σ ∗ dev_si (kind_of th) σ)%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _
@@ -155,7 +167,7 @@ Notation "'WP' e '@[' th ] {{ v , Q } }" :=
 
 (** The postcondition of a safe execution of thread [th]: when the thread
     halts, it gives back its non-atomic token. *)
-Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : griotte_lang.val) : iProp Σ :=
+Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : tval (kind_of th)) : iProp Σ :=
   ⌜v = HaltedV⌝ → na_own (tpool th) ⊤.
 
 (* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
