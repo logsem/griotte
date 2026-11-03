@@ -27,7 +27,7 @@ Class ContextSwitchLayout Σ `{MP : MachineParameters} {ceriseb : ceriseBaseG Σ
       (CL (UserThread t)) (CR (UserThread t)) ⊣⊢
     (∃ ws, save_area_at t ws) ∗
     mtdc_lent_at (th := UserThread t);
-  (** With interrupts disabled, the link of any thread holds nothing. Every
+  (** With interrupts disabled, the link of any thread is trivial. Every
       hand-in gives the context-switch thread its link this way (it starts
       with interrupts disabled), and so does the hand-back to a thread that
       resumes with interrupts disabled. *)

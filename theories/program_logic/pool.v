@@ -94,7 +94,7 @@ Section pool.
 
   (** The slots of the threads other than [t] do not depend on the state
       of [t]. *)
-  Lemma slots_other ts t s s' :
+  #[local] Lemma slots_other ts t s s' :
     t ∉ ts →
     ([∗ list] t' ∈ ts, slot t' (st_of (Some (UserThread t, s)) t')) ⊣⊢
     ([∗ list] t' ∈ ts, slot t' (st_of (Some (UserThread t, s')) t')).
@@ -105,7 +105,7 @@ Section pool.
   Qed.
 
   (** The slot of [t], and the slots at another state of [t]. *)
-  Lemma slots_acc ts t s :
+  #[local] Lemma slots_acc ts t s :
     NoDup ts → t ∈ ts →
     ([∗ list] t' ∈ ts, slot t' (st_of (Some (UserThread t, s)) t')) -∗
     slot t (Some s) ∗
@@ -159,7 +159,7 @@ Section pool.
     iMod (cur_update _ _ (Some (UserThread B, Running)) with "Hcur Hf") as "[Hcur Hf]".
     iDestruct (slots_acc ts B (Resuming v) with "Hslots") as "[Hauths Hslots]";
       [done | by eapply Hin |].
-    rewrite /= /auths_at /thread_auths.
+    rewrite /auths_at /thread_auths.
     iDestruct "Hauths" as "(>HPC & >Hregs & >Hmtdc & >HMIE)".
     iMod ("Hclose" with "[Hcur Hslots]") as "_".
     { iNext. iExists (Some (UserThread B, Running)). iFrame "Hcur". iSplit.

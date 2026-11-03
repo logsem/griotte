@@ -83,7 +83,11 @@ Section hw_state_interp.
   Proof. iIntros "Ha Hf". by iDestruct (ghost_var_agree with "Ha Hf") as %?. Qed.
 
   Lemma running_update th'' th th' :
-    running_auth th -∗ running_frag th' ==∗ running_auth th'' ∗ running_frag th''.
+    running_auth th -∗
+    running_frag th'
+    ==∗
+    running_auth th'' ∗
+    running_frag th''.
   Proof. iIntros "Ha Hf". iApply (ghost_var_update_halves with "Ha Hf"). Qed.
 
   Lemma resume_window_agree w w' :
@@ -91,8 +95,11 @@ Section hw_state_interp.
   Proof. iIntros "Ha Hf". by iDestruct (ghost_var_agree with "Ha Hf") as %?. Qed.
 
   Lemma resume_window_update w'' w w' :
-    resume_window_auth w -∗ resume_window_frag w' ==∗
-    resume_window_auth w'' ∗ resume_window_frag w''.
+    resume_window_auth w -∗
+    resume_window_frag w'
+    ==∗
+    resume_window_auth w'' ∗
+    resume_window_frag w''.
   Proof. iIntros "Ha Hf". iApply (ghost_var_update_halves with "Ha Hf"). Qed.
 End hw_state_interp.
 

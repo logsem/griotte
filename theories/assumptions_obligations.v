@@ -11,6 +11,7 @@ From griotte Require
   heap_temporal_safety_adequacy_obligations
   error_handling_adequacy_obligations
 .
+From griotte.program_logic.virtualise Require virtualise.
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling.
@@ -24,12 +25,14 @@ Set Default Proof Mode "Classic".
 
 (** * The audited statements
 
-    The fundamental theorem, and per case study: the assumptions of the
-    obligations of its trusted code ([<cs>_fw_obligations], at the level
-    of the weakest precondition) and its initial-state predicate. The
-    end-to-end theorems ([<cs>_adequacy], [firmware_adequacy_closed]) and
-    the demo images ([<cs>_concrete]) are excluded from the build
-    ([theories/dune]), and so is [assumptions.v], which prints them.
+    The fundamental theorem, [virtualise] (stated against the entry specs
+    of the context-switch thread, [ctx_switch_entry_specs], a premise), and
+    per case study: the assumptions of the obligations of its trusted code
+    ([<cs>_fw_obligations], at the level of the weakest precondition) and
+    its initial-state predicate. The end-to-end theorems ([<cs>_adequacy],
+    [firmware_adequacy_closed]) and the demo images ([<cs>_concrete]) are
+    excluded from the build ([theories/dune]), and so is [assumptions.v],
+    which prints them.
 
     The initial-state predicate is what the end-to-end theorem assumes of
     the initial state. [Print <cs>_initial_state_ok] is the reference; the
@@ -45,6 +48,14 @@ Set Default Proof Mode "Classic".
 Goal True. idtac "
 Assumptions of fundamental theorem:". Abort.
 Print Assumptions fundamental.fundamental.
+*)
+
+(** ** Virtualisation *)
+
+(*
+Goal True. idtac "
+Assumptions of virtualise (against the context-switch entry specs ctx_switch_entry_specs):". Abort.
+Print Assumptions griotte.program_logic.virtualise.virtualise.virtualise.
 *)
 
 (** ** Key-value store (KVS) *)
