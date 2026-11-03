@@ -13,35 +13,6 @@ From griotte Require Export hw_switches.
     switches to the context-switch thread; the context-switch thread's
     [ResumedV] switches to the resumed thread. *)
 
-(** * Facts on the hardware image of a thread expression *)
-
-(* TODO: move to program_logic/thread_langs.v *)
-Lemma hw_of_reducible `{MachineParameters} {k} (e : thread_langs.expr k) σ :
-  wellshaped e →
-  thread_langs.to_val e = None →
-  reducible (Λ := griotte_hw_lang) (hw_of e) σ.
-Proof.
-  intros [ [f ->]|[v Hv] ] Hn; last congruence.
-  destruct f as [c|s]; [apply hw_seq_reducible|apply (hw_seq_reducible σ NextI)].
-Qed.
-
-(* TODO: move to program_logic/thread_langs.v *)
-Lemma hw_of_not_val `{MachineParameters} {k} (e : thread_langs.expr k) :
-  wellshaped e →
-  thread_langs.to_val e = None →
-  language.to_val (l := griotte_hw_lang) (hw_of e) = None.
-Proof. intros [ [f ->]|[v Hv] ] Hn; last congruence. by destruct f. Qed.
-
-(* TODO: move to program_logic/thread_langs.v *)
-Lemma hw_exec_thread `{MachineParameters} {k} (e : thread_langs.expr k) :
-  wellshaped e →
-  thread_langs.to_val e = None →
-  hw_of e = griotte_lang.Exec →
-  e = Exec.
-Proof.
-  intros Hws Hn Hh. destruct (async_at_thread e Hws Hh) as [->|[s ->] ]; done.
-Qed.
-
 (** * The context-switch thread's entry *)
 
 Section ctx_switch_entry.
@@ -231,10 +202,10 @@ Section virtualise.
           iDestruct (resume_window_agree with "Hwa Hwf") as %<-.
           iDestruct "Htr" as %Htr. exfalso. destruct w0.
           - by destruct (Htr eq_refl).
-          - apply irq_enabled_mie_st' in Hen. by rewrite (Hw0 eq_refl eq_refl) in Hen. }
+          - apply irq_enabled_mie_st in Hen. by rewrite (Hw0 eq_refl eq_refl) in Hen. }
         iDestruct (SI_hw_running (UserThread t) σ with "Hσ Hrf")
           as "(Hrun & Hwin & Hsi & Hidle & Hrf)".
-        apply irq_enabled_mie_st' in Hen.
+        apply irq_enabled_mie_st in Hen.
         iMod (irq_hand_in t σ c Hen with "Hsi Hidle") as (lpc lreg) "H". iNamed "H".
         iDestruct (thread_si_mie_st CtxSwitch _ InterruptDisabled with "Hsi HMIE") as %Hdis.
         iMod (pool_save ts t ParkIrq (ResumeVals lreg lpc InterruptEnabled) ⊤ Hnd

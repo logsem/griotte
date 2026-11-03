@@ -13,30 +13,14 @@ From griotte Require Export pool hw_instance.
 
 (** * Facts on the machine *)
 
-(* TODO: move to program_logic/crit_link.v; a copy of rules_base's
-   irq_enabled_mie_st *)
-Lemma irq_enabled_mie_st' `{MachineParameters} σ :
-  irq_enabled σ ↔ mie_st σ = InterruptEnabled.
-Proof. rewrite /irq_enabled /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
-
 Section machine_facts.
   Context `{MP : MachineParameters}.
-
-  Lemma mie_old_st σ : mie_of (get_a (sreg_word σ mstatus)) = mie_st σ.
-  Proof. rewrite /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
 
   Lemma reg_enter_irq c σ : reg (enter_irq c σ) = reg σ.
   Proof. done. Qed.
 
   Lemma shadowtbl_enter_irq c σ : shadowtbl (enter_irq c σ) = shadowtbl σ.
   Proof. done. Qed.
-
-  Lemma erasure_th_mie_st R C σ lpc lreg vm mie :
-    erasure_th R C σ lpc lreg vm mie → mie_st σ = mie.
-  Proof.
-    intros Her. destruct (et_mstatus _ _ _ _ _ _ _ Her) as [mpie Hok].
-    by eapply mstatus_ok_mie_st.
-  Qed.
 
   (** The logical system registers after interrupt entry, from the joined
       ones at InterruptEnabled. *)
@@ -54,16 +38,6 @@ Section machine_facts.
     destruct i; by simplify_map_eq.
   Qed.
 
-  (* TODO: move to program_logic/erasure.v *)
-  Lemma erasure_sh_tick R C σ lsh lmem mpie :
-    erasure_sh R C σ lsh lmem mpie → erasure_sh R C (tick σ) lsh lmem mpie.
-  Proof. by intros []; constructor. Qed.
-
-  (* TODO: move to program_logic/erasure.v *)
-  Lemma erasure_th_tick R C σ lpc lreg vm mie :
-    erasure_th R C σ lpc lreg vm mie → erasure_th R C (tick σ) lpc lreg vm mie.
-  Proof. by intros []; constructor. Qed.
-
   (** A total register map contained in another is equal to it. *)
   Lemma regs_total_eq (l l' : LReg) :
     dom l' = all_registers_s → l' ⊆ l → l' = l.
@@ -75,60 +49,17 @@ Section machine_facts.
   Qed.
 End machine_facts.
 
-(* TODO: move to program_logic/thread_langs.v *)
-(** A step of the context-switch thread enables interrupts only at its
-    resuming [mret]: after it, the thread is at its switch value. *)
-Lemma ctx_step_resumed_or_disabled `{MP : MachineParameters}
-    (e e' : thread_langs.expr CtxK) σ κ σ' efs :
-  wellshaped e →
-  @language.prim_step (tlang CtxK) e σ κ e' σ' efs →
-  (e = Seq (Instr (TSw ResumedS)) ∨ e = Instr (TSw ResumedS)) ∨ ¬ irq_enabled σ →
-  (e' = Seq (Instr (TSw ResumedS)) ∨ e' = Instr (TSw ResumedS)) ∨ ¬ irq_enabled σ'.
-Proof.
-  intros [ [f ->] | [v Hv] ] Hs Hpre; last first.
-  { apply tprim_val_stuck in Hs. congruence. }
-  destruct Hs as [K e1 e2 He1 -> Hb].
-  destruct (tfill_seq_instr K e1 f (eq_sym He1)) as [->|[-> ->] ].
-  - simpl in He1. subst e1. inversion Hb; subst.
-    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
-    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
-    + (* The trap entry disables interrupts. *)
-      right. rewrite /irq_enabled /enter_exc /sreg_word /=.
-      rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq /= mie_of_mstatus_enc.
-      done.
-    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
-    + destruct Hpre as [ [Hw | Hw] | Hd]; [ | discriminate | by right].
-      injection Hw as ->. left. by right.
-  - inversion Hb as [σx c σx' Hstep Hnb | | | | | ]; subst.
-    destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | ].
-    destruct (mie_st σ') eqn:Hm; last first.
-    { right. rewrite irq_enabled_mie_st' Hm. discriminate. }
-    (* Interrupts enabled after the step: the instruction is a decoded
-       [mret], and its step succeeded. *)
-    assert (decoded_instr σ = Some Mret) as Hdec.
-    { eapply ctx_instr_irq_enabled; [exact Hb | by apply irq_enabled_mie_st']. }
-    inversion Hstep as [φ Hnc | φ p g b e0 a Hpc Hmem
-                       | φ p g b e0 a i c' wa Hpc Hmem Hcorr Hi Hexec]; subst.
-    1,2: by right.
-    pose proof Hdec as Hdec'.
-    rewrite /decoded_instr Hpc Hmem /= in Hdec'. injection Hdec' as Hi.
-    rewrite Hi /exec in Hm |- *.
-    destruct (exec_opt Mret p σ) as [ [c'' σ''] | ] eqn:Hx; last first.
-    { exfalso. apply Hd. by apply irq_enabled_mie_st'. }
-    assert (c'' = NextI) as ->.
-    { rewrite /exec_opt in Hx. destruct (has_sreg_access p); last done.
-      by simplify_option_eq. }
-    left. left. cbn. rewrite Hdec. done.
-Qed.
-
 (** * The register copy *)
 Section regs_copy.
   Context {Σ : gFunctors} `{!gen_heapGS RegName LWord Σ}.
 
   Lemma regs_copy_gen (l1 : LReg) : ∀ (l0 h : LReg),
     dom l0 = dom l1 →
-    gen_heap_interp h -∗ ([∗ map] r ↦ w ∈ l0, r ↦ᵣ w) ==∗
-    gen_heap_interp (l1 ∪ h) ∗ ([∗ map] r ↦ w ∈ l1, r ↦ᵣ w).
+    gen_heap_interp h -∗
+    ([∗ map] r ↦ w ∈ l0, r ↦ᵣ w)
+    ==∗
+    gen_heap_interp (l1 ∪ h) ∗
+    ([∗ map] r ↦ w ∈ l1, r ↦ᵣ w).
   Proof.
     induction l1 as [|i x m Hi IH] using map_ind; intros l0 h Hdom.
     - rewrite dom_empty_L in Hdom. apply dom_empty_inv_L in Hdom as ->.
@@ -146,8 +77,11 @@ Section regs_copy.
 
   Lemma regs_copy (l0 l1 : LReg) :
     dom l0 = dom l1 →
-    gen_heap_interp l0 -∗ ([∗ map] r ↦ w ∈ l0, r ↦ᵣ w) ==∗
-    gen_heap_interp l1 ∗ ([∗ map] r ↦ w ∈ l1, r ↦ᵣ w).
+    gen_heap_interp l0 -∗
+    ([∗ map] r ↦ w ∈ l0, r ↦ᵣ w)
+    ==∗
+    gen_heap_interp l1 ∗
+    ([∗ map] r ↦ w ∈ l1, r ↦ᵣ w).
   Proof.
     iIntros (Hdom) "Hh Hl0".
     iMod (regs_copy_gen l1 l0 l0 Hdom with "Hh Hl0") as "[Hh $]".
@@ -207,7 +141,8 @@ Section hw_switches.
       set to [lpc'], [lreg'], [m'] and InterruptDisabled. *)
   Lemma idle_load lpc' lreg' m' :
     dom lreg' = all_registers_s →
-    idle_CtxSwitch ==∗
+    idle_CtxSwitch
+    ==∗
     thread_auths (th := CtxSwitch) lpc' lreg' m' InterruptDisabled ∗
     PC ↦ₚ[CtxSwitch] lpc' ∗
     regs[CtxSwitch] lreg' ∗
@@ -248,7 +183,8 @@ Section hw_switches.
     running_auth th -∗
     running_frag th -∗
     resume_window_si th σ -∗
-    resume_window_frag w ==∗
+    resume_window_frag w
+    ==∗
     running_auth th' ∗
     running_frag th' ∗
     resume_window_si th' σ' ∗
@@ -272,7 +208,8 @@ Section hw_switches.
   Lemma irq_hand_in t σ (c : Z) :
     mie_st σ = InterruptEnabled →
     thread_si (UserThread t) σ -∗
-    idle_CtxSwitch ==∗
+    idle_CtxSwitch
+    ==∗
     ∃ (lpc : LWord) (lreg : LReg),
       "Hsi" ∷ thread_si CtxSwitch (enter_irq c σ) ∗
       "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptEnabled) ∗
@@ -363,7 +300,8 @@ Section hw_switches.
     mie_st σ = InterruptDisabled →
     thread_si (UserThread t) σ -∗
     part_of (UserThread t) -∗
-    idle_CtxSwitch ==∗
+    idle_CtxSwitch
+    ==∗
     ∃ (lpc : LWord) (lreg : LReg),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
       "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled) ∗
@@ -412,7 +350,8 @@ Section hw_switches.
   Lemma yield_hand_in t σ :
     thread_si (UserThread t) σ -∗
     yield_body safe (UserThread t) -∗
-    idle_CtxSwitch ==∗
+    idle_CtxSwitch
+    ==∗
     ∃ (b : InterruptStatus) (p : LWord) (lreg : LReg),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
       "Hauths" ∷ auths_at t (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled) ∗
@@ -455,7 +394,8 @@ Section hw_switches.
   Lemma exit_hand_in t σ :
     thread_si (UserThread t) σ -∗
     exit_body (UserThread t) -∗
-    idle_CtxSwitch ==∗
+    idle_CtxSwitch
+    ==∗
     ∃ (lpc : LWord) (lreg : LReg),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
       "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled) ∗
@@ -513,7 +453,8 @@ Section hw_switches.
     sched_state -∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) -∗
     close_Nact -∗
-    auths_at B v ==∗
+    auths_at B v
+    ==∗
     thread_si (UserThread B) σ ∗
     idle_CtxSwitch.
   Proof.
@@ -590,7 +531,8 @@ Section hw_switches.
     @language.prim_step (tlang CtxK) e σ κ e' σ' efs →
     resume_window_si CtxSwitch σ -∗
     resume_window_frag w -∗
-    ⌜w = true → window e⌝ ==∗
+    ⌜w = true → window e⌝
+    ==∗
     ∃ w' : bool,
       resume_window_si CtxSwitch σ' ∗
       resume_window_frag w' ∗
@@ -600,7 +542,7 @@ Section hw_switches.
     iDestruct (resume_window_agree with "Ha Hf") as %<-.
     assert (window e ∨ ¬ irq_enabled σ) as Hpre.
     { destruct w0; [left; by apply Hw | right].
-      rewrite irq_enabled_mie_st' (Hw0 eq_refl eq_refl). discriminate. }
+      rewrite irq_enabled_mie_st (Hw0 eq_refl eq_refl). discriminate. }
     destruct (ctx_step_resumed_or_disabled e e' σ κ σ' efs Hws Hs Hpre) as [Hwin | Hd].
     - (* The step ends in the switch window. *)
       iMod (resume_window_update true with "Ha Hf") as "[Ha Hf]".
@@ -612,7 +554,7 @@ Section hw_switches.
       iModIntro. iExists false. iSplitL "Ha".
       { iExists false. iFrame "Ha". iPureIntro. intros _ _.
         destruct (mie_st σ') eqn:Hm; last done.
-        exfalso. apply Hd. by apply irq_enabled_mie_st'. }
+        exfalso. apply Hd. by apply irq_enabled_mie_st. }
       iFrame "Hf". done.
   Qed.
 

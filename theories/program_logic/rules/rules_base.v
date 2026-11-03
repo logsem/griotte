@@ -10,12 +10,6 @@ Import core_link.
 
 (* ------------------------- the thread languages ------------------------------ *)
 
-(** The opsem reads an absent mstatus as 0, the program logic as
-    interrupts disabled: the same. *)
-Lemma irq_enabled_mie_st `{MachineParameters} σ :
-  irq_enabled σ ↔ mie_st σ = InterruptEnabled.
-Proof. rewrite /irq_enabled /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
-
 (** The value of a configuration flag, if it is one. *)
 Definition flag_val {k} (c : ConfFlag) : option (tval k) :=
   match c with
