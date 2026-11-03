@@ -2,16 +2,6 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import call_stack switcher_preamble clear_stack_spec clear_registers_spec.
 
-(* TODO: move to rules_trap_entry.v *)
-Ltac instr_trap_start ::=
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
-  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
-  end;
-  let hpc := instr_trap_pc in
-  let pat := constr:(cons (spec_patterns.SIdent hpc nil) nil) in
-  iApply (wp_trap with pat).
-
 (** * Callback: clear the callee's frame and return to the caller
 
     [.Lswitch_callee_stack_zero], at the end of the block

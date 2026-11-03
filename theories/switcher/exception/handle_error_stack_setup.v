@@ -4,16 +4,6 @@ From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_state
   copy_context_spec.
 
-(* TODO: move to rules_trap_entry.v *)
-Ltac instr_trap_start ::=
-  lazymatch goal with
-  | |- environments.envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
-  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
-  end;
-  let hpc := instr_trap_pc in
-  let pat := constr:(cons (spec_patterns.SIdent hpc nil) nil) in
-  iApply (wp_trap with pat).
-
 (** * Exception path: the setup of a stackful handler
 
     [.Lhandle_error_stack_setup] writes the [ErrorState] at the moved stack

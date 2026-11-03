@@ -502,7 +502,7 @@ Ltac instr_trap_pc :=
 
 Ltac instr_trap_start :=
   lazymatch goal with
-  | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
+  | |- envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
   | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in
