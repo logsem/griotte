@@ -310,7 +310,14 @@ Section CmptLayout.
               (e_switcher switcher_cmpt)
               (a_switcher_call switcher_cmpt)
               (a_switcher_return switcher_cmpt)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_exc)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_exit)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_exit_set)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_tail)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_sched_cjalr)
+              (a_switcher_call switcher_cmpt ^+ switcher_offset_sched_return)
               (ot_switcher switcher_cmpt)
+              1
               (λ _, mkThreadLayout
                       (b_trusted_stack switcher_cmpt)
                       (e_trusted_stack switcher_cmpt)

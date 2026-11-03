@@ -72,7 +72,7 @@ Section hts_obligations.
       cbn in Hot_nodup. apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
     assert (ot_alloc < ot_alloc ^+ 1)%ot as Hot_alloc_size.
     { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [_ Hot_valid].
-      cbn in Hot_valid. rewrite Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
+      cbn in Hot_valid. rewrite Forall_cons Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
     destruct (fw_heap_machine _ _ _ Hok ltac:(by cbn)) as [Haffine Hrevoker].
     pose (alloclayout := img_allocator_layout (cmpt_of img "allocator") ot_alloc).
     assert (image.cmpt_imports (cmpt_of img "allocator") = img_allocator_imports ot_alloc)
