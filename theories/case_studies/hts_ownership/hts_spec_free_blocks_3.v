@@ -20,7 +20,7 @@ Section HTS_Reload.
     {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
-    `{MP: MachineParameters} {CL : CritLink Σ th}.
+    `{MP: MachineParameters} {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}.
 
   Definition hts_reload_buffer_instrs : list Word :=
     hts_main_instrs_n 10.

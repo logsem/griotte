@@ -32,7 +32,7 @@ Section Error_Handling_Handler_Blocks.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   (** The faults that the handler repairs, from mcause [c] and mtval [v]:
