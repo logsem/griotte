@@ -295,3 +295,82 @@ Section griotte_lang_rules_core.
   Qed.
 
 End griotte_lang_rules_core.
+
+(** The resuming [mret] of the context-switch thread. *)
+Section griotte_lang_rules_ctx.
+  Context `{MP: MachineParameters}.
+  Context `{ceriseg: ceriseG Σ} {CL : CritLink Σ CtxSwitch}.
+  Implicit Types w : LWord.
+
+  (** From MIE disabled to MIE enabled, the value is [ResumedV]: half of the
+      new PC fragment goes to the context-switch thread's interrupt clause of
+      the state interpretation, the other half to the caller. *)
+  Lemma wp_mret_resume E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc : LWord) dq
+      (T1 T2 : iProp Σ) (Φ : tval CtxK → iProp Σ) :
+    decodeInstrW w.(lw) = Mret →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    link_transfer_si (th := CtxSwitch) (mie_move InterruptDisabled InterruptEnabled)
+      (mepcc ↦ₓ vepcc ∗ MPIE_frag InterruptEnabled ∗ T1) T2 →
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    ▷ pc_a ↦ₐ{dq} w ∗
+    ▷ mepcc ↦ₓ vepcc ∗
+    ▷ MIE ↦ₜ InterruptDisabled ∗
+    ▷ MPIE_frag InterruptEnabled ∗
+    ▷ T1 ∗
+    ▷ (PC_fragq (DfracOwn (1/2)) vepcc -∗
+       pc_a ↦ₐ{dq} w -∗
+       MIE ↦ₜ InterruptEnabled -∗
+       T2 -∗
+       Φ ResumedV) ⊢
+    @wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := CtxSwitch))) NotStuck E (Instr Executable) Φ.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Htr) "(>HPC & >Hpc_a & >Hepcc & >Hmie & >Hmpie & HT & Hφ)".
+    iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".
+    iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
+    iApply (wp_instr_step_link E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0");
+      first done.
+    iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
+    rewrite Hinstr.
+    iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %Hmie.
+    iDestruct (sys_interp_mpie_agree with "Hsr Hmpie") as %Hmpie.
+    destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
+    iDestruct (sys_interp_valid with "Hsr Hsmap") as %[Hlsregs _].
+    pose proof (ls_join_mstatus lsreg) as Hvst'.
+    rewrite Hinstr /exec in Hstep.
+    assert (ls_join lsreg !! mepcc = Some vepcc) as Hv'.
+    { eapply lookup_weaken; [|exact Hlsregs]. by simplify_map_eq. }
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv') as (wepcc & Hwepcc & Hrelepcc).
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
+    apply reg_phys_no_bounds in Hrelst; last done. cbn in Hrelst. subst wst.
+    cbn in Hstep. rewrite Hxsr Hwepcc Hwst /= mpie_of_mstatus_enc in Hstep.
+    injection Hstep as <- <-.
+    rewrite /update_pcc /update_sreg /=.
+    pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
+      (lword_of_word (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)))
+      (WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)) Her) as Her1.
+    specialize (Her1 ltac:(apply reg_word_ok_int) ltac:(by intros) ltac:(by intros)
+                  ltac:(apply reg_phys_lword_of_word)).
+    rewrite -ls_join_set_mstatus in Her1.
+    pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ vepcc wepcc Her1) as Her2.
+    specialize (Her2 ltac:(by eapply (er_sreg_words _ _ _ _ _ _ _ Her)) Hrelepcc
+                  ltac:(by eapply (er_sreg_pc_ok _ _ _ _ _ _ _ Her mepcc))).
+    iMod (sys_interp_set_mstatus _ _ _ (ls_mpie lsreg) InterruptEnabled
+           with "Hsr Hmie Hmpie") as "(Hsr & Hmie & Hmpie)".
+    iMod (PC_update _ _ vepcc with "HPCa HPC") as "[HPCa HPC]".
+    iPoseProof (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC") as "HSI".
+    iMod (Htr _ (MkExecConf wepcc r
+                 (<[mstatus := WInt (mstatus_enc (ls_mpie lsreg) InterruptEnabled)]> psr) m st td)
+           with "[$HSI $Hlink Hsmap $Hmpie $HT]") as "(HSI & Hlink & HT)".
+    { split_and!.
+      - by rewrite Hmie_st.
+      - by rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc.
+      - by rewrite /= lookup_insert_ne. }
+    { iApply (sregs_of_map_1 with "Hsmap"). }
+    iDestruct (PC_frag_split with "HPC") as "[HPC HPC']".
+    iModIntro. iFrame "HSI Hlink". iSplitL "HPC".
+    - (* Half of the PC fragment is deposited in the clause. *)
+      iRight. by iExists _.
+    - rewrite Hmpie. iApply ("Hφ" with "HPC' Hpc_a Hmie HT").
+  Qed.
+End griotte_lang_rules_ctx.
