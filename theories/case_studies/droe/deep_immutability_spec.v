@@ -214,7 +214,7 @@ Section DROE.
       & Hna & %Hcsp_bounds
       & Hworld_interp_C
       & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & _ & _
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
       & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
@@ -234,9 +234,15 @@ Section DROE.
       as ["Hctp"; "Hct0"; "Hct1"; "Hct2"; "Hca2"].
 
     (* Blocks 3-5: assert that b is unchanged and return, the thread exits *)
+    iDestruct (regs_of_parts _ [(cs1, _); (csp, _)]
+                 {[ cgp ; ca0 ; ca1 ; ct1 ; ca2 ; cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcs1 Hcsp]")
+      as (rmap_ret) "[%Hrmap_ret Hrmap]".
+    { rewrite !dom_delete_L Hrmap_dom. apply set_eq. intros r.
+      pose proof (all_registers_s_correct r). set_solver. }
+    { cbn. iFrame. }
     iApply (droe_assert_blocks_3_spec _ _ _ _ _ C_f with
              "[$Hassert $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hca0 $Hca1 $Hctp $Hct0
-              $Hct1 $Hct2 $Hca2 $Hcs0 $Hcra $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main
+              $Hct1 $Hct2 $Hca2 $Hcs0 $Hcra $Hrmap $Hcstk_frag $Hcgp_b $Himport_assert $Hcode_main
               $Hmie $Hheld]");
       [rewrite /droe_code_bounds; eauto 10|done..].
   Qed.

@@ -21,10 +21,11 @@ Section SO_Run_Blocks_2.
   .
 
   Lemma so_run_return_spec
-    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (mie :
+    (pc_b pc_e pc_a : Addr) (C_f : Sealable) (cstk : CSTK) (rmap : LReg) (wcra wctp wct0 wct2 : LWord) (mie :
       InterruptStatus) :
     so_code_bounds pc_b pc_e pc_a C_f ->
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} ->
     route_pre th mie ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -35,15 +36,16 @@ Section SO_Run_Blocks_2.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a so_main_code ∗
     MIE ↦ₜ[th] mie ∗
     held (th := th) mie
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & _) Hframes Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & _) Hframes Hdom Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & Hcode_main & Hmie & Hheld)".
+        & Hrmap & Hcstk & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     so_unfold_code.
 
@@ -56,8 +58,14 @@ Section SO_Run_Blocks_2.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
+    assert (list_to_set [cs0; cra] ∪ dom rmap = all_registers_s ∖ {[ ctp ; ct0 ; ct2 ]})
+      as Hdom_exit.
+    { rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r). set_solver. }
+    iDestruct (regs_of_parts rmap [(cs0, _); (cra, _)] _ Hdom_exit with "Hrmap [Hcs0 Hcra]")
+      as (rmap_exit) "[%Hdom_rmap_exit Hrmap]".
+    { cbn. iFrame. }
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie $Hheld]").
   Qed.
 
 End SO_Run_Blocks_2.

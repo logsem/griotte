@@ -104,12 +104,13 @@ Section Switcher.
 
   (** A return through the switcher's return entry at the thread's entry call
       stack: the switcher finds no frame to pop and goes to
-      [.Lcommon_defer_irqs_and_thread_exit], and the thread exits, with the
-      trusted-stack invariant closed. Only three scratch registers are used: the
-      stack, the world and the other registers are not read. *)
+      [.Lcommon_defer_irqs_and_thread_exit], and the thread exits, with its
+      whole register file. Only three scratch registers are used: the stack,
+      the world and the other registers are not read. *)
   Lemma switcher_ret_thread_exit_specification
-    (cstk : CSTK) (wctp wct0 wct2 : LWord) (b : InterruptStatus) :
+    (cstk : CSTK) (wctp wct0 wct2 : LWord) (rmap : LReg) (b : InterruptStatus) :
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ ctp ; ct0 ; ct2 ]} ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
     na_own (tpool th) ⊤ ∗
@@ -117,13 +118,14 @@ Section Switcher.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     MIE ↦ₜ[th] b ∗
     held (th := th) b
     ⊢ safe[th].
   Proof.
-    destruct cstk as [ef frms]; cbn; intros ->.
-    iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hcstk & Hmie & Hheld)".
+    destruct cstk as [ef frms]; cbn; intros -> Hdom.
+    iIntros "(#Hswitcher & #Hstatic & Hna & HPC & Hctp & Hct0 & Hct2 & Hrmap & Hcstk & Hmie & Hheld)".
     iPoseProof "Hstatic" as "[#Hcode _]".
     (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hswitcher Hna")
@@ -136,14 +138,21 @@ Section Switcher.
     (* No frame to pop: to the thread exit *)
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hcode]").
-    iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
-    iApply (common_defer_irqs_and_thread_exit_spec _ _ b with "[- $HPC $Hcode $Hmie $Hheld]").
-    { intros Hcs. by destruct Huser. }
-    iIntros "!> _".
-    iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-           "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
-            Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
-    iModIntro; rewrite HO_halted; iExact "Hna".
+    iIntros "!>" (g_tstk) "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & Hhazard)".
+    iApply (common_defer_irqs_and_thread_exit_spec _ _ b with "[- $HPC $Hcode $Hmie $Hheld]");
+      [done | intros Hcs; by destruct Huser |].
+    iIntros "!> (HPC & Hmie & Hposture)".
+    iDestruct (regs_total_of rmap
+                 [(ctp, lword_of_word (Cap RWL g_tstk b_trusted_stack e_trusted_stack b_trusted_stack));
+                  (ct0, lword_of_word (WInt TrustedStack_offset_frames));
+                  (ct2, lword_of_word (WInt (tstack_frame_offset 0)))]
+                with "Hrmap [Hctp Hct0 Hct2]") as (lreg) "[%Hlreg Hregs]".
+    { rewrite Hdom. cbn. set_solver. }
+    { cbn. iFrame. }
+    iAssert exit_concrete with "[HPC Hhazard]" as "Hexit".
+    { rewrite /exit_concrete. iFrame. }
+    iModIntro.
+    iApply (switcher_HO_exit with "Hstatic Hmie Hposture Hregs Hexit"); done.
   Qed.
 
   (** A fault in a trusted callee whose table declares no handler, with its

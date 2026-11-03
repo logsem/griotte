@@ -22,12 +22,13 @@ Section DROE_Assert_Blocks_3.
   .
 
   Lemma droe_assert_blocks_3_spec
-    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (cstk : CSTK)
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr) (C_f : Sealable) (cstk : CSTK) (rmap : LReg)
     (wca0 wca1 wctp wct0 wct1 wct2 wca2 wcra : LWord) (b : InterruptStatus) :
     droe_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b + length droe_main_data)%a = Some cgp_e ->
     disjoint_from_mmio cgp_b cgp_e ->
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ cgp ; ca0 ; ca1 ; ct1 ; ca2 ; cs0 ; cra ; ctp ; ct0 ; ct2 ]} ->
     route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -44,6 +45,7 @@ Section DROE_Assert_Blocks_3.
     ca2 ↦ᵣ[th] wca2 ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
     cra ↦ᵣ[th] wcra ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     cgp_b ↦ₐ WInt 42 ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
@@ -53,9 +55,9 @@ Section DROE_Assert_Blocks_3.
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap)
-             Hcgp_contiguous Hcgp_mmio Hframes Hroute)
+             Hcgp_contiguous Hcgp_mmio Hframes Hdom Hroute)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hca0 & Hca1 & Hctp
-        & Hct0 & Hct1 & Hct2 & Hca2 & Hcs0 & Hcra & Hcstk & Hcgp_b & Himport_assert
+        & Hct0 & Hct1 & Hct2 & Hca2 & Hcs0 & Hcra & Hrmap & Hcstk & Hcgp_b & Himport_assert
         & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code droe_main_code "Hcode_main".
@@ -98,8 +100,14 @@ Section DROE_Assert_Blocks_3.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
+    assert (list_to_set [cgp; ca0; ca1; ct1; ca2; cs0; cra] ∪ dom rmap = all_registers_s ∖ {[ ctp ; ct0 ; ct2 ]})
+      as Hdom_exit.
+    { rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r). set_solver. }
+    iDestruct (regs_of_parts rmap [(cgp, _); (ca0, _); (ca1, _); (ct1, _); (ca2, _); (cs0, _); (cra, _)] _ Hdom_exit with "Hrmap [Hcgp Hca0 Hca1 Hct1 Hca2 Hcs0 Hcra]")
+      as (rmap_exit) "[%Hdom_rmap_exit Hrmap]".
+    { cbn. iFrame. }
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie $Hheld]").
   Qed.
 
 End DROE_Assert_Blocks_3.

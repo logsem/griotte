@@ -214,7 +214,8 @@ Section LSE.
       & Hcstk_frag
       & HPC & Hrest)".
     iDestruct "Hrest"
-      as "(_ & Hcra & Hcs0 & _ & _ & _ & _ & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
+      as "(Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ] & Hrmap
+          & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (_ & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcra;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=; reflexivity].
@@ -225,9 +226,15 @@ Section LSE.
     iExtractList "Hrmap" [ctp;ct0;ct2] as ["Hctp"; "Hct0"; "Hct2"].
 
     (* Block 3: return, the thread exits *)
+    iDestruct (regs_of_parts _ [(cgp, _); (cs1, _); (csp, _); (ca0, _); (ca1, _)]
+                 {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hcs1 Hcsp Hca0 Hca1]")
+      as (rmap_ret) "[%Hrmap_ret Hrmap]".
+    { rewrite !dom_delete_L Hrmap'_dom. apply set_eq. intros r.
+      pose proof (all_registers_s_correct r). set_solver. }
+    { cbn. iFrame. }
     iApply (lse_run_return_spec with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
   Qed.
 
 End LSE.

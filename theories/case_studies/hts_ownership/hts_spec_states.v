@@ -253,7 +253,8 @@ Section HTS_States.
 
   (** Enough to run a failing result check at [a], and to return through the
       switcher's return sentry saved in [cs0], at the thread's entry call
-      stack: [ca0] holds the integer error code [z]. *)
+      stack: [ca0] holds the integer error code [z]; the other registers
+      are handed to the thread's exit. *)
   Definition hts_halt_ready (a : Addr) (z : Z) : iProp Σ :=
     na_own (tpool th) ⊤ ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e a ∗
@@ -264,6 +265,8 @@ Section HTS_States.
     (∃ w, ctp ↦ᵣ[th] w) ∗
     (∃ w, ct2 ↦ᵣ[th] w) ∗
     (∃ mie, ⌜route_pre th mie⌝ ∗ MIE ↦ₜ[th] mie ∗ held (th := th) mie) ∗
+    (∃ rmap, ⌜dom rmap = all_registers_s ∖ {[ ca0 ; ct0 ; cs0 ; cra ; ctp ; ct2 ]}⌝ ∗
+       regs[th] rmap) ∗
     ◯(CSTK)[th] cstk ∗
     ⌜cstk.(cstk_frames) = []⌝ ∗
     codefrag_pers pc_a hts_main_code.
@@ -357,9 +360,12 @@ Section HTS_States.
     hts_free_ok (pc_a ^+ hts_label_offset ".Lhts_free_result")%a.
 
   (** Return from the second adversary call: only [p] and the code are
-      needed for the assertion. *)
+      needed for the assertion; the registers are handed to the thread's
+      exit. *)
   Definition hts_adv2_ret : iProp Σ :=
     hts_frame (pc_a ^+ hts_label_offset ".Lhts_prep_assert")%a (stk_start_a csp_b csp_e ^+ -1) ∗
+    (∃ w, ca0 ↦ᵣ[th] w) ∗
+    (∃ w, ca1 ↦ᵣ[th] w) ∗
     hts_zero_regs.
 
 End HTS_States.

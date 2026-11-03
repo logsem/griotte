@@ -110,14 +110,19 @@ Section Switcher.
     { (* No caller: the frame to pop is the entry frame, the thread exits *)
       iApply (switcher_return_exit_path_spec _ _ _ b with
         "[$HPC $Hrmap $Hmtdc $Hframeoffset $Hhazard $Hcode $Hmie $Hheld
-          Hna Hclose_switcher_inv HthreadID Htstk Hcstk_full Hstk_interp]");
-        [done | apply Hpre |].
-      iIntros "!> (Hmtdc & Hframeoffset & Hhazard & _ & _)".
-      subst hclose_switcher_inv.
-      iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-             "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
-              Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
-      iModIntro; rewrite HO_halted; iExact "Hna".
+          Hcgp Hcra Hcs0 Hcs1 Hca0 Hca1 Hcsp]");
+        [done | done | apply Hpre |].
+      iIntros "!> (HPC & (%rmap' & %Hdom' & Hrmap) & _ & _ & Hhazard & Hmie & Hposture)".
+      iDestruct (regs_total_of rmap'
+                   [(cgp, wcgp_old); (cra, wcra_old); (cs0, wcs0_old); (cs1, wcs1_old);
+                    (ca0, wca0); (ca1, wca1); (csp, wcsp)]
+                  with "Hrmap [Hcgp Hcra Hcs0 Hcs1 Hca0 Hca1 Hcsp]") as (lreg) "[%Hlreg Hregs]".
+      { rewrite Hdom' Hrmap0. cbn. set_solver. }
+      { cbn. iFrame. }
+      iAssert exit_concrete with "[HPC Hhazard]" as "Hexit".
+      { rewrite /exit_concrete. iFrame. }
+      iModIntro.
+      iApply (switcher_HO_exit with "Hstatic Hmie Hposture Hregs Hexit"); done.
     }
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
     cbn in Hlen_cstk.

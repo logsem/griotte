@@ -327,7 +327,7 @@ Section CMDC.
     iIntros (W_ret_C rmap stk_mem l' rcgp rcra rcs0 rcs1 m')
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
       & Hna & _ & _ & Hcstk_frag
-      & HPC & Hcgp & Hcra & Hcs0 & _ & _ & _ & _
+      & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%warg0_ret [Hca0 _] ] & [%warg1_ret [Hca1 _] ]
       & Hrmap & _ & _ & %Hrestored & %Hroute_C & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
@@ -345,12 +345,19 @@ Section CMDC.
     iApply (cmdc_check_blocks_3_spec cmdc_call_C with
              "[- $Hassert $HPC $Hcgp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
               $Hcgp_b $Himport_assert $Hcode_main $Hmie $Hheld]"); [done|solve_addr|done|done|].
-    iNext; iIntros "(HPC & _ & Hct0 & _ & Hct2 & _ & Hcra & _ & _ & Hcode_main & Hmie & Hheld)".
+    iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & _ & _ & Hcode_main & Hmie
+                    & Hheld)".
 
     (* Block 10: return, the thread exits *)
+    iDestruct (regs_of_parts _ [(cgp, _); (ct1, _); (ca2, _); (cs1, _); (csp, _); (ca0, _); (ca1, _)]
+                 {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hct1 Hca2 Hcs1 Hcsp Hca0 Hca1]")
+      as (rmap_ret) "[%Hrmap_ret Hrmap]".
+    { rewrite !dom_delete_L Hrmap_dom. apply set_eq. intros r.
+      pose proof (all_registers_s_correct r). set_solver. }
+    { cbn. iFrame. }
     iApply (cmdc_return_spec with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done].
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+               $Hcstk_frag $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
   Qed.
 
   Lemma cmdc_spec_full
