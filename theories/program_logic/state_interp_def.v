@@ -167,31 +167,6 @@ Notation "'WP' e '@[' th ] {{ v , Q } }" :=
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
 
-(** The postcondition of a safe execution of thread [th]: when the thread
-    halts, it gives back its non-atomic token. *)
-Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : tval (kind_of th)) : iProp Σ :=
-  ⌜v = HaltedV⌝ → na_own (tpool th) ⊤.
-
-(* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
-   by the notations with a binder. *)
-Notation "'WP' e '@[' th ] E {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck E e%E (HO th'))
-  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
-   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  HO  th'  } } ']'") : bi_scope.
-Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck ⊤ e%E (HO th'))
-  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
-   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
-
-(** A safe run of thread [th]: its WP with postcondition [HO th]. *)
-Notation "'safe[' th ]" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck ⊤
-     Exec (HO th))
-  (at level 20, th custom thread, format "'safe[' th ]") : bi_scope.
-
 (** A fancy update stated with only a base in scope is at the base's
     [cb_invG]. Iris's [elim_modal_fupd_wp] states the update at the WP's
     [iris_invGS], which typeclass search does not unify with [cb_invG]:

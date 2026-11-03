@@ -3,7 +3,7 @@ From iris.base_logic Require Export invariants na_invariants gen_heap.
 From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.algebra Require Import frac auth gmap.
 From griotte Require Export iris_extra stdpp_extra.
-From griotte Require Export machine_base state_interp posture register_file machine_instructions.
+From griotte Require Export machine_base state_interp posture handoff register_file machine_instructions.
 From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
 Import core_link.
