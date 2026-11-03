@@ -319,5 +319,5 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
       [15]  [b_trusted_stack t0, e_trusted_stack t0)                -- thread 0, trusted stack
       [16]  [b_stack t0, e_stack t0)                                -- thread 0, stack
       [17]  [b_hazard t0, e_hazard t0)                              -- thread 0, hazard slots
-  NoDup [ot_switcher sw; ot_kvs]                                    -- sealing types distinct
-  Forall otype_valid [ot_switcher sw; ot_kvs]                       -- sealing types valid
+  NoDup [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]               -- sealing types distinct
+  Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]  -- sealing types valid
