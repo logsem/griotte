@@ -1021,12 +1021,13 @@ Ltac iUnlockFramed :=
              remaining
       end ].
 
-(* The premise [route_pre th b → route_pre th b'] of an MIE writer is left
-   to [instr_commit_lint]: before the MIE resource is framed, [solve_pure]
+(* The premise [route_pre th b → route_pre th b'] of an MIE writer, guarded
+   or not, is left to [instr_commit_lint]: before the MIE resource is framed, [solve_pure]
    would prove it by unifying [b'] with [b]. *)
 Ltac instr_not_route_imp :=
   lazymatch goal with
   | |- route_pre _ _ → route_pre _ _ => fail
+  | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ => fail
   | _ => idtac
   end.
 
@@ -1286,12 +1287,20 @@ Ltac solve_jcond_test :=
 
 (* The premise [route_pre th b → route_pre th b'] of an MIE writer: the
    new MIE is disabled, is the old one, or the thread is not the
-   context switch. Fails otherwise. *)
-Ltac instr_route_imp :=
+   context switch. Fails otherwise. The premise of a jump is guarded by
+   its target word and checks, introduced first. *)
+Ltac instr_route_imp_core :=
   solve [ assumption
         | let Hb := fresh "Hb" in let Hc := fresh "Hc" in
           intros Hb Hc;
           first [ reflexivity | by apply Hb | contradiction | discriminate ] ].
+Ltac instr_route_imp :=
+  lazymatch goal with
+  | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ =>
+      let w := fresh "w" in let Hw := fresh "Hw" in let Hok := fresh "Hok" in
+      intros w Hw Hok; instr_route_imp_core
+  | _ => instr_route_imp_core
+  end.
 
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
@@ -1318,6 +1327,7 @@ Ltac instr_commit_lint :=
   | |- route_pre _ _ =>
       try solve [assumption | intros ?; reflexivity | intros ?; discriminate | done]
   | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
+  | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ => try instr_route_imp
   | |- _ ≠ exit_marker => try solve [ cbv [exit_marker MCAUSE_THREAD_EXIT]; congruence ]
   | _ => idtac
   end.
@@ -1568,6 +1578,7 @@ Ltac instr_apply_core hlc rule spat intro_xs ipat :=
   iApply (rule with sps);
   [ first [ lazymatch goal with
                  | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
+                 | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ => try instr_route_imp
                  end
                | try solve_pure ] ..
   | instr_apply_main hlc hlc' I intro_xs ipat ].

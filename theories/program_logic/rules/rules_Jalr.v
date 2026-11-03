@@ -73,7 +73,8 @@ Section griotte_lang_rules.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jalr rdst rsrc) ⊆ dom regs →
     link_transfer_si (mie_move b (jalr_mie regs rsrc b)) T1 T2 →
-    (route_pre th b → route_pre th (jalr_mie regs rsrc b)) →
+    (∀ wsrc, regs !!ₗ rsrc = Some wsrc → jalr_target_ok rdst rsrc wsrc.(lw) = true →
+       route_pre th b → route_pre th (jalr_mie regs rsrc b)) →
 
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -164,7 +165,7 @@ Section griotte_lang_rules.
         - by rewrite Hjm /mie_st /= lookup_insert_eq Hzeq /= mie_of_mstatus_enc.
         - by rewrite /= lookup_insert_ne. }
       { intros [Hk _]. rewrite Hk /mie_st /= lookup_insert_eq Hzeq /= mie_of_mstatus_enc -Hjm.
-        apply Hroute. rewrite -Hmie_st. by apply ctx_irq_off_route. }
+        apply (Hroute wsrc H'rsrc Hok). rewrite -Hmie_st. by apply ctx_irq_off_route. }
       destruct (decide (rdst = cnull)) as [Hnull | Hnull].
       + iApply (instr_close_set_pc (Cap pc_p pc_g pc_b pc_e pc_a) r
                   (<[mstatus := WInt z]> sr) m st td _ lreg _ lmem R C _ (lupdatePcPerm wsrc)
@@ -507,7 +508,7 @@ Section griotte_lang_rules.
               (held (jalr_mie (<[rsrc:=wsrc]> (<[cra:=wcra]> ∅)) rsrc b))
              with "[$HPC $Hmap $Hpc_a $Hmie $Hheld]");
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
-      | by apply link_transfer_si_route | by rewrite Hjm |].
+      | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
     { destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -554,7 +555,7 @@ Section griotte_lang_rules.
               (held (jalr_mie {[cra := wcra]} cra b))
              with "[$HPC $Hmap $Hpc_a $Hmie $Hheld]");
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
-      | by apply link_transfer_si_route | by rewrite Hjm |].
+      | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
     { destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -601,7 +602,7 @@ Section griotte_lang_rules.
               (held (jalr_mie {[rsrc := wsrc]} rsrc b))
              with "[$HPC $Hmap $Hpc_a $Hmie $Hheld]");
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
-      | by apply link_transfer_si_route | by rewrite Hjm |].
+      | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
     { destruct (decide (cnull = cnull)) as [_|Hc]; last done.
@@ -643,7 +644,7 @@ Section griotte_lang_rules.
     iApply (wp_Jalr_link _ _ _ _ _ _ _ _ _ _ _ _ _ True True
              with "[$HPC $Hmap $Hpc_a $Hmie]");
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
-      | rewrite Hjm; apply link_transfer_si_kept | by rewrite Hjm | done |].
+      | rewrite Hjm; apply link_transfer_si_kept | intros ???; by rewrite Hjm | done |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
     { destruct (decide (cnull = cnull)) as [_|Hc]; last done.
@@ -668,7 +669,8 @@ Section griotte_lang_rules_core.
     decodeInstrW w.(lw) = Jalr rdst rsrc ->
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     regs_of (Jalr rdst rsrc) ⊆ dom regs →
-    (route_pre th b → route_pre th (jalr_mie regs rsrc b)) →
+    (∀ wsrc, regs !!ₗ rsrc = Some wsrc → jalr_target_ok rdst rsrc wsrc.(lw) = true →
+       route_pre th b → route_pre th (jalr_mie regs rsrc b)) →
 
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -725,7 +727,7 @@ Section griotte_lang_rules_core.
               default b (jalr_target_mie wsrc.(lw))) as Hjm.
     { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
     iApply (wp_Jalr with "[$HPC $Hmap $Hpc_a $Hmie]"); eauto; simplify_lmap_eq; eauto;
-      try (rewrite Hjm; done).
+      try (intros ???; rewrite Hjm; done).
     { set_solver. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
@@ -766,7 +768,7 @@ Section griotte_lang_rules_core.
     assert (jalr_mie {[cra := wcra]} cra b = default b (jalr_target_mie wcra.(lw))) as Hjm.
     { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
     iApply (wp_Jalr with "[$HPC $Hmap $Hpc_a $Hmie]"); eauto; simplify_lmap_eq; eauto;
-      try (rewrite Hjm; done).
+      try (intros ???; rewrite Hjm; done).
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
     { destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -810,7 +812,7 @@ Section griotte_lang_rules_core.
     assert (jalr_mie {[rsrc := wsrc]} rsrc b = default b (jalr_target_mie wsrc.(lw))) as Hjm.
     { rewrite /jalr_mie llookup_reg_not_cnull //; by simplify_map_eq. }
     iApply (wp_Jalr with "[$HPC $Hmap $Hpc_a $Hmie]"); eauto; simplify_lmap_eq; eauto;
-      try (rewrite Hjm; done).
+      try (intros ???; rewrite Hjm; done).
     { set_solver. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
     destruct Hspec as [ ? ? ? | ? Hlook Hfail | Hfail ]; subst.
