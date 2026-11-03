@@ -74,11 +74,12 @@ Section fundamental_generic.
   (** The case lemmas of all the instructions: Jalr sees the posture, the
       others frame it. *)
   Lemma ftlr_instr_cases :
-    ∀ W C regs p p' g b e a w i ρ P m, ftlr_instr_at m W C regs p p' g b e a w i ρ P.
+    ∀ W C regs p p' g b e a w i ρ P m,
+      i ≠ Ecall → ftlr_instr_at m W C regs p p' g b e a w i ρ P.
   Proof.
     (* A case stated at a fixed link then fails at once instead of unfolding. *)
     Opaque ftlr_instr_base.
-    intros W C regs p p' g b e a w i ρ P m.
+    intros W C regs p p' g b e a w i ρ P m Hne.
     (* proof by cases on each instruction *)
     destruct i.
     - (* Jmp *) apply ftlr_instr_frame, jmp_case.
@@ -121,6 +122,7 @@ Section fundamental_generic.
     - (* GetTag *) apply ftlr_instr_frame; by_get_case.
     - (* ClearTag *) apply ftlr_instr_frame, cleartag_case.
     - (* Auipcc *) apply ftlr_instr_frame, auipcc_case.
+    - (* Ecall *) exfalso. by apply Hne.
   Qed.
 
 End fundamental_generic.
