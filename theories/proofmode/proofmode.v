@@ -53,7 +53,7 @@ Ltac wp_pure_lc hlc := iApply wp_pure_step_later; [ by auto | iNext ; iIntros hl
    Remove it from the tactic if necessary. *)
 Ltac wp_end := iApply wp_value.
 Ltac wp_instr :=
-  iApply (wp_bind (fill [SeqCtx]));
+  iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx]));
   (* Reduce the [fill] under the WP... *)
   let X := fresh in
   set X := (fill _);
