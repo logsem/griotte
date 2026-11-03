@@ -1,4 +1,4 @@
-From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map ghost_var.
+From iris.base_logic Require Export invariants na_invariants gen_heap ghost_map ghost_var saved_prop.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import excl_auth csum.
 From griotte Require Export logical_words alloc_registry.
@@ -427,13 +427,41 @@ Definition thread_map {A} (x0 : A) (xs : list A) (xc d : A) (th : Thread) : A :=
   | CtxSwitch => xc
   end.
 
+(** * The switches between threads
+
+    The values a parked thread resumes with: its general registers, its PC
+    and its MIE (its mtdc is its home value). *)
+Record resume_vals := ResumeVals {
+  rv_regs : LReg;
+  rv_pc : LWord;
+  rv_mie : InterruptStatus;
+}.
+
+(** How the running thread is parked: by an interrupt, by a yield (its MIE
+    before the [ecall] and its MEPCC), or at its exit. *)
+Inductive park_kind :=
+| ParkIrq
+| ParkYield (b : InterruptStatus) (p : LWord)
+| ParkExit.
+
+(** The state of the one thread that is not suspended. In [cur], [None]
+    means that every user thread is suspended. *)
+Inductive TState :=
+| Running
+| Saving (k : park_kind) (v : resume_vals)
+| Resuming (v : resume_vals).
+
+Definition curUR := excl_authUR (leibnizO (option (Thread * TState))).
+
 (** The resources shared by the threads, and the per-thread ones as maps
     from threads: the PC, the general registers, the ghost state of mtdc and
-    MIE, the mtdc token, and the non-atomic pool [tpool th]. The other
-    system registers, MPIE and the names of the postures are shared. The
-    shared fields are [::]
-    fields, the per-thread maps are not, so typeclass search finds a
-    per-thread heap only through [ceriseG_of]. The shared fields other than
+    MIE, the mtdc token, and the non-atomic pool [tpool th]; and the ghost
+    state of the switches: the name of [cur], and the names of the saved
+    propositions of the switcher's parts of [HO] ([γ_exit th], [γ_sched]).
+    The other system registers, MPIE and the names of the postures are
+    shared. The shared fields are [::] fields, the per-thread maps are not,
+    so typeclass search finds a per-thread heap only through [ceriseG_of].
+    The shared fields other than
     [na_invG] have a low priority: with a thread in scope, the invariants,
     the memory, the shadow table, the system registers, the registry, the
     address claims and [mtcc_vec] elaborate through [ceriseG_of] as in the
@@ -456,9 +484,16 @@ Class ceriseBaseG Σ := CeriseBaseG {
   cb_mie_of : Thread → mieG Σ;
   cb_mtdc_lent_of : Thread → mtdcLentG Σ;
   tpool : Thread → na_inv_pool_name;
+  cb_cur_inG :: inG Σ curUR | 100;
+  cb_cur_name : gname;
+  cb_saved_prop :: savedPropG Σ | 100;
+  γ_exit : Thread → gname;
+  γ_sched : gname;
 }.
 #[export] Hint Mode ceriseBaseG - : typeclass_instances.
 #[global] Arguments tpool {Σ _} th : rename.
+#[global] Arguments γ_exit {Σ _} th : rename.
+#[global] Arguments γ_sched {Σ _} : rename.
 
 (** The instance of thread [th]. Every field is a projection of [base]:
     a record built with [{| f := f |}] would have its fields filled in by
