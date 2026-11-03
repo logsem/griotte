@@ -10,10 +10,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -57,8 +55,8 @@ Section griotte_lang_rules.
       incrementPC lpc = None ->
       BinOp_failure i lpc regs dst rv1 rv2.
 
-  Inductive BinOp_spec (i: instr) (lpc : LWord) (regs : LReg) (dst: RegName) (rv1 rv2: Z + RegName)
-    (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive BinOp_spec {k : kind} (i: instr) (lpc : LWord) (regs : LReg) (dst: RegName) (rv1 rv2: Z + RegName)
+    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
   | BinOp_spec_success n1 n2:
       lz_of_argument regs rv1 = Some n1 ->
       lz_of_argument regs rv2 = Some n2 ->
@@ -87,7 +85,7 @@ Section griotte_lang_rules.
           [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hinstr; discriminate|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -118,7 +116,7 @@ Section griotte_lang_rules.
 
   (** A BinOp on two integer operands, whose PC increments, has one
       outcome. *)
-  Lemma BinOp_spec_next i lpc regs dst arg1 arg2 lpc' regs' retv n1 n2 lpc0 :
+  Lemma BinOp_spec_next {k : kind} i lpc regs dst arg1 arg2 lpc' regs' (retv : tval k) n1 n2 lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     incrementPC lpc = Some lpc0 →

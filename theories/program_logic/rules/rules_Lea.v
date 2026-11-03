@@ -9,9 +9,7 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -48,9 +46,9 @@ Section griotte_lang_rules.
      Lea_failure lpc regs dst src rv
   .
 
-  Inductive Lea_spec
+  Inductive Lea_spec {k : kind}
     (lpc : LWord) (regs : LReg) (dst src : RegName) (rv : Z + RegName)
-    (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop
+    (lpc' : LWord) (regs' : LReg) : tval k → Prop
   :=
   | Lea_spec_success_cap: forall (t : bool) p g b e a π z a',
     regs !!ₗ src = Some (WCap t p g b e a @@? π) ->
@@ -115,7 +113,7 @@ Section griotte_lang_rules.
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
    Proof.
      iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+     iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
      iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
      rewrite Hinstr in Hstep.
      specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -217,7 +215,7 @@ Section griotte_lang_rules.
    Proof. rewrite /lea_result. repeat case_match; eauto. Qed.
 
    (** A Lea whose PC increments has one outcome. *)
-   Lemma Lea_spec_next lpc regs dst src arg lpc' regs' retv wr z wr' lpc0 :
+   Lemma Lea_spec_next {k : kind} lpc regs dst src arg lpc' regs' (retv : tval k) wr z wr' lpc0 :
      regs !!ₗ src = Some wr →
      lz_of_argument regs arg = Some z →
      lea_result wr z = Some wr' →

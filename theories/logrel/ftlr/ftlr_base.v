@@ -12,12 +12,14 @@ From griotte Require Import monotone interp_weakening.
     fundamental theorem. *)
 Module CoreWPNotations.
   Notation "'WP' e '@core[' th ] {{ Φ } }" :=
-    (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th) (CL := link_core)))
+    (@wp _ _ _ _
+       (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
        NotStuck ⊤ e%E Φ)
     (at level 20, th custom thread, e, Φ at level 200,
      format "'[hv' 'WP'  e  '/' '@core[' th ]  '/' {{  Φ  } } ']'") : bi_scope.
   Notation "'WP' e '@core[' th ] {{ v , Q } }" :=
-    (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (ceriseg := ceriseG_of th) (CL := link_core)))
+    (@wp _ _ _ _
+       (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th) (CL := link_core)))
        NotStuck ⊤ e%E (λ v, Q))
     (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
      format "'[hv' 'WP'  e  '/' '@core[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
@@ -56,8 +58,8 @@ Section fundamental.
       theorem, at the post-world [W]: after [NextIV], the PC and the
       registers, the registers safe and the PC safe to execute; after
       [FaultedV], the PC and the registers, safe up to the world's filter;
-      after [HaltedV], nothing. *)
-  Definition ftlr_post (W : WORLD) (C : CmptName) (v : griotte_lang.val) : iProp Σ :=
+      after [HaltedV], nothing; a switch value: [False]. *)
+  Definition ftlr_post (W : WORLD) (C : CmptName) (v : tval (kind_of th)) : iProp Σ :=
     match v with
     | NextIV =>
         ∃ (regs : LReg) (pc : LWord),
@@ -72,6 +74,7 @@ Section fundamental.
           regs[th] regs ∗
           interp_reg interp W C regs
     | HaltedV => True
+    | TSwV _ => False
     end.
 
   Definition ftlr_instr_base
@@ -115,7 +118,7 @@ Section fundamental.
       after [NextIV], the PC is safe to execute at the post-step posture
       [m]; otherwise as [ftlr_post]. *)
   Definition ftlr_post_at (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : griotte_lang.val) : iProp Σ :=
+      (v : tval (kind_of th)) : iProp Σ :=
     match v with
     | NextIV =>
         ∃ (regs : LReg) (pc : LWord),

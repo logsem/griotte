@@ -16,7 +16,7 @@ Section AllocatorMallocSizeCheckBlocks2.
 
   Lemma allocator_malloc_size_check_valid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wreq wtmp : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     allocator_positive_size wreq.(lw) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_block_offset 1) ∗
@@ -61,7 +61,7 @@ Section AllocatorMallocSizeCheckBlocks2.
   Lemma allocator_malloc_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->
@@ -94,7 +94,7 @@ Section AllocatorMallocSizeCheckBlocks2.
   Lemma allocator_malloc_size_check_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wca0 wreq wtmp : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_positive_size wreq.(lw) ->
     jalr_target_ok cnull cra wret.(lw) = true ->

@@ -9,10 +9,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -204,10 +202,10 @@ Section griotte_lang_rules.
     repeat split; auto.
   Qed.
 
-  Inductive Load_spec
+  Inductive Load_spec {k : kind}
     (lpc : LWord) (regs: LReg) (r1 r2: RegName) (imm : Z)
     (lpc' : LWord) (regs': LReg) (mem : LMem) (shadow : ShadowTbl) (wit : load_witness)
-    (dw : deref_witness) : griotte_lang.val → Prop
+    (dw : deref_witness) : tval k → Prop
   :=
   | Load_spec_success p g b e a loadv loadv' :
     reg_allows_load_offset regs r2 imm p g b e a →
@@ -296,15 +294,17 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hmem_pc HaLoad Hdomeq φ)
       "(>HPC & >Hmem & >Hshadow & Hwit & Hdw & >Hmap) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
-    destruct σ1 as [pc r sr m st td]; cbn.
-    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
-    iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
-    iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
-    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
-    pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.
+    (* The instruction word is taken out of the memory map for the step. *)
+    assert (is_Some (dfracs !! pc_a)) as [dq_pc Hdq_pc].
+    { apply elem_of_dom. rewrite -Hdomeq. apply elem_of_dom; eauto. }
+    assert (prod_merge dfracs mem !! pc_a = Some (dq_pc, w)) as Hmerge_pc.
+    { by rewrite lookup_merge Hmem_pc Hdq_pc. }
+    iDestruct (big_sepM_delete _ _ pc_a (dq_pc, w) with "Hmem") as "[Hpc_a Hmem]"; first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|done|].
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ2) "@".
+    iAssert ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2)%I
+      with "[Hpc_a Hmem]" as "Hmem".
+    { iApply (big_sepM_delete _ _ pc_a (dq_pc, w)); first done. iFrame. }
     iDestruct (load_witness_lookup with "HR Hwit") as %Hwit.
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     pose proof (er_registry _ _ _ _ _ _ _ Her) as Hreg; cbn in Hreg.
@@ -324,14 +324,7 @@ Section griotte_lang_rules.
     odestruct (Hri r1) as [r1v [Hr'1 _] ]; first by set_solver+.
     clear Hri.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'2) as (s2 & Hr2 & Hrel2).
-    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hmem_pc))
-      as (pw & Hpw & Hpwok).
-    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    rewrite (mem_word_ok_decode _ _ _ _ Hpwok) Hinstr in Hstep.
+    rewrite Hinstr in Hstep.
     rewrite /exec /= Hr2 /= in Hstep.
 
     destruct (is_cap r2v.(lw)) eqn:Hr2v.
@@ -383,9 +376,9 @@ Section griotte_lang_rules.
       (match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) r1 pv) with
        | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ2) ∧
       (∀ lpc', incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw NextIV) ∧
+         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw (@NextIV (kind_of th))) ∧
       (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw FaultedV))
+         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw (@FaultedV (kind_of th))))
       as (v & pv & Hok & Hpv & Hstep' & Hsucc & Hfailure).
     {
       rewrite /is_mmio_address /mmio_load /shadow_load /revoker_load in Hstep.
@@ -442,8 +435,6 @@ Section griotte_lang_rules.
             -- intros. by eapply Load_spec_success.
             -- intros. apply Load_spec_failure; [|done..]. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
     }
-    iApply bupd_fupd.
-    iApply (instr_close_link_kept with "Hlink").
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ r1 v pv _ _ _
       (λ lpc' regs' retv, Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hmem Hshadow Hwit Hdw]").
@@ -1266,7 +1257,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
@@ -1350,7 +1341,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Hwa Hadd φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
@@ -1375,7 +1366,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.

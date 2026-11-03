@@ -20,7 +20,6 @@ Section griotte_lang_rules.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -66,8 +65,8 @@ Section griotte_lang_rules.
   (* The operands are read through their integer view. If either endpoint
      cannot be represented, the instruction clears the tag and preserves both
      original endpoints. The result keeps the identifier of the source. *)
-  Inductive Subseg_spec (lpc : LWord) (regs : LReg) (dst src : RegName)
-      (arg1 arg2 : Z + RegName) (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop :=
+  Inductive Subseg_spec {k : kind} (lpc : LWord) (regs : LReg) (dst src : RegName)
+      (arg1 arg2 : Z + RegName) (lpc' : LWord) (regs' : LReg) : tval k → Prop :=
   | Subseg_spec_success_cap (t : bool) p g b e a π n1 n2 a1 a2 :
       regs !!ₗ src = Some (WCap t p g b e a @@? π) →
       lz_of_argument regs arg1 = Some n1 →
@@ -152,7 +151,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hroot & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -194,9 +193,9 @@ Section griotte_lang_rules.
         reg_word_ok R C w' ∧
         reg_phys R w' pw ∧
         (∀ lpc', incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-          Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 lpc' (<[dst := w']ₗ> regs) NextIV) ∧
+          Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 lpc' (<[dst := w']ₗ> regs) (@NextIV (kind_of th))) ∧
         (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-          Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV) ∧
+          Subseg_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg1 arg2 (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs (@FaultedV (kind_of th))) ∧
         (match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) dst pw) with
          | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ'))
       as (w' & pw & Hok' & Hpw & Hsuccess & Hfailure & Hupdate).
@@ -274,7 +273,7 @@ Section griotte_lang_rules.
 
   (** A Subseg of a capability, with representable bounds and a PC that
       increments, has one outcome. *)
-  Lemma Subseg_spec_cap_next lpc regs dst src arg1 arg2 lpc' regs' retv
+  Lemma Subseg_spec_cap_next {k : kind} lpc regs dst src arg1 arg2 lpc' regs' (retv : tval k)
       (t : bool) p g b e a π n1 n2 a1 a2 lpc0 :
     regs !!ₗ src = Some (WCap t p g b e a @@? π) →
     lz_of_argument regs arg1 = Some n1 → lz_of_argument regs arg2 = Some n2 →
@@ -300,7 +299,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** The same for a sealing range. *)
-  Lemma Subseg_spec_sr_next lpc regs dst src arg1 arg2 lpc' regs' retv
+  Lemma Subseg_spec_sr_next {k : kind} lpc regs dst src arg1 arg2 lpc' regs' (retv : tval k)
       (t : bool) p g b e a π n1 n2 a1 a2 lpc0 :
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
     lz_of_argument regs arg1 = Some n1 → lz_of_argument regs arg2 = Some n2 →
@@ -887,7 +886,7 @@ Section griotte_lang_rules.
                    (<[r2:=WInt n2 @@? π2]>
                       (<[dst:=Cap p g b e a @@? None]> (∅ : LReg)))).
     set (v := Cap p g a1 a2 a @@ ι).
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (reg_lookup_obj with "HR Hobj") as %(γ & s' & HRι).
     iDestruct (reg_lookup_own with "HR Htok") as %(b' & e' & γ' & HRι').

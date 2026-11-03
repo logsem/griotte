@@ -144,7 +144,7 @@ Section Switcher_After_Compartment_Call.
   (** From [switcher_after_compartment_call], when the frame to pop is the
       entry frame: the PC is at [.Lcommon_defer_irqs_and_thread_exit]. *)
   Lemma switcher_after_compartment_call_exit_spec
-    (E : coPset) (Φ : griotte_lang.val → iProp Σ) (wctp wct0 wct2 : LWord) :
+    (E : coPset) (Φ : tval (kind_of th) → iProp Σ) (wctp wct0 wct2 : LWord) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
     ctp ↦ᵣ[th] wctp ∗

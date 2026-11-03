@@ -1,7 +1,7 @@
 From iris.program_logic Require Export weakestpre.
 From iris.proofmode Require Import proofmode.
-From griotte Require Import griotte_lang named_props_extra.
-From griotte Require Export resources crit_link.
+From griotte Require Import named_props_extra.
+From griotte Require Export resources crit_link thread_langs.
 
 (** The logical system registers of a step, in one argument: the shared
     heap [ls_sh] (without MTDC and mstatus), the ghost value [ls_mtdc] of
@@ -116,13 +116,27 @@ Section state_interp.
     "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
 End state_interp.
 
-(* invariants for memory, and a state interpretation for (mem,reg), with
-   the link of the critical sections *)
+(** The context-switch thread's interrupt clause. At [CtxK], interrupts are
+    disabled, or half of the PC fragment is parked there (after a resuming
+    [mret]); at [UserK], [True]. *)
+Definition ctx_irq_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
+    (σ : ExecConf) : iProp Σ :=
+  match k with
+  | UserK => True
+  | CtxK => ⌜mie_st σ = InterruptDisabled⌝ ∨ ∃ lpc, PC_fragq (DfracOwn (1/2)) lpc
+  end.
+
+(** The Iris instance of thread [th], over its thread language: invariants
+    for memory, and a state interpretation for (mem,reg), with the total
+    register file, the link of the critical sections and the
+    context-switch thread's interrupt clause. *)
 #[global] Instance memG_irisG `{MachineParameters} {Σ} {th : Thread} {ceriseg : ceriseG Σ}
     {CL : CritLink Σ th} :
-  irisGS griotte_lang Σ := {
+  irisGS (tlang (kind_of th)) Σ := {
   iris_invGS := cerise_invG;
-  state_interp σ _ κs _ := (cerise_state_interp σ ∗ @crit_link Σ th CL σ)%I;
+  state_interp σ _ κs _ :=
+    (cerise_state_interp σ ∗ ⌜dom (reg σ) = all_registers_s⌝ ∗ @crit_link Σ th CL σ ∗
+     ctx_irq_si (kind_of th) σ)%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _
@@ -152,31 +166,6 @@ Notation "'WP' e '@[' th ] {{ v , Q } }" :=
      NotStuck ⊤ e%E (λ v, Q))
   (at level 20, th custom thread, e, Q at level 200, v at level 200 as pattern,
    format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  '[' v ,  '/' Q  ']' } } ']'") : bi_scope.
-
-(** The postcondition of a safe execution of thread [th]: when the thread
-    halts, it gives back its non-atomic token. *)
-Definition HO {Σ} `{!ceriseBaseG Σ} (th : Thread) (v : griotte_lang.val) : iProp Σ :=
-  ⌜v = HaltedV⌝ → na_own (tpool th) ⊤.
-
-(* A WP with postcondition [HO th] prints as [{{ HO th }}], not η-expanded
-   by the notations with a binder. *)
-Notation "'WP' e '@[' th ] E {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck E e%E (HO th'))
-  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
-   format "'[hv' 'WP'  e  '/' '@[' th ]  E  '/' {{  HO  th'  } } ']'") : bi_scope.
-Notation "'WP' e '@[' th ] {{ 'HO' th' } }" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck ⊤ e%E (HO th'))
-  (at level 20, th custom thread, th' at level 0, e at level 200, only printing,
-   format "'[hv' 'WP'  e  '/' '@[' th ]  '/' {{  HO  th'  } } ']'") : bi_scope.
-
-(** A safe run of thread [th]: its WP with postcondition [HO th]. *)
-Notation "'safe[' th ]" :=
-  (@wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := th) (ceriseg := ceriseG_of th)))
-     NotStuck ⊤
-     Exec (HO th))
-  (at level 20, th custom thread, format "'safe[' th ]") : bi_scope.
 
 (** A fancy update stated with only a base in scope is at the base's
     [cb_invG]. Iris's [elim_modal_fupd_wp] states the update at the WP's

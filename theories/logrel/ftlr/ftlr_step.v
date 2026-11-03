@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel ftlr_base.
-From griotte Require Import monotone wp_core_full.
+From griotte Require Import monotone wp_core_full Ecall.
 Import CoreWPNotations.
 
 (** * One step of the fundamental theorem
@@ -9,7 +9,8 @@ Import CoreWPNotations.
     The step lemma [ftlr_step] runs one instruction of a thread from a safe
     PC: the head (the not-correct-PC branch, the opening of the region of
     the PC), the case of the instruction, and the handling of its value
-    (the next instruction, a fault, a halt). The
+    (the next instruction, a fault, a halt, a yield). The environment call
+    is dispatched before the table of the other cases. The
     world is reached through a world accessor around the core step of the
     instruction; the cases never see it. *)
 
@@ -32,30 +33,35 @@ Section ftlr_step_generic.
   Implicit Types interp : (V).
 
   (** The world accessor around the core step of an instruction: from the
-      world resources of [W] under the regime of [C], the regime's thread
-      resources [thr m] and the MIE fragment [mie m] of the thread, and the
-      carried credit, the core step of the instruction runs on the owned
-      world interpretation of a public future world [W'] of [W]. The
-      post-state, at the post-world [W''] and the post-step MIE value [m'],
-      goes back to the regime. *)
-  Definition world_accessor (thr mie : InterruptStatus → iProp Σ) : iProp Σ :=
-    ∀ W C (m : InterruptStatus) (Ψ : WORLD → InterruptStatus → griotte_lang.val → iProp Σ),
+      world resources of [W] under the regime of [C], what the thread holds
+      at its posture [m] ([held]), its MIE fragment at [m], where it may
+      run, and the carried credit, the core step of the instruction runs on
+      the owned world interpretation of a public future world [W'] of [W].
+      The core step receives the lent volatile part and gives it back at a
+      post-step InterruptEnabled. The post-state, at the post-world [W'']
+      and the post-step MIE value [m'], goes back to the regime; the thread
+      gets the token and the part of its posture at InterruptDisabled
+      ([part_at]). *)
+  Definition world_accessor : iProp Σ :=
+    ∀ W C (m : InterruptStatus) (Ψ : WORLD → InterruptStatus → tval (kind_of th) → iProp Σ),
       world_resources W C -∗
-      thr m -∗
-      mie m -∗
+      held (th := th) m -∗
+      (MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝) -∗
       shared_credit C -∗
       (∀ W', ⌜related_sts_pub_world W W'⌝ -∗
          world_interp W' C -∗
-         mie m -∗
+         vol_lent_any -∗
+         (MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝) -∗
          WP Instr Executable @core[th]
          {{ v, ▷ ∃ W'' m', ⌜related_sts_pub_world W' W''⌝ ∗
                            world_interp W'' C ∗
-                           mie m' ∗
+                           (MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝) ∗
+                           (if m' is InterruptEnabled then vol_lent_any else True) ∗
                            Ψ W'' m' v }}) -∗
       WP Instr Executable @[th]
       {{ v, ▷ ∃ W'' m', world_resources W'' C ∗
-                        thr m' ∗
-                        mie m' ∗
+                        part_at (th := th) m' ∗
+                        (MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝) ∗
                         Ψ W'' m' v }}.
 
   (** A safe, correct PC has a valid PC permission. *)
@@ -147,33 +153,41 @@ Section ftlr_step.
   (** The world accessor at the thread's link, in either regime. The thread
       holds its posture ([held]) and its MIE fragment, at a posture where it
       may run. The full-link adapter routes the posture around the core step
-      and lends it the critical-section token; the world resources are
-      opened with the token and the carried credit, the step runs on the
-      owned world interpretation at [W' := W], and the world resources are
-      closed in the step's post, under its later. In exclusive mode the
-      token and the credit are not used. *)
-  Lemma world_accessor_full :
-    ⊢ world_accessor (λ m, held (th := th) m) (λ m, MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝)%I.
+      and lends it [handover_res]: the critical-section token stays with
+      the accessor, the volatile part goes to the core step. The world
+      resources are opened with the token and the carried credit, the step
+      runs on the owned world interpretation at [W' := W], and the world
+      resources are closed in the step's post, under its later. In
+      exclusive mode the token and the credit are not used. *)
+  Lemma world_accessor_full : ⊢ world_accessor.
   Proof.
     iIntros (W C m Ψ) "Hwres Hheld [Hmie %Hpre] Hcred Hstep".
     iApply (wp_wand with "[Hwres Hheld Hmie Hstep Hcred]").
-    { iApply (wp_core_full_crit (th := th) ⊤ m
-                (λ m' v, ∃ W'', ⌜route_pre th m'⌝ ∗ world_resources W'' C ∗ Ψ W'' m' v)%I
+    { iApply (wp_core_full_ho (th := th) ⊤ m
+                (λ m' v, ∃ W'', ⌜route_pre th m'⌝ ∗ world_resources W'' C ∗
+                   (if m' is InterruptDisabled then na_own crit ⊤ else True) ∗
+                   Ψ W'' m' v)%I
                with "Hheld Hmie"); first done.
-      iIntros "Htok Hmie".
+      iIntros "Hho Hmie".
+      iDestruct (handover_res_vol with "Hho") as "[Htok Hvol]".
       iMod (world_resources_acc_credit ⊤ ⊤ with "Hwres Hcred Htok")
         as "(Hworld & Htok & [_ Hclose])"; [solve_ndisj | solve_ndisj |].
-      iSpecialize ("Hstep" $! W with "[] Hworld [$Hmie //]").
+      iSpecialize ("Hstep" $! W with "[] Hworld Hvol [$Hmie //]").
       { iPureIntro. apply related_sts_pub_refl_world. }
       iApply (wp_strong_mono with "Hstep"); [done | done |].
       iIntros (v) "Hpost".
-      iDestruct "Hpost" as (W'' m') "(_ & Hworld & [Hmie Hpre'] & HΨ)".
+      iDestruct "Hpost" as (W'' m') "(_ & Hworld & [Hmie Hpre'] & Hvol & HΨ)".
       iMod ("Hclose" $! W'' with "Hworld Htok") as "[Hwres Htok]".
       iModIntro. iNext. iDestruct "Hpre'" as %Hpre'.
-      iExists m'. iFrame "Htok Hmie". iExists W''. by iFrame. }
+      iExists m'. iFrame "Hmie".
+      destruct m'.
+      - iSplitL "Htok Hvol"; first (iApply handover_res_vol; iFrame).
+        iExists W''. by iFrame.
+      - iSplitR; first done. iExists W''. by iFrame. }
     iIntros (v) "Hpost". iNext.
-    iDestruct "Hpost" as (m') "(Hheld & Hmie & %W'' & %Hpre' & Hwres & HΨ)".
-    iExists W'', m'. by iFrame.
+    iDestruct "Hpost" as (m') "(Hmie & Hpart & %W'' & %Hpre' & Hwres & Htok & HΨ)".
+    iExists W'', m'. iFrame "Hwres Hmie HΨ". iSplit; last done.
+    destruct m'; [done | iFrame].
   Qed.
 
   (** A fault whose safe-register facts, world and posture come a later
@@ -220,12 +234,27 @@ Section ftlr_step.
     iLeft. iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
+  (** A case that does not touch the volatile registers frames the lent
+      part: back to the accessor at InterruptEnabled, in the post-state at
+      InterruptDisabled. *)
+  Lemma vol_lent_frame m :
+    vol_lent_any -∗ (if m is InterruptEnabled then vol_lent_any else True) ∗ lent_if_dis m.
+  Proof. iIntros "H". destruct m; iFrame. Qed.
+
+  (** The post-state of the step lemma: an environment call, or a case's
+      post-state with the lent volatile part at InterruptDisabled. *)
+  Definition ftlr_post_sw (m : InterruptStatus) (W : WORLD) (C : CmptName)
+      (v : tval (kind_of th)) : iProp Σ :=
+    ftlr_ecall_post m W C v ∨ (lent_if_dis m ∗ ftlr_post_at m W C v).
+
   (** The value of an instruction: the next instruction runs from the
       next-PC witness at the post-step posture, a fault traps, a halt gives
-      back the thread's non-atomic token. *)
+      back the thread's non-atomic token, a yield hands the thread over
+      ([HO YieldV]); the context-switch thread's environment call enters
+      the trap vector. *)
   Lemma ftlr_value
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (v : griotte_lang.val) :
+    (v : tval (kind_of th)) :
     frame_match Ws Cs cstk W C →
     thread_in th C -∗
     untrusted_trap_safe interp interp_continuation -∗
@@ -234,23 +263,26 @@ Section ftlr_step.
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
     (▷ ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_resources W' C ∗
-                held (th := th) m' ∗ MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗
-                ftlr_post_at m' W' C v) -∗
+                part_at (th := th) m' ∗ MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗
+                ftlr_post_sw m' W' C v) -∗
     WP Seq (of_val v) @[th] {{ HO th }}.
   Proof.
     iIntros (Hframe) "#Hth #Htrap #Htop Hcont Hown Hcstk Hpost".
-    destruct v; cbn [of_val].
+    destruct v as [| | |[ | | ] ]; cbn [of_val].
     - (* HaltedV *)
       iApply wp_pure_step_later; auto. iNext; iIntros "_".
-      iApply wp_value. iIntros (_). iFrame.
+      iApply wp_value. rewrite HO_halted. iFrame.
     - (* FaultedV *)
-      iDestruct "Hpost" as (W' m') "(>%Hrel & Hwres & Hheld & Hmie & Hpre & Hpost)".
+      iDestruct "Hpost" as (W' m') "(>%Hrel & Hwres & Hpart & Hmie & Hpre & [Hec | [Hlent Hpost] ])".
+      { iDestruct "Hec" as (b pc regs) "(_ & >%Hv & _)".
+        apply tval_sw_ecall_cases in Hv as [ [_ Hv] | [_ Hv] ]; discriminate. }
       iEval (rewrite ftlr_post_at_eq // /ftlr_post) in "Hpost".
       iDestruct "Hpost" as (regs pc) "(>HPC & >Hregs & Hreg)".
       iDestruct "Hreg" as "[>%Hfull Hreg]".
       iApply (ftlr_trap_later _ _ _ _ _ _ _ m' with "Htrap HPC Hregs Hcont Hown Hcstk");
         first done.
-      iNext. iFrame "Hreg Hwres Hth Hheld Hmie Hpre".
+      iNext. iDestruct (held_refold with "Hpart Hlent") as "Hheld".
+      iFrame "Hreg Hwres Hth Hheld Hmie Hpre".
       iSplit; first (iPureIntro; by eapply frame_match_mono).
       iSplit; first (iPureIntro; done).
       by iApply (top_cmpt_untrusted_mono_pub with "Htop").
@@ -258,26 +290,76 @@ Section ftlr_step.
       iApply wp_pure_step_later; auto. iNext; iIntros "Hlc".
       (* The credit of the collapse is the next carried credit. *)
       iDestruct (shared_credit_refill C with "Hlc") as "Hcred".
-      iDestruct "Hpost" as (W' m' Hrel) "(Hwres & Hheld & Hmie & %Hpre & Hpost)".
-      iEval (rewrite /ftlr_post_at) in "Hpost".
-      iDestruct "Hpost" as (regs pc Hfull) "(HPC & Hregs & #Hreg & Hpc)".
-      iApply ("Hpc" $! cstk Ws Cs regs
+      iDestruct "Hpost" as (W' m' Hrel) "(Hwres & Hpart & Hmie & %Hpre & [Hec | [Hlent Hpost] ])".
+      + (* The environment call of the context-switch thread enters the
+           trap vector, with the posture pinned by the step. *)
+        iDestruct "Hec" as (b pc regs -> Hv Hpreb Hfull) "(Hvol & HPC & Hregs & #Hreg & _)".
+        apply tval_sw_ecall_cases in Hv as [ [_ Hv] | [Hctx _] ]; first discriminate.
+        iDestruct "Hpart" as "[Htok Hpart]".
+        iApply ("Htrap" $! cstk regs pc
+                 with "[//] [Hwres Hcont] HPC Hmie [Htok Hvol Hpart] Hregs Hown Hcstk").
+        * iLeft. iExists W', C, Ws, Cs. iFrame "Hwres Hth Hcont".
+          iSplit; first (iPureIntro; by eapply frame_match_mono).
+          iSplit; first by iApply (interp_reg_intro with "Hreg").
+          by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+        * iExists b, MCAUSE_ECALL_MACHINE, MTVAL_NONE.
+          iSplit; first done. iSplit; first (iPureIntro; by right).
+          rewrite posture_res_gen_unfold. iFrame "Hpart".
+          iExists (lmepcc_of_pc pc), _, MTVAL_NONE, b. rewrite handover_at_vol. by iFrame.
+      + iDestruct (held_refold with "Hpart Hlent") as "Hheld".
+        iEval (rewrite /ftlr_post_at) in "Hpost".
+        iDestruct "Hpost" as (regs pc Hfull) "(HPC & Hregs & #Hreg & Hpc)".
+        iApply ("Hpc" $! cstk Ws Cs regs
+                 with "[$Hth $Htrap $HPC $Hregs $Hwres $Hcred $Hcont $Hown $Hcstk $Hmie $Hheld]").
+        iSplit; first by iApply (interp_reg_intro with "Hreg").
+        iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+        iPureIntro. split; [by eapply frame_match_mono | done].
+    - (* YieldV *)
+      iApply wp_pure_step_later; auto. iNext; iIntros "Hlc".
+      (* The credit of the collapse is the next carried credit. *)
+      iDestruct (shared_credit_refill C with "Hlc") as "Hcred".
+      iDestruct "Hpost" as (W' m' Hrel) "(Hwres & Hpart & Hmie & %Hpre & [Hec | [_ Hpost] ])";
+        last (iEval (rewrite ftlr_post_at_eq // /ftlr_post) in "Hpost"; done).
+      iDestruct "Hec" as (b pc regs -> Hv Hpreb Hfull) "(Hvol & HPC & Hregs & #Hreg & Hk)".
+      apply tval_sw_ecall_cases in Hv as [ [Hnctx _] | [_ Hv] ]; last discriminate.
+      iDestruct "Hpart" as "[Htok Hpart]".
+      iApply wp_value. rewrite HO_yield. iSplit; first done.
+      rewrite /yield_body. iExists b, (lmepcc_of_pc pc).
+      iSplitL "Htok Hvol Hpart".
+      { rewrite posture_res_gen_unfold. iFrame "Hpart".
+        iExists (lmepcc_of_pc pc), _, MTVAL_NONE, b. rewrite handover_at_vol. by iFrame. }
+      iFrame "Hmie HPC".
+      iApply bi.later_intro. iIntros "Hmie HPC Hheld". rewrite safe_unfold.
+      iApply ("Hk" $! cstk Ws Cs regs
                with "[$Hth $Htrap $HPC $Hregs $Hwres $Hcred $Hcont $Hown $Hcstk $Hmie $Hheld]").
       iSplit; first by iApply (interp_reg_intro with "Hreg").
       iSplit; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
       iPureIntro. split; [by eapply frame_match_mono | done].
+    - (* ExitV: neither post-state holds *)
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iDestruct "Hpost" as (W' m' _) "(_ & _ & _ & _ & [Hec | [_ Hpost] ])".
+      + iDestruct "Hec" as (b pc regs _ Hv) "_".
+        apply tval_sw_ecall_cases in Hv as [ [_ Hv] | [_ Hv] ]; discriminate.
+      + iEval (rewrite ftlr_post_at_eq // /ftlr_post) in "Hpost". done.
+    - (* ResumedV: neither post-state holds *)
+      iApply wp_pure_step_later; auto. iNext; iIntros "_".
+      iDestruct "Hpost" as (W' m' _) "(_ & _ & _ & _ & [Hec | [_ Hpost] ])".
+      + iDestruct "Hec" as (b pc regs _ Hv) "_".
+        apply tval_sw_ecall_cases in Hv as [ [_ Hv] | [_ Hv] ]; discriminate.
+      + iEval (rewrite ftlr_post_at_eq // /ftlr_post) in "Hpost". done.
   Qed.
 
   (** The step lemma: the head, the case of the instruction, and the value,
-      around the world accessor, at the posture [m] of the thread. *)
+      around the world accessor, at the posture [m] of the thread. The
+      environment call is dispatched before the table of the other cases. *)
   Lemma ftlr_step
     (W : WORLD) (C : CmptName) (m : InterruptStatus) (w : LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
     (∀ W C regs p p' g b e a w i ρ P m,
-        ftlr_instr_at m W C regs p p' g b e a w i ρ P) →
+        i ≠ Ecall → ftlr_instr_at m W C regs p p' g b e a w i ρ P) →
     frame_match Ws Cs cstk W C →
     route_pre th m →
-    world_accessor (λ m, held (th := th) m) (λ m, MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝)%I -∗
+    world_accessor -∗
     thread_in th C -∗
     untrusted_trap_safe interp interp_continuation -∗
     ftlr_IH -∗
@@ -296,30 +378,33 @@ Section ftlr_step.
   Proof.
     iIntros (Hcases Hframe Hpre) "Hacc #Hthread #Htrap #IH #Hw #Hreg #Htop HPC Hregs
       [Hwres Hcred] Hcont Hown Hcstk Hthr Hmie".
-    iApply (wp_bind (fill [SeqCtx])).
+    iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
     iApply (wp_wand _ _ _
-              (λ v, ▷ ∃ W'' m', world_resources W'' C ∗ held (th := th) m' ∗
+              (λ v, ▷ ∃ W'' m', world_resources W'' C ∗ part_at (th := th) m' ∗
                        (MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝) ∗
-                       ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post_at m' W'' C v)%I
+                       ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post_sw m' W'' C v)%I
              with "[- Hcont Hown Hcstk] [Hcont Hown Hcstk]").
     2: { (* 7. The value, after the accessor closes. *)
       iIntros (v) "Hpost".
       iApply (ftlr_value with "Hthread Htrap Htop Hcont Hown Hcstk"); first done.
-      iNext. iDestruct "Hpost" as (W'' m') "(Hwres & Hheld & [Hmie %Hpre'] & Hrel & Hpost)".
+      iNext. iDestruct "Hpost" as (W'' m') "(Hwres & Hpart & [Hmie %Hpre'] & Hrel & Hpost)".
       iExists W'', m'. by iFrame. }
     (* 1. The accessor opens. *)
-    iApply ("Hacc" $! W C m (λ W'' m' v, ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post_at m' W'' C v)%I
+    iApply ("Hacc" $! W C m (λ W'' m' v, ⌜related_sts_pub_world W W''⌝ ∗ ftlr_post_sw m' W'' C v)%I
              with "Hwres Hthr [$Hmie //] Hcred").
-    iIntros (W' Hrel) "Hworld [Hmie _]".
+    iIntros (W' Hrel) "Hworld Hvol [Hmie _]".
     iDestruct (interp_reg_monotone with "Hreg") as "#Hreg'"; first done.
     iClear "Hreg".
     (* 2. The not-correct-PC branch. *)
     destruct (decide (isCorrectPC w.(lw))) as [HcorrectPC | Hnpc]; cycle 1.
     { iApply (wp_notCorrectPC with "HPC"); first done.
-      iIntros "!> HPC !>". iExists W', m. iFrame "Hworld Hmie".
+      iIntros "!> HPC !>".
+      iDestruct (vol_lent_frame m with "Hvol") as "[Hvol Hlent]".
+      iExists W', m. iFrame "Hworld Hmie Hvol".
       iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
       iSplit; first done.
       iSplit; first done.
+      iRight. iFrame "Hlent".
       rewrite ftlr_post_at_eq //.
       iExists regs, w. by iFrame "HPC Hregs Hreg'". }
     destruct w as [ [ | [ [] p g b e a | ] | | ] π]; try by inversion HcorrectPC.
@@ -358,16 +443,35 @@ Section ftlr_step.
           [set_solver|done|].
         iDestruct "Hres" as (wa) "(%HpO & Hc & HP & Hmono)".
         iNext. iExists wa. iApply (pc_open_intro with "[Hc HP Hmono]"); [done|by iFrame "∗%"]. }
-    (* 5. The case of the instruction. *)
-    iApply (wp_wand with "[-]").
-    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P m
+    (* 5. The case of the instruction: the environment call, which consumes
+       the lent volatile part, or a case of the table, which frames it. *)
+    destruct (decide (decodeInstrW wa.(lw) = Ecall)) as [Hecall | Hne].
+    { iApply (wp_wand with "[-]").
+      { iApply (ecall_case m W' C regs p p' g b e a wa ρ P
+                with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
+                      $Hworld $HPC $Hmap $Hmie $Hvol //]"); eauto. }
+      (* 6. The hand-off goes back to the accessor. *)
+      iIntros (v) "Hpost !>".
+      iDestruct "Hpost" as (W'' Hrel') "(Hworld & Hmie & Hpost)".
+      iExists W'', InterruptDisabled. iFrame "Hworld Hmie".
+      iSplit; first done.
+      iSplit; first (iPureIntro; by intros).
+      iSplit; first done.
+      iSplit; first (iPureIntro; by eapply related_sts_pub_trans_world).
+      by iLeft. }
+    iApply (wp_wand with "[- Hvol]").
+    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P m Hne
               with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
                     $Hworld $HPC $Hmap $Hmie //]"); eauto. }
     (* 6. The hand-off goes back to the accessor. *)
     iIntros (v) "Hpost !>".
     iDestruct "Hpost" as (W'' m' Hrel') "(Hworld & Hmie & %Hpre' & Hpost)".
-    iExists W'', m'. iFrame. iPureIntro.
-    split_and!; [done | done | by eapply related_sts_pub_trans_world].
+    iDestruct (vol_lent_frame m' with "Hvol") as "[Hvol Hlent]".
+    iExists W'', m'. iFrame "Hworld Hmie Hvol".
+    iSplit; first done.
+    iSplit; first done.
+    iSplit; first (iPureIntro; by eapply related_sts_pub_trans_world).
+    iRight. iFrame.
   Qed.
 
 End ftlr_step.

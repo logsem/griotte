@@ -16,7 +16,7 @@ Section Check_No_Overlap_spec.
     (w1 w2 : LWord)
     (t1 : bool) (p1 : Perm) (g1 : Locality) (b1 e1 a1 : Addr) (π1 : option AId)
     (t2 : bool) (p2 : Perm) (g2 : Locality) (b2 e2 a2 : Addr) (π2 : option AId)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let check_no_overlap := (check_no_overlap_instrs rsrc1 rsrc2 r1 r2) in
     let a_last := (pc_a ^+ length check_no_overlap) in

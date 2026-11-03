@@ -11,10 +11,8 @@ Section mmio_timer_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -41,7 +39,7 @@ Section mmio_timer_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hmem Hallow Hnoid Htdev Hinc φ) "(>HPC & >Hmem & >Hmap) Hφ".
     iDestruct (big_sepM_lookup_acc with "Hmem") as "[Hpc_a Hmem]"; first exact Hmem.
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The source capability has no identifier and non-empty bounds: its
@@ -151,7 +149,7 @@ Section mmio_timer_rules.
     iIntros (Hinstr Hvpc Dregs Hallow Hnoid Harg -> Hinc φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     assert (is_time_device_address mtimecmp_addr = true) as Htdev.
     { apply is_time_device_address_spec. by right. }
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The destination capability has no identifier and non-empty bounds:

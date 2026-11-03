@@ -25,6 +25,7 @@ Section Switcher_unwind.
   (** From [.Lswitch_just_return], where the exception path resumes a
       context at the posture [b]: the return to [cra]. *)
   Lemma switcher_just_return_spec (wret : LWord) (b : InterruptStatus) :
+    th ≠ CtxSwitch →
     route_pre th b →
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ[th] wret ∗
@@ -45,9 +46,9 @@ Section Switcher_unwind.
           (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
+    iIntros (Hth Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
     iApply (switcher_return_to_caller_spec _ b with
-             "[$HPC $Hcra $Hswitcher $Hmie $Hheld $Hpost]"); first done.
+             "[$HPC $Hcra $Hswitcher $Hmie $Hheld $Hpost]"); [done | done].
   Qed.
 
   (** The callee's stack is smaller than the minimum stack size of the

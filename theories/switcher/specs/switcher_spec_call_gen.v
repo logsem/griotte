@@ -166,6 +166,7 @@ Section Switcher.
     jalr_target_ok cnull cra wcra_caller.(lw) = true ->
     switcher_spill_overflows b_stk e_stk a_stk ->
     dom rmap0 = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
 
     switcher_trap_safety -∗
     (|={⊤}=>
@@ -190,7 +191,7 @@ Section Switcher.
     trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
       (HO th).
   Proof.
-    iIntros (Hjalr Hspill Hdom) "#Hsafety Hres Hfault".
+    iIntros (Hjalr Hspill Hdom Hth) "#Hsafety Hres Hfault".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[_ #Hstatic]".
     iApply (trap_safe_resume_of_safety ⊤ with "Hsafety");
       [set_solver | apply trap_no_resume_first_spill |].
@@ -240,7 +241,7 @@ Section Switcher.
     (* [.Lswitch_just_return]: the return to the caller *)
     iPoseProof "Hstatic" as "[#Hswitcher _]".
     iApply (switcher_just_return_spec _ InterruptDisabled with
-              "[- $HPC $Hcra $Hswitcher $Hmie $Hheld]"); first done.
+              "[- $HPC $Hcra $Hswitcher $Hmie $Hheld]"); [done | done |].
     iSplit; last (iIntros "(%Hjalr' & _)"; congruence).
     iNext; iIntros "(HPC & Hcra & Hmie & Hheld & _)".
     iApply ("Hfault" $! Hspill with "[-]").
@@ -478,8 +479,9 @@ Section Switcher.
     iDestruct (switcher_cc_args_regs with "Hargs") as "Hargs".
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
+    iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iApply (switcher_cc_fault_resume with "Hsafety [-Hfault] Hfault");
-      [done | exact Hspill | done |].
+      [done | exact Hspill | done | exact Huser |].
     iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     iFrame "Hna Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap0 Hstk Hworld_interp Hstk_val Hcstk Hcont
@@ -550,10 +552,11 @@ Section Switcher.
     iDestruct (switcher_cc_args_regs with "Hargs") as "Hargs".
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
+    iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iApply (switch_trusted_stack_exhausted_path_world_spec W C with
       "[- $HPC $Hcsp $Hcells $Hworld_interp $Hrmap0 $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1
         $Hcode $Hmie $Hheld]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "(%Hrestored & %Hrmap' & Hworld_interp & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & Hcells & Hrmap & Hlc)".
@@ -565,7 +568,6 @@ Section Switcher.
       subst rcra; congruence. }
     iIntros "(HPC & Hmie & Hheld & Hlc')".
     iCombine "Hlc Hlc'" as "Hlc".
-    iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1 InterruptDisabled); iRight.

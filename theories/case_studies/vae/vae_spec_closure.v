@@ -404,7 +404,7 @@ Section VAE.
              "[- $Hawk_inv $Hworld_interp_C $Hassert $HPC $Hcgp $Hcra $Hcs0 $Hca0 $Hca1
               $Hct0 $Hct1 $Hct2 $Hca2 $Himport_assert $Hcode_main $Hmie $Hheld]");
       [done|done|done|exact Hloc_i_W7|exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)
-      |done|].
+      |(intros ->; by specialize (Hroute eq_refl))|done|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
                     & Hct0 & Hct1 & Hct2 & Hca2 & _ & _ & Hmie & Hheld)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

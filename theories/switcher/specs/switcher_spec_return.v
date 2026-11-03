@@ -143,7 +143,7 @@ Section Switcher.
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
            "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
             Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
-    iModIntro; iIntros (_); iExact "Hna".
+    iModIntro; rewrite HO_halted; iExact "Hna".
   Qed.
 
   (** A fault in a trusted callee whose table declares no handler, with its

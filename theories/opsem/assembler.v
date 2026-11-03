@@ -107,6 +107,7 @@ Module Asm_Griotte.
      assembles, to [SetMIE b]. *)
   | CsrMIE (b: InterruptStatus) (sr: SRegName) (mask: asm_expr)
   | Mret
+  | Ecall
   | Fail
   | Halt
   | GetTag (dst src: RegName)
@@ -396,6 +397,8 @@ Module Asm_Griotte.
         else Err "csrsi/csrci: only mstatus with the MIE mask 0x8"%string
     | Mret =>
         Ok machine_instructions.Mret
+    | Ecall =>
+        Ok machine_instructions.Ecall
     | Fail=>
         Ok (machine_instructions.Fail)
     | Halt=>
@@ -809,6 +812,8 @@ Module Asm_Griotte.
   (** [mret]: returns from an exception (see [Mret]). It shadows stdpp's
       monadic [mret] where this module is imported. *)
   Definition mret := (ASM_Instr Mret).
+  (** [ecall]: an environment call (see [Ecall]). *)
+  Definition ecall := (ASM_Instr Ecall).
   Definition fail:= (ASM_Instr Fail).
   Definition halt:= (ASM_Instr Halt).
 

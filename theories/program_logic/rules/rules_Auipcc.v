@@ -10,7 +10,6 @@ Section griotte_lang_rules.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
 
   (** The PC with its address offset by [imm], as Lea on the PC: the tag is
@@ -25,8 +24,8 @@ Section griotte_lang_rules.
     | _ => lpc
     end.
 
-  Inductive Auipcc_spec (lpc : LWord) (regs : LReg) (dst : RegName) (imm : Z)
-    (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop :=
+  Inductive Auipcc_spec {k : kind} (lpc : LWord) (regs : LReg) (dst : RegName) (imm : Z)
+    (lpc' : LWord) (regs' : LReg) : tval k → Prop :=
   | Auipcc_spec_success :
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := auipcc_word lpc imm ]ₗ> regs →
@@ -52,7 +51,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).

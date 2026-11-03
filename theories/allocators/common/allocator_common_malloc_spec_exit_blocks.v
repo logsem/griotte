@@ -16,7 +16,7 @@ Section AllocatorMallocExitBlocks.
   Lemma allocator_malloc_exit_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->
@@ -52,7 +52,7 @@ Section AllocatorMallocExitBlocks.
   Lemma allocator_malloc_exit_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->
@@ -99,7 +99,7 @@ Section AllocatorMallocExitBlocks.
   Lemma allocator_malloc_exit_oom_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->

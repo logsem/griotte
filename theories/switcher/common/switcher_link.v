@@ -23,8 +23,9 @@ Definition thread_index (th : Thread) : nat :=
     hands over ([handover_res]) and the part of its posture that the
     switcher describes: the register save area of its trusted stack but the
     word [hazardPointers] (which [trusted_stack_inv] keeps), and its mtdc
-    token. The context-switch thread's part is mtdc holding zero; its link
-    holds that part only while the physical mtdc is zero. *)
+    token. The context-switch thread's part is mtdc holding zero and its
+    mtdc token; its link holds that part only while the physical mtdc is
+    zero. *)
 
 (** The MIE bit of the word [mstatus] of a register save area [ws] is
     InterruptDisabled. *)
@@ -50,7 +51,9 @@ Section switcher_link.
   Definition posture_part_of (th : Thread) : iProp Σ :=
     match th with
     | UserThread _ => save_area_part th ∗ @mtdc_lent Σ (@cb_mtdc_lent_of Σ ceriseb th)
-    | CtxSwitch => mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0))
+    | CtxSwitch =>
+        mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
+        @mtdc_lent Σ (@cb_mtdc_lent_of Σ ceriseb CtxSwitch)
     end.
 
   (** MIE outermost: at InterruptDisabled the link is [True] at every
@@ -98,7 +101,7 @@ Section switcher_link.
       { destruct (mie_st σ); [iExact "Hl" | iExact "Hh"]. }
       iIntros "!>" (σ2) "Hsi Hho". destruct (mie_st σ2); by iFrame.
     - rewrite (Hpre eq_refl).
-      iDestruct "Hh" as "[$ Hz]". iIntros "!>" (σ2) "Hsi Hho".
+      iDestruct "Hh" as "[$ [Hz Hlent] ]". iIntros "!>" (σ2) "Hsi Hho".
       iDestruct (SI_mtdc_zero with "Hsi Hz") as %Hd.
       destruct (mie_st σ2); last by iFrame.
       rewrite decide_True //. by iFrame.

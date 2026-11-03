@@ -792,6 +792,8 @@ Section Error_Handling_Read_Safe.
           { rewrite lookup_total_insert_ne // /rretry /stats_retry_regs
               !lookup_total_insert_ne // Hcra_fault.
             apply jalr_target_ok_switcher_return_sentry. }
+          { intros _. rewrite lookup_total_insert_ne // /rretry /stats_retry_regs
+              !lookup_total_insert_ne // Hcra_fault /wret. done. }
           { done. }
           iNext. iIntros "HPC Hregs Hna Hmie Hheld".
           set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=wload]> rretry)).
@@ -823,6 +825,7 @@ Section Error_Handling_Read_Safe.
       { intros r. rewrite lookup_insert_is_Some'. by right. }
       { by rewrite lookup_insert_ne. }
       { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
+      { intros _. rewrite lookup_total_insert_ne // Hcra_take /wret. done. }
       { done. }
       iNext. iIntros "HPC Hregs Hna Hmie Hheld".
       iDestruct "Hstk" as (stk_mem) "Hstk".

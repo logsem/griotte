@@ -23,7 +23,7 @@ Section Error_Handling_Read_Blocks.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
-    {CL : CritLink Σ th} {CR : CritRoute Σ th CL}
+    {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
   .
 
   (** The lock is free: take it, up to the load. *)
@@ -123,6 +123,7 @@ Section Error_Handling_Read_Blocks.
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
+    route_pre th (default b (jalr_target_mie wcra.(lw))) ->
     route_pre th b ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_b ^+ stats_label ".Lread_release")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
@@ -143,7 +144,7 @@ Section Error_Handling_Read_Blocks.
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt Hroute)
+    iIntros ((HsubBounds & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Htgt Hroute' Hroute)
       "(HPC & Hcgp & Hca1 & Hcra & Hlock & Hcode_stats & Hmie & Hheld & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_stats") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
@@ -160,6 +161,7 @@ Section Error_Handling_Read_Blocks.
     iInstr "Hcode".
     (* Jalr cnull cra *)
     iInstr "Hcode".
+    1: { intros _. exact Hroute'. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_stats".
     iApply "Hpost"; iFrame "∗ Hcode_stats".
   Qed.

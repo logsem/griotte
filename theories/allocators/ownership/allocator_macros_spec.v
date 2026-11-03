@@ -94,7 +94,7 @@ Section AllocatorOwnerMacro.
   Lemma allocator_owner_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z)
     (g : Locality) (a : Addr) (o : Z) (wtp : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
@@ -150,7 +150,7 @@ Section AllocatorOwnerMacro.
 
   Lemma allocator_owner_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (off : Z) (wsealed wtp : LWord)
-    (P : iProp Σ) :
+    (Φ : tval (kind_of th) → iProp Σ) :
 
     let code := allocator_owner_instrs off ctp ca0 in
     ↑Ntstack ⊆ E ->
@@ -168,8 +168,8 @@ Section AllocatorOwnerMacro.
     (∀ a, ⌜a ∈ₐ [pc_a, pc_a ^+ length code)⌝ -∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed -∗
-      trap_safe (Cap RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Exec @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+      trap_safe (Cap RX Global pc_b pc_e a) E Φ)
+    ⊢ WP Exec @ E {{ Φ }}.
   Proof.
     intros code; subst code.
     iIntros (HEswitcher Hpc Hoff Hdisjoint Hkey Hwsealed)

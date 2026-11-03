@@ -151,7 +151,8 @@ Section LSE.
     iApply (lse_f_blocks_2_spec with
              "[- $Hassert $HPC $Hcgp $Hcs0 $Hct0 $Hct1 $Hcra $Hca0 $Hca1
               $Himport_assert $Hcode_main $Hmie $Hheld]");
-      [done|exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)|done|].
+      [done|exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)
+       |(intros ->; by specialize (Hroute eq_refl))|done|].
     iNext; iIntros "(HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra & Hca0 & Hca1
                     & _ & _ & Hmie & Hheld)".
     iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

@@ -6,9 +6,9 @@ From griotte Require Import
   world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources mkregion_helpers disjoint_regions_tactics.
-From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common.
+From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common_obligations.
 From griotte Require Import allocator_resources heap_region.
-From griotte Require Import firmware_ok firmware_adequacy.
+From griotte Require Import firmware_ok firmware_adequacy_obligations.
 From griotte Require Import switcher_spec_return.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)

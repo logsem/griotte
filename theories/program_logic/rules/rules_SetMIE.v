@@ -10,10 +10,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types sreg : gmap SRegName LWord.
 
@@ -33,7 +31,7 @@ Section griotte_lang_rules.
 
   (** mstatus is held by the state interpretation: the rule does not expose
       it. *)
-  Inductive SetMIE_spec (lpc : LWord) (lpc' : LWord) : griotte_lang.val → Prop :=
+  Inductive SetMIE_spec {k : kind} (lpc : LWord) (lpc' : LWord) : tval k → Prop :=
   | SetMIE_spec_success p g b e a π :
       lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
@@ -52,6 +50,7 @@ Section griotte_lang_rules.
     decodeInstrW w.(lw) = SetMIE mie →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     link_transfer_si (mie_move b mie) T1 T2 →
+    (route_pre th b → route_pre th mie) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ MIE ↦ₜ b ∗
@@ -65,9 +64,9 @@ Section griotte_lang_rules.
         (⌜retv = NextIV⌝ ∗ MIE ↦ₜ mie ∗ T2 ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b ∗ T1)
     }}}.
   Proof.
-    iIntros (Hinstr Hvpc Htr φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
+    iIntros (Hinstr Hvpc Htr Hroute φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
-    iApply (wp_instr_step_link _ _ _ _ _ _ _ _ _ _ ∅ with "HPC Hpc_a Hmap0"); eauto.
+    iApply (wp_instr_step_link_nosw Ep pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %Hb.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
@@ -75,7 +74,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. simplify_eq.
-      iApply (instr_close_link_kept with "Hlink").
+      iApply (instr_close_link_kept_irq with "Hlink"); [done|].
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
       - iPureIntro. apply SetMIE_spec_failure; first done. by eapply SetMIE_fail_nonxsr.
@@ -90,7 +89,7 @@ Section griotte_lang_rules.
       rewrite /nextPC /advancePC /= in Hfail.
       destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; first done.
       simplify_eq.
-      iApply (instr_close_link_kept with "Hlink").
+      iApply (instr_close_link_kept_irq with "Hlink"); [done|].
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
       - iPureIntro. apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC.
@@ -116,7 +115,11 @@ Section griotte_lang_rules.
       - by rewrite Hmie_st.
       - by rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc.
       - by rewrite /= lookup_insert_ne. }
-    iModIntro. iFrame "HSI Hlink". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
+    iModIntro. iFrame "HSI Hlink". iSplitR.
+    { iApply ctx_irq_post_route.
+      rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc. apply Hroute.
+      rewrite -Hmie_st. by apply ctx_irq_off_route. }
+    iApply ("Hφ" $! _ NextIV). iFrame "HPC Hpc_a". iSplit.
     - iPureIntro. rewrite /incrementPC /incrementPC_gen /= Hpca' in Hi. simplify_eq.
       eapply SetMIE_spec_success; [done | done | by apply incrementPC_add].
     - iLeft. by iFrame.
@@ -131,6 +134,7 @@ Section griotte_lang_rules.
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     link_transfer_si (mie_move b mie) T1 T2 →
+    (route_pre th b → route_pre th mie) →
 
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -143,7 +147,7 @@ Section griotte_lang_rules.
           MIE ↦ₜ mie ∗
           T2 }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Htr φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Htr Hroute φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
     iApply (wp_SetMIE_link with "[$HPC $Hpc_a $Hmie $HT]"); eauto.
     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & HT)".
     destruct Hspec as [p g b' e a π Hpc Hx Hi | -> [p g b' e a π Hpc Hx | Hi] ];
@@ -164,6 +168,7 @@ Section griotte_lang_rules.
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     route_pre th b →
+    (route_pre th b → route_pre th mie) →
 
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -176,9 +181,9 @@ Section griotte_lang_rules.
           MIE ↦ₜ mie ∗
           held mie }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hpre φ) "H Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hpre Hroute φ) "H Hφ".
     iApply (wp_setmie_success_link with "H");
-      [done | done | done | done | by apply link_transfer_si_route |].
+      [done | done | done | done | by apply link_transfer_si_route | done |].
     iExact "Hφ".
   Qed.
 
@@ -213,6 +218,7 @@ Section griotte_lang_rules_core.
   Lemma wp_SetMIE Ep pc_p pc_g pc_b pc_e pc_a pc_π w mie (b : InterruptStatus) dq :
     decodeInstrW w.(lw) = SetMIE mie →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (route_pre th b → route_pre th mie) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ MIE ↦ₜ b
@@ -225,9 +231,9 @@ Section griotte_lang_rules_core.
         (⌜retv = NextIV⌝ ∗ MIE ↦ₜ mie ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b)
     }}}.
   Proof.
-    iIntros (Hinstr Hvpc φ) "(>HPC & >Hpc_a & >Hmie) Hφ".
+    iIntros (Hinstr Hvpc Hroute φ) "(>HPC & >Hpc_a & >Hmie) Hφ".
     iApply (wp_SetMIE_link _ _ _ _ _ _ _ _ _ _ _ True%I True%I with "[$HPC $Hpc_a $Hmie]");
-      [done | done | apply link_transfer_si_core | done |].
+      [done | done | apply link_transfer_si_core | done | done |].
     iNext. iIntros (lpc' retv) "(Hspec & HPC & Hpc_a & HT)". iApply "Hφ". iFrame.
     iDestruct "HT" as "[ [-> [Hmie _] ] | [-> [Hmie _] ] ]"; [iLeft | iRight]; by iFrame.
   Qed.
@@ -239,6 +245,7 @@ Section griotte_lang_rules_core.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
+    (route_pre th b → route_pre th mie) →
 
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
@@ -249,9 +256,9 @@ Section griotte_lang_rules_core.
           pc_a ↦ₐ{dq} w ∗
           MIE ↦ₜ mie }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' φ) "(>HPC & >Hpc_a & >Hmie) Hφ".
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hroute φ) "(>HPC & >Hpc_a & >Hmie) Hφ".
     iApply (wp_setmie_success_link _ _ _ _ _ _ _ _ _ _ _ _ True%I True%I
-             with "[$HPC $Hpc_a $Hmie]"); [done..| apply link_transfer_si_core | done |].
+             with "[$HPC $Hpc_a $Hmie]"); [done..| apply link_transfer_si_core | done | done |].
     iNext. iIntros "(HPC & Hpc_a & Hmie & _)". iApply "Hφ". iFrame.
   Qed.
 End griotte_lang_rules_core.

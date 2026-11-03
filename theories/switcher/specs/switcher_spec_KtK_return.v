@@ -171,7 +171,7 @@ Section Switcher_KtK_Return.
     iEval (rewrite switcher_return_block_13) in "HPC".
     iApply (switcher_return_path_spec (length cstk.(cstk_frames)) with
       "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hregs $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcells $Hstk
-        $Hcode $Hmie $Hheld]"); [done|done|done|done|done|done|intros ?; congruence|].
+        $Hcode $Hmie $Hheld]"); [done|done|done|done|done|done|done|intros ?; congruence|].
     iIntros "!>" (rmap' rcgp rcra rcs1 rcs0)
       "(%Hrestored & %Hrmap' & Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
       & Hstk' & Hstk & Hregs)".

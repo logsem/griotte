@@ -299,7 +299,7 @@ Section fundamental.
     iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iApply (switch_trusted_stack_exhausted_path_spec with
       "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hmie $Hheld]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "((%Hrcgp & %Hrcra & %Hrcs0 & %Hrcs1) & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1
       & Hcsp & Hcells & Hrmap & Hlc)".

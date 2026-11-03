@@ -32,10 +32,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -65,8 +63,8 @@ Section griotte_lang_rules.
       incrementPC_gen lpc imm = None →
       JCond_failure i lpc regs off r1 r2.
 
-  Inductive JCond_spec (i : instr) (lpc : LWord) (regs : LReg) (off r1 r2 : Z + RegName) :
-    LWord → griotte_lang.val → Prop :=
+  Inductive JCond_spec {k : kind} (i : instr) (lpc : LWord) (regs : LReg) (off r1 r2 : Z + RegName) :
+    LWord → tval k → Prop :=
   | JCond_spec_success_next lpc' n1 n2 :
       lz_of_argument regs r1 = Some n1 →
       lz_of_argument regs r2 = Some n2 →
@@ -100,7 +98,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hi Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hi; discriminate|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep.
     rewrite /regs_of in Dregs.
@@ -133,7 +131,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** A taken jump whose target is an address has one outcome. *)
-  Lemma JCond_spec_jmp i lpc regs off arg1 arg2 lpc' retv n1 n2 imm lpc0 :
+  Lemma JCond_spec_jmp {k : kind} i lpc regs off arg1 arg2 lpc' (retv : tval k) n1 n2 imm lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = true →
@@ -154,7 +152,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** A jump not taken whose PC increments has one outcome. *)
-  Lemma JCond_spec_next i lpc regs off arg1 arg2 lpc' retv n1 n2 lpc0 :
+  Lemma JCond_spec_next {k : kind} i lpc regs off arg1 arg2 lpc' (retv : tval k) n1 n2 lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = false →

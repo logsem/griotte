@@ -19,7 +19,7 @@ Definition MCAUSE_MEXTERN : Z := 11.
     [MCAUSE_ECALL_MACHINE]). *)
 Definition MCAUSE_ECALL_MACHINE : Z := 11.
 
-(** The value that trap entry writes to mtval for a fault that has none
-    (an illegal instruction: cheriot-sail's default, without the
-    instruction bits). *)
+(** The value that exception entry writes to mtval when the exception has
+    none (cheriot-sail's [tval None]): an illegal instruction, whose
+    instruction bits Griotte does not report, and an environment call. *)
 Definition MTVAL_NONE : Z := 0.

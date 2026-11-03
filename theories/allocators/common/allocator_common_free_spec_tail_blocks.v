@@ -29,7 +29,7 @@ Section AllocatorFreeTailBlocks.
 
   Lemma allocator_free_quarantine_spec
     (E : coPset) (pc_b pc_e pc_a b e : Addr) (ι : AId) (wreq wca1 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
@@ -94,7 +94,7 @@ Section AllocatorFreeTailBlocks.
       payload moves the status token of [ι] to [AQuar]. *)
   Lemma allocator_free_revoke_store_spec
     (E : coPset) (pc_b pc_e pc_a b e sb se : Addr) (ι : AId) (w4 wa2 : LWord) (m : mtdc_val)
-    (regs : LReg) (φ : language.val griotte_lang → iPropI Σ) :
+    (regs : LReg) (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (se + (b - e))%a = Some sb ->
     dom regs = all_registers_s ∖ {[ct1; ct2; ca3; ca4; ctp; ca2; cnull]} ->
@@ -216,7 +216,7 @@ Section AllocatorFreeTailBlocks.
   Lemma allocator_free_revoke_spec
     (E : coPset) (pc_b pc_e pc_a next b e : Addr) (ι : AId)
     (w4 wa2 wret : LWord) (m : mtdc_val) (rmap : LReg)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     (heap_b < b /\ b < e /\ e <= heap_e)%a ->
     dom rmap = all_registers_s ∖
@@ -346,7 +346,7 @@ Section AllocatorFreeTailBlocks.
   Lemma allocator_free_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->
@@ -392,7 +392,7 @@ Section AllocatorFreeTailBlocks.
   Lemma allocator_free_tail_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->

@@ -125,10 +125,8 @@ Section griotte_lang_traps.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
 
   (* The obligation of a fault from the PC [w]: under an update at the time
@@ -140,7 +138,7 @@ Section griotte_lang_traps.
      [P_mcause] and a value that satisfies the value predicate [P_mtval]
      ([trap_safe] for the fault causes and any value). *)
   Definition trap_safe_def (P_mcause P_mtval : Z → Prop) (w : LWord) (E : coPset)
-    (Φ : griotte_lang.val → iProp Σ) : iProp Σ :=
+    (Φ : tval (kind_of th) → iProp Σ) : iProp Σ :=
     |={E}=> ∃ ib : InterruptStatus,
       trap_entry_res ib ∗
       ▷ (trap_entry_out_cause P_mcause P_mtval w ib -∗
@@ -281,7 +279,7 @@ Section griotte_lang_traps.
 
   (** [trap_safe_cause] under an update. *)
   Lemma trap_safe_fupd (P_mcause P_mtval : Z → Prop) (w : LWord) (E : coPset)
-    (Φ : griotte_lang.val → iProp Σ) :
+    (Φ : tval (kind_of th) → iProp Σ) :
     (|={E}=> trap_safe_cause P_mcause P_mtval w E Φ) ⊢
     trap_safe_cause P_mcause P_mtval w E Φ.
   Proof.
@@ -311,8 +309,11 @@ Section griotte_lang_traps.
     rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
     iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "[Hσ Hlink] /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    (* The whole PC fragment refutes the parked half: the clause is
+       dropped, and re-established after the entry, at MIE disabled. *)
+    iDestruct (ctx_irq_si_held with "Hirq HPC") as "[_ HPC]".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hregs") as %Hregs.
     iAssert ⌜(snd <$> lm) ⊆ lmem⌝%I as %Hmem.
@@ -348,7 +349,7 @@ Section griotte_lang_traps.
       - iFrame "Hho". iIntros "!>" (σ2) "$ %Hd %Hm !>". iSplit; last done.
         iApply (crit_link_stable with "Hlink"); congruence. }
     iDestruct (handover_res_unfold with "Hho")
-      as (p0 c0 v0 b0) "(Hcrit & HU & Hmepcc & Hmcause & Hmtval & Hmpie_f)".
+      as (p0 c0 v0 b0) "(Hcrit & HU & Hvcsr)".
     iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wtcc & Hwtcc & Hreltcc).
     (* The trap vector is an executable capability, so its physical copy is
@@ -365,51 +366,23 @@ Section griotte_lang_traps.
     { by rewrite /trap_halts /sreg_word Hwtcc /= mtcc_vec_tagged andb_false_r. }
     iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
     iSplit.
-    { iPureIntro. eexists [], _, _, []. by apply PS_no_fork_trap. }
+    { iPureIntro. eexists [], _, _, []. by apply TS_trap. }
     iNext. iIntros (e2 σ2 efs Hstep) "_".
-    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts]; subst; last congruence.
+    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts |]; subst; last congruence.
     iMod "Hclose" as "_".
-    pose proof (erasure_enter_exc _ _ _ _ _ _ _ (trap_cause σ1, trap_tval σ1) _ Her Htcc)
-      as Her'.
-    (* mstatus: MIE is disabled and MPIE receives MIE. *)
-    set (mie_old := mie_of (get_a (sreg_word σ1 mstatus))).
-    assert (mie_old = ls_mie lsreg) as Hmie_old.
-    { rewrite -Hmie_st /mie_old /mie_st /sreg_word.
-      destruct (sreg σ1 !! mstatus); done. }
-    iMod (sys_interp_set_mstatus _ _ _ InterruptDisabled mie_old with "Hsr Hmie_f Hmpie_f")
-      as "(Hsr & Hmie_f & Hmpie_f)".
-    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2].
-    iMod (gen_heap_update _ _ _ (lmepcc_of_pc w) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_cause σ1)))
-           with "Hsr Hmcause") as "[Hsr Hmcause]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt (trap_tval σ1)))
-           with "Hsr Hmtval") as "[Hsr Hmtval]".
-    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    pose (ls' := MkLSys
-      (<[mtval := lword_of_word (WInt (trap_tval σ1))]>
-        (<[mcause := lword_of_word (WInt (trap_cause σ1))]>
-          (<[mepcc := lmepcc_of_pc w]> (ls_sh lsreg))))
-      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
-    assert (lsregs_enter_exc (trap_cause σ1, trap_tval σ1) σ1 w (ls_join lsreg) = ls_join ls')
-      as Hjoin.
-    { apply map_eq. intros i.
-      rewrite /lsregs_enter_exc /ls' /ls_join /lsregs_join /mie_old /=.
-      destruct i; by simplify_map_eq. }
-    rewrite Hjoin in Her'.
-    iAssert (sys_interp ls') with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsys".
-    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
-      iFrame "Hsr Hmtcc Hmpie Hmtdc Hlent Hmie". iSplit; first done.
-      iPureIntro. split; by simplify_map_eq. }
-    iPoseProof (SI_close (enter_exc (trap_cause σ1, trap_tval σ1) σ1) mtcc_vec lreg ls' lmem R C
-                  Her' with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
-    iMod ("Hrestore" with "HSI [] []") as "(HSI & Hlink & Hpart)".
-    { iPureIntro. by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
+    iMod (enter_exc_update σ1 (trap_cause σ1, trap_tval σ1)
+            with "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f HU Hvcsr")
+      as "(_ & %Hoff' & HSI & HPC & Hmie_f & HU & Hmepcc & Hmcause & Hmtval & Hmpie_f)";
+      first exact Her.
+    iMod ("Hrestore" with "HSI [//] []") as "(HSI & Hlink & Hpart)".
     { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
-    iModIntro. iSplitL "HSI Hlink"; first by iFrame.
+    iModIntro. iSplitL "HSI Hlink".
+    { iFrame "HSI Hlink". iSplitR; first (iPureIntro; exact Hrdom).
+      iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
     iApply ("HΦ" with "[$Hmie_f $Hcrit $HU $Hmepcc Hmcause Hmtval Hmpie_f Hpart] HPC").
-    rewrite Hmie_old. iFrame "Hmpie_f Hpart".
+    iFrame "Hmpie_f Hpart".
     iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
   Qed.
 
@@ -466,7 +439,7 @@ Section griotte_lang_traps.
     WP Exec @ E {{ Φ }}.
   Proof.
     iIntros (Hnpc) "HPC Htrap".
-    iApply (wp_bind (fill [SeqCtx])).
+    iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
     iApply (wp_notCorrectPC with "HPC"); first done.
     iIntros "!> HPC /=".
     iApply (wp_trap with "HPC Htrap").
@@ -498,7 +471,7 @@ Ltac instr_trap_pc :=
 
 Ltac instr_trap_start :=
   lazymatch goal with
-  | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
+  | |- envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
   | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in

@@ -2,7 +2,7 @@ From iris.algebra Require Import frac.
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
 From Stdlib Require Import Eqdep_dec List.
-From griotte Require Import griotte_lang memory_region contiguous.
+From griotte Require Import memory_region contiguous.
 
 Section helpers.
 
@@ -74,7 +74,7 @@ Ltac iPrologue_pre :=
 Ltac iPrologue prog :=
   (try iPrologue_pre);
   iDestruct prog as "[Hi Hprog]";
-  iApply (wp_bind (fill [SeqCtx])).
+  iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
 
 Ltac iEpilogue prog :=
   iNext; iIntros prog; iSimpl;

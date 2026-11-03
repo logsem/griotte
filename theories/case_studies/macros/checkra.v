@@ -124,7 +124,7 @@ Section Checkra_spec.
     (rsrc r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (wsrc w1 w2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let checkra_ := (checkra_instrs rsrc r1 r2) in
     let a_last := (pc_a ^+ length checkra_) in

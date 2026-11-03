@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export griotte_lang sts region_keys logical_words.
+From griotte Require Export sts region_keys logical_words.
 From griotte Require Export stdpp_extra.
 
 Section world_standard_sts.

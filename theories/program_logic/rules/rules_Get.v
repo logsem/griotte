@@ -9,11 +9,9 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types o : OType.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -86,8 +84,8 @@ Section griotte_lang_rules.
     - by right.
   Qed.
 
-  Inductive Get_spec (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
-    (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive Get_spec {k : kind} (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
+    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
     | Get_spec_success w z:
         regs !!ₗ src = Some w →
         denote i w.(lw) = Some z →
@@ -151,7 +149,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hinstr; discriminate|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -211,9 +209,9 @@ Section griotte_lang_rules.
   Qed.
 
   (** A successful Get writes a [get_result]. *)
-  Lemma Get_spec_next i lpc regs dst src lpc' regs' wsrc :
+  Lemma Get_spec_next {k : kind} i lpc regs dst src lpc' regs' wsrc :
     regs !!ₗ src = Some wsrc →
-    Get_spec i lpc regs dst src lpc' regs' NextIV →
+    Get_spec i lpc regs dst src lpc' regs' (@NextIV k) →
     incrementPC lpc = Some lpc' ∧
     ∃ z, get_result i wsrc z ∧ regs' = <[dst := WInt z]ₗ> regs.
   Proof.
@@ -224,11 +222,11 @@ Section griotte_lang_rules.
   Qed.
 
   (** A Get whose source denotes and whose PC increments does not fail. *)
-  Lemma Get_spec_not_faulted i lpc regs dst src lpc' regs' wsrc lpc0 :
+  Lemma Get_spec_not_faulted {k : kind} i lpc regs dst src lpc' regs' wsrc lpc0 :
     regs !!ₗ src = Some wsrc →
     is_Some (denote i wsrc.(lw)) →
     incrementPC lpc = Some lpc0 →
-    ¬ Get_spec i lpc regs dst src lpc' regs' FaultedV.
+    ¬ Get_spec i lpc regs dst src lpc' regs' (@FaultedV k).
   Proof.
     intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
     destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
@@ -446,7 +444,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hvpc Dregs HP φ) "(>HPC & >Hpc_a & Hdw & HPr & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     iDestruct (HP with "HC HPr") as %HΦc.

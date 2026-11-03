@@ -10,7 +10,6 @@ Section griotte_lang_rules.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -39,8 +38,8 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       Seal_failure lpc regs dst src1 src2 lpc regs.
 
-  Inductive Seal_spec (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName)
-    (lpc' : LWord) (regs': LReg): griotte_lang.val -> Prop :=
+  Inductive Seal_spec {k : kind} (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName)
+    (lpc' : LWord) (regs': LReg): tval k -> Prop :=
   | Seal_spec_success p g b e a π1 sb π:
       regs !!ₗ src1 = Some (SealRange p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
@@ -97,7 +96,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.

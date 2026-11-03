@@ -16,7 +16,7 @@ Section AllocatorFreeReturnBlocks4.
   Lemma allocator_free_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->

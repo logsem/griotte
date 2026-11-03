@@ -638,7 +638,7 @@ End trap_cause.
    value. *)
 Tactic Notation "iTrap" "cause" "with" constr(Hregs) constr(Hmem) :=
   lazymatch goal with
-  | |- envs_entails _ (wp _ _ (Seq ?e) _) => unify e (Instr Faulted)
+  | |- envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
   | _ => fail "iTrap cause: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in

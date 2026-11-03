@@ -76,6 +76,25 @@ Section handover.
     iIntros "Hcrit". iExists p, c, v, b. by iFrame.
   Qed.
 
+  (** The volatile part of [handover_at], without the critical-section
+      token. *)
+  Definition vol_lent (p c : LWord) (v : Z) (b : InterruptStatus) : iProp Σ :=
+    unwedged ∗ volatile_csr_at p c v b.
+  Definition vol_lent_any : iProp Σ := ∃ p c v b, vol_lent p c v b.
+
+  Lemma handover_at_vol p c v b :
+    handover_at p c v b ⊣⊢ na_own crit ⊤ ∗ vol_lent p c v b.
+  Proof. by rewrite /handover_at /vol_lent. Qed.
+
+  Lemma handover_res_vol : handover_res ⊣⊢ na_own crit ⊤ ∗ vol_lent_any.
+  Proof.
+    rewrite handover_res_unfold /vol_lent_any. iSplit.
+    - iIntros "(%p & %c & %v & %b & Hh)". rewrite handover_at_vol.
+      iDestruct "Hh" as "[$ Hv]". iExists p, c, v, b. done.
+    - iIntros "[Htok (%p & %c & %v & %b & Hv)]". iExists p, c, v, b.
+      rewrite handover_at_vol. iFrame.
+  Qed.
+
   (** What the thread holds besides its MIE fragment at posture [b], for the
       part [part] of its posture: nothing at InterruptEnabled. *)
   Definition held_of (part : iProp Σ) (b : InterruptStatus) : iProp Σ :=
@@ -124,6 +143,20 @@ Section posture.
 
   Lemma held_disabled : held InterruptDisabled ⊣⊢ handover_res ∗ @posture_part _ _ _ th CL CR.
   Proof. done. Qed.
+
+  (** The token and the posture part at InterruptDisabled. *)
+  Definition part_at (m : InterruptStatus) : iProp Σ :=
+    if m is InterruptDisabled then (na_own crit ⊤ ∗ @posture_part _ _ _ th CL CR)%I else True%I.
+
+  (** The lent volatile part at InterruptDisabled. *)
+  Definition lent_if_dis (m : InterruptStatus) : iProp Σ :=
+    if m is InterruptDisabled then vol_lent_any else True%I.
+
+  Lemma held_refold m : part_at m -∗ lent_if_dis m -∗ held m.
+  Proof.
+    destruct m; first by iIntros.
+    iIntros "[Htok Hpart] Hvol". rewrite held_disabled handover_res_vol. iFrame.
+  Qed.
 
   (** The whole posture, with optional pins of MPIE, MEPCC, mcause and
       mtval. *)

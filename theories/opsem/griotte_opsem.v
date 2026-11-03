@@ -199,6 +199,23 @@ Definition mepcc_of_pc (w : Word) : Word :=
 Section opsem.
   Context `{MachineParameters}.
 
+  (** The value of a system register; an absent one reads as [WInt 0]. *)
+  Definition sreg_word (φ : ExecConf) (sr : SRegName) : Word :=
+    default (WInt 0) (sreg φ !! sr).
+
+  (** Exception entry with cause [cv.1] and value [cv.2], as cheriot-sail:
+      MEPCC receives the PC, untagged if it is not a correct PC
+      ([mepcc_of_pc]), MPIE receives MIE, MIE is disabled, mcause and mtval
+      receive the cause and the value, and the PC receives MTCC without checks
+      (MTCC is legalised when written). *)
+  Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
+    let mie := mie_of (get_a (sreg_word φ mstatus)) in
+    φ .[mepcc   :=ₛᵣ mepcc_of_pc (pcc φ)]
+      .[mstatus :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
+      .[mcause  :=ₛᵣ WInt cv.1]
+      .[mtval   :=ₛᵣ WInt cv.2]
+      .[PC      := sreg_word φ mtcc].
+
   Definition exec_opt (i: instr) (plevel : Perm) (φ: ExecConf): option Conf :=
     match i with
     | Fail => Some (Faulted, φ)
@@ -496,6 +513,11 @@ Section opsem.
         Some (NextI,
           φ .[PC      := wepcc]
             .[mstatus :=ₛᵣ WInt (mstatus_enc (mpie_of (get_a wst)) InterruptEnabled)])
+  | Ecall =>
+      (* The exception entry, at the instruction step: MEPCC receives the
+         PC of the [ecall]. No check, as cheriot-sail's [ECALL]: a decoded
+         [ecall] never faults, and [trap_fault] has no case for it. *)
+      Some (NextI, enter_exc (MCAUSE_ECALL_MACHINE, MTVAL_NONE) φ)
   | Auipcc dst imm =>
       (* As Lea on the PC: the tag is cleared on an address overflow. *)
       match pcc φ with
@@ -712,23 +734,6 @@ Section opsem.
   (** The cause and the value of a fault in the state [φ]. *)
   Definition trap_cause (φ : ExecConf) : Z := fault_mcause (trap_fault φ).
   Definition trap_tval (φ : ExecConf) : Z := fault_mtval (trap_fault φ).
-
-  (** The value of a system register; an absent one reads as [WInt 0]. *)
-  Definition sreg_word (φ : ExecConf) (sr : SRegName) : Word :=
-    default (WInt 0) (sreg φ !! sr).
-
-  (** Exception entry with cause [cv.1] and value [cv.2], as cheriot-sail:
-      MEPCC receives the PC, untagged if it is not a correct PC
-      ([mepcc_of_pc]), MPIE receives MIE, MIE is disabled, mcause and mtval
-      receive the cause and the value, and the PC receives MTCC without checks
-      (MTCC is legalised when written). *)
-  Definition enter_exc (cv : Z * Z) (φ : ExecConf) : ExecConf :=
-    let mie := mie_of (get_a (sreg_word φ mstatus)) in
-    φ .[mepcc   :=ₛᵣ mepcc_of_pc (pcc φ)]
-      .[mstatus :=ₛᵣ WInt (mstatus_enc InterruptDisabled mie)]
-      .[mcause  :=ₛᵣ WInt cv.1]
-      .[mtval   :=ₛᵣ WInt cv.2]
-      .[PC      := sreg_word φ mtcc].
 
   (** After a fault, the machine stops instead of entering the exception
       handler when neither the PC nor MTCC is tagged. A fault with an untagged

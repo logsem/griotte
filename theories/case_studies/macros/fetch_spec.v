@@ -12,7 +12,7 @@ Section Fetch.
     (n off : Z) (rdst : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (wentry : Word) (wdst : LWord) (dq : dfrac)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let fetch_ := (fetch_instrs off rdst) in
     let a_last := (pc_a ^+ length fetch_) in

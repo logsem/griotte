@@ -484,6 +484,7 @@ Section Call_Path.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
@@ -524,7 +525,7 @@ Section Call_Path.
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
+    iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom Hth)
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & Hcells & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     rewrite /stk_saved_a -/(stk_spill_a a).
@@ -540,7 +541,7 @@ Section Call_Path.
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hlc)".
     iEval (rewrite Hspill_top) in "Hcsp".
     iApply (switch_callee_dead_zeros_spec _ _ InterruptDisabled with
-      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|].
+      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
     iFrame "Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Hcells Hrmap Hlc".
@@ -555,6 +556,7 @@ Section Call_Path.
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_exhausted" ∗
     (∃ wcs0', cs0 ↦ᵣ[th] wcs0') ∗
@@ -597,7 +599,7 @@ Section Call_Path.
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom)
+    iIntros ((Hba & Hba3 & Ha4) Hstk_mmio Hdom Hth)
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & Hcells & Hworld & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     rewrite /stk_saved_a -/(stk_spill_a a).
@@ -613,7 +615,7 @@ Section Call_Path.
       "(Hworld & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hlc)".
     iEval (rewrite Hspill_top) in "Hcsp".
     iApply (switch_callee_dead_zeros_spec _ _ InterruptDisabled with
-      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|].
+      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
     iFrame "Hworld Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Hcells Hrmap Hlc".

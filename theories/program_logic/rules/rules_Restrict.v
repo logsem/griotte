@@ -9,9 +9,7 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -53,7 +51,7 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       Restrict_failure lpc regs dst src arg.
 
-  Inductive Restrict_spec (lpc : LWord) (regs : LReg) (dst src : RegName) (arg : Z + RegName) (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive Restrict_spec {k : kind} (lpc : LWord) (regs : LReg) (dst src : RegName) (arg : Z + RegName) (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
   | Restrict_spec_success_cap (t : bool) p g b e a π n p' g':
       regs !!ₗ src = Some (WCap t p g b e a @@? π) →
       lz_of_argument regs arg = Some n →
@@ -117,7 +115,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.

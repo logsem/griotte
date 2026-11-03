@@ -31,6 +31,7 @@ Section VAE_Awkward_Blocks_3.
     is_shadow_address cgp_b = false ->
     loc W !! i = Some (encode true) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
@@ -68,7 +69,7 @@ Section VAE_Awkward_Blocks_3.
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hloc Htgt Hroute)
+               Hcgp_shadow Hloc Htgt Hth Hroute)
       "(#Hawk & Hworld & #Hassert & HPC & Hcgp & Hcra & Hcs0 & Hca0 & Hca1
       & Hct0 & Hct1 & Hct2 & Hca2
       & Himport_assert & Hcode_main & Hmie & Hheld & Hpost)".

@@ -29,6 +29,7 @@ Section SO_Return_Blocks_4.
     (a_stk1 + (1 + StackEntry_reserved_space))%a = Some csp_e ->
     (csp_b <= a_stk2)%a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_after_call")%a ∗
@@ -65,7 +66,7 @@ Section SO_Return_Blocks_4.
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow
-               Hastk2 Hastk1 Hcsp_b Htgt Hroute)
+               Hastk2 Hastk1 Hcsp_b Htgt Hth Hroute)
       "(#Hassert & HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
       & Hcs0 & Hca0 & Hca1 & Hsecret & Himport_assert & Hcode_main & Hmie & Hheld & Hpost)".
     unfold StackEntry_reserved_space in Hastk1.

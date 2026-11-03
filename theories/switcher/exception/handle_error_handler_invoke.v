@@ -100,7 +100,9 @@ Section Handle_Error_Handler_Invoke.
       (* Jalr cra cra *)
       iInstrApply "Hcode" with "Hlc"
         (wp_jalr_success_call_same_posture _ _ _ _ _ _ _ _ _ wcra InterruptEnabled)
-        with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+        with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie & Hheld)".
+      1: { intros _ Hc. by specialize (Hpre Hc). }
+      1: done.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" $! eq_refl rmap' with "[] [-]");
         first (iPureIntro; by rewrite Hdom' Hdom).

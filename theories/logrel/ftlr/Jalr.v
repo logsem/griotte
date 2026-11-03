@@ -39,6 +39,18 @@ Section fundamental.
 
     iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
+    (* A tagged target keeps the thread at a posture where it may run. *)
+    iAssert (⌜∀ wsrc, regs !!ₗ rsrc = Some wsrc → jalr_target_ok rdst rsrc wsrc.(lw) = true →
+              route_pre th m → route_pre th (jalr_mie regs rsrc m)⌝)%I as %Hroute.
+    { iIntros ([ws πw] Hws Htgt Hpre_m). rewrite /jalr_mie Hws.
+      destruct ws as [z | sb | k [] p0 g0 b0 e0 a0 | ot sb]; cbn; try done.
+      destruct (decide (rsrc = cnull)) as [->|Hnull].
+      { rewrite llookup_reg_cnull in Hws. by rewrite /lnull in Hws. }
+      rewrite llookup_reg_not_cnull // in Hws.
+      iDestruct ("Hreg" $! rsrc _ Hws) as "Hws".
+      iEval (rewrite interp_unfold) in "Hws".
+      iDestruct "Hws" as "(_ & _ & %Hclause)".
+      iPureIntro. by apply (route_pre_sentry m C). }
     iApply (wp_Jalr with "[$HPC $Ha $Hmap $Hmie]"); eauto.
     { rewrite /subseteq /map_subseteq. intros rr _.
       apply elem_of_dom. apply Hsome. }
