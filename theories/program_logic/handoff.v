@@ -123,20 +123,20 @@ Section handoff.
       with its closer, and B's run. *)
   Definition resumed_body (S : TV) : iProp Σ :=
     ∃ (B : nat) (v : resume_vals),
-      cur_frag (Some (UserThread B, Resuming v)) ∗
-      ⌜dom v.(rv_regs) = all_registers_s⌝ ∗
-      regs[CtxSwitch] v.(rv_regs) ∗
-      @PC_fragq Σ (@cerise_pcG Σ (ceriseG_of CtxSwitch)) (pc_dq v.(rv_mie)) v.(rv_pc) ∗
-      MIE ↦ₜ[CtxSwitch] v.(rv_mie) ∗
-      mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread B)) ∗
-      (if v.(rv_mie) is InterruptEnabled
-       then @posture_part Σ MP (ceriseG_of (UserThread B)) (UserThread B)
-              (CL (UserThread B)) (CR (UserThread B))
-       else True) ∗
-      sched_state ∗
-      na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
-      close_Nact ∗
-      ▷ S (UserThread B).
+      "Hcur" ∷ cur_frag (Some (UserThread B, Resuming v)) ∗
+      "%Hdom" ∷ ⌜dom v.(rv_regs) = all_registers_s⌝ ∗
+      "Hregs" ∷ regs[CtxSwitch] v.(rv_regs) ∗
+      "HPC" ∷ @PC_fragq Σ (@cerise_pcG Σ (ceriseG_of CtxSwitch)) (pc_dq v.(rv_mie)) v.(rv_pc) ∗
+      "HMIE" ∷ MIE ↦ₜ[CtxSwitch] v.(rv_mie) ∗
+      "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread B)) ∗
+      "Hpart" ∷ (if v.(rv_mie) is InterruptEnabled
+                 then @posture_part Σ MP (ceriseG_of (UserThread B)) (UserThread B)
+                        (CL (UserThread B)) (CR (UserThread B))
+                 else True) ∗
+      "Hsched" ∷ sched_state ∗
+      "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
+      "Hclose" ∷ close_Nact ∗
+      "Hsafe" ∷ ▷ S (UserThread B).
 
   Definition HO_pre (S : TV) (th : Thread) (v : tval (kind_of th)) : iProp Σ :=
     match v with

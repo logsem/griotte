@@ -1921,6 +1921,15 @@ Section erasure_split.
       rewrite !lookup_insert_ne //. eauto.
   Qed.
 
+  (** A tick keeps both parts. *)
+  Lemma erasure_sh_tick R C σ lsh lmem mpie :
+    erasure_sh R C σ lsh lmem mpie → erasure_sh R C (tick σ) lsh lmem mpie.
+  Proof. by intros []; constructor. Qed.
+
+  Lemma erasure_th_tick R C σ lpc lreg vm mie :
+    erasure_th R C σ lpc lreg vm mie → erasure_th R C (tick σ) lpc lreg vm mie.
+  Proof. by intros []; constructor. Qed.
+
   (** And conversely, for shared system registers without MTDC and
       mstatus. *)
   Lemma erasure_split R C σ lpc lreg lsh vm mie mpie lmem :

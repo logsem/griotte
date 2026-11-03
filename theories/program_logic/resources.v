@@ -457,10 +457,12 @@ Definition curUR := excl_authUR (leibnizO (option (Thread * TState))).
     from threads: the PC, the general registers, the ghost state of mtdc and
     MIE, the mtdc token, and the non-atomic pool [tpool th]; and the ghost
     state of the switches: the name of [cur], and the names of the saved
-    propositions of the switcher's parts of [HO] ([γ_exit th], [γ_sched]).
-    The other system registers, MPIE and the names of the postures are
-    shared. The shared fields are [::] fields, the per-thread maps are not,
-    so typeclass search finds a per-thread heap only through [ceriseG_of].
+    propositions of the switcher's parts of [HO] ([γ_exit th], [γ_sched]),
+    and the ghost names of the running thread and of the resume window of
+    the context-switch thread. The other system registers, MPIE and the
+    names of the postures are shared. The shared fields are [::] fields,
+    the per-thread maps are not, so typeclass search finds a per-thread
+    heap only through [ceriseG_of].
     The shared fields other than [na_invG] have a low priority: with a
     thread in scope, the invariants, the memory, the shadow table, the
     system registers, the registry, the address claims and [mtcc_vec]
@@ -488,11 +490,17 @@ Class ceriseBaseG Σ := CeriseBaseG {
   cb_saved_prop :: savedPropG Σ | 100;
   γ_exit : Thread → gname;
   γ_sched : gname;
+  cb_running_inG :: ghost_varG Σ Thread | 100;
+  γ_running : gname;
+  cb_resume_window_inG :: ghost_varG Σ bool | 100;
+  γ_resume_window : gname;
 }.
 #[export] Hint Mode ceriseBaseG - : typeclass_instances.
 #[global] Arguments tpool {Σ _} th : rename.
 #[global] Arguments γ_exit {Σ _} th : rename.
 #[global] Arguments γ_sched {Σ _} : rename.
+#[global] Arguments γ_running {Σ _} : rename.
+#[global] Arguments γ_resume_window {Σ _} : rename.
 
 (** The instance of thread [th]. Every field is a projection of [base]:
     a record built with [{| f := f |}] would have its fields filled in by

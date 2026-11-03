@@ -577,6 +577,77 @@ Section thread_lang_props.
 
 End thread_lang_props.
 
+(** A step of the context-switch thread enables interrupts only at its
+    resuming [mret]: after it, the thread is at its switch value. *)
+Lemma ctx_step_resumed_or_disabled `{MP : MachineParameters}
+    (e e' : thread_langs.expr CtxK) σ κ σ' efs :
+  wellshaped e →
+  @language.prim_step (tlang CtxK) e σ κ e' σ' efs →
+  (e = Seq (Instr (TSw ResumedS)) ∨ e = Instr (TSw ResumedS)) ∨ ¬ irq_enabled σ →
+  (e' = Seq (Instr (TSw ResumedS)) ∨ e' = Instr (TSw ResumedS)) ∨ ¬ irq_enabled σ'.
+Proof.
+  intros [ [f ->] | [v Hv] ] Hs Hpre; last first.
+  { apply tprim_val_stuck in Hs. congruence. }
+  destruct Hs as [K e1 e2 He1 -> Hb].
+  destruct (tfill_seq_instr K e1 f (eq_sym He1)) as [->|[-> ->] ].
+  - simpl in He1. subst e1. inversion Hb; subst.
+    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
+    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
+    + (* The trap entry disables interrupts. *)
+      right. rewrite /irq_enabled /enter_exc /sreg_word /=.
+      rewrite lookup_insert_ne // lookup_insert_ne // lookup_insert_eq /= mie_of_mstatus_enc.
+      done.
+    + destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | by right].
+    + destruct Hpre as [ [Hw | Hw] | Hd]; [ | discriminate | by right].
+      injection Hw as ->. left. by right.
+  - inversion Hb as [σx c σx' Hstep Hnb | | | | | ]; subst.
+    destruct Hpre as [ [Hw | Hw] | Hd]; [discriminate | discriminate | ].
+    destruct (mie_of (get_a (sreg_word σ' mstatus))) eqn:Hm; last first.
+    { right. rewrite /irq_enabled Hm. discriminate. }
+    (* Interrupts enabled after the step: the instruction is a decoded
+       [mret], and its step succeeded. *)
+    assert (decoded_instr σ = Some Mret) as Hdec.
+    { eapply ctx_instr_irq_enabled; [exact Hb | exact Hm]. }
+    inversion Hstep as [φ Hnc | φ p g b e0 a Hpc Hmem
+                       | φ p g b e0 a i c' wa Hpc Hmem Hcorr Hi Hexec]; subst.
+    1,2: by right.
+    pose proof Hdec as Hdec'.
+    rewrite /decoded_instr Hpc Hmem /= in Hdec'. injection Hdec' as Hi.
+    rewrite Hi /exec in Hm |- *.
+    destruct (exec_opt Mret p σ) as [ [c'' σ''] | ] eqn:Hx; last first.
+    { exfalso. apply Hd. exact Hm. }
+    assert (c'' = NextI) as ->.
+    { rewrite /exec_opt in Hx. destruct (has_sreg_access p); last done.
+      by simplify_option_eq. }
+    left. left. cbn. rewrite Hdec. done.
+Qed.
+
+(** * Facts on the hardware image of a thread expression *)
+
+Lemma hw_of_reducible `{MachineParameters} {k} (e : thread_langs.expr k) σ :
+  wellshaped e →
+  thread_langs.to_val e = None →
+  reducible (Λ := griotte_hw_lang) (hw_of e) σ.
+Proof.
+  intros [ [f ->]|[v Hv] ] Hn; last congruence.
+  destruct f as [c|s]; [apply hw_seq_reducible|apply (hw_seq_reducible σ NextI)].
+Qed.
+
+Lemma hw_of_not_val `{MachineParameters} {k} (e : thread_langs.expr k) :
+  wellshaped e →
+  thread_langs.to_val e = None →
+  language.to_val (l := griotte_hw_lang) (hw_of e) = None.
+Proof. intros [ [f ->]|[v Hv] ] Hn; last congruence. by destruct f. Qed.
+
+Lemma hw_exec_thread `{MachineParameters} {k} (e : thread_langs.expr k) :
+  wellshaped e →
+  thread_langs.to_val e = None →
+  hw_of e = griotte_lang.Exec →
+  e = Exec.
+Proof.
+  intros Hws Hn Hh. destruct (async_at_thread e Hws Hh) as [->|[s ->] ]; done.
+Qed.
+
 Ltac solve_atomic :=
   apply is_atomic_correct; simpl; repeat split;
     rewrite ?tto_of_val; eapply mk_is_Some; fast_done.

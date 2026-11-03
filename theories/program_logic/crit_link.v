@@ -16,12 +16,28 @@ From griotte Require Import resources.
 Definition mie_st (σ : ExecConf) : InterruptStatus :=
   match sreg σ !! mstatus with Some w => mie_of (get_a w) | None => InterruptDisabled end.
 
+Lemma mie_old_st σ : mie_of (get_a (sreg_word σ mstatus)) = mie_st σ.
+Proof. rewrite /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
+
+(** The opsem reads an absent mstatus as 0, the program logic as
+    interrupts disabled: the same. *)
+Lemma irq_enabled_mie_st `{MachineParameters} σ :
+  irq_enabled σ ↔ mie_st σ = InterruptEnabled.
+Proof. rewrite /irq_enabled /mie_st /sreg_word. by destruct (sreg σ !! mstatus). Qed.
+
 (** MPIE of a configuration (InterruptDisabled if mstatus is absent). *)
 Definition mpie_st (σ : ExecConf) : InterruptStatus :=
   match sreg σ !! mstatus with Some w => mpie_of (get_a w) | None => InterruptDisabled end.
 
 Lemma mstatus_ok_mie_st σ mie mpie : mstatus_ok σ mie mpie → mie_st σ = mie.
 Proof. rewrite /mstatus_ok /mie_st. intros ->. apply mie_of_mstatus_enc. Qed.
+
+Lemma erasure_th_mie_st `{MP : MachineParameters} R C σ lpc lreg vm mie :
+  erasure_th R C σ lpc lreg vm mie → mie_st σ = mie.
+Proof.
+  intros Her. destruct (et_mstatus _ _ _ _ _ _ _ Her) as [mpie Hok].
+  by eapply mstatus_ok_mie_st.
+Qed.
 
 Lemma mstatus_ok_mpie_st σ mie mpie : mstatus_ok σ mie mpie → mpie_st σ = mpie.
 Proof. rewrite /mstatus_ok /mpie_st. intros ->. apply mpie_of_mstatus_enc. Qed.
