@@ -38,15 +38,31 @@ Definition tval_of_val {k} (v : griotte_lang.val) : tval k :=
   | griotte_lang.NextIV => NextIV
   end.
 
-(** The value of a step of instruction [i] at kind [k]: [NextIV] is the
-    switch value when [i] is a switch instruction of [k]. *)
-Definition tval_sw (k : kind) (i : instr) (v : griotte_lang.val) : tval k :=
-  match v with
-  | griotte_lang.NextIV => if sw_of k i is Some s then TSwV s else NextIV
-  | _ => tval_of_val v
+(** The value of a configuration flag, if it is one. *)
+Definition flag_val {k} (c : ConfFlag) : option (tval k) :=
+  match c with
+  | Executable => None
+  | Halted => Some HaltedV
+  | Faulted => Some FaultedV
+  | NextI => Some NextIV
   end.
 
-Lemma tval_sw_none k i v : sw_of k i = None → tval_sw k i v = tval_of_val v.
+Lemma flag_val_to_val k c : flag_val c = to_val (Instr (TF c) : expr k).
+Proof. by destruct c. Qed.
+
+Lemma flag_val_hw k c :
+  flag_val c = (tval_of_val <$> griotte_lang.to_val (griotte_lang.Instr c) : option (tval k)).
+Proof. by destruct c. Qed.
+
+(** The value of a step of instruction [i] at kind [k]: [NextIV] is the
+    switch value when [i] is a switch instruction of [k]. *)
+Definition tval_sw (k : kind) (i : instr) (v : tval k) : tval k :=
+  match v with
+  | NextIV => if sw_of k i is Some s then TSwV s else NextIV
+  | _ => v
+  end.
+
+Lemma tval_sw_none k i v : sw_of k i = None → tval_sw k i v = v.
 Proof. intros Hsw. rewrite /tval_sw Hsw. by destruct v. Qed.
 
 (** Only the exit marker, [Ecall] and [Mret] are switch instructions. *)
@@ -57,7 +73,7 @@ Lemma tres_from_option `{MachineParameters} {PROP : bi} k σ (c : ConfFlag) i
     (Φ : tval k → PROP) :
   decoded_instr σ = Some i →
   from_option Φ False%I (to_val (Instr (tres k σ c) : expr k)) =
-  from_option (λ v, Φ (tval_sw k i v)) False%I (griotte_lang.to_val (griotte_lang.Instr c)).
+  from_option (λ v, Φ (tval_sw k i v)) False%I (flag_val c).
 Proof.
   rewrite /tres. intros ->. cbn. rewrite /tval_sw.
   destruct c; cbn; [done..|]. by destruct (sw_of k i).
@@ -137,10 +153,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -186,8 +200,7 @@ Section griotte_lang_rules.
        ==∗
        ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) σ'⌝ ∗
        cerise_state_interp σ' ∗
-       from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False
-         (griotte_lang.to_val (griotte_lang.Instr c)))
+       from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False (flag_val c))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
@@ -235,7 +248,7 @@ Section griotte_lang_rules.
   Qed.
 
   (** [wp_instr_step] for an instruction that is not a switch instruction
-      of the kind: the value is [griotte_lang]'s, embedded. *)
+      of the kind: the value is the flag's ([flag_val]). *)
   Lemma wp_instr_step_nosw E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) dq (regs : LReg) Φ :
     sw_of (kind_of th) (decodeInstrW w.(lw)) = None →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -265,14 +278,14 @@ Section griotte_lang_rules.
        ==∗
        ⌜sys_kept (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) σ'⌝ ∗
        cerise_state_interp σ' ∗
-       from_option (λ v, Φ (tval_of_val v)) False (griotte_lang.to_val (griotte_lang.Instr c)))
+       from_option Φ False (flag_val c))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hsw Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
     iNext. iIntros (r sr m st td lreg lsreg lmem R C c σ') "Hpre".
     iMod ("Hcont" $! r sr m st td lreg lsreg lmem R C c σ' with "Hpre") as "($ & $ & HΦ)".
-    iModIntro. destruct (griotte_lang.to_val (griotte_lang.Instr c)); cbn; [|done].
+    iModIntro. destruct (flag_val c); cbn; [|done].
     by rewrite tval_sw_none.
   Qed.
 
@@ -311,8 +324,7 @@ Section griotte_lang_rules.
        ==∗
        (cerise_state_interp σ' ∗ crit_link σ') ∗
        ctx_irq_post (kind_of th) (decodeInstrW w.(lw)) σ' ∗
-       from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False
-         (griotte_lang.to_val (griotte_lang.Instr c)))
+       from_option (λ v, Φ (tval_sw (kind_of th) (decodeInstrW w.(lw)) v)) False (flag_val c))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hvpc) "HPC Hpc_a Hmap Hcont".
@@ -390,14 +402,14 @@ Section griotte_lang_rules.
        ==∗
        (cerise_state_interp σ' ∗ crit_link σ') ∗
        ctx_irq_post (kind_of th) (decodeInstrW w.(lw)) σ' ∗
-       from_option (λ v, Φ (tval_of_val v)) False (griotte_lang.to_val (griotte_lang.Instr c)))
+       from_option Φ False (flag_val c))
     -∗ WP Instr Executable @ E {{ Φ }}.
   Proof.
     iIntros (Hsw Hvpc) "HPC Hpc_a Hmap Hcont".
     iApply (wp_instr_step_link with "HPC Hpc_a Hmap"); first done.
     iNext. iIntros (r sr m st td lreg lsreg lmem R C c σ') "Hpre".
     iMod ("Hcont" $! r sr m st td lreg lsreg lmem R C c σ' with "Hpre") as "($ & $ & HΦ)".
-    iModIntro. destruct (griotte_lang.to_val (griotte_lang.Instr c)); cbn; [|done].
+    iModIntro. destruct (flag_val c); cbn; [|done].
     by rewrite tval_sw_none.
   Qed.
 
@@ -436,38 +448,38 @@ Section griotte_lang_rules.
       transferred with [T1] for [T2], with the state interpretation of the
       new state in hand, and the postcondition receives [T2]. *)
   Lemma instr_close_link_transfer (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
-      σ0 σ1 σ' (Ψ : griotte_lang.val → iProp Σ) (c : ConfFlag) :
+      σ0 σ1 σ' (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
     link_transfer_si P T1 T2 →
     (sys_kept σ1 σ' → P σ0 σ') →
     crit_link σ0 -∗ T1 -∗
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
-          from_option (λ v, T2 -∗ Ψ v) False (griotte_lang.to_val (griotte_lang.Instr c))) -∗
+          from_option (λ v, T2 -∗ Ψ v) False (flag_val c)) -∗
     |==> (cerise_state_interp σ' ∗ crit_link σ') ∗
-         from_option Ψ False (griotte_lang.to_val (griotte_lang.Instr c)).
+         from_option Ψ False (flag_val c).
   Proof.
     iIntros (Htr HP) "Hlink HT >(%Hk & HSI & HΨ)".
     iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
-    destruct (griotte_lang.to_val (griotte_lang.Instr c)); cbn; [by iApply "HΨ" | done].
+    destruct (flag_val c); cbn; [by iApply "HΨ" | done].
   Qed.
 
   (** The same, with the [ctx_irq_post] that [wp_instr_step_link] asks
       for, from the routing law's precondition after the step. *)
   Lemma instr_close_link_transfer_irq (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
-      σ0 σ1 σ' i (Ψ : griotte_lang.val → iProp Σ) (c : ConfFlag) :
+      σ0 σ1 σ' i (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
     link_transfer_si P T1 T2 →
     (sys_kept σ1 σ' → P σ0 σ') →
     (sys_kept σ1 σ' → route_pre th (mie_st σ')) →
     crit_link σ0 -∗ T1 -∗
     (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
-          from_option (λ v, T2 -∗ Ψ v) False (griotte_lang.to_val (griotte_lang.Instr c))) -∗
+          from_option (λ v, T2 -∗ Ψ v) False (flag_val c)) -∗
     |==> (cerise_state_interp σ' ∗ crit_link σ') ∗
          ctx_irq_post (kind_of th) i σ' ∗
-         from_option Ψ False (griotte_lang.to_val (griotte_lang.Instr c)).
+         from_option Ψ False (flag_val c).
   Proof.
     iIntros (Htr HP Hroute) "Hlink HT >(%Hk & HSI & HΨ)".
     iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
     iSplitR; first (iApply ctx_irq_post_route; by apply Hroute).
-    destruct (griotte_lang.to_val (griotte_lang.Instr c)); cbn; [by iApply "HΨ" | done].
+    destruct (flag_val c); cbn; [by iApply "HΨ" | done].
   Qed.
 
   (** A closing that keeps MIE and mtdc from a state that keeps them. *)
@@ -585,24 +597,24 @@ Section griotte_lang_rules.
 End griotte_lang_rules.
 
 Section instruction_closing.
-  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread}.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {k : kind}.
 
   (** The closing lemmas below conclude that the step keeps MIE and mtdc
       ([sys_kept]): they do not change the system registers. *)
 
   (** Closes a failed instruction: the state is unchanged. *)
   Lemma instr_close_fail pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
-      (regs : LReg) (Φ : griotte_lang.val → iProp Σ) :
+      (regs : LReg) (Φ : tval k → iProp Σ) :
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ griotte_lang.FaultedV) ==∗
+    (PC ↦ₚ lpc -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ FaultedV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (MkExecConf pc r sr m st td)⌝ ∗
     cerise_state_interp (MkExecConf pc r sr m st td) ∗
-    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr Faulted)).
+    from_option Φ False (flag_val Faulted).
   Proof.
     iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ". iModIntro.
     iSplit; first (iPureIntro; apply sys_kept_refl).
@@ -614,13 +626,13 @@ Section instruction_closing.
       [advancePC φ n]. The spec [P] holds of the new PC on success, and of
       the old one on failure. *)
   Lemma instr_close_pc_update pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
-      (regs : LReg) n c σ' (Φ : griotte_lang.val → iProp Σ)
-      (P : LWord → griotte_lang.val → Prop) :
+      (regs : LReg) n c σ' (Φ : tval k → iProp Σ)
+      (P : LWord → tval k → Prop) :
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     (match advancePC (MkExecConf pc r sr m st td) n with
      | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
-    (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' griotte_lang.NextIV) →
-    (incrementPC_gen lpc n = None → P lpc griotte_lang.FaultedV) →
+    (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' NextIV) →
+    (incrementPC_gen lpc n = None → P lpc FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -629,7 +641,7 @@ Section instruction_closing.
     (∀ lpc' retv, ⌜P lpc' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ retv) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
-    cerise_state_interp σ' ∗ from_option Φ False (griotte_lang.to_val (griotte_lang.Instr c)).
+    cerise_state_interp σ' ∗ from_option Φ False (flag_val c).
   Proof.
     iIntros (Her Hstep HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
@@ -664,8 +676,8 @@ Section instruction_closing.
       the new PC and owned registers on success, and of the old ones on
       failure. *)
   Lemma instr_close_reg_update pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
-      (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : griotte_lang.val → iProp Σ)
-      (P : LWord → LReg → griotte_lang.val → Prop) :
+      (regs : LReg) dst (v : LWord) (w : Word) c σ' (Φ : tval k → iProp Σ)
+      (P : LWord → LReg → tval k → Prop) :
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     regs ⊆ lreg →
     dst = cnull ∨ dst ∈ dom regs →
@@ -673,8 +685,8 @@ Section instruction_closing.
     (match nextPC (update_reg (MkExecConf pc r sr m st td) dst w) with
      | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
     reg_phys R v w →
-    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) griotte_lang.NextIV) →
-    (incrementPC lpc = None → P lpc regs griotte_lang.FaultedV) →
+    (∀ lpc', incrementPC lpc = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
+    (incrementPC lpc = None → P lpc regs FaultedV) →
     PC_auth lpc -∗
     gen_heap_interp lreg -∗ sys_interp lsreg -∗ gen_heap_interp lmem -∗
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
@@ -683,7 +695,7 @@ Section instruction_closing.
     (∀ lpc' regs' retv, ⌜P lpc' regs' retv⌝ -∗ PC ↦ₚ lpc' -∗
        ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗ Φ retv) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
-    cerise_state_interp σ' ∗ from_option Φ False (griotte_lang.to_val (griotte_lang.Instr c)).
+    cerise_state_interp σ' ∗ from_option Φ False (flag_val c).
   Proof.
     iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
@@ -707,7 +719,7 @@ Section instruction_closing.
       register, as the physical [update_reg (update_pcc φ pc') dst w]. *)
   Lemma instr_close_reg_set_pc pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) dst (v : LWord) (w : Word) (lpc' : LWord) (pc' : Word)
-      (Φ : griotte_lang.val → iProp Σ) :
+      (Φ : tval k → iProp Σ) :
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     dst = cnull ∨ dst ∈ dom regs →
     reg_word_ok R C v →
@@ -720,10 +732,10 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ griotte_lang.NextIV) ==∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w)⌝ ∗
     cerise_state_interp (update_reg (update_pcc (MkExecConf pc r sr m st td) pc') dst w) ∗
-    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr NextI)).
+    from_option Φ False (flag_val NextI).
   Proof.
     iIntros (Her Hdst Hok Hw Hokpc Hwpc Hpcok)
       "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
@@ -740,7 +752,7 @@ Section instruction_closing.
   (** Closes a step that only sets the PC. *)
   Lemma instr_close_set_pc pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
       (regs : LReg) (lpc' : LWord) (pc' : Word)
-      (Φ : griotte_lang.val → iProp Σ) :
+      (Φ : tval k → iProp Σ) :
     erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
     reg_word_ok R C lpc' →
     reg_phys R lpc' pc' →
@@ -750,10 +762,10 @@ Section instruction_closing.
     gen_heap_interp st -∗ reg_auth R -∗ addr_alloc_auth C -∗
     PC ↦ₚ lpc -∗
     ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ griotte_lang.NextIV) ==∗
+    (PC ↦ₚ lpc' -∗ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗ Φ NextIV) ==∗
     ⌜sys_kept (MkExecConf pc r sr m st td) (update_pcc (MkExecConf pc r sr m st td) pc')⌝ ∗
     cerise_state_interp (update_pcc (MkExecConf pc r sr m st td) pc') ∗
-    from_option Φ False (griotte_lang.to_val (griotte_lang.Instr NextI)).
+    from_option Φ False (flag_val NextI).
   Proof.
     iIntros (Her Hokpc Hwpc Hpcok) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
     pose proof (erasure_set_pc _ _ _ _ _ _ _ _ _ _ _ _ lpc' pc' Her Hokpc Hwpc Hpcok) as Her'.

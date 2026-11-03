@@ -7,10 +7,8 @@ Section mmio_shadow_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.

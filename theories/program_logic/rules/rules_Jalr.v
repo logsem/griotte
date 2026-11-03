@@ -33,10 +33,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -45,25 +43,25 @@ Section griotte_lang_rules.
   (* The new PC is the source word with its identifier; the link is built
      from the PC and takes the PC's identifier. A [cnull] destination drops
      the link. The link's kind depends on MIE [mie] before the jump. *)
-  Inductive Jalr_spec (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc: RegName)
+  Inductive Jalr_spec {k : kind} (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc: RegName)
       (mie : InterruptStatus) :
-    LWord → LReg → griotte_lang.val → Prop :=
+    LWord → LReg → tval k → Prop :=
   | Jalr_spec_success regs' pc_a' wsrc :
     regs !!ₗ rsrc = Some wsrc ->
     jalr_target_ok rdst rsrc wsrc.(lw) = true ->
     (pc_a + 1)%a = Some pc_a' ->
     regs' = (if decide (rdst = cnull) then regs
              else <[rdst := jalr_link rdst mie true pc_p pc_g pc_b pc_e pc_a' @@? pc_π ]ₗ> regs) →
-    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie (lupdatePcPerm wsrc) regs' griotte_lang.NextIV
+    Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie (lupdatePcPerm wsrc) regs' NextIV
   | Jalr_spec_failure_target wsrc :
     regs !!ₗ rsrc = Some wsrc ->
     jalr_target_ok rdst rsrc wsrc.(lw) = false ->
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie
-      (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs griotte_lang.FaultedV
+      (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV
   | Jalr_spec_failure :
     (pc_a + 1)%a = None ->
     Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie
-      (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs griotte_lang.FaultedV.
+      (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs FaultedV.
 
   (** A jump writes MIE through a sentry that sets the interrupt status:
       the premise [link_transfer_si (mie_move b (jalr_mie regs rsrc b)) T1 T2]
@@ -83,13 +81,13 @@ Section griotte_lang_rules.
         ▷ MIE ↦ₜ b ∗
         ▷ T1 }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
-        (⌜retv = griotte_lang.NextIV⌝ ∗ MIE ↦ₜ jalr_mie regs rsrc b ∗ T2 ∨
-         ⌜retv = griotte_lang.FaultedV⌝ ∗ MIE ↦ₜ b ∗ T1) }}}.
+        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ jalr_mie regs rsrc b ∗ T2 ∨
+         ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b ∗ T1) }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Htr Hroute φ) "(>HPC & >Hpc_a & >Hmap & >Hmie & HT) Hφ".
     iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
@@ -241,7 +239,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ ∀ mie, Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -677,12 +675,12 @@ Section griotte_lang_rules_core.
         ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         ▷ MIE ↦ₜ b }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ Jalr_spec regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
-        (⌜retv = griotte_lang.NextIV⌝ ∗ MIE ↦ₜ jalr_mie regs rsrc b ∨ ⌜retv = griotte_lang.FaultedV⌝ ∗ MIE ↦ₜ b) }}}.
+        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ jalr_mie regs rsrc b ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b) }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hroute φ) "(>HPC & >Hpc_a & >Hmap & >Hmie) Hφ".
     iApply (wp_Jalr_link _ _ _ _ _ _ _ _ _ _ _ _ _ True%I True%I

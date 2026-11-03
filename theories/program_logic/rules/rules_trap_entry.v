@@ -125,10 +125,8 @@ Section griotte_lang_traps.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
 
   (* The obligation of a fault from the PC [w]: under an update at the time

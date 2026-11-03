@@ -9,10 +9,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -71,10 +69,10 @@ Section griotte_lang_rules.
       ea = mtime_addr ->
       Store_failure lpc regs r1 r2 imm mem dw.
 
-  Inductive Store_spec
+  Inductive Store_spec {k : kind}
       (lpc : LWord) (regs : LReg) (r1 : RegName) (r2 : Z + RegName) (imm : Z)
       (lpc' : LWord) (mem mem' : LMem)
-      (shadow shadow' : ShadowTbl) (dw : deref_witness) : griotte_lang.val -> Prop :=
+      (shadow shadow' : ShadowTbl) (dw : deref_witness) : tval k -> Prop :=
   | Store_spec_success p g b e a ea storev oldv :
       lword_of_argument regs r2 = Some storev ->
       reg_allows_store_imm regs r1 imm p g b e a ea ->
@@ -83,7 +81,7 @@ Section griotte_lang_rules.
       mem' = <[ea := lstore_word p storev]> mem ->
       shadow' = shadow ->
       incrementPC lpc = Some lpc' ->
-      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw griotte_lang.NextIV
+      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw NextIV
   | Store_spec_success_shadow p g b e a ea heap_a storev old_status :
       lword_of_argument regs r2 = Some storev ->
       reg_allows_store_imm regs r1 imm p g b e a ea ->
@@ -93,7 +91,7 @@ Section griotte_lang_rules.
       mem' = mem ->
       shadow' = <[heap_a := decodeAllocStatus (word_to_bits storev.(lw))]> shadow ->
       incrementPC lpc = Some lpc' ->
-      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw griotte_lang.NextIV
+      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw NextIV
   (* A store to [mtimecmp] changes neither memory nor the shadow table: the
      logical state does not record the time devices. *)
   | Store_spec_success_timedev p g b e a ea storev :
@@ -105,12 +103,12 @@ Section griotte_lang_rules.
       mem' = mem ->
       shadow' = shadow ->
       incrementPC lpc = Some lpc' ->
-      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw griotte_lang.NextIV
+      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw NextIV
   | Store_spec_failure_store :
       mem' = mem -> shadow' = shadow ->
       Store_failure lpc regs r1 r2 imm mem dw ->
       lpc' = lpc ->
-      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw griotte_lang.FaultedV.
+      Store_spec lpc regs r1 r2 imm lpc' mem mem' shadow shadow' dw FaultedV.
 
   Lemma Store_failure_impossible lpc regs r1 (r2 : Z + RegName) imm mem dw p g b e a ea :
     lw <$> regs !!ₗ r1 = Some (Cap p g b e a) ->
@@ -245,9 +243,9 @@ Section griotte_lang_rules.
 
 
   (** A failing store leaves memory and the shadow table unchanged. *)
-  Lemma Store_spec_fail lpc regs r1 (r2 : Z + RegName) imm mem shadow dw :
+  Lemma Store_spec_fail {k : kind} lpc regs r1 (r2 : Z + RegName) imm mem shadow dw :
     Store_failure lpc regs r1 r2 imm mem dw →
-    Store_spec lpc regs r1 r2 imm lpc mem mem shadow shadow dw griotte_lang.FaultedV.
+    Store_spec lpc regs r1 r2 imm lpc mem mem shadow shadow dw (@FaultedV k).
   Proof. intros. by apply Store_spec_failure_store. Qed.
 
   (** The status-independent part of [shadow_store_ok]: the cell is unclaimed,
@@ -279,7 +277,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' shadow shadow' dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem', a ↦ₐ w) ∗
@@ -402,7 +400,7 @@ Section griotte_lang_rules.
        iModIntro. iSplitR; first (iPureIntro; done).
        iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
        { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
-       iApply ("Hφ" $! _ _ _ griotte_lang.NextIV). iFrame.
+       iApply ("Hφ" $! _ _ _ NextIV). iFrame.
        iPureIntro. eapply Store_spec_success_shadow; eauto.
      - destruct (is_time_device_address ea) eqn:Htdev.
        + rewrite (time_device_not_revoker_address _ Htdev) /= in Hstep.
@@ -439,7 +437,7 @@ Section griotte_lang_rules.
          iModIntro. iSplitR; first (iPureIntro; done).
          iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
          { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
-         iApply ("Hφ" $! _ _ _ griotte_lang.NextIV). iFrame.
+         iApply ("Hφ" $! _ _ _ NextIV). iFrame.
          iPureIntro. eapply Store_spec_success_timedev; eauto.
        + destruct HaStore as [oldv Hmema].
          assert (lmem !! ea = Some oldv) as Hlmea by by eapply lookup_weaken.
@@ -466,7 +464,7 @@ Section griotte_lang_rules.
          iModIntro. iSplitR; first (iPureIntro; done).
          iSplitR "Hφ HPC Hmem Hfetch Hshadow Hperms Hdw Hmap".
          { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
-         iApply ("Hφ" $! _ _ _ griotte_lang.NextIV). iFrame.
+         iApply ("Hφ" $! _ _ _ NextIV). iFrame.
          iPureIntro. eapply Store_spec_success; eauto.
    Qed.
 
@@ -488,7 +486,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' shadow shadow' dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem', a ↦ₐ w) ∗
@@ -520,7 +518,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' shadow shadow' dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem', a ↦ₐ w) ∗
@@ -554,7 +552,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' shadow shadow' dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          pc_a ↦ₐ{dq} w ∗
@@ -602,7 +600,7 @@ Section griotte_lang_rules.
        (▷ [∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' retv, RET tval_of_val retv;
+   {{{ lpc' mem' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' (∅ : ShadowTbl) (∅ : ShadowTbl) DerefNoId retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem', a ↦ₐ w) ∗
@@ -643,7 +641,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' retv, RET tval_of_val retv;
+   {{{ lpc' mem' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' (∅ : ShadowTbl) (∅ : ShadowTbl) dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          pc_a ↦ₐ{dq} w ∗
@@ -684,7 +682,7 @@ Section griotte_lang_rules.
        ([∗ set] a ∈ sperm, shadow_store_perm a) ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 0 lpc' mem mem' shadow shadow' DerefNoId retv ⌝ ∗
          PC ↦ₚ lpc' ∗
          pc_a ↦ₐ{dq} w ∗
@@ -1534,7 +1532,7 @@ Section shadow_store_res.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' mem' shadow' retv, RET tval_of_val retv;
+   {{{ lpc' mem' shadow' retv, RET retv;
        ⌜ Store_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' mem mem' shadow shadow' dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          pc_a ↦ₐ{dq} w ∗

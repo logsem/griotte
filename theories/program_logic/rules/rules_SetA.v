@@ -9,9 +9,7 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -23,9 +21,9 @@ Section griotte_lang_rules.
      incrementPC lpc = None ->
      SetA_failure lpc regs dst src rv.
 
-  Inductive SetA_spec
+  Inductive SetA_spec {k : kind}
     (lpc : LWord) (regs : LReg) (dst src : RegName) (rv : Z + RegName)
-    (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop
+    (lpc' : LWord) (regs' : LReg) : tval k → Prop
   :=
   | SetA_spec_success_cap: forall (t : bool) p g b e a π z a',
     regs !!ₗ src = Some (WCap t p g b e a @@? π) ->
@@ -33,35 +31,35 @@ Section griotte_lang_rules.
     z_to_addr z = Some a' ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WCap t p g b e a' @@? π ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   | SetA_spec_success_sr: forall (t : bool) p g b e a π z a',
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     z_to_otype z = Some a' ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WSealRange t p g b e a' @@? π ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   | SetA_spec_invalidated_cap: forall (t : bool) p g b e a π z,
     regs !!ₗ src = Some (WCap t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     z_to_addr z = None ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := Cap⁻ p g b e a @@? π ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   | SetA_spec_invalidated_sr: forall (t : bool) p g b e a π z,
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     z_to_otype z = None ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := SealRange⁻ p g b e a @@? π ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   (* An integer becomes the address. *)
   | SetA_spec_int: forall n π z,
     regs !!ₗ src = Some (WInt n @@? π) ->
     lz_of_argument regs rv = Some z ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WInt z @@? π ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   (* A sealed word or a sentry loses its tag. *)
   | SetA_spec_sealed: forall w z,
     regs !!ₗ src = Some w ->
@@ -69,12 +67,12 @@ Section griotte_lang_rules.
     (is_sealed w.(lw) || is_sentry w.(lw)) = true ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := lclear_tag w ]ₗ> regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
+    SetA_spec lpc regs dst src rv lpc' regs' NextIV
   | SetA_spec_failure :
     SetA_failure lpc regs dst src rv ->
     lpc' = lpc ->
     regs' = regs ->
-    SetA_spec lpc regs dst src rv lpc' regs' griotte_lang.FaultedV.
+    SetA_spec lpc regs dst src rv lpc' regs' FaultedV.
 
   Lemma wp_SetA Ep pc_p pc_g pc_b pc_e pc_a pc_π dst src arg w (regs : LReg) dq :
     decodeInstrW w.(lw) = SetA dst src arg →
@@ -84,7 +82,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ SetA_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -203,13 +201,13 @@ Section griotte_lang_rules.
   Qed.
 
   (** A SetA whose PC increments has one outcome. *)
-  Lemma SetA_spec_next lpc regs dst src arg lpc' regs' retv wr z wr' lpc0 :
+  Lemma SetA_spec_next {k : kind} lpc regs dst src arg lpc' regs' (retv : tval k) wr z wr' lpc0 :
     regs !!ₗ src = Some wr →
     lz_of_argument regs arg = Some z →
     seta_result wr z = Some wr' →
     incrementPC lpc = Some lpc0 →
     SetA_spec lpc regs dst src arg lpc' regs' retv →
-    retv = griotte_lang.NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := wr']ₗ> regs.
+    retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := wr']ₗ> regs.
   Proof.
     intros Hr Hz Hres Hinc Hspec.
     destruct Hspec as [* Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' ->

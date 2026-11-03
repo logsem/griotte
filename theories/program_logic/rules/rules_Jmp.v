@@ -9,10 +9,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -23,14 +21,14 @@ Section griotte_lang_rules.
       incrementPC_gen lpc imm = None →
       Jmp_failure lpc regs rimm.
 
-  Inductive Jmp_spec (lpc : LWord) (regs : LReg) (rimm: Z + RegName) : LWord → griotte_lang.val → Prop :=
+  Inductive Jmp_spec {k : kind} (lpc : LWord) (regs : LReg) (rimm: Z + RegName) : LWord → tval k → Prop :=
   | Jmp_spec_success lpc' imm :
       lz_of_argument regs rimm = Some imm →
       incrementPC_gen lpc imm = Some lpc' →
-      Jmp_spec lpc regs rimm lpc' griotte_lang.NextIV
+      Jmp_spec lpc regs rimm lpc' NextIV
   | Jmp_spec_failure:
       Jmp_failure lpc regs rimm →
-      Jmp_spec lpc regs rimm lpc griotte_lang.FaultedV.
+      Jmp_spec lpc regs rimm lpc FaultedV.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->
@@ -41,7 +39,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' retv, RET tval_of_val retv;
+    {{{ lpc' retv, RET retv;
         ⌜ Jmp_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs rimm lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗

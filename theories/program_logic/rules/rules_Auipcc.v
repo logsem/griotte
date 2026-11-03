@@ -10,7 +10,6 @@ Section griotte_lang_rules.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
 
   (** The PC with its address offset by [imm], as Lea on the PC: the tag is
@@ -25,17 +24,17 @@ Section griotte_lang_rules.
     | _ => lpc
     end.
 
-  Inductive Auipcc_spec (lpc : LWord) (regs : LReg) (dst : RegName) (imm : Z)
-    (lpc' : LWord) (regs' : LReg) : griotte_lang.val → Prop :=
+  Inductive Auipcc_spec {k : kind} (lpc : LWord) (regs : LReg) (dst : RegName) (imm : Z)
+    (lpc' : LWord) (regs' : LReg) : tval k → Prop :=
   | Auipcc_spec_success :
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := auipcc_word lpc imm ]ₗ> regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' griotte_lang.NextIV
+      Auipcc_spec lpc regs dst imm lpc' regs' NextIV
   | Auipcc_spec_failure :
       incrementPC lpc = None →
       lpc' = lpc →
       regs' = regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' griotte_lang.FaultedV.
+      Auipcc_spec lpc regs dst imm lpc' regs' FaultedV.
 
   Lemma wp_Auipcc Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst imm regs dq :
     decodeInstrW w.(lw) = Auipcc dst imm →
@@ -45,7 +44,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ Auipcc_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗

@@ -10,10 +10,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types sreg : gmap SRegName LWord.
 
@@ -30,17 +28,17 @@ Section griotte_lang_rules.
 
   (** On success, the new PC is the value of MEPCC. mstatus is held by the
       state interpretation: the rule does not expose it. *)
-  Inductive Mret_spec (lpc : LWord) (sregs : LSReg) (lpc' : LWord)
-    : griotte_lang.val → Prop :=
+  Inductive Mret_spec {k : kind} (lpc : LWord) (sregs : LSReg) (lpc' : LWord)
+    : tval k → Prop :=
   | Mret_spec_success p g b e a π :
       lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
       sregs !! mepcc = Some lpc' →
-      Mret_spec lpc sregs lpc' griotte_lang.NextIV
+      Mret_spec lpc sregs lpc' NextIV
   | Mret_spec_failure :
       lpc' = lpc →
       Mret_failure lpc →
-      Mret_spec lpc sregs lpc' griotte_lang.FaultedV.
+      Mret_spec lpc sregs lpc' FaultedV.
 
   (** [mret] writes MIE (it receives MPIE [p]) and MPIE (it becomes
       enabled): the premise [link_transfer_si (mie_move b p) (S ∗ T1) T2]
@@ -68,8 +66,8 @@ Section griotte_lang_rules.
         ⌜ Mret_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
-        (⌜retv = griotte_lang.NextIV⌝ ∗ MIE ↦ₜ p ∗ T2 ∨
-         ⌜retv = griotte_lang.FaultedV⌝ ∗ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗ MIE ↦ₜ b ∗ MPIE_frag p ∗ T1)
+        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ p ∗ T2 ∨
+         ⌜retv = FaultedV⌝ ∗ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗ MIE ↦ₜ b ∗ MPIE_frag p ∗ T1)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dsregs Htr Hroute φ) "(>HPC & >Hpc_a & >Hsmap & >Hmie & >Hmpie & HT) Hφ".
@@ -122,7 +120,7 @@ Section griotte_lang_rules.
     { iApply ctx_irq_post_route.
       rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc. apply Hroute.
       rewrite -Hmie_st. by apply ctx_irq_off_route. }
-    iApply ("Hφ" $! _ griotte_lang.NextIV). iFrame "HPC Hpc_a". iSplit.
+    iApply ("Hφ" $! _ NextIV). iFrame "HPC Hpc_a". iSplit.
     - iPureIntro. by eapply Mret_spec_success.
     - iLeft. by iFrame.
   Qed.
@@ -145,7 +143,7 @@ Section griotte_lang_rules.
         ▷ MPIE_frag p ∗
         ▷ T1 }}}
       Instr Executable @ E
-      {{{ RET tval_sw (kind_of th) Mret griotte_lang.NextIV;
+      {{{ RET tval_sw (kind_of th) Mret NextIV;
           PC ↦ₚ vepcc ∗
           pc_a ↦ₐ{dq} w ∗
           MIE ↦ₜ p ∗
@@ -179,7 +177,7 @@ Section griotte_lang_rules.
         ▷ MIE ↦ₜ InterruptDisabled ∗
         posture_res{p, vepcc} }}}
       Instr Executable @ E
-      {{{ RET tval_sw (kind_of th) Mret griotte_lang.NextIV;
+      {{{ RET tval_sw (kind_of th) Mret NextIV;
           PC ↦ₚ vepcc ∗
           pc_a ↦ₐ{dq} w ∗
           MIE ↦ₜ p ∗
@@ -251,8 +249,8 @@ Section griotte_lang_rules_core.
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
-        (⌜retv = griotte_lang.NextIV⌝ ∗ MIE ↦ₜ p ∗ MPIE_frag InterruptEnabled ∨
-         ⌜retv = griotte_lang.FaultedV⌝ ∗ MIE ↦ₜ b ∗ MPIE_frag p)
+        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ p ∗ MPIE_frag InterruptEnabled ∨
+         ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b ∗ MPIE_frag p)
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dsregs Hroute φ) "(>HPC & >Hpc_a & >Hsmap & >Hmie & >Hmpie) Hφ".
@@ -281,7 +279,7 @@ Section griotte_lang_rules_core.
         ▷ MIE ↦ₜ b ∗
         ▷ MPIE_frag p }}}
       Instr Executable @ E
-      {{{ RET tval_sw (kind_of th) Mret griotte_lang.NextIV;
+      {{{ RET tval_sw (kind_of th) Mret NextIV;
           PC ↦ₚ vepcc ∗
           pc_a ↦ₐ{dq} w ∗
           mepcc ↦ₓ vepcc ∗

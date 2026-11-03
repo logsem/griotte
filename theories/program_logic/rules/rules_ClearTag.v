@@ -9,27 +9,25 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
 
-  Inductive ClearTag_spec (lpc : LWord) (regs : LReg) (dst: RegName) (src: RegName)
-    (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive ClearTag_spec {k : kind} (lpc : LWord) (regs : LReg) (dst: RegName) (src: RegName)
+    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
   | ClearTag_spec_success w:
       regs !!ₗ src = Some w →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := lclear_tag w ]ₗ> regs →
-      ClearTag_spec lpc regs dst src lpc' regs' griotte_lang.NextIV
+      ClearTag_spec lpc regs dst src lpc' regs' NextIV
   | ClearTag_spec_failure w:
       regs !!ₗ src = Some w →
       incrementPC lpc = None →
       lpc' = lpc →
       regs' = regs →
-      ClearTag_spec lpc regs dst src lpc' regs' griotte_lang.FaultedV.
+      ClearTag_spec lpc regs dst src lpc' regs' FaultedV.
 
   Lemma wp_ClearTag Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = ClearTag dst src ->
@@ -39,7 +37,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ ClearTag_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗

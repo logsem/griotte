@@ -11,10 +11,8 @@ Section mmio_timer_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -61,7 +59,7 @@ Section mmio_timer_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (time_dev_value td ea))) _ _ _ _
       (λ lpc'' regs' retv, lpc'' = lpc' ∧
-         regs' = <[dst := lword_of_word (WInt (time_dev_value td ea))]ₗ> regs ∧ retv = griotte_lang.NextIV)
+         regs' = <[dst := lword_of_word (WInt (time_dev_value td ea))]ₗ> regs ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmem]").
     { exact Her. } { exact Hlregs. }
     { eapply elem_of_lregs_dom; [exact Dregs | rewrite /regs_of /operands_of; set_solver+]. }
@@ -243,13 +241,13 @@ Section mmio_timer_rules.
         ▷ src ↦ᵣ wsrc ∗
         ▷ dst ↦ᵣ Cap p g b e a }}}
       Instr Executable @ E
-    {{{ retv, RET tval_of_val retv;
-        (⌜retv = griotte_lang.FaultedV⌝ ∗
+    {{{ retv, RET retv;
+        (⌜retv = FaultedV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
          pc_a ↦ₐ{dq} w ∗
          src ↦ᵣ wsrc ∗
          dst ↦ᵣ Cap p g b e a) ∨
-        (⌜retv = griotte_lang.NextIV⌝ ∗
+        (⌜retv = NextIV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
          pc_a ↦ₐ{dq} w ∗
          src ↦ᵣ wsrc ∗

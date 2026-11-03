@@ -10,10 +10,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types sreg : gmap SRegName LWord.
@@ -51,10 +49,10 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       SpecialRW_failure lpc.
 
-  Inductive SpecialRW_spec
+  Inductive SpecialRW_spec {k : kind}
     (lpc : LWord) (regs : LReg) (sregs : LSReg) (dst : RegName) (sr : SRegName)
     (src : Z + RegName) (lpc' : LWord) (regs' : LReg) (sregs' : LSReg)
-    : griotte_lang.val → Prop :=
+    : tval k → Prop :=
   | SpecialRW_spec_success p g b e a π vold :
       lpc = Cap p g b e a @@? π →
       has_sreg_access p = true →
@@ -62,13 +60,13 @@ Section griotte_lang_rules.
       specialrw_sregs regs sregs sr src = Some sregs' →
       incrementPC lpc = Some lpc' →
       regs' = specialrw_regs regs dst vold →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' griotte_lang.NextIV
+      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' NextIV
   | SpecialRW_spec_failure :
       regs' = regs →
       sregs' = sregs →
       SpecialRW_failure lpc →
       lpc' = lpc →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' griotte_lang.FaultedV.
+      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FaultedV.
 
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)
@@ -232,13 +230,13 @@ Section griotte_lang_rules.
 
   (** Inverts a [SpecialRW_spec] whose PC increment succeeds and whose PC has
       the system-register permission: the failure case is absurd. *)
-  Lemma SpecialRW_spec_success_inv pc_p pc_g pc_b pc_e pc_a pc_π pc_a' regs sregs dst sr src
-      lpc' regs' sregs' retv :
+  Lemma SpecialRW_spec_success_inv {k : kind} pc_p pc_g pc_b pc_e pc_a pc_π pc_a' regs sregs dst sr src
+      lpc' regs' sregs' (retv : tval k) :
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
     SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
       lpc' regs' sregs' retv →
-    retv = griotte_lang.NextIV ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
+    retv = NextIV ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
     ∃ vold, sregs !! sr = Some vold ∧
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       regs' = specialrw_regs regs dst vold.
@@ -475,7 +473,7 @@ Section griotte_lang_rules.
     destruct (decide (dst = cnull)) as [Hc|_]; first done. cbn in Hstep.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (ls_vmtdc lsreg) wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
-                          regs' = <[dst := ls_vmtdc lsreg]ₗ> {[dst := wdst]} ∧ retv = griotte_lang.NextIV)
+                          regs' = <[dst := ls_vmtdc lsreg]ₗ> {[dst := wdst]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f]").
     { exact Her. } { exact Hlregs. } { right. set_solver. } { exact Hok. } { exact Hstep. }
     { exact Hrel. }
@@ -545,7 +543,7 @@ Section griotte_lang_rules.
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = griotte_lang.NextIV)
+      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
     { intros lpc' Hi. rewrite /incrementPC_gen /= Hpca' in Hi. by simplify_eq. }
@@ -613,7 +611,7 @@ Section griotte_lang_rules.
     { intros [Hk _]. rewrite Hk /mie_st /= lookup_insert_ne //. exact (ctx_irq_off_route _ _ Hoff). }
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ r (ls_vmtdc lsreg) wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
-                          regs' = <[r := ls_vmtdc lsreg]ₗ> {[r := v]} ∧ retv = griotte_lang.NextIV)
+                          regs' = <[r := ls_vmtdc lsreg]ₗ> {[r := v]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { exact Hlregs. } { right. set_solver. } { exact Hokold. }
     { destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _
@@ -676,7 +674,7 @@ Section griotte_lang_rules.
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1
                 (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
     iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = griotte_lang.NextIV)
+      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmtdc_f HL]").
     { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
     { intros lpc' Hi. rewrite /incrementPC_gen /= Hpca' in Hi. by simplify_eq. }

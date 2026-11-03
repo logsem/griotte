@@ -32,10 +32,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -65,24 +63,24 @@ Section griotte_lang_rules.
       incrementPC_gen lpc imm = None →
       JCond_failure i lpc regs off r1 r2.
 
-  Inductive JCond_spec (i : instr) (lpc : LWord) (regs : LReg) (off r1 r2 : Z + RegName) :
-    LWord → griotte_lang.val → Prop :=
+  Inductive JCond_spec {k : kind} (i : instr) (lpc : LWord) (regs : LReg) (off r1 r2 : Z + RegName) :
+    LWord → tval k → Prop :=
   | JCond_spec_success_next lpc' n1 n2 :
       lz_of_argument regs r1 = Some n1 →
       lz_of_argument regs r2 = Some n2 →
       jcond_test i n1 n2 = false →
       incrementPC lpc = Some lpc' →
-      JCond_spec i lpc regs off r1 r2 lpc' griotte_lang.NextIV
+      JCond_spec i lpc regs off r1 r2 lpc' NextIV
   | JCond_spec_success_jmp lpc' n1 n2 imm :
       lz_of_argument regs r1 = Some n1 →
       lz_of_argument regs r2 = Some n2 →
       jcond_test i n1 n2 = true →
       lz_of_argument regs off = Some imm →
       incrementPC_gen lpc imm = Some lpc' →
-      JCond_spec i lpc regs off r1 r2 lpc' griotte_lang.NextIV
+      JCond_spec i lpc regs off r1 r2 lpc' NextIV
   | JCond_spec_failure :
       JCond_failure i lpc regs off r1 r2 →
-      JCond_spec i lpc regs off r1 r2 lpc griotte_lang.FaultedV.
+      JCond_spec i lpc regs off r1 r2 lpc FaultedV.
 
   Lemma wp_JCond Ep i pc_p pc_g pc_b pc_e pc_a pc_π w off arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
@@ -93,7 +91,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' retv, RET tval_of_val retv;
+    {{{ lpc' retv, RET retv;
         ⌜ JCond_spec i (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs off arg1 arg2 lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -133,14 +131,14 @@ Section griotte_lang_rules.
   Qed.
 
   (** A taken jump whose target is an address has one outcome. *)
-  Lemma JCond_spec_jmp i lpc regs off arg1 arg2 lpc' retv n1 n2 imm lpc0 :
+  Lemma JCond_spec_jmp {k : kind} i lpc regs off arg1 arg2 lpc' (retv : tval k) n1 n2 imm lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = true →
     lz_of_argument regs off = Some imm →
     incrementPC_gen lpc imm = Some lpc0 →
     JCond_spec i lpc regs off arg1 arg2 lpc' retv →
-    retv = griotte_lang.NextIV ∧ lpc' = lpc0.
+    retv = NextIV ∧ lpc' = lpc0.
   Proof.
     intros H1 H2 Ht Himm Hinc Hspec.
     destruct Hspec as [lpc'' n1' n2' H1' H2' Ht' Hinc'
@@ -154,13 +152,13 @@ Section griotte_lang_rules.
   Qed.
 
   (** A jump not taken whose PC increments has one outcome. *)
-  Lemma JCond_spec_next i lpc regs off arg1 arg2 lpc' retv n1 n2 lpc0 :
+  Lemma JCond_spec_next {k : kind} i lpc regs off arg1 arg2 lpc' (retv : tval k) n1 n2 lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     jcond_test i n1 n2 = false →
     incrementPC lpc = Some lpc0 →
     JCond_spec i lpc regs off arg1 arg2 lpc' retv →
-    retv = griotte_lang.NextIV ∧ lpc' = lpc0.
+    retv = NextIV ∧ lpc' = lpc0.
   Proof.
     intros H1 H2 Ht Hinc Hspec.
     destruct Hspec as [lpc'' n1' n2' H1' H2' Ht' Hinc'

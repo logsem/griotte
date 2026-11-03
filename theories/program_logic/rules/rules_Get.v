@@ -9,11 +9,9 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types o : OType.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -86,14 +84,14 @@ Section griotte_lang_rules.
     - by right.
   Qed.
 
-  Inductive Get_spec (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
-    (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive Get_spec {k : kind} (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
+    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
     | Get_spec_success w z:
         regs !!ₗ src = Some w →
         denote i w.(lw) = Some z →
         incrementPC lpc = Some lpc' →
         regs' = <[ dst := WInt z ]ₗ> regs →
-        Get_spec i lpc regs dst src lpc' regs' griotte_lang.NextIV
+        Get_spec i lpc regs dst src lpc' regs' NextIV
     (* GetTag returns 0 on a word whose tag may have been cleared. *)
     | Get_spec_success_cleared w:
         i = GetTag dst src →
@@ -101,12 +99,12 @@ Section griotte_lang_rules.
         tag_strippable w →
         incrementPC lpc = Some lpc' →
         regs' = <[ dst := WInt 0 ]ₗ> regs →
-        Get_spec i lpc regs dst src lpc' regs' griotte_lang.NextIV
+        Get_spec i lpc regs dst src lpc' regs' NextIV
     | Get_spec_failure:
         Get_failure i lpc regs dst src →
         lpc' = lpc →
         regs' = regs →
-        Get_spec i lpc regs dst src lpc' regs' griotte_lang.FaultedV.
+        Get_spec i lpc regs dst src lpc' regs' FaultedV.
 
   Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st td (wsrc : Word) :
     is_Get i dst src →
@@ -144,7 +142,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ Get_spec (decodeInstrW w.(lw)) (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -211,9 +209,9 @@ Section griotte_lang_rules.
   Qed.
 
   (** A successful Get writes a [get_result]. *)
-  Lemma Get_spec_next i lpc regs dst src lpc' regs' wsrc :
+  Lemma Get_spec_next {k : kind} i lpc regs dst src lpc' regs' wsrc :
     regs !!ₗ src = Some wsrc →
-    Get_spec i lpc regs dst src lpc' regs' griotte_lang.NextIV →
+    Get_spec i lpc regs dst src lpc' regs' (@NextIV k) →
     incrementPC lpc = Some lpc' ∧
     ∃ z, get_result i wsrc z ∧ regs' = <[dst := WInt z]ₗ> regs.
   Proof.
@@ -224,11 +222,11 @@ Section griotte_lang_rules.
   Qed.
 
   (** A Get whose source denotes and whose PC increments does not fail. *)
-  Lemma Get_spec_not_faulted i lpc regs dst src lpc' regs' wsrc lpc0 :
+  Lemma Get_spec_not_faulted {k : kind} i lpc regs dst src lpc' regs' wsrc lpc0 :
     regs !!ₗ src = Some wsrc →
     is_Some (denote i wsrc.(lw)) →
     incrementPC lpc = Some lpc0 →
-    ¬ Get_spec i lpc regs dst src lpc' regs' griotte_lang.FaultedV.
+    ¬ Get_spec i lpc regs dst src lpc' regs' (@FaultedV k).
   Proof.
     intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
     destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
@@ -259,7 +257,7 @@ Section griotte_lang_rules.
     { rewrite /regs_of. by erewrite operands_of_is_Get. }
     iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     rewrite Hdecode in Hspec.
-    assert (retv = griotte_lang.NextIV) as ->.
+    assert (retv = NextIV) as ->.
     { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_faulted. }
     destruct (Get_spec_next _ _ _ _ _ _ _ _ Hsrc Hspec) as (Hinc' & z & Hz & ->).
     rewrite Hinc in Hinc'. simplify_eq. iApply "Hφ". by iFrame.
@@ -433,11 +431,11 @@ Section griotte_lang_rules.
         P ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
-        ⌜ (∃ (v : LWord) z, retv = griotte_lang.NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
+    {{{ lpc' regs' retv, RET retv;
+        ⌜ (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
              incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
              regs' = <[dst := WInt z]ₗ> regs) ∨
-          (retv = griotte_lang.FaultedV ∧ incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+          (retv = FaultedV ∧ incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
              regs' = regs ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -476,10 +474,10 @@ Section griotte_lang_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (Z.b2z (s && get_tag v.(lw))))) _ _ _ _
       (λ lpc' regs' retv,
-         (∃ (v : LWord) z, retv = griotte_lang.NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
+         (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
             incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
             regs' = <[dst := WInt z]ₗ> regs) ∨
-         (retv = griotte_lang.FaultedV ∧ incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
+         (retv = FaultedV ∧ incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
             regs' = regs ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π))
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hdw HPr]").
     { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }

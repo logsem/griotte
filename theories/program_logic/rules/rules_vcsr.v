@@ -14,10 +14,8 @@ Section vcsr.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
 
   (** ** The volatile registers *)
@@ -188,7 +186,7 @@ Section vcsr.
         ▷ MPIE_frag p ∗
         ▷ T1 }}}
       Instr Executable @ E
-      {{{ RET tval_sw (kind_of th) Mret griotte_lang.NextIV;
+      {{{ RET tval_sw (kind_of th) Mret NextIV;
           PC ↦ₚ wepcc ∗
           pc_a ↦ₐ{dq} w ∗
           MIE ↦ₜ p ∗
@@ -369,7 +367,7 @@ Section vcsr.
     - (* The old value is dropped. *)
       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-        (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = griotte_lang.NextIV)
+        (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hres]").
       { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
       { intros lpc'' Hi'. rewrite /incrementPC in Hi. simplify_eq. done. }
@@ -382,7 +380,7 @@ Section vcsr.
         as (pc' & Hu & _).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
         (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
-                            regs' = <[dst := vold]> regs ∧ retv = griotte_lang.NextIV)
+                            regs' = <[dst := vold]> regs ∧ retv = NextIV)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hres]").
       { exact Her1. } { exact Hlregs. }
       { right. apply Dregs. rewrite /regs_of /operands_of. set_solver. }
@@ -478,7 +476,7 @@ Section vcsr.
       as (pc' & Hu & _).
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
       (λ lpc' regs' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
-                          regs' = <[dst := vold]> {[dst := wdst]} ∧ retv = griotte_lang.NextIV)
+                          regs' = <[dst := vold]> {[dst := wdst]} ∧ retv = NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmie Hmpie]").
     { exact Her. } { exact Hlregs. }
     { right. set_solver. }
@@ -555,7 +553,7 @@ Section vcsr_core.
         ▷ MIE ↦ₜ b ∗
         ▷ MPIE_frag p }}}
       Instr Executable @ E
-      {{{ RET tval_sw (kind_of th) Mret griotte_lang.NextIV;
+      {{{ RET tval_sw (kind_of th) Mret NextIV;
           PC ↦ₚ wepcc ∗
           pc_a ↦ₐ{dq} w ∗
           vcsr_frag mepcc wepcc ∗

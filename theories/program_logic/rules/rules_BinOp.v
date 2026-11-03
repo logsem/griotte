@@ -10,10 +10,8 @@ Section griotte_lang_rules.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
-  Implicit Types c : griotte_lang.expr.
   Implicit Types a b : Addr.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -57,19 +55,19 @@ Section griotte_lang_rules.
       incrementPC lpc = None ->
       BinOp_failure i lpc regs dst rv1 rv2.
 
-  Inductive BinOp_spec (i: instr) (lpc : LWord) (regs : LReg) (dst: RegName) (rv1 rv2: Z + RegName)
-    (lpc' : LWord) (regs' : LReg): griotte_lang.val -> Prop :=
+  Inductive BinOp_spec {k : kind} (i: instr) (lpc : LWord) (regs : LReg) (dst: RegName) (rv1 rv2: Z + RegName)
+    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
   | BinOp_spec_success n1 n2:
       lz_of_argument regs rv1 = Some n1 ->
       lz_of_argument regs rv2 = Some n2 ->
       incrementPC lpc = Some lpc' ->
       regs' = <[ dst := WInt (denote i n1 n2) ]ₗ> regs ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' griotte_lang.NextIV
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' NextIV
   | BinOp_spec_failure:
       BinOp_failure i lpc regs dst rv1 rv2 ->
       lpc' = lpc ->
       regs' = regs ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' griotte_lang.FaultedV.
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FaultedV.
 
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
@@ -80,7 +78,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ BinOp_spec (decodeInstrW w.(lw)) (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst arg1 arg2 lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
           pc_a ↦ₐ{dq} w ∗
@@ -118,12 +116,12 @@ Section griotte_lang_rules.
 
   (** A BinOp on two integer operands, whose PC increments, has one
       outcome. *)
-  Lemma BinOp_spec_next i lpc regs dst arg1 arg2 lpc' regs' retv n1 n2 lpc0 :
+  Lemma BinOp_spec_next {k : kind} i lpc regs dst arg1 arg2 lpc' regs' (retv : tval k) n1 n2 lpc0 :
     lz_of_argument regs arg1 = Some n1 →
     lz_of_argument regs arg2 = Some n2 →
     incrementPC lpc = Some lpc0 →
     BinOp_spec i lpc regs dst arg1 arg2 lpc' regs' retv →
-    retv = griotte_lang.NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := WInt (denote i n1 n2)]ₗ> regs.
+    retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := WInt (denote i n1 n2)]ₗ> regs.
   Proof.
     intros H1 H2 Hinc [n1' n2' H1' H2' Hinc' -> | Hfail].
     - simplify_eq. done.

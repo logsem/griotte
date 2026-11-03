@@ -10,7 +10,6 @@ Section griotte_lang_rules.
   Implicit Types P Q : iProp Σ.
   Implicit Types σ : ExecConf.
   Implicit Types r : RegName.
-  Implicit Types v : griotte_lang.val.
   Implicit Types w : LWord.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
@@ -39,8 +38,8 @@ Section griotte_lang_rules.
       incrementPC lpc = None →
       Seal_failure lpc regs dst src1 src2 lpc regs.
 
-  Inductive Seal_spec (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName)
-    (lpc' : LWord) (regs': LReg): griotte_lang.val -> Prop :=
+  Inductive Seal_spec {k : kind} (lpc : LWord) (regs: LReg) (dst: RegName) (src1 src2: RegName)
+    (lpc' : LWord) (regs': LReg): tval k -> Prop :=
   | Seal_spec_success p g b e a π1 sb π:
       regs !!ₗ src1 = Some (SealRange p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
@@ -49,14 +48,14 @@ Section griotte_lang_rules.
       withinBounds b e a = true →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealed a sb @@? π ]ₗ> regs →
-      Seal_spec lpc regs dst src1 src2 lpc' regs' griotte_lang.NextIV
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_invalidated (t : bool) p g b e a π1 sb π :
       regs !!ₗ src1 = Some (WSealRange t p g b e a @@? π1) →
       regs !!ₗ src2 = Some (WSealable sb @@? π) →
       t && get_tag_sealable sb && permit_seal p && withinBounds b e a = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealed a (clear_tag_sealable sb) @@? π ]ₗ> regs →
-      Seal_spec lpc regs dst src1 src2 lpc' regs' griotte_lang.NextIV
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   (* Without a sealing range and a sealable, the sealee loses its tag. *)
   | Seal_spec_untagged w1 w2 :
       regs !!ₗ src1 = Some w1 →
@@ -64,10 +63,10 @@ Section griotte_lang_rules.
       is_sealr w1.(lw) && is_sealb w2.(lw) = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := lclear_tag w2 ]ₗ> regs →
-      Seal_spec lpc regs dst src1 src2 lpc' regs' griotte_lang.NextIV
+      Seal_spec lpc regs dst src1 src2 lpc' regs' NextIV
   | Seal_spec_failure :
       Seal_failure lpc regs dst src1 src2 lpc' regs' →
-      Seal_spec lpc regs dst src1 src2 lpc' regs' griotte_lang.FaultedV.
+      Seal_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
   (* The sealed word keeps the bounds of its payload and never gains a tag. *)
   Lemma reg_word_ok_seal R C (sb sb' : Sealable) π o :
@@ -90,7 +89,7 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET tval_of_val retv;
+    {{{ lpc' regs' retv, RET retv;
         ⌜ Seal_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src1 src2 lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
