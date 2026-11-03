@@ -10,13 +10,13 @@
       the switch values [TSwV s] ([YieldV], [ExitV], [ResumedV]). The kind
       is a phantom index: it makes [tlang k] a distinct canonical language
       per kind.
-    - The switch instructions ([sw_of], [is_switch_instr], decidable): the
-      exit marker [SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT)] for a
-      user thread, [Mret] (resume) for the context-switch thread. No
-      instruction makes [YieldS]: the opsem has no [ecall]. An instruction
-      step produces the switch value only when the decoded instruction is a
-      switch instruction of the kind and [step] returns [NextI] ([tres]);
-      the state is the real post-state.
+    - The switch instructions ([sw_of], [is_switch_instr], decidable): for
+      a user thread, the exit marker
+      [SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT)] (exit) and [Ecall]
+      (yield); for the context-switch thread, [Mret] (resume). An
+      instruction step produces the switch value only when the decoded
+      instruction is a switch instruction of the kind and [step] returns
+      [NextI] ([tres]); the state is the real post-state.
     - The context-switch device ([blocked]): the context-switch thread has
       no instruction step that is not a decoded [Mret] and ends with
       interrupts enabled.
@@ -53,9 +53,9 @@ Definition kind_of (th : Thread) : kind :=
 
 (** * Switch values *)
 
-(** The ways a thread's turn ends: a yield, a thread exit (the exit
-    marker), a resume of a user thread ([mret] by the context-switch
-    thread). No instruction yields yet: [sw_of] never gives [YieldS]. *)
+(** The ways a thread's turn ends: a yield ([ecall] by a user thread), a
+    thread exit (the exit marker), a resume of a user thread ([mret] by
+    the context-switch thread). *)
 Inductive sw := YieldS | ExitS | ResumedS.
 
 #[global] Instance sw_eq_dec : EqDecision sw.
@@ -125,7 +125,10 @@ Definition exit_marker : instr := SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT
 (** The switch instructions of each kind, with the switch they make. *)
 Definition sw_of (k : kind) (i : instr) : option sw :=
   match k with
-  | UserK => if decide (i = exit_marker) then Some ExitS else None
+  | UserK =>
+      if decide (i = exit_marker) then Some ExitS
+      else if decide (i = Ecall) then Some YieldS
+      else None
   | CtxK => if decide (i = Mret) then Some ResumedS else None
   end.
 
