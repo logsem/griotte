@@ -19,7 +19,7 @@ Section Common_Thread_Exit.
   (** From [.Lcommon_defer_irqs_and_thread_exit], at the posture [b]: the
       thread exits, with interrupts disabled and the posture at
       InterruptDisabled. *)
-  Lemma common_defer_irqs_and_thread_exit_spec (E : coPset) (Φ : griotte_lang.val → iProp Σ)
+  Lemma common_defer_irqs_and_thread_exit_spec (E : coPset) (Φ : tval (kind_of th) → iProp Σ)
     (b : InterruptStatus) :
     route_pre th b →
     PC ↦ₚ switcher_label_pc ".Lcommon_defer_irqs_and_thread_exit" ∗

@@ -4,6 +4,16 @@ From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_state
   clear_registers_spec.
 
+(* TODO: move to rules_trap_entry.v *)
+Ltac instr_trap_start ::=
+  lazymatch goal with
+  | |- environments.envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
+  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
+  end;
+  let hpc := instr_trap_pc in
+  let pat := constr:(cons (spec_patterns.SIdent hpc nil) nil) in
+  iApply (wp_trap with pat).
+
 (** * Exception path: the invocation of a handler and its return
 
     [.Lhandle_error_handler_invoke] enables interrupts (the posture goes
@@ -100,7 +110,9 @@ Section Handle_Error_Handler_Invoke.
       (* Jalr cra cra *)
       iInstrApply "Hcode" with "Hlc"
         (wp_jalr_success_call_same_posture _ _ _ _ _ _ _ _ _ wcra InterruptEnabled)
-        with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie & Hheld)"; [done..|].
+        with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie & Hheld)".
+      1: { intros _ Hc. by specialize (Hpre Hc). }
+      1: done.
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" $! eq_refl rmap' with "[] [-]");
         first (iPureIntro; by rewrite Hdom' Hdom).

@@ -172,6 +172,7 @@ Section Switcher_Clear_Unused_Args.
     all: iInstr "Hcode".
     (* SetMIE InterruptEnabled *)
     1: iInstr "Hcode".
+    1: { intros _. exact Hpre. }
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
            "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");
@@ -250,6 +251,7 @@ Section Switcher_Clear_Unused_Args.
     all: iInstr "Hcode".
     (* SetMIE InterruptEnabled *)
     1: iInstr "Hcode".
+    1: { intros _. exact Hpre. }
     all: switcher_change_pc_label ".Lswitch_skip_interrupt_enable".
     all: iApply (switch_skip_interrupt_enable_spec with
            "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hregs $Hswitcher_skip $Hmie $Hheld]");

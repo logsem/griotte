@@ -38,7 +38,7 @@ Section Callback_Path.
       the frame to pop is the entry frame: the thread exits, at
       InterruptDisabled. *)
   Lemma switcher_return_exit_path_spec
-    (E : coPset) (Φ : griotte_lang.val → iProp Σ) (rmap : LReg) (mie : InterruptStatus) :
+    (E : coPset) (Φ : tval (kind_of th) → iProp Σ) (rmap : LReg) (mie : InterruptStatus) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
     route_pre th mie ->
@@ -94,6 +94,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
@@ -141,7 +142,7 @@ Section Callback_Path.
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hpre)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hth Hpre)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
       & Hcells & Hstk & #Hswitcher & Hmie & Hheld & Hpost)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
@@ -174,7 +175,7 @@ Section Callback_Path.
        and return *)
     iApply (switcher_zero_callee_frame_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ mie with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|].
+        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
       "[$Hmtdc $Hframeoffset $Hhazard $Ha_csp $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap]").
@@ -198,6 +199,7 @@ Section Callback_Path.
     disjoint_from_mmio b e ->
     disjoint_from_heap b e ->
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
@@ -265,7 +267,7 @@ Section Callback_Path.
     ⊢ safe[th].
   Proof.
     intros a_frameoffset a_csp; subst a_frameoffset a_csp.
-    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hpre)
+    iIntros (Ha_tstk Ha_tstk_e Hbounds Hstk_mmio Hstk_heap Hdom Hth Hpre)
       "(HPC & Hcsp & Hcgp & Hcra & Hcs0 & Hcs1 & Hrmap & Hmtdc & Hframeoffset & Hhazard & Ha_csp
       & #Hswitcher & Hmie & Hheld & Hmid)".
     pose proof Hbounds as (Hba & Hba3 & Ha4).
@@ -302,7 +304,7 @@ Section Callback_Path.
        and return *)
     iApply (switcher_zero_callee_frame_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ mie with
       "[- $HPC $Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2 $Hctp $Hcsp
-        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|].
+        $Hcells $Hstk $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|done|done|].
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs1 rcs0 with
       "[$Hlocal $Hperm $Hinterps $Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap $Hlc]").

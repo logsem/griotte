@@ -119,7 +119,7 @@ Section Switcher_KtK_Call.
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iApply (switch_trusted_stack_exhausted_path_spec with
       "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hmie $Hheld]");
-      [done|done|done|].
+      [done|done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hrmap & _)".
     iSplit; cycle 1.

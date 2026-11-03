@@ -2,6 +2,16 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
 From griotte Require Import call_stack switcher_preamble clear_stack_spec clear_registers_spec.
 
+(* TODO: move to rules_trap_entry.v *)
+Ltac instr_trap_start ::=
+  lazymatch goal with
+  | |- environments.envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
+  | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
+  end;
+  let hpc := instr_trap_pc in
+  let pat := constr:(cons (spec_patterns.SIdent hpc nil) nil) in
+  iApply (wp_trap with pat).
+
 (** * Callback: clear the callee's frame and return to the caller
 
     [.Lswitch_callee_stack_zero], at the end of the block
@@ -25,6 +35,7 @@ Section Switcher_Zero_Callee_Frame.
       which moves the posture to the one [wret] restores, and faults when
       [wret] is not a valid target. *)
   Lemma switcher_return_to_caller_spec (wret : LWord) (b : InterruptStatus) :
+    th ≠ CtxSwitch →
     route_pre th b →
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" ∗
     cra ↦ᵣ[th] wret ∗
@@ -45,7 +56,7 @@ Section Switcher_Zero_Callee_Frame.
           (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
+    iIntros (Hth Hpre) "(HPC & Hcra & #Hswitcher & Hmie & Hheld & Hpost)".
     switcher_open_label ".Lswitch_just_return" "Hswitcher" as "Hcode" a_ret Ha_ret.
     destruct (jalr_target_ok cnull cra wret.(lw)) eqn:Htgt; cycle 1.
     { (* The fault is at the start of the block. The label would be unfolded
@@ -67,6 +78,7 @@ Section Switcher_Zero_Callee_Frame.
       jump to [wcra]. The jump faults when [wcra] is not a valid target. *)
   Lemma switch_callee_dead_zeros_spec (wcra : LWord) (rmap : LReg) (b : InterruptStatus) :
     dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
     route_pre th b ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_dead_zeros" ∗
@@ -91,7 +103,7 @@ Section Switcher_Zero_Callee_Frame.
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hdom Hpre) "(HPC & Hcra & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
+    iIntros (Hdom Hth Hpre) "(HPC & Hcra & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_ret"; first iFrame "Hswitcher".
     switcher_open_label ".Lswitch_callee_dead_zeros" "Hswitcher" as "Hcode".
     iApply (clear_registers_post_call_spec with "[- $HPC $Hrmap $Hcode]");
@@ -99,7 +111,7 @@ Section Switcher_Zero_Callee_Frame.
     iNext; iIntros "(%rmap' & %Hrmap' & HPC & Hrmap & _)".
     switcher_change_pc_label ".Lswitch_just_return".
     iApply (switcher_return_to_caller_spec _ b with "[- $HPC $Hcra $Hswitcher_ret $Hmie $Hheld]");
-      first done.
+      [done | done |].
     iSplit.
     - iNext; iIntros "(HPC & Hcra & Hmie & Hheld & Hlc)".
       iDestruct ("Hpost" $! rmap' with "[$Hcra $Hrmap //]") as "[Hpost _]".
@@ -121,6 +133,7 @@ Section Switcher_Zero_Callee_Frame.
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
@@ -162,7 +175,7 @@ Section Switcher_Zero_Callee_Frame.
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hbounds Hstk_mmio Hdom Hpre)
+    iIntros (Hbounds Hstk_mmio Hdom Hth Hpre)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
       & Hcells & Hstk & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_dz"; first iFrame "Hswitcher".
@@ -198,6 +211,7 @@ Section Switcher_Zero_Callee_Frame.
     iApply (switch_callee_dead_zeros_spec _ _ mie
               with "[- $HPC $Hcra $Hrmap $Hswitcher_dz $Hmie $Hheld]").
     { rewrite !dom_insert_L Hdom. clear. set_solver. }
+    { done. }
     { done. }
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
     iAssert ([[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ 0…0 ]])%I

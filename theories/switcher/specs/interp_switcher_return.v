@@ -166,7 +166,7 @@ Section fundamental.
       iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
              "Hclose_switcher_inv Hna Hmtdc Hframeoffset Hhazard HthreadID Htstk
               Hcstk_full Hstk_interp") as "Hna"; [done|done|done|].
-      iModIntro; iIntros (_); iExact "Hna".
+      iModIntro; rewrite HO_halted; iExact "Hna".
     }
     iEval (rewrite /cstack_interp; cbn) in "Hstk_interp".
     cbn in Hlen_cstk.
@@ -205,7 +205,7 @@ Section fundamental.
     iApply (switcher_return_path_world_spec W W C ccrel (length frms) _ _ _ _ _ _ _ _ _ _ b with
       "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode
         $Hmie $Hheld]");
-      [done|done|done|done|done|done|apply Hpre|].
+      [done|done|done|done|done|done|done|apply Hpre|].
     iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the caller's stack frame *)

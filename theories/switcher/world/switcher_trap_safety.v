@@ -28,7 +28,8 @@ Section Switcher_trap_safety.
   (** The safety of the exception entry, for a fault in an untrusted
       compartment (with the whole non-atomic token) or a fault that the
       switcher handles, for any token [F] that contains the switcher's
-      invariant, any cause predicate [P_mcause] of fault causes, and any
+      invariant, any cause predicate [P_mcause] of trap causes (a fault's,
+      or at the context-switch thread the environment call's), and any
       value predicate [P_mtval]. As the trap vector of the logical
       relation, it runs with MIE disabled and receives the whole posture of
       the thread, with MPIE (the posture of the fault), MEPCC, mcause and
@@ -36,7 +37,7 @@ Section Switcher_trap_safety.
   Definition exception_entry_safe : iProp Σ :=
     □ ∀ (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
         (w : LWord),
-      ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
+      ⌜∀ c, P_mcause c → mcause_ok_at th c⌝ -∗
       ⌜↑Ntstack ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
       ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
@@ -110,16 +111,41 @@ Section Switcher_trap_safety.
     na_inv (tpool th) Ntstack trusted_stack_inv ∗ switcher_static.
   Proof. iIntros "#Hsafety". iNamed "Hsafety". iFrame "#". Qed.
 
+  (** The thread of the trusted-stack invariant is not the context-switch
+      thread. *)
+  Lemma trusted_stack_inv_user (F : coPset) :
+    ↑Ntstack ⊆ F →
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
+    na_own (tpool th) F
+    ={⊤}=∗
+    ⌜th ≠ CtxSwitch⌝ ∗ na_own (tpool th) F.
+  Proof.
+    iIntros (HF) "#Hinv Hna".
+    iMod (na_inv_acc with "Hinv Hna") as "(Htstk & Hna & Hclose)"; [done | done |].
+    iAssert (▷ (⌜th ≠ CtxSwitch⌝ ∗ trusted_stack_inv))%I with "[Htstk]"
+      as "[>%Huser Htstk]".
+    { iNext. iDestruct "Htstk" as (a_tstk cstk' tstk_next) "[%Huser Hrest]".
+      iSplit; first done. iExists a_tstk, cstk', tstk_next. by iFrame "Hrest". }
+    iMod ("Hclose" with "[$Htstk $Hna]") as "Hna".
+    by iFrame "Hna".
+  Qed.
+
+  (** The trap vector: the trusted-stack invariant excludes the
+      context-switch thread, so the cause is a fault's. *)
   Lemma exception_entry_safe_vector :
-    exception_entry_safe ⊢
+    na_inv (tpool th) Ntstack trusted_stack_inv -∗
+    exception_entry_safe -∗
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
-    iIntros "#Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hmie Hpost Hrmap Hna Hcstk".
+    iIntros "#Hinv #Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hmie Hpost Hrmap Hna Hcstk".
+    iMod (trusted_stack_inv_user ⊤ with "Hinv Hna") as "[%Huser Hna]"; first done.
     iApply ("Hsafe" $! mcause_ok (λ _ : Z, True%type) ⊤
              with "[%] [%] [//] [Hfault] HPC Hmie [Hpost] Hrmap Hna Hcstk");
-      [done | set_solver | |].
+      [apply mcause_ok_at_fault | set_solver | |].
     - iDestruct "Hfault" as "[Hfault | Hfault]"; [iLeft; by iFrame | by iRight].
-    - iDestruct "Hpost" as (b c v Hpre Hc) "Hpost". iExists b, c, v. by iFrame.
+    - iDestruct "Hpost" as (b c v Hpre [Hc | [Hcs _] ]) "Hpost";
+        last (exfalso; by apply Huser).
+      iExists b, c, v. by iFrame.
   Qed.
 
   (** The unwind continuation from the logical relation's resources, for a
@@ -155,7 +181,7 @@ Section Switcher_trap_safety.
     ⊢ trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
     iIntros "#Hsafety". iNamed "Hsafety".
-    by iApply exception_entry_safe_vector.
+    by iApply (exception_entry_safe_vector with "Hinv_switcher").
   Qed.
 
   (** The trap vector of the machine is safe for a fault in an untrusted
@@ -198,6 +224,8 @@ Section Switcher_trap_safety.
     iModIntro.
     iApply (trap_safe_held_intro _ _ _ _ _ b with "Hmie Hheld"); first done.
     iIntros "!> Hmie Hpost HPC".
+    assert (∀ c, P_mcause c → mcause_ok_at th c) as HP_at
+      by (intros c Hc; apply mcause_ok_at_fault, HP_mcause, Hc).
     iApply ("Hentry_safe" $! P_mcause P_mtval F cstk rmap w with
              "[//] [//] [//] [Hhandled] HPC Hmie Hpost Hrmap Hna Hcstk").
     by iRight.

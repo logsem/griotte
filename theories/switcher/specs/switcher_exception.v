@@ -93,7 +93,7 @@ Section Switcher_Exception.
     iDestruct ("Hregs" $! cra wcra with "[//]") as "#Hinterp_wcra".
     iExtract "Hrmap" cra as "Hcra".
     iApply (switcher_just_return_spec _ b with "[- $HPC $Hcra $Hswitcher $Hmie $Hheld]");
-      first done.
+      [done | done |].
     iSplit.
     - (* The jump to [cra] *)
       iNext; iIntros "(HPC & Hcra & Hmie & Hheld & Hlc)".
@@ -599,25 +599,6 @@ Section Switcher_Exception.
     iApply ("HU" with "[//] [//] [//] HPC Hrmap Hcstk HS Hna Hmie Hheld").
   Qed.
 
-  (** The thread of the trusted-stack invariant is not the context-switch
-      thread. *)
-  #[local] Lemma trusted_stack_inv_user (F : coPset) :
-    ↑Ntstack ⊆ F →
-    na_inv (tpool th) Ntstack trusted_stack_inv -∗
-    na_own (tpool th) F
-    ={⊤}=∗
-    ⌜th ≠ CtxSwitch⌝ ∗ na_own (tpool th) F.
-  Proof.
-    iIntros (HF) "#Hinv Hna".
-    iMod (na_inv_acc with "Hinv Hna") as "(Htstk & Hna & Hclose)"; [done | done |].
-    iAssert (▷ (⌜th ≠ CtxSwitch⌝ ∗ trusted_stack_inv))%I with "[Htstk]"
-      as "[>%Huser Htstk]".
-    { iNext. iDestruct "Htstk" as (a_tstk cstk' tstk_next) "[%Huser Hrest]".
-      iSplit; first done. iExists a_tstk, cstk', tstk_next. by iFrame "Hrest". }
-    iMod ("Hclose" with "[$Htstk $Hna]") as "Hna".
-    by iFrame "Hna".
-  Qed.
-
   (** An untrusted handler returns to the switcher with [ca0] zero: the
       switcher disables interrupts and installs the context of the
       [ErrorState] at the handler's safe [csp]. The installation opens the
@@ -922,6 +903,7 @@ Section Switcher_Exception.
     iSpecialize ("HU" with "[//] Hes").
     iApply (trap_safe_held_intro _ _ _ _ _ m with "Hmie Hheld"); first done.
     iIntros "!> Hmie Hpost HPC".
+    pose proof (mcause_ok_at_fault th) as Hok.
     iApply ("Hsafe" $! mcause_ok (λ _ : Z, True%type) F (cstack_set_top_count cstk n) rmap'
               (switcher_pc off) with
              "[//] [//] [//] [HU] HPC Hmie Hpost Hrmap Hna Hcstk").
@@ -1006,7 +988,7 @@ Section Switcher_Exception.
       iSplitR; first iExact "Hacc".
       iSplitL "Hhook"; first iExact "Hhook".
       iNext.
-      iPoseProof (exception_entry_safe_vector with "Hsafe") as "#Htrap".
+      iPoseProof (exception_entry_safe_vector with "Hinv_switcher Hsafe") as "#Htrap".
       iSplit; [|iSplit; [|iSplit] ].
       - (* The forced unwind *)
         iApply unwind_cont_path_unwind_k. iIntros "Hworld".
@@ -1312,6 +1294,9 @@ Section Switcher_Exception.
     iLöb as "IH".
     iIntros "!>" (P_mcause P_mtval F cstk rmap w HP_mcause HF Hfull)
       "Hfault HPC Hmie Hpost Hrmap Hna Hcstk".
+    iMod (trusted_stack_inv_user F with "Hinv_switcher Hna") as "[%Huser Hna]"; first done.
+    assert (∀ c, P_mcause c → mcause_ok c) as HP_ok.
+    { intros c Hc. destruct (HP_mcause c Hc) as [? | [Hcs _] ]; [done | contradiction]. }
     iDestruct "Hfault" as "[ [-> Huntrusted] | Hhandled]".
     { iApply (exception_entry_untrusted_safe with
                "Hinv_switcher Hstatic IH Huntrusted HPC Hmie Hpost Hrmap Hna Hcstk"); done. }
