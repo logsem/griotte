@@ -71,7 +71,7 @@ Section Is_WordType_spec.
     (r r1 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w w1 : LWord) (wtype : Word)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let is_int := (is_int_instrs r r1) in
     let a_last := (pc_a ^+ length is_int) in

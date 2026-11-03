@@ -28,7 +28,7 @@ Section AllocatorFree.
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z)
     (wreq wret : LWord) (P : iProp Σ)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     (∀ next allocations live issued Cs,
       (heap_b < next /\ next <= heap_e)%a ->
       allocator_chain (heap_b ^+ 1) next allocations ->
@@ -207,7 +207,7 @@ Section AllocatorFree.
     (p : Perm) (g : Locality)
     (ι : AId) (b e b' e' a : Addr) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     (b <= b' /\ b' < e' /\ e' <= e)%a ->
     (b', e') ≠ (b, e) ->
     ↑Nallocator_service ⊆ E ->
@@ -302,7 +302,7 @@ Section AllocatorFree.
     (p : Perm) (g : Locality)
     (ι : AId) (b e a : Addr) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
     is_shadow_address a_owner = false ->
@@ -398,7 +398,7 @@ Section AllocatorFree.
   Lemma allocator_free_invalid_correct
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z) (wreq wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     (∀ (next : Addr) (allocations : list allocator_header_entry),
       (heap_b < next /\ next <= heap_e)%a ->
@@ -491,7 +491,7 @@ Section AllocatorFree.
     (p : Perm) (g : Locality) (ι : AId) (b e a : Addr)
     (ws : list LWord) (wret : LWord) (m : mtdc_val) (rmap : LReg)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
@@ -669,7 +669,7 @@ Section AllocatorFree.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_free_invalid_capability_spec
-    (E F : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (E F : coPset) (wsealed : LWord) (Φ : tval (kind_of th) → iProp Σ) :
 
     ↑Ntstack ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
@@ -689,8 +689,8 @@ Section AllocatorFree.
       ca3 ↦ᵣ[th] - ∗
       ca4 ↦ᵣ[th] - -∗
       trap_safe (Cap RX Global allocator_pcc_b allocator_pcc_e a) E
-        (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Exec @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
+        Φ)
+    ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     iIntros (HEswitcher Hwsealed)
       "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".

@@ -39,9 +39,10 @@ Section Assert_subroutine.
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
     ( n1 n2 flag : Z ) ( wret : Word) (b : InterruptStatus)
-    (φ : language.val griotte_lang -> iProp Σ) :
+    (φ : tval (kind_of th) -> iProp Σ) :
     n1 = n2 →
     jalr_target_ok cnull cra wret = true →
+    route_pre th (default b (jalr_target_mie wret)) →
     route_pre th b →
     (  assert_static pc_b pc_e a_flag
      ∗ PC ↦ₚ Cap RX pc_g pc_b pc_e pc_b
@@ -59,7 +60,7 @@ Section Assert_subroutine.
           -∗ WP Exec {{ φ }})
      ⊢ WP Exec {{ φ }})%I.
   Proof.
-    iIntros (Heq Htgt Hpre) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hmie & Hheld & Hφ)".
+    iIntros (Heq Htgt Hroute' Hpre) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hmie & Hheld & Hφ)".
     iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
     iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
     rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
@@ -77,6 +78,7 @@ Section Assert_subroutine.
     iInstr "Hprog".
     (* Jalr cnull cra. *)
     iInstr "Hprog".
+    1: { intros _. exact Hroute'. }
     iApply "Hφ". iFrame "∗".
   Qed.
 
@@ -105,7 +107,7 @@ Section Assert.
     (pc_g : Locality) (pc_p : Perm) (pc_b pc_e pc_a : Addr)
     (g_assert : Locality) (b_assert e_assert a_flag : Addr)
     (n1 n2 : Z) (wdst wcra wscratch : LWord) (dq : dfrac) (b : InterruptStatus)
-    (φ : language.val griotte_lang -> iProp Σ) :
+    (φ : tval (kind_of th) -> iProp Σ) :
 
     let assert_macro := assert_instrs off rdst rscratch in
     let a_last := (pc_a ^+ length assert_macro) in

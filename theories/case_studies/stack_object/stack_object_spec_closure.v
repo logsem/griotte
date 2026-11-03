@@ -383,7 +383,8 @@ Section SO.
                "[- $Hassert $HPC $Hcsp $Hct0 $Hct1 $Hct2 $Hca2 $Hcra
                 $Hcs0 $Hca0 $Hca1 $Hsecret $Himport_assert $Hcode_main $Hmie $Hheld]");
         [done|done|exact Hastk2|exact Hastk1|exact Hcsp_b_astk2
-        |exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)|done|].
+        |exact (jalr_target_ok_switcher_return_sentry InterruptEnabled)
+        |(intros ->; by specialize (Hroute eq_refl))|done|].
       iNext; iIntros "(HPC & Hcsp & Hct0 & Hct1 & Hct2 & Hca2 & Hcra
                       & Hcs0 & Hca0 & Hca1 & Hsecret & _ & _ & Hmie & Hheld)".
       iEval (rewrite /lupdatePcPerm /lift_word /=) in "HPC".

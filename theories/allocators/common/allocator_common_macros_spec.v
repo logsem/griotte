@@ -39,7 +39,7 @@ Section AllocatorMacros.
   Lemma allocator_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let code := encodeInstrsW [Jalr cnull cra] in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
@@ -72,7 +72,7 @@ Section AllocatorMacros.
     (rptr rend rtmp : RegName) (E : coPset)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (p : Perm) (g : Locality) (b e : Addr) (π : option AId) (dw : deref_witness) (wtmp : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let code := allocator_zero_instrs rptr rend rtmp in
     let pc_end := (pc_a ^+ length code) in
@@ -231,7 +231,7 @@ Section AllocatorMacros.
     (s_old s_new : AllocStatus) (rptr rcount : RegName) (E : coPset)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (b e sb se : Addr) (R : iProp Σ) (P : Addr → iProp Σ)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let code := allocator_paint_instrs rptr rcount s_new in
     let pc_end := (pc_a ^+ length code) in

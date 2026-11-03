@@ -20,7 +20,7 @@ Section AllocatorMallocPrepareBlocks3.
   Lemma allocator_malloc_prepare_success_spec
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (n o : Z) (πn : option AId) (ι : AId)
     (w0 w1 w2 w3 w4 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (pc_b + allocator_malloc_pcc_off)%a = Some pc_a ->
     (0 < n)%Z ->
@@ -182,7 +182,7 @@ Section AllocatorMallocPrepareBlocks3.
   Lemma allocator_malloc_oom_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
     default mie (jalr_target_mie wret.(lw)) = mie ->
@@ -219,7 +219,7 @@ Section AllocatorMallocPrepareBlocks3.
     (E : coPset) (pc_b pc_e pc_a next : Addr) (n : Z) (πn : option AId)
     (wret wca0 w0 w1 w2 w3 w4 wa2 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (0 < n)%Z ->
     (heap_b < next /\ next <= heap_e)%a ->

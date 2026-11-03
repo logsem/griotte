@@ -18,7 +18,7 @@ Section AllocatorMallocPublishBlocks4.
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (n : Z) (πn : option AId) (ι : AId)
     (wret wca0 : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (next + allocator_header_words)%a = Some b ->
     (b + n)%a = Some finish ->

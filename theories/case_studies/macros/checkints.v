@@ -109,7 +109,7 @@ Section Checkints_spec.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : LWord) (l : list Addr) (ws : list LWord)
     (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
     let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2)) in
@@ -320,7 +320,7 @@ Section Checkints_spec.
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2)) →
     (b < e)%a →
@@ -370,7 +370,7 @@ Section Checkints_spec.
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : LWord) (l : list Addr) (ws : list LWord)
     (t : bool) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
     let a_last := (pc_a ^+ length checkints) in
@@ -491,7 +491,7 @@ Section Checkints_spec.
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
     let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2)) in
@@ -579,7 +579,7 @@ Section Checkints_spec.
     (r r1 r2 : RegName)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)
     (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     let checkints := (checkints_instrs r r1 r2) in
     let a_last := (pc_a ^+ length checkints) in

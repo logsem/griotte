@@ -23,7 +23,7 @@ Section AllocatorMalloc.
   Lemma allocator_malloc_invalid_correct
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (o : Z) (wreq wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
@@ -121,7 +121,7 @@ Section AllocatorMalloc.
     (S : gset AId) (E F : coPset) (g_owner : Locality) (a_owner : Addr)
     (id : Z) (Ω : gset AId) (n : Z) (πn : option AId) (wret : LWord)
     (mie : InterruptStatus)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
     ↑Nallocator_service ⊆ F ->
@@ -298,7 +298,7 @@ Section AllocatorMalloc.
   (** A malformed allocator capability in [ca0] traps in the owner block. *)
 
   Lemma allocator_malloc_invalid_capability_spec
-    (E F : coPset) (wsealed : LWord) (P : iProp Σ) :
+    (E F : coPset) (wsealed : LWord) (Φ : tval (kind_of th) → iProp Σ) :
 
     ↑Ntstack ⊆ E ->
     (is_sealed_with_o wsealed.(lw) AllocOtype = false \/ get_tag wsealed.(lw) = false) ->
@@ -318,8 +318,8 @@ Section AllocatorMalloc.
       ca3 ↦ᵣ[th] - ∗
       ca4 ↦ᵣ[th] - -∗
       trap_safe (Cap RX Global allocator_pcc_b allocator_pcc_e a) E
-        (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Exec @[th] E {{ v, ⌜v = HaltedV⌝ → P }}.
+        Φ)
+    ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     iIntros (HEswitcher Hwsealed)
       "(#Hstatic & Hna & HPC & Hca0 & [%wtp Hctp] & [%w3 Hct3] & [%w4 Hct4] & Hfailed)".

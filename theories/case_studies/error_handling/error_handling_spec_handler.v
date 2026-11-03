@@ -347,6 +347,7 @@ Section Error_Handling_Handler.
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       apply withinBounds_true_iff. cbn in Hsize_data. solve_addr. }
     { done. }
+    { intros ->. by specialize (Hroute eq_refl). }
     { done. }
     iNext. iIntros "(HPC & Hcgp & Hca0 & Hcra & Hlock & _ & Hmie & _)".
     iDestruct ("Hregs" with "Hcgp Hca0 Hcra") as "Hregs".
@@ -494,6 +495,7 @@ Section Error_Handling_Handler.
     { apply length_error_state_words. }
     { done. }
     { done. }
+    { intros ->. by specialize (Hroute eq_refl). }
     { done. }
     iNext.
     iIntros "(HPC & Hca0 & [%wct0 Hct0] & [%wct1 Hct1] & [%wct2 Hct2] & Hcra & Hes & _

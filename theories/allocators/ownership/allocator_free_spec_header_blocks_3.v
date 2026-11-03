@@ -24,7 +24,7 @@ Section AllocatorFreeHeaderBlocks3.
   Lemma allocator_free_header_spec
     (E : coPset) (pc_b pc_e pc_a next b e eh : Addr) (o oh : Z) (s1 s2 : AllocStatus)
     (wctp w3 w4 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     (pc_b + allocator_free_pcc_off)%a = Some pc_a ->
     (heap_b < b /\ b < e /\ e <= next /\ next <= heap_e)%a ->

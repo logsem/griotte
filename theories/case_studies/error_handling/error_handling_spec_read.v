@@ -377,6 +377,7 @@ Section Error_Handling_Read.
     (∀ r, is_Some (rmap !! r)) →
     rmap !! cgp = Some stats_wcgp →
     jalr_target_ok cnull cra (rmap !!! cra).(lw) = true →
+    route_pre th (default mie (jalr_target_mie (rmap !!! cra).(lw))) →
     route_pre th mie →
     stats_static -∗
     PC ↦ₚ[th] stats_pcc stats_release_addr -∗
@@ -394,7 +395,7 @@ Section Error_Handling_Read.
        safe[th]) -∗
     safe[th].
   Proof.
-    iIntros (Hfull Hcgp Hcra Hroute) "#Hstatic HPC Hregs Hlock Hna Hclose Hmie Hheld Hcont".
+    iIntros (Hfull Hcgp Hcra Hroute' Hroute) "#Hstatic HPC Hregs Hlock Hna Hclose Hmie Hheld Hcont".
     iNamed "Hstatic".
     destruct (Hfull ca1) as [wca1 Hca1].
     iDestruct (registers_pointsto_extract3 _ cgp ca1 cra with "Hregs") as "(Hcgp & Hca1 & Hcra & Hregs)";
@@ -408,6 +409,7 @@ Section Error_Handling_Read.
     { cbn in Hsize_data. solve_addr. }
     { eapply disjoint_from_shadow_not_in; first exact Hcgp_shadow.
       apply withinBounds_true_iff. cbn in Hsize_data. solve_addr. }
+    { done. }
     { done. }
     { done. }
     iNext. iIntros "(HPC & Hcgp & Hca1 & Hcra & Hlock & _ & Hmie & Hheld)".
@@ -619,6 +621,7 @@ Section Error_Handling_Read.
         { by rewrite lookup_insert_ne. }
         { rewrite lookup_total_insert_ne // Hcra_take.
           apply jalr_target_ok_switcher_return_sentry. }
+        { intros _. rewrite lookup_total_insert_ne // Hcra_take /wret. done. }
         { done. }
         iNext. iIntros "HPC Hregs Hna Hmie Hheld".
         (* The return, at count 0 *)
@@ -725,6 +728,7 @@ Section Error_Handling_Read.
         { by simplify_map_eq. }
         { rewrite lookup_total_insert_ne // lookup_total_insert_ne // Hcra_take.
           apply jalr_target_ok_switcher_return_sentry. }
+        { intros _. rewrite lookup_total_insert_ne // lookup_total_insert_ne // Hcra_take /wret. done. }
         { done. }
         iNext. iIntros "HPC Hregs Hna Hmie Hheld".
         (* The return, at count 2 *)

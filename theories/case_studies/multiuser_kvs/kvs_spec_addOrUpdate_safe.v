@@ -36,6 +36,7 @@ Section KVS_spec_addOrUpdate_safe.
 
     related_sts_priv_world Wca W ->
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC ∗
@@ -95,7 +96,7 @@ Section KVS_spec_addOrUpdate_safe.
               (HO th) ) )
       ⊢ safe[th])%I.
   Proof.
-    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt Hroute)
+    iIntros (Hunsealing_shadow Hnkvs_E Hnkvs_E' Hnkvs_otype_E Hrelated_Wca_W Htgt Hth Hroute)
       "(#Hspred & #Hreg & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra &
         Hmie & Hheld & Hca0 & #Hinterp_wca0
       & Hca1 & Hca2 & #Hinterp_wca2 & Hctp & Hct1 & Hct2 & Hworld & Hpost)".
@@ -106,7 +107,7 @@ Section KVS_spec_addOrUpdate_safe.
       iDestruct "Hpost" as "[Hpost _]".
       iApply (KVS_addOrUpdate_spec_not_uint16_map_key with
                "[- $Hkvs_static $Hkvs_inv $Hna $HPC $Hcra $Hmie $Hheld $Hca0 $Hca1 $Hct1]");
-        [exact Hnkvs_E | exact Hwca1_uint16 | exact Htgt | exact Hroute |].
+        [exact Hnkvs_E | exact Hwca1_uint16 | exact Htgt | exact Hth | exact Hroute |].
       iNext; iIntros "(Hna & HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hct1)".
       iApply "Hpost"; iFrame.
     }
@@ -321,7 +322,8 @@ Section KVS_spec_addOrUpdate_safe.
                     $Hca0 $Hinterp_wca0 $Hca1 $Hca2 $Hinterp_wca2 $Hctp $Hct1 $Hct2 $Hworld_C
                     Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
       [solve_ndisj | solve_ndisj | solve_ndisj | exact Hrelared_priv_W0_W1
-      | apply jalr_target_ok_switcher_return_sentry | exact Hroute |].
+      | apply jalr_target_ok_switcher_return_sentry
+      | intros ->; by specialize (Hroute eq_refl) | exact Hroute |].
     iSplit.
     - iNext; iIntros "(Hna & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hca2 & Hctp & Hct1 &
       Hct2 & Hworld_C)".

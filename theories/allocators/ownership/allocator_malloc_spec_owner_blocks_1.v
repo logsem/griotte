@@ -16,7 +16,7 @@ Section AllocatorMallocOwnerBlocks1.
   Lemma allocator_malloc_owner_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (g : Locality) (a : Addr) (o : Z)
     (wtp : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
     (pc_b + allocator_malloc_pcc_off)%a = Some pc_a ->
     is_shadow_address a = false ->
@@ -62,7 +62,7 @@ Section AllocatorMallocOwnerBlocks1.
 
   Lemma allocator_malloc_owner_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wsealed wtp : LWord)
-    (P : iProp Σ) :
+    (Φ : tval (kind_of th) → iProp Σ) :
     let a_owner_end := (pc_a ^+ length (allocator_owner_instrs allocator_malloc_owner_off ctp ca0)) in
     ↑Ntstack ⊆ E ->
     allocator_malloc_code_bounds pc_b pc_e pc_a ->
@@ -76,8 +76,8 @@ Section AllocatorMallocOwnerBlocks1.
     (∀ a, ⌜a ∈ₐ [pc_a, a_owner_end)⌝ -∗
       ctp ↦ᵣ - ∗
       ca0 ↦ᵣ wsealed -∗
-      trap_safe (Cap RX Global pc_b pc_e a) E (λ v, ⌜v = HaltedV⌝ → P)%I)
-    ⊢ WP Exec @ E {{ v, ⌜v = HaltedV⌝ → P }}.
+      trap_safe (Cap RX Global pc_b pc_e a) E Φ)
+    ⊢ WP Exec @ E {{ Φ }}.
   Proof.
     intros a_owner_end HEswitcher (Hpc & Hpc_shadow & _) Hpcc Hwsealed.
     subst a_owner_end.

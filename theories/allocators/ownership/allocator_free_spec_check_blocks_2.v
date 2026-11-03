@@ -24,7 +24,7 @@ Section AllocatorFreeCheckBlocks2.
   Lemma allocator_free_check_prefix_spec
     (E : coPset) (pc_b pc_e pc_a next : Addr) (o : Z) (wa0 wreq w0 w1 w2 w3 : LWord)
     (dw : deref_witness) (P : iProp Σ) (Φc : gmap Addr AddrClaim → Prop)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     (next <= heap_e)%a ->
     allocator_free_in_prefix next wreq.(lw) ->
@@ -168,7 +168,7 @@ Section AllocatorFreeCheckBlocks2.
   Lemma allocator_free_check_valid_spec
     (E : coPset) (pc_b pc_e pc_a next : Addr) (o : Z) (wa0 wreq w0 w1 w2 w3 : LWord)
     (dw : deref_witness)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     (next <= heap_e)%a ->
     allocator_free_in_prefix next wreq.(lw) ->
@@ -216,7 +216,7 @@ Section AllocatorFreeCheckBlocks2.
 
   Lemma allocator_free_check_invalid_spec
     (E : coPset) (pc_b pc_e pc_a next : Addr) (o : Z) (wa0 wreq w0 w1 w2 w3 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     ¬ allocator_free_in_prefix next wreq.(lw) ->
     allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗

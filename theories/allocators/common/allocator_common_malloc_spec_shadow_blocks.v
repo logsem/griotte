@@ -19,7 +19,7 @@ Section AllocatorMallocShadowBlocks.
 
   Lemma allocator_malloc_zero_spec
     (E : coPset) (pc_b pc_e pc_a b finish : Addr) (ι : AId) (q : Qp) (w3 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b <= b /\ b < finish /\ finish <= heap_e)%a ->
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
@@ -61,7 +61,7 @@ Section AllocatorMallocShadowBlocks.
 
   Lemma allocator_malloc_translate_paint_spec
     (E : coPset) (pc_b pc_e pc_a next b finish : Addr) (ι : AId) (w3 wa2 : LWord)
-    (φ : language.val griotte_lang → iPropI Σ) :
+    (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_shadow_code pc_b pc_e pc_a ->
     (heap_b < next)%a ->
     (next + allocator_header_words)%a = Some b ->

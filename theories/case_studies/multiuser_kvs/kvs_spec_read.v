@@ -44,6 +44,7 @@ Section KVS_spec_read.
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, w)) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ((* initial register file *)
@@ -92,7 +93,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
-      His_uint16_nkey Hpkvs_idx Htgt Hroute)
+      His_uint16_nkey Hpkvs_idx Htgt Hth Hroute)
       "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -185,6 +186,7 @@ Section KVS_spec_read.
     m !! nkey = Some w ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -236,7 +238,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey
-      Htgt Hroute)
+      Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -309,6 +311,7 @@ Section KVS_spec_read.
     m !! nkey = Some w ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -356,7 +359,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Hm_nkey Htgt Hroute)
+      Hbounds_a_user_key Hm_nkey Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
@@ -399,6 +402,7 @@ Section KVS_spec_read.
     withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -448,7 +452,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Htgt Hroute)
+      Hbounds_a_user_key Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld &
         Hca0 & Hca1 & Hctp & Hct1 & Hct2
        & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
@@ -495,6 +499,7 @@ Section KVS_spec_read.
     pkvs !! idx = Some (Some (kvs_full_key user_key nkey, w)) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( world_interp W C ∗
@@ -545,7 +550,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
-      His_uint16_nkey Hpkvs_idx Htgt Hroute)
+      His_uint16_nkey Hpkvs_idx Htgt Hth Hroute)
       "(Hregion & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -639,6 +644,7 @@ Section KVS_spec_read.
     m !! nkey = Some w ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( world_interp W C ∗
@@ -692,7 +698,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey
-      Htgt Hroute)
+      Htgt Hth Hroute)
       "(Hregion & #Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -766,6 +772,7 @@ Section KVS_spec_read.
     m !! nkey = Some w ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( world_interp W C ∗
@@ -815,7 +822,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Hm_nkey Htgt Hroute)
+      Hbounds_a_user_key Hm_nkey Htgt Hth Hroute)
       "(Hregion & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna
       & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & Hm & Hpost)".
@@ -858,6 +865,7 @@ Section KVS_spec_read.
     withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( world_interp W C ∗
@@ -909,7 +917,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Htgt Hroute)
+      Hbounds_a_user_key Htgt Hth Hroute)
       "(Hregion & #Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie &
         Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
        & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
@@ -951,6 +959,7 @@ Section KVS_spec_read.
     fkey ∉ kvs_keys pkvs ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ((* initial register file *)
@@ -998,7 +1007,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hbounds_pcc Hbounds_cgp Hbounds_a_user_key
-      His_uint16_nkey Hpkvs_idx Htgt Hroute)
+      His_uint16_nkey Hpkvs_idx Htgt Hth Hroute)
       "(HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & #Hcode_main & #Ha_unsealing & Ha_user_key
         & HPKVS & Hpost)".
@@ -1107,6 +1116,7 @@ Section KVS_spec_read.
     m !! nkey = None  ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -1156,7 +1166,7 @@ Section KVS_spec_read.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     intros fkey.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hbounds_a_user_key His_uint16_nkey Hm_nkey
-      Htgt Hroute)
+      Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna
         & HPC & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key
@@ -1224,6 +1234,7 @@ Section KVS_spec_read.
     m !! nkey = None ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -1269,7 +1280,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Hm_nkey Htgt Hroute)
+      Hbounds_a_user_key Hm_nkey Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld &
         Hca0 & Hca1 & Hctp & Hct1 & Hct2
         & Ha_user_key & Hm & Hpost)".
@@ -1308,6 +1319,7 @@ Section KVS_spec_read.
     withinBounds user_key_addr (user_key_addr ^+ 1) user_key_addr = true ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -1355,7 +1367,7 @@ Section KVS_spec_read.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
     iIntros (Hunsealing_shadow Huser_key_shadow Hnkvs_E Hnkvs_E' His_uint16_nkey
-      Hbounds_a_user_key Htgt Hroute)
+      Hbounds_a_user_key Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & #Hkvs_logical_inv & Hna & HPC & Hcgp & Hcra & Hmie & Hheld &
         Hca0 & Hca1 & Hctp & Hct1 & Hct2
       & Ha_user_key & (%ukvs & >Hukvs_auth & (%m & Hm & >%Hsync)) & >Hk & Hpost)".
@@ -1388,6 +1400,7 @@ Section KVS_spec_read.
     ¬ word_is_uint16 wca1.(lw) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     (
@@ -1416,7 +1429,7 @@ Section KVS_spec_read.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HsubBounds Hnkey_is_uint16 Htgt Hroute)
+    iIntros (HsubBounds Hnkey_is_uint16 Htgt Hth Hroute)
       "(HPC & Hcra & Hmie & Hheld & [%wca0 Hca0] & Hca1 & Hct1 & #Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
 
@@ -1460,6 +1473,7 @@ Section KVS_spec_read.
     ¬ word_is_uint16 wca1.(lw) ->
 
     jalr_target_ok cnull cra wret.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     ( kvs_static ∗
@@ -1488,7 +1502,7 @@ Section KVS_spec_read.
       ⊢ safe[th])%I.
   Proof.
     pose proof KVS_cgp_disjoint_from_shadow as Hcgp_shadow.
-    iIntros (HE Hnkey_is_uint16 Htgt Hroute)
+    iIntros (HE Hnkey_is_uint16 Htgt Hth Hroute)
       "(#Hkvs_static & #Hkvs_inv & Hna & HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hct1 & Hpost)".
     iDestruct (kvs_static_unsealing_key with "Hkvs_static") as "#Ha_unsealing".
     iDestruct "Hkvs_static" as "[_ #Hcode_main]".
@@ -1726,6 +1740,7 @@ Section KVS_spec_read.
           "[Hct1 %Hct1]";"[Hct2 %Hct2]";"[Hcnull %Hcnull]"]
     ; simplify_eq.
 
+    assert (th ≠ CtxSwitch) as Hth by (intros ->; by specialize (Hroute eq_refl)).
     iApply (KVS_read_spec_in with
       "[- $Hkvs_static $Hkvs $Hkvs_logical $Hna $HPC $Hcgp $Hcra $Hmie $Hheld
        $Hca0 $Hca1 $Hctp $Hct1 $Hct2

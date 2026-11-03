@@ -24,6 +24,7 @@ Section LSE_F_Blocks_2.
     (wcgp wcs0 wcra wca0 wca1 : LWord) (b : InterruptStatus) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     jalr_target_ok cnull cra wcra.(lw) = true ->
+    th ≠ CtxSwitch ->
     route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
@@ -53,7 +54,7 @@ Section LSE_F_Blocks_2.
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Htgt Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Htgt Hth Hroute)
       "(#Hassert & HPC & Hcgp & Hcs0 & Hct0 & Hct1 & Hcra
       & Hca0 & Hca1 & Himport_assert & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
