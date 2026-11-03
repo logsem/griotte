@@ -116,10 +116,10 @@ Section state_interp.
     "%Hlsh" ∷ ⌜ls_sh ls !! mtdc = None ∧ ls_sh ls !! mstatus = None⌝.
 End state_interp.
 
-(** The clause of the context-switch device. At [CtxK], interrupts are
+(** The context-switch thread's interrupt clause. At [CtxK], interrupts are
     disabled, or half of the PC fragment is parked there (after a resuming
     [mret]); at [UserK], [True]. *)
-Definition dev_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
+Definition ctx_irq_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
     (σ : ExecConf) : iProp Σ :=
   match k with
   | UserK => True
@@ -128,13 +128,14 @@ Definition dev_si `{MachineParameters} {Σ} {ceriseg : ceriseG Σ} (k : kind)
 
 (** The Iris instance of thread [th], over its thread language: invariants
     for memory, and a state interpretation for (mem,reg), with the link of
-    the critical sections and the clause of the context-switch device. *)
+    the critical sections and the context-switch thread's interrupt
+    clause. *)
 #[global] Instance memG_irisG `{MachineParameters} {Σ} {th : Thread} {ceriseg : ceriseG Σ}
     {CL : CritLink Σ th} :
   irisGS (tlang (kind_of th)) Σ := {
   iris_invGS := cerise_invG;
   state_interp σ _ κs _ :=
-    (cerise_state_interp σ ∗ @crit_link Σ th CL σ ∗ dev_si (kind_of th) σ)%I;
+    (cerise_state_interp σ ∗ @crit_link Σ th CL σ ∗ ctx_irq_si (kind_of th) σ)%I;
   fork_post _ := True%I;
   num_laters_per_step _ := 0;
   state_interp_mono _ _ _ _ := fupd_intro _ _

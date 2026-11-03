@@ -17,9 +17,9 @@
       instruction step produces the switch value only when the decoded
       instruction is a switch instruction of the kind and [step] returns
       [NextI] ([tres]); the state is the real post-state.
-    - The context-switch device ([blocked]): the context-switch thread has
-      no instruction step that is not a decoded [Mret] and ends with
-      interrupts enabled.
+    - The steps an interrupt would preempt ([blocked]): the context-switch
+      thread has no instruction step that is not a decoded [Mret] and ends
+      with interrupts enabled.
     - [tlang k]: an ectxi language over [step], with the [Seq] context of
       [griotte_lang] and one more base step, the collapse
       [Seq (Instr (TSw s))] to [Instr (TSw s)].
@@ -27,7 +27,7 @@
       [sim_b_hw]); [wellshaped_step]; thread determinism
       ([tlang_base_determ]); a user thread never gets stuck
       ([user_reducible]); the context-switch thread is stuck exactly at the
-      device ([ctx_reducible_iff]); interrupts and ticks find a thread at
+      steps an interrupt would preempt ([ctx_reducible_iff]); interrupts and ticks find a thread at
       [Exec] or a switch value ([async_at_thread]).
 
     Sources. The switch instructions follow CHERIoT's switcher ([entry.S]):
@@ -166,9 +166,10 @@ Section thread_langs.
     end.
   #[local] Arguments tres : simpl never.
 
-  (** The context-switch device: an instruction step of the context-switch
-      thread from [σ] to [σ'] that is not a decoded [Mret] and ends with
-      interrupts enabled. The thread language has no such step. *)
+  (** The step an interrupt would preempt: an instruction step of the
+      context-switch thread from [σ] to [σ'] that is not a decoded [Mret]
+      and ends with interrupts enabled. The thread language has no such
+      step. *)
   Definition ctx_blocked (σ σ' : ExecConf) : Prop :=
     decoded_instr σ ≠ Some Mret ∧ irq_enabled σ'.
 
@@ -323,7 +324,7 @@ Section thread_lang_props.
     by split.
   Qed.
 
-  (** A user thread has no device. *)
+  (** No step of a user thread is preempted. *)
   Lemma user_not_blocked σ σ' : ¬ blocked UserK σ σ'.
   Proof. by intros []. Qed.
 
@@ -517,8 +518,8 @@ Section thread_lang_props.
   Qed.
 
 
-  (** A user thread steps from every well-shaped non-value: it has no
-      device. *)
+  (** A user thread steps from every well-shaped non-value: none of its
+      steps is preempted. *)
   Lemma user_reducible σ (e : expr UserK) :
     wellshaped e → to_val e = None → @reducible (tlang UserK) e σ.
   Proof.
@@ -542,7 +543,8 @@ Section thread_lang_props.
       apply (base_prim_step (Λ := tlang_ectx UserK)). constructor.
   Qed.
 
-  (** The context-switch thread is stuck exactly at the device. *)
+  (** The context-switch thread is stuck exactly at the steps an interrupt
+      would preempt. *)
   Lemma ctx_reducible_iff σ :
     @reducible (tlang CtxK) Exec σ ↔
     ∀ c σ', step (Executable, σ) (c, σ') → ¬ ctx_blocked σ σ'.

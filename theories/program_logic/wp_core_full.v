@@ -34,17 +34,17 @@ Section wp_core_full.
   Proof.
     iIntros (Hpre) "Hh Hm HK".
     iEval (rewrite wp_unfold /wp_pre /=).
-    iIntros (σ ns κ κs nt) "(Hσ & Hl & Hdev)".
+    iIntros (σ ns κ κs nt) "(Hσ & Hl & Hirq)".
     iDestruct (SI_mie_st with "Hσ Hm") as %Hb.
     iMod (crit_route σ with "Hl [Hh]") as "[Hho Hrestore]"; [by rewrite Hb | by rewrite Hb |].
     iSpecialize ("HK" with "Hm").
     iEval (rewrite wp_unfold /wp_pre /=) in "HK".
-    iMod ("HK" $! σ ns κ κs nt with "[$Hσ $Hdev]") as "[%Hred HK]".
+    iMod ("HK" $! σ ns κ κs nt with "[$Hσ $Hirq]") as "[%Hred HK]".
     iModIntro. iSplit; first done.
     iIntros (e2 σ2 efs Hstep) "Hlc".
     destruct (tprim_step_instr_val _ _ _ _ _ _ Hstep) as [ [v Hv] ->].
     iMod ("HK" with "[//] Hlc") as "HK".
-    iModIntro. iNext. iMod "HK". iModIntro. iMod "HK" as "((Hσ & _ & Hdev) & Hwp & _)".
+    iModIntro. iNext. iMod "HK". iModIntro. iMod "HK" as "((Hσ & _ & Hirq) & Hwp & _)".
     destruct (tof_to_val _ _ Hv).
     iEval (rewrite !wp_unfold /wp_pre /= tto_of_val) in "Hwp".
     iEval (rewrite !wp_unfold /wp_pre /= tto_of_val).
@@ -53,10 +53,10 @@ Section wp_core_full.
     iDestruct (SI_mie_st with "Hσ Hm") as %Hb'.
     destruct b'.
     - iMod ("Hrestore" with "Hσ [Hho]") as "(Hσ & Hl & _)"; first by rewrite Hb'.
-      iModIntro. iFrame "Hσ Hl Hdev". iSplitL; last done.
+      iModIntro. iFrame "Hσ Hl Hirq". iSplitL; last done.
       iModIntro. iNext. iExists InterruptEnabled. by iFrame.
     - iMod ("Hrestore" with "Hσ []") as "(Hσ & Hl & Hp)"; first by rewrite Hb'.
-      rewrite Hb'. iModIntro. iFrame "Hσ Hl Hdev". iSplitL; last done.
+      rewrite Hb'. iModIntro. iFrame "Hσ Hl Hirq". iSplitL; last done.
       iModIntro. iNext. iExists InterruptDisabled. by iFrame.
   Qed.
 
@@ -75,18 +75,18 @@ Section wp_core_full.
   Proof.
     iIntros (Hpre) "Hh Hm HK".
     iEval (rewrite wp_unfold /wp_pre /=).
-    iIntros (σ ns κ κs nt) "(Hσ & Hl & Hdev)".
+    iIntros (σ ns κ κs nt) "(Hσ & Hl & Hirq)".
     iDestruct (SI_mie_st with "Hσ Hm") as %Hb.
     iMod (crit_route σ with "Hl [Hh]") as "[Hho Hrestore]"; [by rewrite Hb | by rewrite Hb |].
     iDestruct (handover_res_crit with "Hho") as "[Htok Hho]".
     iSpecialize ("HK" with "Htok Hm").
     iEval (rewrite wp_unfold /wp_pre /=) in "HK".
-    iMod ("HK" $! σ ns κ κs nt with "[$Hσ $Hdev]") as "[%Hred HK]".
+    iMod ("HK" $! σ ns κ κs nt with "[$Hσ $Hirq]") as "[%Hred HK]".
     iModIntro. iSplit; first done.
     iIntros (e2 σ2 efs Hstep) "Hlc".
     destruct (tprim_step_instr_val _ _ _ _ _ _ Hstep) as [ [v Hv] ->].
     iMod ("HK" with "[//] Hlc") as "HK".
-    iModIntro. iNext. iMod "HK". iModIntro. iMod "HK" as "((Hσ & _ & Hdev) & Hwp & _)".
+    iModIntro. iNext. iMod "HK". iModIntro. iMod "HK" as "((Hσ & _ & Hirq) & Hwp & _)".
     destruct (tof_to_val _ _ Hv).
     iEval (rewrite !wp_unfold /wp_pre /= tto_of_val) in "Hwp".
     iEval (rewrite !wp_unfold /wp_pre /= tto_of_val).
@@ -96,10 +96,10 @@ Section wp_core_full.
     iDestruct (SI_mie_st with "Hσ Hm") as %Hb'.
     destruct b'.
     - iMod ("Hrestore" with "Hσ [Hho]") as "(Hσ & Hl & _)"; first by rewrite Hb'.
-      iModIntro. iFrame "Hσ Hl Hdev". iSplitL; last done.
+      iModIntro. iFrame "Hσ Hl Hirq". iSplitL; last done.
       iModIntro. iNext. iExists InterruptEnabled. by iFrame.
     - iMod ("Hrestore" with "Hσ []") as "(Hσ & Hl & Hp)"; first by rewrite Hb'.
-      rewrite Hb'. iModIntro. iFrame "Hσ Hl Hdev". iSplitL; last done.
+      rewrite Hb'. iModIntro. iFrame "Hσ Hl Hirq". iSplitL; last done.
       iModIntro. iNext. iExists InterruptDisabled. by iFrame.
   Qed.
 End wp_core_full.

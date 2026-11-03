@@ -311,11 +311,11 @@ Section griotte_lang_traps.
     rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
     iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "(Hσ & Hlink & Hdev) /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & Hlink & Hirq) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     (* The whole PC fragment refutes the parked half: the clause is
        dropped, and re-established after the entry, at MIE disabled. *)
-    iDestruct (dev_si_held with "Hdev HPC") as "[_ HPC]".
+    iDestruct (ctx_irq_si_held with "Hirq HPC") as "[_ HPC]".
     iDestruct (PC_agree with "HPCa HPC") as %->.
     iDestruct (gen_heap_valid_inclSepM with "Hr Hregs") as %Hregs.
     iAssert ⌜(snd <$> lm) ⊆ lmem⌝%I as %Hmem.
@@ -405,13 +405,13 @@ Section griotte_lang_traps.
       iPureIntro. split; by simplify_map_eq. }
     iPoseProof (SI_close (enter_exc (trap_cause σ1, trap_tval σ1) σ1) mtcc_vec lreg ls' lmem R C
                   Her' with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
-    assert (mie_st (enter_exc (trap_cause σ1, trap_tval σ1) σ1) = InterruptDisabled) as Hdis'.
+    assert (mie_st (enter_exc (trap_cause σ1, trap_tval σ1) σ1) = InterruptDisabled) as Hoff'.
     { by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
     iMod ("Hrestore" with "HSI [//] []") as "(HSI & Hlink & Hpart)".
     { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
     iModIntro. iSplitL "HSI Hlink".
-    { iFrame "HSI Hlink". iApply (dev_si_kept _ _ _ (λ _, Hdis')). apply sys_kept_refl. }
+    { iFrame "HSI Hlink". iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
     iApply ("HΦ" with "[$Hmie_f $Hcrit $HU $Hmepcc Hmcause Hmtval Hmpie_f Hpart] HPC").
     rewrite Hmie_old. iFrame "Hmpie_f Hpart".
