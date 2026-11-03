@@ -422,6 +422,50 @@ Section griotte_lang_rules.
     iRegsMap "Hmap". iApply "Hφ". iFrame.
   Qed.
 
+  (** [Subseg dst dst dst r2]: the base bound is the address of the
+      capability in [dst] itself, as CHERIoT's [csetbounds dst, dst, len]
+      (the switcher's exit-path setter). *)
+  Lemma wp_subseg_success_cap_base E pc_p pc_g pc_b pc_e pc_a pc_π w dst r2 (t : bool) p g b e a w2 n2 a2 pc_a' π dq :
+    decodeInstrW w.(lw) = Subseg dst dst (inr dst) (inr r2) →
+    IsLInt w2 n2 →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    z_to_addr n2 = Some a2 →
+    isWithin a a2 b e = true →
+    (a <= a2)%a →
+    (π = None → (a < a2)%a → is_heap_address a = false) →
+    (pc_a + 1)%a = Some pc_a' →
+    dst ≠ cnull ->
+    r2 ≠ cnull ->
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ dst ↦ᵣ WCap t p g b e a @@? π
+        ∗ ▷ r2 ↦ᵣ w2 }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ{dq} w
+          ∗ r2 ↦ᵣ w2
+          ∗ dst ↦ᵣ WCap t p g a a2 a @@? π
+      }}}.
+  Proof.
+    iIntros (Hinstr Hw2 Hvpc Hn2 Hwb Hle Hroot Hpc_a' Hcnull Hcnull' ϕ)
+      "(HPC & Hpc_a & >Hdst & >Hr2) Hφ".
+    destruct (IsLInt_inv _ _ Hw2) as [π2 ->].
+    iDestruct (map_of_regs_2 with "Hr2 Hdst") as "[Hmap %Hne]".
+    iApply (wp_subseg_next _ _ _ _ _ _ _ _ _ _ _ _ _ t p g b e a π (finz.to_z a) n2 a a2
+             with "[$HPC $Hpc_a $Hmap]");
+      try solve_next_side; try solve_subseg_root_free.
+    { intros t' p' g' b' e' a' a1' a2' Hd Ha1 Ha2 Ht Hlt.
+      rewrite /laddr_of_argument /lz_of_argument ?/llookup_reg in Ha1, Ha2, Hd.
+      simplify_map_eq. rewrite finz_of_z_to_z in Ha1. simplify_eq. by apply Hroot. }
+    { apply finz_of_z_to_z. }
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    assert ((a <=? a2)%a = true) as Hle' by solve_addr.
+    rewrite Hwb Hle' !andb_true_r linsert_reg_not_cnull //.
+    iRegsMap "Hmap". iApply "Hφ". iFrame.
+  Qed.
+
   (** [Subseg dst src r1 r2] with a source different from the destination,
       on a capability. *)
   Lemma wp_subseg_success_src E pc_p pc_g pc_b pc_e pc_a pc_π w dst src r1 r2

@@ -123,6 +123,36 @@ Section pool.
     iFrame "H1 H2". rewrite /st_of decide_True //.
   Qed.
 
+  (** The slot of [t] at [c], and the slots at any state [c'] that agrees
+      with [c] on the other threads. *)
+  #[local] Lemma slots_swap ts t c s :
+    NoDup ts → t ∈ ts → st_of c t = s →
+    ([∗ list] t' ∈ ts, slot t' (st_of c t')) -∗
+    slot t s ∗
+    ∀ c' s', ⌜st_of c' t = s'⌝ -∗ ⌜∀ t', t' ≠ t → st_of c t' = st_of c' t'⌝ -∗
+             slot t s' -∗ [∗ list] t' ∈ ts, slot t' (st_of c' t').
+  Proof.
+    intros Hnd Hin Hs. apply list_elem_of_split in Hin as (l1 & l2 & ->).
+    apply NoDup_app in Hnd as (_ & Hdisj & Hnd2).
+    apply NoDup_cons in Hnd2 as [Hnin2 _].
+    assert (t ∉ l1) as Hnin1.
+    { intros Hin1. by apply (Hdisj t Hin1), list_elem_of_here. }
+    assert (∀ c' l, (∀ t', t' ≠ t → st_of c t' = st_of c' t') → t ∉ l →
+      ([∗ list] t' ∈ l, slot t' (st_of c t')) ⊣⊢ [∗ list] t' ∈ l, slot t' (st_of c' t'))
+      as Hl.
+    { intros c' l Hother Hnin. apply big_sepL_proper. intros k t' Hk. rewrite Hother //.
+      intros ->. apply Hnin. by eapply list_elem_of_lookup_2. }
+    rewrite !big_sepL_app !big_sepL_cons Hs.
+    iIntros "(H1 & Ht & H2)". iFrame "Ht". iIntros (c' s' Hs' Hother) "Ht".
+    rewrite big_sepL_app big_sepL_cons Hs' -(Hl c' l1) // -(Hl c' l2) //. iFrame.
+  Qed.
+
+  #[local] Lemma st_of_self t s : st_of (Some (UserThread t, s)) t = Some s.
+  Proof. rewrite /st_of decide_True //. Qed.
+
+  #[local] Lemma st_of_other t t' s : t' ≠ t → st_of (Some (UserThread t, s)) t' = None.
+  Proof. intros Hne. by rewrite /st_of decide_False. Qed.
+
   (** Parking the running thread [t]: the slot of its kind into the
       pool. *)
   Lemma pool_save ts t k v E :
@@ -166,5 +196,70 @@ Section pool.
       - iPureIntro. intros t' s' [= <- _]. by eapply Hin.
       - by iApply "Hslots". }
     iModIntro. iFrame.
+  Qed.
+
+  (** Parking user thread [t]: the caller turns the Saving slot's contents
+      into its Suspended slot; [cur] becomes [None]. *)
+  Lemma pool_park ts t k v E :
+    NoDup ts → ↑Npool ⊆ E →
+    inv Npool (Pool ts) -∗
+    cur_frag (Some (UserThread t, Saving k v)) -∗
+    (auths_at t v -∗ ▷ park_cont t k ={E ∖ ↑Npool}=∗ slot t None) ={E}=∗
+    cur_frag None.
+  Proof.
+    iIntros (Hnd Hmask) "#Hinv Hf Hpark".
+    iInv Npool as "HP" "Hclose". rewrite /Pool.
+    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
+    iDestruct (cur_agree with "Hcur Hf") as %->.
+    iMod (cur_update _ _ None with "Hcur Hf") as "[Hcur Hf]".
+    iDestruct (slots_swap ts t _ (Some (Saving k v)) with "Hslots") as "[Hslot Hslots]";
+      [done | by eapply Hin | apply st_of_self |].
+    iDestruct "Hslot" as "[Hauths Hcont]".
+    rewrite /auths_at /thread_auths.
+    iDestruct "Hauths" as "(>HPC & >Hregs & >Hmtdc & >HMIE)".
+    iMod ("Hpark" with "[$HPC $Hregs $Hmtdc $HMIE] Hcont") as "Hslot".
+    iMod ("Hclose" with "[Hcur Hslot Hslots]") as "_"; last done.
+    iNext. iExists None. iFrame "Hcur". iSplit.
+    - iPureIntro. by intros t' s' ?.
+    - iApply ("Hslots" $! None None with "[//] []").
+      { iPureIntro. intros t' Ht'. by rewrite st_of_other. }
+      iDestruct "Hslot" as (ws w') "(Hok & Hsa & Hlent & Hauths & Hcont)".
+      iExists ws, w'. iFrame.
+  Qed.
+
+  (** Reading the slot of the suspended thread [B]: it becomes Resuming
+      with values its save area allows; its save area, mtdc token and run
+      come out. The run is under two laters: the one of the invariant and
+      the one of the slot. *)
+  Lemma pool_read ts B E :
+    NoDup ts → B ∈ ts → ↑Npool ⊆ E →
+    inv Npool (Pool ts) -∗
+    cur_frag None ={E}=∗
+    ∃ (ws : list LWord) (v : resume_vals),
+      "Hcur" ∷ cur_frag (Some (UserThread B, Resuming v)) ∗
+      "%Hok" ∷ ⌜resume_ok ws v⌝ ∗
+      "Hsa" ∷ ▷ save_area_at B ws ∗
+      "Hlent" ∷ ▷ mtdc_lent_at (th := UserThread B) ∗
+      "Hcont" ∷ ▷ ▷ ((if v.(rv_mie) is InterruptEnabled then True
+                      else posture_of (UserThread B) None None None None) -∗
+                     £ 1 -∗
+                     safe[u B]).
+  Proof.
+    iIntros (Hnd HB Hmask) "#Hinv Hf".
+    iInv Npool as "HP" "Hclose". rewrite /Pool.
+    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
+    iDestruct (cur_agree with "Hcur Hf") as %->.
+    iDestruct (slots_swap ts B None None with "Hslots") as "[Hslot Hslots]"; [done..|].
+    iMod (bi.later_exist_except_0 with "Hslot") as (ws) "Hslot".
+    iMod (bi.later_exist_except_0 with "Hslot") as (v) "Hslot".
+    iDestruct "Hslot" as "(>%Hok & Hsa & Hlent & Hauths & Hcont)".
+    iMod (cur_update _ _ (Some (UserThread B, Resuming v)) with "Hcur Hf") as "[Hcur Hf]".
+    iMod ("Hclose" with "[Hcur Hauths Hslots]") as "_".
+    { iNext. iExists (Some (UserThread B, Resuming v)). iFrame "Hcur". iSplit.
+      - iPureIntro. by intros t' s' [= <- _].
+      - iApply ("Hslots" $! _ (Some (Resuming v)) with "[] [] Hauths").
+        + iPureIntro. apply st_of_self.
+        + iPureIntro. intros t' Ht'. by rewrite st_of_other. }
+    iModIntro. iExists ws, v. iFrame "Hf Hsa Hlent Hcont". done.
   Qed.
 End pool.

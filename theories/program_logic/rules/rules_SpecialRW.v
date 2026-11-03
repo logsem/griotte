@@ -432,6 +432,45 @@ Section griotte_lang_rules.
     iApply (sregs_of_map_1 with "Hsmap").
   Qed.
 
+  (** The exit marker of a user thread, [csrw mcause, MCAUSE_THREAD_EXIT]:
+      mcause is written and the thread's turn ends in [ExitV], through the
+      sequencing context. *)
+  Lemma wp_exit_marker E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w (vold : LWord) dq
+      (Φ : tval (kind_of th) → iProp Σ) :
+    th ≠ CtxSwitch →
+    decodeInstrW w.(lw) = exit_marker →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π -∗
+    ▷ pc_a ↦ₐ{dq} w -∗
+    ▷ mcause ↦ₓ vold -∗
+    ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π -∗
+       pc_a ↦ₐ{dq} w -∗
+       mcause ↦ₓ lword_of_word (WInt MCAUSE_THREAD_EXIT) -∗
+       Φ ExitV) -∗
+    WP Exec @ E {{ Φ }}.
+  Proof.
+    iIntros (Hth Hinstr Hvpc Hxsr Hpca') "HPC Hpc_a Hsr Hφ".
+    iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
+    iApply (wp_SpecialRW _ _ _ _ _ _ _ _ cnull mcause (inl MCAUSE_THREAD_EXIT) ∅
+              {[mcause := vold]} with "[HPC Hpc_a Hsr]"); [exact Hinstr | done | | | |].
+    { rewrite /regs_of /operands_of /regs_of_argument. set_solver. }
+    { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
+    { iFrame "HPC Hpc_a". iSplitR; first by rewrite big_sepM_empty.
+      iNext. iApply (map_of_sregs_1 with "Hsr"). }
+    iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & _ & Hsmap)".
+    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+      as (-> & -> & vold' & Hvold & Hsr' & ->).
+    rewrite /specialrw_sregs in Hsr'. simplify_map_eq. rewrite insert_singleton_eq.
+    assert (sw_of (kind_of th) (SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT)) = Some ExitS)
+      as ->.
+    { destruct th; [done | by destruct Hth]. }
+    iApply wp_pure_step_later; first done. iIntros "!> _".
+    iApply wp_value. iApply ("Hφ" with "HPC Hpc_a").
+    iApply (sregs_of_map_1 with "Hsmap").
+  Qed.
+
   (** ** mtdc
 
       mtdc is a per-thread register with its own ghost state: the fragment

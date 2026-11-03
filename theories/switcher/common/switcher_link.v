@@ -143,6 +143,64 @@ Section switcher_link.
     destruct q; last by iFrame.
     rewrite decide_False //. by iFrame.
   Qed.
+
+  (** The resuming [mret] of the context-switch thread at the full link:
+      the whole [handover_at] in, its InterruptEnabled form back when the
+      thread resumes with interrupts disabled. *)
+  Lemma wp_mret_resume_ctx E pc_p pc_g pc_b pc_e pc_a pc_π w (vepcc lpc' c : LWord) (z : Z)
+      (q : InterruptStatus) dq p' b e a (Φ : tval CtxK → iProp Σ) :
+    decodeInstrW w.(lw) = Mret →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    lpc'.(lw) = vepcc.(lw) →
+    (get_tag lpc'.(lw) = true → lpc'.(lprov) = None) →
+    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    ▷ pc_a ↦ₐ{dq} w ∗
+    ▷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
+    ▷ mtdc ↦ₜ[CtxSwitch] (Capₗ p' _ b e a) ∗
+    ▷ handover_at (ceriseg := ceriseG_of CtxSwitch) vepcc c z q ∗
+    ▷ (@PC_fragq Σ (@cerise_pcG Σ (ceriseG_of CtxSwitch)) (pc_dq q) lpc' -∗
+       pc_a ↦ₐ{dq} w -∗
+       MIE ↦ₜ[CtxSwitch] q -∗
+       mtdc ↦ₜ[CtxSwitch] (Capₗ p' _ b e a) -∗
+       (if q is InterruptEnabled then True
+        else handover_at (ceriseg := ceriseG_of CtxSwitch) vepcc c z InterruptEnabled) -∗
+       Φ ResumedV)
+    ⊢ @wp _ _ _ _ (@wp' _ _ _ (memG_irisG (th := CtxSwitch) (ceriseg := ceriseG_of CtxSwitch)
+                                 (CL := crit_link_full CtxSwitch)))
+        NotStuck E (Instr Executable) Φ.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hlw Hprov) "(HPC & Hpc_a & HMIE & Hmtdc & Hho & Hφ)".
+    rewrite /handover_at /volatile_csr_at.
+    iDestruct "Hho" as "(Hcrit & HU & Hepcc & Hcause & Htval & Hmpie)".
+    iApply (wp_mret_resume (ceriseg := ceriseG_of CtxSwitch) (CL := crit_link_full CtxSwitch)
+              E pc_p pc_g pc_b pc_e pc_a pc_π w vepcc lpc' q dq
+              (mtdc ↦ₜ[CtxSwitch] (Capₗ p' _ b e a) ∗
+               na_own crit ⊤ ∗
+               unwedged ∗
+               mcause ↦ₓ c ∗
+               mtval ↦ₓ lword_of_word (WInt z))%I
+              (mtdc ↦ₜ[CtxSwitch] (Capₗ p' _ b e a) ∗
+               (if q is InterruptEnabled then True
+                else handover_at (ceriseg := ceriseG_of CtxSwitch) vepcc c z InterruptEnabled))%I
+             with "[$HPC $Hpc_a $Hepcc $HMIE $Hmpie $Hmtdc $Hcrit $HU $Hcause $Htval Hφ]");
+      [done.. | |].
+    - iIntros (σ σ' Hmv) "(Hsi & Hl & Hepcc & Hmpie & Hmtdc & Hcrit & HU & Hcause & Htval)".
+      destruct q.
+      + iMod (link_transfer_ctx_resume InterruptEnabled with
+               "[$Hsi $Hl $Hmtdc Hepcc Hmpie Hcrit HU Hcause Htval]") as "($ & $ & $ & _)".
+        { done. }
+        { iApply (handover_res_intro vepcc c z InterruptEnabled).
+          rewrite /handover_at /volatile_csr_at. by iFrame. }
+        done.
+      + destruct Hmv as (_ & Hq & _).
+        rewrite !crit_link_full_unfold /crit_link_def Hq. iModIntro.
+        rewrite /handover_at /volatile_csr_at. by iFrame.
+    - iIntros "!> HPC Hpc_a HMIE [Hmtdc Hho]".
+      iApply ("Hφ" with "[HPC] Hpc_a HMIE Hmtdc [Hho]").
+      + by destruct q.
+      + destruct q; [done|]. by rewrite /handover_at /volatile_csr_at.
+  Qed.
 End switcher_link.
 
 #[global] Arguments crit_link_full : simpl never.
