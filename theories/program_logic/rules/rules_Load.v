@@ -216,7 +216,7 @@ Section griotte_lang_rules.
     load_post wit p loadv loadv' →
     incrementPC lpc = Some lpc' →
     regs' = <[ r1 := loadv' ]ₗ> regs →
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw griotte_lang.NextIV
 
   | Load_spec_success_shadow p g b e a heap_a revoked :
     reg_allows_load_offset regs r2 imm p g b e a →
@@ -225,7 +225,7 @@ Section griotte_lang_rules.
     shadow !! heap_a = Some revoked →
     incrementPC lpc = Some lpc' →
     regs' = <[ r1 := lword_of_word (WInt (encodeAllocStatus revoked)) ]ₗ> regs →
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw griotte_lang.NextIV
 
   (* The revoker reads as zero. *)
   | Load_spec_success_revoker p g b e a :
@@ -234,7 +234,7 @@ Section griotte_lang_rules.
     mem !! a = None →
     incrementPC lpc = Some lpc' →
     regs' = <[ r1 := lword_of_word (WInt 0) ]ₗ> regs →
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw griotte_lang.NextIV
 
   (* A time device reads as an integer, the value of its register, which the
      logical state does not record. *)
@@ -244,13 +244,13 @@ Section griotte_lang_rules.
     mem !! a = None →
     incrementPC lpc = Some lpc' →
     regs' = <[ r1 := lword_of_word (WInt z) ]ₗ> regs →
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw NextIV
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw griotte_lang.NextIV
 
   | Load_spec_failure :
     Load_failure_spec lpc regs r1 r2 imm mem shadow wit dw ->
     lpc' = lpc ->
     regs' = regs ->
-    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw FaultedV.
+    Load_spec lpc regs r1 r2 imm lpc' regs' mem shadow wit dw griotte_lang.FaultedV.
 
   (* Own the source location, or its shadow entry; neither the revoker nor a
      time device needs a resource. *)
@@ -285,7 +285,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' regs' retv, RET retv;
+   {{{ lpc' regs' retv, RET tval_of_val retv;
        ⌜ Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
@@ -296,15 +296,17 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hmem_pc HaLoad Hdomeq φ)
       "(>HPC & >Hmem & >Hshadow & Hwit & Hdw & >Hmap) Hφ".
-    iApply wp_lift_atomic_base_step_no_fork; auto.
-    iIntros (σ1 ns l1 l2 nt) "[Hσ Hlink] /=".
-    destruct σ1 as [pc r sr m st td]; cbn.
-    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
-    iDestruct (PC_agree with "HPCa HPC") as %->.
-    pose proof (erasure_pc_exact _ _ _ _ _ _ _ Her) as Hpc. cbn in Hpc. subst pc.
-    iEval (rewrite /sreg /shadowtbl /=) in "Hsr Hst".
-    iDestruct (gen_heap_valid_inclSepM with "Hr Hmap") as %Hlregs.
-    pose proof (erasure_regs_incl _ _ _ _ _ _ _ _ Her Hlregs) as Hregs.
+    (* The instruction word is taken out of the memory map for the step. *)
+    assert (is_Some (dfracs !! pc_a)) as [dq_pc Hdq_pc].
+    { apply elem_of_dom. rewrite -Hdomeq. apply elem_of_dom; eauto. }
+    assert (prod_merge dfracs mem !! pc_a = Some (dq_pc, w)) as Hmerge_pc.
+    { by rewrite lookup_merge Hmem_pc Hdq_pc. }
+    iDestruct (big_sepM_delete _ _ pc_a (dq_pc, w) with "Hmem") as "[Hpc_a Hmem]"; first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|done|].
+    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ2) "@".
+    iAssert ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2)%I
+      with "[Hpc_a Hmem]" as "Hmem".
+    { iApply (big_sepM_delete _ _ pc_a (dq_pc, w)); first done. iFrame. }
     iDestruct (load_witness_lookup with "HR Hwit") as %Hwit.
     iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
     pose proof (er_registry _ _ _ _ _ _ _ Her) as Hreg; cbn in Hreg.
@@ -324,14 +326,7 @@ Section griotte_lang_rules.
     odestruct (Hri r1) as [r1v [Hr'1 _] ]; first by set_solver+.
     clear Hri.
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hr'2) as (s2 & Hr2 & Hrel2).
-    destruct (erasure_lookup_mem _ _ _ _ _ _ _ _ _ Her (Hmem_valid _ _ Hmem_pc))
-      as (pw & Hpw & Hpwok).
-    iModIntro. iSplitR; first (by iPureIntro; apply normal_always_base_reducible).
-    iNext. iIntros (e2 σ2 efs Hpstep).
-    apply prim_step_exec_inv in Hpstep as (-> & -> & (c & -> & Hstep)).
-    iIntros "_".
-    iSplitR; auto. eapply step_exec_inv in Hstep; eauto.
-    rewrite (mem_word_ok_decode _ _ _ _ Hpwok) Hinstr in Hstep.
+    rewrite Hinstr in Hstep.
     rewrite /exec /= Hr2 /= in Hstep.
 
     destruct (is_cap r2v.(lw)) eqn:Hr2v.
@@ -383,9 +378,9 @@ Section griotte_lang_rules.
       (match nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) r1 pv) with
        | Some conf => conf | None => (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) end) = (c, σ2) ∧
       (∀ lpc', incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw NextIV) ∧
+         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' (<[r1 := v]ₗ> regs) mem shadow wit dw griotte_lang.NextIV) ∧
       (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
-         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw FaultedV))
+         Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs mem shadow wit dw griotte_lang.FaultedV))
       as (v & pv & Hok & Hpv & Hstep' & Hsucc & Hfailure).
     {
       rewrite /is_mmio_address /mmio_load /shadow_load /revoker_load in Hstep.
@@ -442,8 +437,6 @@ Section griotte_lang_rules.
             -- intros. by eapply Load_spec_success.
             -- intros. apply Load_spec_failure; [|done..]. eapply Load_fail_invalid_PC_imm; eauto. by rewrite Hr'2.
     }
-    iApply bupd_fupd.
-    iApply (instr_close_link_kept with "Hlink").
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ r1 v pv _ _ _
       (λ lpc' regs' retv, Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem shadow wit dw retv)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hmem Hshadow Hwit Hdw]").
@@ -470,15 +463,15 @@ Section griotte_lang_rules.
         a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
-    {{{ retv, RET retv;
-        (⌜retv = FaultedV⌝ ∗
+    {{{ retv, RET tval_of_val retv;
+        (⌜retv = griotte_lang.FaultedV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
          pc_a ↦ₐ{dq} wi ∗
          dst ↦ᵣ wd ∗
          src ↦ᵣ Cap p g b e a_src ∗
          a ↦ₐ raw ∗
          load_witness_res wit) ∨
-        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ∃ actual, ⌜retv = griotte_lang.NextIV⌝ ∗
         ⌜load_post wit p raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ{dq} wi ∗
@@ -567,7 +560,7 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' regs' retv, RET retv;
+   {{{ lpc' regs' retv, RET tval_of_val retv;
        ⌜ Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 0 lpc' regs' mem shadow wit dw retv⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
@@ -728,14 +721,14 @@ Section griotte_lang_rules.
        deref_witness_res dw ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' regs' retv, RET retv;
+   {{{ lpc' regs' retv, RET tval_of_val retv;
        ⌜ ((∃ p g b e a ea loadv,
-      retv = NextIV ∧
+      retv = griotte_lang.NextIV ∧
       reg_allows_load_imm regs r2 imm p g b e a ea ∧
       mem !! ea = Some loadv ∧
       incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
       regs' = <[r1 := lload_word p loadv]ₗ> regs) ∨
-    (retv = FaultedV ∧ ∃ fail : Load_failure_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain dw, True))⌝ ∗
+    (retv = griotte_lang.FaultedV ∧ ∃ fail : Load_failure_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain dw, True))⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
          deref_witness_res dw ∗
@@ -788,14 +781,14 @@ Section griotte_lang_rules.
        (▷ [∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ∗
        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
      Instr Executable @ Ep
-   {{{ lpc' regs' retv, RET retv;
+   {{{ lpc' regs' retv, RET tval_of_val retv;
        ⌜ ((∃ p g b e a ea loadv,
-      retv = NextIV ∧
+      retv = griotte_lang.NextIV ∧
       reg_allows_load_imm regs r2 imm p g b e a ea ∧
       mem !! ea = Some loadv ∧
       incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
       regs' = <[r1 := lload_word p loadv]ₗ> regs) ∨
-    (retv = FaultedV ∧ ∃ fail : Load_failure_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain DerefNoId, True))⌝ ∗
+    (retv = griotte_lang.FaultedV ∧ ∃ fail : Load_failure_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm mem ∅ LoadPlain DerefNoId, True))⌝ ∗
          PC ↦ₚ lpc' ∗
          ([∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ∗
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
@@ -825,15 +818,15 @@ Section griotte_lang_rules.
         (▷ [∗ map] a↦dw ∈ prod_merge dfracs mem, a ↦ₐ{dw.1} dw.2) ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜(match retv with
-    | NextIV => ∃ p g b e a loadv actualv,
+    | griotte_lang.NextIV => ∃ p g b e a loadv actualv,
         reg_allows_load regs src p g b e a ∧
         mem !! a = Some loadv ∧
         lload_heap (lload_word p loadv) actualv ∧
         incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
         regs' = <[dst := actualv]ₗ> regs
-    | FaultedV => True
+    | griotte_lang.FaultedV => True
     | _ => False
     end)⌝ ∗
         PC ↦ₚ lpc' ∗
@@ -880,15 +873,15 @@ Section griotte_lang_rules.
         (▷ [∗ map] a↦w ∈ mem, a ↦ₐ{dq} w) ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜(match retv with
-    | NextIV => ∃ p g b e a loadv actualv,
+    | griotte_lang.NextIV => ∃ p g b e a loadv actualv,
         reg_allows_load regs src p g b e a ∧
         mem !! a = Some loadv ∧
         lload_heap (lload_word p loadv) actualv ∧
         incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
         regs' = <[dst := actualv]ₗ> regs
-    | FaultedV => True
+    | griotte_lang.FaultedV => True
     | _ => False
     end)⌝ ∗
         PC ↦ₚ lpc' ∗
@@ -1266,7 +1259,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
@@ -1350,7 +1343,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Hwa Hadd φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
@@ -1375,7 +1368,7 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Hsrc Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     destruct (llookup_reg_phys _ _ _ _ _ Hregs Hsrc) as (s0 & Hsrc' & _).
     rewrite Hinstr /exec /= Hsrc' /= in Hstep.
@@ -1456,14 +1449,14 @@ Section griotte_lang_rules.
     {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗ src ↦ᵣ Cap p g b e a @@? πs ∗ a ↦ₐ raw }}}
       Instr Executable @ E
-    {{{ retv, RET retv;
-        (⌜retv = FaultedV⌝ ∗
+    {{{ retv, RET tval_of_val retv;
+        (⌜retv = griotte_lang.FaultedV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
          pc_a ↦ₐ{dq} wi ∗
          dst ↦ᵣ wd ∗
          src ↦ᵣ Cap p g b e a @@? πs ∗
          a ↦ₐ raw) ∨
-        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ∃ actual, ⌜retv = griotte_lang.NextIV⌝ ∗
         ⌜lload_heap (lload_word p raw) actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ Cap p g b e a @@? πs ∗ a ↦ₐ raw }}}.
@@ -1887,7 +1880,7 @@ Section load_exact.
         deref_witness_res dw ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜ Load_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r1 r2 imm lpc' regs' mem ∅ wit dw retv⌝ ∗
         PC ↦ₚ lpc' ∗
         ([∗ map] a↦w ∈ mem, a ↦ₐ w) ∗
@@ -1923,14 +1916,14 @@ Section load_exact.
         a ↦ₐ raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
-    {{{ retv, RET retv;
-        (⌜retv = FaultedV⌝ ∗
+    {{{ retv, RET tval_of_val retv;
+        (⌜retv = griotte_lang.FaultedV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗
          pc_a ↦ₐ wi ∗
          dst ↦ᵣ wd ∗
          src ↦ᵣ Cap p g b e a_src ∗
          a ↦ₐ raw) ∨
-        ∃ actual, ⌜retv = NextIV⌝ ∗
+        ∃ actual, ⌜retv = griotte_lang.NextIV⌝ ∗
         ⌜load_post wit p raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗
         pc_a ↦ₐ wi ∗

@@ -58,47 +58,47 @@ Section griotte_lang_rules.
     (a + z)%a = Some a' ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WCap t p g b e a' @@? π ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   | Lea_spec_success_sr: forall (t : bool) p g b e a π z a',
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     (a + z)%ot = Some a' ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WSealRange t p g b e a' @@? π ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   | Lea_spec_invalidated_cap: forall (t : bool) p g b e a π z,
     regs !!ₗ src = Some (WCap t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     (a + z)%a = None ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := Cap⁻ p g b e a @@? π ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   | Lea_spec_invalidated_sr: forall (t : bool) p g b e a π z,
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) ->
     lz_of_argument regs rv = Some z ->
     (a + z)%ot = None ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := SealRange⁻ p g b e a @@? π ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   (* An integer moves by the offset. *)
   | Lea_spec_int: forall n π z,
     regs !!ₗ src = Some (WInt n @@? π) ->
     lz_of_argument regs rv = Some z ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := WInt (n + z) @@? π ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   (* A sealed word or a sentry loses its tag. *)
   | Lea_spec_sealed: forall w,
     regs !!ₗ src = Some w ->
     (is_sealed w.(lw) || is_sentry w.(lw)) = true ->
     incrementPC lpc = Some lpc' ->
     regs' = <[ dst := lclear_tag w ]ₗ> regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' NextIV
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.NextIV
   | Lea_spec_failure :
     Lea_failure lpc regs dst src rv ->
     lpc' = lpc ->
     regs' = regs ->
-    Lea_spec lpc regs dst src rv lpc' regs' FaultedV.
+    Lea_spec lpc regs dst src rv lpc' regs' griotte_lang.FaultedV.
 
    Lemma wp_lea Ep pc_p pc_g pc_b pc_e pc_a pc_π dst src w arg (regs : LReg) dq :
      decodeInstrW w.(lw) = Lea dst src arg →
@@ -108,14 +108,14 @@ Section griotte_lang_rules.
          ▷ pc_a ↦ₐ{dq} w ∗
          ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
        Instr Executable @ Ep
-     {{{ lpc' regs' retv, RET retv;
+     {{{ lpc' regs' retv, RET tval_of_val retv;
          ⌜ Lea_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
          PC ↦ₚ lpc' ∗
          pc_a ↦ₐ{dq} w ∗
          [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
    Proof.
      iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+     iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
      iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
      rewrite Hinstr in Hstep.
      specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -223,7 +223,7 @@ Section griotte_lang_rules.
      lea_result wr z = Some wr' →
      incrementPC lpc = Some lpc0 →
      Lea_spec lpc regs dst src arg lpc' regs' retv →
-     retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := wr']ₗ> regs.
+     retv = griotte_lang.NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := wr']ₗ> regs.
    Proof.
      intros Hr Hz Hres Hinc Hspec.
      destruct Hspec as [* Hr' Hz' Ha' Hinc' -> | * Hr' Hz' Ha' Hinc' ->

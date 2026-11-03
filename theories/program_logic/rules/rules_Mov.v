@@ -23,13 +23,13 @@ Section griotte_lang_rules.
       lword_of_argument regs src = Some w →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := w ]ₗ> regs →
-      Mov_spec lpc regs dst src lpc' regs' NextIV
+      Mov_spec lpc regs dst src lpc' regs' griotte_lang.NextIV
   | Mov_spec_failure w:
       lword_of_argument regs src = Some w →
       incrementPC lpc = None →
       lpc' = lpc →
       regs' = regs →
-      Mov_spec lpc regs dst src lpc' regs' FaultedV.
+      Mov_spec lpc regs dst src lpc' regs' griotte_lang.FaultedV.
 
   Lemma wp_Mov Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq :
     decodeInstrW w.(lw) = Mov dst src ->
@@ -39,14 +39,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜ Mov_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.

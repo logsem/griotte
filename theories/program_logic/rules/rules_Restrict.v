@@ -62,7 +62,7 @@ Section griotte_lang_rules.
       LocalityFlowsTo g' g = true →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WCap t p' g' b e a @@? π ]ₗ> regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' NextIV
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.NextIV
   | Restrict_spec_success_sr (t : bool) p g b e a π n p' g':
       regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
       lz_of_argument regs arg = Some n →
@@ -71,7 +71,7 @@ Section griotte_lang_rules.
       LocalityFlowsTo g' g = true →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := WSealRange t p' g' b e a @@? π ]ₗ> regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' NextIV
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.NextIV
   | Restrict_spec_invalidated_cap (t : bool) p g b e a π n p' g':
       regs !!ₗ src = Some (WCap t p g b e a @@? π) →
       lz_of_argument regs arg = Some n →
@@ -79,7 +79,7 @@ Section griotte_lang_rules.
       (PermFlowsTo p' p && LocalityFlowsTo g' g) = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := Cap⁻ p' g' b e a @@? π ]ₗ> regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' NextIV
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.NextIV
   | Restrict_spec_invalidated_sr (t : bool) p g b e a π n p' g':
       regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
       lz_of_argument regs arg = Some n →
@@ -87,19 +87,19 @@ Section griotte_lang_rules.
       (SealPermFlowsTo p' p && LocalityFlowsTo g' g) = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := SealRange⁻ p' g' b e a @@? π ]ₗ> regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' NextIV
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.NextIV
   (* An integer is unchanged; a sealed word or a sentry loses its tag. *)
   | Restrict_spec_untagged w:
       regs !!ₗ src = Some w →
       is_mutable_range w.(lw) = false →
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := lclear_tag w ]ₗ> regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' NextIV
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.NextIV
   | Restrict_spec_failure:
       Restrict_failure lpc regs dst src arg →
       lpc' = lpc →
       regs' = regs →
-      Restrict_spec lpc regs dst src arg lpc' regs' FaultedV.
+      Restrict_spec lpc regs dst src arg lpc' regs' griotte_lang.FaultedV.
 
   Lemma wp_Restrict Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src arg regs dq :
     decodeInstrW w.(lw) = Restrict dst src arg ->
@@ -110,14 +110,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜ Restrict_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src arg lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.

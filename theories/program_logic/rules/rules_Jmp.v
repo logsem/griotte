@@ -27,10 +27,10 @@ Section griotte_lang_rules.
   | Jmp_spec_success lpc' imm :
       lz_of_argument regs rimm = Some imm →
       incrementPC_gen lpc imm = Some lpc' →
-      Jmp_spec lpc regs rimm lpc' NextIV
+      Jmp_spec lpc regs rimm lpc' griotte_lang.NextIV
   | Jmp_spec_failure:
       Jmp_failure lpc regs rimm →
-      Jmp_spec lpc regs rimm lpc FaultedV.
+      Jmp_spec lpc regs rimm lpc griotte_lang.FaultedV.
 
   Lemma wp_Jmp Ep pc_p pc_g pc_b pc_e pc_a pc_π w rimm regs dq :
     decodeInstrW w.(lw) = Jmp rimm ->
@@ -41,14 +41,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' retv, RET retv;
+    {{{ lpc' retv, RET tval_of_val retv;
         ⌜ Jmp_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs rimm lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     unfold regs_of, operands_of in Dregs.

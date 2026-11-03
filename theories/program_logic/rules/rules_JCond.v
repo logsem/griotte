@@ -72,17 +72,17 @@ Section griotte_lang_rules.
       lz_of_argument regs r2 = Some n2 →
       jcond_test i n1 n2 = false →
       incrementPC lpc = Some lpc' →
-      JCond_spec i lpc regs off r1 r2 lpc' NextIV
+      JCond_spec i lpc regs off r1 r2 lpc' griotte_lang.NextIV
   | JCond_spec_success_jmp lpc' n1 n2 imm :
       lz_of_argument regs r1 = Some n1 →
       lz_of_argument regs r2 = Some n2 →
       jcond_test i n1 n2 = true →
       lz_of_argument regs off = Some imm →
       incrementPC_gen lpc imm = Some lpc' →
-      JCond_spec i lpc regs off r1 r2 lpc' NextIV
+      JCond_spec i lpc regs off r1 r2 lpc' griotte_lang.NextIV
   | JCond_spec_failure :
       JCond_failure i lpc regs off r1 r2 →
-      JCond_spec i lpc regs off r1 r2 lpc FaultedV.
+      JCond_spec i lpc regs off r1 r2 lpc griotte_lang.FaultedV.
 
   Lemma wp_JCond Ep i pc_p pc_g pc_b pc_e pc_a pc_π w off arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
@@ -93,14 +93,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' retv, RET retv;
+    {{{ lpc' retv, RET tval_of_val retv;
         ⌜ JCond_spec i (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs off arg1 arg2 lpc' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hi Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hi; discriminate|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep.
     rewrite /regs_of in Dregs.
@@ -140,7 +140,7 @@ Section griotte_lang_rules.
     lz_of_argument regs off = Some imm →
     incrementPC_gen lpc imm = Some lpc0 →
     JCond_spec i lpc regs off arg1 arg2 lpc' retv →
-    retv = NextIV ∧ lpc' = lpc0.
+    retv = griotte_lang.NextIV ∧ lpc' = lpc0.
   Proof.
     intros H1 H2 Ht Himm Hinc Hspec.
     destruct Hspec as [lpc'' n1' n2' H1' H2' Ht' Hinc'
@@ -160,7 +160,7 @@ Section griotte_lang_rules.
     jcond_test i n1 n2 = false →
     incrementPC lpc = Some lpc0 →
     JCond_spec i lpc regs off arg1 arg2 lpc' retv →
-    retv = NextIV ∧ lpc' = lpc0.
+    retv = griotte_lang.NextIV ∧ lpc' = lpc0.
   Proof.
     intros H1 H2 Ht Hinc Hspec.
     destruct Hspec as [lpc'' n1' n2' H1' H2' Ht' Hinc'

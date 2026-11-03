@@ -41,7 +41,7 @@ Section mmio_timer_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hmem Hallow Hnoid Htdev Hinc φ) "(>HPC & >Hmem & >Hmap) Hφ".
     iDestruct (big_sepM_lookup_acc with "Hmem") as "[Hpc_a Hmem]"; first exact Hmem.
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The source capability has no identifier and non-empty bounds: its
@@ -61,7 +61,7 @@ Section mmio_timer_rules.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (time_dev_value td ea))) _ _ _ _
       (λ lpc'' regs' retv, lpc'' = lpc' ∧
-         regs' = <[dst := lword_of_word (WInt (time_dev_value td ea))]ₗ> regs ∧ retv = NextIV)
+         regs' = <[dst := lword_of_word (WInt (time_dev_value td ea))]ₗ> regs ∧ retv = griotte_lang.NextIV)
       with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hmem]").
     { exact Her. } { exact Hlregs. }
     { eapply elem_of_lregs_dom; [exact Dregs | rewrite /regs_of /operands_of; set_solver+]. }
@@ -151,7 +151,7 @@ Section mmio_timer_rules.
     iIntros (Hinstr Hvpc Dregs Hallow Hnoid Harg -> Hinc φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     assert (is_time_device_address mtimecmp_addr = true) as Htdev.
     { apply is_time_device_address_spec. by right. }
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The destination capability has no identifier and non-empty bounds:
@@ -243,13 +243,13 @@ Section mmio_timer_rules.
         ▷ src ↦ᵣ wsrc ∗
         ▷ dst ↦ᵣ Cap p g b e a }}}
       Instr Executable @ E
-    {{{ retv, RET retv;
-        (⌜retv = FaultedV⌝ ∗
+    {{{ retv, RET tval_of_val retv;
+        (⌜retv = griotte_lang.FaultedV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
          pc_a ↦ₐ{dq} w ∗
          src ↦ᵣ wsrc ∗
          dst ↦ᵣ Cap p g b e a) ∨
-        (⌜retv = NextIV⌝ ∗
+        (⌜retv = griotte_lang.NextIV⌝ ∗
          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
          pc_a ↦ₐ{dq} w ∗
          src ↦ᵣ wsrc ∗

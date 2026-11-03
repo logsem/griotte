@@ -64,12 +64,12 @@ Section griotte_lang_rules.
       lz_of_argument regs rv2 = Some n2 ->
       incrementPC lpc = Some lpc' ->
       regs' = <[ dst := WInt (denote i n1 n2) ]ₗ> regs ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' NextIV
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' griotte_lang.NextIV
   | BinOp_spec_failure:
       BinOp_failure i lpc regs dst rv1 rv2 ->
       lpc' = lpc ->
       regs' = regs ->
-      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' FaultedV.
+      BinOp_spec i lpc regs dst rv1 rv2 lpc' regs' griotte_lang.FaultedV.
 
   Lemma wp_BinOp Ep i pc_p pc_g pc_b pc_e pc_a pc_π w dst arg1 arg2 regs dq :
     decodeInstrW w.(lw) = i →
@@ -80,14 +80,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜ BinOp_spec (decodeInstrW w.(lw)) (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst arg1 arg2 lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
           pc_a ↦ₐ{dq} w ∗
           [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hinstr; discriminate|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hdecode /exec in Hstep. rewrite Hdecode.
     specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
@@ -123,7 +123,7 @@ Section griotte_lang_rules.
     lz_of_argument regs arg2 = Some n2 →
     incrementPC lpc = Some lpc0 →
     BinOp_spec i lpc regs dst arg1 arg2 lpc' regs' retv →
-    retv = NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := WInt (denote i n1 n2)]ₗ> regs.
+    retv = griotte_lang.NextIV ∧ lpc' = lpc0 ∧ regs' = <[dst := WInt (denote i n1 n2)]ₗ> regs.
   Proof.
     intros H1 H2 Hinc [n1' n2' H1' H2' Hinc' -> | Hfail].
     - simplify_eq. done.

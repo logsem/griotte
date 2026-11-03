@@ -30,12 +30,12 @@ Section griotte_lang_rules.
   | Auipcc_spec_success :
       incrementPC lpc = Some lpc' →
       regs' = <[ dst := auipcc_word lpc imm ]ₗ> regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' NextIV
+      Auipcc_spec lpc regs dst imm lpc' regs' griotte_lang.NextIV
   | Auipcc_spec_failure :
       incrementPC lpc = None →
       lpc' = lpc →
       regs' = regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' FaultedV.
+      Auipcc_spec lpc regs dst imm lpc' regs' griotte_lang.FaultedV.
 
   Lemma wp_Auipcc Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst imm regs dq :
     decodeInstrW w.(lw) = Auipcc dst imm →
@@ -45,14 +45,14 @@ Section griotte_lang_rules.
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
+    {{{ lpc' regs' retv, RET tval_of_val retv;
         ⌜ Auipcc_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep.
     set (v := auipcc_word (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
