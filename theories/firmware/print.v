@@ -973,7 +973,7 @@ Definition canon_instr (i : instr) : instr :=
   | GetTag r1 r2 => GetTag (c r1) (c r2)
   | ClearTag r1 r2 => ClearTag (c r1) (c r2)
   | Auipcc r z => Auipcc (c r) z
-  | SetMIE _ | Mret | Fail | Halt => i
+  | SetMIE _ | Mret | Ecall | Fail | Halt => i
   end.
 
 Inductive cell : Type :=

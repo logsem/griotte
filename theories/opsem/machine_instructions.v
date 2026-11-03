@@ -59,7 +59,10 @@ Inductive instr: Type :=
 | GetTag (dst src: RegName)
 | ClearTag (dst src: RegName)
 (* The PC capability with its address offset by [imm]. *)
-| Auipcc (dst: RegName) (imm: Z).
+| Auipcc (dst: RegName) (imm: Z)
+(* An environment call ([ecall]): enters the exception handler with the
+   cause of an environment call from machine mode. It never faults. *)
+| Ecall.
 
 #[global] Instance instr_eq_dec : EqDecision instr.
 Proof. solve_decision. Defined.
@@ -112,6 +115,7 @@ Proof.
       | Jlt off r1 r2 => GenNode 38 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
       | Jle off r1 r2 => GenNode 39 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)]
       | SetA dst src addr => GenNode 40 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr addr)]
+      | Ecall => GenNode 42 []
       end).
   set (dec := fun e =>
       match e with
@@ -158,6 +162,7 @@ Proof.
       | GenNode 38 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jlt off r1 r2
       | GenNode 39 [GenLeaf (inr off); GenLeaf (inr r1); GenLeaf (inr r2)] => Jle off r1 r2
       | GenNode 40 [GenLeaf (inl (inl dst)); GenLeaf (inl (inl src)); GenLeaf (inr addr)] => SetA dst src addr
+      | GenNode 42 [] => Ecall
       | _ => Fail (* dummy *)
       end).
   refine (inj_countable' enc dec _).
