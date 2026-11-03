@@ -46,12 +46,33 @@ Section codefrag.
 
 End codefrag.
 
+(** The value of a step of instruction [i], [tval_sw (kind_of th) i v],
+    once the kind of [th] is known. The rewritten value keeps the type
+    [tval (kind_of th)], so the language of the WP does not move. *)
+Section tval_sw_kind.
+  Lemma kind_of_user th : th ≠ CtxSwitch → kind_of th = UserK.
+  Proof. intros Hth. destruct th as [t|]; [done | contradiction]. Qed.
+
+  (* Not a switch instruction of the thread's kind: the value itself. *)
+  Lemma tval_sw_kind_none th k i v :
+    kind_of th = k → sw_of k i = None →
+    tval_sw (kind_of th) i v = v.
+  Proof. intros <-. apply tval_sw_none. Qed.
+
+  (* A successful switch instruction: the switch value. *)
+  Lemma tval_sw_kind_some th k i s :
+    kind_of th = k → sw_of k i = Some s →
+    tval_sw (kind_of th) i NextIV = TSwV s.
+  Proof. intros <- Hs. by rewrite /tval_sw Hs. Qed.
+End tval_sw_kind.
+
 (* Administrative reduction steps *)
 Ltac wp_pure := iApply wp_pure_step_later; [ by auto | iNext ; iIntros "_" ].
 Ltac wp_pure_lc hlc := iApply wp_pure_step_later; [ by auto | iNext ; iIntros hlc ].
 (* NOTE the last `iIntros "_"` fixes the later 1 introduceed in Iris 4.0.0.
    Remove it from the tactic if necessary. *)
 Ltac wp_end := iApply wp_value.
+(* The language of [fill] is given: it is not inferred from [[SeqCtx]]. *)
 Ltac wp_instr :=
   iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx]));
   (* Reduce the [fill] under the WP... *)
@@ -551,6 +572,11 @@ Qed.
   FramableMachineResource (held b).
 Qed.
 
+(* The lent volatile registers, for the environment call. *)
+#[export] Instance FramableMachineResource_vol_lent_any `{ceriseG Σ} :
+  FramableMachineResource vol_lent_any.
+Qed.
+
 #[export] Instance FramableMachineResource_pc `{ceriseG Σ} w :
   FramableMachineResource (PC ↦ₚ w).
 Qed.
@@ -631,8 +657,8 @@ Qed.
 (* remembering names after auto-framing done by iFrameAuto *)
 
 Ltac2 Type hyp_table_kind :=
-  [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Held | Mem | Codefrag | CodefragPers
-  | Claim | DerefRes ].
+  [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Held | VolLent | Mem | Codefrag
+  | CodefragPers | Claim | DerefRes ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -662,6 +688,7 @@ Ltac2 record_framed
     | (MIE_frag _) => ('tt, Mie)
     | (MPIE_frag _) => ('tt, Mpie)
     | (held _) => ('tt, Held)
+    | vol_lent_any => ('tt, VolLent)
     | (?a ↦ₐ{_} _)%I => (a, Mem)
     | (codefrag ?a _) => (a, Codefrag)
     | (codefrag_pers ?a _) => (a, CodefragPers)
@@ -774,6 +801,13 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
   | Held =>
     match! goal with [ |- context [ @held ?mp ?s ?g ?t ?cl ?cr ?x ] ] =>
       let h := '(@held $mp $s $g $t $cl $cr $x) in
+      ltac1:(h name |- change h with (name ∷ h)%I)
+        (Ltac1.of_constr h) (Ltac1.of_constr name)
+    end
+  | VolLent =>
+    (* The rule gives back the volatile registers at known values. *)
+    match! goal with [ |- context [ @vol_lent ?s ?g ?p ?c ?v ?b ] ] =>
+      let h := '(@vol_lent $s $g $p $c $v $b) in
       ltac1:(h name |- change h with (name ∷ h)%I)
         (Ltac1.of_constr h) (Ltac1.of_constr name)
     end
@@ -987,11 +1021,22 @@ Ltac iUnlockFramed :=
              remaining
       end ].
 
+(* The premise [route_pre th b → route_pre th b'] of an MIE writer is left
+   to [instr_commit_lint]: before the MIE resource is framed, [solve_pure]
+   would prove it by unifying [b'] with [b]. *)
+Ltac instr_not_route_imp :=
+  lazymatch goal with
+  | |- route_pre _ _ → route_pre _ _ => fail
+  | _ => idtac
+  end.
+
 Ltac2 iApplyCapAutoCore lemma :=
   let tbl := iApplyCapAutoT_init0 lemma in
   let iFrameCap := fun () => record_framed tbl (iFrameAuto ()) in
   grepeat (fun _ =>
-    Control.extend [] (fun _ => try (Control.once solve_pure_iinstr))
+    Control.extend []
+      (fun _ => try (Control.once (fun () =>
+                       ltac1:(instr_not_route_imp); solve_pure_iinstr ())))
       [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
     ltac1:(instantiate_deref_res_none);
@@ -1181,9 +1226,43 @@ Ltac simpl_cnull_zero :=
         rewrite (decide_False _ _ Hne); clear Hne
     end.
 
+(* The kind of the thread [th]: from its constructor, or from a hypothesis
+   [th ≠ CtxSwitch] or [th = CtxSwitch]. *)
+Ltac instr_thread_kind th :=
+  lazymatch th with
+  | UserThread _ => constr:(UserK)
+  | CtxSwitch => constr:(CtxK)
+  | _ =>
+      lazymatch goal with
+      | _ : th ≠ CtxSwitch |- _ => constr:(UserK)
+      | _ : th = CtxSwitch |- _ => constr:(CtxK)
+      end
+  end.
+
+(* The proof of [kind_of th = k], for the kind given by [instr_thread_kind]. *)
+Ltac instr_solve_kind :=
+  first [ reflexivity | apply kind_of_user; assumption
+        | lazymatch goal with H : _ = CtxSwitch |- _ => by rewrite H end ].
+
+(* Rewrites the value of a step, [tval_sw (kind_of th) i v], to the value
+   [v] or to the switch value, once the kind of [th] is known. [sw_of]
+   computes on the instruction's head, so the operands may be symbolic. At
+   a thread of unknown kind, the value stays. *)
+Ltac instr_simpl_tval_sw :=
+  repeat match goal with
+  | |- context [ tval_sw (kind_of ?th) ?i ?v ] =>
+      let k := instr_thread_kind th in
+      first
+        [ rewrite (tval_sw_kind_none th k i v);
+          [ | instr_solve_kind | reflexivity ]
+        | erewrite (tval_sw_kind_some th k i _);
+          [ | instr_solve_kind | reflexivity ] ]
+  end.
+
 Ltac instr_finish hprog hlc hlc' :=
   instr_close hprog;
   simpl_cnull_zero;
+  try instr_simpl_tval_sw;
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
 
@@ -1205,6 +1284,15 @@ Ltac solve_jcond_test :=
       | |- Z.leb _ _ = false => apply Z.leb_gt; lia
       end ].
 
+(* The premise [route_pre th b → route_pre th b'] of an MIE writer: the
+   new MIE is disabled, is the old one, or the thread is not the
+   context switch. Fails otherwise. *)
+Ltac instr_route_imp :=
+  solve [ assumption
+        | let Hb := fresh "Hb" in let Hc := fresh "Hc" in
+          intros Hb Hc;
+          first [ reflexivity | by apply Hb | contradiction | discriminate ] ].
+
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
    proved. Likewise, a conditional jump's rule (taken or not) only applies if
@@ -1215,7 +1303,10 @@ Ltac solve_jcond_test :=
    value when it lends the token. Fail
    otherwise, so that the dispatcher tries its next alternative. The premise
    [route_pre] of a posture form is closed from the context or by
-   computation when it can be. Other side goals are left to the caller. *)
+   computation when it can be, and so is the premise [route_pre th b →
+   route_pre th b'] of an MIE writer. The premise that an immediate write of
+   a system register is not the exit marker is closed on a concrete
+   immediate. Other side goals are left to the caller. *)
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
@@ -1226,6 +1317,8 @@ Ltac instr_commit_lint :=
   | |- _ ≠ mtdc_home => solve [assumption | done | congruence]
   | |- route_pre _ _ =>
       try solve [assumption | intros ?; reflexivity | intros ?; discriminate | done]
+  | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
+  | |- _ ≠ exit_marker => try solve [ cbv [exit_marker MCAUSE_THREAD_EXIT]; congruence ]
   | _ => idtac
   end.
 
@@ -1429,6 +1522,7 @@ Ltac instr_apply_start hprog :=
    back, if the branch gives it back. *)
 Ltac instr_apply_branch hlc hlc' :=
   simpl_cnull_zero;
+  try instr_simpl_tval_sw;
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc));
   try instr_apply_close.
@@ -1472,12 +1566,16 @@ Ltac instr_apply_core hlc rule spat intro_xs ipat :=
     | _ => hlc
     end in
   iApply (rule with sps);
-  [ try solve_pure .. | instr_apply_main hlc hlc' I intro_xs ipat ].
+  [ first [ lazymatch goal with
+                 | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
+                 end
+               | try solve_pure ] ..
+  | instr_apply_main hlc hlc' I intro_xs ipat ].
 
 Tactic Notation "iInstrStart" constr(hprog) := instr_apply_start hprog.
 
 Tactic Notation "iInstrEnd" :=
-  iModIntro; try wp_pure; try instr_apply_close.
+  iModIntro; try instr_simpl_tval_sw; try wp_pure; try instr_apply_close.
 
 (* Continuing a started instruction. *)
 Tactic Notation "iInstrApply" open_constr(rule) "with" constr(spat) "as" constr(ipat) :=

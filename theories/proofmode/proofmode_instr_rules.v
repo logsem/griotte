@@ -218,6 +218,8 @@ Ltac dispatch_instr_rule instr cont :=
   | SetMIE _ => (cont (@wp_setmie_success) || cont (@wp_setmie_success_posture))
   (* Mret *)
   | Mret => cont (@wp_mret_success)
+  (* Ecall: the exception entry, at the core link *)
+  | Ecall => cont (@wp_ecall)
   (* auipcc *)
   | Auipcc _ _ => (cont (@wp_auipcc_success) || cont (@wp_auipcc_overflow))
   (* Fail *)
