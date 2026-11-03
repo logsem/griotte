@@ -470,28 +470,59 @@ Section Switcher_preamble.
     iPureIntro; tstack_unfold; split; solve_addr.
   Qed.
 
+  (** A register file from the map [rmap] and the registers [l] out of
+      it, over all the registers but [X]. *)
+  Lemma regs_of_parts (rmap : LReg) (l : list (RegName * LWord)) (X : gset RegName) :
+    list_to_set l.*1 ∪ dom rmap = all_registers_s ∖ X →
+    regs[th] rmap -∗
+    ([∗ list] rw ∈ l, rw.1 ↦ᵣ[th] rw.2) -∗
+    ∃ rmap', ⌜dom rmap' = all_registers_s ∖ X⌝ ∗ regs[th] rmap'.
+  Proof.
+    iIntros (Hdom) "Hrmap Hl".
+    iExists (foldr (λ rw m, <[rw.1 := rw.2]> m) rmap l). iSplit.
+    - iPureIntro. rewrite -Hdom. clear Hdom.
+      induction l as [|[r w] l IH]; cbn; first set_solver.
+      rewrite dom_insert_L IH. set_solver.
+    - clear Hdom. iInduction l as [|[r w] l] "IH"; cbn; first done.
+      iDestruct "Hl" as "[Hr Hl]".
+      iApply (big_sepM_insert_2 (λ k y, k ↦ᵣ[th] y)%I with "Hr").
+      iApply ("IH" with "Hrmap Hl").
+  Qed.
+
+  (** The exit part of the thread: its PC at the context-switch thread's
+      start after the exit marker, and its hazard part, which the exit
+      block clears. *)
+  Definition exit_concrete : iProp Σ :=
+    PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_exit ∗
+    switcher_hazard.
+
   (** The part of the switcher's invariant shared by the threads: the bounds
-      of the switcher's otype, and the predicate of the sealed export
-      entries, at the section's thread. *)
+      of the switcher's otype and of the otype of the trusted stacks, the
+      predicate of the sealed export entries and the predicate of the sealed
+      trusted stacks, at the section's thread. *)
   Definition switcher_sealing_inv : iProp Σ :=
-    "%Hot_bounds" ∷ ⌜(ot_switcher < (ot_switcher ^+1))%ot⌝ ∗
-    "#Hp_ot_switcher" ∷ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
+    "%Hot_bounds" ∷ ⌜(ot_switcher < ot_trusted_stacks)%ot ∧ (ot_trusted_stacks < ot_trusted_stacks ^+ 1)%ot⌝ ∗
+    "#Hp_ot_switcher" ∷ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC ∗
+    "#Hp_ot_tstacks" ∷ ot_trusted_stacks ↪ₒ{SealGlobal} tstack_handle_propC.
 
   #[global] Instance switcher_sealing_inv_persistent : Persistent switcher_sealing_inv.
   Proof. apply _. Qed.
 
   (** [switcher_static] holds the read-only memory of the switcher: its code,
       and the unsealing capability of the switcher's otype; the fact that
-      the trap vector is the exception entry of the switcher; and the global
-      part of the switcher's invariant. *)
+      the trap vector is the exception entry of the switcher; the global
+      part of the switcher's invariant; the key of the trusted stacks; and
+      the exit part of the thread. *)
   Definition switcher_static : iProp Σ :=
-    codefrag_pers a_switcher_call switcher_instrs ∗
-    (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher^+1) ot_switcher ∗
-    ⌜mtcc_vec =
-       Cap XSRW_ Local b_switcher e_switcher
-         (a_switcher_call ^+
-            asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝ ∗
-    switcher_sealing_inv.
+    "#Hswitcher_code" ∷ codefrag_pers a_switcher_call switcher_instrs ∗
+    "#Hswitcher_key" ∷ (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher^+1) ot_switcher ∗
+    "%Hmtcc_vec" ∷ ⌜mtcc_vec = Cap XSRW_ Local b_switcher e_switcher
+                  (a_switcher_call ^+
+                     asm_label_offset switcher_asm ".Lswitch_csp_check" "exception_entry_asm")%a⌝ ∗
+    "#Hswitcher_sealing" ∷ switcher_sealing_inv ∗
+    "#Htstacks_key" ∷ b_switcher ↦ₐ□ SealRange (true,true) Global ot_trusted_stacks (ot_trusted_stacks ^+ 1)
+                     ot_trusted_stacks ∗
+    "#Hexit_prop" ∷ saved_prop_own (γ_exit th) DfracDiscarded exit_concrete.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.
@@ -499,7 +530,30 @@ Section Switcher_preamble.
   (** The predicate of the sealed export entries, from [switcher_static]. *)
   Lemma switcher_static_seal_pred :
     switcher_static ⊢ ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC.
-  Proof. iIntros "(_ & _ & _ & Hsealing)". iNamed "Hsealing". iExact "Hp_ot_switcher". Qed.
+  Proof.
+    iIntros "Hstatic". rewrite /switcher_static. iNamed "Hstatic".
+    rewrite /switcher_sealing_inv. iNamed "Hswitcher_sealing". iExact "Hp_ot_switcher".
+  Qed.
+
+  (** The key of the trusted stacks, from [switcher_static]. *)
+  Lemma switcher_static_tstack_key :
+    switcher_static ⊢
+    b_switcher ↦ₐ□ SealRange (true,true) Global ot_trusted_stacks (ot_trusted_stacks ^+ 1)
+      ot_trusted_stacks.
+  Proof. iIntros "Hstatic". rewrite /switcher_static. iNamed "Hstatic". iExact "Htstacks_key". Qed.
+
+  (** The exit part of the thread, from [switcher_static]. *)
+  Lemma switcher_static_exit :
+    switcher_static ⊢ saved_prop_own (γ_exit th) DfracDiscarded exit_concrete.
+  Proof. iIntros "Hstatic". rewrite /switcher_static. iNamed "Hstatic". iExact "Hexit_prop". Qed.
+
+  (** The trap vector is the exception entry [a_exc]. *)
+  Lemma mtcc_vec_a_exc `{!switcherLayoutWf} :
+    switcher_static ⊢ ⌜mtcc_vec = Cap XSRW_ Local b_switcher e_switcher a_exc⌝.
+  Proof.
+    iIntros "Hstatic". rewrite /switcher_static. iNamed "Hstatic". iPureIntro. rewrite Hmtcc_vec.
+    pose proof a_exc_label as Hexc. clear - Hexc. offsets_compute. repeat f_equal. solve_addr.
+  Qed.
 
 End Switcher_preamble.
 

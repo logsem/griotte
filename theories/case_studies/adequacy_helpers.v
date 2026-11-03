@@ -93,10 +93,12 @@ Section adequacy_helpers.
       + by rewrite (assert_flag_size assert_cmpt).
     Qed.
 
-    (** The code of the switcher and its sealing type, once for every
-        thread: the code and the unsealing key become persistent, and the
-        sealing type gets the predicate of the export entries. The layout
-        is the class [swlayout], as in the switcher's specifications. *)
+    (** The code of the switcher and its sealing types, once for every
+        thread: the code and the two keys become persistent, the sealing
+        type of the switcher gets the predicate of the export entries, and
+        the sealing type of the trusted stacks the predicate of their
+        handles. The layout is the class [swlayout], as in the switcher's
+        specifications. *)
     Lemma initialise_switcher_shared
       {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset} :
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
@@ -104,13 +106,16 @@ Section adequacy_helpers.
                        (switcher_data_words switcher.ot_switcher) ∪
                      mkregion switcher.a_switcher_call switcher.e_switcher switcher_instrs,
          k ↦ₐ lword_of_word y) -∗
-      can_alloc_pred switcher.ot_switcher
+      can_alloc_pred switcher.ot_switcher -∗
+      can_alloc_pred (switcher.ot_switcher ^+ 1) -∗
+      saved_prop_own (γ_exit th) DfracDiscarded exit_concrete
       ={E}=∗
       switcher.ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC ∗
+      ot_trusted_stacks ↪ₒ{SealGlobal} tstack_handle_propC ∗
       switcher_static.
     Proof.
       intros Hmtcc.
-      iIntros "Hswitcher Hseal_store".
+      iIntros "Hswitcher Hseal_store Hseal_store_ts #Hexit".
       pose proof switcher.switcher_call_entry_point as Hcall.
       pose proof switcher.switcher_size as Hsize.
       iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
@@ -125,11 +130,13 @@ Section adequacy_helpers.
       rewrite /switcher_data_words.
       rewrite (finz_seq_between_cons switcher.b_switcher); last solve_addr.
       rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1)); last solve_addr.
-      iDestruct "Hswitcher_data" as "(_ & Hswitcher_sealing & _)".
+      iDestruct "Hswitcher_data" as "(Htstacks_key & Hswitcher_sealing & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { exact Hsize. }
       iMod (seal_store_update_alloc _ SealGlobal ot_switcher_propC with "Hseal_store")
         as "#Hsealed_pred_ot_switcher".
+      iMod (seal_store_update_alloc _ SealGlobal tstack_handle_propC with "Hseal_store_ts")
+        as "#Hsealed_pred_tstacks".
       iAssert (codefrag switcher.a_switcher_call switcher_instrs)
         with "[Hswitcher]" as "Hswitcher_code".
       { rewrite /codefrag /region_pointsto.
@@ -139,10 +146,12 @@ Section adequacy_helpers.
         iFrame. }
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
-      iModIntro. iFrame "Hsealed_pred_ot_switcher".
+      iMod (pointsto_persist with "Htstacks_key") as "#Htstacks_key".
+      iModIntro. iFrame "Hsealed_pred_ot_switcher Hsealed_pred_tstacks".
       rewrite /switcher_static /switcher_sealing_inv.
-      iFrame "Hswitcher_code Hswitcher_sealing".
-      iPureIntro. split; [done | apply switcher.ot_switcher_size].
+      iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hexit".
+      iPureIntro. split; [done | split; [apply switcher.ot_switcher_size |
+                                         apply switcher.ot_trusted_stacks_size] ].
     Qed.
 
     (** The trusted-stack invariant for the user thread [th], from its

@@ -24,13 +24,28 @@ Proof.
   f_equal.
 Qed.
 
+(** The word of the PC that the resume path installs for the save area
+    [ws]: the saved mepcc, one word further after an [ecall], legalised by
+    the write to mepcc. *)
+Definition resume_pc_word (ws : list LWord) : Word :=
+  let pc := (save_area_word ws TrustedStack_offset_mepcc).(lw) in
+  legalise_pc
+    (if decide (get_a (save_area_word ws TrustedStack_offset_mcause).(lw) = MCAUSE_ECALL_MACHINE)
+     then lea_word pc 1 else pc).
+
+(** The resume PC: its word is the save area's resume-PC word; a tagged one
+    has no identifier. *)
+Definition resume_pc_ok (ws : list LWord) (pc : LWord) : Prop :=
+  pc.(lw) = resume_pc_word ws ∧
+  (get_tag pc.(lw) = true → pc.(lprov) = None).
+
 (** The values that a thread parked with the save area [ws] resumes with:
-    its registers as [resume_regs_of], and its MIE the saved MPIE of the
-    word [mstatus]. The PC is not constrained here: the resume path of the
-    switcher fixes it. *)
+    its registers as [resume_regs_of], its MIE the saved MPIE of the word
+    [mstatus], and its PC as [resume_pc_ok]. *)
 Definition resume_ok_full (ws : list LWord) (v : resume_vals) : Prop :=
   v.(rv_regs) = resume_regs_of ws ∧
-  v.(rv_mie) = mpie_of (get_a (save_area_word ws TrustedStack_offset_mstatus).(lw)).
+  v.(rv_mie) = mpie_of (get_a (save_area_word ws TrustedStack_offset_mstatus).(lw)) ∧
+  resume_pc_ok ws v.(rv_pc).
 
 Lemma resume_ok_full_dom ws v :
   resume_ok_full ws v → dom v.(rv_regs) = all_registers_s.

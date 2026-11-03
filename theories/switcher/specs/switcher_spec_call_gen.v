@@ -975,8 +975,8 @@ Section Switcher.
       "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hmtdc $Hframeoffset $Hhazard $Htstk
           $Hb_switcher $Hcode]"); [done..|].
     iNext.
-    iPoseProof "Hstatic" as "(_ & _ & _ & Hswitcher_global)".
-    iNamed "Hswitcher_global".
+    iPoseProof "Hstatic" as "(_ & _ & _ & Hswitcher_global & _)".
+    iNamed "Hswitcher_global". iNamed "Hswitcher_sealing".
     iSplit; [ |iSplit; [ |iSplit] ]; cycle 1.
     { (* The entry point is not sealed by the switcher: the frame is pushed,
          and the exception entry returns to the caller's continuation *)

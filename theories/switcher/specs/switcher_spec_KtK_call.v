@@ -334,8 +334,8 @@ Section Switcher_KtK_Call.
     iDestruct (big_sepM_delete _ _ ctp with "Hregs") as "[Hctp Hregs]"; first by simplify_map_eq.
 
     (* Open the trusted-stack invariant *)
-    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _ & Hswitcher_global)".
-    iNamed "Hswitcher_global".
+    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _ & Hswitcher_global & _)".
+    iNamed "Hswitcher_global". iNamed "Hswitcher_sealing".
     iMod (na_inv_acc with "Hswitcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
