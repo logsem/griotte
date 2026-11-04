@@ -991,11 +991,12 @@ Section Switcher.
   (** The data words of the switcher, before its code: the key of the
       trusted stacks at [.sealing_key_trusted_stacks], Seal and Unseal over
       the otype after [ot], as CHERIoT's loader writes it; Griotte's key at
-      [.unsealing_key_import_tables]; zeroes for the entry of the scheduler,
-      which the image does not hold. *)
-  Definition switcher_data_words (ot : OType) : list Word :=
+      [.unsealing_key_import_tables]; then the scheduler's exception entry
+      [w_pcc], its globals [w_cgp] and its stack [w_csp], as the loader
+      writes them. *)
+  Definition switcher_data_words (ot : OType) (w_pcc w_cgp w_csp : Word) : list Word :=
     [SealRange (true, true) Global (ot ^+ 1) (ot ^+ 1 ^+ 1) (ot ^+ 1);
-     SealRange (true, true) Global ot (ot ^+ 1) ot; WInt 0; WInt 0; WInt 0].
+     SealRange (true, true) Global ot (ot ^+ 1) ot; w_pcc; w_cgp; w_csp].
 
   (** The well-formedness of the layout of a user thread. *)
   Class threadLayoutWf {tlayout : threadLayout} : Type :=

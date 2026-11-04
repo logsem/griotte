@@ -51,7 +51,16 @@ Definition vae_firmware `{MP : MachineParameters} : firmware := {|
          ub_exports := [
            {| ue_name := "adv"; ue_nargs := 0 |};
            {| ue_name := "g";   ue_nargs := 0 |}
-         ] |} |}
+         ] |} |};
+    {| fc_name          := "sched";
+       fc_imports       := [
+         ISwitcherCall
+       ];
+       fc_static_sealed := [];
+       fc_body          := SchedulerBody {|
+         (* the exception entry after the import; the code is arbitrary *)
+         sb_entry      := 1;
+         sb_boot_stack := 16 |} |}
   ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
@@ -63,15 +72,15 @@ Definition vae_firmware `{MP : MachineParameters} : firmware := {|
 (** The image of the very awkward example's firmware, from the records of
     its sections. *)
 Definition vae_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main C : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("C", C)] [t0].
+    (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt) : fw_image :=
+  MkFwImage sw asrt [("main", main); ("C", C); ("sched", sched)] [t0] idle boot.
 
 (** The start of the firmware: some layout, with the flag of the assert
     library at [flag], such that [σ] is the state the loader builds. *)
 Definition vae_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main C : img_cmpt),
-    fw_start [] vae_firmware (vae_img sw asrt t0 main C) flag σ.
+    (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt),
+    fw_start [] vae_firmware (vae_img sw asrt t0 idle boot main C sched) flag σ.
 
 (** The predicate, computed from [vae_start], with its comments. *)
 Definition vae_initial_state_ok_annot `{MP : MachineParameters} :

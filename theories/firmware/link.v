@@ -10,8 +10,10 @@ From griotte Require Import image firmware firmware_ok.
     on, section after section: the switcher, the assert library, then for
     each compartment its export table, its PCC range, its globals and its
     static sealed objects, then for each thread its trusted stack and its
-    stack. The contents of the untrusted compartments, including their error
-    handler offsets, are given by [cfg].
+    stack, then the idle thread's trusted stack and hazard slots, and the
+    boot stack. The contents of the untrusted compartments, including their
+    error handler offsets, the code and globals of the scheduler, and the
+    words of the boot stack are given by [cfg].
     The linker is not trusted: its result is checked against the
     predicate. *)
 
@@ -31,6 +33,7 @@ Record link_cfg : Type := MkLinkCfg {
   lk_base : Z;
   lk_ot_switcher : OType;
   lk_adv : list (string * link_adv);
+  lk_boot : list Word;
 }.
 
 Definition default_link_adv : link_adv :=
@@ -55,6 +58,9 @@ Section link.
     | UntrustedBody _ =>
         let a := adv_of (fc_name fc) in
         (length (la_code a), length (la_data a), length (la_exports a))
+    | SchedulerBody _ =>
+        let a := adv_of (fc_name fc) in
+        (length (la_code a), length (la_data a), 0%nat)
     end.
 
   (** The addresses of a compartment placed at [a], and the next free
@@ -105,11 +111,16 @@ Section link.
     let flag := (cap + 1)%Z in
     let '(cs, a) := place_cmpts (flag + 1) (fw_cmpts fw) in
     let '(ts, a') := place_threads a (fw_threads fw) in
+    let eits := (a' + tstack_frame_offset 1)%Z in
+    let eihz := (eits + 2)%Z in
+    let eboot := (eihz + Z.of_nat (length (lk_boot cfg)))%Z in
     (MkFwImage
        (MkImgSwitcher (mk_addr b) (mk_addr esw) (mk_addr call) (mk_addr ret) (lk_ot_switcher cfg))
        (MkImgAssert (mk_addr esw) (mk_addr flag) (mk_addr cap) (mk_addr flag))
-       cs ts,
-     a').
+       cs ts
+       (MkImgIdleThread (mk_addr a') (mk_addr eits) (mk_addr eits) (mk_addr eihz))
+       (MkImgBootStack (mk_addr eihz) (mk_addr eboot) (lk_boot cfg)),
+     eboot).
 
   (** The contents of a compartment, given the addresses of the image. *)
   Definition fill_cmpt (fw : firmware) (img : fw_image) (fc : fw_cmpt) : string * img_cmpt :=
@@ -128,6 +139,9 @@ Section link.
           (la_code a, la_data a, la_handler a, la_handler_stackless a,
            zip_with (λ off e, export_word (MkFwExport "" off (ue_nargs e) 0 InterruptEnabled))
              (la_exports a) (ub_exports b))
+      | SchedulerBody _ =>
+          let a := adv_of n in
+          (la_code a, la_data a, ExportTable_no_handler, ExportTable_no_handler, [])
       end in
     (n, MkImgCmpt (cmpt_b_pcc c) (cmpt_a_code c) (cmpt_e_pcc c) (cmpt_b_cgp c) (cmpt_e_cgp c)
           (cmpt_b_static_sealed c) (cmpt_e_static_sealed c) (cmpt_exp_tbl_pcc c)
@@ -140,7 +154,7 @@ Section link.
     match (finz.of_z a : option Addr) with
     | Some _ =>
         Some (MkFwImage (img_sw img) (img_asrt img) (map (fill_cmpt fw img) (fw_cmpts fw))
-                (img_threads img))
+                (img_threads img) (img_idle img) (img_boot img))
     | None => None
     end.
 End link.

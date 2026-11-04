@@ -64,10 +64,21 @@ Record fw_untrusted : Type := MkFwUntrusted {
   ub_exports : list fw_untrusted_export;
 }.
 
+(** The scheduler: its code and its globals are arbitrary (each global an
+    initial global or a thread handle); [sb_entry] is the offset, from the
+    base of its PCC, of its exception entry, which the loader seals
+    interrupt-disabling into the switcher; [sb_boot_stack] is the size of
+    the boot stack, which it inherits. It has no export. *)
+Record fw_scheduler : Type := MkFwScheduler {
+  sb_entry : nat;
+  sb_boot_stack : nat;
+}.
+
 (** The contents of a compartment. *)
 Inductive fw_body : Type :=
 | TrustedBody (b : fw_trusted)
-| UntrustedBody (b : fw_untrusted).
+| UntrustedBody (b : fw_untrusted)
+| SchedulerBody (b : fw_scheduler).
 
 (** A static sealed object: its name and its word. Imports refer to the
     static sealed objects of their compartment by name. *)
@@ -140,6 +151,15 @@ Proof. rewrite /otype_valid. solve [apply _ | unfold finz.lt; apply _]. Defined.
 Definition initial_data_word (b e : Addr) (w : Word) : Prop :=
   is_z w ∨ in_region w b e.
 
+(** A global of the scheduler: an initial global within $[b, e)$, or one of
+    the thread handles [hs]. *)
+Definition sched_data_word (b e : Addr) (hs : list Word) (w : Word) : Prop :=
+  initial_data_word b e w ∨ w ∈ hs.
+
+(** A word of the boot stack: an integer, or one of the thread handles [hs]. *)
+Definition boot_stack_word (hs : list Word) (w : Word) : Prop :=
+  is_int w ∨ w ∈ hs.
+
 (** ** Lookups in a firmware *)
 
 Definition default_fw_cmpt : fw_cmpt := MkFwCmpt "" [] [] (UntrustedBody (MkFwUntrusted "" [])).
@@ -165,6 +185,7 @@ Definition fw_body_export_index (b : fw_body) (e : string) : option nat :=
   match b with
   | TrustedBody b => fw_index_of fe_name e (tb_exports b)
   | UntrustedBody b => fw_index_of ue_name e (ub_exports b)
+  | SchedulerBody _ => None
   end.
 
 Definition fw_export_index (fw : firmware) (n e : string) : option nat :=
@@ -175,4 +196,27 @@ Fixpoint fw_find_export (e : string) (l : list fw_export) : option fw_export :=
   match l with
   | [] => None
   | x :: l => if String.eqb e (fe_name x) then Some x else fw_find_export e l
+  end.
+
+(** The scheduler of a firmware: its first compartment with a scheduler
+    body. *)
+Fixpoint fw_sched_of (l : list fw_cmpt) : option (fw_cmpt * fw_scheduler) :=
+  match l with
+  | [] => None
+  | fc :: l =>
+      match fc_body fc with
+      | SchedulerBody sb => Some (fc, sb)
+      | _ => fw_sched_of l
+      end
+  end.
+
+(** The number of compartments with a scheduler body. *)
+Fixpoint fw_sched_count (l : list fw_cmpt) : nat :=
+  match l with
+  | [] => 0
+  | fc :: l =>
+      match fc_body fc with
+      | SchedulerBody _ => S (fw_sched_count l)
+      | _ => fw_sched_count l
+      end
   end.

@@ -1167,7 +1167,16 @@ Section memory_map.
            [CText "assert_subroutine_instrs, flag capability"];
          row (flag_assert asrt) 1 "flag" "assert" [] ]
         (app (concat (map cmpt_rows (img_cmpts img)))
-           (concat (imap thread_rows (img_threads img))))).
+           (app (concat (imap thread_rows (img_threads img)))
+              (let d := img_idle img in
+               let bs := img_boot img in
+               [row (img_b_idle_trusted_stack d)
+                  (Z.to_nat (img_e_idle_trusted_stack d - img_b_idle_trusted_stack d)%Z)
+                  "trusted stack" "idle thread" [];
+                row (img_b_idle_hazard d) (Z.to_nat (img_e_idle_hazard d - img_b_idle_hazard d)%Z)
+                  "hazard slots" "idle thread" [];
+                row (img_b_boot_stack bs) (Z.to_nat (img_e_boot_stack bs - img_b_boot_stack bs)%Z)
+                  "boot stack" "scheduler" (map text_cell (rle (img_boot_stack_words bs)))])))).
 End memory_map.
 
 Ltac2 cell_str (c : constr) : string :=

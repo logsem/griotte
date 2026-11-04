@@ -74,7 +74,16 @@ Definition kvs_firmware `{MP : MachineParameters}
          ub_owner   := "B";
          ub_exports := [
            {| ue_name := "f"; ue_nargs := 0 |}
-         ] |} |}
+         ] |} |};
+    {| fc_name          := "sched";
+       fc_imports       := [
+         ISwitcherCall
+       ];
+       fc_static_sealed := [];
+       fc_body          := SchedulerBody {|
+         (* the exception entry after the import; the code is arbitrary *)
+         sb_entry      := 1;
+         sb_boot_stack := 16 |} |}
   ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
@@ -87,17 +96,18 @@ Definition kvs_firmware `{MP : MachineParameters}
 
 (** The image of the KVS firmware, from the records of its sections. *)
 Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main kvs B : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B)] [t0].
+    (idle : img_idle_thread) (boot : img_boot_stack) (main kvs B sched : img_cmpt) : fw_image :=
+  MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)] [t0] idle boot.
 
 (** The start of the firmware: some layout and parameters, with the flag of the
     assert library at [flag], such that [σ] is the state the loader
     builds. *)
 Definition kvs_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
   ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
-    (main kvs B : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
+    (idle : img_idle_thread) (boot : img_boot_stack)
+    (main kvs B sched : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
     fw_start [key_main ≠ key_B]
-      (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 main kvs B) flag σ.
+      (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 idle boot main kvs B sched) flag σ.
 
 (** The predicate, computed from [kvs_start], with its comments. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
