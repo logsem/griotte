@@ -999,6 +999,9 @@ Section Switcher.
         (* The register save area of the trusted stack is not in the heap. *)
         trusted_stack_not_heap :
         not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ);
+        (* The whole trusted stack is outside the heap. *)
+        trusted_stack_disjoint_from_heap :
+        disjoint_from_heap b_trusted_stack e_trusted_stack;
         (* The trusted stack holds its header, the entry frame and a whole
            number of frames. *)
         trusted_stack_frames_fit :

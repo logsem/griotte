@@ -916,6 +916,18 @@ Section layout_of_img_wf.
       + apply withinBounds_true_iff. solve_addr.
   Qed.
 
+  (** The whole trusted stack of a thread is outside the heap. *)
+  Lemma img_wf_trusted_stack_not_heap fw img i ft :
+    fw_threads fw !! i = Some ft →
+    img_wf fw img →
+    disjoint_from_heap (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)).
+  Proof.
+    intros Hi (_ & _ & _ & Hthreads & _).
+    pose proof (big_and_fw_imap_lookup _ _ _ _ Hthreads Hi) as Hthread.
+    destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & _ & _ & [ [_ Hheap] _] & _).
+    exact Hheap.
+  Qed.
+
   Lemma img_wf_cmpt_layout fw img fc :
     img_wf fw img → fc ∈ fw_cmpts fw → img_cmpt_layout (cmpt_of img (fc_name fc)).
   Proof.
@@ -1664,10 +1676,11 @@ Definition img_thread_layout_wf `{MP : MachineParameters} (img : fw_image) (t : 
     (ts ss : list Word)
     (Hts : trusted_stack_layout (b_trusted_stack t) (e_trusted_stack t)
              (b_hazard t) (e_hazard t) ts)
-    (Hsw : img_switcher_layout (img_sw img) t ss) :
+    (Hsw : img_switcher_layout (img_sw img) t ss)
+    (Hheap : disjoint_from_heap (b_trusted_stack t) (e_trusted_stack t)) :
     @threadLayoutWf MP (img_thread_layout t) :=
   mkThreadLayoutWf (img_thread_layout t)
-    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_trusted_stack_not_heap _ _ _ Hsw)
+    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_trusted_stack_not_heap _ _ _ Hsw) Hheap
     (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
     (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))
     (isl_hazard_not_heap _ _ _ Hsw).
@@ -1687,12 +1700,14 @@ Proof.
     change (fw_thread_layout img i) with (@tlayout_of (fw_switcher_layout img) (UserThread i)).
     rewrite (fw_tlayout_lt img i Hi).
     exact (img_thread_layout_wf img _ _ _ (img_wf_trusted_stack_layout _ _ _ _ Hft Hwf)
-             (img_wf_switcher_layout _ _ _ _ Hft Hwf)).
+             (img_wf_switcher_layout _ _ _ _ Hft Hwf)
+             (img_wf_trusted_stack_not_heap _ _ _ _ Hft Hwf)).
   - assert (fw_thread_layout img i = img_thread_layout (thread_of img 0)) as ->.
     { rewrite /fw_thread_layout. destruct i as [|i]; first done.
       rewrite fw_nth_ge //. lia. }
     exact (img_thread_layout_wf img _ _ _ (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf)
-             (img_wf_switcher_layout _ _ _ _ H0 Hwf)).
+             (img_wf_switcher_layout _ _ _ _ H0 Hwf)
+             (img_wf_trusted_stack_not_heap _ _ _ _ H0 Hwf)).
 Qed.
 
 (** The address of a label of the switcher, at a closed offset within its
