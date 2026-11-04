@@ -20,17 +20,38 @@ Definition Nact : namespace := nroot .@ "act".
 Definition pc_dq (b : InterruptStatus) : dfrac :=
   if b is InterruptEnabled then DfracOwn (1/2) else DfracOwn 1.
 
-(** The PC that a yielded thread resumes at: the instruction after its
-    [ecall]. *)
-Definition yield_resume_pc (p : LWord) : LWord := default p (incrementPC p).
+(** [Lea]'s effect on a word, by the offset [n]. *)
+Definition lea_word (w : Word) (n : Z) : Word :=
+  match w with
+  | WCap t p g b e a =>
+      match (a + n)%a with
+      | Some a' => WCap t p g b e a'
+      | None => WCap false p g b e a
+      end
+  | WSealRange t p g b e a =>
+      match (a + n)%ot with
+      | Some a' => WSealRange t p g b e a'
+      | None => WSealRange false p g b e a
+      end
+  | WInt z => WInt (z + n)
+  | _ => clear_tag w
+  end.
 
-(** The PC after an environment call at a capability is a capability with
-    the same permission, locality and bounds. *)
-Lemma yield_resume_pc_cap p g b e a :
-  ∃ a', yield_resume_pc (Cap p g b e a) = Cap p g b e a'.
+(** The PC that a yielded thread resumes at: the instruction after its
+    [ecall], as the resume path computes it: [Lea] by one word, legalised
+    by the write to mepcc. *)
+Definition yield_resume_pc (p : LWord) : LWord :=
+  lword_of_word (legalise_pc (lea_word p.(lw) 1)).
+
+(** The PC after an environment call at an executable capability is a
+    capability with the same permission, locality and bounds, at the next
+    address. *)
+Lemma yield_resume_pc_cap p g b e a a' :
+  executeAllowed p = true →
+  (a + 1)%a = Some a' →
+  yield_resume_pc (Cap p g b e a) = Cap p g b e a'.
 Proof.
-  rewrite /yield_resume_pc /incrementPC /incrementPC_gen /=.
-  destruct (a + 1)%a as [a'|]; eauto.
+  intros Hx Ha. by rewrite /yield_resume_pc /= Ha legalise_pc_ok_id.
 Qed.
 
 Section cur.
@@ -62,8 +83,8 @@ Section cur.
 
   (** The scheduler's state between two activations: a saved proposition,
       made concrete by the switcher. *)
-  Definition sched_state : iProp Σ :=
-    ∃ P : iProp Σ, saved_prop_own γ_sched DfracDiscarded P ∗ ▷ P.
+  Definition scheduler_state : iProp Σ :=
+    ∃ P : iProp Σ, saved_prop_own γ_scheduler DfracDiscarded P ∗ ▷ P.
 
   (** The closer of the context-switch thread's open pool token. *)
   Definition close_Nact : iProp Σ :=
@@ -133,7 +154,7 @@ Section handoff.
                  then @posture_part Σ MP (ceriseG_of (UserThread B)) (UserThread B)
                         (CL (UserThread B)) (CR (UserThread B))
                  else True) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact ∗
       "Hsafe" ∷ ▷ S (UserThread B).
@@ -175,7 +196,7 @@ Section handoff.
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] m ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] mie ∗
       "Hlent" ∷ mtdc_lent_at (th := CtxSwitch) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
 End handoff.

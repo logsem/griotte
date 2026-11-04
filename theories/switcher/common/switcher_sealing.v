@@ -274,4 +274,23 @@ Section Switcher_sealing.
     iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry Hentry_cont".
   Qed.
 
+  (** The handle of user thread [B]: its trusted stack, at its base. *)
+  Definition tstack_handle (B : nat) : Word :=
+    Cap RWL Global (@b_trusted_stack (swl_thread B))
+      (@e_trusted_stack (swl_thread B)) (@b_trusted_stack (swl_thread B)).
+
+  (** A sealed trusted stack is the handle of one of the threads. *)
+  Definition tstack_handle_prop (w : LWord) : iProp Σ :=
+    ⌜∃ B : nat, B < swl_nthreads ∧ w = lword_of_word (tstack_handle B)⌝.
+
+  Definition tstack_handle_propC : (Thread * WORLD * CmptName * LWord) -> iPropI Σ :=
+    λ x, tstack_handle_prop x.2.
+
+  Lemma tstack_handle_kind_ok (C : CmptName) :
+    ⊢ seal_kind_ok SealGlobal C tstack_handle_propC.
+  Proof.
+    iSplit; first (iPureIntro; intros x; apply _).
+    iIntros "!>" (t t' W W' w) "$".
+  Qed.
+
 End Switcher_sealing.

@@ -63,7 +63,8 @@ Section HTS_Spec_Dangling.
     iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 16: return when free failed. *)
       iDestruct "Herr" as (z) "(%Hz & Hna & HPC & Hca0 & [%wct0 Hct0] & Hcs0 & [%wcra Hcra]
-        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)] & Hcstk & %Hframes
+        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)]
+        & [%rmap (%Hdom_rmap & Hrmap)] & Hcstk & %Hframes
         & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
@@ -76,9 +77,14 @@ Section HTS_Spec_Dangling.
       iInstr "Hcode".
       { jump_to (pc_a ^+ hts_label_offset ".Lhts_return")%a. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iDestruct (regs_of_parts _ [(ca0, _)] {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]}
+                   with "Hrmap [Hca0]") as (rmap_ret) "[%Hdom_rmap_ret Hrmap]".
+      { rewrite Hdom_rmap. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done]. }
+                 $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & _ & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
       & [%stk Hstk] & Hworld_open & Hstack_revoked_ret
@@ -235,7 +241,7 @@ Section HTS_Spec_Dangling.
       "(_ & _ & _ & _ & _ & %Hdom_rmap_after2 & _ & _
        & Hna & _ & _ & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-       & _ & _ & Hrmap & _ & _ & %Hrestored & _ & Hmie & Hheld)".
+       & [%wca0 [Hca0 _] ] & [%wca1 [Hca1 _] ] & Hrmap & _ & _ & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hgp_ret2 & Hra_ret2 & Hs0_ret2 & _).
     apply load_heap_nonheap in Hs0_ret2; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret2.

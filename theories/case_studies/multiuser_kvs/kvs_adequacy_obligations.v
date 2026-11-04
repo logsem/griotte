@@ -71,7 +71,7 @@ Section kvs_obligations.
       cbn in Hot_nodup. apply NoDup_cons in Hot_nodup as [Hot_notin _]. set_solver+Hot_notin. }
     assert (ot_kvs < ot_kvs ^+ 1)%ot as Hot_kvs_size.
     { destruct (img_wf_otypes _ _ (proj2 (proj2 (proj2 Hok)))) as [_ Hot_valid].
-      cbn in Hot_valid. rewrite Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
+      cbn in Hot_valid. rewrite Forall_cons Forall_cons Forall_singleton in Hot_valid. apply Hot_valid. }
     assert kvsLayoutWf as kvsLayoutWfg.
     { refine (mkKvsLayoutWf _ _ _ _ _ _ _ _ _ _ _ _); cbn.
       - exact Hot_kvs_size.

@@ -756,6 +756,9 @@ Module Asm_Griotte.
   Definition jalr rdst rsrc := (ASM_Instr (Jalr rdst rsrc)).
 
   Definition mov dst src  := (ASM_Instr (Mov dst src)).
+  (** [wfi]: wait for an interrupt. [deviation] Griotte has no [wfi]: it is
+      a no-op, a write to [cnull]. *)
+  Definition wfi := mov cnull 0%Z.
   (** Offsets are signed displacements measured in address units. Label expressions use
       the same instruction-relative resolution as the other immediates. *)
   Definition load_imm dst src imm := ASM_Instr (CLoad dst src imm).

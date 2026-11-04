@@ -508,9 +508,11 @@ Section translation.
       (big_and
         (fw_app
           [note "pairwise disjoint" (ranges_disjoint all_ranges);
-           note "sealing types distinct" (NoDup (ot_switcher (img_sw img) :: fw_otypes fw));
+           note "sealing types distinct"
+             (NoDup (ot_switcher (img_sw img) :: ot_switcher (img_sw img) ^+ 1 :: fw_otypes fw));
            note "sealing types valid"
-             (Forall otype_valid (ot_switcher (img_sw img) :: fw_otypes fw))]
+             (Forall otype_valid
+                (ot_switcher (img_sw img) :: ot_switcher (img_sw img) ^+ 1 :: fw_otypes fw))]
           (fw_app
              (match Nat.eqb (fw_length (img_threads img)) (fw_length (fw_threads fw)) with
               | true => []

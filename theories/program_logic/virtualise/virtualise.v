@@ -68,7 +68,7 @@ Section ctx_switch_entry.
     "%Hdom" ∷ ⌜dom v.(rv_regs) = all_registers_s⌝ ∗
     "Hregs" ∷ regs[CtxSwitch] v.(rv_regs) ∗
     "Hcur" ∷ cur_frag (Some (UserThread t, Saving k v)) ∗
-    "Hsched" ∷ sched_state ∗
+    "Hsched" ∷ scheduler_state ∗
     "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
     "Hclose" ∷ close_Nact ∗
     "Hparked" ∷ parked_thread_res t k v.

@@ -64,7 +64,8 @@ Section HTS_Spec_Share.
     iDestruct "Hret" as "[Herr|Hok]".
     { (* Block 5: return when malloc returned an integer. *)
       iDestruct "Herr" as (z) "(Hna & HPC & Hca0 & [%w Hct0] & Hcs0 & [%wcra Hcra]
-        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)] & Hcstk & %Hframes
+        & [%wctp Hctp] & [%wct2 Hct2] & [%mie (%Hroute & Hmie & Hheld)]
+        & [%rmap (%Hdom_rmap & Hrmap)] & Hcstk & %Hframes
         & Hcode_main)".
       codefrag_facts "Hcode_main". clear H0.
       unfold_code hts_main_code "Hcode_main".
@@ -77,9 +78,14 @@ Section HTS_Spec_Share.
       iInstr "Hcode".
       { jump_to (pc_a ^+ hts_label_offset ".Lhts_return")%a. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iDestruct (regs_of_parts _ [(ca0, _)] {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]}
+                   with "Hrmap [Hca0]") as (rmap_ret) "[%Hdom_rmap_ret Hrmap]".
+      { rewrite Hdom_rmap. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
       iApply (hts_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done]. }
+                 $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done]. }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
       & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".

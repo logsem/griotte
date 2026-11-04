@@ -354,19 +354,28 @@ Section Error_Handling_Main_Spec.
     iIntros "!>" (wret rmap_ret stk_mem' rcs1 b')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
       & Hrmap & Hstk & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
-    iExtractList "Hrmap" [ctp; ct0; ct1; ct2; ca2]
-      as ["[Hctp _]"; "[Hct0 _]"; "[Hct1 _]"; "[Hct2 _]"; "[Hca2 _]"].
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iExtractList "Hrmap" [ctp; ct0; ct1; ct2; ca2] as ["Hctp"; "Hct0"; "Hct1"; "Hct2"; "Hca2"].
+    iInsertList "Hrmap" [cgp; csp; ca1; cs1].
     iDestruct "Hret" as "[ [-> _] | [-> _] ]".
     - (* Blocks 19-21: the assert of [X_INIT], and the return *)
-      iApply (main_check_3_spec _ _ _ X_INIT with
-               "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
-        [exact Hbounds | by right | exact Hframes | exact Hroute'].
+      iApply (main_check_3_spec pc_b pc_e pc_a X_INIT cstk _ _ _ _ _ _ _ b' with
+               "[$Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
+                 $Hct2 $Hca2 $Hcra $Hcs0 $Hrmap $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | by right | exact Hframes | | exact Hroute'].
+      rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
+      pose proof (all_registers_s_correct cgp). pose proof (all_registers_s_correct csp).
+      pose proof (all_registers_s_correct ca1). pose proof (all_registers_s_correct cs1).
+      set_solver.
     - (* Block 19: the trusted stack is exhausted, return *)
-      iApply (main_check_3_spec with
-               "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-                 $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
-        [exact Hbounds | by left | exact Hframes | exact Hroute'].
+      iApply (main_check_3_spec pc_b pc_e pc_a ENOTENOUGHTRUSTEDSTACK cstk _ _ _ _ _ _ _ b' with
+               "[$Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
+                 $Hct2 $Hca2 $Hcra $Hcs0 $Hrmap $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | by left | exact Hframes | | exact Hroute'].
+      rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
+      pose proof (all_registers_s_correct cgp). pose proof (all_registers_s_correct csp).
+      pose proof (all_registers_s_correct ca1). pose proof (all_registers_s_correct cs1).
+      set_solver.
   Qed.
 
   (** The second call to [stats_read], with the untagged capability of [x],
@@ -452,12 +461,18 @@ Section Error_Handling_Main_Spec.
 
     (* Blocks 13-14: return on trusted-stack exhaustion, and the assert of
        [ECOMPARTMENTFAIL] *)
-    iApply (main_check_2_spec _ _ _ z with
+    iInsertList "Hrmap" [cgp; csp; ca1; cs1].
+    iApply (main_check_2_spec pc_b pc_e pc_a z cstk _ _ _ _ _ _ _ b' with
              "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
-      [exact Hbounds | exact Hz | exact Hframes | exact Hroute' |].
-    iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hcstk
-                & _ & Hmie & Hheld)".
+               $Hct2 $Hca2 $Hcra $Hcs0 $Hrmap $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hz | exact Hframes | | exact Hroute' |].
+    { rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
+      pose proof (all_registers_s_correct cgp). pose proof (all_registers_s_correct csp).
+      pose proof (all_registers_s_correct ca1). pose proof (all_registers_s_correct cs1).
+      set_solver. }
+    iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hrmap
+                & Hcstk & _ & Hmie & Hheld)".
+    iExtractList "Hrmap" [cgp; csp; ca1; cs1] as ["Hcgp"; "Hcsp"; "Hca1"; "Hcs1"].
     iInsertList "Hrmap" [ctp; ct0; ct1; ct2; ca2].
 
     (* Blocks 15-21 *)
@@ -466,7 +481,7 @@ Section Error_Handling_Main_Spec.
                $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk $Hcstk $Hx
                $Himport_switcher $Himport_assert $Himport_read $Hcode_main $Hmie $Hheld]");
       try done.
-    rewrite !dom_insert_L Hdom_rmap_ret.
+    rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
     pose proof (all_registers_s_correct ctp).
     pose proof (all_registers_s_correct ct0). pose proof (all_registers_s_correct ct1).
     pose proof (all_registers_s_correct ct2). pose proof (all_registers_s_correct ca2).
@@ -568,12 +583,18 @@ Section Error_Handling_Main_Spec.
 
     (* Blocks 7-8: return on trusted-stack exhaustion, and the assert of
        [X_INIT] *)
-    iApply (main_check_1_spec _ _ _ z with
+    iInsertList "Hrmap" [cgp; csp; ca1; cs1].
+    iApply (main_check_1_spec pc_b pc_e pc_a z cstk _ _ _ _ _ _ _ b' with
              "[- $Hassert $Hinv_switcher $Hswitcher_static $Hna $HPC $Hca0 $Hctp $Hct0 $Hct1
-               $Hct2 $Hca2 $Hcra $Hcs0 $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
-      [exact Hbounds | exact Hz | exact Hframes | exact Hroute' |].
-    iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hcstk
-                & _ & Hmie & Hheld)".
+               $Hct2 $Hca2 $Hcra $Hcs0 $Hrmap $Hcstk $Himport_assert $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hz | exact Hframes | | exact Hroute' |].
+    { rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
+      pose proof (all_registers_s_correct cgp). pose proof (all_registers_s_correct csp).
+      pose proof (all_registers_s_correct ca1). pose proof (all_registers_s_correct cs1).
+      set_solver. }
+    iIntros "!> (Hna & HPC & Hca0 & Hct0 & Hct1 & Hct2 & Hca2 & Hcra & Hctp & Hcs0 & Hrmap
+                & Hcstk & _ & Hmie & Hheld)".
+    iExtractList "Hrmap" [cgp; csp; ca1; cs1] as ["Hcgp"; "Hcsp"; "Hca1"; "Hcs1"].
     iInsertList "Hrmap" [ctp; ct0; ct1; ct2; ca2].
 
     (* Blocks 9-21 *)
@@ -582,7 +603,7 @@ Section Error_Handling_Main_Spec.
                $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1 $Hrmap $Hstk $Hcstk $Hx
                $Himport_switcher $Himport_assert $Himport_read $Hcode_main $Hmie $Hheld]");
       try done.
-    rewrite !dom_insert_L Hdom_rmap_ret.
+    rewrite !dom_insert_L !dom_delete_L Hdom_rmap_ret.
     pose proof (all_registers_s_correct ctp).
     pose proof (all_registers_s_correct ct0). pose proof (all_registers_s_correct ct1).
     pose proof (all_registers_s_correct ct2). pose proof (all_registers_s_correct ca2).

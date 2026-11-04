@@ -31,9 +31,10 @@ Section Error_Handling_Main_Blocks_3.
   (** Block 21: return through the switcher's return sentry, saved in
       [cs0]: the thread exits. *)
   Lemma main_return_spec
-    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord) (b : InterruptStatus) :
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (rmap : LReg) (wcra wctp wct0 wct2 : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} ->
     route_pre th b ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -44,15 +45,16 @@ Section Error_Handling_Main_Blocks_3.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a error_handling_main_code ∗
     MIE ↦ₜ[th] b ∗
     held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hframes Hdom Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & #Hcode_main & Hmie & Hheld)".
+        & Hrmap & Hcstk & #Hcode_main & Hmie & Hheld)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
     main_unfold_code.
@@ -63,8 +65,30 @@ Section Error_Handling_Main_Blocks_3.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
+    assert (list_to_set [cs0; cra] ∪ dom rmap = all_registers_s ∖ {[ ctp ; ct0 ; ct2 ]})
+      as Hdom_exit.
+    { rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r). set_solver. }
+    iDestruct (regs_of_parts rmap [(cs0, _); (cra, _)] _ Hdom_exit with "Hrmap [Hcs0 Hcra]")
+      as (rmap_exit) "[%Hdom_rmap_exit Hrmap]".
+    { cbn. iFrame. }
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie $Hheld]").
+  Qed.
+
+  (** The registers left to the checks of blocks 7, 13 and 19, as the
+      register map of [main_return_spec]. *)
+  Lemma main_check_regs_exit (rmap : LReg) (wca0 wct1 wca2 : LWord) :
+    dom rmap = all_registers_s ∖ {[ ca0 ; ctp ; ct0 ; ct1 ; ct2 ; ca2 ; cra ; cs0 ]} ->
+    regs[th] rmap -∗
+    ca0 ↦ᵣ[th] wca0 -∗
+    ct1 ↦ᵣ[th] wct1 -∗
+    ca2 ↦ᵣ[th] wca2 -∗
+    ∃ rmap', ⌜dom rmap' = all_registers_s ∖ {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]}⌝ ∗ regs[th] rmap'.
+  Proof.
+    iIntros (Hdom) "Hrmap Hca0 Hct1 Hca2".
+    iApply (regs_of_parts rmap [(ca0, wca0); (ct1, wct1); (ca2, wca2)] with "Hrmap");
+      last (cbn; iFrame).
+    rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r). set_solver.
   Qed.
 
   Lemma main_call_read_3_spec
@@ -154,11 +178,12 @@ Section Error_Handling_Main_Blocks_3.
   Qed.
 
   Lemma main_check_3_spec
-    (pc_b pc_e pc_a : Addr) (v : Z) (cstk : CSTK)
+    (pc_b pc_e pc_a : Addr) (v : Z) (cstk : CSTK) (rmap : LReg)
     (wctp wct0 wct1 wct2 wca2 wcra : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     v = ENOTENOUGHTRUSTEDSTACK ∨ v = X_INIT ->
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ ca0 ; ctp ; ct0 ; ct1 ; ct2 ; ca2 ; cra ; cs0 ]} ->
     route_pre th b ->
     assert_static b_assert e_assert a_flag ∗
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
@@ -173,6 +198,7 @@ Section Error_Handling_Main_Blocks_3.
     ca2 ↦ᵣ[th] wca2 ∗
     cra ↦ᵣ[th] wcra ∗
     cs0 ↦ᵣ[th] thread_return_sentry ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     (pc_b ^+ 1) ↦ₐ□ assert_entry ∗
     codefrag_pers pc_a error_handling_main_code ∗
@@ -180,9 +206,9 @@ Section Error_Handling_Main_Blocks_3.
     held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros (Hbounds Hv Hframes Hroute)
+    iIntros (Hbounds Hv Hframes Hdom Hroute)
       "(#Hassert & #Hswitcher & #Hswitcher_static & Hna & HPC & Hca0 & Hctp & Hct0 & Hct1
-      & Hct2 & Hca2 & Hcra & Hcs0 & Hcstk & #Himport_assert & #Hcode_main & Hmie & Hheld)".
+      & Hct2 & Hca2 & Hcra & Hcs0 & Hrmap & Hcstk & #Himport_assert & #Hcode_main & Hmie & Hheld)".
     pose proof Hbounds as (HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap).
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
     cbn [length map encodeInstrsW] in Hpc_contiguous.
@@ -200,10 +226,12 @@ Section Error_Handling_Main_Blocks_3.
       iInstr "Hcode".
       { jump_to (pc_a ^+ main_label_offset ".Lmain_return")%a. }
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+      iDestruct (main_check_regs_exit _ _ _ _ Hdom with "Hrmap Hca0 Hct1 Hca2")
+        as (rmap_exit) "[%Hdom_exit Hrmap]".
       iApply (main_return_spec with
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]");
-        [exact Hbounds | exact Hframes | exact Hroute]. }
+                 $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]");
+        [exact Hbounds | exact Hframes | exact Hdom_exit | exact Hroute]. }
     (* Jne 2 ca0 ENOTENOUGHTRUSTEDSTACK *)
     iInstr "Hcode".
     (* Mov ct0 ca0 *)
@@ -226,10 +254,12 @@ Section Error_Handling_Main_Blocks_3.
 
     (* Block 21: return, the thread exits *)
     change_pc_to (pc_a ^+ main_label_offset ".Lmain_return")%a.
+    iDestruct (main_check_regs_exit _ _ _ _ Hdom with "Hrmap Hca0 Hct1 Hca2")
+      as (rmap_exit) "[%Hdom_exit Hrmap]".
     iApply (main_return_spec with
              "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk $Hcode_main $Hmie $Hheld]");
-      [exact Hbounds | exact Hframes | exact Hroute].
+               $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]");
+      [exact Hbounds | exact Hframes | exact Hdom_exit | exact Hroute].
   Qed.
 
 End Error_Handling_Main_Blocks_3.

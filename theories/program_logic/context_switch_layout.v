@@ -60,3 +60,14 @@ Lemma handover_res_thread_indep {Σ} {ceriseb : ceriseBaseG Σ} (th th' : Thread
 Proof.
   rewrite !handover_res_unfold /handover_at /volatile_csr_at /ceriseG_of. reflexivity.
 Qed.
+
+Section handover_at_indep.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
+
+  (** What a thread hands over, at given values, is the same at the
+      instance of any thread. *)
+  Lemma handover_at_thread_indep (th th' : Thread) (p c : LWord) (v : Z) (b : InterruptStatus) :
+    handover_at (ceriseg := ceriseG_of th) p c v b ⊣⊢
+    handover_at (ceriseg := ceriseG_of th') p c v b.
+  Proof. rewrite /handover_at /volatile_csr_at /ceriseG_of. reflexivity. Qed.
+End handover_at_indep.

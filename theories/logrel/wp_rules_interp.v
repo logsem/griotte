@@ -589,6 +589,79 @@ Section wp_interp.
     { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
   Qed.
 
+  (** [UnSeal r1 r1 r2], the key in [r1], which receives the result: the
+      three outcomes of [wp_unseal_unknown_sealed]. *)
+  Lemma wp_unseal_unknown_sealed_dst_key {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2
+      psr gsr bsr esr asr wsealed :
+    decodeInstrW wi.(lw) = UnSeal r1 r1 r2 →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    permit_unseal psr = true →
+    (bsr <= asr < esr)%ot →
+    r1 ≠ r2 →
+    r1 ≠ cnull →
+    r2 ≠ cnull →
+
+    {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗
+        pc_a ↦ₐ{dq} wi ∗
+        r1 ↦ᵣ[th] SealRange psr gsr bsr esr asr ∗
+        r2 ↦ᵣ[th] wsealed }}}
+      Instr Executable @[th] E
+    {{{ retv, RET retv;
+        (⌜retv = NextIV⌝ ∗
+         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗
+         pc_a ↦ₐ{dq} wi ∗
+         r1 ↦ᵣ[th] lclear_tag wsealed ∗
+         r2 ↦ᵣ[th] wsealed ∗
+         ⌜is_sealed wsealed.(lw) = false⌝) ∨
+        (∃ ot wsb π,
+           ⌜retv = NextIV⌝ ∗
+           PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗
+           pc_a ↦ₐ{dq} wi ∗
+           r1 ↦ᵣ[th] WSealable (unseal_sb gsr wsb) @@? π ∗
+           r2 ↦ᵣ[th] wsealed ∗
+           ⌜wsealed = WSealed ot wsb @@? π⌝ ∗
+           ⌜get_tag_sealable wsb = true⌝ ∗
+           ⌜withinBounds bsr esr ot = true⌝) ∨
+        ∃ ot sb π,
+          ⌜retv = NextIV⌝ ∗
+          PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗
+          pc_a ↦ₐ{dq} wi ∗
+          r1 ↦ᵣ[th] WSealable (clear_tag_sealable (unseal_sb gsr sb)) @@? π ∗
+          r2 ↦ᵣ[th] wsealed ∗
+          ⌜wsealed = WSealed ot sb @@? π⌝ ∗
+          ⌜get_tag_sealable sb && withinBounds bsr esr ot = false⌝ }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr Hr12 Hr1_null Hr2_null φ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
+    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
+    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
+    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
+    destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->
+                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->
+                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
+    - iApply "Hφ". iRight. iLeft.
+      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
+      iExists o, sb, π.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      iFrame; done.
+    - iApply "Hφ". iRight. iRight.
+      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
+      iExists o, sb, π.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      match goal with Hinvalid : _ && withinBounds _ _ _ = false |- _ =>
+        rewrite Hpsr !andb_true_r /= in Hinvalid
+      end.
+      iFrame; done.
+    - iApply "Hφ". iLeft.
+      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
+      rewrite !insert_insert_eq.
+      iRegsMap "Hmap".
+      iFrame; done.
+    - exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence.
+  Qed.
   (** A load through a valid capability: the world supplies the quarantine
       witness of the loaded word, which makes the loaded word valid. *)
   Lemma wp_load_interp_imm (E : coPset) (imm : Z) (W : WORLD) (C : CmptName) (rsrc rdst : RegName)

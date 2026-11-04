@@ -34,13 +34,50 @@ Section Callback_Path.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
+  (** The hand-over of an exiting thread: [HO ExitV] from its MIE, its posture
+      at mcause 24, its whole register file and its exit part. *)
+  Lemma switcher_HO_exit (lreg : LReg) :
+    th ≠ CtxSwitch →
+    dom lreg = all_registers_s →
+    switcher_static -∗
+    MIE ↦ₜ[th] InterruptDisabled -∗
+    posture_res_gen (th := th) None None (Some (lword_of_word (WInt MCAUSE_THREAD_EXIT))) None -∗
+    regs[th] lreg -∗
+    exit_concrete -∗
+    HO th ExitV.
+  Proof.
+    iIntros (Hth Hdom) "Hstatic Hmie Hposture Hregs Hexit".
+    iDestruct (switcher_static_exit with "Hstatic") as "Hsaved".
+    rewrite HO_exit /exit_body /exit_part. iSplit; first done.
+    iFrame "Hmie Hposture". iSplitL "Hregs".
+    - iExists lreg. by iFrame.
+    - iExists exit_concrete. by iFrame.
+  Qed.
+
+  (** A register file, total again: the map [rmap] and the registers [l]
+      out of it. *)
+  Lemma regs_total_of (rmap : LReg) (l : list (RegName * LWord)) :
+    dom rmap = all_registers_s ∖ list_to_set l.*1 →
+    regs[th] rmap -∗
+    ([∗ list] rw ∈ l, rw.1 ↦ᵣ[th] rw.2) -∗
+    ∃ lreg, ⌜dom lreg = all_registers_s⌝ ∗ regs[th] lreg.
+  Proof.
+    iIntros (Hdom) "Hrmap Hl".
+    iDestruct (regs_of_parts rmap l ∅ with "Hrmap Hl") as (lreg) "[%Hlreg Hregs]".
+    { rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r).
+      clear Hdom. destruct (decide (r ∈ (list_to_set l.*1 : gset RegName))); set_solver. }
+    iExists lreg. iFrame. iPureIntro. rewrite Hlreg. set_solver.
+  Qed.
+
   (** From [switcher_after_compartment_call], at the posture [mie], when
       the frame to pop is the entry frame: the thread exits, at
-      InterruptDisabled. *)
+      InterruptDisabled, its posture at mcause [MCAUSE_THREAD_EXIT], to
+      [a_exit]. *)
   Lemma switcher_return_exit_path_spec
     (E : coPset) (Φ : tval (kind_of th) → iProp Σ) (rmap : LReg) (mie : InterruptStatus) :
     let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
     dom rmap = all_registers_s ∖ {[ csp ; cgp ; cra ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+    th ≠ CtxSwitch ->
     route_pre th mie ->
 
     PC ↦ₚ[th] switcher_label_pc "switcher_after_compartment_call" ∗
@@ -51,27 +88,52 @@ Section Callback_Path.
     switcher_code ∗
     MIE ↦ₜ[th] mie ∗
     held (th := th) mie ∗
-    ▷ ( mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
+    ▷ ( PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_exit ∗
+        (∃ rmap', ⌜dom rmap' = dom rmap⌝ ∗ regs[th] rmap') ∗
+        mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
         a_frameoffset ↦ₐ WInt (tstack_frameoffset 0) ∗
         switcher_hazard ∗
         MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        posture_res_gen (th := th) None None (Some (lword_of_word (WInt MCAUSE_THREAD_EXIT))) None
         ={E}=∗
-        Φ HaltedV )
+        Φ ExitV )
     ⊢ WP Exec @[th] E {{ Φ }}.
   Proof.
     intros a_frameoffset; subst a_frameoffset.
-    iIntros (Hdom Hpre)
+    iIntros (Hdom Hth Hpre)
       "(HPC & Hrmap & Hmtdc & Hframeoffset & Hhazard & #Hswitcher & Hmie & Hheld & Hpost)".
-    iDestruct (ret_regs_extract with "Hrmap")
-      as "([%wctp Hctp] & [%wct0 Hct0] & _ & [%wct2 Hct2] & _)"; first done.
+    assert (is_Some (rmap !! ctp)) as [wctp Hctp].
+    { apply elem_of_dom. rewrite Hdom.
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver]. }
+    iDestruct (big_sepM_delete _ _ ctp with "Hrmap") as "[Hctp Hrmap]"; first done.
+    assert (is_Some (delete ctp rmap !! ct0)) as [wct0 Hct0].
+    { apply elem_of_dom. rewrite dom_delete_L Hdom.
+      apply elem_of_difference; split; [|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver]. }
+    iDestruct (big_sepM_delete _ _ ct0 with "Hrmap") as "[Hct0 Hrmap]"; first done.
+    assert (is_Some (delete ct0 (delete ctp rmap) !! ct2)) as [wct2 Hct2].
+    { apply elem_of_dom. rewrite !dom_delete_L Hdom.
+      apply elem_of_difference; split; [|set_solver].
+      apply elem_of_difference; split; [|set_solver].
+      apply elem_of_difference; split; [apply all_registers_s_correct|set_solver]. }
+    iDestruct (big_sepM_delete _ _ ct2 with "Hrmap") as "[Hct2 Hrmap]"; first done.
     iApply (switcher_after_compartment_call_exit_spec with
       "[- $HPC $Hctp $Hct0 $Hct2 $Hmtdc $Hframeoffset $Hhazard $Hswitcher]").
-    iIntros "!>" (g_tstk) "(HPC & _ & _ & _ & Hmtdc & Hframeoffset & Hhazard)".
+    iIntros "!>" (g_tstk) "(HPC & Hctp & Hct0 & Hct2 & Hmtdc & Hframeoffset & Hhazard)".
     iApply (common_defer_irqs_and_thread_exit_spec _ _ mie with
-      "[$HPC $Hswitcher $Hmie $Hheld Hpost Hmtdc Hframeoffset Hhazard]"); first done.
-    iIntros "!> (_ & Hmie & Hheld)".
-    iApply ("Hpost" with "[$Hmtdc $Hframeoffset $Hhazard $Hmie $Hheld]").
+      "[$HPC $Hswitcher $Hmie $Hheld Hpost Hmtdc Hframeoffset Hhazard Hctp Hct0 Hct2 Hrmap]");
+      [done | done |].
+    iIntros "!> (HPC & Hmie & Hposture)".
+    iApply ("Hpost" with "[$HPC $Hmtdc $Hframeoffset $Hhazard $Hmie $Hposture Hctp Hct0 Hct2 Hrmap]").
+    iExists (<[ctp := _]> (<[ct0 := _]> (<[ct2 := _]> (delete ct2 (delete ct0 (delete ctp rmap)))))).
+    iSplit.
+    - iPureIntro. apply elem_of_dom_2 in Hctp, Hct0, Hct2.
+      rewrite !dom_delete_L in Hct0, Hct2.
+      rewrite !dom_insert_L !dom_delete_L. apply set_eq. intros r.
+      destruct (decide (r = ctp)), (decide (r = ct0)), (decide (r = ct2)); set_solver.
+    - iApply (big_sepM_insert_2 (λ k y, k ↦ᵣ[th] y)%I with "Hctp").
+      iApply (big_sepM_insert_2 (λ k y, k ↦ᵣ[th] y)%I with "Hct0").
+      iApply (big_sepM_insert_2 (λ k y, k ↦ᵣ[th] y)%I with "Hct2"). iFrame.
   Qed.
 
   (** From [switcher_after_compartment_call], with [S d] frames above the

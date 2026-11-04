@@ -22,8 +22,24 @@ Class switcherLayout : Type :=
       e_switcher : Addr ;
       a_switcher_call : Addr ;
       a_switcher_return : Addr ;
+      (* The exception entry, the address in mtcc. *)
+      a_exc : Addr ;
+      (* The mtval write after the exit marker: where the context-switch
+         thread continues after the exit of a thread. *)
+      a_exit : Addr ;
+      (* The setter of the mepcc of an exited thread. *)
+      a_exit_set : Addr ;
+      (* The body of an exited thread, two words. *)
+      a_tail : Addr ;
+      (* The call of the scheduler. *)
+      a_sched_cjalr : Addr ;
+      (* The return from the scheduler: the address of its return sentry. *)
+      a_sched_return : Addr ;
 
       ot_switcher : OType ;
+
+      (* The number of user threads. *)
+      swl_nthreads : nat ;
 
       (* The layout of the user thread [i]. *)
       swl_thread : nat → threadLayout;
@@ -32,6 +48,11 @@ Class switcherLayout : Type :=
 (** The sentry of the switcher's call entry point. *)
 Definition switcher_entry_call `{switcherLayout} : Word :=
   Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_switcher_call.
+
+(** The otype of the sealed trusted stacks, the handles of the threads that
+    the scheduler receives: the one after [ot_switcher], as CHERIoT's
+    [SealedTrustedStacks] (10) after [SealedImportTableEntries] (9). *)
+Definition ot_trusted_stacks `{switcherLayout} : OType := (ot_switcher ^+ 1)%ot.
 
 Section Switcher.
   Import Asm_Griotte.
@@ -42,6 +63,13 @@ Section Switcher.
   Definition ECOMPARTMENTFAIL : Z := -1.
   Definition ENOTENOUGHSTACK : Z := -140.
   Definition ENOTENOUGHTRUSTEDSTACK : Z := -141.
+
+  (** The permissions of the PCC of an exited thread: execute and load.
+      [deviation] CHERIoT's mask also keeps Global. Griotte's [Restrict]
+      clears the tag of a capability whose locality does not flow to the
+      requested one, and the switcher's PCC is Local: the mask asks for
+      Local, which is what [candperm] leaves of a Local PCC. *)
+  Definition EXITED_THREAD_PERMISSIONS : Z := encodePermPair (RX, Local).
 
   Definition COMPARTMENT_STACK_PERMISSIONS : Z := encodePerm RWL.
   (* [deviation] Griotte's locality is not a permission bit *)
@@ -87,6 +115,16 @@ Section Switcher.
       spills first: all but [csp], which is still in mtdc. *)
   Definition exception_spill_regs : list RegName :=
     [cra; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5].
+
+  (** The registers that the scheduler call clears: all but the scheduler's
+      return sentry, stack and globals, and its four arguments. The code
+      uses this explicit list (see [registers_handler_invoke]). *)
+  Definition registers_scheduler_call : list RegName :=
+    [ctp; ct0; ct1; ct2; cs0; cs1; ca4; ca5].
+
+  Lemma registers_except_scheduler_call :
+    registers_except [cra; csp; cgp; ca0; ca1; ca2; ca3] = registers_scheduler_call.
+  Proof. vm_compute. reflexivity. Qed.
 
   Lemma trusted_spill_registers_assembles :
     asm_ok (assemble_check (trusted_spill_registers_asm exception_spill_regs)).
@@ -406,6 +444,26 @@ Section Switcher.
       ]
     ].
 
+  (** The setter of the exit path: mepcc receives the PCC of an exited
+      thread, the two words of [.Lexited_thread] with execute and load
+      only. *)
+  Definition exited_thread_set_mepcc_asm : list asm_code :=
+    [ #".Lcommon_thread_exit_set_mepcc";
+      (* 0: auipcc csp, %cheriot_compartment_hi(.Lexited_thread); cincoffset *)
+      auipcc csp (".Lexited_thread")%asm;
+      (* [deviation] Subseg takes the bounds: the top is computed first *)
+      (* csetbounds csp, csp, 8 *)
+      geta ca0 csp;
+      add ca0 ca0 2;
+      subseg csp csp csp ca0;
+      (* li a0, CHERI_PERM_EXECUTE | CHERI_PERM_LOAD | CHERI_PERM_GLOBAL *)
+      mov ca0 EXITED_THREAD_PERMISSIONS;
+      (* candperm csp, csp, a0 *)
+      restrict csp csp ca0;
+      (* cspecialrw cnull, mepcc, csp *)
+      writesr mepcc csp
+    ].
+
   Definition switcher_exception_asm : list (list asm_code) :=
     [ [ #"exception_entry_asm";
         (* cspecialrw csp, mtdc, csp *)
@@ -445,9 +503,53 @@ Section Switcher.
         (* bltu t1, a0, .Lhandle_error *)
         jlt (".Lhandle_error")%asm ct1 ca0
       ]
-      ; [ #".Lexception_scheduler_call";
-        (* [deviation] no scheduler: halt *)
-        halt
+      ; ([ #".Lexception_scheduler_call";
+         (* LoadCapPCC ca0, .Lsealing_key_trusted_stacks *)
+         auipcc ca0 (".sealing_key_trusted_stacks")%asm;
+         load ca0 ca0;
+         (* cseal ca0, csp, ca0 *)
+         seal ca0 ca0 csp;
+         (* mv a1, t1 *)
+         mov ca1 ct1;
+         (* cgetaddr a2, ct0 *)
+         geta ca2 ct0;
+         (* csrr a3, mtval *)
+         csrr ca3 mtval;
+         (* LoadCapPCC csp, switcher_scheduler_entry_csp *)
+         auipcc csp (".scheduler_entry_csp")%asm;
+         load csp csp;
+         (* LoadCapPCC cgp, switcher_scheduler_entry_cgp *)
+         auipcc cgp (".scheduler_entry_cgp")%asm;
+         load cgp cgp;
+         (* LoadCapPCC cra, switcher_scheduler_entry_pcc *)
+         auipcc cra (".scheduler_entry_pcc")%asm;
+         load cra cra
+       ] ++
+       (* zeroAllRegistersExcept ra, sp, gp, a0, a1, a2, a3 *)
+       rclear_asm registers_scheduler_call ++
+       [ #".Lexception_scheduler_cjalr";
+         (* cjalr cra *)
+         jalr cra cra ])
+      ; [ #".Lexception_scheduler_return";
+        (* LoadCapPCC csp, .Lsealing_key_trusted_stacks *)
+        auipcc csp (".sealing_key_trusted_stacks")%asm;
+        load csp csp;
+        (* cunseal csp, ca0, csp *)
+        unseal csp csp ca0;
+        (* clw t0, TrustedStack_offset_mcause(csp) *)
+        load_imm ct0 csp TrustedStack_offset_mcause;
+        (* cspecialw mtdc, csp *)
+        writesr mtdc csp;
+        #".Lexception_scheduler_return_installed";
+        (* li t1, 11 *)
+        mov ct1 11;
+        (* clc ct2, TrustedStack_offset_mepcc(csp) *)
+        load_imm ct2 csp TrustedStack_offset_mepcc;
+        (* bne t0, t1, .Lcommon_context_install *)
+        jne (".Lcommon_context_install")%asm ct0 ct1;
+        (* [deviation] one word per instruction: the ecall is one word *)
+        (* cincoffset ct2, ct2, 4 *)
+        lea ct2 ct2 1
       ]
       ; (#".Lcommon_context_install" ::
          (* clw ra, TrustedStack_offset_mstatus(csp) *)
@@ -687,9 +789,54 @@ Section Switcher.
         csrci mstatus (Z.shiftl 1 MIE_BIT);
         #".Lcommon_deferred_irqs_and_thread_exit";
         #".Lcommon_thread_exit";
-        (* [deviation] no scheduler: halt *)
-        halt
+        (* csrw mcause, MCAUSE_THREAD_EXIT *)
+        csrw mcause MCAUSE_THREAD_EXIT
       ]
+      ; [ #".Lcommon_thread_exit_mtval";
+        (* csrw mtval, MCAUSE_THREAD_EXIT *)
+        csrw mtval MCAUSE_THREAD_EXIT
+      ]
+      ; exited_thread_set_mepcc_asm
+      ; ([ #".Lcommon_thread_exit_clear";
+         (* zeroOne sp *)
+         mov csp 0;
+         (* cspecialrw csp, mtdc, csp *)
+         specialrw csp mtdc csp;
+         (* csc cnull, TrustedStack_offset_cra(csp) *)
+         store_imm csp 0 TrustedStack_offset_cra;
+         (* csc cnull, TrustedStack_offset_csp(csp) *)
+         store_imm csp 0 TrustedStack_offset_csp;
+         (* csc cnull, TrustedStack_offset_cgp(csp) *)
+         store_imm csp 0 TrustedStack_offset_cgp;
+         (* csc cnull, TrustedStack_offset_ctp(csp) *)
+         store_imm csp 0 TrustedStack_offset_ctp;
+         (* csc cnull, TrustedStack_offset_ct0(csp) *)
+         store_imm csp 0 TrustedStack_offset_ct0;
+         (* csc cnull, TrustedStack_offset_ct1(csp) *)
+         store_imm csp 0 TrustedStack_offset_ct1;
+         (* csc cnull, TrustedStack_offset_ct2(csp) *)
+         store_imm csp 0 TrustedStack_offset_ct2;
+         (* csc cnull, TrustedStack_offset_cs0(csp) *)
+         store_imm csp 0 TrustedStack_offset_cs0;
+         (* csc cnull, TrustedStack_offset_cs1(csp) *)
+         store_imm csp 0 TrustedStack_offset_cs1;
+         (* csc cnull, TrustedStack_offset_ca0(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca0;
+         (* csc cnull, TrustedStack_offset_ca1(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca1;
+         (* csc cnull, TrustedStack_offset_ca2(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca2;
+         (* csc cnull, TrustedStack_offset_ca3(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca3;
+         (* csc cnull, TrustedStack_offset_ca4(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca4;
+         (* csc cnull, TrustedStack_offset_ca5(csp) *)
+         store_imm csp 0 TrustedStack_offset_ca5
+       ] ++
+       (* clear_hazard_slots csp, cs0 *)
+       clear_hazard_slots_asm csp cs0 ++
+       [ (* j .Lexception_exiting_threads_rejoin *)
+         jmp (".Lexception_exiting_threads_rejoin")%asm ])
       ; [ #".Lhandle_error_in_switcher";
         (* auipcc ctp, %cheriot_compartment_hi(.Lswitch_entry_first_spill); cincoffset *)
         auipcc ctp (".Lswitch_entry_first_spill")%asm;
@@ -715,15 +862,114 @@ Section Switcher.
       ]
     ].
 
+  (** The body of an exited thread, after the exception code: the PCC that
+      the exit path installs in mepcc covers exactly its two words. *)
+  Definition switcher_exited_thread_asm : list (list asm_code) :=
+    [ [ #".Lexited_thread";
+        (* wfi *)
+        wfi;
+        (* j .Lexited_thread *)
+        jmp (".Lexited_thread")%asm
+      ]
+    ].
+
   Definition switcher_asm : list (list asm_code) :=
     switcher_call_asm ++
     switcher_callback_asm ++
-    switcher_exception_asm.
+    switcher_exception_asm ++
+    switcher_exited_thread_asm.
 
   Definition assembled_switcher :=
     Eval compute in assemble_block switcher_asm.
   Lemma switcher_assembles : asm_ok (assemble_block_check switcher_asm).
   Proof. asm_check. Qed.
+
+  (** The exit marker assembles to the instruction that the opsem's switch
+      detection matches, destination [cnull] included. *)
+  Lemma exit_marker_assembles :
+    assemble_check [csrw mcause MCAUSE_THREAD_EXIT] =
+      Ok [machine_instructions.SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT)].
+  Proof. reflexivity. Qed.
+
+  Lemma wfi_assembles :
+    assemble_check [wfi] = Ok [machine_instructions.Mov cnull (inl 0%Z)].
+  Proof. reflexivity. Qed.
+
+  (** The offsets of the labels that the layout names, from
+      [.Lswitch_csp_check], the first instruction, as closed numerals. *)
+  Definition switcher_offset_exc : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check" "exception_entry_asm".
+  Definition switcher_offset_exit : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check" ".Lcommon_thread_exit_mtval".
+  Definition switcher_offset_exit_set : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+        ".Lcommon_thread_exit_set_mepcc".
+  Definition switcher_offset_tail : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check" ".Lexited_thread".
+  Definition switcher_offset_sched_cjalr : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+        ".Lexception_scheduler_cjalr".
+  Definition switcher_offset_sched_return : Z :=
+    Eval vm_compute in
+      label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+        ".Lexception_scheduler_return".
+
+  Lemma switcher_offset_exc_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check" "exception_entry_asm"
+    = switcher_offset_exc.
+  Proof. vm_compute. reflexivity. Qed.
+  Lemma switcher_offset_exit_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check" ".Lcommon_thread_exit_mtval"
+    = switcher_offset_exit.
+  Proof. vm_compute. reflexivity. Qed.
+  Lemma switcher_offset_exit_set_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+      ".Lcommon_thread_exit_set_mepcc"
+    = switcher_offset_exit_set.
+  Proof. vm_compute. reflexivity. Qed.
+  Lemma switcher_offset_tail_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check" ".Lexited_thread"
+    = switcher_offset_tail.
+  Proof. vm_compute. reflexivity. Qed.
+  Lemma switcher_offset_sched_cjalr_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+      ".Lexception_scheduler_cjalr"
+    = switcher_offset_sched_cjalr.
+  Proof. vm_compute. reflexivity. Qed.
+  Lemma switcher_offset_sched_return_eq :
+    label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+      ".Lexception_scheduler_return"
+    = switcher_offset_sched_return.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (** The return sentry of the scheduler call points to the next
+      instruction. *)
+  Lemma switcher_sched_return_offset :
+    switcher_offset_sched_return = (switcher_offset_sched_cjalr + 1)%Z.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (** The exit marker is the instruction before [a_exit]. *)
+  Lemma switcher_exit_offset :
+    switcher_offset_exit =
+      (label_offset_from (concat switcher_asm) ".Lswitch_csp_check" ".Lcommon_thread_exit"
+       + 1)%Z.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (** The setter follows the mtval write. *)
+  Lemma switcher_exit_set_offset :
+    switcher_offset_exit_set = (switcher_offset_exit + 1)%Z.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (** The body of an exited thread is the last two words of the switcher:
+      its PCC ends at [e_switcher]. *)
+  Lemma switcher_tail_last :
+    (switcher_offset_tail + 2)%Z = Z.of_nat (asm_instrs (concat switcher_asm)).
+  Proof. vm_compute. reflexivity. Qed.
   Definition assembled_switcher_n (n : nat) :=
     Eval compute in
       (match assembled_switcher !! n with | Some l => l | None => [] end).
@@ -736,19 +982,23 @@ Section Switcher.
       concat (firstn blocks_call_asm assembled_switcher).
 
 
-  (** The data words of the switcher, before its code: Griotte's key at
-      [.unsealing_key_import_tables], zeroes elsewhere. *)
+  (** The data words of the switcher, before its code: the key of the
+      trusted stacks at [.sealing_key_trusted_stacks], Seal and Unseal over
+      the otype after [ot], as CHERIoT's loader writes it; Griotte's key at
+      [.unsealing_key_import_tables]; zeroes for the entry of the scheduler,
+      which the image does not hold. *)
   Definition switcher_data_words (ot : OType) : list Word :=
-    [WInt 0; SealRange (true, true) Global ot (ot ^+ 1) ot; WInt 0; WInt 0; WInt 0].
+    [SealRange (true, true) Global (ot ^+ 1) (ot ^+ 1 ^+ 1) (ot ^+ 1);
+     SealRange (true, true) Global ot (ot ^+ 1) ot; WInt 0; WInt 0; WInt 0].
 
   (** The well-formedness of the layout of a user thread. *)
   Class threadLayoutWf {tlayout : threadLayout} : Type :=
     mkThreadLayoutWf {
         trusted_stack_disjoint_from_shadow :
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
-        (* The register save area of the trusted stack is not in the heap. *)
-        trusted_stack_not_heap :
-        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ);
+        (* The whole trusted stack is outside the heap. *)
+        trusted_stack_disjoint_from_heap :
+        disjoint_from_heap b_trusted_stack e_trusted_stack;
         (* The trusted stack holds its header, the entry frame and a whole
            number of frames. *)
         trusted_stack_frames_fit :
@@ -778,7 +1028,37 @@ Section Switcher.
         ot_switcher_size :
         (ot_switcher < ot_switcher ^+ 1)%ot;
 
-        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1) = false;
+        ot_trusted_stacks_size :
+        (ot_trusted_stacks < ot_trusted_stacks ^+ 1)%ot;
+
+        a_exc_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             "exception_entry_asm")%a
+        = Some a_exc;
+        a_exit_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             ".Lcommon_thread_exit_mtval")%a
+        = Some a_exit;
+        a_exit_set_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             ".Lcommon_thread_exit_set_mepcc")%a
+        = Some a_exit_set;
+        a_tail_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             ".Lexited_thread")%a
+        = Some a_tail;
+        a_sched_cjalr_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             ".Lexception_scheduler_cjalr")%a
+        = Some a_sched_cjalr;
+        a_sched_return_label :
+        (a_switcher_call + label_offset_from (concat switcher_asm) ".Lswitch_csp_check"
+                             ".Lexception_scheduler_return")%a
+        = Some a_sched_return;
+
+        (* The five data words before the code are not shadow addresses. *)
+        switcher_data_not_shadow :
+        ∀ i : nat, i < 5 → is_shadow_address (b_switcher ^+ i) = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
         (* The layout of every user thread is well formed. *)
         swl_thread_wf : ∀ i, threadLayoutWf (tlayout := swl_thread i)
@@ -821,6 +1101,12 @@ Ltac switcher_layout_term t :=
   | context [a_switcher_call] => idtac
   | context [b_switcher] => idtac
   | context [e_switcher] => idtac
+  | context [a_exc] => idtac
+  | context [a_exit] => idtac
+  | context [a_exit_set] => idtac
+  | context [a_tail] => idtac
+  | context [a_sched_cjalr] => idtac
+  | context [a_sched_return] => idtac
   | context [switcher_instrs] => idtac
   | context [assembled_switcher] => idtac
   | context [switcher_asm] => idtac

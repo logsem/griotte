@@ -292,6 +292,14 @@ Section HTS_Spec_Malloc.
         iLeft. iExists _.
         iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
         iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main Hmie Hheld".
+        iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+        iDestruct (regs_of_parts _ [(cgp, _); (csp, _); (cs1, _); (ca1, _)]
+                     {[ ca0 ; ct0 ; cs0 ; cra ; ctp ; ct2 ]} with "Hrmap [Hcgp Hcsp Hcs1 Hca1]")
+          as "Hrmap".
+        { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+          pose proof (all_registers_s_correct r). set_solver. }
+        { cbn. iFrame. }
+        iFrame "Hrmap".
         done.
       + iDestruct "Hok" as (ι b e)
           "(%Hbounds & _ & _ & %Hret & #Hobj & Hright & Howner & Hzeroed)".
@@ -321,6 +329,14 @@ Section HTS_Spec_Malloc.
       iLeft. iExists _.
       iExtractList "Hrmap" [ctp;ct0;ct2] as ["[Hctp _]";"[Hct0 _]";"[Hct2 _]"].
       iFrame "Hna HPC Hca0 Hct0 Hcs0 Hcra Hctp Hct2 Hcstk Hcode_main Hmie Hheld".
+      iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+      iDestruct (regs_of_parts _ [(cgp, _); (csp, _); (cs1, _); (ca1, _)]
+                   {[ ca0 ; ct0 ; cs0 ; cra ; ctp ; ct2 ]} with "Hrmap [Hcgp Hcsp Hcs1 Hca1]")
+        as "Hrmap".
+      { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
+      iFrame "Hrmap".
       done.
   Qed.
 End HTS_Spec_Malloc.

@@ -271,10 +271,11 @@ Section KVS_Main_Blocks.
   (** Block 15: return through the switcher's return sentry, saved in
       [cs0]: the thread exits. *)
   Lemma kvs_return_spec
-    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (wcra wctp wct0 wct2 : LWord)
+    (pc_b pc_e pc_a : Addr) (cstk : CSTK) (rmap : LReg) (wcra wctp wct0 wct2 : LWord)
     (b : InterruptStatus) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length kvs_main_code) ->
     cstk.(cstk_frames) = [] ->
+    dom rmap = all_registers_s ∖ {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} ->
     route_pre th b ->
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static ∗
@@ -285,15 +286,16 @@ Section KVS_Main_Blocks.
     ctp ↦ᵣ[th] wctp ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct2 ↦ᵣ[th] wct2 ∗
+    regs[th] rmap ∗
     ◯(CSTK)[th] cstk ∗
     codefrag_pers pc_a kvs_main_code ∗
     MIE ↦ₜ[th] b ∗
     held (th := th) b
     ⊢ safe[th].
   Proof.
-    iIntros (HsubBounds Hframes Hroute)
+    iIntros (HsubBounds Hframes Hdom Hroute)
       "(#Hswitcher & #Hswitcher_static & Hna & HPC & Hcs0 & Hcra & Hctp & Hct0 & Hct2
-        & Hcstk & Hcode_main & Hmie & Hheld)".
+        & Hrmap & Hcstk & Hcode_main & Hmie & Hheld)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     unfold_code kvs_main_code "Hcode_main".
     focus_block 15 "Hcode_main" of kvs_main_blocks at pc_a as a_ret Ha_ret "Hcode" "Hcont".
@@ -302,8 +304,14 @@ Section KVS_Main_Blocks.
     (* Jalr cnull cra *)
     iInstr "Hcode".
     iEval (rewrite thread_return_sentry_pc) in "HPC".
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ _ Hframes with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hcstk $Hmie $Hheld]").
+    assert (list_to_set [cs0; cra] ∪ dom rmap = all_registers_s ∖ {[ ctp ; ct0 ; ct2 ]})
+      as Hdom_exit.
+    { rewrite Hdom. apply set_eq. intros r. pose proof (all_registers_s_correct r). set_solver. }
+    iDestruct (regs_of_parts rmap [(cs0, _); (cra, _)] _ Hdom_exit with "Hrmap [Hcs0 Hcra]")
+      as (rmap_exit) "[%Hdom_rmap_exit Hrmap]".
+    { cbn. iFrame. }
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit with
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie $Hheld]").
   Qed.
 
   Lemma kvs_main_add_phase_spec
@@ -574,9 +582,15 @@ Section KVS_Main_Blocks.
       iInstr "Hcode".
       { jump_to (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iDestruct (regs_of_parts _ [(cgp, _); (cs1, _); (csp, _); (ca0, _); (ca1, _)]
+                   {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hcs1 Hcsp Hca0 Hca1]")
+        as (rmap_exit) "[%Hrmap_exit Hrmap]".
+      { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
       iApply (kvs_return_spec with
-               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
     apply load_heap_nonheap in Hgp;
@@ -607,9 +621,15 @@ Section KVS_Main_Blocks.
       iInstr "Hcode".
       { jump_to (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iDestruct (regs_of_parts _ [(cgp, _); (cs1, _); (csp, _); (ca0, _); (ca1, _)]
+                   {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hcs1 Hcsp Hca0 Hca1]")
+        as (rmap_exit) "[%Hrmap_exit Hrmap]".
+      { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
       iApply (kvs_return_spec with
-               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
     }
     subst wca0_ret.
     (* Case where insert succeeded  *)
@@ -876,9 +896,15 @@ Section KVS_Main_Blocks.
       iInstr "Hcode".
       { jump_to (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a. }
       unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+      iDestruct (regs_of_parts _ [(cgp, _); (cs1, _); (csp, _); (ca0, _); (ca1, _)]
+                   {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hcs1 Hcsp Hca0 Hca1]")
+        as (rmap_exit) "[%Hrmap_exit Hrmap]".
+      { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+        pose proof (all_registers_s_correct r). set_solver. }
+      { cbn. iFrame. }
       iApply (kvs_return_spec with
-               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
+               "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+                 $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
     }
     destruct Hrestored as (Hgp & Hra & Hs0 & Hs1).
     apply load_heap_nonheap in Hgp;
@@ -934,9 +960,16 @@ Section KVS_Main_Blocks.
     replace (a_assert2 ^+ length (assert_instrs ASSERT_OFFSET ct2 ca2))
       with (pc_a ^+ kvs_main_label_offset ".Lkvs_return")%a.
     2: { kvs_main_fetch_offset. }
+    iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
+    iDestruct (regs_of_parts _ [(cgp, _); (cs1, _); (csp, _); (ca0, _); (ca1, _); (ct1, _); (ca2, _)]
+                 {[ cs0 ; cra ; ctp ; ct0 ; ct2 ]} with "Hrmap [Hcgp Hcs1 Hcsp Hca0 Hca1 Hct1 Hca2]")
+      as (rmap_exit) "[%Hrmap_exit Hrmap]".
+    { rewrite !dom_delete_L Hdom_rmap_ret. apply set_eq. intros r.
+      pose proof (all_registers_s_correct r). set_solver. }
+    { cbn. iFrame. }
     iApply (kvs_return_spec with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
-               $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done].
+             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2 $Hrmap
+               $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done].
   Qed.
 
 End KVS_Main_Blocks.

@@ -111,7 +111,10 @@ Section fundamental.
     iExists m, (Cap p g b e a), regs. iFrame "Hvol HPC Hmap Hreg".
     iSplit; first done. iSplit; first done. iSplit; first done. iSplit; first done.
     rewrite lmepcc_of_pc_correct //.
-    destruct (yield_resume_pc_cap p g b e a) as [a' ->].
+    assert (is_Some (a + 1)%a) as [a' Ha'].
+    { inversion HcorrectPC; solve_addr. }
+    assert (executeAllowed p = true) as Hx by (by inversion HcorrectPC).
+    rewrite (yield_resume_pc_cap p g b e a a' Hx Ha').
     iApply interp_expression_at. iApply "IH".
     by iApply (interp_next_PC with "Hinv_interp").
   Qed.

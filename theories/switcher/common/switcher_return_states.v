@@ -39,42 +39,6 @@ Section Switcher_Return_States.
   Proof. rewrite switcher_return_offset. by offsets_compute. Qed.
 
   (** The trusted-stack invariant, opened by the return routine, closes again
-      with the trusted stack unchanged: after the thread exit. *)
-  Lemma switcher_return_exit_close
-    (F : coPset) (cstk : CSTK) (a_tstk : Addr) (tstk_next : list LWord) :
-    let a_frameoffset := (b_trusted_stack ^+ TrustedStack_offset_frameoffset) in
-    let a_threadID := (b_trusted_stack ^+ TrustedStack_offset_threadID) in
-    let a_next := (a_tstk ^+ TrustedStackFrame_size) in
-    (b_trusted_stack + tstack_frame_offset (length cstk.(cstk_frames)))%a = Some a_tstk ∧
-    (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
-    th ≠ CtxSwitch ->
-    mtdc_home = Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ->
-
-    (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
-    na_own (tpool th) (F ∖ ↑Ntstack) -∗
-    mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
-    a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk.(cstk_frames))) -∗
-    switcher_hazard -∗
-    (∃ w, a_threadID ↦ₐ w) -∗
-    [[ a_next, e_trusted_stack ]] ↦ₐ [[ tstk_next ]] -∗
-    ●(CSTK)[th] cstk -∗
-    ▷ cstack_interp cstk a_tstk
-    ={⊤}=∗
-    na_own (tpool th) F.
-  Proof.
-    intros a_frameoffset a_threadID a_next.
-    subst a_frameoffset a_threadID a_next.
-    iIntros (Hlen Huser Hhome) "Hclose Hna Hmtdc Hframeoffset Hhazard HthreadID
-      Htstk Hcstk_full Hstk_interp".
-    iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
-    iApply ("Hclose" with "[- $Hna]").
-    iNext. iExists a_tstk, cstk, tstk_next.
-    iFrame "Hmtdc Hhazard_cell Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full
-      Hstk_interp".
-    iPureIntro. done.
-  Qed.
-
-  (** The trusted-stack invariant, opened by the return routine, closes again
       after the pop of the topmost frame [frm], at [a_tstk]. *)
   Lemma switcher_return_pop_close
     (F : coPset) (frm : cframe) (cstk : CSTK) (a_tstk : Addr)
