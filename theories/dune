@@ -20,7 +20,7 @@
    case_studies.lse_downward.lse_concrete
    case_studies.multiuser_kvs.kvs_adequacy case_studies.multiuser_kvs.kvs_concrete
    case_studies.stack_object.stack_object_concrete
-   case_studies.vae.vae_adequacy case_studies.vae.vae_concrete
+   case_studies.vae.vae_concrete
    case_studies.vae.vae_untrusted_entry_adequacy case_studies.vae.vae_untrusted_entry_concrete)
  (rocqdoc_header ../rocqdoc_extra/header.html)
  (rocqdoc_footer ../rocqdoc_extra/footer.html)
