@@ -87,7 +87,7 @@ Section obligation_facts.
     firmware_ok fw img σ →
     trusted_stack_layout (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
       (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0))
-      (fw_tstack_content img 0 (fw_thread0 fw)) ∧
+      (fw_tstack_content fw img 0 (fw_thread0 fw)) ∧
     img_switcher_layout (img_sw img) (thread_of img 0)
       (replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)).
   Proof.
@@ -129,8 +129,8 @@ Section obligation_facts.
     fw_cmpts fw !! i = Some fc →
     switcher_cmpt_disjoint (layout_cmpt_of _ Hc) (fw_switcher_cmpt fw img σ Hok).
   Proof.
-    intros Hi. pose proof Hok as (_ & _ & Hregs & Hwf).
-    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
+    intros Hi. pose proof Hok as (_ & _ & _ & Hwf).
+    destruct (firmware_ok_threads_inv _ _ _ Hok) as ([fts Hthreads] & _).
     eapply img_wf_switcher_cmpt_disjoint; [exact Hthreads | done |].
     by eapply list_elem_of_lookup_2.
   Qed.
@@ -166,8 +166,8 @@ Section obligation_facts.
     (b_stack (thread_of img 0) + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space <=
        e_stack (thread_of img 0))%Z.
   Proof.
-    intros Hok. pose proof Hok as (_ & _ & Hregs & Hwf).
-    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
+    intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
+    destruct (firmware_ok_threads_inv _ _ _ Hok) as ([fts Hthreads] & _).
     pose proof Hwf as (_ & _ & _ & Hthreads_wf & _).
     rewrite Hthreads in Hthreads_wf.
     apply big_and_cons in Hthreads_wf as [Hthread0 _].
@@ -179,7 +179,7 @@ Section obligation_facts.
   Definition fw_entry_at_code (fw : firmware) : Prop :=
     match fc_body (fw_entry_fc fw 0) with
     | TrustedBody _ => fw_entry_offset fw 0 = length (fc_imports (fw_entry_fc fw 0))
-    | UntrustedBody _ => False
+    | UntrustedBody _ | SchedulerBody _ => False
     end.
 
   Lemma fw_imap_const {A B} (g : A → B) (k : nat) (l : list A) :
@@ -198,14 +198,15 @@ Section obligation_facts.
     let m := fw_entry_cmpt fw img 0 in
     fw_entry_pc fw img 0 = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (cmpt_a_code m).
   Proof.
-    intros Hentry Hok m. pose proof Hok as (Hcmpts & _ & Hregs & Hwf).
-    destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
+    intros Hentry Hok m. pose proof Hok as (Hcmpts & _ & _ & Hwf).
+    destruct (firmware_ok_threads_inv _ _ _ Hok) as ([fts Hthreads] & Hentries).
+    destruct (Hentries 0 (fw_thread0 fw)) as [Hin Hname]; first by rewrite Hthreads.
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hin) as Hc.
     apply big_and_fw_map in Hcmpts. rewrite Forall_forall in Hcmpts.
     pose proof (cmpt_ok_imports _ _ _ (Hcmpts _ Hin)) as Himports.
     pose proof (icl_import_size _ Hc) as Hsize.
     rewrite /m /fw_entry_pc. rewrite /fw_entry_at_code in Hentry.
-    destruct (fc_body (fw_entry_fc fw 0)) as [tb|]; last done.
+    destruct (fc_body (fw_entry_fc fw 0)) as [tb| |]; [|done..].
     rewrite Himports length_fmap -Hentry Hname -fw_thread_of_0 in Hsize.
     rewrite /fw_entry_cmpt addr_off_eq. cbv zeta.
     do 2 f_equal. solve_addr.
@@ -287,6 +288,8 @@ Section prepared.
         | eh, ehs => b ↦ₑ□{stackful} handler_word eh ∗ b ↦ₑ□{stackless} handler_word ehs
         end
     | UntrustedBody _ => ∃ eh ehs : Z, b ↦ₑ□{stackful} eh ∗ b ↦ₑ□{stackless} ehs
+    | SchedulerBody _ =>
+        b ↦ₑ□{stackful} ExportTable_no_handler ∗ b ↦ₑ□{stackless} ExportTable_no_handler
     end.
 
   #[global] Instance fw_handler_res_persistent fc b : Persistent (fw_handler_res fc b).
@@ -346,7 +349,7 @@ Section prepared.
       as (ie & m & off & Hentry).
     { destruct (cmpt_ok_inv _ _ _ Hok) as (_ & _ & _ & Hbody).
       rewrite /fc_export_nargs in Hk.
-      destruct (fc_body fc) as [tb|ub].
+      destruct (fc_body fc) as [tb|ub|sb]; last done.
       - destruct Hbody as (_ & _ & _ & Hexp).
         rewrite fw_map_eq list_lookup_fmap in Hk.
         destruct (tb_exports tb !! k) as [e|] eqn:He; simplify_eq/=.
@@ -505,7 +508,7 @@ Section prepared.
     { iApply (exp_tbl_entries_offsets with "Hetbl").
       - exact (icl_exp_tbl_header_size _ Hc).
       - exact (icl_exp_tbl_entries_size _ Hc). }
-    destruct (fc_body fc) as [tb|ub]; rewrite /body_ok /note in Hbody.
+    destruct (fc_body fc) as [tb|ub|sb]; rewrite /body_ok /note in Hbody.
     - destruct Hbody as (_ & _ & Hh & _).
       destruct (tb_error_handler tb), (tb_error_handler_stackless tb);
         destruct Hh as [Heh_eq Hehs_eq];
@@ -514,6 +517,9 @@ Section prepared.
     - destruct Hbody as (_ & _ & (eh & ehs & Heh_eq & Hehs_eq) & _).
       rewrite Heh_eq Hehs_eq.
       iExists eh, ehs.
+      iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro].
+    - destruct Hbody as (_ & _ & [Heh_eq Hehs_eq] & _).
+      rewrite Heh_eq Hehs_eq.
       iSplit; [by iApply handler_stackful_intro | by iApply handler_stackless_intro].
   Qed.
 
@@ -876,7 +882,7 @@ End adversary.
 Definition fw_entry_untrusted (fw : firmware) : Prop :=
   match fc_body (fw_entry_fc fw 0) with
   | UntrustedBody _ => True
-  | TrustedBody _ => False
+  | TrustedBody _ | SchedulerBody _ => False
   end.
 
 (** The PCC of the compartment the thread [i] starts in, at its base, as
@@ -924,10 +930,12 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
 Proof.
   intros Huntrusted Hpin Hshared Hsetup. exists cthreads.
   intros img σ ceriseb sealsg stsg relg cstackg Hok.
-  pose proof Hok as (_ & _ & Hregs & Hwf).
-  destruct (regs_ok_inv _ _ _ Hregs) as (_ & Hin & Hname & _).
+  pose proof Hok as (_ & _ & _ & Hwf).
+  destruct (firmware_ok_threads_inv _ _ _ Hok) as ([fts Hthreads] & Hentries).
+  destruct (Hentries 0 (fw_thread0 fw)) as [Hin Hname]; first by rewrite Hthreads.
   rewrite /fw_entry_untrusted in Huntrusted.
-  destruct (fc_body (fw_entry_fc fw 0)) as [|ub] eqn:Hbody; first by destruct Huntrusted.
+  destruct (fc_body (fw_entry_fc fw 0)) as [|ub|] eqn:Hbody; [by destruct Huntrusted | |
+    by destruct Huntrusted].
   pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
   assert (cmpt_of img (fc_name (fw_entry_fc fw 0)) = fw_entry_cmpt fw img 0) as Hm.
   { by rewrite Hname /fw_entry_cmpt fw_thread_of_0. }
