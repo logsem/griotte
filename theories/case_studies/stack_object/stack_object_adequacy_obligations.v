@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  so_firmware.
+  firmware_thread_obligations so_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import stack_object stack_object_spec_closure stack_object_spec.
 From griotte Require Import assert_spec logrel.
@@ -17,18 +17,20 @@ From griotte Require Import allocator_resources heap_region.
 
 Section so_obligations.
   Context {Σ : gFunctors}.
-  Context {cname : CmptNameG} {C : CmptName}.
+  Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the stack object firmware:
       the thread runs safely from the export [entry] of [main], the
       untrusted compartment ["C"] being owned by the logical compartment
-      [C]. *)
+      [C], the scheduler running in [Sched]. *)
   Lemma so_fw_obligations :
-    fw_obligations Σ so_firmware.
+    C ≠ Sched →
+    fw_obligations_pt Σ so_firmware.
   Proof.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros HCS.
+    apply (fw_obligations_pt_of_pinned Σ so_firmware Sched); [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -68,13 +70,14 @@ Section so_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS) with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack so_firmware 0) with 4 in Hentry_min_stack.
-    iEval (cbv [so_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [so_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & #Hmain_pers) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].
     change (fw_entry_cmpt so_firmware img 0) with (cmpt_of img "main").
@@ -91,7 +94,8 @@ Section so_obligations.
     iEval (cbn [fc_name]) in "Hmain_etbl_pcc Hmain_etbl_cgp Hmain_etbl_entries".
     iEval (rewrite main_exp_tbl) in "Hmain_etbl_entries".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HCS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
@@ -191,7 +195,8 @@ Section so_obligations.
                          $Hcstk $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
                          $HMIE $Hheld
-                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+                        ]") as "Hspec";
+      last (iModIntro; iExact "Hspec"); eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_exp_tbl_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
@@ -200,7 +205,5 @@ Section so_obligations.
     { intros r Hr. by rewrite fw_cleared_regs_lookup. }
     { done. }
     { by rewrite /route_pre. }
-    iModIntro.
-    iApply (wp_mono with "Hspec"); auto.
   Qed.
 End so_obligations.
