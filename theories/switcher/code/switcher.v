@@ -857,8 +857,14 @@ Section Switcher.
         jmp (".Lcommon_context_install")%asm
       ]
       ; [ #".Lexception_reentered";
-        (* [deviation] halt instead of the re-entry loop *)
-        halt
+        (* zeroOne sp *)
+        mov csp 0;
+        (* cspecialw mtcc, csp *)
+        writesr mtcc csp;
+        (* clc csp, 0(csp) *)
+        load csp csp;
+        (* j .Lexception_reentered *)
+        jmp (".Lexception_reentered")%asm
       ]
     ].
 
