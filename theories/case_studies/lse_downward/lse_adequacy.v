@@ -2,7 +2,8 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
-  lse_firmware.
+  firmware_thread_obligations lse_firmware.
+From griotte Require Import hw_lang.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import lse lse_spec_states lse_spec_closure lse_spec.
 From griotte Require Import assert_spec logrel.
@@ -17,38 +18,42 @@ From griotte Require Import compartment_layout switcher_adequacy adequacy_helper
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Export lse_adequacy_obligations.
 
-(** We initialise concretely the compartments name typeclass. *)
+(** We initialise concretely the compartments name typeclass: the
+    adversary and the scheduler. *)
 
-Inductive CmptNames_lse := | C.
+Inductive CmptNames_lse := | C | Sched.
 #[local] Instance CmptNames_lse_eq_dec : EqDecision CmptNames_lse.
 Proof. intros C1 C2; destruct C1, C2; solve_decision. Qed.
 #[local] Instance CmptNames_lse_finite : finite.Finite CmptNames_lse.
 Proof.
-  refine {| finite.enum := [C] |}.
-  + apply NoDup_singleton.
-  + intros []; left.
+  refine {| finite.enum := [C; Sched] |}.
+  + constructor; [ by rewrite list_elem_of_singleton | apply NoDup_singleton ].
+  + intros [|]; [ left | right; left ].
 Defined.
 
 #[local] Program Instance CmptNames_lse_CmptNameG : CmptNameG :=
   {| CmptName := CmptNames_lse; |}.
 
-(** The logical compartment of the adversary. *)
+(** The logical compartments of the adversary and of the scheduler. *)
 Definition lse_adv_C : @CmptName CmptNames_lse_CmptNameG := C.
+Definition lse_sched : @CmptName CmptNames_lse_CmptNameG := Sched.
 
 (* The fields of the image records, for the end-to-end statement. *)
 Import image.
 
-(** END-TO-END THEOREM *)
-Theorem lse_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf) es :
+(** END-TO-END THEOREM. The scheduler starts with no interrupt-enabling
+    sentry: [firmware_ok_sched_no_enabling]. *)
+Theorem lse_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
+    (es : list (language.expr griotte_hw_lang)) :
   lse_initial_state_ok flag σ →
-  rtc erased_step ([Exec], σ) (es, σ') →
+  rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
   intros Hok Hstep.
   destruct (lse_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & main & C & <- & Hfw).
+    as (sw & asrt & t0 & idle & boot & main & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_lse_CmptNameG) #[]
-            lse_firmware (lse_img sw asrt t0 main C));
+            lse_firmware (lse_img sw asrt t0 idle boot main C sched));
     [| exact Hfw | exact Hstep].
-  apply (lse_fw_obligations (C := lse_adv_C)).
+  apply (lse_fw_obligations (C := lse_adv_C) (Sched := lse_sched)); done.
 Qed.
