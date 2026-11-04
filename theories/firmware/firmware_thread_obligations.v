@@ -17,26 +17,31 @@ From griotte Require Import image firmware.
 (** * The save area of a thread at its entry *)
 
 (** The words of a save area, by computation. *)
+(* TODO: move to case_studies/adequacy_common.v *)
 #[local] Lemma save_area_lookup_mstatus `{MP : MachineParameters} a b c d h m :
   (lword_of_word <$> save_area_content a b c d h m) !! Z.to_nat TrustedStack_offset_mstatus =
   Some (lword_of_word m).
 Proof. reflexivity. Qed.
 
+(* TODO: move to case_studies/adequacy_common.v *)
 #[local] Lemma save_area_word_mstatus `{MP : MachineParameters} a b c d h m :
   save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mstatus =
   lword_of_word m.
 Proof. reflexivity. Qed.
 
+(* TODO: move to case_studies/adequacy_common.v *)
 #[local] Lemma save_area_word_mepcc `{MP : MachineParameters} a b c d h m :
   save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mepcc =
   lword_of_word a.
 Proof. reflexivity. Qed.
 
+(* TODO: move to case_studies/adequacy_common.v *)
 #[local] Lemma save_area_word_mcause `{MP : MachineParameters} a b c d h m :
   save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mcause =
   lnull.
 Proof. reflexivity. Qed.
 
+(* TODO: move to case_studies/adequacy_common.v *)
 (** A lookup in [resume_regs_of]. *)
 #[local] Lemma resume_regs_of_lookup ws r :
   resume_regs_of ws !! r =
@@ -352,14 +357,14 @@ Section sched_world.
     { change (j < S (length (img_threads img))). lia. }
     rewrite /thread_handle fw_length_eq /note.
     destruct (Nat.eqb_spec j (length (fw_threads fw))) as [-> | Hneq].
-    - rewrite -Hlen fw_tlayout_idle; last (destruct (fw_threads fw); [done | cbn in *; lia]).
+    - rewrite -Hlen fw_tlayout_idle; last (rewrite Hlen; destruct (fw_threads fw); [done | cbn [length]; lia]).
       iExact "Hv".
     - rewrite fw_tlayout_lt; last lia.
       iExact "Hv".
   Qed.
 
   (** The time-device capabilities that the scheduler imports. *)
-  #[local] Lemma sched_time_dev_words_cases fw w :
+  Lemma sched_time_dev_words_cases fw w :
     w ∈ sched_time_dev_words fw →
     w = time_dev_cap mtime_addr ∨ w = time_dev_cap mtimecmp_addr.
   Proof.
@@ -416,7 +421,7 @@ Section sched_world.
 
   (** The scheduler's imports, written by the firmware: the switcher call,
       and the two time devices or neither; no static sealed object. *)
-  #[local] Lemma img_wf_sched_imports fw img fc sb :
+  Lemma img_wf_sched_imports fw img fc sb :
     img_wf fw img →
     fw_sched_of (fw_cmpts fw) = Some (fc, sb) →
     (fc_imports fc = [ISwitcherCall] ∨ fc_imports fc = [ISwitcherCall; IMtime; IMtimecmp]) ∧

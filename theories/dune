@@ -10,7 +10,6 @@
  ; assumptions, excluded from the build.
  (modules :standard \
    assumptions
-   firmware.firmware_adequacy
    case_studies.cmdc.cmdc_adequacy case_studies.cmdc.cmdc_concrete
    case_studies.dle.deep_locality_adequacy case_studies.dle.deep_locality_concrete
    case_studies.droe.deep_immutability_adequacy case_studies.droe.deep_immutability_concrete
