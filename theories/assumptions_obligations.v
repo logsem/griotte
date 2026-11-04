@@ -12,6 +12,7 @@ From griotte Require
   error_handling_adequacy_obligations
 .
 From griotte.program_logic.virtualise Require virtualise.
+From griotte Require ctx_switch_specs.
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling.
@@ -26,7 +27,12 @@ Set Default Proof Mode "Classic".
 (** * The audited statements
 
     The fundamental theorem, [virtualise] (stated against the entry specs
-    of the context-switch thread, [ctx_switch_entry_specs], a premise), and
+    of the context-switch thread, [ctx_switch_entry_specs], a premise), the
+    entry specs of the switcher's context-switch thread
+    ([ctx_switch_entry_specs_hold]), under premises on the initial state
+    and two hypotheses (the validity of the scheduler's entry and the
+    safety of the context-switch thread's trap vector), and their
+    composition ([virtualise_switcher]), and
     per case study: the assumptions of the obligations of its trusted code
     ([<cs>_fw_obligations], at the level of the weakest precondition) and
     its initial-state predicate. The end-to-end theorems ([<cs>_adequacy],
@@ -56,6 +62,14 @@ Print Assumptions fundamental.fundamental.
 Goal True. idtac "
 Assumptions of virtualise (against the context-switch entry specs ctx_switch_entry_specs):". Abort.
 Print Assumptions griotte.program_logic.virtualise.virtualise.virtualise.
+
+Goal True. idtac "
+Assumptions of the context-switch entry specs of the switcher (ctx_switch_entry_specs_hold):". Abort.
+Print Assumptions ctx_switch_specs.ctx_switch_entry_specs_hold.
+
+Goal True. idtac "
+Assumptions of virtualise at the switcher (virtualise_switcher):". Abort.
+Print Assumptions ctx_switch_specs.virtualise_switcher.
 *)
 
 (** ** Key-value store (KVS) *)
