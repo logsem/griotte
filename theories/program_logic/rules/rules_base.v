@@ -116,6 +116,71 @@ End ctx_irq.
 Section exc_entry.
   Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ}.
 
+  (** Exception entry on the ghost state, as [enter_exc_update], when mtcc
+      holds the word [wv]: the PC receives [wv], and the volatile registers
+      are given back at their new values. *)
+  Lemma enter_exc_update_wedged σ (cv : Z * Z) lpc lreg lsreg lmem R C (p c : LWord) (v : Z)
+      (mpie b : InterruptStatus) (wv : LWord) :
+    erasure R C σ lpc lreg (ls_join lsreg) lmem →
+    ls_join lsreg !! mtcc = Some wv →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗
+    sys_interp lsreg -∗
+    gen_heap_interp lmem -∗
+    gen_heap_interp (shadowtbl σ) -∗
+    reg_auth R -∗
+    addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    MIE ↦ₜ b -∗
+    volatile_csr_at p c v mpie
+    ==∗
+    ⌜mie_st σ = b⌝ ∗
+    ⌜mie_st (enter_exc cv σ) = InterruptDisabled⌝ ∗
+    cerise_state_interp (enter_exc cv σ) ∗
+    PC ↦ₚ wv ∗
+    MIE ↦ₜ InterruptDisabled ∗
+    volatile_csr_at (lmepcc_of_pc lpc) (lword_of_word (WInt cv.1)) cv.2 b.
+  Proof.
+    iIntros (Her Htcc) "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f (Hmepcc & Hmcause & Hmtval & Hmpie_f)".
+    iDestruct (sys_interp_mie_agree with "Hsr Hmie_f") as %<-.
+    destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
+    pose proof (erasure_enter_exc _ _ _ _ _ _ _ cv _ Her Htcc) as Her'.
+    (* mstatus: MIE is disabled and MPIE receives MIE. *)
+    set (mie_old := mie_of (get_a (sreg_word σ mstatus))).
+    assert (mie_old = ls_mie lsreg) as Hmie_old.
+    { rewrite -Hmie_st /mie_old /mie_st /sreg_word.
+      destruct (sreg σ !! mstatus); done. }
+    iMod (sys_interp_set_mstatus _ _ _ InterruptDisabled mie_old with "Hsr Hmie_f Hmpie_f")
+      as "(Hsr & Hmie_f & Hmpie_f)".
+    (* MEPCC, mcause, mtval and the PC. *)
+    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2].
+    iMod (gen_heap_update _ _ _ (lmepcc_of_pc lpc) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.1)) with "Hsr Hmcause")
+      as "[Hsr Hmcause]".
+    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.2)) with "Hsr Hmtval")
+      as "[Hsr Hmtval]".
+    iMod (PC_update _ _ wv with "HPCa HPC") as "[HPCa HPC]".
+    pose (ls' := MkLSys
+      (<[mtval := lword_of_word (WInt cv.2)]>
+        (<[mcause := lword_of_word (WInt cv.1)]>
+          (<[mepcc := lmepcc_of_pc lpc]> (ls_sh lsreg))))
+      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
+    assert (lsregs_enter_exc cv σ lpc (ls_join lsreg) = ls_join ls') as Hjoin.
+    { apply map_eq. intros i.
+      rewrite /lsregs_enter_exc /ls' /ls_join /lsregs_join /mie_old /=.
+      destruct i; by simplify_map_eq. }
+    rewrite Hjoin in Her'.
+    iAssert (sys_interp ls') with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsys".
+    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
+      iFrame "Hsr Hmtcc Hmpie Hmtdc Hlent Hmie". iSplit; first done.
+      iPureIntro. split; by simplify_map_eq. }
+    iPoseProof (SI_close (enter_exc cv σ) wv lreg ls' lmem R C Her'
+                  with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
+    iModIntro. iSplit; first done. iSplit.
+    { by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
+    rewrite Hmie_old. iFrame.
+  Qed.
+
   (** Exception entry on the ghost state, from the opened state
       interpretation at [σ], the PC [lpc], MIE [b], the unwedged token and
       the volatile registers: MEPCC receives [lmepcc_of_pc lpc], mcause and
@@ -142,46 +207,11 @@ Section exc_entry.
     MIE ↦ₜ InterruptDisabled ∗
     vol_lent (lmepcc_of_pc lpc) (lword_of_word (WInt cv.1)) cv.2 b.
   Proof.
-    iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f HU
-      (Hmepcc & Hmcause & Hmtval & Hmpie_f)".
-    iDestruct (sys_interp_mie_agree with "Hsr Hmie_f") as %<-.
-    destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
+    iIntros (Her) "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f HU Hvcsr".
     iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
-    pose proof (erasure_enter_exc _ _ _ _ _ _ _ cv _ Her Htcc) as Her'.
-    (* mstatus: MIE is disabled and MPIE receives MIE. *)
-    set (mie_old := mie_of (get_a (sreg_word σ mstatus))).
-    assert (mie_old = ls_mie lsreg) as Hmie_old.
-    { rewrite -Hmie_st /mie_old /mie_st /sreg_word.
-      destruct (sreg σ !! mstatus); done. }
-    iMod (sys_interp_set_mstatus _ _ _ InterruptDisabled mie_old with "Hsr Hmie_f Hmpie_f")
-      as "(Hsr & Hmie_f & Hmpie_f)".
-    (* MEPCC, mcause, mtval and the PC. *)
-    iNamed "Hsr". destruct Hlsh as [Hn1 Hn2].
-    iMod (gen_heap_update _ _ _ (lmepcc_of_pc lpc) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.1)) with "Hsr Hmcause")
-      as "[Hsr Hmcause]".
-    iMod (gen_heap_update _ _ _ (lword_of_word (WInt cv.2)) with "Hsr Hmtval")
-      as "[Hsr Hmtval]".
-    iMod (PC_update _ _ (lword_of_word mtcc_vec) with "HPCa HPC") as "[HPCa HPC]".
-    pose (ls' := MkLSys
-      (<[mtval := lword_of_word (WInt cv.2)]>
-        (<[mcause := lword_of_word (WInt cv.1)]>
-          (<[mepcc := lmepcc_of_pc lpc]> (ls_sh lsreg))))
-      (ls_mtdc lsreg) (ls_vmtdc lsreg) InterruptDisabled mie_old).
-    assert (lsregs_enter_exc cv σ lpc (ls_join lsreg) = ls_join ls') as Hjoin.
-    { apply map_eq. intros i.
-      rewrite /lsregs_enter_exc /ls' /ls_join /lsregs_join /mie_old /=.
-      destruct i; by simplify_map_eq. }
-    rewrite Hjoin in Her'.
-    iAssert (sys_interp ls') with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsys".
-    { rewrite /sys_interp /ls'. cbn [ls_sh ls_mtdc ls_vmtdc ls_mie ls_mpie ls_set_mstatus] in *.
-      iFrame "Hsr Hmtcc Hmpie Hmtdc Hlent Hmie". iSplit; first done.
-      iPureIntro. split; by simplify_map_eq. }
-    iPoseProof (SI_close (enter_exc cv σ) mtcc_vec lreg ls' lmem R C Her'
-                  with "HPCa Hr Hsys Hm Hst HR HC") as "HSI".
-    iModIntro. iSplit; first done. iSplit.
-    { by destruct (erasure_mie_st _ _ _ _ _ _ _ Her') as [-> _]. }
-    rewrite Hmie_old. iFrame.
+    iMod (enter_exc_update_wedged with "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f Hvcsr")
+      as "($ & $ & $ & $ & $ & Hvcsr)"; [exact Her | exact Htcc |].
+    by iFrame.
   Qed.
 End exc_entry.
 

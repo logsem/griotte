@@ -322,29 +322,6 @@ Section griotte_lang_rules.
     iApply (sregs_of_map_1 with "Hsmap").
   Qed.
 
-  (* TODO: move to state_interp.v *)
-  (** The wedge of MTCC: from the pending branch of [SI_mtcc], with the
-      unwedged token, MTCC receives an untagged word [w'], and [SI_mtcc]
-      takes its wedged branch, which holds the token. *)
-  Lemma mtcc_wedge_update (lsh : LSReg) (w' : LWord) :
-    get_tag w'.(lw) = false →
-    gen_heap_interp lsh ∗
-    mtcc ↦ₓ lword_of_word mtcc_vec ∗
-    mtcc_pending ∗
-    unwedged
-    ==∗
-    gen_heap_interp (<[mtcc := w']> lsh) ∗
-    SI_mtcc ∗
-    mtcc_wedged.
-  Proof.
-    iIntros (Htag) "(Hsr & Hmtcc & Hpend & HU)".
-    iMod (gen_heap_update _ _ _ w' with "Hsr Hmtcc") as "[$ Hmtcc]".
-    iMod (own_update with "Hpend") as "#Hwedged"; last first.
-    { iModIntro. iSplitL; last iExact "Hwedged".
-      iRight. iExists w'. iFrame "Hmtcc HU". iSplit; first done. iExact "Hwedged". }
-    by apply cmra_update_exclusive.
-  Qed.
-
   (** [cspecialw mtcc, src] of an untagged word, with the unwedged token:
       the token goes to the state interpretation, which records mtcc as
       wedged. *)

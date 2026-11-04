@@ -19,54 +19,6 @@ Section ctx_wedge.
     {cthreads : CmptThreads} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
 
-  (* TODO: move to switcher_link.v *)
-  (** [cspecialrw r, mtdc, r] at the context-switch thread, with its
-      token: the ghost value is then its home, and the token is paid,
-      whatever is written. *)
-  Lemma wp_specialrw_swap_mtdc_ctx_open E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r
-      (v : LWord) m m' dq (Φ : tval CtxK → iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    has_sreg_access pc_p = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r ≠ cnull →
-    mtdc_match m' v →
-    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-    ▷ pc_a ↦ₐ{dq} w ∗
-    ▷ r ↦ᵣ[CtxSwitch] v ∗
-    ▷ mtdc ↦ₜ[CtxSwitch] m ∗
-    ▷ unwedged ∗
-    ▷ mtdc_lent_at (th := CtxSwitch) -∗
-    ▷ (∀ vm : LWord,
-         ⌜mtdc_match m vm⌝ ∗
-         PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-         pc_a ↦ₐ{dq} w ∗
-         r ↦ᵣ[CtxSwitch] vm ∗
-         mtdc ↦ₜ[CtxSwitch] m' ∗
-         unwedged -∗
-         Φ NextIV) -∗
-    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
-  Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm') "(HPC & Hpc_a & Hr & Hmtdc & HU & Hlent) HΦ".
-    iApply (wp_specialrw_swap_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
-              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _ m m' _ unwedged unwedged
-              (mtdc_lent_at (th := CtxSwitch)) True%I
-             with "[$HPC $Hpc_a $Hr $Hmtdc $HU $Hlent]"); try done.
-    - apply ctx_link_transfer_unwedged.
-    - iIntros "[_ Hl] !>". iSplitL; [by iRight | done].
-    - iNext. iIntros (vm) "(Hmatch & HPC & Hpc_a & Hr & Hmtdc & HU & _)".
-      iApply "HΦ". iFrame.
-  Qed.
-
-  (* TODO: move to switcher_link.v *)
-  (** The part of the context-switch thread. *)
-  Lemma posture_part_ctx :
-    @posture_part Σ MP (ceriseG_of CtxSwitch) CtxSwitch (crit_link_full CtxSwitch)
-      (crit_route_full CtxSwitch) ⊣⊢
-    mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
-    mtdc_lent_at (th := CtxSwitch).
-  Proof. done. Qed.
-
   (** Zero, written to mtcc, is untagged. *)
   #[local] Lemma legalise_mtcc_zero : get_tag (legalise mtcc (WInt 0)) = false.
   Proof. reflexivity. Qed.
@@ -125,8 +77,9 @@ Section ctx_wedge.
     (* Mov csp 0 *)
     iInstr "Hcode".
     destruct (decide (csp = cnull)) as [Hcsp_null|_]; first done.
-    (* SpecialRW cnull mtcc csp *)
+    (* The side condition of the wedge rule, for the solver of [iInstrApply] *)
     pose proof legalise_mtcc_zero as Hlegal.
+    (* SpecialRW cnull mtcc csp *)
     iInstrStart "Hcode".
     iInstrApply (wp_writesr_mtcc_wedge _ _ _ _ _ _ _ _ _ csp (WInt 0))
       with "[$HPC $Hcsp $HU]" as "(HPC & Hcsp & #Hwedged)".
@@ -136,7 +89,8 @@ Section ctx_wedge.
     iInstrApply (wp_load_fail_const_imm _ _ _ _ _ _ _ _ csp csp 0
                    {[csp := lword_of_word (WInt 0)]})
       with "[$HPC $Hmap]" as "(HPC & _)".
-    1,2: done.
+    { done. }
+    { done. }
     (* The PC of the switcher is tagged: trap entry installs the wedged mtcc *)
     iApply (wp_trap_wedged with "Hwedged HPC HMIE Hvol"); first done.
     iIntros "!>" (wv Hwv) "HPC _ _".

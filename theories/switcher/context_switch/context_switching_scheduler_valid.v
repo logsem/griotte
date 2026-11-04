@@ -4,6 +4,7 @@ From griotte Require Import fundamental.
 From griotte Require Import switcher_call_states switch_csp_check switch_entry_first_spill.
 From griotte Require Import common_force_unwind switcher_call_world switcher_registers.
 From griotte Require Import context_switching_support context_switching_hyps.
+From griotte Require Import virtualise context_switching_wedge context_switching_specs.
 
 (** * The switcher's call sentry and the scheduler's entry at the
       context-switch thread
@@ -209,7 +210,7 @@ Section ctx_scheduler_valid.
         last (exfalso; apply Hcontra, switcher_csp_checked_stk).
       iApply (switch_entry_first_spill_spec (th := CtxSwitch)
                with "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hswitcher]");
-        [done | exact Hae |].
+        [exact Hstk_mmio | exact Hae |].
       iSplit.
       + iIntros "!> (HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & _)".
         iApply (ctx_tstack_load_fault with "[- $HPC $Hct2 $Hctp $Hmtdc $Hswitcher]").
@@ -229,12 +230,10 @@ Section ctx_scheduler_valid.
         destruct t; [|iPureIntro; right; intros; discriminate].
         destruct (decide (p = RWL ∧ g = Local)) as [ [-> ->] | Hpg]; cycle 1.
         { iPureIntro; right; intros ???? Heq; inversion Heq; subst; tauto. }
-        destruct (a + -4)%a as [a4|] eqn:Ha4; cycle 1.
-        { iPureIntro; right; intros ???? Heq Ha4'; inversion Heq; subst.
-          change (SpillSlot_cs0 - SpillSlot_size)%Z with (-4)%Z in Ha4'. congruence. }
+        destruct (a + (SpillSlot_cs0 - SpillSlot_size))%a as [a4|] eqn:Ha4; cycle 1.
+        { iPureIntro; right; intros ???? Heq Ha4'; inversion Heq; subst. congruence. }
         destruct (decide (a4 ∈ₐ [b, e))) as [Ha4_in|Ha4_out]; cycle 1.
         { iPureIntro; right; intros ???? Heq Ha4'; inversion Heq; subst.
-          change (SpillSlot_cs0 - SpillSlot_size)%Z with (-4)%Z in Ha4'.
           rewrite Ha4 in Ha4'; simplify_eq; solve_addr. }
         iDestruct (interp_wl_noid with "Hspv") as %->; [done|solve_addr|].
         iPureIntro; left; exists b, e, a; split; first done.
@@ -252,7 +251,8 @@ Section ctx_scheduler_valid.
         iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
           last (exfalso; apply Hcontra, switcher_csp_checked_stk).
         iApply (switch_entry_first_spill_above_spec (th := CtxSwitch)
-                 with "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hswitcher]"); [done..|].
+                 with "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hswitcher]");
+          [exact Hstk_mmio | done..|].
         iIntros (k off _ _) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & _)".
         iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
       + (* The checks fail and the return routine faults at mtdc's zero, or
@@ -322,17 +322,6 @@ Section ctx_scheduler_valid.
     - iApply (interp_global_world_free (th := CtxSwitch) W W' with "Hcgp_v"). exact Hcgp.
   Qed.
 
-End ctx_scheduler_valid.
-
-From griotte Require Import virtualise context_switching_wedge context_switching_specs.
-
-Section ctx_virtualise_scheduler.
-  Context
-    {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
-    {sealsg : sealStoreG Σ} {stsg : STSG Σ} {relg : relGS Σ} {cstackg : CSTACKG Σ}
-    {cthreads : CmptThreads} `{MP : MachineParameters}
-    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
-
   (** [virtualise] at the switcher, with the context-switch thread's trap
       vector proved and the scheduler's entry reduced to the validity of
       its code capability and globals in one world. *)
@@ -383,4 +372,4 @@ Section ctx_virtualise_scheduler.
               with "Hpool Hact Hstatic Hwords Hsched Hentry Htrap Htr Hwp").
   Qed.
 
-End ctx_virtualise_scheduler.
+End ctx_scheduler_valid.
