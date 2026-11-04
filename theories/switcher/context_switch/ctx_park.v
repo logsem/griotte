@@ -1,5 +1,6 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import handoff pool switcher_link context_switch_layout_instance ctx_support.
+From griotte Require Import handoff pool switcher_link context_switch_layout_instance.
+From griotte Require Import ctx_support.
 
 (** * The park of a user thread by the context-switch thread
 
@@ -12,23 +13,6 @@ From griotte Require Import handoff pool switcher_link context_switch_layout_ins
 Section ctx_park.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
-
-  (* TODO: move to pool.v *)
-  (** The thread of a Saving or Resuming token is one of the pool's. *)
-  Lemma pool_cur_in ts t s E :
-    ↑Npool ⊆ E →
-    inv Npool (Pool ts) -∗
-    cur_frag (Some (UserThread t, s)) ={E}=∗
-    ⌜t ∈ ts⌝ ∗ cur_frag (Some (UserThread t, s)).
-  Proof.
-    iIntros (Hmask) "#Hinv Hf".
-    iInv Npool as "HP" "Hclose". rewrite /Pool.
-    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
-    iDestruct (cur_agree with "Hcur Hf") as %->.
-    iMod ("Hclose" with "[Hcur Hslots]") as "_".
-    { iNext. iExists _. by iFrame. }
-    iModIntro. iFrame "Hf". iPureIntro. by eapply Hin.
-  Qed.
 
   (** The resume PC of a save area spilled at an interrupt: the interrupted
       PC, which is already legal. *)

@@ -262,4 +262,56 @@ Section pool.
         + iPureIntro. intros t' Ht'. by rewrite st_of_other. }
     iModIntro. iExists ws, v. iFrame "Hf Hsa Hlent Hcont". done.
   Qed.
+
+  (** The thread of a Saving or Resuming token is one of the pool's. *)
+  Lemma pool_cur_in ts t s E :
+    ↑Npool ⊆ E →
+    inv Npool (Pool ts) -∗
+    cur_frag (Some (UserThread t, s)) ={E}=∗
+    ⌜t ∈ ts⌝ ∗ cur_frag (Some (UserThread t, s)).
+  Proof.
+    iIntros (Hmask) "#Hinv Hf".
+    iInv Npool as "HP" "Hclose". rewrite /Pool.
+    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
+    iDestruct (cur_agree with "Hcur Hf") as %->.
+    iMod ("Hclose" with "[Hcur Hslots]") as "_".
+    { iNext. iExists _. by iFrame. }
+    iModIntro. iFrame "Hf". iPureIntro. by eapply Hin.
+  Qed.
+
+  (** The PC of a thread being parked is the value of its PC authority in
+      its Saving slot. *)
+  Lemma pool_saving_pc (ts : list nat) (t : nat) (k : park_kind) (v : resume_vals)
+      (lpc : LWord) E :
+    ↑Npool ⊆ E →
+    inv Npool (Pool ts) -∗
+    cur_frag (Some (UserThread t, Saving k v)) -∗
+    PC ↦ₚ[u t] lpc ={E}=∗
+    ⌜v.(rv_pc) = lpc⌝ ∗
+    cur_frag (Some (UserThread t, Saving k v)) ∗
+    PC ↦ₚ[u t] lpc.
+  Proof.
+    iIntros (Hmask) "#Hinv Hf HPC".
+    iInv Npool as "HP" "Hclose". rewrite /Pool.
+    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
+    iDestruct (cur_agree with "Hcur Hf") as %->.
+    assert (t ∈ ts) as Ht by (by eapply Hin).
+    apply list_elem_of_lookup in Ht as [i Hi].
+    assert (st_of (Some (UserThread t, Saving k v)) t = Some (Saving k v)) as Hst.
+    { rewrite /st_of decide_True //. }
+    iAssert (▷ (slot t (Some (Saving k v)) ∗
+              (slot t (Some (Saving k v)) -∗
+               ([∗ list] t' ∈ ts, slot t' (st_of (Some (UserThread t, Saving k v)) t')))))%I
+      with "[Hslots]" as "[Hslot Hslots]".
+    { iNext. iDestruct (big_sepL_lookup_acc with "Hslots") as "[Hslot Hslots]"; first exact Hi.
+      rewrite Hst. iFrame. }
+    iDestruct "Hslot" as "[Hauths Hcont]".
+    rewrite /auths_at /thread_auths.
+    iDestruct "Hauths" as "(>HPC_a & Hregs_a & Hmtdc_a & HMIE_a)".
+    iDestruct (PC_agree with "HPC_a HPC") as %Hpc.
+    iMod ("Hclose" with "[- Hf HPC]") as "_".
+    { iNext. iExists _. iFrame "Hcur". iSplit; first done.
+      iApply "Hslots". rewrite /auths_at /thread_auths. iFrame. }
+    iModIntro. by iFrame.
+  Qed.
 End pool.

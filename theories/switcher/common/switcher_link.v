@@ -353,3 +353,146 @@ Section mtdc_full.
     iIntros "!> (HPC & Hpc_a & Hsrc & Hmtdc & _ & Hl)". iApply "Hφ". iFrame.
   Qed.
 End mtdc_full.
+
+(** * The mtdc writes of the context-switch thread at the full link *)
+
+Section mtdc_ctx_full.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
+    {swlayout : switcherLayout}.
+
+  (** An mtdc write of the context-switch thread keeps its link, given the
+      unwedged token: the token excludes the branch at InterruptEnabled,
+      whose [handover_res] holds it. *)
+  Lemma ctx_link_transfer_unwedged :
+    @link_transfer Σ CtxSwitch (crit_link_full CtxSwitch) mtdc_written unwedged unwedged.
+  Proof.
+    iIntros (σ σ' Hw) "[Hl HU]".
+    rewrite !crit_link_full_unfold /crit_link_def /mtdc_written Hw.
+    destruct (mie_st σ).
+    - iAssert (@handover_res Σ (ceriseG_of CtxSwitch)) with "[Hl]" as "Hho".
+      { case_decide; [iDestruct "Hl" as "[$ _]" | iExact "Hl"]. }
+      iDestruct (handover_res_unfold with "Hho") as (p c v b) "(_ & HU' & _)".
+      iDestruct (unwedged_excl with "HU HU'") as %[].
+    - iModIntro. by iFrame.
+  Qed.
+
+  (** [cspecialrw r, mtdc, r] at the context-switch thread, from an mtdc
+      value [m] that is not its home: the token of the context-switch
+      thread comes out if the written value [m'] is its home. *)
+  Lemma wp_specialrw_swap_mtdc_ctx_away E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r
+      (v : LWord) m m' dq (Φ : tval CtxK → iProp Σ) :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    m ≠ mtdc_home_at (th := CtxSwitch) →
+    mtdc_match m' v →
+    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    ▷ pc_a ↦ₐ{dq} w ∗
+    ▷ r ↦ᵣ[CtxSwitch] v ∗
+    ▷ mtdc ↦ₜ[CtxSwitch] m ∗
+    ▷ unwedged -∗
+    ▷ (∀ vm : LWord,
+         ⌜mtdc_match m vm⌝ ∗
+         PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+         pc_a ↦ₐ{dq} w ∗
+         r ↦ᵣ[CtxSwitch] vm ∗
+         mtdc ↦ₜ[CtxSwitch] m' ∗
+         unwedged ∗
+         (if decide (m' = mtdc_home_at (th := CtxSwitch)) then mtdc_lent_at (th := CtxSwitch)
+          else True) -∗
+         Φ NextIV) -∗
+    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm Hm') "(HPC & Hpc_a & Hr & Hmtdc & HU) HΦ".
+    iApply (wp_specialrw_swap_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _ m m' _ unwedged unwedged
+              True%I (if decide (m' = mtdc_home_at (th := CtxSwitch))
+                      then mtdc_lent_at (th := CtxSwitch) else True)%I
+             with "[$HPC $Hpc_a $Hr $Hmtdc $HU]"); try done.
+    - apply ctx_link_transfer_unwedged.
+    - case_decide as Hhome.
+      + subst m'. by apply mtdc_clause_close.
+      + by apply mtdc_clause_ex.
+  Qed.
+
+  (** [cspecialrw r, mtdc, r] at the context-switch thread, writing its
+      home: its token comes back, or stays with it if the home was already
+      there. *)
+  Lemma wp_specialrw_swap_mtdc_ctx_home E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r
+      (v : LWord) m m' dq (Φ : tval CtxK → iProp Σ) :
+    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    r ≠ cnull →
+    m' = mtdc_home_at (th := CtxSwitch) →
+    mtdc_match m' v →
+    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    ▷ pc_a ↦ₐ{dq} w ∗
+    ▷ r ↦ᵣ[CtxSwitch] v ∗
+    ▷ mtdc ↦ₜ[CtxSwitch] m ∗
+    ▷ unwedged ∗
+    ▷ (if decide (m = mtdc_home_at (th := CtxSwitch)) then mtdc_lent_at (th := CtxSwitch)
+       else True) -∗
+    ▷ (∀ vm : LWord,
+         ⌜mtdc_match m vm⌝ ∗
+         PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+         pc_a ↦ₐ{dq} w ∗
+         r ↦ᵣ[CtxSwitch] vm ∗
+         mtdc ↦ₜ[CtxSwitch] m' ∗
+         unwedged ∗
+         mtdc_lent_at (th := CtxSwitch) -∗
+         Φ NextIV) -∗
+    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm' Hmatch) "(HPC & Hpc_a & Hr & Hmtdc & HU & HL) HΦ".
+    iApply (wp_specialrw_swap_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _ m m' _ unwedged unwedged
+              (if decide (m = mtdc_home_at (th := CtxSwitch))
+               then mtdc_lent_at (th := CtxSwitch) else True)%I
+              (mtdc_lent_at (th := CtxSwitch))
+             with "[$HPC $Hpc_a $Hr $Hmtdc $HU $HL]"); try done.
+    - apply ctx_link_transfer_unwedged.
+    - subst m'. case_decide as Hhome.
+      + subst m. iIntros "[$ $]". done.
+      + by apply mtdc_clause_close.
+  Qed.
+
+  (** [cspecialw mtdc, src] at the context-switch thread, from its home
+      zero: its token is paid into the clause of mtdc. *)
+  Lemma wp_writesr_mtdc_ctx_open E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (v : LWord) m' dq
+      (Φ : tval CtxK → iProp Σ) :
+    decodeInstrW w.(lw) = SpecialRW cnull mtdc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    mtdc_home_at (th := CtxSwitch) = ExceptionScratch (lword_of_word (WInt 0)) →
+    mtdc_match m' v →
+    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+    ▷ pc_a ↦ₐ{dq} w ∗
+    ▷ src ↦ᵣ[CtxSwitch] v ∗
+    ▷ mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
+    ▷ mtdc_lent_at (th := CtxSwitch) ∗
+    ▷ unwedged -∗
+    ▷ (PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+       pc_a ↦ₐ{dq} w ∗
+       src ↦ᵣ[CtxSwitch] v ∗
+       mtdc ↦ₜ[CtxSwitch] m' ∗
+       unwedged -∗
+       Φ NextIV) -∗
+    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hhome Hmatch) "(HPC & Hpc_a & Hsrc & Hmtdc & HL & HU) HΦ".
+    iApply (wp_writesr_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _
+              (ExceptionScratch (lword_of_word (WInt 0))) m' _ unwedged unwedged
+              (mtdc_lent_at (th := CtxSwitch)) True%I
+             with "[$HPC $Hpc_a $Hsrc $Hmtdc $HU $HL]"); try done.
+    - apply ctx_link_transfer_unwedged.
+    - rewrite -Hhome. apply mtdc_clause_open.
+    - iNext. iIntros "(HPC & Hpc_a & Hsrc & Hmtdc & HU & _)". iApply "HΦ". iFrame.
+  Qed.
+End mtdc_ctx_full.

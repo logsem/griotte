@@ -149,7 +149,7 @@ Section hw_switches.
     mtdc ↦ₜ[CtxSwitch] m' ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
     mtdc_lent_at (th := CtxSwitch) ∗
-    sched_state ∗
+    scheduler_state ∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
     close_Nact.
   Proof.
@@ -221,7 +221,7 @@ Section hw_switches.
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
       "Hposture" ∷ posture_of (UserThread t) (Some InterruptEnabled)
         (Some (lword_of_word lpc.(lw))) (Some (lword_of_word (WInt c))) (Some MTVAL_NONE) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
   Proof.
@@ -311,7 +311,7 @@ Section hw_switches.
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
   Proof.
@@ -365,7 +365,7 @@ Section hw_switches.
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
   Proof.
@@ -409,7 +409,7 @@ Section hw_switches.
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
   Proof.
@@ -450,7 +450,7 @@ Section hw_switches.
     MIE ↦ₜ[CtxSwitch] v.(rv_mie) -∗
     mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread B)) -∗
     (if v.(rv_mie) is InterruptEnabled then part_of (UserThread B) else True) -∗
-    sched_state -∗
+    scheduler_state -∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) -∗
     close_Nact -∗
     auths_at B v

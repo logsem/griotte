@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
+From griotte Require Import rules proofmode.
 From griotte Require Import switcher_preamble switcher_exception_states handoff switcher_link.
 From griotte Require Import context_switch_layout_instance.
 
@@ -10,7 +10,9 @@ From griotte Require Import context_switch_layout_instance.
     thread, and the facts of the state interpretation they use. *)
 
 (** In a section with no thread, the instance search of [iInstr] finds no
-    instance: pin those of thread [th] at the start of the proof. *)
+    instance: pin those of thread [th] at the start of the proof. It poses
+    [th_pin], [cg], [CLc], [CRc]; the instance search takes the most recent
+    local [Thread]. *)
 Ltac pin_thread_instances th :=
   lazymatch goal with
   | ceriseb : ceriseBaseG ?Σ |- _ =>
@@ -20,9 +22,10 @@ Ltac pin_thread_instances th :=
       pose (CRc := crit_route_full (Σ := Σ) (ceriseb := ceriseb) th)
   end.
 
-(* TODO: move to resources.v *)
-#[global] Instance mtdc_val_eq_dec : EqDecision mtdc_val.
-Proof. solve_decision. Qed.
+(** The code of the switcher, at the instance of the thread [th], for the
+    sections with no thread. *)
+Notation switcher_code_at th :=
+  (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
 
 Section ctx_support.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
@@ -57,117 +60,6 @@ Section ctx_support.
     <[0 := wm]> (<[2 := wcsp]>
       (<[17 := lword_of_word (WInt (mstatus_enc InterruptDisabled b))]>
         (<[18 := lword_of_word (WInt cause)]> ws))).
-
-  (* TODO: move to context_switch_layout.v *)
-  (** What a thread hands over, at given values, is the same at the
-      instance of any thread. *)
-  Lemma handover_at_thread_indep (th th' : Thread) (p c : LWord) (v : Z) (b : InterruptStatus) :
-    handover_at (ceriseg := ceriseG_of th) p c v b ⊣⊢
-    handover_at (ceriseg := ceriseG_of th') p c v b.
-  Proof. rewrite /handover_at /volatile_csr_at /ceriseG_of. reflexivity. Qed.
-
-  (* TODO: move to switcher_link.v *)
-  (** An mtdc write of the context-switch thread keeps its link, given the
-      unwedged token: the token excludes the branch at InterruptEnabled,
-      whose [handover_res] holds it. *)
-  Lemma ctx_link_transfer_unwedged :
-    @link_transfer Σ CtxSwitch (crit_link_full CtxSwitch) mtdc_written unwedged unwedged.
-  Proof.
-    iIntros (σ σ' Hw) "[Hl HU]".
-    rewrite !crit_link_full_unfold /crit_link_def /mtdc_written Hw.
-    destruct (mie_st σ).
-    - iAssert (@handover_res Σ (ceriseG_of CtxSwitch)) with "[Hl]" as "Hho".
-      { case_decide; [iDestruct "Hl" as "[$ _]" | iExact "Hl"]. }
-      iDestruct (handover_res_unfold with "Hho") as (p c v b) "(_ & HU' & _)".
-      iDestruct (unwedged_excl with "HU HU'") as %[].
-    - iModIntro. by iFrame.
-  Qed.
-
-  (* TODO: move to switcher_link.v *)
-  (** [cspecialrw r, mtdc, r] at the context-switch thread, from an mtdc
-      value [m] that is not its home: the token of the context-switch
-      thread comes out if the written value [m'] is its home. *)
-  Lemma wp_specialrw_swap_mtdc_ctx_away E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r
-      (v : LWord) m m' dq (Φ : tval CtxK → iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    has_sreg_access pc_p = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r ≠ cnull →
-    m ≠ mtdc_home_at (th := CtxSwitch) →
-    mtdc_match m' v →
-    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-    ▷ pc_a ↦ₐ{dq} w ∗
-    ▷ r ↦ᵣ[CtxSwitch] v ∗
-    ▷ mtdc ↦ₜ[CtxSwitch] m ∗
-    ▷ unwedged -∗
-    ▷ (∀ vm : LWord,
-         ⌜mtdc_match m vm⌝ ∗
-         PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-         pc_a ↦ₐ{dq} w ∗
-         r ↦ᵣ[CtxSwitch] vm ∗
-         mtdc ↦ₜ[CtxSwitch] m' ∗
-         unwedged ∗
-         (if decide (m' = mtdc_home_at (th := CtxSwitch)) then mtdc_lent_at (th := CtxSwitch)
-          else True) -∗
-         Φ NextIV) -∗
-    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
-  Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm Hm') "(HPC & Hpc_a & Hr & Hmtdc & HU) HΦ".
-    iApply (wp_specialrw_swap_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
-              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _ m m' _ unwedged unwedged
-              True%I (if decide (m' = mtdc_home_at (th := CtxSwitch))
-                      then mtdc_lent_at (th := CtxSwitch) else True)%I
-             with "[$HPC $Hpc_a $Hr $Hmtdc $HU]"); try done.
-    - apply ctx_link_transfer_unwedged.
-    - case_decide as Hhome.
-      + subst m'. by apply mtdc_clause_close.
-      + by apply mtdc_clause_ex.
-  Qed.
-
-  (* TODO: move to switcher_link.v *)
-  (** [cspecialrw r, mtdc, r] at the context-switch thread, writing its
-      home: its token comes back, or stays with it if the home was already
-      there. *)
-  Lemma wp_specialrw_swap_mtdc_ctx_home E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r
-      (v : LWord) m m' dq (Φ : tval CtxK → iProp Σ) :
-    decodeInstrW w.(lw) = SpecialRW r mtdc (inr r) →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    has_sreg_access pc_p = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r ≠ cnull →
-    m' = mtdc_home_at (th := CtxSwitch) →
-    mtdc_match m' v →
-    ▷ PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-    ▷ pc_a ↦ₐ{dq} w ∗
-    ▷ r ↦ᵣ[CtxSwitch] v ∗
-    ▷ mtdc ↦ₜ[CtxSwitch] m ∗
-    ▷ unwedged ∗
-    ▷ (if decide (m = mtdc_home_at (th := CtxSwitch)) then mtdc_lent_at (th := CtxSwitch)
-       else True) -∗
-    ▷ (∀ vm : LWord,
-         ⌜mtdc_match m vm⌝ ∗
-         PC ↦ₚ[CtxSwitch] Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-         pc_a ↦ₐ{dq} w ∗
-         r ↦ᵣ[CtxSwitch] vm ∗
-         mtdc ↦ₜ[CtxSwitch] m' ∗
-         unwedged ∗
-         mtdc_lent_at (th := CtxSwitch) -∗
-         Φ NextIV) -∗
-    WP Instr Executable @[CtxSwitch] E {{ Φ }}.
-  Proof.
-    iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm' Hmatch) "(HPC & Hpc_a & Hr & Hmtdc & HU & HL) HΦ".
-    iApply (wp_specialrw_swap_mtdc_link (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
-              (CL := crit_link_full CtxSwitch) _ _ _ _ _ _ _ _ _ _ _ m m' _ unwedged unwedged
-              (if decide (m = mtdc_home_at (th := CtxSwitch))
-               then mtdc_lent_at (th := CtxSwitch) else True)%I
-              (mtdc_lent_at (th := CtxSwitch))
-             with "[$HPC $Hpc_a $Hr $Hmtdc $HU $HL]"); try done.
-    - apply ctx_link_transfer_unwedged.
-    - subst m'. case_decide as Hhome.
-      + subst m. iIntros "[$ $]". done.
-      + by apply mtdc_clause_close.
-  Qed.
 
   (** The words of the save area: the PC, mstatus and the cause, and the
       registers, at their offsets. *)
@@ -227,49 +119,12 @@ Section ctx_support.
     iSplit; [iIntros "[_ $]" | iIntros "$"; iPureIntro; tstack_unfold; solve_addr].
   Qed.
 
-  (** The save area of [th], of a list of 21 words, cell by cell. *)
-  Lemma save_area_holed_explicit (th : Thread)
-      (w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 : LWord) :
-    save_area_holed th
-      [w0; w1; w2; w3; w4; w5; w6; w7; w8; w9; w10; w11; w12; w13; w14; w15; w16; w17; w18;
-       w19; w20] ⊣⊢
-    @b_trusted_stack (tlayout_of th) ↦ₐ w0 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 1)%a ↦ₐ w1 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 2)%a ↦ₐ w2 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 3)%a ↦ₐ w3 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 4)%a ↦ₐ w4 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 5)%a ↦ₐ w5 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 6)%a ↦ₐ w6 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 7)%a ↦ₐ w7 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 8)%a ↦ₐ w8 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 9)%a ↦ₐ w9 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 10)%a ↦ₐ w10 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 11)%a ↦ₐ w11 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 12)%a ↦ₐ w12 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 13)%a ↦ₐ w13 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 14)%a ↦ₐ w14 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 15)%a ↦ₐ w15 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 17)%a ↦ₐ w17 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 18)%a ↦ₐ w18 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 19)%a ↦ₐ w19 ∗
-    (@b_trusted_stack (tlayout_of th) ^+ 20)%a ↦ₐ w20.
-  Proof.
-    rewrite save_area_holed_cells //.
-    rewrite (_ : Z.to_nat TrustedStack_offset_hazardPointers = 16%nat); last done.
-    cbn. rewrite finz_add_0_default.
-    repeat (case_decide; try (exfalso; lia)).
-    iSplit.
-    - iIntros "($ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & _ & $ & $ & $ & $ & _)".
-    - iIntros "($ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $)".
-  Qed.
-
 End ctx_support.
 
 (** The facts of the state interpretation that the parks use. *)
 Section ctx_support_si.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
-  (* TODO: move to rules_vcsr.v *)
   (** MEPCC holds a word that is valid as a PC. *)
   Lemma mepcc_word_ok E (w : LWord) :
     mepcc ↦ₓ w ⊢ |~{E}~> (mepcc ↦ₓ w ∗ ⌜pc_ok w.(lw)⌝).
@@ -282,7 +137,6 @@ Section ctx_support_si.
     by iFrame.
   Qed.
 
-  (* TODO: move to rules_base.v *)
   (** [cnull] holds [lnull]. *)
   Lemma cnull_lnull E (w : LWord) :
     cnull ↦ᵣ w ⊢ |~{E}~> (cnull ↦ᵣ w ∗ ⌜w = lnull⌝).

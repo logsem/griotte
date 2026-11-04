@@ -22,83 +22,6 @@ Section Save_Area_Cells.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
   .
 
-  (* TODO: move to context_switch_layout_instance.v *)
-  (** A cell of the register save area of [o], other than its word
-      [hazardPointers], read and given back. *)
-  Lemma save_area_holed_cell (o : Thread) (ws : list LWord) (k : Z) :
-    (0 ≤ k < TSTACK_REGFRAME_SZ)%Z →
-    k ≠ TrustedStack_offset_hazardPointers →
-    save_area_holed o ws ⊢
-    (@b_trusted_stack (tlayout_of o) ^+ k)%a ↦ₐ save_area_word ws k ∗
-    ((@b_trusted_stack (tlayout_of o) ^+ k)%a ↦ₐ save_area_word ws k -∗
-     save_area_holed o ws).
-  Proof.
-    iIntros (Hk Hhaz) "Hsave".
-    pose proof (trusted_stack_frames_fit (tlayout := tlayout_of o)) as [n Hfit].
-    iDestruct (big_sepL2_length with "Hsave") as %Hlen.
-    rewrite finz_seq_between_length /finz.dist in Hlen.
-    rewrite /TSTACK_REGFRAME_SZ in Hk.
-    assert (is_Some (ws !! Z.to_nat k)) as [w Hw].
-    { apply lookup_lt_is_Some. rewrite -Hlen. tstack_unfold. solve_addr. }
-    rewrite /save_area_word Hw /=.
-    rewrite /save_area_holed.
-    iDestruct (big_sepL2_lookup_acc _ _ _ (Z.to_nat k) with "Hsave") as "[Hw Hclose]";
-      [|exact Hw|].
-    { eapply finz_seq_between_lookup with (n := 21%nat); [lia | tstack_unfold; solve_addr]. }
-    rewrite decide_False; last (rewrite /TrustedStack_offset_hazardPointers in Hhaz |- *; lia).
-    rewrite (_ : (@b_trusted_stack (tlayout_of o) ^+ Z.to_nat k)%a =
-                 (@b_trusted_stack (tlayout_of o) ^+ k)%a); last (f_equal; lia).
-    iFrame "Hw". iExact "Hclose".
-  Qed.
-
-  (** The register save area of [o], of a list of 21 words, cell by
-      cell. *)
-  #[local] Lemma save_area_holed_words (o : Thread)
-      (w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 w16 w17 w18 w19 w20 : LWord) :
-    save_area_holed o
-      [w0; w1; w2; w3; w4; w5; w6; w7; w8; w9; w10; w11; w12; w13; w14; w15; w16; w17; w18;
-       w19; w20] ⊣⊢
-    @b_trusted_stack (tlayout_of o) ↦ₐ w0 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 1)%a ↦ₐ w1 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 2)%a ↦ₐ w2 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 3)%a ↦ₐ w3 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 4)%a ↦ₐ w4 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 5)%a ↦ₐ w5 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 6)%a ↦ₐ w6 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 7)%a ↦ₐ w7 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 8)%a ↦ₐ w8 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 9)%a ↦ₐ w9 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 10)%a ↦ₐ w10 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 11)%a ↦ₐ w11 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 12)%a ↦ₐ w12 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 13)%a ↦ₐ w13 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 14)%a ↦ₐ w14 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 15)%a ↦ₐ w15 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 17)%a ↦ₐ w17 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 18)%a ↦ₐ w18 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 19)%a ↦ₐ w19 ∗
-    (@b_trusted_stack (tlayout_of o) ^+ 20)%a ↦ₐ w20.
-  Proof.
-    pose proof (trusted_stack_frames_fit (tlayout := tlayout_of o)) as [n Hfit].
-    rewrite /save_area_holed.
-    etrans.
-    { apply (big_sepL2_proper _
-               (λ k _ w, if decide (k = Z.to_nat TrustedStack_offset_hazardPointers) then emp
-                         else (@b_trusted_stack (tlayout_of o) ^+ (k : Z))%a ↦ₐ w)%I).
-      intros k a w Ha Hw.
-      pose proof (lookup_lt_Some _ _ _ Hw) as Hk. cbn [length] in Hk.
-      rewrite (finz_seq_between_lookup _ _ k 21) in Ha; [|lia|tstack_unfold; solve_addr].
-      by simplify_eq. }
-    rewrite big_sepL2_const_sepL_r finz_seq_between_length /finz.dist.
-    rewrite (_ : Z.to_nat TrustedStack_offset_hazardPointers = 16%nat); last done.
-    cbn [length big_opL]. rewrite finz_add_0_default.
-    repeat (case_decide; try (exfalso; lia)).
-    iSplit.
-    - iIntros "[_ ($ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & _ & $ & $ & $
-                   & $ & _)]".
-    - iIntros "($ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $ & $)".
-      iPureIntro. tstack_unfold. solve_addr.
-  Qed.
 End Save_Area_Cells.
 
 Section Common_Context_Install.
@@ -175,7 +98,7 @@ Section Common_Context_Install.
     clear Hlen.
     (* The saved MIE is InterruptDisabled *)
     pose proof (Hsaved s17 eq_refl) as Hs17_mie.
-    iEval (rewrite save_area_holed_words) in "Hsave".
+    iEval (rewrite save_area_holed_explicit) in "Hsave".
     iDestruct "Hsave" as "(Hs0 & Hs1 & Hs2 & Hs3 & Hs4 & Hs5 & Hs6 & Hs7 & Hs8 & Hs9 & Hs10
       & Hs11 & Hs12 & Hs13 & Hs14 & Hs15 & Hs17 & Hs18 & Hs19 & Hs20)".
     switcher_open_label ".Lcommon_context_install" "Hswitcher" as "Hcode" pc_a Hpc_a.
@@ -250,7 +173,7 @@ Section Common_Context_Install.
     { rewrite /save_area_word. cbn [big_opL exception_spill_regs app].
       iFrame "Hcra Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hcsp". }
     iSplitR "Hmpie".
-    { rewrite save_area_holed_words. iFrame. }
+    { rewrite save_area_holed_explicit. iFrame. }
     iExact "Hmpie".
   Qed.
 

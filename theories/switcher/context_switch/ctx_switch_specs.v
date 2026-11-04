@@ -1,7 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel switcher_preamble virtualise.
-From griotte Require Import context_switch_layout_instance ctx_support ctx_hyps.
-From griotte Require Import ctx_scheduler_call ctx_resume ctx_exit.
+From griotte Require Import context_switch_layout_instance ctx_support.
+From griotte Require Import ctx_hyps.
+From griotte Require Import ctx_scheduler_call ctx_resume.
+From griotte Require Import ctx_exit.
 
 (** * The entry specs of the context-switch thread
 
@@ -37,7 +39,7 @@ Section ctx_switch_specs.
     inv_CtxSwitch -∗
     ([∗ list] B ∈ ts, switcher_static (th := UserThread B)) -∗
     scheduler_words w_pcc w_cgp w_csp -∗
-    saved_prop_own γ_sched DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
+    saved_prop_own γ_scheduler DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
     scheduler_entry_valid C_sched w_pcc w_cgp -∗
     ctx_trap_vector_safe -∗
     □ ctx_switch_entry_specs (CL := crit_link_full) (CR := crit_route_full).
@@ -74,7 +76,7 @@ Section ctx_switch_specs.
     inv_CtxSwitch -∗
     ([∗ list] B ∈ ts, switcher_static (th := UserThread B)) -∗
     scheduler_words w_pcc w_cgp w_csp -∗
-    saved_prop_own γ_sched DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
+    saved_prop_own γ_scheduler DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
     scheduler_entry_valid C_sched w_pcc w_cgp -∗
     ctx_trap_vector_safe -∗
     thread_res th e -∗

@@ -79,7 +79,7 @@ Section ctx_switch.
     "#Hact" ∷ inv_CtxSwitch ∗
     "#Hstatic" ∷ ([∗ list] B ∈ ts, switcher_static (th := UserThread B)) ∗
     "#Hwords" ∷ scheduler_words ∗
-    "#Hsched" ∷ saved_prop_own γ_sched DfracDiscarded scheduler_concrete ∗
+    "#Hsched" ∷ saved_prop_own γ_scheduler DfracDiscarded scheduler_concrete ∗
     "#Hentry" ∷ scheduler_entry_valid ∗
     "#Htrap" ∷ ctx_trap_vector_safe.
 
@@ -133,8 +133,8 @@ Section ctx_switch.
     iIntros (Hin Htag) "#Hentry".
     iDestruct ("Hentry" $! ∅) as "[Hpcc _]".
     destruct w_pcc as [w π]; cbn in Htag |- *.
-    destruct_word w; cbn; try done.
-    cbn in Htag. subst t.
+    destruct w as [z | sb | k tg p g b e a | ot sb]; cbn; try done.
+    cbn in Htag. subst tg.
     iEval (rewrite interp_unfold /=) in "Hpcc".
     iDestruct "Hpcc" as "(_ & _ & %Hclause)".
     iPureIntro. destruct (sentry_kind_mie k) as [ [|] |] eqn:Hk; cbn; try done.

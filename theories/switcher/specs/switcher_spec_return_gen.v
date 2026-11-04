@@ -71,7 +71,8 @@ Section Switcher.
     (* Outline of the proof:
        - open the trusted-stack invariant;
        - when the frame to pop is the entry frame, the thread exits:
-         [switcher_return_exit_path_spec], [switcher_return_exit_close];
+         [switcher_return_exit_path_spec], [regs_total_of], [switcher_HO_exit]
+         (the trusted-stack invariant stays open);
        - otherwise, [switcher_return_path_world_spec]: pop the trusted
          stack; obtain the callee-save area
          ([open_world_interp_cframe_gen]); restore the callee-save

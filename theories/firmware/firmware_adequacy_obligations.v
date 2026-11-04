@@ -917,7 +917,7 @@ Section layout_of_img_wf.
   Qed.
 
   (** The whole trusted stack of a thread is outside the heap. *)
-  Lemma img_wf_trusted_stack_not_heap fw img i ft :
+  Lemma img_wf_trusted_stack_disjoint_from_heap fw img i ft :
     fw_threads fw !! i = Some ft →
     img_wf fw img →
     disjoint_from_heap (b_trusted_stack (thread_of img i)) (e_trusted_stack (thread_of img i)).
@@ -1680,7 +1680,7 @@ Definition img_thread_layout_wf `{MP : MachineParameters} (img : fw_image) (t : 
     (Hheap : disjoint_from_heap (b_trusted_stack t) (e_trusted_stack t)) :
     @threadLayoutWf MP (img_thread_layout t) :=
   mkThreadLayoutWf (img_thread_layout t)
-    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) (isl_trusted_stack_not_heap _ _ _ Hsw) Hheap
+    (proj1 (isl_trusted_stack_mmio _ _ _ Hsw)) Hheap
     (tsl_frames_fit _ _ _ _ _ Hts) (isl_trusted_stack_nonzero _ _ _ Hsw)
     (isl_hazard_size _ _ _ Hsw) (proj1 (isl_hazard_mmio _ _ _ Hsw))
     (isl_hazard_not_heap _ _ _ Hsw).
@@ -1701,13 +1701,13 @@ Proof.
     rewrite (fw_tlayout_lt img i Hi).
     exact (img_thread_layout_wf img _ _ _ (img_wf_trusted_stack_layout _ _ _ _ Hft Hwf)
              (img_wf_switcher_layout _ _ _ _ Hft Hwf)
-             (img_wf_trusted_stack_not_heap _ _ _ _ Hft Hwf)).
+             (img_wf_trusted_stack_disjoint_from_heap _ _ _ _ Hft Hwf)).
   - assert (fw_thread_layout img i = img_thread_layout (thread_of img 0)) as ->.
     { rewrite /fw_thread_layout. destruct i as [|i]; first done.
       rewrite fw_nth_ge //. lia. }
     exact (img_thread_layout_wf img _ _ _ (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf)
              (img_wf_switcher_layout _ _ _ _ H0 Hwf)
-             (img_wf_trusted_stack_not_heap _ _ _ _ H0 Hwf)).
+             (img_wf_trusted_stack_disjoint_from_heap _ _ _ _ H0 Hwf)).
 Qed.
 
 (** The address of a label of the switcher, at a closed offset within its
@@ -1720,8 +1720,8 @@ Lemma img_switcher_label_addr `{MP : MachineParameters} (sw : img_switcher) t ss
      assembler.Asm_Griotte.label_offset_from (concat switcher_asm) ".Lswitch_csp_check" s)%a
   = Some (a_switcher_call sw ^+ off)%a.
 Proof.
-  intros -> Hoff. apply andb_true_iff in Hoff as [H1 H2]. apply Z.leb_le in H1, H2.
-  pose proof (isl_switcher_size _ _ _ Hsw). solve_addr.
+  intros -> Hoff. apply andb_true_iff in Hoff as [Hlo Hhi]. apply Z.leb_le in Hlo, Hhi.
+  pose proof (isl_switcher_size _ _ _ Hsw) as Hsize. solve_addr.
 Qed.
 
 (** The shared facts from those of thread 0, the threads' from
@@ -1743,8 +1743,7 @@ Definition fw_switcher_layout_wf `{MP : MachineParameters} (fw : firmware) (img 
        ltac:(vm_compute; reflexivity))
     (img_switcher_label_addr _ _ _ Hsw _ _ switcher_offset_sched_return_eq
        ltac:(vm_compute; reflexivity))
-    (isl_switcher_data_not_shadow _ _ _ Hsw)
-    (isl_switcher_key_not_shadow _ _ _ Hsw) (isl_switcher_not_heap _ _ _ Hsw)
+    (isl_switcher_data_not_shadow _ _ _ Hsw) (isl_switcher_not_heap _ _ _ Hsw)
     (fw_thread_layout_wf fw img Hwf H0).
 
 (** The registers other than [cgp], [cra] and [csp], cleared. *)

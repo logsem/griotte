@@ -1,6 +1,7 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
+From griotte Require Import rules proofmode.
 From griotte Require Import switcher_preamble handoff switcher_link.
+From griotte Require Import ctx_support.
 
 (** * The tail of the exit path
 
@@ -12,11 +13,6 @@ From griotte Require Import switcher_preamble handoff switcher_link.
 Section ctx_exit_tail.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
-
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
 
   (** The PCC of an exited thread: execute and load over the two words of
       its body. *)
@@ -84,10 +80,6 @@ Section ctx_exit_tail.
   Lemma legalise_mtval_exit : legalise mtval (WInt MCAUSE_THREAD_EXIT) = WInt MCAUSE_THREAD_EXIT.
   Proof. reflexivity. Qed.
 
-  Lemma llegalise_mepcc_exited :
-    llegalise mepcc (lword_of_word exited_thread_pcc) = lword_of_word exited_thread_pcc.
-  Proof. rewrite /llegalise /lift_word /= exited_thread_pcc_legal. done. Qed.
-
   (** The body of an exited thread, [wfi; jmp], runs safely from either of
       its two instructions, at any MIE and from any registers: no mtdc
       fragment, no pool token, no world. *)
@@ -104,10 +96,7 @@ Section ctx_exit_tail.
               None None None None) -∗
       safe[u t].
   Proof.
-    (* The section has no thread: the instances of the rules, at [u t]. *)
-    pose (cg := ceriseG_of (UserThread t)).
-    pose (CLt := crit_link_full (Σ := Σ) (UserThread t)).
-    pose (CRt := crit_route_full (Σ := Σ) (UserThread t)).
+    pin_thread_instances (UserThread t).
     pose proof a_tail_last as Hlast.
     iIntros "#Hswitcher".
     iLöb as "IH".
@@ -122,7 +111,7 @@ Section ctx_exit_tail.
       iDestruct (big_sepM_delete with "Hregs") as "[Hnull Hregs]"; first exact Hnull.
       (* Mov cnull 0. *)
       iInstr "Hcode".
-      destruct (decide (cnull = cnull)) as [_ | Hne]; last done.
+      case_decide as Hnull_eq; last done.
       iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[u t] y)%I with "[$Hnull $Hregs]") as "Hregs";
         first exact Hnull.
       iApply ("IH" $! (a_tail ^+ 1)%a with "[] [] HPC HMIE Hregs Hpost").
@@ -143,15 +132,15 @@ Section ctx_exit_tail.
     by iLeft.
   Qed.
 
+  (** The bound [a2] of [Subseg], by name. *)
+  #[local] Arguments wp_subseg_success_cap_base {MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a
+    pc_π w dst r2 t p g b e a w2 n2 a2} pc_a' π dq _ _ _ _ _ _ _%_function_scope _ _ _
+    Φ%_function_scope.
+
   Lemma exited_set_spec_holds : switcher_code_at CtxSwitch ⊢ exited_set_spec.
   Proof.
-    (* The section has no thread: the instances of the rules, at the
-       context-switch thread. *)
-    pose (cg := ceriseG_of CtxSwitch).
-    pose (CLc := crit_link_full (Σ := Σ) CtxSwitch).
-    pose (CRc := crit_route_full (Σ := Σ) CtxSwitch).
+    pin_thread_instances CtxSwitch.
     pose proof a_tail_last as Hlast.
-    assert ((a_tail ^+ 2)%a = e_switcher) as Htail_end by solve_addr.
     assert ((b_switcher <= a_tail)%a) as Hb_tail.
     { pose proof a_tail_label as Hlabel. pose proof switcher_call_entry_point as Hcall.
       pose proof switcher_size as Hsize. clear - Hlabel Hcall Hsize.
@@ -174,8 +163,7 @@ Section ctx_exit_tail.
     iInstr "Hcode".
     (* Subseg csp csp csp ca0. *)
     iInstrStart "Hcode".
-    iInstrApply
-      (wp_subseg_success_cap_base _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (a_tail ^+ 2)%a)
+    iInstrApply (wp_subseg_success_cap_base (a2 := (a_tail ^+ 2)%a))
       with "[$HPC $Hcsp $Hca0]" as "(HPC & Hca0 & Hcsp)".
     { solve_addr. }
     { rewrite /isWithin. apply andb_true_iff; split; apply Z.leb_le; solve_addr. }
@@ -185,7 +173,7 @@ Section ctx_exit_tail.
       - apply withinBounds_true_iff. solve_addr. }
     (* Mov ca0 EXITED_THREAD_PERMISSIONS. *)
     iInstr "Hcode".
-    destruct (decide (ca0 = cnull)) as [Hca0_null | _]; first done.
+    case_decide as Hca0_null; first done.
     (* Restrict csp csp ca0. *)
     iInstr "Hcode".
     { rewrite decode_encode_permPair_inv. reflexivity. }
@@ -193,8 +181,7 @@ Section ctx_exit_tail.
     { reflexivity. }
     (* SpecialRW cnull mepcc csp. *)
     iInstr "Hcode".
-    iEval (rewrite (_ : legalise mepcc (Cap RX Local a_tail (a_tail ^+ 2) a_tail)
-                        = exited_thread_pcc); last exact exited_thread_pcc_legal) in "Hmepcc".
+    iEval (fold exited_thread_pcc; rewrite /legalise exited_thread_pcc_legal) in "Hmepcc".
     switcher_change_pc_label ".Lcommon_thread_exit_clear".
     iApply ("Hpost" with "HPC HMIE Hcsp Hca0 Hmepcc").
   Qed.

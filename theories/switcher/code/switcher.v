@@ -996,9 +996,6 @@ Section Switcher.
     mkThreadLayoutWf {
         trusted_stack_disjoint_from_shadow :
         disjoint_from_shadow b_trusted_stack e_trusted_stack;
-        (* The register save area of the trusted stack is not in the heap. *)
-        trusted_stack_not_heap :
-        not_heap_range b_trusted_stack (b_trusted_stack ^+ TSTACK_REGFRAME_SZ);
         (* The whole trusted stack is outside the heap. *)
         trusted_stack_disjoint_from_heap :
         disjoint_from_heap b_trusted_stack e_trusted_stack;
@@ -1062,8 +1059,6 @@ Section Switcher.
         (* The five data words before the code are not shadow addresses. *)
         switcher_data_not_shadow :
         ∀ i : nat, i < 5 → is_shadow_address (b_switcher ^+ i) = false;
-
-        switcher_key_not_shadow : is_shadow_address (b_switcher ^+ 1) = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
         (* The layout of every user thread is well formed. *)
         swl_thread_wf : ∀ i, threadLayoutWf (tlayout := swl_thread i)

@@ -1,9 +1,11 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
-From griotte Require Import logrel monotone switcher_preamble switcher_exception_states.
+From griotte Require Import rules proofmode.
+From griotte Require Import logrel monotone wp_rules_interp.
+From griotte Require Import switcher_preamble switcher_exception_states.
 From griotte Require Import handoff pool switcher_link.
 From griotte Require Import context_switch_layout_instance common_context_install.
-From griotte Require Import ctx_support ctx_hyps ctx_resume_support ctx_install.
+From griotte Require Import ctx_support ctx_hyps.
+From griotte Require Import ctx_install.
 
 (** * The resume path of the context-switch thread
 
@@ -22,25 +24,20 @@ Section ctx_resume.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     (C_sched : CmptName) (w_pcc w_cgp w_csp : LWord).
 
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
-
   (** The world part of the resume: at a public future [W] of the call's
       world [W0], the scheduler's stack valid at [W0] and the jump's
       premises at [W] give the scheduler's state. *)
   Lemma ctx_resume_world (W0 W : WORLD) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     related_sts_pub_world W0 W →
     frame_match Ws Cs cstk W C_sched →
-    saved_prop_own γ_sched DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
+    saved_prop_own γ_scheduler DfracDiscarded (scheduler_concrete C_sched w_csp) -∗
     interp (th := CtxSwitch) W0 C_sched w_csp -∗
     world_resources (th := CtxSwitch) W C_sched -∗
     shared_credit C_sched -∗
     ◯(CSTK)[CtxSwitch] cstk -∗
     interp_continuation (th := CtxSwitch) cstk Ws Cs -∗
     top_cmpt_untrusted (th := CtxSwitch) (interp (th := CtxSwitch)) W C_sched cstk -∗
-    sched_state.
+    scheduler_state.
   Proof.
     iIntros (Hpub Hframe) "#Hsched #Hcsp Hworld Hcred Hcstk Hcont #Htop".
     iExists (scheduler_concrete C_sched w_csp). iFrame "Hsched".
@@ -52,7 +49,8 @@ Section ctx_resume.
 
   (** A valid word sealed, with its tag, by the trusted-stack otype holds
       the trusted stack of a thread below [swl_nthreads], with no
-      identifier. *)
+      identifier. The sealing invariant is taken at any thread: only its
+      trusted-stack predicate, which is thread-free, is used. *)
   Lemma tstack_handle_unsealed (t : Thread) (W : WORLD) (C : CmptName) (sb : Sealable) π :
     get_tag_sealable sb = true →
     switcher_sealing_inv (th := t) -∗
@@ -280,6 +278,7 @@ Section ctx_resume.
     { by exists g. }
     (* Mov ct1 11 *)
     iInstr "Hcode".
+    (* The write of [iInstr] leaves the [cnull] case of the destination. *)
     destruct (decide (ct1 = cnull)) as [Hn|_]; first done.
     iDestruct (save_area_holed_cell (UserThread B) ws TrustedStack_offset_mepcc with "Hsave")
       as "[Hs0 Hsave]"; [rewrite /TrustedStack_offset_mepcc /TSTACK_REGFRAME_SZ; lia | done |].
@@ -415,7 +414,7 @@ Section ctx_resume.
       iEval (rewrite handover_res_unfold) in "Hho".
       iDestruct "Hho" as (p c zz bb) "Hho".
       (* The [iNext] stripped the later inside the scheduler's state *)
-      iAssert sched_state with "[Hsched_st]" as "Hsched_st".
+      iAssert scheduler_state with "[Hsched_st]" as "Hsched_st".
       { iDestruct "Hsched_st" as (P) "[#Hsched_own HP]". iExists P. iFrame "Hsched_own".
         by iApply bi.later_intro. }
       iApply (ctx_install_spec B g lreg' wpc p c ws v zz bb (Hhomes B HBin) Hok Hdom' Hcsp'

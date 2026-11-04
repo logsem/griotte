@@ -99,7 +99,7 @@ Section Switch_Stack_Chop.
     { instantiate (1 := b_switcher ^+ 1). switcher_addr_eq. }
     (* CLoad cs0 cs0 0 *)
     iInstr "Hcode_key".
-    { apply switcher_key_not_shadow. }
+    { apply (switcher_data_not_shadow 1). lia. }
     { done. }
     { apply withinBounds_true_iff.
       pose proof switcher_call_entry_point; pose proof switcher_size; solve_addr. }

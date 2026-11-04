@@ -83,8 +83,8 @@ Section cur.
 
   (** The scheduler's state between two activations: a saved proposition,
       made concrete by the switcher. *)
-  Definition sched_state : iProp Σ :=
-    ∃ P : iProp Σ, saved_prop_own γ_sched DfracDiscarded P ∗ ▷ P.
+  Definition scheduler_state : iProp Σ :=
+    ∃ P : iProp Σ, saved_prop_own γ_scheduler DfracDiscarded P ∗ ▷ P.
 
   (** The closer of the context-switch thread's open pool token. *)
   Definition close_Nact : iProp Σ :=
@@ -154,7 +154,7 @@ Section handoff.
                  then @posture_part Σ MP (ceriseG_of (UserThread B)) (UserThread B)
                         (CL (UserThread B)) (CR (UserThread B))
                  else True) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact ∗
       "Hsafe" ∷ ▷ S (UserThread B).
@@ -196,7 +196,7 @@ Section handoff.
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] m ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] mie ∗
       "Hlent" ∷ mtdc_lent_at (th := CtxSwitch) ∗
-      "Hsched" ∷ sched_state ∗
+      "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
 End handoff.

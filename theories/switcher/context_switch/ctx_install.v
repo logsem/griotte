@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
-From griotte Require Import switcher_preamble handoff switcher_link context_switch_layout_instance.
-From griotte Require Import common_context_install ctx_support ctx_resume_support.
+From griotte Require Import rules proofmode.
+From griotte Require Import switcher_preamble handoff switcher_link context_switch_layout.
+From griotte Require Import context_switch_layout_instance common_context_install.
+From griotte Require Import ctx_support.
 
 (** * The install at the context-switch thread
 
@@ -13,11 +14,6 @@ From griotte Require Import common_context_install ctx_support ctx_resume_suppor
 Section ctx_install.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
-
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
 
   (** A register map over all the registers, as the list of its words. *)
   #[local] Lemma regs_all_list (th : Thread) (lreg : LReg) :
@@ -91,7 +87,7 @@ Section ctx_install.
     mtdc ↦ₜ[CtxSwitch] mtdc_home_at (th := UserThread B) ∗
     handover_at (ceriseg := ceriseG_of CtxSwitch) vepcc vc z b ∗
     cur_frag (Some (UserThread B, Resuming v)) ∗
-    sched_state ∗
+    scheduler_state ∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
     close_Nact ∗
     ▷ ((if v.(rv_mie) is InterruptEnabled then True
@@ -161,7 +157,7 @@ Section ctx_install.
     { iPureIntro. rewrite Hregs_v. apply resume_regs_of_dom. }
     iSplitL "Hmtdc".
     { rewrite Hhome /tstack_home. iFrame. }
-    iAssert sched_state with "[HP]" as "Hsched".
+    iAssert scheduler_state with "[HP]" as "Hsched".
     { iExists P. iFrame "Hsched_own". by iNext. }
     iFrame "Hsched".
     destruct (rv_mie v).

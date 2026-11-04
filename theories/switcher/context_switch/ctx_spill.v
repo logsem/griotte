@@ -1,7 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
-From griotte Require Import logrel switcher_preamble switcher_exception_states handoff switcher_link.
-From griotte Require Import exception_dispatch exception_entry ctx_support.
+From griotte Require Import rules proofmode.
+From griotte Require Import logrel switcher_preamble switcher_exception_states handoff.
+From griotte Require Import switcher_link.
+From griotte Require Import exception_dispatch exception_entry context_switch_layout_instance.
+From griotte Require Import ctx_support.
 
 (** * The spill of the context-switch thread
 
@@ -19,11 +21,6 @@ Section ctx_spill.
     {sealsg : sealStoreG Σ} {stsg : STSG Σ} {relg : relGS Σ} {cstackg : CSTACKG Σ}
     {cthreads : CmptThreads} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}.
-
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
 
   (** The registers [rs] of a register file, as a list, and back. *)
   #[local] Lemma regs_list_acc (th : Thread) (lreg : LReg) (rs : list RegName) :

@@ -1,8 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
-From griotte Require Import logrel fundamental switcher_preamble handoff switcher_link.
+From griotte Require Import rules proofmode.
+From griotte Require Import fundamental switcher_preamble handoff switcher_link.
 From griotte Require Import exception_dispatch virtualise context_switch_layout_instance.
-From griotte Require Import ctx_support ctx_spill ctx_hyps ctx_park.
+From griotte Require Import ctx_support ctx_spill.
+From griotte Require Import ctx_hyps ctx_park.
 
 (** * The scheduler call of the context-switch thread
 
@@ -21,11 +22,6 @@ Section ctx_scheduler_call.
     {cthreads : CmptThreads} `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     (C_sched : CmptName) (w_pcc w_cgp w_csp : LWord).
-
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
 
   (** The jump to the scheduler at the [cjalr]: its entry, stack and
       globals in [cra], [csp] and [cgp], its four arguments in [ca0]–[ca3]
@@ -118,9 +114,13 @@ Section ctx_scheduler_call.
       iInstrStart "Hcode".
       iInstrApply (wp_jalr_fail_target_same (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch))
         with "[$HPC $Hcra]" as "(HPC & Hcra)".
+      assert (a_call ^+ Z.to_nat 20 = a_sched_cjalr)%a as Hcjalr.
+      { pose proof a_sched_cjalr_label as Hlbl. subst a_call. clear -Hlbl.
+        offsets_compute. solve_addr. }
+      iEval (rewrite Hcjalr) in "HPC".
       iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cra with "[$Hcra $Hregs]")
         as "Hregs"; first exact Hcra.
-      iDestruct ("Hfault" $! (Cap XSRW_ Local b_switcher e_switcher (a_call ^+ Z.to_nat 20) @@? None)
+      iDestruct ("Hfault" $! (Cap XSRW_ Local b_switcher e_switcher a_sched_cjalr @@? None)
                   with "[//] Hregs Hna Hcstk HMIE Hheld") as "Hts".
       iTrap. }
     assert (get_tag w_pcc.(lw) = true) as Htag.
@@ -248,7 +248,7 @@ Section ctx_scheduler_call.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca0 with "Hregs")
       as "[Hca0 Hregs]"; first exact Hca0.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ csp with "Hregs")
-      as "[Hcsp Hregs]"; first by simplify_map_eq.
+      as "[Hcsp Hregs]"; first by rewrite !lookup_delete_ne.
 
     (* The trusted stack of [t], sealed *)
     (* Auipcc ca0 .sealing_key_trusted_stacks *)
@@ -268,15 +268,15 @@ Section ctx_scheduler_call.
 
     (* The cause, the address of MEPCC and mtval *)
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca1 with "Hregs")
-      as "[Hca1 Hregs]"; first by simplify_map_eq.
+      as "[Hca1 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ct1 with "Hregs")
-      as "[Hct1 Hregs]"; first by simplify_map_eq.
+      as "[Hct1 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca2 with "Hregs")
-      as "[Hca2 Hregs]"; first by simplify_map_eq.
+      as "[Hca2 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ct0 with "Hregs")
-      as "[Hct0 Hregs]"; first by simplify_map_eq.
+      as "[Hct0 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca3 with "Hregs")
-      as "[Hca3 Hregs]"; first by simplify_map_eq.
+      as "[Hca3 Hregs]"; first by rewrite !lookup_delete_ne.
     (* Mov ca1 ct1 *)
     iInstr "Hcode".
     (* GetA ca2 ct0 *)
@@ -286,9 +286,9 @@ Section ctx_scheduler_call.
 
     (* The scheduler's stack, globals and entry *)
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cgp with "Hregs")
-      as "[Hcgp Hregs]"; first by simplify_map_eq.
+      as "[Hcgp Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cra with "Hregs")
-      as "[Hcra Hregs]"; first by simplify_map_eq.
+      as "[Hcra Hregs]"; first by rewrite !lookup_delete_ne.
     (* Auipcc csp .scheduler_entry_csp *)
     iInstr "Hcode".
     { instantiate (1 := (b_switcher ^+ 4)%a). switcher_addr_eq. }
@@ -313,17 +313,17 @@ Section ctx_scheduler_call.
 
     (* The other registers cleared *)
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ctp with "Hregs")
-      as "[Hctp Hregs]"; first by simplify_map_eq.
+      as "[Hctp Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ct2 with "Hregs")
-      as "[Hct2 Hregs]"; first by simplify_map_eq.
+      as "[Hct2 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cs0 with "Hregs")
-      as "[Hcs0 Hregs]"; first by simplify_map_eq.
+      as "[Hcs0 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cs1 with "Hregs")
-      as "[Hcs1 Hregs]"; first by simplify_map_eq.
+      as "[Hcs1 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca4 with "Hregs")
-      as "[Hca4 Hregs]"; first by simplify_map_eq.
+      as "[Hca4 Hregs]"; first by rewrite !lookup_delete_ne.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca5 with "Hregs")
-      as "[Hca5 Hregs]"; first by simplify_map_eq.
+      as "[Hca5 Hregs]"; first by rewrite !lookup_delete_ne.
     (* Mov ctp 0 *)
     iInstr "Hcode".
     destruct (decide (ctp = cnull)) as [Hn|_]; first done.

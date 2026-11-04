@@ -122,6 +122,9 @@ Coercion ExceptionScratch : LWord >-> mtdc_val.
 Lemma mtdc_match_ExceptionScratch v : mtdc_match (ExceptionScratch v) v.
 Proof. done. Qed.
 
+#[global] Instance mtdc_val_eq_dec : EqDecision mtdc_val.
+Proof. solve_decision. Defined.
+
 Definition mtdcUR := excl_authUR (leibnizO mtdc_val).
 Definition intstUR := excl_authUR (leibnizO InterruptStatus).
 
@@ -457,7 +460,7 @@ Definition curUR := excl_authUR (leibnizO (option (Thread * TState))).
     from threads: the PC, the general registers, the ghost state of mtdc and
     MIE, the mtdc token, and the non-atomic pool [tpool th]; and the ghost
     state of the switches: the name of [cur], and the names of the saved
-    propositions of the switcher's parts of [HO] ([γ_exit th], [γ_sched]),
+    propositions of the switcher's parts of [HO] ([γ_exit th], [γ_scheduler]),
     and the ghost names of the running thread and of the resume window of
     the context-switch thread. The other system registers, MPIE and the
     names of the postures are shared. The shared fields are [::] fields,
@@ -489,7 +492,7 @@ Class ceriseBaseG Σ := CeriseBaseG {
   cb_cur_name : gname;
   cb_saved_prop :: savedPropG Σ | 100;
   γ_exit : Thread → gname;
-  γ_sched : gname;
+  γ_scheduler : gname;
   cb_running_inG :: ghost_varG Σ Thread | 100;
   γ_running : gname;
   cb_resume_window_inG :: ghost_varG Σ bool | 100;
@@ -498,7 +501,7 @@ Class ceriseBaseG Σ := CeriseBaseG {
 #[export] Hint Mode ceriseBaseG - : typeclass_instances.
 #[global] Arguments tpool {Σ _} th : rename.
 #[global] Arguments γ_exit {Σ _} th : rename.
-#[global] Arguments γ_sched {Σ _} : rename.
+#[global] Arguments γ_scheduler {Σ _} : rename.
 #[global] Arguments γ_running {Σ _} : rename.
 #[global] Arguments γ_resume_window {Σ _} : rename.
 

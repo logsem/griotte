@@ -1,8 +1,9 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules proofmode.
+From griotte Require Import rules proofmode.
 From griotte Require Import logrel switcher_preamble exception_dispatch virtualise.
 From griotte Require Import context_switch_layout_instance clear_hazard_slots_spec.
-From griotte Require Import ctx_support ctx_spill ctx_hyps ctx_park ctx_resume_support.
+From griotte Require Import ctx_support ctx_spill.
+From griotte Require Import ctx_hyps ctx_park.
 From griotte Require Import ctx_scheduler_call ctx_exit_tail.
 
 (** * The exit path of the context-switch thread
@@ -24,53 +25,11 @@ Section ctx_exit.
     {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
     (C_sched : CmptName) (w_pcc w_cgp w_csp : LWord).
 
-  (** The code of the switcher, at the instance of the thread [th]: the
-      section has no thread. *)
-  #[local] Notation switcher_code_at th :=
-    (codefrag_pers (ceriseg := ceriseG_of th) a_switcher_call switcher_instrs).
-
   (** * The exit PC *)
 
   #[local] Instance exit_concrete_timeless (t : nat) :
     Timeless (exit_concrete (th := UserThread t)).
   Proof. rewrite /exit_concrete /switcher_hazard. apply _. Qed.
-
-  (* TODO: move to pool.v *)
-  (** The PC of a thread being parked is the value of its PC authority in
-      its Saving slot. *)
-  Lemma pool_saving_pc (ts : list nat) (t : nat) (k : park_kind) (v : resume_vals)
-      (lpc : LWord) E :
-    ↑Npool ⊆ E →
-    inv Npool (Pool ts) -∗
-    cur_frag (Some (UserThread t, Saving k v)) -∗
-    PC ↦ₚ[u t] lpc ={E}=∗
-    ⌜v.(rv_pc) = lpc⌝ ∗
-    cur_frag (Some (UserThread t, Saving k v)) ∗
-    PC ↦ₚ[u t] lpc.
-  Proof.
-    iIntros (Hmask) "#Hinv Hf HPC".
-    iInv Npool as "HP" "Hclose". rewrite /Pool.
-    iDestruct "HP" as (c) "(>Hcur & >%Hin & Hslots)".
-    iDestruct (cur_agree with "Hcur Hf") as %->.
-    assert (t ∈ ts) as Ht by (by eapply Hin).
-    apply list_elem_of_lookup in Ht as [i Hi].
-    assert (st_of (Some (UserThread t, Saving k v)) t = Some (Saving k v)) as Hst.
-    { rewrite /st_of decide_True //. }
-    iAssert (▷ (slot t (Some (Saving k v)) ∗
-              (slot t (Some (Saving k v)) -∗
-               ([∗ list] t' ∈ ts, slot t' (st_of (Some (UserThread t, Saving k v)) t')))))%I
-      with "[Hslots]" as "[Hslot Hslots]".
-    { iNext. iDestruct (big_sepL_lookup_acc with "Hslots") as "[Hslot Hslots]"; first exact Hi.
-      rewrite Hst. iFrame. }
-    iDestruct "Hslot" as "[Hauths Hcont]".
-    rewrite /auths_at /thread_auths.
-    iDestruct "Hauths" as "(>HPC_a & Hregs_a & Hmtdc_a & HMIE_a)".
-    iDestruct (PC_agree with "HPC_a HPC") as %Hpc.
-    iMod ("Hclose" with "[- Hf HPC]") as "_".
-    { iNext. iExists _. iFrame "Hcur". iSplit; first done.
-      iApply "Hslots". rewrite /auths_at /thread_auths. iFrame. }
-    iModIntro. by iFrame.
-  Qed.
 
   (** The exit part of a user thread of the switcher: its exit PC and its
       hazard part, from the saved proposition of [switcher_static]. *)
@@ -79,7 +38,7 @@ Section ctx_exit.
     exit_part (UserThread t) -∗
     ◇ exit_concrete (th := UserThread t).
   Proof.
-    iIntros "#Hstatic [%P [Hown HP]]".
+    iIntros "#Hstatic [%P [Hown HP] ]".
     iDestruct (switcher_static_exit with "Hstatic") as "Hexit".
     iDestruct (saved_prop_agree with "Hexit Hown") as "Heq".
     iAssert (▷ exit_concrete (th := UserThread t))%I with "[HP Heq]" as "Hc".

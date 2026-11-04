@@ -161,7 +161,7 @@ Section Exception_Entry.
     assert (∀ k : Z, (0 <= k <= 21)%Z →
                      (@b_trusted_stack (tlayout_of o) + k)%a =
                        Some (@b_trusted_stack (tlayout_of o) ^+ k)) as Hts_k
-      by (intros; tstack_unfold; solve_addr).
+      by (intros k Hk; tstack_unfold; solve_addr).
     assert (∀ k : Z, (0 <= k <= 21)%Z →
                      is_shadow_address (@b_trusted_stack (tlayout_of o) ^+ k) = false)
       as Hts_k_shadow.
