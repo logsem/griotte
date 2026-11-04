@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  cmdc_firmware.
+  firmware_thread_obligations cmdc_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import cmdc cmdc_spec.
 From griotte Require Import assert_spec logrel.
@@ -17,20 +17,22 @@ From griotte Require Import allocator_resources heap_region.
 
 Section cmdc_obligations.
   Context {Σ : gFunctors}.
-  Context {cname : CmptNameG} {B C : CmptName}.
+  Context {cname : CmptNameG} {B C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the CMDC firmware: the thread
       runs safely from the export of [main], the untrusted compartments
       ["B"] and ["C"] being owned by the logical compartments [B] and
-      [C]. *)
+      [C], the scheduler running in [Sched]. *)
   Lemma cmdc_fw_obligations :
     B ≠ C →
-    fw_obligations Σ cmdc_firmware.
+    B ≠ Sched →
+    C ≠ Sched →
+    fw_obligations_pt Σ cmdc_firmware.
   Proof.
-    intros HBC.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros HBC HBS HCS.
+    apply (fw_obligations_pt_of_pinned Σ cmdc_firmware Sched); [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -72,15 +74,16 @@ Section cmdc_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B HBS)) as "#Hthread_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B HBS) with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_B".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS) with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack cmdc_firmware 0) with 4 in Hentry_min_stack.
-    iEval (cbv [cmdc_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [cmdc_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & _) & (HB & _ & #HB_pers) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].
     change (fw_entry_cmpt cmdc_firmware img 0) with (cmpt_of img "main").
@@ -96,9 +99,11 @@ Section cmdc_obligations.
       as "#Hentry_Cg"; [done|cbv; lia|].
     iEval (rewrite HsbC) in "Hentry_Cg".
     iDestruct (big_sepS_delete _ _ B with "Hworlds") as "[Hworld_B Hworlds]".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HBS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     iDestruct (big_sepS_delete _ _ C with "Hworlds") as "[Hworld_C _]".
     { apply elem_of_difference. split; last set_solver+HBC.
+      apply elem_of_difference. split; last set_solver+HCS.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
     (* 4 - Close the worlds of B and C: their compartments become Permanent regions,
@@ -144,7 +149,8 @@ Section cmdc_obligations.
       apply withinBounds_true_iff.
       pose proof Hmain_data_size as Hsize.
       rewrite /cmdc_main_data /= in Hsize. split; solve_addr. }
-    iApply (cmdc_spec_full (swlayout := swl) (assertlayout := asl) (B := B) (C := C)
+    iApply (cmdc_spec (th := UserThread 0) (swlayout := swl) (assertlayout := asl)
+              (B := B) (C := C)
               _ _ _ _ _ _ _
               _ _ _ _ _
               [] [] _ _ _
