@@ -12,7 +12,7 @@ From griotte Require
   error_handling_adequacy_obligations
 .
 From griotte.program_logic.virtualise Require virtualise.
-From griotte Require ctx_switch_specs.
+From griotte Require context_switching_specs.
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling.
@@ -65,11 +65,11 @@ Print Assumptions griotte.program_logic.virtualise.virtualise.virtualise.
 
 Goal True. idtac "
 Assumptions of the context-switch entry specs of the switcher (ctx_switch_entry_specs_hold):". Abort.
-Print Assumptions ctx_switch_specs.ctx_switch_entry_specs_hold.
+Print Assumptions context_switching_specs.ctx_switch_entry_specs_hold.
 
 Goal True. idtac "
 Assumptions of virtualise at the switcher (virtualise_switcher):". Abort.
-Print Assumptions ctx_switch_specs.virtualise_switcher.
+Print Assumptions context_switching_specs.virtualise_switcher.
 *)
 
 (** ** Key-value store (KVS) *)

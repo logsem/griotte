@@ -4,8 +4,8 @@ From griotte Require Import logrel monotone wp_rules_interp.
 From griotte Require Import switcher_preamble switcher_exception_states.
 From griotte Require Import handoff pool switcher_link.
 From griotte Require Import context_switch_layout_instance common_context_install.
-From griotte Require Import ctx_support ctx_hyps.
-From griotte Require Import ctx_install.
+From griotte Require Import context_switching_support context_switching_hyps.
+From griotte Require Import context_switching_install.
 
 (** * The resume path of the context-switch thread
 

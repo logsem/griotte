@@ -3,7 +3,7 @@ From griotte Require Import rules proofmode.
 From griotte Require Import logrel switcher_preamble switcher_exception_states handoff.
 From griotte Require Import switcher_link.
 From griotte Require Import exception_dispatch exception_entry context_switch_layout_instance.
-From griotte Require Import ctx_support.
+From griotte Require Import context_switching_support.
 
 (** * The spill of the context-switch thread
 

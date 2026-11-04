@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import handoff pool switcher_link context_switch_layout_instance.
-From griotte Require Import ctx_support.
+From griotte Require Import context_switching_support.
 
 (** * The park of a user thread by the context-switch thread
 

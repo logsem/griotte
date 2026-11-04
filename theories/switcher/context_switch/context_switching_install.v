@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte Require Import switcher_preamble handoff switcher_link context_switch_layout.
 From griotte Require Import context_switch_layout_instance common_context_install.
-From griotte Require Import ctx_support.
+From griotte Require Import context_switching_support.
 
 (** * The install at the context-switch thread
 

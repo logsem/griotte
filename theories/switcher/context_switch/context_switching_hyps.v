@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel switcher_preamble handoff pool.
-From griotte Require Import context_switch_layout_instance ctx_support.
+From griotte Require Import context_switch_layout_instance context_switching_support.
 
 (** * The hypotheses of the context-switch thread's paths
 

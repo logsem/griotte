@@ -2,8 +2,8 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte Require Import fundamental switcher_preamble handoff switcher_link.
 From griotte Require Import exception_dispatch virtualise context_switch_layout_instance.
-From griotte Require Import ctx_support ctx_spill.
-From griotte Require Import ctx_hyps ctx_park.
+From griotte Require Import context_switching_support context_switching_spill.
+From griotte Require Import context_switching_hyps context_switching_park.
 
 (** * The scheduler call of the context-switch thread
 

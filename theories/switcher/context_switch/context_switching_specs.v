@@ -1,9 +1,9 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel switcher_preamble virtualise.
-From griotte Require Import context_switch_layout_instance ctx_support.
-From griotte Require Import ctx_hyps.
-From griotte Require Import ctx_scheduler_call ctx_resume.
-From griotte Require Import ctx_exit.
+From griotte Require Import context_switch_layout_instance context_switching_support.
+From griotte Require Import context_switching_hyps.
+From griotte Require Import context_switching_scheduler_call context_switching_resume.
+From griotte Require Import context_switching_exit.
 
 (** * The entry specs of the context-switch thread
 

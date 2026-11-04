@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte Require Import switcher_preamble handoff switcher_link.
-From griotte Require Import ctx_support.
+From griotte Require Import context_switching_support.
 
 (** * The tail of the exit path
 
