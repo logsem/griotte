@@ -322,6 +322,82 @@ Section griotte_lang_rules.
     iApply (sregs_of_map_1 with "Hsmap").
   Qed.
 
+  (** [cspecialw mtcc, src] of an untagged word, with the unwedged token:
+      the token goes to the state interpretation, which records mtcc as
+      wedged. *)
+  Lemma wp_writesr_mtcc_wedge E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src (wsrc : Word) dq :
+    decodeInstrW w.(lw) = SpecialRW cnull mtcc (inr src) →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    has_sreg_access pc_p = true →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    get_tag (legalise mtcc wsrc) = false →
+
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ src ↦ᵣ lword_of_word wsrc ∗
+        ▷ unwedged }}}
+      Instr Executable @ E
+      {{{ RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+          pc_a ↦ₐ{dq} w ∗
+          src ↦ᵣ lword_of_word wsrc ∗
+          mtcc_wedged }}}.
+  Proof.
+    iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Htag φ) "(>HPC & >Hpc_a & >Hsrc & >HU) Hφ".
+    iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
+    iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wold & Hwold & _).
+    destruct (specialrw_sregs_phys R C _ r psr mm st td _ lreg (ls_join lsreg) lmem
+                {[src := lword_of_word wsrc]} {[mtcc := lword_of_word mtcc_vec]} mtcc (inr src)
+                (lword_of_word mtcc_vec) Her Hlregs Hregs)
+      as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
+    { by apply map_singleton_subseteq_l. }
+    { rewrite /regs_of_argument dom_singleton_L. set_solver. }
+    { by simplify_map_eq. }
+    rewrite Hinstr /exec in Hstep. cbn in Hstep. rewrite Hxsr Hwold /= Hφ1 /= in Hstep.
+    destruct (decide (cnull = cnull)) as [_|Hc]; last done.
+    (* The new value of mtcc is the legalised source, untagged. *)
+    rewrite /specialrw_sregs decide_False // llookup_reg_not_cnull // lookup_singleton /=
+      decide_True //= in Hsregs'.
+    injection Hsregs' as <-.
+    destruct Hup as [ [Heq _] | (nv & Heq & ->)].
+    { exfalso. apply (f_equal (λ m : LSReg, m !! mtcc)) in Heq.
+      rewrite lookup_insert_eq lookup_singleton_eq in Heq. injection Heq as Heq.
+      cbn in Htag. rewrite Heq mtcc_vec_tagged in Htag. done. }
+    apply (f_equal (λ m : LSReg, m !! mtcc)) in Heq.
+    rewrite !lookup_insert_eq in Heq. injection Heq as <-.
+    (* The wedge: [SI_mtcc] is pending, since the unwedged token is here. *)
+    iNamed "Hsr".
+    iDestruct "Hmtcc" as "[ [Hmtcc Hpend] | (%w0 & _ & _ & HU' & _)]"; last first.
+    { iDestruct (unwedged_excl with "HU HU'") as %[]. }
+    iMod (mtcc_wedge_update (ls_sh lsreg) (llegalise mtcc (lword_of_word wsrc))
+            with "[$Hsr $Hmtcc $Hpend $HU]") as "(Hsr & Hmtcc & #Hwedged)"; first done.
+    iAssert (sys_interp (ls_insert_sh lsreg mtcc (llegalise mtcc (lword_of_word wsrc))))
+      with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsr".
+    { iFrame. iSplit; first done. iPureIntro. destruct Hlsh as [Hn1 Hn2].
+      rewrite /ls_insert_sh /= !lookup_insert_ne //. }
+    rewrite -ls_join_insert_sh // in Her1.
+    pose proof (specialrw_sys_kept _ r psr mm st td psr' mtcc (inr src)
+                  ltac:(done) ltac:(done) Hφ1) as Hkept.
+    iApply (instr_close_kept_trans _ _ _ _ Hkept).
+    iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
+      (λ lpc' retv, lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧ retv = NextIV)
+      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
+    { exact Her1. }
+    { destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1
+                  (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) as (pc' & Hu & _).
+      rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
+    { intros lpc' Hi.
+      rewrite -/(incrementPC _) (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi. by simplify_eq. }
+    { intros Hi. by rewrite -/(incrementPC _) (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi. }
+    iIntros (lpc' retv (-> & ->)) "HPC Hmap".
+    iApply "Hφ". iFrame "HPC Hpc_a Hwedged".
+    iApply (regs_of_map_1 with "Hmap").
+  Qed.
+
   (** The swap of a register with a system register. *)
   Lemma wp_specialrw_swap E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w r sr (v vold : LWord) dq :
     decodeInstrW w.(lw) = SpecialRW r sr (inr r) →

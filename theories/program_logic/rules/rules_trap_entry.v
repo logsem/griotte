@@ -445,6 +445,97 @@ Section griotte_lang_traps.
     iApply (wp_trap with "HPC Htrap").
   Qed.
 
+  (** ** Faults once mtcc is wedged *)
+
+  (* A fault with a tagged PC once mtcc is wedged: trap entry writes
+     MEPCC, mcause, mtval and MPIE as usual, and the PC receives the
+     untagged word that mtcc holds. *)
+  Lemma wp_trap_wedged E Φ (w p c : LWord) (v : Z) (b : InterruptStatus) :
+    get_tag w.(lw) = true →
+    mtcc_wedged -∗
+    PC ↦ₚ w -∗
+    MIE_frag InterruptDisabled -∗
+    volatile_csr_at p c v b -∗
+    ▷ (∀ wv : LWord,
+         ⌜get_tag wv.(lw) = false⌝ -∗
+         PC ↦ₚ wv -∗
+         MIE_frag InterruptDisabled -∗
+         (∃ c' v' : Z,
+            volatile_csr_at (lmepcc_of_pc w) (lword_of_word (WInt c')) v' InterruptDisabled) -∗
+         WP Exec @ E {{ Φ }}) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Htag) "#Hwedged HPC Hmie_f Hvcsr Hcont".
+    iApply wp_lift_base_step; first done.
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    iDestruct (ctx_irq_si_held with "Hirq HPC") as "[_ HPC]".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (sys_interp_mie_agree with "Hsr Hmie_f") as %Hmie.
+    destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
+    iDestruct (sys_interp_mtcc_wedged with "Hsr Hwedged") as %(wv & Hwv & Hwv_tag).
+    (* The PC is tagged, so the machine enters the exception handler. *)
+    assert (trap_halts σ1 = false) as Hnh.
+    { by rewrite /trap_halts (erasure_pc_exact _ _ _ _ _ _ _ Her) Htag. }
+    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
+    iSplit.
+    { iPureIntro. eexists [], _, _, []. by apply TS_trap. }
+    iNext. iIntros (e2 σ2 efs Hstep) "_".
+    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts |]; subst; last congruence.
+    iMod "Hclose" as "_".
+    iMod (enter_exc_update_wedged σ1 (trap_cause σ1, trap_tval σ1) _ _ _ _ _ _ _ _ _ _ _ wv
+            Her Hwv with "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f Hvcsr")
+      as "(_ & %Hoff' & HSI & HPC & Hmie_f & Hvcsr)".
+    (* MIE stays disabled and mtdc is unchanged: the link is kept. *)
+    iModIntro. iSplitL "HSI Hlink".
+    { iFrame "HSI". iSplitR; first (iPureIntro; exact Hrdom).
+      iSplitL "Hlink".
+      - iApply (crit_link_stable with "Hlink"); first congruence.
+        destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
+        rewrite /enter_exc /=. by rewrite !lookup_insert_ne.
+      - iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
+    iSplitL; last done.
+    iApply ("Hcont" with "[//] HPC Hmie_f").
+    iExists (trap_cause σ1), (trap_tval σ1). iExact "Hvcsr".
+  Qed.
+
+  (* A fault with an untagged PC once mtcc is wedged: the machine stops,
+     and the thread's value is [FaultedV]. *)
+  Lemma wp_trap_halt_wedged E Φ (w : LWord) :
+    get_tag w.(lw) = false →
+    mtcc_wedged -∗
+    PC ↦ₚ w -∗
+    ▷ (PC ↦ₚ w -∗ Φ FaultedV) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Htag) "#Hwedged HPC Hcont".
+    iApply wp_lift_base_step; first done.
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
+    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+    iDestruct (ctx_irq_si_held with "Hirq HPC") as "[%Hoff HPC]".
+    iDestruct (PC_agree with "HPCa HPC") as %->.
+    iDestruct (sys_interp_mtcc_wedged with "Hsr Hwedged") as %(wv & Hwv & Hwv_tag).
+    (* Neither the PC nor the physical mtcc is tagged: the machine stops. *)
+    assert (trap_halts σ1 = true) as Hh.
+    { destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hwv) as (wtcc & Hwtcc & Hrel).
+      rewrite /trap_halts /sreg_word (erasure_pc_exact _ _ _ _ _ _ _ Her) Htag Hwtcc /=.
+      destruct (reg_phys_cases _ _ _ Hrel) as [-> | ->]; first by rewrite Hwv_tag.
+      by rewrite get_tag_clear_tag. }
+    iApply fupd_mask_intro; first set_solver. iIntros "Hclose".
+    iSplit.
+    { iPureIntro. eexists [], _, _, []. by apply TS_trap_halt. }
+    iNext. iIntros (e2 σ2 efs Hstep) "_".
+    inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts |]; subst; first congruence.
+    iMod "Hclose" as "_".
+    iModIntro. iSplitR "HPC Hcont".
+    { iFrame "Hlink". iSplitL.
+      - iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
+      - iSplitR; first (iPureIntro; exact Hrdom).
+        iApply (ctx_irq_si_kept _ _ _ Hoff). apply sys_kept_refl. }
+    iSplitL; last done.
+    iApply wp_value. iApply ("Hcont" with "HPC").
+  Qed.
+
 End griotte_lang_traps.
 
 (** The resources and the obligation of trap entry for the fault causes

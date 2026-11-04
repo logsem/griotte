@@ -116,6 +116,41 @@ Section state_interp.
     iPureIntro. by rewrite /ls_join lsregs_join_ne.
   Qed.
 
+  (** Once mtcc is wedged, it holds an untagged word. *)
+  Lemma sys_interp_mtcc_wedged ls :
+    sys_interp ls -∗
+    mtcc_wedged -∗
+    ∃ w : LWord, ⌜ls_join ls !! mtcc = Some w ∧ get_tag w.(lw) = false⌝.
+  Proof.
+    iIntros "Hsys #Hwedged". iNamed "Hsys".
+    iDestruct "Hmtcc" as "[ [_ Hpend] | (%w & Hmtcc & %Htag & _ & _)]".
+    { iDestruct (mtcc_pending_wedged with "Hpend Hwedged") as %[]. }
+    iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Hv.
+    iExists w. iPureIntro. split; last done. by rewrite /ls_join lsregs_join_ne.
+  Qed.
+
+  (** The wedge of MTCC: from the pending branch of [SI_mtcc], with the
+      unwedged token, MTCC receives an untagged word [w'], and [SI_mtcc]
+      takes its wedged branch, which holds the token. *)
+  Lemma mtcc_wedge_update (lsh : LSReg) (w' : LWord) :
+    get_tag w'.(lw) = false →
+    gen_heap_interp lsh ∗
+    mtcc ↦ₓ lword_of_word mtcc_vec ∗
+    mtcc_pending ∗
+    unwedged
+    ==∗
+    gen_heap_interp (<[mtcc := w']> lsh) ∗
+    SI_mtcc ∗
+    mtcc_wedged.
+  Proof.
+    iIntros (Htag) "(Hsr & Hmtcc & Hpend & HU)".
+    iMod (gen_heap_update _ _ _ w' with "Hsr Hmtcc") as "[$ Hmtcc]".
+    iMod (own_update with "Hpend") as "#Hwedged"; last first.
+    { iModIntro. iSplitL; last iExact "Hwedged".
+      iRight. iExists w'. iFrame "Hmtcc HU". iSplit; first done. iExact "Hwedged". }
+    by apply cmra_update_exclusive.
+  Qed.
+
   (** MIE and MPIE: the fragments agree with the state interpretation. *)
   Lemma sys_interp_mie_agree ls b :
     sys_interp ls -∗ MIE_frag b -∗ ⌜ls_mie ls = b⌝.

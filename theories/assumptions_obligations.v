@@ -13,6 +13,7 @@ From griotte Require
 .
 From griotte.program_logic.virtualise Require virtualise.
 From griotte Require context_switching_specs.
+From griotte Require context_switching_scheduler_valid.
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling.
@@ -32,7 +33,9 @@ Set Default Proof Mode "Classic".
     ([ctx_switch_entry_specs_hold]), under premises on the initial state
     and two hypotheses (the validity of the scheduler's entry and the
     safety of the context-switch thread's trap vector), and their
-    composition ([virtualise_switcher]), and
+    composition ([virtualise_switcher]), the composition with the trap
+    vector proved and the scheduler's entry reduced to the validity of its
+    code capability and globals in one world ([virtualise_scheduler]), and
     per case study: the assumptions of the obligations of its trusted code
     ([<cs>_fw_obligations], at the level of the weakest precondition) and
     its initial-state predicate. The end-to-end theorems ([<cs>_adequacy],
@@ -70,6 +73,10 @@ Print Assumptions context_switching_specs.ctx_switch_entry_specs_hold.
 Goal True. idtac "
 Assumptions of virtualise at the switcher (virtualise_switcher):". Abort.
 Print Assumptions context_switching_specs.virtualise_switcher.
+
+Goal True. idtac "
+Assumptions of virtualise at the switcher, the scheduler reduced (virtualise_scheduler):". Abort.
+Print Assumptions context_switching_scheduler_valid.virtualise_scheduler.
 *)
 
 (** ** Key-value store (KVS) *)
