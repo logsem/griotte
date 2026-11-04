@@ -47,7 +47,7 @@ Definition droe_own (s : string) : @CmptName CmptNames_droe_CmptNameG :=
 
 (** The threads of a compartment can run in every compartment whose entries
     its untrusted code can obtain, for the assignment of threads that
-    [droe_fw_obligations] uses through [fw_obligations_pt_of_pinned]: no
+    [droe_fw_obligations] uses through [fw_obligations_of_pinned]: no
     untrusted compartment of the firmware imports an export. *)
 Lemma droe_T_closed `{MP : MachineParameters} :
   T_closed (cthreads := fw_cthreads_pinned droe_sched) droe_firmware droe_own.

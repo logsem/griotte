@@ -17,10 +17,11 @@ From griotte Require Import image firmware.
 
     [firmware_adequacy] proves the assert flag of every machine run from a
     state satisfying [firmware_ok fw img σ], given the obligations
-    [fw_obligations fw] of the trusted code of [fw]. The obligations
-    receive the resources the loader's image provides once the switcher
-    and the assert library are initialised ([fw_shared_res]) and those of
-    the thread ([fw_thread_res]).
+    [fw_obligations fw] of the trusted code of [fw], per thread
+    ([firmware_thread_obligations.v]). The obligations receive the
+    resources the loader's image provides once the switcher and the assert
+    library are initialised ([fw_shared_res]) and those of each thread
+    ([fw_thread_res]).
 
     The layout records of the program logic ([cmpt], [cmptSwitcher],
     [cmptAssert]) carry their well-formedness proofs. The bridges
@@ -2133,27 +2134,6 @@ Section resources.
   (** The empty world. *)
   Definition fw_world0 : WORLD := (MkWorld ∅ (∅,∅)).
 
-  (** The resources shared by the threads: the code of the switcher and the
-      invariant of the assert library, the memory of every compartment
-      (trusted or not), the sealing types handed to the trusted code, the
-      world of each logical compartment, and the heap. The predicates
-      generic in [ceriseG] are taken at the instance of the user thread [0],
-      the shared heaps at the base. *)
-  Definition fw_shared_res (fw : firmware) (img : fw_image) : iProp Σ :=
-    let asrt := img_asrt img in
-    "Hswitcher_static" ∷ switcher_static (th := UserThread 0) (swlayout := fw_switcher_layout img) ∗
-    "Hassert" ∷
-      assert_static (ceriseg := ceriseG_of (UserThread 0))
-        (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
-    "Hcmpts" ∷
-      ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
-    "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
-    "Hworlds" ∷
-      ([∗ set] C ∈ CNames, world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 C) ∗
-    "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
-    "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
-    "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
-
   (** The resources of the thread [i], the user thread [i]: its
       trusted-stack invariant, in its pool, its registers, its stack, its
       call stack, the non-atomic token of its pool, and its posture at the
@@ -2368,54 +2348,7 @@ Section thread_trusted_stack_inv.
     iModIntro. iFrame "Hswitcher Hsave".
     rewrite Hft /region_pointsto big_sepL2_fmap_r. iFrame.
   Qed.
-
-  (** The trusted-stack invariants of the threads [S k] of a firmware whose other
-      threads are [fts], dropped until the threads are scheduled. *)
-  Lemma fw_threads_trusted_stack_inv_alloc fw img (fts : list fw_thread) (E : coPset)
-      (Hwf : img_wf fw img) (H0 : fw_threads fw !! 0 = Some (fw_thread0 fw)) :
-    fw_threads fw = fw_thread0 fw :: fts →
-    ([∗ list] k ↦ ft ∈ fts,
-       ([∗ map] a↦w ∈ thread_mem fw img (S k) ft, a ↦ₐ lword_of_word w) ∗
-       ●(CSTK)[u (S k)] (entry_cstack (fw_entry_frame fw img (S k))) ∗
-       ⌜@mtdc_home Σ (@cb_mtdc_lent_of Σ ceriseb (UserThread (S k))) =
-          fw_thread_tstack img (S k)⌝ ∗
-       mtdc ↦ₜ[u (S k)] fw_thread_tstack img (S k))
-    ={E}=∗
-    True.
-  Proof.
-    intros Hthreads. iIntros "Hthreads".
-    iAssert ([∗ list] k ↦ ft ∈ fts, |={E}=> True)%I with "[Hthreads]" as "Hthreads".
-    { iApply (big_sepL_impl with "Hthreads").
-      iIntros "!>" (k ft Hk) "(Hmem & Hcstk_full & %Hhome & Hmtdc)".
-      assert (fw_threads fw !! S k = Some ft) as Hi by by rewrite Hthreads.
-      iMod (fw_thread_trusted_stack_inv_alloc fw img (S k) ft E Hwf H0 Hi Hhome
-             with "Hmem Hcstk_full Hmtdc") as "_".
-      by iModIntro. }
-    iMod (big_sepL_fupd with "Hthreads") as "_".
-    by iModIntro.
-  Qed.
 End thread_trusted_stack_inv.
-
-(** The obligations of the trusted code of a firmware, for the ghost state
-    [Σ]: for some assignment [cthreads] of threads to the compartments, for
-    every image and initial state satisfying [firmware_ok], the first
-    thread, the user thread [0], runs safely from the resources of the
-    image. A case study with its own ghost state proves them for every
-    [Σ] with its [subG] assumptions, and allocates its ghost state inside
-    the proof. *)
-Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
-    (fw : firmware) : Prop :=
-  ∃ (cthreads : CmptThreads),
-  ∀ (img : fw_image) (σ : ExecConf)
-    (ceriseb : ceriseBaseG Σ) (sealsg : sealStoreG Σ)
-    (stsg : STSG Σ) (relg : relGS Σ)
-    (cstackg : CSTACKG Σ),
-    firmware_ok fw img σ →
-    ⊢ fw_shared_res fw img -∗
-      fw_thread_res fw img 0
-      ={⊤}=∗
-      let _ : switcherLayout := fw_switcher_layout img in
-      WP Exec @[u 0] {{ _, True }}.
 
 (** ** Layout facts for the obligations *)
 Section obligation_layouts.

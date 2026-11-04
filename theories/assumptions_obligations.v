@@ -37,11 +37,11 @@ Set Default Proof Mode "Classic".
     vector proved and the scheduler's entry reduced to the validity of its
     code capability and globals in one world ([virtualise_scheduler]), and
     per case study: the assumptions of the obligations of its trusted code
-    ([<cs>_fw_obligations], at the level of the weakest precondition) and
-    its initial-state predicate. The end-to-end theorems ([<cs>_adequacy],
-    [firmware_adequacy_closed]) and the demo images ([<cs>_concrete]) are
-    excluded from the build ([theories/dune]), and so is [assumptions.v],
-    which prints them.
+    ([<cs>_fw_obligations], at the level of the safe run of each thread)
+    and its initial-state predicate. The end-to-end theorems
+    ([<cs>_adequacy], [firmware_adequacy_closed]) are printed by
+    [assumptions.v]; only the demo images ([<cs>_concrete]) are excluded
+    from the build ([theories/dune]).
 
     The initial-state predicate is what the end-to-end theorem assumes of
     the initial state. [Print <cs>_initial_state_ok] is the reference; the

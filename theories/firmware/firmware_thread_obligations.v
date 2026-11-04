@@ -564,7 +564,7 @@ Section resources_pt.
       library, the compartments but the scheduler's, initialised, the
       sealing types, the worlds of the compartments but [C_sched] at the
       user thread [0], and the heap. *)
-  Definition fw_shared_res_pt (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
+  Definition fw_shared_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     "Hswitcher_static" ∷
       ([∗ list] i ↦ _ ∈ fw_threads fw,
@@ -589,7 +589,7 @@ End resources_pt.
     [firmware_ok], the shared resources give, after an update, for each
     thread [i] of the firmware, its safe run from its resources and a later
     credit. *)
-Definition fw_obligations_pt (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
+Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachineParameters}
     (fw : firmware) : Prop :=
   ∃ (cthreads : CmptThreads) (C_sched : CmptName),
   CtxSwitch ∈ cmpt_threads C_sched ∧
@@ -599,7 +599,7 @@ Definition fw_obligations_pt (Σ : gFunctors) {Cname : CmptNameG} `{MP : Machine
     (stsg : STSG Σ) (relg : relGS Σ)
     (cstackg : CSTACKG Σ),
     firmware_ok fw img σ →
-    ⊢ fw_shared_res_pt fw img C_sched
+    ⊢ fw_shared_res fw img C_sched
       ={⊤}=∗
       [∗ list] i ↦ _ ∈ fw_threads fw,
         (fw_thread_res fw img i -∗
@@ -616,9 +616,12 @@ Section prepared_pt.
     {cstackg : CSTACKG Σ}
     `{MP : MachineParameters}.
 
-  (** [fw_init_res] for the per-thread form: the compartments but the
-      scheduler's, the worlds but [C_sched]'s. *)
-  Definition fw_init_res_pt (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
+  (** The resources of [fw_shared_res] and [fw_thread_res] at the first
+      thread, run as the thread [th], with the compartments but the
+      scheduler's initialised, the worlds of the compartments but
+      [C_sched], and the first thread at the code of its compartment, at
+      the posture of its entry. *)
+  Definition fw_init_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
@@ -659,8 +662,12 @@ Section prepared_pt.
         (CR := crit_route_full (swlayout := fw_switcher_layout img) th)
         (fw_entry_posture fw img 0).
 
-  (** [fw_setup_res] for the per-thread form, with the same two changes. *)
-  Definition fw_setup_res_pt (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
+  (** The resources of [fw_init_res] that set up the worlds: those of a
+      firmware whose first thread starts in an untrusted compartment,
+      without the thread's registers, call stack and non-atomic token
+      ([fw_obligations_of_untrusted]). The stack is there: the case study
+      closes it in the world of the entry compartment. *)
+  Definition fw_setup_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
@@ -694,9 +701,11 @@ Section prepared_pt.
   Qed.
 End prepared_pt.
 
-(** [fw_obligations_of] for the per-thread form, for a firmware with one
-    thread. *)
-Lemma fw_obligations_pt_of (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThreads}
+(** The obligations of a firmware with one thread, from an obligation over
+    the resources [fw_init_res] of its first thread, for an assignment
+    [cthreads] with the context-switch thread in [C_sched], in exclusive
+    mode. *)
+Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThreads}
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_at_code fw →
   fw_threads fw = [fw_thread0 fw] →
@@ -707,10 +716,10 @@ Lemma fw_obligations_pt_of (Σ : gFunctors) {Cname : CmptNameG} {cthreads : Cmpt
      (stsg : STSG Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     ⊢ fw_init_res_pt (th := UserThread 0) fw img C_sched
+     ⊢ fw_init_res (th := UserThread 0) fw img C_sched
        ={⊤}=∗
        let _ : switcherLayout := fw_switcher_layout img in safe[u 0]) →
-  fw_obligations_pt Σ fw.
+  fw_obligations Σ fw.
 Proof.
   intros Hentry Hthreads Hin Hexcl Hprep. exists cthreads, C_sched.
   split; first exact Hin. split; first exact Hexcl.
@@ -735,9 +744,12 @@ Definition fw_cthreads_pinned {Cname : CmptNameG} (C_sched : CmptName) : CmptThr
      cmpt_shared := λ _, false;
      cmpt_threads_sep := ltac:(intros C t; cbv beta; case_decide; set_solver) |}.
 
-(** The same, with every compartment but [C_sched] run by the user thread 0
-    only, and [C_sched] by the context-switch thread only, in exclusive mode. *)
-Lemma fw_obligations_pt_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
+(** The obligations of a firmware with one thread, from an obligation over
+    the resources [fw_init_res] of its first thread, with every compartment
+    but [C_sched] run by the user thread 0 only, and [C_sched] by the
+    context-switch thread only, in exclusive mode: the obligation receives
+    this pinning of the threads, not the assignment itself. *)
+Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_at_code fw →
   fw_threads fw = [fw_thread0 fw] →
@@ -751,13 +763,13 @@ Lemma fw_obligations_pt_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
        (stsg : STSG Σ) (relg : relGS Σ)
        (cstackg : CSTACKG Σ),
        firmware_ok fw img σ →
-       ⊢ fw_init_res_pt (th := UserThread 0) fw img C_sched
+       ⊢ fw_init_res (th := UserThread 0) fw img C_sched
          ={⊤}=∗
          let _ : switcherLayout := fw_switcher_layout img in safe[u 0]) →
-  fw_obligations_pt Σ fw.
+  fw_obligations Σ fw.
 Proof.
   intros Hentry Hthreads Hprep.
-  apply (fw_obligations_pt_of Σ (cthreads := fw_cthreads_pinned C_sched) fw C_sched Hentry Hthreads).
+  apply (fw_obligations_of Σ (cthreads := fw_cthreads_pinned C_sched) fw C_sched Hentry Hthreads).
   - cbn. rewrite decide_True; last done. set_solver.
   - reflexivity.
   - apply Hprep.
@@ -767,8 +779,15 @@ Proof.
     + intros C. reflexivity.
 Qed.
 
-(** [fw_obligations_of_untrusted] for the per-thread form. *)
-Lemma fw_obligations_pt_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThreads}
+(** The obligations of a firmware with one thread whose first thread starts
+    in an untrusted compartment. The case study sets up the worlds from
+    [fw_setup_res] and returns the world [W] of a logical compartment [C]
+    other than [C_sched] in which the PCC and the CGP of the entry
+    compartment and the thread's stack are safe
+    ([fw_close_adv_world_entry]). The thread then runs by the FTLR
+    ([fundamental_untrusted_thread]): no main specification is needed.
+    Every compartment but [C_sched] runs on the user thread [0] only. *)
+Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThreads}
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_untrusted fw →
   fw_threads fw = [fw_thread0 fw] →
@@ -780,7 +799,7 @@ Lemma fw_obligations_pt_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthre
      (stsg : STSG Σ) (relg : relGS Σ)
      (cstackg : CSTACKG Σ),
      firmware_ok fw img σ →
-     ⊢ fw_setup_res_pt (th := UserThread 0) fw img C_sched
+     ⊢ fw_setup_res (th := UserThread 0) fw img C_sched
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
          ⌜C ≠ C_sched⌝ ∗
@@ -797,7 +816,7 @@ Lemma fw_obligations_pt_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthre
            (CL := crit_link_full (swlayout := fw_switcher_layout img))
            (CR := crit_route_full (swlayout := fw_switcher_layout img))
            W C (fw_thread_csp img 0)) →
-  fw_obligations_pt Σ fw.
+  fw_obligations Σ fw.
 Proof.
   intros Huntrusted Hthreads Hin Hpin Hshared Hsetup. exists cthreads, C_sched.
   split; first exact Hin. split; first exact (Hshared C_sched).

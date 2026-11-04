@@ -51,7 +51,7 @@ Definition cmdc_own (s : string) : @CmptName CmptNames_CMDC_CmptNameG :=
 
 (** The threads of a compartment can run in every compartment whose entries
     its untrusted code can obtain, for the assignment of threads that
-    [cmdc_fw_obligations] uses through [fw_obligations_pt_of_pinned]: no
+    [cmdc_fw_obligations] uses through [fw_obligations_of_pinned]: no
     untrusted compartment of the firmware imports an export. *)
 Lemma cmdc_T_closed `{MP : MachineParameters} :
   T_closed (cthreads := fw_cthreads_pinned cmdc_sched) cmdc_firmware cmdc_own.

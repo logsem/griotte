@@ -32,10 +32,10 @@ Section kvs_obligations.
   Lemma kvs_fw_obligations (ot_kvs : OType) (key_main key_B : Z) :
     key_main ≠ key_B →
     B ≠ Sched →
-    fw_obligations_pt Σ (kvs_firmware ot_kvs key_main key_B).
+    fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
     intros Hkeys HBS.
-    apply (fw_obligations_pt_of_pinned Σ (kvs_firmware ot_kvs key_main key_B) Sched);
+    apply (fw_obligations_of_pinned Σ (kvs_firmware ot_kvs key_main key_B) Sched);
       [reflexivity | reflexivity |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 

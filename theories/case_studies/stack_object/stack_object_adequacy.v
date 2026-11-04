@@ -47,7 +47,7 @@ Definition so_own (s : string) : @CmptName CmptNames_so_CmptNameG :=
 
 (** The threads of a compartment can run in every compartment whose entries
     its untrusted code can obtain, for the assignment of threads that
-    [so_fw_obligations] uses through [fw_obligations_pt_of_pinned]: the
+    [so_fw_obligations] uses through [fw_obligations_of_pinned]: the
     untrusted ["C"] imports exports of ["main"] and of itself, both owned
     by [C]. *)
 Lemma so_T_closed `{MP : MachineParameters} :

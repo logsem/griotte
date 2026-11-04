@@ -27,7 +27,7 @@ Section vae_untrusted_entry_obligations.
       the FTLR, the scheduler running in [Sched]. *)
   Lemma vae_untrusted_entry_fw_obligations :
     C ≠ Sched →
-    fw_obligations_pt Σ vae_untrusted_entry_firmware.
+    fw_obligations Σ vae_untrusted_entry_firmware.
   Proof.
     intros HCS.
     pose (cthreads := fw_cthreads_pinned Sched : CmptThreads).
@@ -37,7 +37,7 @@ Section vae_untrusted_entry_obligations.
     { intros C' HC'. by rewrite Hthreads. }
     assert (Hin : ∀ C', C' ≠ Sched → UserThread 0 ∈ cmpt_threads C').
     { intros C' HC'. rewrite Hthreads; set_solver. }
-    apply (fw_obligations_pt_of_untrusted Σ (cthreads := cthreads)
+    apply (fw_obligations_of_untrusted Σ (cthreads := cthreads)
              vae_untrusted_entry_firmware Sched);
       [exact I | reflexivity | | exact Hthreads | intros C'; reflexivity |].
     { rewrite /cthreads /fw_cthreads_pinned /=. rewrite decide_True; set_solver. }

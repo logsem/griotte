@@ -312,7 +312,7 @@ Section stages.
     CtxSwitch ∈ cmpt_threads C_sched →
     @mtcc_vec (@cb_trapVector Σ ceriseb) = fw_mtcc img →
     (∀ t, t < length vs → mtdc_home_at (th := UserThread t) = tstack_home (swlayout := swl) t) →
-    (⊢ fw_shared_res_pt fw img C_sched
+    (⊢ fw_shared_res fw img C_sched
        ={⊤}=∗
        [∗ list] i ↦ _ ∈ fw_threads fw,
          (fw_thread_res fw img i -∗
@@ -428,7 +428,7 @@ Section stages.
     iMod (saved_prop_persist with "Hsched") as "#Hsched".
     (* The obligations of the firmware *)
     iMod (Hobl with "[Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
-    { rewrite /fw_shared_res_pt. iFrame "Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
+    { rewrite /fw_shared_res. iFrame "Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
       iApply big_sepL_intro. iIntros "!>" (k ft Hk%lookup_lt_Some). iApply "Hst".
       iPureIntro. rewrite /n. lia. }
     (* The slots of the user threads *)
@@ -618,7 +618,7 @@ Theorem firmware_adequacy (Σ : gFunctors)
     `{MP : MachineParameters}
     (fw : firmware) (img : fw_image) (σ σ' : ExecConf)
     (es : list (language.expr griotte_hw_lang)) :
-  fw_obligations_pt Σ fw →
+  fw_obligations Σ fw →
   firmware_ok fw img σ →
   rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
@@ -677,7 +677,7 @@ End adequacy.
 
 (** ** The ghost state of the template
 
-    A case study with ghost state [Σcs] proves [fw_obligations_pt] at
+    A case study with ghost state [Σcs] proves [fw_obligations] at
     [#[firmwarePreΣ; Σcs]] and concludes with [firmware_adequacy_closed]. *)
 Definition curΣ : gFunctors := #[GFunctor curUR].
 #[global] Instance subG_curΣ {Σ} : subG curΣ Σ → inG Σ curUR.
@@ -693,7 +693,7 @@ Theorem firmware_adequacy_closed (Σcs : gFunctors) {Cname : CmptNameG}
     `{MP : MachineParameters}
     (fw : firmware) (img : fw_image) (σ σ' : ExecConf)
     (es : list (language.expr griotte_hw_lang)) :
-  fw_obligations_pt #[firmwarePreΣ; Σcs] fw →
+  fw_obligations #[firmwarePreΣ; Σcs] fw →
   firmware_ok fw img σ →
   rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
   mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).

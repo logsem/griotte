@@ -33,10 +33,10 @@ Section hts_obligations.
       [B], the scheduler running in [Sched]. *)
   Lemma hts_fw_obligations (ot_alloc : OType) :
     B ≠ Sched →
-    fw_obligations_pt Σ (hts_firmware ot_alloc).
+    fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
     intros HBS.
-    apply (fw_obligations_pt_of_pinned Σ (hts_firmware ot_alloc) Sched);
+    apply (fw_obligations_of_pinned Σ (hts_firmware ot_alloc) Sched);
       [reflexivity | reflexivity |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 

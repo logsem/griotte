@@ -26,10 +26,10 @@ Section dle_obligations.
       scheduler running in [Sched]. *)
   Lemma dle_fw_obligations :
     C ≠ Sched →
-    fw_obligations_pt Σ dle_firmware.
+    fw_obligations Σ dle_firmware.
   Proof.
     intros HCS.
-    apply (fw_obligations_pt_of_pinned Σ dle_firmware Sched); [reflexivity | reflexivity |].
+    apply (fw_obligations_of_pinned Σ dle_firmware Sched); [reflexivity | reflexivity |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)

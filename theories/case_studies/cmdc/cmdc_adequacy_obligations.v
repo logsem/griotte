@@ -28,10 +28,10 @@ Section cmdc_obligations.
     B ≠ C →
     B ≠ Sched →
     C ≠ Sched →
-    fw_obligations_pt Σ cmdc_firmware.
+    fw_obligations Σ cmdc_firmware.
   Proof.
     intros HBC HBS HCS.
-    apply (fw_obligations_pt_of_pinned Σ cmdc_firmware Sched); [reflexivity | reflexivity |].
+    apply (fw_obligations_of_pinned Σ cmdc_firmware Sched); [reflexivity | reflexivity |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)

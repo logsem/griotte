@@ -28,10 +28,10 @@ Section error_handling_obligations.
       [C], the scheduler running in [Sched]. *)
   Lemma error_handling_fw_obligations :
     C ≠ Sched →
-    fw_obligations_pt Σ error_handling_firmware.
+    fw_obligations Σ error_handling_firmware.
   Proof.
     intros HCS.
-    apply (fw_obligations_pt_of_pinned Σ error_handling_firmware Sched);
+    apply (fw_obligations_of_pinned Σ error_handling_firmware Sched);
       [reflexivity | reflexivity |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
