@@ -116,6 +116,27 @@ Section translation.
     fw_app (fw_imap (λ i _, thread_handle i) (fw_threads fw))
       [thread_handle (fw_length (fw_threads fw))].
 
+  (** The capability to the time device at [a] that the loader builds for
+      an import of it: global, read-write without load-global or
+      load-mutable, over the one word of the device. *)
+  Definition time_dev_cap (a : Addr) : Word :=
+    Cap RW_DL_DRO Global a (a ^+ 1)%a a.
+
+  (** The time-device capabilities that the scheduler imports, which its
+      initialisation may have copied into its globals. *)
+  Definition sched_time_dev_words : list Word :=
+    match fw_sched_of (fw_cmpts fw) with
+    | Some (fc, _) =>
+        fw_flat_map
+          (λ w, match w with
+                | IMtime => [time_dev_cap mtime_addr]
+                | IMtimecmp => [time_dev_cap mtimecmp_addr]
+                | _ => []
+                end)
+          (fc_imports fc)
+    | None => []
+    end.
+
   (** The three words of the scheduler that the loader writes into the
       switcher: its exception entry, an interrupt-disabling sentry; its
       globals; its stack, the boot stack at its top. *)
@@ -185,6 +206,8 @@ Section translation.
         let a := addr_off (cmpt_b_static_sealed c) k in
         note ("own static " ++ s)
           (Sealed o RO Global a (a ^+ 1) a)
+    | IMtime => note "time device mtime" (time_dev_cap mtime_addr)
+    | IMtimecmp => note "time device mtimecmp" (time_dev_cap mtimecmp_addr)
     end.
 
   (** The words of a list of chunks. *)
@@ -274,8 +297,9 @@ Section translation.
         note "arbitrary offsets, inside the PCC range, and minimum stack sizes" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
     | SchedulerBody _ =>
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
-        note "arbitrary, any length: initial globals or thread handles"
-          (Forall (sched_data_word (cmpt_b_cgp c) (cmpt_e_cgp c) thread_handles) (cmpt_data c)) ∧
+        note "arbitrary, any length: initial globals, thread handles or imported time-device capabilities"
+          (Forall (sched_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)
+                     (fw_app thread_handles sched_time_dev_words)) (cmpt_data c)) ∧
         note "no error handler"
           (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
            cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
@@ -663,8 +687,9 @@ Section translation.
                           | Some (fc, _), true =>
                               match fc_imports fc, fc_static_sealed fc with
                               | [ISwitcherCall], [] => []
+                              | [ISwitcherCall; IMtime; IMtimecmp], [] => []
                               | _, _ =>
-                                  [note "the scheduler imports the switcher call only, and has no static sealed object"
+                                  [note "the scheduler imports the switcher call, and the two time devices or neither, and has no static sealed object"
                                      False]
                               end
                           | _, _ => [note "exactly one scheduler" False]
@@ -702,7 +727,8 @@ Ltac reduce_firmware_ok t :=
     hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
-    thread_handle thread_handles sched_pcc_word sched_cgp_word sched_csp_word thread_entry
+    thread_handle thread_handles time_dev_cap sched_time_dev_words
+    sched_pcc_word sched_cgp_word sched_csp_word thread_entry
     idle_mem boot_mem idle_wf boot_wf fw_sched_of fw_sched_count sb_entry sb_boot_stack
     export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf thread_layout_ok heap_machine_ok
     fw_map fw_imap fw_imap_from fw_length fw_app fw_flat_map big_and big_union nat_str

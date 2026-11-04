@@ -77,12 +77,14 @@ Definition kvs_firmware `{MP : MachineParameters}
          ] |} |};
     {| fc_name          := "sched";
        fc_imports       := [
-         ISwitcherCall
+         ISwitcherCall;
+         IMtime;
+         IMtimecmp
        ];
        fc_static_sealed := [];
        fc_body          := SchedulerBody {|
-         (* the exception entry after the import; the code is arbitrary *)
-         sb_entry      := 1;
+         (* the exception entry after the 3 imports; the code is arbitrary *)
+         sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
   fw_threads    := [

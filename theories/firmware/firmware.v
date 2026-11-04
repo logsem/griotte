@@ -15,10 +15,12 @@ Inductive fw_word : Type :=
 | ISwitcherCall                       (* the switcher call sentry *)
 | IAssert                             (* the assert sentry *)
 | IExport (c : string) (e : string)   (* the entry of the export [e] of [c], sealed *)
-| ISealedStatic (o : OType) (s : string).
+| ISealedStatic (o : OType) (s : string)
     (* the static sealed object named [s] of the compartment itself,
        sealed with [o]; a compartment only refers to its own static sealed
        objects *)
+| IMtime                              (* the time device [mtime] *)
+| IMtimecmp.                          (* the time device [mtimecmp] *)
 
 (** The globals of a trusted compartment, by chunks: literal words, or a
     word written by the loader. *)
@@ -65,10 +67,11 @@ Record fw_untrusted : Type := MkFwUntrusted {
 }.
 
 (** The scheduler: its code and its globals are arbitrary (each global an
-    initial global or a thread handle); [sb_entry] is the offset, from the
-    base of its PCC, of its exception entry, which the loader seals
-    interrupt-disabling into the switcher; [sb_boot_stack] is the size of
-    the boot stack, which it inherits. It has no export. *)
+    initial global, a thread handle, or a time-device capability it
+    imports); [sb_entry] is the offset, from the base of its PCC, of its
+    exception entry, which the loader seals interrupt-disabling into the
+    switcher; [sb_boot_stack] is the size of the boot stack, which it
+    inherits. It has no export. *)
 Record fw_scheduler : Type := MkFwScheduler {
   sb_entry : nat;
   sb_boot_stack : nat;
@@ -152,7 +155,8 @@ Definition initial_data_word (b e : Addr) (w : Word) : Prop :=
   is_z w ∨ in_region w b e.
 
 (** A global of the scheduler: an initial global within $[b, e)$, or one of
-    the thread handles [hs]. *)
+    the words [hs] (the thread handles and the time-device capabilities it
+    imports). *)
 Definition sched_data_word (b e : Addr) (hs : list Word) (w : Word) : Prop :=
   initial_data_word b e w ∨ w ∈ hs.
 

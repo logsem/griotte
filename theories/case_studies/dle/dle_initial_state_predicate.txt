@@ -1,5 +1,6 @@
 dle_initial_state_ok (flag : Addr) (σ : ExecConf) :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (main C : img_cmpt),
+  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (idle : img_idle_thread)
+      (boot : img_boot_stack) (main C sched : img_cmpt),
   -- also, in section C (untrusted, C): ∃ (eh_C ehs_C : Z) (off_C_f min_C_f : nat)
   flag_assert asrt = flag  -- the flag of the assert library
 ── main (trusted) ──────────────────────────────────────────────────────────
@@ -27,61 +28,100 @@ dle_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   ∃ off_C_f min_C_f : nat,                                                                -- arbitrary offsets, inside the PCC range, and minimum stack sizes
     (off_C_f < cmpt_e_pcc C - cmpt_b_pcc C)%Z ∧
     cmpt_exp_tbl_entries C = [entry InterruptEnabled 1 min_C_f off_C_f]
+── sched (scheduler) ───────────────────────────────────────────────────────
+  cmpt_imports sched =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      [1]  (RW_DL_DRO, Global, mtime_addr, mtime_addr ^+ 1, mtime_addr)                   -- time device mtime
+      [2]  (RW_DL_DRO, Global, mtimecmp_addr, mtimecmp_addr ^+ 1, mtimecmp_addr)          -- time device mtimecmp
+  cmpt_static_sealed sched = []
+  Forall is_int (cmpt_code sched)                                                         -- arbitrary, any length
+  Forall (sched_data_word (cmpt_b_cgp sched) (cmpt_e_cgp sched) [note thread 0, handle { ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0) }; note idle thread, handle { ot_switcher sw ^+ 1, (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) }; (RW_DL_DRO, Global, mtime_addr, mtime_addr ^+ 1, mtime_addr); (RW_DL_DRO, Global, mtimecmp_addr, mtimecmp_addr ^+ 1, mtimecmp_addr)])
+    (cmpt_data sched)
+                                                                                          -- arbitrary, any length: initial globals, thread handles or imported time-device capabilities
+  cmpt_exp_tbl_handler sched           = WInt ExportTable_no_handler                      -- no error handler
+  cmpt_exp_tbl_handler_stackless sched = WInt ExportTable_no_handler
+  cmpt_exp_tbl_entries sched           = []                                               -- no export: its exception entry is in the switcher
+  Forall (boot_stack_word [note thread 0, handle { ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0) }; note idle thread, handle { ot_switcher sw ^+ 1, (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) }])
+    (img_boot_stack_words boot)
+                                                                                          -- the boot stack: integers or thread handles
 ── Memory ──────────────────────────────────────────────────────────────────
   mem σ =
-        initial_heap_memory                                                 -- heap, zeroed
-      ∪ mem_region (b_switcher sw)                                          -- switcher
-          (switcher_data_words (ot_switcher sw) ++
+        initial_heap_memory                                                    -- heap, zeroed
+      ∪ mem_region (b_switcher sw)                                             -- switcher
+          (switcher_data_words (ot_switcher sw) (note the scheduler's exception entry, interrupts disabled (E-FwdDisable RX, Global, cmpt_b_pcc sched, cmpt_e_pcc sched, cmpt_b_pcc sched ^+ 3)) (note the scheduler's globals (RW, Global, cmpt_b_cgp sched, cmpt_e_cgp sched, cmpt_b_cgp sched)) (note the boot stack, at its top (RWL, Local, img_b_boot_stack boot, img_e_boot_stack boot, img_e_boot_stack boot)) ++
            switcher_instrs)
-      ∪ mem_region (b_assert asrt)                                          -- assert, code and flag capability
+      ∪ mem_region (b_assert asrt)                                             -- assert, code and flag capability
           (assert_subroutine_instrs ++
            [(RW, Global, flag_assert asrt, flag_assert asrt ^+ 1, flag_assert asrt)])
-      ∪ mem_region (flag_assert asrt) [WInt 0]                              -- assert, flag
-      ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)  -- main, PCC range
-      ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                       -- main, CGP range
-      ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)    -- main, static sealed
-      ∪ mem_region (cmpt_exp_tbl_pcc main)                                  -- main, export table
+      ∪ mem_region (flag_assert asrt) [WInt 0]                                 -- assert, flag
+      ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)     -- main, PCC range
+      ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                          -- main, CGP range
+      ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)       -- main, static sealed
+      ∪ mem_region (cmpt_exp_tbl_pcc main)                                     -- main, export table
           ((RX, Global, cmpt_b_pcc main, cmpt_e_pcc main, cmpt_b_pcc main) ::
            (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main) ::
            cmpt_exp_tbl_handler main ::
            cmpt_exp_tbl_handler_stackless main ::
            cmpt_exp_tbl_entries main)
-      ∪ mem_region (cmpt_b_pcc C) (cmpt_imports C ++ cmpt_code C)           -- C, PCC range
-      ∪ mem_region (cmpt_b_cgp C) (cmpt_data C)                             -- C, CGP range
-      ∪ mem_region (cmpt_b_static_sealed C) (cmpt_static_sealed C)          -- C, static sealed
-      ∪ mem_region (cmpt_exp_tbl_pcc C)                                     -- C, export table
+      ∪ mem_region (cmpt_b_pcc C) (cmpt_imports C ++ cmpt_code C)              -- C, PCC range
+      ∪ mem_region (cmpt_b_cgp C) (cmpt_data C)                                -- C, CGP range
+      ∪ mem_region (cmpt_b_static_sealed C) (cmpt_static_sealed C)             -- C, static sealed
+      ∪ mem_region (cmpt_exp_tbl_pcc C)                                        -- C, export table
           ((RX, Global, cmpt_b_pcc C, cmpt_e_pcc C, cmpt_b_pcc C) ::
            (RW, Global, cmpt_b_cgp C, cmpt_e_cgp C, cmpt_b_cgp C) ::
            cmpt_exp_tbl_handler C ::
            cmpt_exp_tbl_handler_stackless C ::
            cmpt_exp_tbl_entries C)
-      ∪ mem_region (b_trusted_stack t0)                                     -- thread 0, trusted stack, entry frame in main
-          (initial_trusted_stack_content (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) 1 24)
-      ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                    -- thread 0, stack
-      ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                           -- thread 0, hazard slots
-  shadowtbl σ = initial_heap_shadow                                         -- every heap address live
-── Registers ───────────────────────────────────────────────────────────────
-  pcc σ             = (RX,                                                         -- main, export entry
-                       Global,
-                       cmpt_b_pcc main,
-                       cmpt_e_pcc main,
-                       cmpt_b_pcc main ^+ 3)
-  sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptEnabled InterruptEnabled))  -- interrupts as the posture of the export
-  reg σ !! cgp      = Some (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main)
-  reg σ !! csp      = Some (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space)
-  reg σ !! cra      = Some                                                         -- the switcher's return sentry: a return from the entry exits the thread
-    (E-RetDisable XSRW_,
-     Local,
-     b_switcher sw,
-     e_switcher sw,
-     a_switcher_return sw)
-  ∀ r : RegName, r ∉ {[cgp; cra; csp]} → reg σ !! r = Some (WInt 0)                -- every other register cleared
-  sreg σ !! mtdc   = Some (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0)
-  sreg σ !! mtcc   = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
-                                                                                   -- exception entry
-  sreg σ !! mepcc  = Some (pcc σ)                                                  -- the entry, as the switcher's mret leaves it
-  sreg σ !! mcause = Some (WInt 0)
-  sreg σ !! mtval  = Some (WInt 0)
+      ∪ mem_region (cmpt_b_pcc sched) (cmpt_imports sched ++ cmpt_code sched)  -- sched, PCC range
+      ∪ mem_region (cmpt_b_cgp sched) (cmpt_data sched)                        -- sched, CGP range
+      ∪ mem_region (cmpt_b_static_sealed sched) (cmpt_static_sealed sched)     -- sched, static sealed
+      ∪ mem_region (cmpt_exp_tbl_pcc sched)                                    -- sched, export table
+          ((RX, Global, cmpt_b_pcc sched, cmpt_e_pcc sched, cmpt_b_pcc sched) ::
+           (RW, Global, cmpt_b_cgp sched, cmpt_e_cgp sched, cmpt_b_cgp sched) ::
+           cmpt_exp_tbl_handler sched ::
+           cmpt_exp_tbl_handler_stackless sched ::
+           cmpt_exp_tbl_entries sched)
+      ∪ mem_region (b_trusted_stack t0)                                        -- thread 0, trusted stack, saved at its entry in main
+          (initial_trusted_stack_content (save_area_content (RX, Global, cmpt_b_pcc main, cmpt_e_pcc main, cmpt_b_pcc main ^+ 3) (E-RetDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_return sw) (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space) (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main) (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0) (WInt (mstatus_enc InterruptDisabled InterruptEnabled))) (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space) (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main) 1 24)
+      ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                       -- thread 0, stack
+      ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                              -- thread 0, hazard slots
+      ∪ mem_region (img_b_idle_trusted_stack idle)                             -- idle thread, trusted stack, saved at the loop of an exited thread
+          (initial_trusted_stack_content (save_area_content (RX, Local, a_switcher_call sw ^+ assembler.Asm_Griotte.label_offset_from (concat switcher_asm) .Lswitch_csp_check .Lexited_thread, (a_switcher_call sw ^+ assembler.Asm_Griotte.label_offset_from (concat switcher_asm) .Lswitch_csp_check .Lexited_thread) ^+ 2, a_switcher_call sw ^+ assembler.Asm_Griotte.label_offset_from (concat switcher_asm) .Lswitch_csp_check .Lexited_thread) (WInt 0) (WInt 0) (WInt 0) (WO, Global, img_b_idle_hazard idle, img_e_idle_hazard idle, img_b_idle_hazard idle) (WInt (mstatus_enc InterruptDisabled InterruptEnabled))) (WInt 0) (WInt 0) 0 0)
+      ∪ mem_region (img_b_idle_hazard idle) [WInt 0; WInt 0]                   -- idle thread, hazard slots
+      ∪ mem_region (img_b_boot_stack boot) (img_boot_stack_words boot)         -- boot stack, the scheduler's stack
+  shadowtbl σ = initial_heap_shadow                                            -- every heap address live
+── Registers, at the switcher's call of the scheduler ──────────────────────
+  pcc σ = (XSRW_,            -- the switcher's call of the scheduler
+           Local,
+           b_switcher sw,
+           e_switcher sw,
+           a_switcher_call sw ^+ assembler.Asm_Griotte.label_offset_from (concat switcher_asm) .Lswitch_csp_check .Lexception_scheduler_cjalr)
+  reg σ !! cra = Some
+    (note the scheduler's exception entry,
+     interrupts disabled (E-FwdDisable RX, Global, cmpt_b_pcc sched, cmpt_e_pcc sched, cmpt_b_pcc sched ^+ 3))
+  reg σ !! cgp = Some
+    (note the scheduler's globals (RW, Global, cmpt_b_cgp sched, cmpt_e_cgp sched, cmpt_b_cgp sched))
+  reg σ !! csp = Some
+    (note the boot stack,
+     at its top (RWL, Local, img_b_boot_stack boot, img_e_boot_stack boot, img_e_boot_stack boot))
+  reg σ !! ca0 = Some
+    (note idle thread,
+     handle { ot_switcher sw ^+ 1, (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) })
+  ∃ z1 z2 z3 : Z,            -- arbitrary integers
+    reg σ !! ca1 = Some (WInt z1)
+    reg σ !! ca2 = Some (WInt z2)
+    reg σ !! ca3 = Some (WInt z3)
+  ∀ r : RegName,             -- every other register cleared
+    r ∉ {[cra; cgp; csp; ca0; ca1; ca2; ca3]} → reg σ !! r = Some (WInt 0)
+  sreg σ !! mtdc = Some (WInt 0)
+  sreg σ !! mtcc = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
+                             -- exception entry
+  ∃ mpie : InterruptStatus,  -- interrupts disabled, MPIE arbitrary
+    sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled mpie))
+  ∃ z1 z2 z3 : Z,            -- arbitrary integers, dead until the resume path
+    sreg σ !! mepcc  = Some (WInt z1)
+    sreg σ !! mcause = Some (WInt z2)
+    sreg σ !! mtval  = Some (WInt z3)
 ── switcher, layout ────────────────────────────────────────────────────────
   b_switcher sw + 5                                 = Some (a_switcher_call sw)
   a_switcher_call sw + length switcher_instrs       = Some (e_switcher sw)
@@ -190,6 +230,48 @@ dle_initial_state_ok (flag : Addr) (σ : ExecConf) :=
      cmpt_data C ++
      cmpt_static_sealed C ++
      cmpt_exp_tbl_entries C)
+── sched, layout ───────────────────────────────────────────────────────────
+  cmpt_b_pcc sched + length (cmpt_imports sched)                         = Some (cmpt_a_code sched)
+  cmpt_a_code sched + length (cmpt_code sched)                           = Some (cmpt_e_pcc sched)
+  cmpt_b_cgp sched + length (cmpt_data sched)                            = Some (cmpt_e_cgp sched)
+  cmpt_b_static_sealed sched + length (cmpt_static_sealed sched)         = Some (cmpt_e_static_sealed sched)
+  cmpt_exp_tbl_pcc sched + ExportTable_offset_cgp                        = Some (cmpt_exp_tbl_cgp sched)
+  cmpt_exp_tbl_pcc sched + ExportTable_offset_entries                  = Some (cmpt_exp_tbl_entries_start sched)
+  cmpt_exp_tbl_entries_start sched + length (cmpt_exp_tbl_entries sched) = Some (cmpt_exp_tbl_entries_end sched)
+  not_heap_range (cmpt_b_pcc sched) (cmpt_e_pcc sched)                      -- sched, PCC range
+  disjoint_from_shadow (cmpt_b_pcc sched) (cmpt_e_pcc sched)
+  revoker_addr ∉ finz.seq_between (cmpt_b_pcc sched) (cmpt_e_pcc sched)
+  mtime_addr ∉ finz.seq_between (cmpt_b_pcc sched) (cmpt_e_pcc sched)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_pcc sched) (cmpt_e_pcc sched)
+  not_heap_range (cmpt_b_cgp sched) (cmpt_e_cgp sched)                      -- sched, CGP range
+  disjoint_from_shadow (cmpt_b_cgp sched) (cmpt_e_cgp sched)
+  revoker_addr ∉ finz.seq_between (cmpt_b_cgp sched) (cmpt_e_cgp sched)
+  mtime_addr ∉ finz.seq_between (cmpt_b_cgp sched) (cmpt_e_cgp sched)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_cgp sched) (cmpt_e_cgp sched)
+  not_heap_range (cmpt_b_static_sealed sched) (cmpt_e_static_sealed sched)  -- sched, static sealed
+  disjoint_from_shadow (cmpt_b_static_sealed sched) (cmpt_e_static_sealed sched)
+  revoker_addr ∉ finz.seq_between (cmpt_b_static_sealed sched) (cmpt_e_static_sealed sched)
+  mtime_addr ∉ finz.seq_between (cmpt_b_static_sealed sched) (cmpt_e_static_sealed sched)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_b_static_sealed sched) (cmpt_e_static_sealed sched)
+  not_heap_range (cmpt_exp_tbl_pcc sched) (cmpt_exp_tbl_entries_end sched)  -- sched, export table
+  disjoint_from_shadow (cmpt_exp_tbl_pcc sched) (cmpt_exp_tbl_entries_end sched)
+  revoker_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc sched) (cmpt_exp_tbl_entries_end sched)
+  mtime_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc sched) (cmpt_exp_tbl_entries_end sched)
+  mtimecmp_addr ∉ finz.seq_between (cmpt_exp_tbl_pcc sched) (cmpt_exp_tbl_entries_end sched)
+  is_heap_address (cmpt_e_pcc sched) = false                                -- closed PCC bounds outside the heap
+  (3%nat < cmpt_e_pcc sched - cmpt_b_pcc sched)%Z                           -- exception entry inside the PCC range
+  Forall (word_rooted ∅)                                                    -- no heap capability (no heap root)
+    (cmpt_imports sched ++
+     cmpt_code sched ++
+     cmpt_data sched ++
+     cmpt_static_sealed sched ++
+     cmpt_exp_tbl_entries sched)
+  Forall word_exec_ok                                                       -- executable words outside the heap
+    (cmpt_imports sched ++
+     cmpt_code sched ++
+     cmpt_data sched ++
+     cmpt_static_sealed sched ++
+     cmpt_exp_tbl_entries sched)
 ── thread 0, layout ────────────────────────────────────────────────────────
   b_stack t0 + 100%nat                        = Some (e_stack t0)
   b_trusted_stack t0 + tstack_frame_offset 25 = Some (e_trusted_stack t0)
@@ -212,20 +294,49 @@ dle_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   mtime_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
   mtimecmp_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
 ── image, layout ───────────────────────────────────────────────────────────
-  ranges_disjoint                                                   -- pairwise disjoint
-      [00]  [b_switcher sw, e_switcher sw)                          -- switcher
-      [01]  [b_assert asrt, e_assert asrt)                          -- assert
-      [02]  [flag_assert asrt, flag_assert asrt ^+ 1)               -- assert flag
-      [03]  [cmpt_b_pcc main, cmpt_e_pcc main)                      -- main, PCC range
-      [04]  [cmpt_b_cgp main, cmpt_e_cgp main)                      -- main, CGP range
-      [05]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)  -- main, static sealed
-      [06]  [cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main)  -- main, export table
-      [07]  [cmpt_b_pcc C, cmpt_e_pcc C)                            -- C, PCC range
-      [08]  [cmpt_b_cgp C, cmpt_e_cgp C)                            -- C, CGP range
-      [09]  [cmpt_b_static_sealed C, cmpt_e_static_sealed C)        -- C, static sealed
-      [10]  [cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C)        -- C, export table
-      [11]  [b_trusted_stack t0, e_trusted_stack t0)                -- thread 0, trusted stack
-      [12]  [b_stack t0, e_stack t0)                                -- thread 0, stack
-      [13]  [b_hazard t0, e_hazard t0)                              -- thread 0, hazard slots
-  NoDup [ot_switcher sw; ot_switcher sw ^+ 1]                       -- sealing types distinct
-  Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1]          -- sealing types valid
+  ranges_disjoint                                                           -- pairwise disjoint
+      [00]  [b_switcher sw, e_switcher sw)                                  -- switcher
+      [01]  [b_assert asrt, e_assert asrt)                                  -- assert
+      [02]  [flag_assert asrt, flag_assert asrt ^+ 1)                       -- assert flag
+      [03]  [cmpt_b_pcc main, cmpt_e_pcc main)                              -- main, PCC range
+      [04]  [cmpt_b_cgp main, cmpt_e_cgp main)                              -- main, CGP range
+      [05]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)          -- main, static sealed
+      [06]  [cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main)          -- main, export table
+      [07]  [cmpt_b_pcc C, cmpt_e_pcc C)                                    -- C, PCC range
+      [08]  [cmpt_b_cgp C, cmpt_e_cgp C)                                    -- C, CGP range
+      [09]  [cmpt_b_static_sealed C, cmpt_e_static_sealed C)                -- C, static sealed
+      [10]  [cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C)                -- C, export table
+      [11]  [cmpt_b_pcc sched, cmpt_e_pcc sched)                            -- sched, PCC range
+      [12]  [cmpt_b_cgp sched, cmpt_e_cgp sched)                            -- sched, CGP range
+      [13]  [cmpt_b_static_sealed sched, cmpt_e_static_sealed sched)        -- sched, static sealed
+      [14]  [cmpt_exp_tbl_pcc sched, cmpt_exp_tbl_entries_end sched)        -- sched, export table
+      [15]  [b_trusted_stack t0, e_trusted_stack t0)                        -- thread 0, trusted stack
+      [16]  [b_stack t0, e_stack t0)                                        -- thread 0, stack
+      [17]  [b_hazard t0, e_hazard t0)                                      -- thread 0, hazard slots
+      [18]  [img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle)  -- idle thread, trusted stack
+      [19]  [img_b_idle_hazard idle, img_e_idle_hazard idle)                -- idle thread, hazard slots
+      [20]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
+  NoDup [ot_switcher sw; ot_switcher sw ^+ 1]                               -- sealing types distinct
+  Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1]                  -- sealing types valid
+── idle thread, layout ─────────────────────────────────────────────────────
+  img_b_idle_trusted_stack idle + tstack_frame_offset 1 = Some (img_e_idle_trusted_stack idle)
+  not_heap_range (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)  -- trusted stack
+  disjoint_from_shadow (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)
+  revoker_addr ∉ finz.seq_between (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)
+  mtime_addr ∉ finz.seq_between (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)
+  mtimecmp_addr ∉ finz.seq_between (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)
+  img_b_idle_trusted_stack idle ≠ 0                                               -- trusted stack not at address 0
+  img_b_idle_hazard idle + 2 = Some (img_e_idle_hazard idle)
+  not_heap_range (img_b_idle_hazard idle) (img_e_idle_hazard idle)                -- hazard slots
+  disjoint_from_shadow (img_b_idle_hazard idle) (img_e_idle_hazard idle)
+  revoker_addr ∉ finz.seq_between (img_b_idle_hazard idle) (img_e_idle_hazard idle)
+  mtime_addr ∉ finz.seq_between (img_b_idle_hazard idle) (img_e_idle_hazard idle)
+  mtimecmp_addr ∉ finz.seq_between (img_b_idle_hazard idle) (img_e_idle_hazard idle)
+── boot stack, layout ──────────────────────────────────────────────────────
+  img_b_boot_stack boot + length (img_boot_stack_words boot) = Some (img_e_boot_stack boot)
+  length (img_boot_stack_words boot)                         = 16  -- the size of the boot stack
+  not_heap_range (img_b_boot_stack boot) (img_e_boot_stack boot)
+  disjoint_from_shadow (img_b_boot_stack boot) (img_e_boot_stack boot)
+  revoker_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
+  mtime_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
+  mtimecmp_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)

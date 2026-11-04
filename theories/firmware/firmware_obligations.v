@@ -599,6 +599,34 @@ Proof.
     [intros; reflexivity | intros; rewrite /cthreads /=; set_solver | intros; reflexivity].
 Qed.
 
+(* TODO: move to logrel/interp_caps.v *)
+Section exposed_mmio_valid.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
+    `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
+  .
+
+  (** A capability that reaches only exposed devices is valid. *)
+  Lemma interp_exposed_mmio_cap W C p g b e a π :
+    isO p = false →
+    has_sreg_access p = false →
+    exposed_mmio_cap p b e π →
+    ⊢ interp W C (Cap p g b e a @@? π).
+  Proof.
+    iIntros (HnO HnXSR Hexp).
+    rewrite interp_unfold interp1_eq HnO HnXSR.
+    iRight. by iPureIntro.
+  Qed.
+End exposed_mmio_valid.
+
 (** ** Closing the world of an untrusted compartment *)
 Section adversary.
   Context
@@ -641,6 +669,30 @@ Section adversary.
     iDestruct ("Hswitcher_threads" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
     iApply (interp_switcher_call (th := t') (swlayout := fw_switcher_layout img));
       iFrame "Hswitcher Hswitcher_static".
+  Qed.
+
+  (** A time-device import is safe in any compartment: it reaches only
+      exposed devices. *)
+  Lemma fw_time_dev_import_safe fw img ss c C w :
+    let swl := fw_switcher_layout img in
+    w = IMtime ∨ w = IMtimecmp →
+    ⊢ fw_import_safe C (fw_word_of fw img ss c w).
+  Proof.
+    intros swl Hw.
+    assert (∃ a, fw_word_of fw img ss c w = time_dev_cap a ∧
+                 (a = mtime_addr ∨ a = mtimecmp_addr)) as (a & -> & Ha).
+    { destruct Hw as [-> | ->];
+        [exists mtime_addr; split; [reflexivity | by left]
+        | exists mtimecmp_addr; split; [reflexivity | by right] ]. }
+    rewrite /fw_import_safe /time_dev_cap.
+    iEval (cbn [fst snd]; rewrite /interp_cmpt_threads /=).
+    iIntros "!>" (t') "_".
+    iApply (interp_exposed_mmio_cap (th := t')); [done | done |].
+    split_and!; [done | done | done |].
+    apply Forall_forall. intros x Hx%elem_of_finz_seq_between.
+    assert (x = a) as -> by solve_addr.
+    rewrite /is_exposed_mmio_address.
+    by rewrite (proj2 (is_time_device_address_spec a) Ha).
   Qed.
 
   (** The facts about an untrusted compartment [fc] of a firmware that the
