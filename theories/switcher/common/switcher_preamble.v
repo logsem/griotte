@@ -557,6 +557,43 @@ Section Switcher_preamble.
 
 End Switcher_preamble.
 
+(** ** The switcher's static facts at another thread *)
+Section switcher_static_thread.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {cthreads : CmptThreads} {sealsg : sealStoreG Σ} {stsg : STSG Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ} `{MP : MachineParameters}
+    {swlayout : switcherLayout}.
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+
+  Lemma switcher_sealing_inv_thread_indep (t t' : Thread) :
+    switcher_sealing_inv (th := t) ⊣⊢ switcher_sealing_inv (th := t').
+  Proof.
+    rewrite /switcher_sealing_inv.
+    rewrite (seal_pred_proper ot_switcher _ (ot_switcher_propC (th := t))
+               (ot_switcher_propC (th := t')));
+      last apply ot_switcher_propC_thread_indep.
+    done.
+  Qed.
+
+  (** The switcher's static facts at the thread [t'], from those at the
+      thread [t] and the exit part of [t']. *)
+  Lemma switcher_static_thread (t t' : Thread) :
+    switcher_static (th := t) -∗
+    saved_prop_own (γ_exit t') DfracDiscarded (exit_concrete (th := t')) -∗
+    switcher_static (th := t').
+  Proof.
+    iIntros "Hstatic #Hexit_prop'". rewrite /switcher_static. iNamed "Hstatic".
+    rewrite -(codefrag_pers_thread_indep t t' a_switcher_call switcher_instrs)
+      -(switcher_sealing_inv_thread_indep t t').
+    iSplitR; [iExact "Hswitcher_code"|].
+    iSplitR; [iExact "Hswitcher_key"|].
+    iSplitR; [iPureIntro; exact Hmtcc_vec|].
+    iSplitR; [iExact "Hswitcher_sealing"|].
+    iSplitR; [iExact "Htstacks_key"|].
+    iExact "Hexit_prop'".
+  Qed.
+End switcher_static_thread.
+
 (** A trusted-stack address is not a shadow-table address, when [H] states
     that the trusted stack is disjoint from the shadow table. *)
 Ltac tstk_not_shadow H :=

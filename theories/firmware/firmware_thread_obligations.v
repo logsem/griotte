@@ -16,42 +16,6 @@ From griotte Require Import image firmware.
 
 (** * The save area of a thread at its entry *)
 
-(** The words of a save area, by computation. *)
-(* TODO: move to case_studies/adequacy_common.v *)
-#[local] Lemma save_area_lookup_mstatus `{MP : MachineParameters} a b c d h m :
-  (lword_of_word <$> save_area_content a b c d h m) !! Z.to_nat TrustedStack_offset_mstatus =
-  Some (lword_of_word m).
-Proof. reflexivity. Qed.
-
-(* TODO: move to case_studies/adequacy_common.v *)
-#[local] Lemma save_area_word_mstatus `{MP : MachineParameters} a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mstatus =
-  lword_of_word m.
-Proof. reflexivity. Qed.
-
-(* TODO: move to case_studies/adequacy_common.v *)
-#[local] Lemma save_area_word_mepcc `{MP : MachineParameters} a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mepcc =
-  lword_of_word a.
-Proof. reflexivity. Qed.
-
-(* TODO: move to case_studies/adequacy_common.v *)
-#[local] Lemma save_area_word_mcause `{MP : MachineParameters} a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mcause =
-  lnull.
-Proof. reflexivity. Qed.
-
-(* TODO: move to case_studies/adequacy_common.v *)
-(** A lookup in [resume_regs_of]. *)
-#[local] Lemma resume_regs_of_lookup ws r :
-  resume_regs_of ws !! r =
-  Some (if decide (r = cnull) then lnull else save_area_word ws (TrustedStack_offset_reg r)).
-Proof.
-  apply elem_of_list_to_map_1.
-  - rewrite -list_fmap_compose. apply all_registers_NoDup.
-  - apply list_elem_of_fmap. exists r. split; [done | apply all_registers_correct].
-Qed.
-
 (** The registers that a save area of [save_area_content] resumes with:
     [cra], [csp], [cgp] its words 1–3, every other register zero. *)
 #[local] Lemma resume_regs_of_save_area `{MP : MachineParameters} a b c d h m :

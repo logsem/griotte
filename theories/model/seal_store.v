@@ -65,6 +65,16 @@ Section Store.
   #[global] Instance seal_pred_persistent o κ P : Persistent (seal_pred o κ P).
   Proof. rewrite seal_pred_unseal. apply _. Qed.
 
+  (** A seal predicate is proper in its predicate. *)
+  Lemma seal_pred_proper o κ (P1 P2 : Thread * WORLD * CmptName * LWord → iProp Σ) :
+    (∀ x, P1 x ⊣⊢ P2 x) → seal_pred o κ P1 ⊣⊢ seal_pred o κ P2.
+  Proof.
+    intros HP. rewrite seal_pred_unseal /seal_pred_def.
+    f_equiv => γ. f_equiv.
+    apply equiv_dist => n. apply (saved_pred_own_contractive γ DfracDiscarded n).
+    apply dist_dist_later. intros x. apply equiv_dist, HP.
+  Qed.
+
   Definition can_alloc_pred (o : OType) :=
     (own SG_sealN ({[o := Cinl (Excl ())]}))%I.
 

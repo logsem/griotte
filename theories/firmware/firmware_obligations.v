@@ -478,34 +478,6 @@ Section prepared.
   Qed.
 End prepared.
 
-(* TODO: move to logrel/interp_caps.v *)
-Section exposed_mmio_valid.
-  Context
-    {Σ:gFunctors}
-    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
-    {sealsg: sealStoreG Σ}
-    {stsg : STSG Σ}
-    {relg : relGS Σ}
-    {cstackg : CSTACKG Σ}
-    {cthreads : CmptThreads}
-    {CL : ∀ t, CritLink Σ t}
-    `{MP: MachineParameters}
-    {CR : ∀ t, CritRoute Σ t (CL t)}
-  .
-
-  (** A capability that reaches only exposed devices is valid. *)
-  Lemma interp_exposed_mmio_cap W C p g b e a π :
-    isO p = false →
-    has_sreg_access p = false →
-    exposed_mmio_cap p b e π →
-    ⊢ interp W C (Cap p g b e a @@? π).
-  Proof.
-    iIntros (HnO HnXSR Hexp).
-    rewrite interp_unfold interp1_eq HnO HnXSR.
-    iRight. by iPureIntro.
-  Qed.
-End exposed_mmio_valid.
-
 (** ** Closing the world of an untrusted compartment *)
 Section adversary.
   Context

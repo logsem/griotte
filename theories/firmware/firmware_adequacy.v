@@ -37,15 +37,6 @@ From griotte Require Import image firmware.
                         (cmpt_exp_tbl_pcc s));
      tf_error_count := 0 |}.
 
-(** A big separating conjunction over [imap]. *)
-#[local] Lemma big_sepL_imap_index {PROP : bi} {A B} (f : nat → A → B) (Φ : nat → B → PROP)
-    (l : list A) :
-  ([∗ list] k ↦ y ∈ imap f l, Φ k y) ⊣⊢ [∗ list] k ↦ x ∈ l, Φ k (f k x).
-Proof.
-  revert f Φ. induction l as [|x l IH]; intros f Φ; first done.
-  rewrite /= IH. done.
-Qed.
-
 Section stages.
   Context
     {Σ : gFunctors}

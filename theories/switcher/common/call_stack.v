@@ -385,39 +385,35 @@ Notation "●(CSTK)[ th ] cs" := (cstack_full (th := th) cs)
 Notation "◯(CSTK)[ th ] cs" := (cstack_frag (th := th) cs)
   (at level 20, th custom thread, format "◯(CSTK)[ th ]  cs") : bi_scope.
 
-Section pre_CSTACK.
-  Context {Σ : gFunctors} {cstackg : CSTACK_preG Σ}.
-
-  (** The call stacks of the user thread 0 and of the user threads [S k];
-      the context-switch thread and the other user threads get a call stack
-      [cs0] each, which is dropped. *)
-  Lemma gen_cstack_init (cs0 : cstack) (css : list cstack) :
-    ⊢ |==> ∃ (cstackg : CSTACKG Σ),
-      ●(CSTK)[u 0] cs0 ∗ ◯(CSTK)[u 0] cs0 ∗
-      [∗ list] k ↦ cs ∈ css, ●(CSTK)[u (S k)] cs ∗ ◯(CSTK)[u (S k)] cs.
-  Proof.
-    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
-      as (γ0) "[Hfull Hfrag]"; first by apply excl_auth_valid.
-    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
-      as (γc) "_"; first by apply excl_auth_valid.
-    iMod (own_alloc (A:=cstackUR) (●E (cs0 : leibnizO _) ⋅ ◯E (cs0 : leibnizO _)))
-      as (γd) "_"; first by apply excl_auth_valid.
-    iAssert (|==> ∃ γs : list gname, [∗ list] k ↦ cs ∈ css,
-               own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR))%I
-      as ">[%γs Hcss]".
-    { iClear "∗". iInduction css as [|cs css] "IH".
-      - iModIntro. by iExists [].
-      - iMod (own_alloc (A:=cstackUR) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _)))
-          as (γ) "Hγ"; first by apply excl_auth_valid.
-        iMod "IH" as (γs) "Hcss".
-        iModIntro. iExists (γ :: γs). by iFrame. }
-    iModIntro. iExists (Build_CSTACKG _ _ (thread_map γ0 γs γc γd)).
-    iFrame "Hfull Hfrag".
-    iApply (big_sepL_impl with "Hcss").
-    iIntros "!>" (k cs _) "Hcs". rewrite /cstack_full /cstack_frag -own_op //.
-  Qed.
-
-End pre_CSTACK.
+(** The call stacks of the context-switch thread and of the user threads
+    [k]; the other user threads get a call stack [cs_c] each, which is
+    dropped. *)
+Lemma gen_cstack_init_ctx {Σ : gFunctors} {cstack_preg : CSTACK_preG Σ}
+    (cs_c : cstack) (css : list cstack) :
+  ⊢ |==> ∃ (cstackg : CSTACKG Σ),
+    ●(CSTK)[CtxSwitch] cs_c ∗ ◯(CSTK)[CtxSwitch] cs_c ∗
+    [∗ list] k ↦ cs ∈ css, ●(CSTK)[u k] cs ∗ ◯(CSTK)[u k] cs.
+Proof.
+  iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
+    as (γc) "[Hfull Hfrag]"; first by apply excl_auth_valid.
+  iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
+    as (γd) "_"; first by apply excl_auth_valid.
+  iAssert (|==> ∃ γs : list gname, [∗ list] k ↦ cs ∈ css,
+             own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR))%I
+    as ">[%γs Hcss]".
+  { iClear "∗". iInduction css as [|cs css] "IH".
+    - iModIntro. by iExists [].
+    - iMod (own_alloc (A:=cstackUR) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _)))
+        as (γ) "Hγ"; first by apply excl_auth_valid.
+      iMod "IH" as (γs) "Hcss".
+      iModIntro. iExists (γ :: γs). by iFrame. }
+  iModIntro.
+  iExists (Build_CSTACKG _ _
+    (λ th, match th with UserThread k => nth k γs γd | CtxSwitch => γc end)).
+  iFrame "Hfull Hfrag".
+  iApply (big_sepL_impl with "Hcss").
+  iIntros "!>" (k cs _) "Hcs". rewrite /cstack_full /cstack_frag -own_op //.
+Qed.
 
 Section Handler_projections.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}.

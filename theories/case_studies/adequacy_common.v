@@ -48,58 +48,6 @@ Qed.
 
 (** ** The names of the context-switch thread in the initial worlds *)
 
-(* TODO: move to model/region_maps.v *)
-(** [rel_init], with the local maps of the context-switch thread kept. *)
-Lemma rel_init_ctx {Σ : gFunctors} {Cname : CmptNameG} {relpreg : relGpreS Σ} (nthreads : nat) :
-  ⊢ |==> ∃ (relg : relGS Σ),
-      ([∗ set] C ∈ CNames, ghost_map_auth (γrel_perm C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
-      ([∗ set] C ∈ CNames, ghost_map_auth (γrel_l CtxSwitch C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
-      [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-        ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
-Proof.
-  iMod rel_rel_init as (γg) "Hg".
-  iMod rel_rel_init as (γc) "Hc".
-  iMod rel_rel_init as (γd) "_".
-  iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
-  iExists (RelGS _ _ _ _ _ γg
-    (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γc end)).
-  iModIntro. iFrame.
-Qed.
-
-(* TODO: move to model/sts_ghost.v *)
-(** [gen_sts_init], with the custom STSs of the context-switch thread kept. *)
-Lemma gen_sts_init_ctx {A B : Type} {Σ : gFunctors} {eqa : EqDecision A}
-    {count : Countable A} {CName : CmptNameG} {sts_preg : STS_preG Σ}
-    (nthreads : nat) :
-  ⊢ |==> ∃ (stsg : STSG Σ),
-    ([∗ set] C ∈ CNames, sts_full_world (th := CtxSwitch) (MkWorld ∅ (∅,∅) : World A B) C) ∗
-    [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-      sts_full_world (th := UserThread k) (MkWorld ∅ (∅,∅) : World A B) C.
-Proof.
-  set (Pn := λ γ : (CmptName → gname) * (CmptName → gname),
-    ([∗ set] C ∈ CNames, own (γ.1 C) (● ∅ : sts_stateUR) ∗ own (γ.2 C) (● ∅ : sts_relUR))%I).
-  assert (⊢ |==> ∃ γ, Pn γ) as Halloc.
-  { iMod gen_sts_state_init as (γs) "Hs".
-    iMod gen_sts_rel_init as (γr) "Hr".
-    iModIntro. iExists (γs, γr). rewrite /Pn /=.
-    iApply big_sepS_sep. iFrame. }
-  iMod Halloc as ([γsc γrc]) "Hc".
-  iMod Halloc as ([γsd γrd]) "_".
-  iMod (alloc_thread_names Pn (γsd, γrd) nthreads Halloc) as (γss) "Hn".
-  iModIntro.
-  iExists {| sts_state_inG := _; sts_rel_inG := _;
-             γs_loc := λ th, match th with
-                             | UserThread k => nth k (map fst γss) γsd | CtxSwitch => γsc end;
-             γr_loc := λ th, match th with
-                             | UserThread k => nth k (map snd γss) γrd | CtxSwitch => γrc end |}.
-  iSplitL "Hc".
-  - rewrite /sts_full_world sts_ghost.sts_full_unseal /sts_full_def /Pn /= !fmap_empty. done.
-  - iApply (big_sepL_impl with "Hn"). iIntros "!>" (i k _) "Hk".
-    rewrite /sts_full_world sts_ghost.sts_full_unseal /sts_full_def /Pn /=.
-    rewrite -(map_nth fst γss (γsd, γrd) k) -(map_nth snd γss (γsd, γrd) k) /= !fmap_empty.
-    done.
-Qed.
-
 Section world_interp_init_ctx.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {Cname : CmptNameG} {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
@@ -163,106 +111,6 @@ Section world_interp_init_ctx.
       iPureIntro. by rewrite !dom_empty_L.
   Qed.
 End world_interp_init_ctx.
-
-(* TODO: move to switcher/common/call_stack.v *)
-(** The call stacks of the context-switch thread and of the user threads
-    [k]; the other user threads get a call stack [cs_c] each, which is
-    dropped. *)
-Lemma gen_cstack_init_ctx {Σ : gFunctors} {cstack_preg : CSTACK_preG Σ}
-    (cs_c : cstack) (css : list cstack) :
-  ⊢ |==> ∃ (cstackg : CSTACKG Σ),
-    ●(CSTK)[CtxSwitch] cs_c ∗ ◯(CSTK)[CtxSwitch] cs_c ∗
-    [∗ list] k ↦ cs ∈ css, ●(CSTK)[u k] cs ∗ ◯(CSTK)[u k] cs.
-Proof.
-  iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
-    as (γc) "[Hfull Hfrag]"; first by apply excl_auth_valid.
-  iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
-    as (γd) "_"; first by apply excl_auth_valid.
-  iAssert (|==> ∃ γs : list gname, [∗ list] k ↦ cs ∈ css,
-             own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR))%I
-    as ">[%γs Hcss]".
-  { iClear "∗". iInduction css as [|cs css] "IH".
-    - iModIntro. by iExists [].
-    - iMod (own_alloc (A:=cstackUR) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _)))
-        as (γ) "Hγ"; first by apply excl_auth_valid.
-      iMod "IH" as (γs) "Hcss".
-      iModIntro. iExists (γ :: γs). by iFrame. }
-  iModIntro.
-  iExists (Build_CSTACKG _ _ (λ th, match th with UserThread k => nth k γs γd | CtxSwitch => γc end)).
-  iFrame "Hfull Hfrag".
-  iApply (big_sepL_impl with "Hcss").
-  iIntros "!>" (k cs _) "Hcs". rewrite /cstack_full /cstack_frag -own_op //.
-Qed.
-
-(** ** The switcher's static facts at another thread *)
-Section switcher_static_thread.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
-    {cthreads : CmptThreads} {sealsg : sealStoreG Σ} {stsg : STSG Σ}
-    {relg : relGS Σ} {cstackg : CSTACKG Σ} `{MP : MachineParameters}
-    {swlayout : switcherLayout}.
-  #[local] Remove Hints ceriseG_of : typeclass_instances.
-
-  (* TODO: move to model/seal_store.v *)
-  (** A seal predicate is proper in its predicate. *)
-  Lemma seal_pred_proper o κ (P1 P2 : Thread * WORLD * CmptName * LWord → iProp Σ) :
-    (∀ x, P1 x ⊣⊢ P2 x) → seal_pred o κ P1 ⊣⊢ seal_pred o κ P2.
-  Proof.
-    intros HP. rewrite griotte.model.seal_store.seal_pred_unseal /seal_pred_def.
-    f_equiv => γ. f_equiv.
-    apply equiv_dist => n. apply (saved_pred_own_contractive γ DfracDiscarded n).
-    apply dist_dist_later. intros x. apply equiv_dist, HP.
-  Qed.
-
-  (* TODO: move to switcher/common/switcher_sealing.v *)
-  (** The switcher's sealing predicate does not depend on the thread. *)
-  Lemma ot_switcher_prop_thread_indep (t t' : Thread) W C w :
-    ot_switcher_prop (th := t) W C w ⊢ ot_switcher_prop (th := t') W C w.
-  Proof.
-    iIntros "Hot". iEval (cbn) in "Hot". iEval (cbn). iNamed "Hot".
-    iExists g_tbl, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture, eh, ehs.
-    repeat (iSplitR; [iPureIntro; assumption|]).
-    rewrite (handler_stackful_thread_indep t t') (handler_stackless_thread_indep t t').
-    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry Hentry_cont".
-  Qed.
-
-  (* TODO: move to switcher/common/switcher_sealing.v *)
-  Lemma ot_switcher_propC_thread_indep (t t' : Thread) x :
-    ot_switcher_propC (th := t) x ⊣⊢ ot_switcher_propC (th := t') x.
-  Proof.
-    rewrite /ot_switcher_propC.
-    apply (anti_symm (⊢));
-      [apply (ot_switcher_prop_thread_indep t t') | apply (ot_switcher_prop_thread_indep t' t)].
-  Qed.
-
-  (* TODO: move to switcher/common/switcher_preamble.v *)
-  Lemma switcher_sealing_inv_thread_indep (t t' : Thread) :
-    switcher_sealing_inv (th := t) ⊣⊢ switcher_sealing_inv (th := t').
-  Proof.
-    rewrite /switcher_sealing_inv.
-    rewrite (seal_pred_proper _ _ (ot_switcher_propC (th := t)) (ot_switcher_propC (th := t')));
-      last apply ot_switcher_propC_thread_indep.
-    done.
-  Qed.
-
-  (* TODO: move to switcher/common/switcher_preamble.v *)
-  (** The switcher's static facts at the thread [t'], from those at the
-      thread [t] and the exit part of [t']. *)
-  Lemma switcher_static_thread (t t' : Thread) :
-    switcher_static (th := t) -∗
-    saved_prop_own (γ_exit t') DfracDiscarded (exit_concrete (th := t')) -∗
-    switcher_static (th := t').
-  Proof.
-    iIntros "Hstatic #Hexit_prop'". rewrite /switcher_static. iNamed "Hstatic".
-    rewrite -(codefrag_pers_thread_indep t t' a_switcher_call switcher_instrs)
-      -(switcher_sealing_inv_thread_indep t t').
-    iSplitR; [iExact "Hswitcher_code"|].
-    iSplitR; [iExact "Hswitcher_key"|].
-    iSplitR; [iPureIntro; exact Hmtcc_vec|].
-    iSplitR; [iExact "Hswitcher_sealing"|].
-    iSplitR; [iExact "Htstacks_key"|].
-    iExact "Hexit_prop'".
-  Qed.
-End switcher_static_thread.
 
 (** ** A Suspended user thread *)
 Section suspended.
@@ -354,36 +202,6 @@ Definition idle_save_area (swl : switcherLayout) (b_hz e_hz : Addr) : list LWord
   lword_of_word <$>
     save_area_content (@exited_thread_pcc swl) (WInt 0) (WInt 0) (WInt 0)
       (Cap WO Global b_hz e_hz b_hz) (WInt (mstatus_enc InterruptDisabled InterruptEnabled)).
-
-#[local] Lemma save_area_lookup_mstatus a b c d h m :
-  (lword_of_word <$> save_area_content a b c d h m) !! Z.to_nat TrustedStack_offset_mstatus =
-  Some (lword_of_word m).
-Proof. reflexivity. Qed.
-
-#[local] Lemma save_area_word_mstatus a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mstatus =
-  lword_of_word m.
-Proof. reflexivity. Qed.
-
-#[local] Lemma save_area_word_mepcc a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mepcc =
-  lword_of_word a.
-Proof. reflexivity. Qed.
-
-#[local] Lemma save_area_word_mcause a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mcause =
-  lnull.
-Proof. reflexivity. Qed.
-
-(** A lookup in [resume_regs_of]. *)
-#[local] Lemma resume_regs_of_lookup ws r :
-  resume_regs_of ws !! r =
-  Some (if decide (r = cnull) then lnull else save_area_word ws (TrustedStack_offset_reg r)).
-Proof.
-  apply elem_of_list_to_map_1.
-  - rewrite -list_fmap_compose. apply all_registers_NoDup.
-  - apply list_elem_of_fmap. exists r. split; [done | apply all_registers_correct].
-Qed.
 
 (** A save area with zero in [cra], [csp] and [cgp] resumes with every
     register null. *)
@@ -509,7 +327,7 @@ Qed.
 Proof. apply (big_sepL_seq_index_gen Φ 0 l). Qed.
 
 (** A big separating conjunction over [imap]. *)
-#[local] Lemma big_sepL_imap_index {PROP : bi} {A B} (f : nat → A → B) (Φ : nat → B → PROP)
+Lemma big_sepL_imap_index {PROP : bi} {A B} (f : nat → A → B) (Φ : nat → B → PROP)
     (l : list A) :
   ([∗ list] k ↦ y ∈ imap f l, Φ k y) ⊣⊢ [∗ list] k ↦ x ∈ l, Φ k (f k x).
 Proof.
