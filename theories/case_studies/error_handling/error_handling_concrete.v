@@ -2,10 +2,11 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  assembler fetch switcher assert allocator_resources compartment_layout
+  hw_lang hw_machine_run assembler fetch switcher assert allocator_resources compartment_layout
   error_handling error_handling_adequacy.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok image_state link error_handling_firmware.
+From griotte Require Import image firmware firmware_ok image_state link error_handling_firmware
+  round_robin_scheduler_concrete.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -13,11 +14,11 @@ From griotte Require Import image firmware firmware_ok image_state link error_ha
 
 (** * A concrete instance of the error-handling case study
 
-    The error-handling firmware with a concrete adversary [adv], laid out
-    by the linker. Its initial state satisfies
-    [error_handling_initial_state_ok] by computation, and runs to [Halted];
-    [error_handling_adequacy] gives that the flag of the assert library is
-    still zero. *)
+    The error-handling firmware with a concrete adversary [adv] and the
+    round-robin scheduler, laid out by the linker. Its initial state
+    satisfies [error_handling_initial_state_ok] by computation; from it the
+    thread runs, through the scheduler, to its exit, where the scheduler
+    halts the machine; [error_handling_adequacy] applies to the run. *)
 
 Definition error_handling_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
@@ -120,10 +121,8 @@ Definition error_handling_adv_code : list Word := encodeInstrsW error_handling_a
     results of its last two calls. *)
 Definition error_handling_adv_data : list Word := [WInt 0; WInt 0; WInt 0].
 
-Definition error_handling_demo_link_cfg : link_cfg := {|
-  lk_base        := 16;
-  lk_ot_switcher := error_handling_switcher_sealing_type;
-  lk_adv         := [
+Definition error_handling_demo_link_cfg : link_cfg :=
+  rr_link_cfg 16 error_handling_switcher_sealing_type [
     ("adv", {| la_code    := error_handling_adv_code;
                la_data    := error_handling_adv_data;
                la_exports := [
@@ -131,8 +130,7 @@ Definition error_handling_demo_link_cfg : link_cfg := {|
                ];
                la_handler := Z.of_nat error_handling_adv_handler_off;
                la_handler_stackless := ExportTable_no_handler |})
-  ]
-|}.
+  ] 16 error_handling_firmware.
 
 (** ** The linked image and its initial state *)
 
@@ -148,11 +146,6 @@ Proof. vm_compute; reflexivity. Qed.
 Definition error_handling_demo_state : ExecConf :=
   img_state error_handling_firmware error_handling_demo_image.
 
-Ltac solve_other_registers :=
-  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
-  rewrite !lookup_insert_ne; try set_solver;
-  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
-
 Lemma error_handling_demo_ok :
   error_handling_initial_state_ok (flag_assert (img_asrt error_handling_demo_image))
     error_handling_demo_state.
@@ -160,33 +153,42 @@ Proof.
   rewrite /error_handling_initial_state_ok.
   exists (img_sw error_handling_demo_image), (img_asrt error_handling_demo_image),
     (thread_of error_handling_demo_image 0),
+    (img_idle error_handling_demo_image), (img_boot error_handling_demo_image),
     (cmpt_of error_handling_demo_image "main"), (cmpt_of error_handling_demo_image "stats"),
-    (cmpt_of error_handling_demo_image "adv").
+    (cmpt_of error_handling_demo_image "adv"), (cmpt_of error_handling_demo_image "sched").
   split; first done.
   split_and!.
   (* The error handler offsets of the adversaries, as the configuration gives them. *)
   all: try exists_adv_handlers error_handling_demo_link_cfg.
   all: try (exists error_handling_adv_entry_off, 0%nat; split_and!).
   all: try (lazymatch goal with
+            | |- ∃ _ _ _ : Z, _ => exists 0%Z, 0%Z, 0%Z; split_and!
+            end).
+  all: try (lazymatch goal with
+            | |- ∃ _ : InterruptStatus, _ => exists InterruptEnabled
+            end).
+  all: try (lazymatch goal with
             | |- ∀ r, _ => rewrite /error_handling_demo_state /img_state /img_regs;
-                           solve_other_registers
+                           solve_start_other_registers
             end).
   all: solve_concrete_condition.
 Qed.
 
 (** ** The run
 
-    [error_handling_demo_state] runs to [Halted], at the switcher's thread
-    exit after [main] returns, and [error_handling_adequacy] applies to it: the flag of the
-    assert library is still zero. [error_handling_demo_adv_results] shows
-    the results of [adv]'s last two calls. *)
+    [error_handling_demo_state] starts at the switcher's call of the
+    scheduler, which resumes the thread; the thread runs to its exit after
+    [main] returns, and the scheduler then halts the machine.
+    [error_handling_adequacy] applies to the run: the flag of the assert
+    library is still zero. [error_handling_demo_adv_results] shows the
+    results of [adv]'s last two calls. *)
 Theorem error_handling_runs_and_gracefully_halts :
   ∃ σ',
-    rtc erased_step ([Exec], error_handling_demo_state) ([Instr Halted], σ')
+    rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], error_handling_demo_state)
+      ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat 15000%N) Executable error_handling_demo_state Halted)
-    as Hrun.
+  pose proof (machine_run_hw_correct (N.to_nat 16500%N) error_handling_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [σ' Hrun].
   exists σ'. split; first exact Hrun.
@@ -207,9 +209,9 @@ Remark error_handling_demo_adv_results :
     ∧ mem σ' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ)
     ∧ mem σ' !! (error_handling_demo_adv_cgp ^+ 2) = Some (WInt ECOMPARTMENTFAIL).
 Proof.
-  pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
+  pose proof (machine_run_conf_correct (N.to_nat 16500%N) Executable
                 error_handling_demo_state) as Hrun.
-  assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_demo_state)
+  assert (match machine_run_conf (N.to_nat 16500%N) (Executable, error_handling_demo_state)
           with
           | Some (Halted, σ') =>
               mem σ' !! (error_handling_demo_adv_cgp ^+ 1) = Some (WInt ADV_OBJ) ∧
@@ -225,8 +227,8 @@ Qed.
     The same firmware and adversary, where [stats] declares no error
     handler. The fault of [stats_read], in the first call of [adv], then
     unwinds [stats] with its lock held: the first call of [main] returns
-    [EBUSY], its first assert fails, and the machine halts with the flag
-    set.
+    [EBUSY] and its first assert fails, setting the flag; the thread then
+    exits, and the scheduler halts the machine with the flag set.
 
     [machine_run_conf], rather than [machine_run], returns the final
     configuration, so that the final memory computes. *)
@@ -241,6 +243,7 @@ Definition error_handling_drop_stats_handler (fc : fw_cmpt) : fw_cmpt :=
                           (tb_error_handler_stackless b)))
       else fc
   | UntrustedBody _ => fc
+  | SchedulerBody _ => fc
   end.
 
 Definition error_handling_no_handler_firmware : firmware :=
@@ -261,9 +264,9 @@ Remark error_handling_no_handler_assert_fails :
     rtc erased_step ([Exec], error_handling_no_handler_state) ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
 Proof.
-  pose proof (machine_run_conf_correct (N.to_nat 15000%N) Executable
+  pose proof (machine_run_conf_correct (N.to_nat 16500%N) Executable
                 error_handling_no_handler_state) as Hrun.
-  assert (match machine_run_conf (N.to_nat 15000%N) (Executable, error_handling_no_handler_state)
+  assert (match machine_run_conf (N.to_nat 16500%N) (Executable, error_handling_no_handler_state)
           with
           | Some (Halted, σ') =>
               mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z)
