@@ -252,7 +252,7 @@ Definition fw_switcher_cmpt_at `{MP : MachineParameters} fw img σ k ft
     (proj1 (fw_switcher_layouts_at fw img σ k ft Hok Hk))
     (proj2 (fw_switcher_layouts_at fw img σ k ft Hok Hk)).
 
-Lemma fw_switcher_cmpt_at_disjoint `{MP : MachineParameters} fw img σ k ft
+Lemma fw_switcher_cmpt_disjoint_thread `{MP : MachineParameters} fw img σ k ft
     (Hok : firmware_ok fw img σ) (Hk : fw_threads fw !! k = Some ft) i fc
     (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :
   fw_cmpts fw !! i = Some fc →
@@ -868,7 +868,7 @@ Section adversary.
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
            with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hthread Hworld")
       as "($ & $ & $ & $ & #Hexp)".
-    - by eapply (fw_switcher_cmpt_at_disjoint _ _ _ _ _ Hok Hk).
+    - by eapply (fw_switcher_cmpt_disjoint_thread _ _ _ _ _ Hok Hk).
     - exact Hfree.
     - exact Hcode.
     - exact Hdata.
