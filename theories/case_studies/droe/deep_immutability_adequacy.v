@@ -38,28 +38,6 @@ Defined.
 Definition droe_adv_C : @CmptName CmptNames_droe_CmptNameG := C.
 Definition droe_sched : @CmptName CmptNames_droe_CmptNameG := Sched.
 
-(** The logical compartment of each compartment of the firmware, as the
-    proof of [droe_fw_obligations] uses it: the scheduler ["sched"] is
-    [Sched]; every other compartment, trusted ones included, is the
-    adversary's [C], whose world runs the calls into them. *)
-Definition droe_own (s : string) : @CmptName CmptNames_droe_CmptNameG :=
-  if String.eqb s "sched"%string then Sched else C.
-
-(** The threads of a compartment can run in every compartment whose entries
-    its untrusted code can obtain, for the assignment of threads that
-    [droe_fw_obligations] uses through [fw_obligations_of_pinned]: no
-    untrusted compartment of the firmware imports an export. *)
-Lemma droe_T_closed `{MP : MachineParameters} :
-  T_closed (cthreads := fw_cthreads_pinned droe_sched) droe_firmware droe_own.
-Proof.
-  intros Ch Ct (fc & ub & c & e & Hfc & Hbody & _ & Himp & _).
-  cbv [droe_firmware fw_cmpts] in Hfc.
-  repeat (apply elem_of_cons in Hfc as [-> | Hfc]);
-    try discriminate Hbody;
-    try (apply list_elem_of_singleton in Himp; discriminate Himp).
-  all: by apply not_elem_of_nil in Hfc.
-Qed.
-
 (* The fields of the image records, for the end-to-end statement. *)
 Import image.
 

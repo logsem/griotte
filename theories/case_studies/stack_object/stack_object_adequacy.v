@@ -38,33 +38,6 @@ Defined.
 Definition so_adv_C : @CmptName CmptNames_so_CmptNameG := C.
 Definition so_sched : @CmptName CmptNames_so_CmptNameG := Sched.
 
-(** The logical compartment of each compartment of the firmware, as the
-    proof of [so_fw_obligations] uses it: the scheduler ["sched"] is
-    [Sched]; every other compartment, trusted ones included, is the
-    adversary's [C], whose world runs the calls into them. *)
-Definition so_own (s : string) : @CmptName CmptNames_so_CmptNameG :=
-  if String.eqb s "sched"%string then Sched else C.
-
-(** The threads of a compartment can run in every compartment whose entries
-    its untrusted code can obtain, for the assignment of threads that
-    [so_fw_obligations] uses through [fw_obligations_of_pinned]: the
-    untrusted ["C"] imports exports of ["main"] and of itself, both owned
-    by [C]. *)
-Lemma so_T_closed `{MP : MachineParameters} :
-  T_closed (cthreads := fw_cthreads_pinned so_sched) so_firmware so_own.
-Proof.
-  intros Ch Ct (fc & ub & c & e & Hfc & Hbody & <- & Himp & <-).
-  cbv [so_firmware fw_cmpts] in Hfc.
-  repeat (apply elem_of_cons in Hfc as [-> | Hfc]);
-    try discriminate Hbody;
-    try by apply not_elem_of_nil in Hfc.
-  cbn [fc_imports] in Himp.
-  repeat (apply elem_of_cons in Himp as [Himp | Himp]);
-    try discriminate Himp;
-    try by apply not_elem_of_nil in Himp.
-  all: injection Himp as -> _; done.
-Qed.
-
 (* The fields of the image records, for the end-to-end statement. *)
 Import image.
 

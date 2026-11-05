@@ -925,57 +925,6 @@ Section thread_indep.
 
 End thread_indep.
 
-(** ** Initialise the world in the adequacy theorem *)
-Section world_interp_Pre.
-  Context {Σ:gFunctors} `{MP : MachineParameters}
-          {Cname : CmptNameG}
-          {ceriseg : ceriseG Σ}
-          {sts_preg: STS_preG Σ}
-          {relpreg : relGpreS Σ}
-          {sealstorepreg: sealStorePreG Σ}
-.
-
-  (** For the user threads [k < nthreads], with [0 < nthreads]: a world for
-      the user thread 0, empty local maps for the others. *)
-  Lemma world_interp_init (oset : gset OType) (nthreads : nat) :
-    0 < nthreads →
-    ⊢ |==> (∃ (relg: relGS Σ) (stsg : STSG Σ) (sstoreg : sealStoreG Σ),
-            ([∗ set] C ∈ CNames, world_interp (th := UserThread 0) (MkWorld ∅ (∅,∅)) C) ∗
-            ([∗ list] k ∈ seq 1 (nthreads - 1), [∗ set] C ∈ CNames,
-               local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
-            ([∗ set] o ∈ oset, can_alloc_pred o)).
-  Proof.
-    intros Hn.
-    iMod (gen_sts_init (A:=LAddr) (B:=region_type) nthreads) as (stsg) "Hsts".
-    iMod (rel_init nthreads) as (relg) "[Hg HRELS]".
-    iMod (seal_store_init) as (sstoreg) "Hseals".
-    iExists relg, stsg, sstoreg; iFrame "Hseals".
-    assert (seq 0 nthreads = 0 :: seq 1 (nthreads - 1)) as Hseq.
-    { destruct nthreads as [|n]; [lia|]. by rewrite /= Nat.sub_0_r. }
-    rewrite Hseq !big_sepL_cons.
-    iDestruct "Hsts" as "[Hsts0 Hsts]". iDestruct "HRELS" as "[Hl0 HRELS]".
-    iModIntro. iSplitL "Hg Hl0 Hsts0".
-    - iCombine "Hg Hl0 Hsts0" as "H".
-      rewrite -!big_sepS_sep.
-      iApply (big_sepS_impl with "H").
-      iModIntro; iIntros (C HC) "(Hg & Hl & Hsts)".
-      rewrite world_interp_eq.
-      iSplitL "Hg".
-      + iExists ∅. rewrite /perm_region_map_M /rmap !big_sepM_empty. by iFrame.
-      + iExists ∅. rewrite /local_region_map_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.
-    - iCombine "HRELS" "Hsts" as "H".
-      rewrite -big_sepL_sep.
-      iApply (big_sepL_impl with "H").
-      iModIntro; iIntros (i k Hk) "[Hl Hsts]".
-      iCombine "Hl" "Hsts" as "H".
-      rewrite -big_sepS_sep.
-      iApply (big_sepS_impl with "H").
-      iModIntro; iIntros (C HC) "[Hl Hsts]".
-      iExists ∅. rewrite /local_region_map_M /rmap !big_sepM_empty /=. iFrame. iPureIntro. by rewrite !dom_empty_L.
-  Qed.
-
-End world_interp_Pre.
-
 (** ** The invariant of a shared compartment
 
     The map of the Permanent regions of a shared compartment [C] lives in a

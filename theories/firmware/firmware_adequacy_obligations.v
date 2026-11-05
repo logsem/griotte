@@ -98,15 +98,6 @@ Proof.
   apply IH. lia.
 Qed.
 
-Lemma big_sepL_fw_imap_from {PROP : bi} {A B} (f : nat → A → B) (Φ : nat → B → PROP)
-    (j : nat) (l : list A) :
-  ([∗ list] k ↦ y ∈ fw_imap_from f j l, Φ k y) ⊣⊢ [∗ list] k ↦ x ∈ l, Φ k (f (j + k) x).
-Proof.
-  revert j Φ. induction l as [|x l IH]; intros j Φ; cbn; first done.
-  rewrite IH Nat.add_0_r. f_equiv. apply big_sepL_proper. intros k y _.
-  by rewrite Nat.add_succ_r.
-Qed.
-
 (** ** Disjoint lists of address ranges *)
 
 Lemma disjoint_list_elem_of (X Y : list Addr) (Xs : list (list Addr)) :
@@ -1214,11 +1205,6 @@ Section entry.
     {| tf_csp := lword_of_word (fw_thread_csp img i);
        tf_export_tbl := lword_of_word (fw_entry_tbl fw img i);
        tf_error_count := 0 |}.
-
-  (** The mtdc of the thread [i]: the capability to its trusted stack. *)
-  Definition fw_thread_mtdc (img : fw_image) (i : nat) : Word :=
-    let t := thread_of img i in
-    Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t).
 
   (** The mtdc ghost value of the thread [i]: its trusted stack, up to the
       locality. *)

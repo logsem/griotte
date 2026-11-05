@@ -388,16 +388,6 @@ Section prepared.
     let c := cmpt_of img (fc_name fc) in
     fw_cmpt_mem_res c ∗ fw_cmpt_static_res c ∗ fw_cmpt_pers_res img fc.
 
-  (** The export tables of the compartments, as persistent facts beside
-      the compartments. *)
-  Lemma fw_cmpts_res_pers img (fcs : list fw_cmpt) :
-    ([∗ list] fc ∈ fcs, fw_cmpt_res img fc) ⊢
-    ([∗ list] fc ∈ fcs, fw_cmpt_res img fc) ∗ [∗ list] fc ∈ fcs, fw_cmpt_pers_res img fc.
-  Proof.
-    rewrite -big_sepL_sep. apply big_sepL_mono. intros k fc _.
-    rewrite /fw_cmpt_res. iIntros "(Hm & Hs & #Hp)". iFrame "Hm Hs Hp".
-  Qed.
-
   (** The memory of a compartment, initialised: the export table becomes
       persistent. *)
   Lemma fw_adv_cmpt_init {E : coPset} img fc (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) :

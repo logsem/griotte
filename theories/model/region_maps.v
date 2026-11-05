@@ -99,24 +99,6 @@ Proof.
   iModIntro. iFrame.
 Qed.
 
-      thread and the other user threads share names that are allocated and
-      dropped. *)
-  Lemma rel_init (nthreads : nat) :
-    ⊢ |==> ∃ (relg: relGS Σ),
-        ([∗ set] C ∈ CNames, ghost_map_auth (γrel_perm C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
-        [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-          ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
-  Proof.
-    iMod rel_rel_init as (γg) "Hg".
-    iMod rel_rel_init as (γd) "_".
-    iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
-    iExists (RelGS _ _ _ _ _ γg
-      (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γd end)).
-    iModIntro. iFrame.
-  Qed.
-
-End relPre.
-
 (** ** The two maps of a compartment *)
 
 Section region_maps.

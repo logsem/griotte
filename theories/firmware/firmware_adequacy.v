@@ -693,69 +693,7 @@ Proof.
   eapply (firmware_adequacy #[firmwarePreΣ; Σcs]); eauto; typeclasses eauto.
 Qed.
 
-(** ** T2: the closure of the threads of the compartments *)
-
-(** Untrusted code of the logical compartment [Ch] can obtain an export
-    entry of the logical compartment [Ct]: an untrusted compartment that
-    [own] maps to [Ch] imports an export of a compartment that [own] maps
-    to [Ct]. [own] maps every compartment name of the firmware, trusted
-    ones included, to the logical compartment the proof chooses for it. *)
-Definition fw_reach {Cname : CmptNameG} (fw : firmware) (own : string → CmptName)
-    (Ch Ct : CmptName) : Prop :=
-  ∃ fc ub c e,
-    fc ∈ fw_cmpts fw ∧ fc_body fc = UntrustedBody ub ∧ own (fc_name fc) = Ch ∧
-    IExport c e ∈ fc_imports fc ∧ own c = Ct.
-
-(** The threads of a compartment can run in every compartment whose entries
-    its untrusted code can obtain. *)
-Definition T_closed {Cname : CmptNameG} {cthreads : CmptThreads}
-    (fw : firmware) (own : string → CmptName) : Prop :=
-  ∀ Ch Ct, fw_reach fw own Ch Ct → cmpt_threads Ch ⊆ cmpt_threads Ct.
-
-(** [fw_reach] over the lists of the firmware. *)
-#[local] Definition fw_reach_list {Cname : CmptNameG} (fw : firmware)
-    (own : string → CmptName) (Ch Ct : CmptName) : Prop :=
-  Exists (λ fc,
-    match fc_body fc with
-    | UntrustedBody _ =>
-        own (fc_name fc) = Ch ∧
-        Exists (λ w, match w with IExport c _ => own c = Ct | _ => False end) (fc_imports fc)
-    | _ => False
-    end) (fw_cmpts fw).
-
-#[local] Lemma fw_reach_list_iff {Cname : CmptNameG} fw own Ch Ct :
-  fw_reach fw own Ch Ct ↔ fw_reach_list fw own Ch Ct.
-Proof.
-  rewrite /fw_reach /fw_reach_list Exists_exists. split.
-  - intros (fc & ub & c & e & Hfc & Hbody & Hh & Hc & Ht).
-    exists fc. split; first done. rewrite Hbody. split; first done.
-    apply Exists_exists. by exists (IExport c e).
-  - intros (fc & Hfc & Hb). destruct (fc_body fc) as [|ub|] eqn:Hbody; try done.
-    destruct Hb as [Hh (w & Hw & Hwt)%Exists_exists].
-    destruct w as [| | |c e| | |]; try done.
-    by exists fc, ub, c, e.
-Qed.
-
-#[global] Instance T_closed_dec {Cname : CmptNameG} {cthreads : CmptThreads} fw own :
-  Decision (T_closed fw own).
-Proof.
-  assert (Decision (∀ Ch Ct, fw_reach_list fw own Ch Ct → cmpt_threads Ch ⊆ cmpt_threads Ct))
-    as [Hc | Hc].
-  { apply finite.forall_dec. intros Ch. apply finite.forall_dec. intros Ct.
-    apply impl_dec; last apply _. apply Exists_dec. intros fc.
-    destruct (fc_body fc); try apply _. apply and_dec; first apply _.
-    apply Exists_dec. intros [| | | c e | | |]; apply _. }
-  - left. intros Ch Ct Hr%fw_reach_list_iff. auto.
-  - right. intros Hcl. apply Hc. intros Ch Ct Hr%fw_reach_list_iff. auto.
-Defined.
-
-(** [T_closed] at [fw_cthreads_pinned C_sched], when no reach involves
-    [C_sched]. *)
-Lemma T_closed_pinned {Cname : CmptNameG} (fw : firmware) (own : string → CmptName)
-    (C_sched : CmptName) :
-  (∀ Ch Ct, fw_reach fw own Ch Ct → Ch ≠ C_sched ∧ Ct ≠ C_sched) →
-  T_closed (cthreads := fw_cthreads_pinned C_sched) fw own.
-Proof. intros Hr Ch Ct [? ?]%Hr. cbn. by rewrite !decide_False. Qed.
+(** ** The scheduler starts with no interrupt-enabling sentry *)
 
 (** A word that is not a sentry enabling interrupts. *)
 #[local] Definition no_enabling_sentry (w : Word) : Prop :=

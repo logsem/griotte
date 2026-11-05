@@ -137,41 +137,9 @@ Section initial_rootedness.
 
 End initial_rootedness.
 
-(** ** The ghost state of the other threads *)
-Section thread_ghost_init.
+(** ** Lists of pools and of thread resources *)
+Section thread_ghost_lists.
   Context {Σ : gFunctors}.
-
-  (** The ghost state of a thread that does not run first: its PC, its
-      registers, its mtdc, its MIE and its mtdc token, whose home value is
-      the thread's mtdc. Their authorities are dropped until the threads are
-      scheduled; the fragment of mtdc and the token are kept. *)
-  Lemma thread_ghost_init {cerise_preg : ceriseGpreS Σ} (m : mtdc_val) :
-    ⊢ |==> ∃ (pg : pcG Σ) (rg : gen_heapGS RegName LWord Σ) (mtg : mtdcG Σ) (mieg : mieG Σ)
-         (mlg : mtdcLentG Σ),
-      ⌜@mtdc_home Σ mlg = m⌝ ∗ @mtdc_frag Σ mtg m ∗ @mtdc_lent Σ mlg.
-  Proof.
-    iMod (PC_init (lword_of_word (WInt 0))) as (pg) "_".
-    iMod (gen_heap_init (∅ : gmap RegName LWord)) as (rg) "_".
-    iMod (mtdc_init m) as (mtg) "[_ Hmtdc]".
-    iMod (MIE_init InterruptDisabled) as (mieg) "_".
-    iMod (mtdc_lent_init m) as (mlg Hhome) "Hlent".
-    iModIntro. iExists pg, rg, mtg, mieg, mlg. by iFrame.
-  Qed.
-
-  (** [thread_ghost_init] for a list of mtdc values. *)
-  Lemma threads_ghost_init {cerise_preg : ceriseGpreS Σ} (ms : list mtdc_val) :
-    ⊢ |==> ∃ gs : list (pcG Σ * gen_heapGS RegName LWord Σ * mtdcG Σ * mieG Σ * mtdcLentG Σ),
-      ⌜Forall2 (λ g m, @mtdc_home Σ g.2 = m) gs ms⌝ ∗
-      [∗ list] g; m ∈ gs; ms, @mtdc_frag Σ g.1.1.2 m ∗ @mtdc_lent Σ g.2.
-  Proof.
-    iInduction ms as [|m ms] "IH".
-    - iModIntro. iExists []. by iSplit.
-    - iMod (thread_ghost_init m) as (pg rg mtg mieg mlg Hhome) "Hmtdc".
-      iMod "IH" as (gs Hgs) "Hgs".
-      iModIntro. iExists ((pg, rg, mtg, mieg, mlg) :: gs).
-      iSplit; first (iPureIntro; by constructor).
-      rewrite big_sepL2_cons /=. iFrame.
-  Qed.
 
   (** A non-atomic pool for each element of a list. *)
   Lemma na_pools_alloc {na_invg : na_invariants.na_invG Σ} {A} (l : list A) :
@@ -194,7 +162,7 @@ Section thread_ghost_init.
     - by iIntros "[]".
     - iIntros "[$ H]". by iApply IH.
   Qed.
-End thread_ghost_init.
+End thread_ghost_lists.
 
 (** ** The worlds of the compartments under their regimes *)
 Section world_resources_init_all.

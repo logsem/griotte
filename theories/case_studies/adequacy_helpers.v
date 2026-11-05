@@ -308,24 +308,6 @@ Section adequacy_helpers.
       by iFrame "Hswitcher Hsave".
     Qed.
 
-    (** The link of a user thread at its initial state [σ], from what the
-        thread hands over, its save area and its mtdc token: the link takes
-        them at InterruptEnabled, the thread keeps them at
-        InterruptDisabled. *)
-    Lemma crit_link_full_init {swlayout : switcherLayout} (σ : ExecConf) :
-      th ≠ CtxSwitch ->
-      handover_res -∗
-      save_area_part th -∗
-      mtdc_lent -∗
-      crit_link_def th σ ∗ held (th := th) (mie_st σ).
-    Proof.
-      iIntros (Hth) "Hho Hsave Hlent".
-      destruct (mie_st σ) eqn:Hmie.
-      - rewrite /crit_link_def Hmie. destruct th as [t|]; last done.
-        rewrite /posture_part_of. by iFrame.
-      - rewrite /crit_link_def Hmie held_disabled posture_part_user //. by iFrame.
-    Qed.
-
     Lemma initialise_compartment ( C_cmpt : cmpt ) :
       let PCC := Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt) in
       let CGP := Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt) in
