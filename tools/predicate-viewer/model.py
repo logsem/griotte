@@ -138,7 +138,7 @@ def cap_of(w):
                 sentry=w.get("kind") if k == "sentry" else None,
                 loc=w.get("g", "?"),
                 b=clean(txt(w.get("b"))), e=clean(txt(w.get("e"))), a=clean(txt(w.get("a"))),
-                a_addr=addr("a"), sealed=None, text=word_text(w))
+                a_addr=addr("a"), b_addr=addr("b"), e_addr=addr("e"), sealed=None, text=word_text(w))
 
 
 # ---------- Statements ----------
@@ -251,7 +251,11 @@ def owner_of(label):
     return head
 
 
-CMPT_TITLE = re.compile(r"^(\S+) \((trusted|untrusted)(?:, .*)?\)$")
+CMPT_TITLE = re.compile(r"^(\S+) \((trusted|untrusted|scheduler)(?:, .*)?\)$")
+# Regions of memory-mapped devices the capabilities may point to, by base.
+KNOWN_IMPLICIT = {"shadow_b": ("shadow table", "machine"), "revoker_addr": ("revoker", "machine"),
+                  "mtime_addr": ("time device mtime", "mmio"),
+                  "mtimecmp_addr": ("time device mtimecmp", "mmio")}
 FIELD_REGION = {"cmpt_imports": "PCC range", "cmpt_code": "PCC range",
                 "cmpt_data": "CGP range", "cmpt_static_sealed": "static sealed",
                 "cmpt_exp_tbl_entries": "export table",
@@ -293,6 +297,8 @@ class Model:
         self.eqs = {}          # layout: clean "A + L" -> clean B, from "A + L = Some (B)"
         self.props = []
         self.binder_owner = {}  # variable -> owner name
+        self.lengths = {}      # clean list term -> its length, from "length X = n"
+        self.foralls = [s for s in self.all if s.get("k") == "forall"]
         for s in self.all:
             k = s.get("k")
             if k == "exists":
@@ -309,6 +315,9 @@ class Model:
                 if kind == "field" or (kind is None and FIELD_LHS.match(lhs) and not lhs.endswith(" σ")):
                     self.fields.setdefault(lhs, s)
                 rhs = s.get("rhs") if isinstance(s.get("rhs"), dict) else {}
+                ml = re.fullmatch(r"length (.+)", lhs)
+                if ml and rhs.get("r", "term") == "term" and is_num(clean(str(rhs.get("text", "")))):
+                    self.lengths[clean(ml.group(1))] = int(clean(str(rhs["text"])))
                 tgt = None
                 if rhs.get("r") == "addr" and rhs.get("addr") is not None:
                     tgt = clean(txt(rhs.get("addr")))
@@ -330,6 +339,10 @@ class Model:
                 self.incrs.append((base, off, tgt, lhs))
 
     def owner_name(self, var, ty):
+        if ty.endswith("idle_thread"):
+            return "idle thread"
+        if ty.endswith("boot_stack"):
+            return "boot stack"
         if ty.endswith("switcher"):
             return "switcher"
         if ty.endswith("assert"):
@@ -380,7 +393,13 @@ class Model:
         return any(re.search(r"Forall is_int \(cmpt_code " + re.escape(o) + r"\)", p) for p in self.props)
 
     def arbitrary_data(self, o):
-        return any(re.search(r"Forall \(initial_data_word.*\(cmpt_data " + re.escape(o) + r"\)", p) for p in self.props)
+        """How the data of [o] is arbitrary, or None."""
+        if any(re.search(r"Forall \(initial_data_word.*\(cmpt_data " + re.escape(o) + r"\)", p) for p in self.props):
+            return "initial_data_word"
+        if any(s.get("pred") == "sched_data_word" and clean(s.get("list", "")) == f"cmpt_data {o}" for s in self.foralls) \
+                or any(re.search(r"Forall \(sched_data_word.*\(cmpt_data " + re.escape(o) + r"\)", p) for p in self.props):
+            return "sched_data_word"
+        return None
 
     # --- regions
 
@@ -436,7 +455,10 @@ class Model:
                 if r is None:
                     r = self.new_region(base, "", com or f"mem_region {paren(base)}")
                     r["e"] = ""
-                if not r["sub"] and "," in com:
+                if not r["sub"] and "," in com and "," not in r["label"] and owner_of(com) == r["label"]:
+                    # "boot stack" by disjointness, "boot stack, the scheduler's stack" in memory
+                    r["sub"] = r["label"]
+                elif not r["sub"] and "," in com:
                     r["label"], r["owner"], r["sub"] = com, owner_of(com), com.split(",", 1)[1].strip()
                 r["pieces"] = p.get("content") if isinstance(p.get("content"), list) else []
                 r["content"] = f"mem_region {paren(base)}\n  " + pieces_text(r["pieces"])
@@ -572,11 +594,16 @@ class Model:
                 return [self.cell(r, "comp", what=t, note=note)]
         if field == "cmpt_code" and of and self.arbitrary_code(of):
             return [self.cell(r, "comp", what=t, arb="arbitrary integers, any length", code_like=True)]
-        if field == "cmpt_data" and of and self.arbitrary_data(of):
+        if field == "cmpt_data" and of and self.arbitrary_data(of) == "initial_data_word":
             return [self.cell(r, "comp", what=t, arb="arbitrary data words, any length",
                               note="initial_data_word: integers or capabilities within the CGP range")]
+        if field == "cmpt_data" and of and self.arbitrary_data(of) == "sched_data_word":
+            return [self.cell(r, "comp", what=t, arb="arbitrary data words, any length",
+                              note="sched_data_word: initial globals, thread handles, time-device capabilities")]
         note = "instructions not printed" if re.fullmatch(r"\w+_instrs", t) else ""
         c = self.cell(r, "comp", what=t, note=note, code_like=bool(note))
+        if t in self.lengths:
+            c["len"] = self.lengths[t]
         caps = []
         for i, w in enumerate(args):
             cap = cap_of(w)
@@ -809,6 +836,8 @@ class Model:
 
     def length_of(self, t):
         t = clean(t)
+        if t in self.lengths:
+            return self.lengths[t]
         res = self.resolve_term(t)
         if res:
             if res["k"] == "code":
@@ -995,6 +1024,13 @@ class Model:
                 next((c for c in cells[i:] if c["kind"] == "comp"), None)
             if c:
                 return self.point(c, e, f"{sb} ^+ {off}", unknown=True)
+        # a base that is itself an offset, at a row of a code constant
+        ba = addr.get("base_addr")
+        if isinstance(ba, dict) and off is not None and is_num(off):
+            hit = self.resolve(ba, hint)
+            p = self.els.get(hit) if hit else None
+            if p is not None and isinstance(p.get("code_row"), int):
+                return self.point(self.els[p["cell"]], e, f"{p['text']} ^+ {off}", row=p["code_row"] + int(off))
         if off and off.startswith("-"):
             for r in bands:
                 if r["e"] == base:
@@ -1077,6 +1113,29 @@ class Model:
                     continue
                 self.reg_notes.append(dict(text=stmt_text(dict(s, comment="")), comment=s.get("comment", "")))
 
+    def build_foralls(self):
+        """[Forall (P … [w; …]) l]: the cell of the list [l] is arbitrary, and
+        may hold the capabilities among the words [w]."""
+        for s in self.foralls:
+            lst = clean(s.get("list", ""))
+            pred = str(s.get("pred", ""))
+            for r in self.regions:
+                cell = next((c for c in r["cells"] if c.get("what") is not None and clean(c["what"]) == lst), None)
+                if cell is None:
+                    continue
+                cell["arb"] = cell.get("arb") or ("arbitrary words" if cell.get("len") is not None
+                                                  else "arbitrary words, any length")
+                cell["note"] = cell.get("note") or f"{pred}: the words below or as the predicate allows"
+                may = []
+                for w in s.get("allowed") or []:
+                    cap = cap_of(w)
+                    if cap:
+                        may.append(self.add_cap(cap, "may", r["id"], "may hold",
+                                                w.get("comment", "") if isinstance(w, dict) else ""))
+                if may:
+                    cell["may"] = may
+                break
+
     def attach_sections(self):
         handled = set()
         for sec in self.sections:
@@ -1142,8 +1201,15 @@ class Model:
         out = []
         if r["sub"] == "PCC range" and self.arbitrary_code(r["owner"]):
             out.append(["arb", "arbitrary code: integers only"])
-        if r["sub"] == "CGP range" and self.arbitrary_data(r["owner"]):
+        arb = self.arbitrary_data(r["owner"]) if r["sub"] == "CGP range" else None
+        if arb == "initial_data_word":
             out.append(["arb", "arbitrary data: initial_data_word"])
+        elif arb == "sched_data_word":
+            out.append(["arb", "arbitrary data: initial globals, thread handles, time-device capabilities"])
+        elif any(c.get("arb") for c in r["cells"]) and r["sub"] != "PCC range":
+            out.append(["arb", "arbitrary data"])
+        if r["owner"] == "mmio":
+            out.append(["", "memory-mapped device"])
         h = self.fields.get(f"cmpt_exp_tbl_handler {r['owner']}")
         if r["sub"] == "export table" and h and re.search(r"WInt eh_", rhs_text(h.get("rhs"))):
             out.append(["arb", "arbitrary handlers"])
@@ -1206,6 +1272,9 @@ class Model:
     def source_label(self, c):
         if c["src_kind"] == "reg":
             return "register " + c["src"]
+        if c["src_kind"] == "may":
+            r = next((x for x in self.regions if x["id"] == c["src"]), None)
+            return "may hold, " + (self.region_title(r, True) if r else c["src"])
         r = next((x for x in self.regions if x["id"] == c["src"]), None)
         where = c["where"]
         return (self.region_title(r, True) if r else c["src"]) + (", contents" if where == "contents" else ", " + re.sub(r"^cmpt_", "", where))
@@ -1233,18 +1302,26 @@ class Model:
             self.place_pre_names(r)
         self.place_named()
         self.build_regs()
+        self.build_foralls()
         # capabilities: their target region, then a cell or point at the cursor
         extra = {}
         for c in self.caps:
             if c["kind"] == "sealrange":
                 continue
             r = self.region_by(c["b"], c["e"]) or self.region_by(c["b"])
+            if r is None and c.get("b_addr"):
+                # a base inside a region, e.g. at a label of the switcher's code
+                hit = self.resolve(c["b_addr"])
+                el = self.els.get(hit) if hit else None
+                if el is not None:
+                    rid = el.get("region") or self.els[el["cell"]]["region"]
+                    r = next((x for x in self.regions if x["id"] == rid), None)
+                    c["bHit"] = hit
             if r is None:
                 key = (c["b"], c["e"])
                 if key not in extra:
-                    known = {"shadow_b": "shadow table", "revoker_addr": "revoker"}
-                    nr = self.new_region(c["b"], c["e"], known.get(c["b"], f"[{c['b']}, {c['e']})"),
-                                         implicit=True, owner="machine")
+                    label, owner = KNOWN_IMPLICIT.get(c["b"], (f"[{c['b']}, {c['e']})", "machine"))
+                    nr = self.new_region(c["b"], c["e"], label, implicit=True, owner=owner)
                     self.build_cells(nr)
                     extra[key] = nr
                 r = extra[key]
@@ -1290,7 +1367,7 @@ class Model:
             if a is not None and "notes" in a:
                 a["notes"].append(c["src"] + " cursor" if c["src_kind"] == "reg" else "cursor of " + self.source_label(c))
             r = next(x for x in self.regions if x["id"] == c["target"])
-            c["bAnchor"] = self.resolve({"text": c["b"]}, c["target"])
+            c["bAnchor"] = c.pop("bHit", None) or self.resolve(c.get("b_addr") or {"text": c["b"]}, c["target"])
             c["eAnchor"] = None if c["e"] == r["e"] else self.resolve({"text": c["e"]}, c["target"])
         self.attach_sections()
         for r in self.regions:
@@ -1308,7 +1385,10 @@ class Model:
                         [stmt_text(s) for s in self.sections])
         for r in self.regions:
             r["cells"] = [compact(c) for c in r["cells"]]
+        reg_title = next((str(s.get("title", "")) for s in self.sections
+                          if str(s.get("title", "")).startswith("Registers")), "")
         return dict(name=self.name, predicate=pred, binders=([params] if params else []) + binders,
+                    reg_title=reg_title,
                     regions=self.regions, caps=[compact(c) for c in self.caps], regs=self.regs, reg_notes=self.reg_notes,
                     owners=self.owners, other=self.other, code=code, raw=raw,
                     schema=self.doc.get("schema"), unplaced=self.unplaced)

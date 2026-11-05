@@ -8,7 +8,13 @@ and memory with an arrow to the word at their cursor and a bracket over their
 bounds, export entries and error handlers with an arrow to their PCC
 offset, and each region's constraints. Filters highlight capabilities by
 kind, locality, sealing otype or permission; incoming arrows on hovering a
-region are a setting, off by default.
+region are a setting, off by default. The scheduler's band is hatched like an
+untrusted compartment's (its code and data are arbitrary); the idle thread,
+the boot stack and the time devices (MMIO) have their own bands. The
+capabilities a `Forall` statement allows in an arbitrary list (the thread
+handles and time-device capabilities of the scheduler's globals and boot
+stack) show as dotted "may hold" chips, with arrows only on hover or when
+their band is selected.
 
     make viewer    # or: dune build @predicate-viewer
 
