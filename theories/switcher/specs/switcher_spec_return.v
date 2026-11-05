@@ -102,6 +102,59 @@ Section Switcher.
                 "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hcstk $Hcont $Hworld $Hres]").
   Qed.
 
+  (** [switcher_ret_specification] for a callee that holds its world as the
+      world premise of its regime. *)
+  Lemma switcher_ret_specification_shared
+    (W0 Wcur : WORLD)
+    (C : CmptName)
+    (rmap : LReg)
+    (csp_e csp_b: Addr)
+    (l : list LAddr)
+    (stk_mem : list LWord)
+    (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (wca0 wca1 wcsp : LWord)
+    (b : InterruptStatus)
+    :
+    let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
+    related_sts_pub_world W0 Wfixed ->
+    dom rmap = all_registers_s ∖ ({[ csp ; ca0 ; ca1 ]} ) ->
+    frame_match Ws Cs cstk W0 C ->
+    csp_sync cstk csp_b csp_e ->
+    (* NOTE: there is only one side of the implication... *)
+    NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+
+    (* The thread runs in the callee's compartment *)
+    thread_in th C
+    (* Trusted-stack invariant *)
+    ∗ na_inv (tpool th) Ntstack trusted_stack_inv
+    ∗ switcher_static
+    ∗ interp Wfixed C wca0
+    ∗ interp Wfixed C wca1
+    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
+    ∗ ◯(CSTK)[th] cstk
+    ∗ interp_continuation cstk Ws Cs
+    ∗ world_resources Wcur C
+    ∗ na_own (tpool th) ⊤
+    ∗ PC ↦ₚ[th] Cap XSRW_ Local b_switcher e_switcher a_switcher_return
+    ∗ ▷ RevokedResources Wfixed C l
+    ∗ regs[th] rmap
+    ∗ ca0 ↦ᵣ[th] wca0
+    ∗ ca1 ↦ᵣ[th] wca1
+    ∗ csp ↦ᵣ[th] wcsp
+    ∗ MIE ↦ₜ[th] b
+    ∗ held (th := th) b
+    ⊢ safe[th].
+  Proof.
+    intros Wfixed.
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
+      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hcstk & Hcont & Hworld
+        & Hres)".
+    iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
+    by iApply (switcher_ret_specification_gen with
+                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hcstk $Hcont $Hworld $Hres]").
+  Qed.
+
   (** A return through the switcher's return entry at the thread's entry call
       stack: the switcher finds no frame to pop and goes to
       [.Lcommon_defer_irqs_and_thread_exit], and the thread exits, with its
