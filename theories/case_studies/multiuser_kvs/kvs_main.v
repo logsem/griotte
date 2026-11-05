@@ -159,10 +159,10 @@ Section KVS_Main.
 End KVS_Main.
 
 (** The code of the concrete adversary of [kvs_concrete], assembled here,
-    away from the program logic's coercions. It inserts key [1] with value
-    [42] in its own KVS namespace, then erases that key. It restores its
-    return capability and clears its argument registers before returning to
-    the main program. *)
+    away from the program logic's coercions: its two exports [f] and [adv]
+    run the same routine, which inserts key [1] with value [13] in its own
+    KVS namespace, then returns through the capability it was entered
+    with, its argument registers cleared. *)
 Section kvs_B_code.
   Import Asm_Griotte.
   #[local] Open Scope Z_scope.
@@ -177,26 +177,15 @@ Section kvs_B_code.
     (* Fetch the adversary's sealed KVS user key. *)
     fetch_asm ".Limport_user_key" cs1 ++
     (* Preserve the return capability and prepare
-       addOrUpdate(sealed key, 1, 42). *)
+       addOrUpdate(sealed key, 1, 13). *)
     [ mov cs0 cra;
       mov ca0 cs1;
       mov ca1 1;
-      mov ca2 42 ] ++
-    (* Fetch the switcher entry point and the sealed KVS.addOrUpdate entry
-       point, and invoke KVS.addOrUpdate through the switcher. *)
+      mov ca2 13 ] ++
     fetch_asm ".Limport_switcher" ctp ++
     fetch_asm ".Limport_addOrUpdate" ct1 ++
     [ jalr cra ctp;
-      (* Prepare erase(sealed key, 1). *)
-      mov ca0 cs1;
-      mov ca1 1 ] ++
-    (* Fetch the switcher entry point and the sealed KVS.erase entry point,
-       and invoke KVS.erase through the switcher. *)
-    fetch_asm ".Limport_switcher" ctp ++
-    fetch_asm ".Limport_erase" ct1 ++
-    [ jalr cra ctp;
-      (* Restore the return capability, clear arguments, and return via the
-         switcher. *)
+      (* Restore the return capability, clear arguments, and return. *)
       mov cra cs0;
       mov ca0 0;
       mov ca1 0;
