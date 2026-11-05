@@ -2,22 +2,25 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  assembler switcher assert allocator_resources compartment_layout.
+  hw_lang hw_machine_run assembler switcher assert allocator_resources compartment_layout.
 From griotte.case_studies.hts_ownership Require Import heap_temporal_safety heap_temporal_safety_adequacy.
 From griotte.allocators.ownership Require Import allocator.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link.
 From griotte.case_studies.hts_ownership Require Import hts_firmware.
+From griotte Require Import round_robin_scheduler_concrete.
 
 #[local] Transparent MemNum ONum.
 #[local] Open Scope string_scope.
 
 (** * A concrete instance of the heap temporal safety case study
 
-    The heap temporal safety firmware with a concrete adversary [B], laid
-    out by the linker, on a machine whose heap has room for one allocation.
-    Its initial state satisfies [hts_initial_state_ok] by computation, runs
-    to [Halted], and [hts_adequacy] applies to it. *)
+    The heap temporal safety firmware with a concrete adversary [B] and the
+    round-robin scheduler, laid out by the linker, on a machine whose heap
+    has room for one allocation. Its initial state satisfies
+    [hts_initial_state_ok] by computation; from it the thread runs, through
+    the scheduler, to its exit, where the scheduler halts the machine;
+    [hts_adequacy] applies to the run. *)
 
 (** The default machine instance has only the allocator's reserved heap
     address. This one adds three header addresses and one payload address,
@@ -57,7 +60,7 @@ Definition hts_shadow_region : ShadowRegion :=
      mtval_encoding_mixin := @mtval_encoding_mixin machine_parameters_instance |}.
 
 Definition hts_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
-Definition hts_alloc_sealing_type : OType := @finz.FinZ ONum 10 eq_refl eq_refl.
+Definition hts_alloc_sealing_type : OType := @finz.FinZ ONum 11 eq_refl eq_refl.
 
 (** The concrete adversary counts its calls. On the first, it saves the
     buffer it receives; on the second, it checks that the saved buffer has
@@ -93,10 +96,8 @@ Definition hts_adv_data : list Word := [WInt 0; WInt 0; WInt (-1)].
 
 Definition hts_demo_firmware : firmware := hts_firmware hts_alloc_sealing_type.
 
-Definition hts_demo_link_cfg : link_cfg := {|
-  lk_base        := 16;
-  lk_ot_switcher := hts_switcher_sealing_type;
-  lk_adv         := [
+Definition hts_demo_link_cfg : link_cfg :=
+  rr_link_cfg 16 hts_switcher_sealing_type [
     ("B", {| la_code    := hts_adv_code;
              la_data    := hts_adv_data;
              la_exports := [
@@ -104,8 +105,7 @@ Definition hts_demo_link_cfg : link_cfg := {|
              ];
              la_handler := ExportTable_no_handler;
              la_handler_stackless := ExportTable_no_handler |})
-  ]
-|}.
+  ] 16 hts_demo_firmware.
 
 (** ** The linked image and its initial state *)
 
@@ -120,18 +120,14 @@ Proof. vm_compute; reflexivity. Qed.
 
 Definition hts_demo_state : ExecConf := img_state hts_demo_firmware hts_demo_image.
 
-Ltac solve_other_registers :=
-  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
-  rewrite !lookup_insert_ne; try set_solver;
-  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
-
 Lemma hts_demo_ok :
   hts_initial_state_ok (flag_assert (img_asrt hts_demo_image)) hts_demo_state.
 Proof.
   rewrite /hts_initial_state_ok.
   exists (img_sw hts_demo_image), (img_asrt hts_demo_image), (thread_of hts_demo_image 0),
+    (img_idle hts_demo_image), (img_boot hts_demo_image),
     (cmpt_of hts_demo_image "main"), (cmpt_of hts_demo_image "allocator"),
-    (cmpt_of hts_demo_image "B"), hts_alloc_sealing_type.
+    (cmpt_of hts_demo_image "B"), (cmpt_of hts_demo_image "sched"), hts_alloc_sealing_type.
   split; first done.
   split_and!.
   (* The error handler offsets of the adversaries, as the configuration gives them. *)
@@ -140,21 +136,30 @@ Proof.
   (* The shadow table of this machine translates the heap by a constant offset. *)
   all: try (intros a; reflexivity).
   all: try (lazymatch goal with
-            | |- ∀ r, _ => rewrite /hts_demo_state /img_state /img_regs; solve_other_registers
+            | |- ∃ _ _ _ : Z, _ => exists 0%Z, 0%Z, 0%Z; split_and!
+            end).
+  all: try (lazymatch goal with
+            | |- ∃ _ : InterruptStatus, _ => exists InterruptEnabled
+            end).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /hts_demo_state /img_state /img_regs;
+                           solve_start_other_registers
             end).
   all: solve_concrete_condition.
 Qed.
 
 (** ** The run
 
-    [hts_demo_state] runs to [Halted], and [hts_adequacy] applies to it:
-    the flag of the assert library is still zero. *)
+    [hts_demo_state] starts at the switcher's call of the scheduler, which
+    resumes the thread; the thread runs to its exit, and the scheduler then
+    halts the machine. [hts_adequacy] applies to the run: the flag of the
+    assert library is still zero. *)
 Theorem hts_runs_and_gracefully_halts :
   ∃ σ',
-    rtc erased_step ([Exec], hts_demo_state) ([Instr Halted], σ')
+    rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], hts_demo_state) ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt hts_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat 10000%N) Executable hts_demo_state Halted) as Hrun.
+  pose proof (machine_run_hw_correct (N.to_nat 11500%N) hts_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [σ' Hrun].
   exists σ'. split; first exact Hrun.
