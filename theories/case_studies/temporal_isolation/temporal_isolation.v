@@ -29,9 +29,10 @@ Section TI_K.
      b_K + 1 : Sentry Inherit RX b_assert e_assert a_assert
      b_K + 2 : WSealed ot_switcher B.f
    *)
-  (** [rw_local] is the encoding of the permission and locality of the
-      lent capability, kept abstract during the assembly. *)
-  Definition ti_K_asm (rw_local : Z) : list (list asm_code) :=
+  (** The encoding of the permission and locality of the shared capability. *)
+  Definition RW_LOCAL : Z := encodePermPair (RW, Local).
+
+  Definition ti_K_asm : list (list asm_code) :=
     [ [ (* the imports *)
         #@".Limport_switcher";
         #@".Limport_assert";
@@ -46,7 +47,7 @@ Section TI_K.
         geta ct0 ca0;
         add ct1 ct0 1;
         subseg ca0 ca0 ct0 ct1; (* ca0 := (RW, Global, b, b+1, b) *)
-        restrict ca0 ca0 rw_local (* ca0 := (RW, Local, b, b+1, b) *)
+        restrict ca0 ca0 RW_LOCAL (* ca0 := (RW, Local, b, b+1, b) *)
       ];
       #".Lti_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ctp; (* ctp -> switcher entry point *)
@@ -73,11 +74,11 @@ Section TI_K.
     ].
 
   Definition ti_K_assembled :=
-    Eval compute in (λ rw_local, assemble_block (ti_K_asm rw_local)).
-  Lemma ti_K_assembles rw_local : asm_ok (assemble_block_check (ti_K_asm rw_local)).
+    Eval cbv -[encodePermPair] in assemble_block ti_K_asm.
+  Lemma ti_K_assembles : asm_ok (assemble_block_check ti_K_asm).
   Proof. asm_check. Qed.
   Definition ti_K_instrs_n (n : nat) : list Word :=
-    encodeInstrsW (default [] (ti_K_assembled (encodePermPair (RW, Local)) !! n)).
+    encodeInstrsW (default [] (ti_K_assembled !! n)).
 
   Definition ti_K_code : list Word :=
     ti_K_instrs_n 0 ++

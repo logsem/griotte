@@ -40,15 +40,15 @@ Notation ti_block_offset := (code_block_offset ti_K_blocks).
 Notation ti_instr_offset := (code_instr_offset ti_K_blocks).
 
 (** Offset of the label [s] of [ti_K_asm] from the start of the PCC, the
-    imports. The labels do not depend on the argument of [ti_K_asm]. *)
-Notation ti_label s := (asm_label (ti_K_asm 0) s).
+    imports. *)
+Notation ti_label s := (asm_label ti_K_asm s).
 
 (** Offset of the label [s] in [ti_K_code], which starts at the label
     [.Lti_run]. *)
-Notation ti_label_offset s := (asm_label_offset (ti_K_asm 0) ".Lti_run" s).
+Notation ti_label_offset s := (asm_label_offset ti_K_asm ".Lti_run" s).
 
 (** Index of the block of [ti_K_code] that defines the label [s]. *)
-Notation ti_block s := (asm_block (ti_K_asm 0) s).
+Notation ti_block s := (asm_block ti_K_asm s).
 
 Section TI_States.
   Context
