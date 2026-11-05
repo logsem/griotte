@@ -1,18 +1,19 @@
 From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  firmware_thread_obligations cmdc_isolated_firmware.
+From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations
+  firmware_obligations firmware_thread_obligations cmdc_isolated_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import cmdc cmdc_spec.
-From griotte Require Import assert_spec logrel.
+From griotte Require Import assert_spec.
 From griotte Require Import mkregion_helpers.
 From griotte Require Import
   world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_base_interp.
-From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common_obligations.
+From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers
+  adequacy_common_obligations.
 From griotte Require Import allocator_resources heap_region.
 
 Section cmdc_isolated_obligations.
@@ -78,7 +79,8 @@ Section cmdc_isolated_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts cmdc_isolated_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HB_l.

@@ -1,10 +1,6 @@
 From iris.proofmode Require Import proofmode.
-(* Imported first: the fields of the layout records of [compartment_layout]
-   and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy firmware_obligations
-  firmware_thread_obligations cmdc_isolated_firmware.
+From griotte Require Import image firmware firmware_ok firmware_adequacy cmdc_isolated_firmware.
 From griotte Require Import hw_lang logrel.
-From iris.program_logic Require Import adequacy.
 From griotte Require Export cmdc_isolated_adequacy_obligations.
 
 (** We initialise concretely the compartments name typeclass: the three
@@ -16,7 +12,8 @@ Proof. intros X Y; destruct X, Y; solve_decision. Qed.
 #[local] Instance CmptNames_CMDC_isolated_finite : finite.Finite CmptNames_CMDC_isolated.
 Proof.
   refine {| finite.enum := [B; C; D; Sched] |}.
-  + constructor; [set_solver | constructor; [set_solver | constructor; [set_solver | apply NoDup_singleton] ] ].
+  + constructor; [set_solver | constructor; [set_solver | constructor;
+      [set_solver | apply NoDup_singleton] ] ].
   + intros [| | |]; [left | right; left | right; right; left | right; right; right; left].
 Defined.
 

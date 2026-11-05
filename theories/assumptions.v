@@ -2,6 +2,7 @@ From griotte Require
   fundamental
   kvs_adequacy
   cmdc_adequacy
+  cmdc_isolated_adequacy
   deep_locality_adequacy
   deep_immutability_adequacy
   lse_adequacy
@@ -18,10 +19,10 @@ From griotte Require Import
 From griotte Require Import
   image firmware firmware_ok print
   kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware vae_firmware
-  vae_untrusted_entry_firmware hts_firmware error_handling_firmware
+  vae_untrusted_entry_firmware hts_firmware error_handling_firmware cmdc_isolated_firmware
   kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
   stack_object_concrete vae_concrete vae_untrusted_entry_concrete heap_temporal_safety_concrete
-  error_handling_concrete.
+  error_handling_concrete cmdc_isolated_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -96,6 +97,32 @@ Section cmdc_memory_map.
   Open Scope Z_scope.
   Ltac2 Eval print_memory_map constr:(cmdc_demo_image).
 End cmdc_memory_map.
+*)
+
+(** ** Compartmentalisation with an isolated thread (CMDC isolated) *)
+
+(*
+Goal True. idtac "
+Assumptions of the CMDC with an isolated thread end-to-end theorem:". Abort.
+Print Assumptions cmdc_isolated_adequacy.cmdc_isolated_adequacy.
+
+Print cmdc_isolated_initial_state_ok.
+
+Section cmdc_isolated_initial_state.
+  Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@cmdc_isolated_initial_state_ok_annot).
+End cmdc_isolated_initial_state.
+
+Section cmdc_isolated_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(cmdc_isolated_demo_image).
+End cmdc_isolated_memory_map.
 *)
 
 (** ** Deep locality *)
