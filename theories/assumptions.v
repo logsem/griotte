@@ -18,7 +18,10 @@ From griotte Require Import
 From griotte Require Import
   image firmware firmware_ok print
   kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware vae_firmware
-  vae_untrusted_entry_firmware hts_firmware error_handling_firmware.
+  vae_untrusted_entry_firmware hts_firmware error_handling_firmware
+  kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
+  stack_object_concrete vae_concrete vae_untrusted_entry_concrete heap_temporal_safety_concrete
+  error_handling_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
