@@ -24,6 +24,7 @@ Section KVS_getFullKey.
     (pc_b pc_e pc_a : Addr) (off : Z)
     (rdst rsealkey rkey : RegName)
     (user_key nkey : Z) (πnkey : option AId) (l_user_key : Locality) ( user_key_addr : Addr )
+    (dq : dfrac)
     :
     let instrs := (kvs_getFullKey_instrs off rdst rsealkey rkey) in
     is_shadow_address (pc_b ^+ UNSEALING_USER_KEY_OFFSET) = false ->
@@ -44,7 +45,7 @@ Section KVS_getFullKey.
       rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
       (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
-      user_key_addr ↦ₐ WInt user_key ∗
+      user_key_addr ↦ₐ{dq} WInt user_key ∗
 
       codefrag_pers pc_a instrs ∗
       ▷ (
@@ -54,7 +55,7 @@ Section KVS_getFullKey.
           rkey ↦ᵣ[th] WInt nkey @@? πnkey ∗
 
           (pc_b ^+ UNSEALING_USER_KEY_OFFSET) ↦ₐ□ kvs_service_unsealing_key ∗
-          user_key_addr ↦ₐ WInt user_key ∗
+          user_key_addr ↦ₐ{dq} WInt user_key ∗
           codefrag_pers pc_a instrs -∗
 
           safe[th]
