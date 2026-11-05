@@ -362,7 +362,13 @@ Section stages.
     (* The memory, by part *)
     iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0)) fw img σ Hok
                 with "Hmem")
-      as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthreads_mem & Hidle_mem & Hboot_mem)".
+      as "(Hheap & Hsw_code & Hasrt & Hlocks_mem & Hcmpts & Hthreads_mem & Hidle_mem &
+           Hboot_mem)".
+    (* The code of the lock library, persistent *)
+    iAssert (|==> [∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w)%I
+      with "[Hlocks_mem]" as ">#Hlocks".
+    { iApply big_sepM_bupd. iApply (big_sepM_mono with "Hlocks_mem").
+      iIntros (a w _) "Ha". iApply (pointsto_persist with "Ha"). }
     (* The assert library *)
     rewrite (assert_mem_layout _ Hasrt).
     iMod (initialise_assert_compartment (th := UserThread 0) _ with "Hasrt")
@@ -463,7 +469,7 @@ Section stages.
     (* The obligations of the firmware *)
     iMod (Hobl with "[Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
     { rewrite /fw_shared_res.
-      iFrame "Htstacks Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
+      iFrame "Htstacks Hassert Hlocks Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
       iApply big_sepL_intro. iIntros "!>" (k ft Hk%lookup_lt_Some). iApply "Hst".
       iPureIntro. rewrite /n. lia. }
     (* The slots of the user threads *)

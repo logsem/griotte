@@ -8,7 +8,7 @@ From griotte Require Import switcher_base_interp.
 From griotte Require Import stack_world_resources mkregion_helpers disjoint_regions_tactics.
 From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common_obligations.
 From griotte Require Import allocator_resources heap_region.
-From griotte Require Import firmware_ok firmware_adequacy_obligations.
+From griotte Require Import locks firmware_ok firmware_adequacy_obligations.
 From griotte Require Import switcher_spec_return.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)
@@ -116,6 +116,10 @@ Section obligation_facts.
       specifications take them. *)
   Definition fw_assert_layout (img : fw_image) : assertLayout :=
     mkAssertLayout (b_assert (img_asrt img)) (e_assert (img_asrt img)) (flag_assert (img_asrt img)).
+
+  (** The layout of the lock library of an image. *)
+  Definition fw_locks_layout (img : fw_image) : locksLayout :=
+    mkLocksLayout (b_locks (img_lck img)) (e_locks (img_lck img)).
 
   Lemma fw_switcher_layout_wf_of fw img σ :
     firmware_ok fw img σ → @switcherLayoutWf MP (fw_switcher_layout img).

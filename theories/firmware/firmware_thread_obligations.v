@@ -8,7 +8,7 @@ From griotte Require Import compartment_layout switcher_adequacy adequacy_helper
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Import context_switch_layout_instance context_switching_support.
 From griotte Require Import context_switching_hyps context_switching_scheduler_valid.
-From griotte Require Import switcher_spec_return.
+From griotte Require Import switcher_spec_return mkregion_helpers locks_spec.
 From griotte Require Import firmware_ok firmware_adequacy_obligations firmware_obligations.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)
@@ -395,6 +395,7 @@ Section sched_world.
   Proof.
     intros (_ & _ & _ & _ & Himg) Hsched.
     rewrite /section in Himg. do 6 apply big_and_fw_app in Himg as [_ Himg].
+    apply big_and_fw_app in Himg as [Himg _].
     rewrite Hsched in Himg.
     destruct (Nat.eqb (fw_sched_count (fw_cmpts fw)) 1); last done.
     revert Himg. generalize (fc_imports fc) (fc_static_sealed fc).
@@ -543,6 +544,8 @@ Section resources_pt.
     "Hassert" ∷
       assert_static (ceriseg := ceriseG_of (UserThread 0))
         (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "Hlocks" ∷
+      ([∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res_user (th := UserThread 0) img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷
@@ -578,6 +581,41 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
          £ 1
          ={⊤}=∗
          let _ : switcherLayout := fw_switcher_layout img in safe[u i]).
+
+(* TODO: move to program_logic/memory_region.v *)
+Lemma codefrag_pers_of_region {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}
+    (a0 e : Addr) (cs : list Word) :
+  (a0 + length cs)%a = Some e →
+  [[ a0 , e ]] ↦ₐ□ [[ lword_of_word <$> cs ]] -∗ codefrag_pers a0 cs.
+Proof.
+  iIntros (He) "Hcs".
+  rewrite memory_region.codefrag_pers_unseal /memory_region.codefrag_pers_def.
+  iSplit; first (iPureIntro; by exists e).
+  rewrite region_pointsto_pers_cells; last by rewrite length_fmap.
+  by rewrite big_sepL_fmap.
+Qed.
+
+(** The code of the lock library, from ["Hlocks"], when a compartment
+    imports it, at any thread. *)
+Lemma fw_lock_static {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ : ExecConf) (th : Thread) :
+  firmware_ok fw img σ →
+  fw_uses_try_lock fw ≠ [] →
+  ([∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w) -∗
+  lock_static (th := th) (LK := fw_locks_layout img).
+Proof.
+  iIntros (Hok Huse) "Hlocks".
+  pose proof Hok as (_ & _ & _ & Hwf).
+  pose proof (ill_code_size _ (img_wf_locks_layout _ _ Hwf Huse)) as Hsize.
+  rewrite /locks_code_mems.
+  destruct (fw_uses_try_lock_cases fw) as [Hu | Hu]; rewrite Hu; first by rewrite Hu in Huse.
+  cbn [fw_map big_union].
+  rewrite (mem_region_mkregion _ _ _ Hsize).
+  iDestruct (mkregion_sepM_to_sepL2 with "Hlocks") as "Hlocks"; first exact Hsize.
+  iSplit; first (iPureIntro; exact Hsize).
+  iApply (codefrag_pers_of_region _ _ _ Hsize).
+  rewrite /region_pointsto_pers big_sepL2_fmap_r. iExact "Hlocks".
+Qed.
 
 (** A compartment whose threads are threads of the firmware has the
     switcher's resources at each of its threads. *)
