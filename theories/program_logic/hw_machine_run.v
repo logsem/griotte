@@ -142,3 +142,33 @@ Section hw_machine_run.
     by apply hw_irq_step.
   Qed.
 End hw_machine_run.
+
+(** The interpreter with one interrupt of cause [c], taken at the first
+    state that [stop1] accepts if interrupts are enabled there, stopped
+    at the next state that [stop2] accepts. *)
+Definition machine_run_irq_until `{MP : MachineParameters} (stop1 : ExecConf → bool)
+    (fuel1 : nat) (c : Z) (stop2 : ExecConf → bool) (fuel2 : nat) (σ : ExecConf) :
+    option ExecConf :=
+  match machine_run_until stop1 fuel1 (Executable, σ) with
+  | Some σ1 =>
+      if decide (mie_of (get_a (sreg_word σ1 mstatus)) = InterruptEnabled)
+      then machine_run_until stop2 fuel2 (Executable, enter_irq c σ1)
+      else None
+  | None => None
+  end.
+
+Lemma machine_run_irq_until_hw_correct `{MP : MachineParameters} stop1 fuel1 c stop2 fuel2
+    (σ σ2 : ExecConf) :
+  c ∈ irq_causes →
+  machine_run_irq_until stop1 fuel1 c stop2 fuel2 σ = Some σ2 →
+  rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) ([griotte_lang.Exec], σ2).
+Proof.
+  intros Hcause. rewrite /machine_run_irq_until.
+  destruct (machine_run_until stop1 fuel1 (Executable, σ)) as [σ1|] eqn:Hu; [|done].
+  case_decide as Hen; [|done].
+  intros Hrun.
+  eapply rtc_trans; [by apply rtc_erased_step_hw, (machine_run_until_correct _ _ _ _ _ Hu)|].
+  eapply rtc_l; [|by apply rtc_erased_step_hw, (machine_run_until_correct _ _ _ _ _ Hrun)].
+  exists []. eapply (step_atomic (Λ := griotte_hw_lang) _ _ _ _ _ [] []); [done|done|].
+  by apply hw_irq_step.
+Qed.

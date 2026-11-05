@@ -2459,3 +2459,46 @@ Section obligation_layouts.
         repeat first [apply list_elem_of_here | apply list_elem_of_further].
   Qed.
 End obligation_layouts.
+
+(** [img_wf_switcher_cmpt_disjoint], with the stacks of the thread [k]. *)
+Lemma img_wf_switcher_cmpt_disjoint_at `{MP : MachineParameters} fw img k ft fc ts ss
+    (Hc : img_cmpt_layout (cmpt_of img (fc_name fc)))
+    (Hts : trusted_stack_layout (b_trusted_stack (thread_of img k))
+             (e_trusted_stack (thread_of img k))
+             (b_hazard (thread_of img k)) (e_hazard (thread_of img k)) ts)
+    (Hsw : img_switcher_layout (img_sw img) (thread_of img k) ss) :
+  fw_threads fw !! k = Some ft →
+  img_wf fw img →
+  fc ∈ fw_cmpts fw →
+  switcher_cmpt_disjoint (layout_cmpt_of _ Hc) (layout_switcher_of _ _ _ _ Hts Hsw).
+Proof.
+  intros Hk Hwf Hin. pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+  assert (rngs_disjoint ([("switcher", b_switcher (img_sw img), e_switcher (img_sw img))] ++
+                         cmpt_ranges img fc)) as Hdisj_sw.
+  { eapply rngs_disjoint_sublist; last exact Hdisj.
+    rewrite /fw_ranges. apply sublist_skip. do 2 apply sublist_cons.
+    apply sublist_inserts_r. by apply cmpt_ranges_sublist. }
+  assert (rngs_disjoint (cmpt_ranges img fc ++ thread_ranges img k ft)) as Hdisj_thread.
+  { eapply rngs_disjoint_sublist; last exact Hdisj.
+    rewrite /fw_ranges /fw_imap.
+    do 3 apply sublist_cons. apply sublist_app; first by apply cmpt_ranges_sublist.
+    apply sublist_inserts_r. exact (thread_ranges_sublist img _ 0 k ft Hk). }
+  intros a Ha_sw Ha_c.
+  rewrite /cmpt_switcher_region /cmpt_switcher_code_region /cmpt_switcher_trusted_stack_region
+    /cmpt_switcher_stack_region /= in Ha_sw.
+  rewrite /cmpt_region /cmpt_pcc_region /cmpt_cgp_region /cmpt_static_sealed_region
+    /cmpt_exp_tbl_region /= in Ha_c.
+  rewrite !elem_of_union in Ha_sw Ha_c.
+  destruct Ha_sw as [ [Ha_sw|Ha_sw]|Ha_sw].
+  - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+      (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a Hdisj_sw); [ | | exact Ha_sw | exact Ha_c]);
+      rewrite /cmpt_ranges; repeat first [apply list_elem_of_here | apply list_elem_of_further].
+  - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+      (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a Hdisj_thread); [ | | exact Ha_c | exact Ha_sw]);
+      rewrite /cmpt_ranges /thread_ranges;
+      repeat first [apply list_elem_of_here | apply list_elem_of_further].
+  - destruct Ha_c as [ [ [Ha_c|Ha_c]|Ha_c]|Ha_c];
+      (eapply (rngs_cross_elem _ _ _ _ _ _ _ _ a Hdisj_thread); [ | | exact Ha_c | exact Ha_sw]);
+      rewrite /cmpt_ranges /thread_ranges;
+      repeat first [apply list_elem_of_here | apply list_elem_of_further].
+Qed.

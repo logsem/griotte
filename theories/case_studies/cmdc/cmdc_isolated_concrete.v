@@ -120,6 +120,9 @@ Qed.
     programs. *)
 Definition cmdc_isolated_irq_cause : Z := (MCAUSE_INTR + MCAUSE_MTIME)%Z.
 
+#[local] Lemma cmdc_isolated_irq_cause_in : cmdc_isolated_irq_cause ∈ irq_causes.
+Proof. rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. Qed.
+
 (** Where the interrupt hits the thread 0: [main]'s jump to the switcher
     for its call of [B], with interrupts enabled. *)
 Definition cmdc_isolated_irq_addr (img : fw_image) : Addr :=
@@ -151,46 +154,13 @@ Proof.
             (N.to_nat 12000%N) cmdc_isolated_irq_cause (N.to_nat 20000%N)
             cmdc_isolated_demo_state = Some Halted) as Hirq by (vm_compute; reflexivity).
   split; first exact Hirq.
-  assert (cmdc_isolated_irq_cause ∈ irq_causes) as Hcause.
-  { rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. }
+  pose proof cmdc_isolated_irq_cause_in as Hcause.
   destruct (machine_run_irq_hw_correct _ _ _ _ _ _ Hcause Hirq) as [σ' Hrun].
   exists σ'. split; first exact Hrun.
   exact (cmdc_isolated_adequacy _ _ _ _ cmdc_isolated_demo_ok Hrun).
 Qed.
 
 (** ** The hand-overs *)
-
-(* TODO: move to program_logic/hw_machine_run.v *)
-(** The interpreter with one interrupt of cause [c], taken at the first
-    state that [stop1] accepts if interrupts are enabled there, stopped
-    at the next state that [stop2] accepts. *)
-Definition machine_run_irq_until `{MP : MachineParameters} (stop1 : ExecConf → bool)
-    (fuel1 : nat) (c : Z) (stop2 : ExecConf → bool) (fuel2 : nat) (σ : ExecConf) :
-    option ExecConf :=
-  match machine_run_until stop1 fuel1 (Executable, σ) with
-  | Some σ1 =>
-      if decide (mie_of (get_a (sreg_word σ1 mstatus)) = InterruptEnabled)
-      then machine_run_until stop2 fuel2 (Executable, enter_irq c σ1)
-      else None
-  | None => None
-  end.
-
-(* TODO: move to program_logic/hw_machine_run.v *)
-Lemma machine_run_irq_until_hw_correct `{MP : MachineParameters} stop1 fuel1 c stop2 fuel2
-    (σ σ2 : ExecConf) :
-  c ∈ irq_causes →
-  machine_run_irq_until stop1 fuel1 c stop2 fuel2 σ = Some σ2 →
-  rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) ([griotte_lang.Exec], σ2).
-Proof.
-  intros Hcause. rewrite /machine_run_irq_until.
-  destruct (machine_run_until stop1 fuel1 (Executable, σ)) as [σ1|] eqn:Hu; [|done].
-  case_decide as Hen; [|done].
-  intros Hrun.
-  eapply rtc_trans; [by apply rtc_erased_step_hw, (machine_run_until_correct _ _ _ _ _ Hu)|].
-  eapply rtc_l; [|by apply rtc_erased_step_hw, (machine_run_until_correct _ _ _ _ _ Hrun)].
-  exists []. eapply (step_atomic (Λ := griotte_hw_lang) _ _ _ _ _ [] []); [done|done|].
-  by apply hw_irq_step.
-Qed.
 
 (** Where the switcher saves the cause of the thread [i]'s last trap. *)
 Definition cmdc_isolated_saved_mcause (i : nat) : Addr :=
@@ -208,8 +178,7 @@ Remark cmdc_isolated_demo_preempts :
     ∧ reg σ1 !! ca0 = Some (thread_handle cmdc_isolated_firmware cmdc_isolated_demo_image 1)
     ∧ mem σ1 !! cmdc_isolated_saved_mcause 0 = Some (WInt cmdc_isolated_irq_cause).
 Proof.
-  assert (cmdc_isolated_irq_cause ∈ irq_causes) as Hcause.
-  { rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. }
+  pose proof cmdc_isolated_irq_cause_in as Hcause.
   pose proof (machine_run_irq_until_hw_correct
     (pc_at (cmdc_isolated_irq_addr cmdc_isolated_demo_image)) (N.to_nat 12000%N)
     cmdc_isolated_irq_cause
@@ -250,8 +219,7 @@ Remark cmdc_isolated_demo_D_yields :
     ∧ mem σ2 !! cmdc_isolated_saved_mcause 1 = Some (WInt MCAUSE_ECALL_MACHINE)
     ∧ mem σ2 !! cmdc_isolated_saved_mcause 0 = Some (WInt cmdc_isolated_irq_cause).
 Proof.
-  assert (cmdc_isolated_irq_cause ∈ irq_causes) as Hcause.
-  { rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. }
+  pose proof cmdc_isolated_irq_cause_in as Hcause.
   pose proof (machine_run_irq_until_hw_correct
     (pc_at (cmdc_isolated_irq_addr cmdc_isolated_demo_image)) (N.to_nat 12000%N)
     cmdc_isolated_irq_cause
@@ -294,8 +262,7 @@ Remark cmdc_isolated_demo_B_yields :
     ∧ mem σ3 !! cmdc_isolated_saved_mcause 0 = Some (WInt MCAUSE_ECALL_MACHINE)
     ∧ mem σ3 !! cmdc_isolated_saved_mcause 1 = Some (WInt MCAUSE_ECALL_MACHINE).
 Proof.
-  assert (cmdc_isolated_irq_cause ∈ irq_causes) as Hcause.
-  { rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. }
+  pose proof cmdc_isolated_irq_cause_in as Hcause.
   pose proof (machine_run_irq_until_hw_correct
     (pc_at (cmdc_isolated_irq_addr cmdc_isolated_demo_image)) (N.to_nat 12000%N)
     cmdc_isolated_irq_cause
@@ -345,8 +312,7 @@ Remark cmdc_isolated_demo_D_exits :
     ∧ mem σ4 !! cmdc_isolated_saved_mcause 1 = Some (WInt MCAUSE_THREAD_EXIT)
     ∧ mem σ4 !! cmdc_isolated_saved_mcause 0 = Some (WInt MCAUSE_ECALL_MACHINE).
 Proof.
-  assert (cmdc_isolated_irq_cause ∈ irq_causes) as Hcause.
-  { rewrite /cmdc_isolated_irq_cause /irq_causes. apply list_elem_of_here. }
+  pose proof cmdc_isolated_irq_cause_in as Hcause.
   pose proof (machine_run_irq_until_hw_correct
     (pc_at (cmdc_isolated_irq_addr cmdc_isolated_demo_image)) (N.to_nat 12000%N)
     cmdc_isolated_irq_cause
