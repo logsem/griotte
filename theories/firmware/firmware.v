@@ -14,6 +14,7 @@ Inductive fw_word : Type :=
 | FW (w : Word)                       (* a literal word *)
 | ISwitcherCall                       (* the switcher call sentry *)
 | IAssert                             (* the assert sentry *)
+| ITryLock                            (* the sentry of the lock library's try_lock *)
 | IExport (c : string) (e : string)   (* the entry of the export [e] of [c], sealed *)
 | ISealedStatic (o : OType) (s : string)
     (* the static sealed object named [s] of the compartment itself,

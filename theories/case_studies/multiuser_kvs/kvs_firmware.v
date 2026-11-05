@@ -99,7 +99,8 @@ Definition kvs_firmware `{MP : MachineParameters}
 (** The image of the KVS firmware, from the records of its sections. *)
 Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main kvs B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)] [t0] idle boot.
+  MkFwImage sw asrt default_img_locks [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)]
+    [t0] idle boot.
 
 (** The start of the firmware: some layout and parameters, with the flag of the
     assert library at [flag], such that [σ] is the state the loader

@@ -53,7 +53,8 @@ Section img_state.
     foldr (λ '(i, ft) acc, thread_mem fw img i ft ∪ acc) ∅
       (zip (seq 0 (length (fw_threads fw))) (fw_threads fw)) ∪
     foldr (λ fc acc, cmpt_mem img fc ∪ acc) ∅ (fw_cmpts fw) ∪
-    assert_flag_mem img ∪ assert_code_mem img ∪ switcher_mem fw img ∪
+    assert_flag_mem img ∪ assert_code_mem img ∪ big_union (locks_code_mems fw img) ∪
+    switcher_mem fw img ∪
     initial_heap_memory.
 
   Definition img_state (fw : firmware) (img : fw_image) : ExecConf :=

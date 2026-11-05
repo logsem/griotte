@@ -78,11 +78,18 @@ Record img_assert : Type := MkImgAssert {
   flag_assert : Addr;
 }.
 
+(** The lock library: its code. *)
+Record img_locks : Type := MkImgLocks {
+  b_locks : Addr;
+  e_locks : Addr;
+}.
+
 (** An image: the compartments by name, in the order of the firmware, the
     threads of the firmware, the idle thread and the boot stack. *)
 Record fw_image : Type := MkFwImage {
   img_sw : img_switcher;
   img_asrt : img_assert;
+  img_lck : img_locks;
   img_cmpts : list (string * img_cmpt);
   img_threads : list img_thread;
   img_idle : img_idle_thread;
@@ -95,6 +102,8 @@ Definition za0 : Addr := za.
 
 Definition default_img_cmpt : img_cmpt :=
   MkImgCmpt za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 [] [] [] [] (WInt 0) (WInt 0) [].
+
+Definition default_img_locks : img_locks := MkImgLocks za0 za0.
 
 Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0 za0 za0.
 

@@ -81,7 +81,8 @@ Definition error_handling_firmware `{MP : MachineParameters} : firmware := {|
     sections. *)
 Definition error_handling_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main stats adv sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("stats", stats); ("adv", adv); ("sched", sched)]
+  MkFwImage sw asrt default_img_locks
+    [("main", main); ("stats", stats); ("adv", adv); ("sched", sched)]
     [t0] idle boot.
 
 (** The start of the firmware: some layout, with the flag of the assert

@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem.
-From griotte Require Import switcher assert allocator_resources compartment_layout.
+From griotte Require Import switcher assert locks allocator_resources compartment_layout.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and [switcher]. *)
 From griotte Require Import image firmware.
@@ -35,6 +35,12 @@ Fixpoint fw_app {A} (l1 l2 : list A) : list A :=
 
 Fixpoint fw_flat_map {A B} (f : A → list B) (l : list A) : list B :=
   match l with [] => [] | x :: l => fw_app (f x) (fw_flat_map f l) end.
+
+(** Whether a compartment imports the lock library. *)
+Definition fw_imports_try_lock (fc : fw_cmpt) : list unit :=
+  fw_flat_map (λ w, match w with ITryLock => [tt] | _ => [] end) (fc_imports fc).
+Definition fw_uses_try_lock (fw : firmware) : list unit :=
+  match fw_flat_map fw_imports_try_lock (fw_cmpts fw) with [] => [] | _ => [tt] end.
 
 (** The conjunction and the union of a list, without a trailing [True] or
     [∅]. *)
@@ -196,6 +202,10 @@ Section translation.
         note "assert"
           (Sentry Inherit RX Global
              (b_assert (img_asrt img)) (e_assert (img_asrt img)) (b_assert (img_asrt img)))
+    | ITryLock =>
+        note "try_lock"
+          (Sentry FwdDisable RX Global
+             (b_locks (img_lck img)) (e_locks (img_lck img)) (b_locks (img_lck img)))
     | IExport n e =>
         let x := cmpt_of img n in
         let k := match fw_export_index fw n e with Some k => k | None => 0 end in
@@ -335,6 +345,11 @@ Section translation.
 
   Definition assert_flag_mem : Mem := mem_region (flag_assert (img_asrt img)) [WInt 0].
 
+  (** The code of the lock library, a list of zero or one map: one when a
+      compartment imports it. *)
+  Definition locks_code_mems : list Mem :=
+    fw_map (λ _, mem_region (b_locks (img_lck img)) locks_try_lock_instrs) (fw_uses_try_lock fw).
+
   Definition cmpt_mem (fc : fw_cmpt) : Mem :=
     let n := fc_name fc in
     let c := cmpt_of img n in
@@ -417,7 +432,8 @@ Section translation.
       note "switcher" switcher_mem ∪
       note "assert, code and flag capability" assert_code_mem ∪
       note "assert, flag" assert_flag_mem ∪
-      big_union (fw_map cmpt_mem (fw_cmpts fw)) ∪
+      big_union (fw_app (fw_map (λ m, note "locks, code" m) locks_code_mems)
+                   (fw_map cmpt_mem (fw_cmpts fw))) ∪
       big_union (fw_imap thread_mem (fw_threads fw)) ∪
       idle_mem ∪
       boot_mem ∧
@@ -501,9 +517,12 @@ Section translation.
        ("assert flag", flag_assert asrt, flag_assert asrt ^+ 1) ::
        fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
          (fw_app (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))
-            [("idle thread, trusted stack", img_b_idle_trusted_stack d, img_e_idle_trusted_stack d);
-             ("idle thread, hazard slots", img_b_idle_hazard d, img_e_idle_hazard d);
-             ("boot stack", img_b_boot_stack bs, img_e_boot_stack bs)])).
+            (fw_app
+               [("idle thread, trusted stack", img_b_idle_trusted_stack d, img_e_idle_trusted_stack d);
+                ("idle thread, hazard slots", img_b_idle_hazard d, img_e_idle_hazard d);
+                ("boot stack", img_b_boot_stack bs, img_e_boot_stack bs)]
+               (fw_map (λ _, ("locks", b_locks (img_lck img), e_locks (img_lck img)))
+                  (fw_uses_try_lock fw))))).
 
   (** The words of a compartment that the loader placed. *)
   Definition img_cmpt_words (c : img_cmpt) : list Word :=
@@ -567,6 +586,14 @@ Section translation.
        range_ok (b_assert asrt) (e_assert asrt) ∧
        note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
        note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1))).
+
+  (** The layout of the lock library, when a compartment imports it. *)
+  Definition locks_wf : Prop :=
+    let lck := img_lck img in
+    section "locks, layout"
+      ((b_locks lck + Z.of_nat (length locks_try_lock_instrs))%a = Some (e_locks lck) ∧
+       range_ok (b_locks lck) (e_locks lck) ∧
+       note "closed bounds outside the heap" (is_heap_address (e_locks lck) = false)).
 
   (** The layout of the thread [i]: its stack, its trusted stack with room
       for the entry frame and [ft_tstack_frames] frames ([tstack_frame_offset]
@@ -683,17 +710,19 @@ Section translation.
                           | [] => [note "no thread" False]
                           | _ => []
                           end)
-                         (match fw_sched_of (fw_cmpts fw), Nat.eqb (fw_sched_count (fw_cmpts fw)) 1 with
-                          | Some (fc, _), true =>
-                              match fc_imports fc, fc_static_sealed fc with
-                              | [ISwitcherCall], [] => []
-                              | [ISwitcherCall; IMtime; IMtimecmp], [] => []
-                              | _, _ =>
-                                  [note "the scheduler imports the switcher call, and the two time devices or neither, and has no static sealed object"
-                                     False]
-                              end
-                          | _, _ => [note "exactly one scheduler" False]
-                          end)))))))).
+                         (fw_app
+                            (match fw_sched_of (fw_cmpts fw), Nat.eqb (fw_sched_count (fw_cmpts fw)) 1 with
+                             | Some (fc, _), true =>
+                                 match fc_imports fc, fc_static_sealed fc with
+                                 | [ISwitcherCall], [] => []
+                                 | [ISwitcherCall; IMtime; IMtimecmp], [] => []
+                                 | _, _ =>
+                                     [note "the scheduler imports the switcher call, and the two time devices or neither, and has no static sealed object"
+                                        False]
+                                 end
+                             | _, _ => [note "exactly one scheduler" False]
+                             end)
+                            (fw_map (λ _, locks_wf) (fw_uses_try_lock fw)))))))))).
 End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
@@ -743,5 +772,6 @@ Ltac reduce_firmware_ok t :=
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
     img_sw img_asrt img_cmpts img_threads img_idle img_boot
+    fw_imports_try_lock fw_uses_try_lock locks_code_mems locks_wf img_lck
     String.append String.eqb Ascii.eqb Bool.eqb Nat.eqb andb]
   in t.
