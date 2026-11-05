@@ -13,21 +13,22 @@ From griotte Require
   error_handling_adequacy
   temporal_isolation_adequacy
   interrupt_status_adequacy
+  thread_synchronisation_adequacy
 .
 From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling
-  temporal_isolation interrupt_status.
+  temporal_isolation interrupt_status thread_synchronisation.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import
   image firmware firmware_ok print
   kvs_firmware cmdc_firmware dle_firmware droe_firmware lse_firmware so_firmware vae_firmware
   vae_untrusted_entry_firmware hts_firmware error_handling_firmware cmdc_isolated_firmware
-  ti_firmware ist_firmware
+  ti_firmware ist_firmware tsy_firmware
   kvs_concrete cmdc_concrete deep_locality_concrete deep_immutability_concrete lse_concrete
   stack_object_concrete vae_concrete vae_untrusted_entry_concrete heap_temporal_safety_concrete
   error_handling_concrete cmdc_isolated_concrete temporal_isolation_concrete
-  interrupt_status_concrete.
+  interrupt_status_concrete thread_synchronisation_concrete.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".
 
@@ -389,4 +390,30 @@ Section ist_memory_map.
   Open Scope Z_scope.
   Ltac2 Eval print_memory_map constr:(ist_demo_image).
 End ist_memory_map.
+*)
+
+(** ** Thread synchronisation through a shared flag *)
+
+(*
+Goal True. idtac "
+Assumptions of the thread synchronisation end-to-end theorem:". Abort.
+Print Assumptions thread_synchronisation_adequacy.tsy_adequacy.
+
+Print tsy_initial_state_ok.
+
+Section tsy_initial_state.
+  Import FwPrintNotations.
+  Import (notations) Stdlib.Strings.String.
+  Open Scope string_scope.
+  Open Scope OType_scope.
+  Open Scope Addr_scope.
+  Ltac2 Eval print_initial_state constr:(@tsy_initial_state_ok_annot).
+End tsy_initial_state.
+
+Section tsy_memory_map.
+  Import FwMapNotations.
+  Open Scope string_scope.
+  Open Scope Z_scope.
+  Ltac2 Eval print_memory_map constr:(tsy_demo_image).
+End tsy_memory_map.
 *)
