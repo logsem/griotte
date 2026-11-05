@@ -878,6 +878,55 @@ Section adversary.
       by iApply "Himports".
     - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
   Qed.
+
+  (** [fw_close_adv_world_entry] without a stack, on the map of Permanent
+      regions of [C] alone: the imports, code and data of an untrusted
+      compartment become Permanent regions, and its export entries are
+      sealed. No local map is touched, so a shared compartment is opened
+      once, before its map goes into its invariant. *)
+  Lemma fw_open_adv_cmpt_perm {E : coPset} fw img σ i fc ub
+      (Hc : img_cmpt_layout (cmpt_of img (fc_name fc))) (W : WORLD) (C : CmptName) :
+    let swl := fw_switcher_layout img in
+    let c := cmpt_of img (fc_name fc) in
+    let C_cmpt := layout_cmpt_of c Hc in
+    firmware_ok fw img σ →
+    fw_cmpts fw !! i = Some fc →
+    fc_body fc = UntrustedBody ub →
+    Forall (λ n, n < 7) (fw_map ue_nargs (ub_exports ub)) →
+    switcher_threads (swlayout := swl) C -∗
+    switcher_static (swlayout := swl) -∗
+    fw_cmpt_mem_res c -∗
+    fw_cmpt_pers_res img fc -∗
+    ((interp W C (cmpt_pcc_cap C_cmpt) ∗
+      interp W C (cmpt_cgp_cap C_cmpt) ∗
+      ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W C v)) -∗
+     [∗ list] w ∈ fc_imports fc,
+       fw_import_safe C (fw_word_of fw img (fc_static_sealed fc) c w)) -∗
+    thread_in th C -∗
+    perm_region_map C ∅
+    ={E}=∗
+    perm_region_map C ∅ ∗
+    interp W C (cmpt_pcc_cap C_cmpt) ∗
+    interp W C (cmpt_cgp_cap C_cmpt) ∗
+    [∗ list] k ↦ _ ∈ ub_exports ub,
+      interp W C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
+  Proof.
+    intros swl c C_cmpt Hok Hi Hbody Hnargs.
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Himports #Hthread Hperm".
+    iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
+    pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
+    pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
+    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
+    destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W C Hok Hin Hbody Hnargs)
+      as (Hcode & Hdata & Hexports).
+    iMod (alloc_adversary_compartment_perm (swlayout := swl) W C_cmpt C Hcode Hdata
+           with "Hseal Himp Hcode Hdata [] [Himports] Hthread Hperm")
+      as "($ & $ & $ & #Hexp)".
+    - iApply (Hexports with "Hswitcher Hpers").
+    - iIntros "Hinterp". iApply fw_imports_safe_words; first exact Hfc_ok.
+      by iApply "Himports".
+    - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
+  Qed.
 End adversary.
 
 (** The first thread starts in an untrusted compartment. *)
