@@ -521,6 +521,14 @@ Section codefrag_thread.
   Lemma codefrag_pers_thread_indep (t t' : Thread) (a0 : Addr) (cs : list Word) :
     @codefrag_pers Σ (ceriseG_of t) a0 cs ⊣⊢ @codefrag_pers Σ (ceriseG_of t') a0 cs.
   Proof. by rewrite !codefrag_pers_unseal. Qed.
+
+  Lemma region_pointsto_thread_indep (t t' : Thread) (b e : Addr) (ws : list LWord) :
+    region_pointsto (ceriseg := ceriseG_of t) b e ws ⊣⊢
+    region_pointsto (ceriseg := ceriseG_of t') b e ws.
+  Proof.
+    rewrite /region_pointsto. apply big_sepL2_proper.
+    intros _ a w _ _. apply pointsto_thread_indep.
+  Qed.
 End codefrag_thread.
 
 Section region_addrs_zeroes.

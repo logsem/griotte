@@ -61,6 +61,10 @@ Section stages.
     ([∗ map] a↦w ∈ thread_mem fw img i ft, a ↦ₐ lword_of_word w) -∗
     ●(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
     ◯(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
+    ([∗ set] C ∈ CNames,
+       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread i)))
+         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread i)))
+         (UserThread i) fw_world0 C ∅) -∗
     suspended_res i (fw_start_vals fw img i) -∗
     (fw_thread_res fw img i -∗
      £ 1
@@ -87,7 +91,7 @@ Section stages.
     { intros r Hr. apply not_elem_of_dom. rewrite fw_cleared_regs_dom.
       intros [_ Hn]%elem_of_difference. apply Hn.
       rewrite !elem_of_union !elem_of_singleton. tauto. }
-    iIntros "Hmem Hcstk_full Hcstk Hres Hobl".
+    iIntros "Hmem Hcstk_full Hcstk Hlocals Hres Hobl".
     iNamed "Hres".
     iEval (rewrite Hhome Htst) in "Hmtdc".
     iMod (fw_thread_trusted_stack_inv_alloc fw img i ft ⊤ Hwf H0 Hi Hhome'
@@ -106,7 +110,7 @@ Section stages.
     { rewrite !lookup_insert_ne //; auto. }
     iDestruct (big_sepM_insert with "Hregs") as "[Hcgp Hregs]".
     { auto. }
-    iFrame "Hinv HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk Hna HMIE Hheld".
+    iFrame "Hinv HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk Hna HMIE Hheld Hlocals".
   Qed.
 
   (** The save area of the idle thread, from its memory. *)
@@ -323,7 +327,12 @@ Section stages.
     ([∗ list] k ↦ ef ∈ efs, ●(CSTK)[u k] (entry_cstack ef) ∗ ◯(CSTK)[u k] (entry_cstack ef)) -∗
     world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch) fw_world0 C_sched -∗
     ([∗ set] C ∈ CNames ∖ {[C_sched]},
-       world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 C)
+       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) -∗
+    ([∗ list] k ↦ _ ∈ efs, [∗ set] C ∈ CNames,
+       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
+         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
+         (UserThread k) fw_world0 C ∅)
     ={⊤}=∗
     (let _ : switcherLayout := swl in [∗ list] t ↦ _ ∈ vs, slot t None) ∗
     inv Nassert_flag (flag_assert (img_asrt img) ↦ₐ WInt 0) ∗
@@ -343,7 +352,8 @@ Section stages.
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hfc_in) as Hc.
     destruct (img_wf_idle_boot _ _ Hwf) as [_ (Hboot_size & _ & Hboot_range)].
     assert (length vs = S n) as Hlen_vs by rewrite /vs length_app length_imap /= Nat.add_1_r //.
-    iIntros "Hmem Hshadow Hclaims Hsusp #Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds".
+    iIntros "Hmem Hshadow Hclaims Hsusp #Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds
+      Hlocals".
     rewrite /note in Hsh. rewrite Hsh.
     (* The memory, by part *)
     iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0)) fw img σ Hok
@@ -428,16 +438,20 @@ Section stages.
     iDestruct "Hsusp" as "[Hsusp Hsusp_idle]".
     iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Hcstks".
     iDestruct "Hcstks" as "[Hcstks _]".
+    (* The local maps of the idle thread are dropped *)
+    iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Hlocals".
+    iDestruct "Hlocals" as "[Hlocals _]".
     iAssert (|={⊤}=> [∗ list] k ↦ ft ∈ fw_threads fw,
                let _ : switcherLayout := swl in slot k None)%I
-      with "[Hsusp Hcstks Hthreads_mem Hruns]" as ">Hslots".
+      with "[Hsusp Hcstks Hlocals Hthreads_mem Hruns]" as ">Hslots".
     { iApply big_sepL_fupd.
       iDestruct (big_sepL_sep_2 with "Hcstks Hruns") as "H".
+      iDestruct (big_sepL_sep_2 with "Hlocals H") as "H".
       iDestruct (big_sepL_sep_2 with "Hsusp H") as "H".
       iDestruct (big_sepL_sep_2 with "Hthreads_mem H") as "H".
       iApply (big_sepL_impl with "H").
-      iIntros "!>" (k ft Hk) "(Hm & Hs & [Hf Hfr] & Hr)".
-      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hs Hr").
+      iIntros "!>" (k ft Hk) "(Hm & Hs & Hl & [Hf Hfr] & Hr)".
+      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hl Hs Hr").
       apply Hhomes. rewrite Hlen_vs. apply lookup_lt_Some in Hk. rewrite /n. lia. }
     (* The slot of the idle thread *)
     iMod (idle_save_area_of_mem fw img Hwf with "Hidle_mem") as "Hidle_sa".
@@ -652,11 +666,13 @@ Proof.
                list_to_set (fw_otypes fw))
             (sched_entry_frame img (cmpt_of img (fc_name fc)))
             (imap (λ i _, fw_entry_frame fw img i) (fw_threads fw) ++ [fw_entry_frame fw img n]))
-      as (sealsg relg stsg cstackg) "(Hots & _ & Hcstk_ctx & Hcstks & Hworld_ctx & Hworlds & _)".
+      as (sealsg relg stsg cstackg)
+        "(Hots & _ & Hcstk_ctx & Hcstks & Hworld_ctx & Hworlds & Hlocals)".
     { intros [_ Hnil]%app_eq_nil. done. }
     iMod (template_stage1 (cthreads := cthreads) fw img _ fc sb C_sched Hok Hsched Hin Htv Hhomes
             (Hobl img _ ceriseb sealsg stsg relg cstackg Hok)
-           with "Hmem Hshadow Hclaims Hsusp Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds")
+           with "Hmem Hshadow Hclaims Hsusp Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds
+                 Hlocals")
       as "(Hslots & Hflag & Hres)".
     iModIntro. iFrame "Hslots Hflag".
     iIntros "Hpool Hact Htr".

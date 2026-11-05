@@ -540,15 +540,20 @@ Definition ceriseG_of {Σ} {base : ceriseBaseG Σ} (th : Thread) : ceriseG Σ :=
 #[global] Arguments cerise_postureG : simpl never.
 #[global] Arguments cerise_mtdc_lentG : simpl never.
 
-(** The memory of the instance of a thread is that of the base, so a
-    persistent points-to is the same at any two threads. *)
 Section thread_indep.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}.
+
+  (** The memory of the instance of a thread is that of the base, so a
+      points-to at any fraction is the same at any two threads. *)
+  Lemma pointsto_thread_indep (t t' : Thread) (a : Addr) (dq : dfrac) (w : LWord) :
+    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t)) (L := Addr) (V := LWord) a dq w ⊣⊢
+    pointsto (hG := @mem_gen_memG Σ (ceriseG_of t')) (L := Addr) (V := LWord) a dq w.
+  Proof. rewrite /ceriseG_of. reflexivity. Qed.
 
   Lemma pointsto_pers_thread_indep (t t' : Thread) (a : Addr) (w : LWord) :
     pointsto (hG := @mem_gen_memG Σ (ceriseG_of t)) (L := Addr) (V := LWord) a DfracDiscarded w ⊣⊢
     pointsto (hG := @mem_gen_memG Σ (ceriseG_of t')) (L := Addr) (V := LWord) a DfracDiscarded w.
-  Proof. rewrite /ceriseG_of. reflexivity. Qed.
+  Proof. apply pointsto_thread_indep. Qed.
 
 End thread_indep.
 
