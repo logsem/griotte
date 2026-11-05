@@ -15,8 +15,8 @@ From griotte Require Import image firmware.
 
     The template: a firmware whose trusted code meets its per-thread
     obligations, started at the switcher's call of the scheduler, never
-    sets the assert flag. Then its ghost state, and the closure of the
-    threads of the compartments under the reach of untrusted code. *)
+    sets the assert flag. Then its ghost state, and a sanity check on the
+    scheduler's initial words. *)
 
 (** ** The two stages of the template *)
 
@@ -545,9 +545,11 @@ Section stages.
         destruct Hr as [ [ [ [ [ [-> | ->] | ->] | ->] | ->] | ->] | ->]; eauto. }
     assert (∀ r, r ∈ registers_scheduler_call → lreg !! r = Some (lword_of_word (WInt 0)))
       as Hclear.
-    { intros r Hr. rewrite -registers_except_scheduler_call /registers_except list_elem_of_filter in Hr.
+    { intros r Hr.
+      rewrite -registers_except_scheduler_call /registers_except list_elem_of_filter in Hr.
       destruct Hr as [ [_ Hr] _]. rewrite /lreg lookup_fmap Hzero //.
-      rewrite !elem_of_union !elem_of_singleton. intros Hx. apply Hr. rewrite !elem_of_cons. tauto. }
+      rewrite !elem_of_union !elem_of_singleton. intros Hx.
+      apply Hr. rewrite !elem_of_cons. tauto. }
     iAssert (□ ∀ (r : RegName) (w : LWord), ⌜r ∈ [ca0; ca1; ca2; ca3]⌝ → ⌜lreg !! r = Some w⌝ →
                interp (th := CtxSwitch) (CL := crit_link_full (swlayout := swl))
                  (CR := crit_route_full (swlayout := swl)) W C_sched w)%I as "#Hargs".
@@ -669,7 +671,7 @@ End adequacy.
 (** ** The ghost state of the template
 
     A case study with ghost state [Σcs] proves [fw_obligations] at
-    [#[firmwarePreΣ; Σcs]] and concludes with [firmware_adequacy_closed]. *)
+    [ #[firmwarePreΣ; Σcs] ] and concludes with [firmware_adequacy_closed]. *)
 Definition curΣ : gFunctors := #[GFunctor curUR].
 #[global] Instance subG_curΣ {Σ} : subG curΣ Σ → inG Σ curUR.
 Proof. solve_inG. Qed.
@@ -713,7 +715,7 @@ Qed.
   w ∈ sched_time_dev_words fw → no_enabling_sentry w.
 Proof. by intros [-> | ->]%sched_time_dev_words_cases sk p g b e a. Qed.
 
-(** The D1 sanity lemma: no word the scheduler starts with (its imports,
+(** A sanity check on the scheduler: no word it starts with (its imports,
     code and globals, its boot stack, the registers the switcher hands it)
     is a sentry that enables interrupts. *)
 Lemma firmware_ok_sched_no_enabling `{MP : MachineParameters} fw img σ fc sb :

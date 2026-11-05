@@ -66,7 +66,8 @@ Section droe_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS) with "Hswitcher Hswitcher_static")
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack droe_firmware 0) with 4 in Hentry_min_stack.
@@ -112,8 +113,9 @@ Section droe_obligations.
                         $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
                         $HMIE $Hheld
-                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
-    (* [eauto] closes the main goal [|={⊤}=> safe[u 0]] with ["Hspec"]. *)
+                        ]") as "Hspec";
+      last (iModIntro; iExact "Hspec").
+    all: eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }

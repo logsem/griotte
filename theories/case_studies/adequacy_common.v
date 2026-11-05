@@ -14,10 +14,9 @@ From griotte Require Export adequacy_common_obligations.
 
     Iris adequacy over the hardware, with one later per step; the ghost
     state of a Suspended user thread and its slot in the pool; the idle
-    thread's slot; the switcher's static facts at another thread; the
-    initial worlds and call stacks, with those of the context-switch
-    thread; and the adequacy theorem for the assert flag, from the start of
-    the machine at the context-switch thread. *)
+    thread's slot; the initial worlds and call stacks, with those of the
+    context-switch thread; and the adequacy theorem for the assert flag,
+    from the start of the machine at the context-switch thread. *)
 
 (** ** Iris adequacy, with one later per step *)
 
@@ -306,7 +305,7 @@ Section world_init.
     iEval (rewrite big_sepL_fmap) in "Hcstks".
     iMod (world_interp_init_ctx ots (length efs) C_sched) as (relg stsg seal_storeg)
       "(Hctx & Hworlds & Hlocals & Hseal_store)".
-    { destruct efs; [done|simpl; lia]. }
+    { destruct efs as [|ef efs]; [done|simpl; lia]. }
     iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
   Qed.
 End world_init.
@@ -544,7 +543,8 @@ Proof.
     cb_resume_window_inG := window_preg;
     γ_resume_window := γwin |}).
   (* The home values of the user threads' mtdc tokens. *)
-  assert (∀ t, t < length vs → mtdc_home_at (ceriseb := ceriseb) (th := UserThread t) = tstack_home t)
+  assert (∀ t, t < length vs →
+            mtdc_home_at (ceriseb := ceriseb) (th := UserThread t) = tstack_home t)
     as Hhomes.
   { intros t Ht. destruct (lookup_lt_is_Some_2 vs t Ht) as [v Hv].
     exact (Hhomes_g t v Hv). }

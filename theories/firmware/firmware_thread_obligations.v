@@ -69,7 +69,8 @@ Section save_area.
         (fw_entry_cgp fw img i) (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
         (WInt (mstatus_enc InterruptDisabled (fw_entry_posture fw img i))).
 
-  (** Today's start of the firmware thread [i]: the values of [fw_thread_res]. *)
+  (** The start values of the firmware thread [i]: the values of
+      [fw_thread_res]. *)
   Definition fw_start_vals (fw : firmware) (img : fw_image) (i : nat) : resume_vals :=
     {| rv_regs := <[cra := lword_of_word (fw_thread_cra img)]>
                     (<[csp := lword_of_word (fw_thread_csp img i)]>
@@ -321,7 +322,8 @@ Section sched_world.
     { change (j < S (length (img_threads img))). lia. }
     rewrite /thread_handle fw_length_eq /note.
     destruct (Nat.eqb_spec j (length (fw_threads fw))) as [-> | Hneq].
-    - rewrite -Hlen fw_tlayout_idle; last (rewrite Hlen; destruct (fw_threads fw); [done | cbn [length]; lia]).
+    - rewrite -Hlen fw_tlayout_idle;
+        last (rewrite Hlen; destruct (fw_threads fw); [done | cbn [length]; lia]).
       iExact "Hv".
     - rewrite fw_tlayout_lt; last lia.
       iExact "Hv".

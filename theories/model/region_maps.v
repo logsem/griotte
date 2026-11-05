@@ -77,8 +77,8 @@ Section relPre.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  (** The Permanent maps, and the local maps of the user threads [k], for
-      [k < nthreads]: one name each per compartment. The context-switch
+End relPre.
+
 (** The Permanent maps, the local maps of the context-switch thread, and
     those of the user threads [k], for [k < nthreads]: one name each per
     compartment. The other user threads share names that are allocated and

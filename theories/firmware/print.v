@@ -780,11 +780,13 @@ Ltac2 rec term_lines (pre : string) (paren : bool) (t : constr) (suf : string)
        | None =>
        match app_of constr:(@Some) t with
        | Some args =>
+           if Bool.neg (Int.equal (Array.length args) 2) then fallback () else
            let x := Array.get args 1 in
            term_lines (String.app pre "Some ") (arg_parens x) x cl
        | None =>
        match app_of constr:(@app) t with
        | Some args =>
+           if Bool.neg (Int.equal (Array.length args) 3) then fallback () else
            let a := Array.get args 1 in
            let infix := List.exist (fun w => Bool.or (String.equal w "++") (String.equal w "::"))
                           (outer_words (flat_text a)) in
@@ -1335,12 +1337,11 @@ Definition rle (ws : list Word) : list cell :=
     in hexadecimal. Griotte has no load/store-capability permission: [c]
     is shown whenever the capability can read or write, except on a
     capability to a memory-mapped device, which CHERIoT builds without
-    [MC]. Loads keep the
-    global bit unless [DL] ([g]) and the write permission unless [DRO]
-    ([m]); [l] is [WL], [X] is [X] or [XSR], [a] is [XSR]. A sentry has the
-    otype of its kind (1 to 5, as cheriot-sail's sentry otypes), a sealing
-    range shows its seal permissions ([S], [U]) and no memory permission;
-    [0] (the user permission) never appears. *)
+    [MC]. Loads keep the global bit unless [DL] ([g]) and the write
+    permission unless [DRO] ([m]); [l] is [WL], [X] is [X] or [XSR], [a] is
+    [XSR]. A sentry has the otype of its kind (1 to 5, as cheriot-sail's
+    sentry otypes), a sealing range shows its seal permissions ([S], [U])
+    and no memory permission; [0] (the user permission) never appears. *)
 
 Definition hex_digit (d : Z) : string := String.substring (Z.to_nat d) 1 "0123456789abcdef".
 

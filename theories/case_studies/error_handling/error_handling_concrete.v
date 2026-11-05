@@ -233,23 +233,69 @@ Qed.
     [machine_run_conf], rather than [machine_run], returns the final
     configuration, so that the final memory computes. *)
 
-(** [stats] without its error handler. *)
-Definition error_handling_drop_stats_handler (fc : fw_cmpt) : fw_cmpt :=
-  match fc_body fc with
-  | TrustedBody b =>
-      if String.eqb (fc_name fc) "stats" then
-        MkFwCmpt (fc_name fc) (fc_imports fc) (fc_static_sealed fc)
-          (TrustedBody (MkFwTrusted (tb_code b) (tb_data b) (tb_exports b) None
-                          (tb_error_handler_stackless b)))
-      else fc
-  | UntrustedBody _ => fc
-  | SchedulerBody _ => fc
-  end.
-
-Definition error_handling_no_handler_firmware : firmware :=
-  MkFirmware (map error_handling_drop_stats_handler (fw_cmpts error_handling_firmware))
-    (fw_threads error_handling_firmware) (fw_otypes error_handling_firmware)
-    (fw_heap_roots error_handling_firmware).
+(** The firmware, with [stats] declaring no error handler. *)
+Definition error_handling_no_handler_firmware : firmware := {|
+  fw_cmpts      := [
+    {| fc_name          := "main";
+       fc_imports       := [
+         ISwitcherCall;
+         IAssert;
+         IExport "adv" "adv";
+         IExport "stats" "stats_read"
+       ];
+       fc_static_sealed := [];
+       fc_body          := TrustedBody {|
+         tb_code    := error_handling_main_code;
+         tb_data    := [
+           FWs error_handling_main_data
+         ];
+         tb_exports := [
+           {| fe_name := "entry"; fe_offset := error_handling_main_entry_pcc_off; fe_nargs := error_handling_main_entry_nargs; fe_min_stack := error_handling_main_entry_min_stack; fe_posture := InterruptEnabled |}
+         ];
+         tb_error_handler := None;
+         tb_error_handler_stackless := None |} |};
+    {| fc_name          := "stats";
+       fc_imports       := [];
+       fc_static_sealed := [];
+       fc_body          := TrustedBody {|
+         tb_code    := stats_code;
+         tb_data    := [
+           FWs stats_data
+         ];
+         tb_exports := [
+           {| fe_name := "stats_read"; fe_offset := stats_read_pcc_off; fe_nargs := stats_read_nargs; fe_min_stack := stats_read_min_stack; fe_posture := InterruptDisabled |}
+         ];
+         tb_error_handler := None;
+         tb_error_handler_stackless := None |} |};
+    {| fc_name          := "adv";
+       fc_imports       := [
+         ISwitcherCall;
+         IExport "stats" "stats_read"
+       ];
+       fc_static_sealed := [];
+       fc_body          := UntrustedBody {|
+         ub_owner   := "adv";
+         ub_exports := [
+           {| ue_name := "adv"; ue_nargs := 0 |}
+         ] |} |};
+    {| fc_name          := "sched";
+       fc_imports       := [
+         ISwitcherCall;
+         IMtime;
+         IMtimecmp
+       ];
+       fc_static_sealed := [];
+       fc_body          := SchedulerBody {|
+         (* the exception entry after the 3 imports; the code is arbitrary *)
+         sb_entry      := 3;
+         sb_boot_stack := 16 |} |}
+  ];
+  fw_threads    := [
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+  ];
+  fw_otypes     := [];
+  fw_heap_roots := []
+|}.
 
 Definition error_handling_no_handler_image : fw_image :=
   Eval vm_compute in

@@ -17,9 +17,7 @@ From griotte Require Import image firmware firmware_ok.
 Section img_state.
   Context `{MP : MachineParameters}.
 
-  (** The start: the switcher's call of the scheduler, with the scheduler's
-      three words in [cra], [cgp] and [csp], the idle thread's handle in
-      [ca0], and every other register zero. *)
+  (** The PC of the start: the switcher's call of the scheduler. *)
   Definition img_pc (img : fw_image) : Word :=
     let sw := img_sw img in
     Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
@@ -27,6 +25,9 @@ Section img_state.
          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
            ".Lswitch_csp_check" ".Lexception_scheduler_cjalr")%a.
 
+  (** The registers of the start: the scheduler's three words in [cra],
+      [cgp] and [csp], the idle thread's handle in [ca0], and every other
+      register zero. *)
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
     <[cra := sched_pcc_word fw img]>
       (<[cgp := sched_cgp_word fw img]>
@@ -270,7 +271,8 @@ Section checks.
     - right. by apply bool_decide_eq_true in Hw.
   Qed.
 
-  (** A word of the boot stack that is an integer or a thread handle. *)
+  (** A word of the boot stack that is an integer or a thread handle: the
+      same test as [sched_data_wordb], for another predicate of the image. *)
   Definition boot_stack_wordb (hs : list Word) (w : Word) : bool :=
     is_z w || bool_decide (w ∈ hs).
 

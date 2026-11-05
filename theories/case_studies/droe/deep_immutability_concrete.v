@@ -1,7 +1,7 @@
 From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang
   hw_lang hw_machine_run switcher assert allocator_resources compartment_layout
   deep_immutability deep_immutability_adequacy.
 (* Imported last: the fields of the image records. *)
@@ -92,8 +92,8 @@ Qed.
     [droe_demo_state] starts at the switcher's call of the scheduler, which
     resumes the thread; the thread runs to its exit, and the scheduler then
     halts the machine. [droe_adequacy] applies to the run: the flag of the
-    assert library is still zero. Fuel 1600 does not suffice; 1700 reaches
-    [Halted]. *)
+    assert library is still zero. The proof runs it with fuel 4500; fuel
+    1600 does not suffice, 1700 reaches [Halted]. *)
 Theorem droe_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], droe_demo_state) ([Instr Halted], σ')

@@ -692,7 +692,7 @@ Section layout_of_img_wf.
     Forall trusted_stack_word [w_mepcc; w_cra; w_csp; w_cgp; w_hazard; w_mstatus] →
     Forall trusted_stack_word (save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus).
   Proof.
-    rewrite !Forall_cons. intros (H1 & H2 & H3 & H4 & H5 & H6 & _).
+    rewrite !Forall_cons. intros (Hmepcc & Hcra & Hcsp & Hcgp & Hhazard & Hmstatus & _).
     pose proof (trusted_stack_word_int 0) as Hzero.
     rewrite /save_area_content.
     repeat apply Forall_app_2; try by apply Forall_replicate.
@@ -2280,7 +2280,8 @@ Section thread_trusted_stack_inv.
 
   (** The trusted-stack invariant of the thread [i] of a firmware, from its
       memory, its call stack and its mtdc, whose token has the trusted stack
-      as home value. Its stack and the save area of its posture are left
+      as home value. Its stack and the exact save area (the first
+      [TrustedStack_offset_frameoffset] words of the trusted stack) are left
       over. *)
   Lemma fw_thread_trusted_stack_inv_alloc fw img i ft (E : coPset)
       (Hwf : img_wf fw img) (H0 : fw_threads fw !! 0 = Some (fw_thread0 fw)) :

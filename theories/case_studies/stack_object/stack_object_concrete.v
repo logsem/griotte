@@ -1,7 +1,7 @@
 From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang
   hw_lang hw_machine_run switcher assert allocator_resources compartment_layout
   stack_object stack_object_adequacy.
 (* Imported last: the fields of the image records. *)

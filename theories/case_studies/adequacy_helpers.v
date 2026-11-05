@@ -176,10 +176,12 @@ Section adequacy_helpers.
 
     (** The trusted-stack invariant for the user thread [th], from its
         trusted stack with contents [ts], its hazard slots and its call
-        stack, and the register save area of its posture. The entry frame of
-        the thread holds the words [w_csp] and [w_tbl], a capability to the
-        export table at [b_tbl], and no error handler invocation. The home
-        value of the mtdc token of [th] is its trusted stack. *)
+        stack, and the exact save area: the first
+        [TrustedStack_offset_frameoffset] words of the trusted stack. The
+        entry frame of the thread holds the words [w_csp] and [w_tbl], a
+        capability to the export table at [b_tbl], and no error handler
+        invocation. The home value of the mtdc token of [th] is its trusted
+        stack. *)
     Lemma initialise_switcher_thread
       {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
       (ts : list Word) (w_csp w_tbl : Word) (b_tbl : Addr) :

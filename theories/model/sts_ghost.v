@@ -198,9 +198,7 @@ Proof.
     rewrite /sts_full_world sts_full_unseal /sts_full_def /Pn /=.
     rewrite -(map_nth fst γss (γsd, γrd) k) -(map_nth snd γss (γsd, γrd) k) /= !fmap_empty.
     done.
-  Qed.
-
-End pre_STS.
+Qed.
 
 Section STS.
   Context {A B E D : Type} {Σ : gFunctors} {eqa: EqDecision A} {compare_a: Ord A}

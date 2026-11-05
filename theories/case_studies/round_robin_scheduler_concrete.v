@@ -21,7 +21,7 @@ From griotte Require Import image firmware firmware_ok link.
     programs the timer threshold [mtimecmp] to [mtime + rr_time_slice],
     through the time devices it imports. Its PCC range holds its three
     imports, the switcher call, [mtime] and [mtimecmp], then its code: its
-    exception entry is the first code word. *)
+    entry is the first code word. *)
 
 (** The number of timer cycles a thread runs before the next interrupt. *)
 Definition rr_time_slice : Z := 10000.

@@ -5,9 +5,9 @@ From griotte Require Import machine_base trap_fault cap_bits.
     its own, outside the heap, the shadow region and the revoker. Each is
     one word: there is no access to a half.
 
-    The time devices exist so that the untrusted scheduler can be given an
-    MMIO capability to the timer: its code programs [mtimecmp]. Trusted code
-    (the switcher) and code outside the scheduler never use them. *)
+    The time devices exist so that a compartment, in practice the untrusted
+    scheduler, can be given an MMIO capability to the timer: its code
+    programs [mtimecmp]. The switcher never uses them. *)
 Class TimeDevRegion := {
     mtime_addr : Addr;
     mtimecmp_addr : Addr;
@@ -28,9 +28,9 @@ Definition disjoint_from_time_devs `{TimeDevRegion} (b e : Addr) : Prop :=
 
 (** The values of the time devices' registers [mtime] and [mtimecmp].
 
-    The time devices exist so that the untrusted scheduler can be given an
-    MMIO capability to the timer: its code programs [mtimecmp]. Trusted code
-    (the switcher) and code outside the scheduler never use them. *)
+    The time devices exist so that a compartment, in practice the untrusted
+    scheduler, can be given an MMIO capability to the timer: its code
+    programs [mtimecmp]. The switcher never uses them. *)
 Record TimeDevs := MkTimeDevs {
   td_mtime : Z;
   td_mtimecmp : Z;

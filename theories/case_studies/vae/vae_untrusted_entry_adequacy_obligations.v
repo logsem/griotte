@@ -84,7 +84,8 @@ Section vae_untrusted_entry_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS) with "Hswitcher Hswitcher_static")
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iEval (cbv [vae_untrusted_entry_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;

@@ -75,10 +75,12 @@ Section cmdc_obligations.
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B HBS)) as "#Hthread_B".
-    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B HBS) with "Hswitcher Hswitcher_static")
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B HBS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_B".
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS) with "Hswitcher Hswitcher_static")
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack cmdc_firmware 0) with 4 in Hentry_min_stack.
