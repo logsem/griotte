@@ -50,9 +50,9 @@ Section stages.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
   (** The slot of the user thread [i], Suspended at its entry: its
-      trusted-stack invariant from its memory, its save area, and its run
-      by the obligations of the firmware, which receive the later credit of
-      the slot. *)
+      trusted-stack invariant from its memory, allocated first, then its
+      save area and its run by the obligations of the firmware, which
+      receive the later credit of the slot. *)
   #[local] Lemma thread_slot fw img σ i ft :
     let swl := fw_switcher_layout img in
     firmware_ok fw img σ →
@@ -66,12 +66,15 @@ Section stages.
          (memg := @mem_gen_memG Σ (ceriseG_of (UserThread i)))
          (UserThread i) fw_world0 C ∅) -∗
     suspended_res i (fw_start_vals fw img i) -∗
-    (fw_thread_res fw img i -∗
-     £ 1
-     ={⊤}=∗
-     let _ : switcherLayout := swl in safe[u i]) -∗
     let _ : switcherLayout := swl in
-    |={⊤}=> slot i None.
+    |={⊤}=>
+      na_inv (tpool (UserThread i)) Ntstack
+        (trusted_stack_inv (th := UserThread i) (swlayout := swl)) ∗
+      ((fw_thread_res fw img i -∗
+        £ 1
+        ={⊤}=∗
+        let _ : switcherLayout := swl in safe[u i]) -∗
+       |={⊤}=> slot i None).
   Proof.
     intros swl Hok Hi Hhome.
     pose proof Hok as (_ & _ & _ & Hwf).
@@ -91,13 +94,14 @@ Section stages.
     { intros r Hr. apply not_elem_of_dom. rewrite fw_cleared_regs_dom.
       intros [_ Hn]%elem_of_difference. apply Hn.
       rewrite !elem_of_union !elem_of_singleton. tauto. }
-    iIntros "Hmem Hcstk_full Hcstk Hlocals Hres Hobl".
+    iIntros "Hmem Hcstk_full Hcstk Hlocals Hres".
     iNamed "Hres".
     iEval (rewrite Hhome Htst) in "Hmtdc".
     iMod (fw_thread_trusted_stack_inv_alloc fw img i ft ⊤ Hwf H0 Hi Hhome'
            with "Hmem Hcstk_full Hmtdc") as "(#Hinv & Hstack & Hsa)".
     rewrite (fw_tstack_content_save_area fw img i ft Hwf Hi).
     destruct (fw_save_area_resume_ok fw img i) as [Hmie Hrok].
+    iModIntro. iFrame "Hinv". iIntros "Hobl".
     iModIntro.
     iApply (slot_suspended_intro i _ _ Hmie Hrok with "Hsa Hlent Hauths").
     (* The run passes the slot's credit to the obligations *)
@@ -427,12 +431,7 @@ Section stages.
     iMod (saved_prop_update (scheduler_concrete (swlayout := swl) C_sched
                                (lword_of_word (sched_csp_word img))) with "Hsched") as "Hsched".
     iMod (saved_prop_persist with "Hsched") as "#Hsched".
-    (* The obligations of the firmware *)
-    iMod (Hobl with "[Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
-    { rewrite /fw_shared_res. iFrame "Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
-      iApply big_sepL_intro. iIntros "!>" (k ft Hk%lookup_lt_Some). iApply "Hst".
-      iPureIntro. rewrite /n. lia. }
-    (* The slots of the user threads *)
+    (* The user threads, the idle thread apart *)
     iEval (rewrite /vs big_sepL_app big_sepL_imap_index big_sepL_singleton length_imap
              Nat.add_0_r) in "Hsusp".
     iDestruct "Hsusp" as "[Hsusp Hsusp_idle]".
@@ -441,18 +440,41 @@ Section stages.
     (* The local maps of the idle thread are dropped *)
     iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Hlocals".
     iDestruct "Hlocals" as "[Hlocals _]".
+    (* The trusted-stack invariants of the user threads, before the
+       obligations; the rest of each slot waits for its run *)
     iAssert (|={⊤}=> [∗ list] k ↦ ft ∈ fw_threads fw,
-               let _ : switcherLayout := swl in slot k None)%I
-      with "[Hsusp Hcstks Hlocals Hthreads_mem Hruns]" as ">Hslots".
+               na_inv (tpool (UserThread k)) Ntstack
+                 (trusted_stack_inv (th := UserThread k) (swlayout := swl)) ∗
+               ((fw_thread_res fw img k -∗
+                 £ 1
+                 ={⊤}=∗
+                 let _ : switcherLayout := swl in safe[u k]) -∗
+                |={⊤}=> let _ : switcherLayout := swl in slot k None))%I
+      with "[Hsusp Hcstks Hlocals Hthreads_mem]" as ">Hallocs".
     { iApply big_sepL_fupd.
-      iDestruct (big_sepL_sep_2 with "Hcstks Hruns") as "H".
-      iDestruct (big_sepL_sep_2 with "Hlocals H") as "H".
+      iDestruct (big_sepL_sep_2 with "Hlocals Hcstks") as "H".
       iDestruct (big_sepL_sep_2 with "Hsusp H") as "H".
       iDestruct (big_sepL_sep_2 with "Hthreads_mem H") as "H".
       iApply (big_sepL_impl with "H").
-      iIntros "!>" (k ft Hk) "(Hm & Hs & Hl & [Hf Hfr] & Hr)".
-      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hl Hs Hr").
+      iIntros "!>" (k ft Hk) "(Hm & Hs & Hl & [Hf Hfr])".
+      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hl Hs").
       apply Hhomes. rewrite Hlen_vs. apply lookup_lt_Some in Hk. rewrite /n. lia. }
+    iDestruct (big_sepL_sep with "Hallocs") as "[#Htstacks Hslot_runs]".
+    (* The obligations of the firmware *)
+    iMod (Hobl with "[Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
+    { rewrite /fw_shared_res.
+      iFrame "Htstacks Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
+      iApply big_sepL_intro. iIntros "!>" (k ft Hk%lookup_lt_Some). iApply "Hst".
+      iPureIntro. rewrite /n. lia. }
+    (* The slots of the user threads *)
+    iAssert (|={⊤}=> [∗ list] k ↦ ft ∈ fw_threads fw,
+               let _ : switcherLayout := swl in slot k None)%I
+      with "[Hslot_runs Hruns]" as ">Hslots".
+    { iApply big_sepL_fupd.
+      iDestruct (big_sepL_sep_2 with "Hslot_runs Hruns") as "H".
+      iApply (big_sepL_impl with "H").
+      iIntros "!>" (k ft Hk) "[Hslot Hrun]".
+      iApply ("Hslot" with "Hrun"). }
     (* The slot of the idle thread *)
     iMod (idle_save_area_of_mem fw img Hwf with "Hidle_mem") as "Hidle_sa".
     iPoseProof ("Hst" $! n with "[]") as "Hstatic_n"; first (iPureIntro; lia).

@@ -1,0 +1,82 @@
+From iris.proofmode Require Import proofmode.
+From griotte Require Import rules logrel proofmode.
+From griotte Require Import ti_spec_states.
+
+(** * Temporal isolation, block 0: initialisation of the data
+
+    Block 0 saves the return address of the thread in [cs0], sets [b := 0],
+    and prepares the argument [(RW, Local, b, b+1, b)] of the call to [B.f]
+    in [ca0]. *)
+
+Section TI_Init_Blocks_1.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf} {assertlayout : assertLayout}
+  .
+
+  Lemma ti_init_blocks_1_spec
+    (pc_b pc_e pc_a cgp_b cgp_e : Addr)
+    (wca0 wct0 wct1 wcs0 wcra : LWord) :
+    SubBounds pc_b pc_e pc_a (pc_a ^+ length ti_K_code) ->
+    (cgp_b + length ti_K_data)%a = Some cgp_e ->
+    disjoint_from_mmio cgp_b cgp_e ->
+    not_heap_range cgp_b cgp_e ->
+    PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
+    cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+    ca0 ↦ᵣ[th] wca0 ∗
+    ct0 ↦ᵣ[th] wct0 ∗
+    ct1 ↦ᵣ[th] wct1 ∗
+    cs0 ↦ᵣ[th] wcs0 ∗
+    cra ↦ᵣ[th] wcra ∗
+    cgp_b ↦ₐ WInt 0 ∗
+    codefrag_pers pc_a ti_K_code ∗
+    ▷ ( PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ ti_label_offset ".Lti_fetch_switcher")%a ∗
+        cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
+        ca0 ↦ᵣ[th] Cap RW Local cgp_b (cgp_b ^+ 1) cgp_b ∗
+        (∃ w, ct0 ↦ᵣ[th] w) ∗
+        (∃ w, ct1 ↦ᵣ[th] w) ∗
+        cs0 ↦ᵣ[th] wcra ∗
+        cra ↦ᵣ[th] wcra ∗
+        cgp_b ↦ₐ WInt 0 ∗
+        codefrag_pers pc_a ti_K_code
+        -∗ safe[th])
+    ⊢ safe[th].
+  Proof.
+    iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio [Hcgp_nonheap Hcgp_heap])
+      "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b & Hcode_main & Hpost)".
+    codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
+
+    (* Block 0: initialisation *)
+    focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
+    (* Mov cs0 cra *)
+    iInstr "Hcode".
+    (* Store cgp 0%Z 0 *)
+    iInstr "Hcode".
+    { solve_not_shadow Hcgp_mmio. }
+    { solve_addr. }
+    (* Mov ca0 cgp *)
+    iInstr "Hcode".
+    (* GetA ct0 ca0 *)
+    iInstr "Hcode".
+    (* Add ct1 ct0 1%Z *)
+    iInstr "Hcode".
+    (* Subseg ca0 ca0 ct0 ct1 *)
+    iInstr "Hcode".
+    { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
+    { solve_addr. }
+    { solve_addr. }
+    (* Restrict ca0 ca0 (encodePermPair (RW, Local)) *)
+    iInstr "Hcode".
+    { by rewrite decode_encode_permPair_inv. }
+    { solve_pure. }
+    { solve_pure. }
+    subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
+    iApply "Hpost"; iFrame "∗ Hcode_main".
+  Qed.
+
+End TI_Init_Blocks_1.

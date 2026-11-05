@@ -183,20 +183,6 @@ Section Switcher_Call_World.
     done.
   Qed.
 
-  Lemma switcher_entry_point_prop W C (wct1 : LWord) :
-    ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
-    (if is_sealed_with_o wct1.(lw) ot_switcher then interp W C wct1 else True) -∗
-    world_interp W C -∗
-    world_interp W C ∗
-    ▷ (∀ wsb π,
-         ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ -∗
-         ⌜ get_tag_sealable wsb = true ⌝ -∗
-         ot_switcher_prop W C (WSealable wsb @@? π)).
-  Proof.
-    iIntros "#Hp_ot_switcher #Htarget_v $".
-    iApply (ot_switcher_entry_prop with "Hp_ot_switcher Htarget_v").
-  Qed.
-
   (** The registers when entering the callee. *)
   Lemma switcher_call_entry_registers W W' C (nargs : nat)
     (arg_rmap' rmap' : LReg) (wcgp wstk : LWord) (mie : InterruptStatus) :
@@ -554,28 +540,6 @@ Section Switcher_Call_World.
     iSplit.
     { erewrite readAllowed_flowsto; eauto. }
     { erewrite writeAllowed_flowsto; eauto. }
-  Qed.
-
-  (** Reinstate the callee's stack in the world, once cleared. *)
-  Lemma switcher_cc_world_reinstate E W C (b e a : Addr) :
-    revoked_addresses W (stk_free b e a) ->
-    callee_stk_bounds b e a ->
-    disjoint_from_mmio (stk_free_b b a) (stk_free_e e a) ->
-    disjoint_from_heap (stk_free_b b a) (stk_free_e e a) ->
-    let W' := std_update_multiple W (callee_stk_region b e a) Temporary in
-    world_interp W C -∗
-    StackRevokedResources W C (stk_free b e a) -∗
-    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]]
-    ={E}=∗
-    world_interp W' C ∗
-    interp W' C (callee_csp b e a) ∗
-    ⌜ related_sts_pub_world W W' ⌝ ∗
-    ⌜ revoked_addresses W (callee_stk_region b e a) ⌝.
-  Proof.
-    iIntros (Hstk_revoked Hbounds Hstk_mmio Hstk_heap W') "Hworld_interp Hstk_val Hstk".
-    rewrite !world_interp_eq.
-    iDestruct "Hworld_interp" as "[Hperm Hlocal]".
-    iMod (local_cc_world_reinstate with "Hlocal Hstk_val Hstk") as "($ & $ & $ & $)"; done.
   Qed.
 
   (** Collect the registers cleared on the exhausted path of the

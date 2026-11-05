@@ -180,7 +180,7 @@ Section Switcher.
        (∃ wca1, ca1 ↦ᵣ[th] wca1) ∗
        regs[th] rmap0 ∗
        [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
-       world_interp W C ∗
+       world_resources W C ∗
        StackRevokedResources W C (stk_free b_stk e_stk a_stk) ∗
        ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs ∗
@@ -196,8 +196,7 @@ Section Switcher.
     iApply (trap_safe_resume_of_safety ⊤ with "Hsafety");
       [set_solver | apply trap_no_resume_first_spill |].
     iMod "Hres" as "(Hna & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%wca0 Hca0] & [%wca1 Hca1]
-                     & Hrmap0 & Hstk & Hworld_interp & Hstk_val & Hcstk & Hcont & Hmie & Hheld)".
-    iMod (world_resources_init with "Hworld_interp") as "Hworld_res".
+                     & Hrmap0 & Hstk & Hworld_res & Hstk_val & Hcstk & Hcont & Hmie & Hheld)".
     iModIntro.
     iDestruct (big_sepM_insert_2 _ _ cra wcra_caller with "[Hcra] Hrmap0") as "Hrmap0"; [iFrame|].
     iDestruct (big_sepM_insert_2 _ _ cgp wcgp_caller with "[Hcgp] Hrmap0") as "Hrmap0"; [iFrame|].
@@ -446,7 +445,7 @@ Section Switcher.
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     regs[th] delete ctp (delete ct2 rmap) -∗
-    world_interp W C -∗
+    world_resources W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
@@ -510,7 +509,7 @@ Section Switcher.
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     regs[th] delete ctp (delete ct2 rmap) -∗
-    world_interp W C -∗
+    world_resources W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
@@ -538,7 +537,7 @@ Section Switcher.
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
     (* Outline of the proof: [switcher_cc_exhausted_regs] collects the
-       registers, [switch_trusted_stack_exhausted_path_world_spec] restores
+       registers, [switch_trusted_stack_exhausted_path_spec] restores
        the registers, clears the others and returns, then close the trusted-stack
        invariant and use the second post-condition. The return address is a
        valid target, so the jump back does not fault. *)
@@ -553,12 +552,12 @@ Section Switcher.
     iDestruct (switcher_cc_exhausted_regs with "Hargs Hregs Hct1 Hct2 Hctp")
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
-    iApply (switch_trusted_stack_exhausted_path_world_spec W C with
-      "[- $HPC $Hcsp $Hcells $Hworld_interp $Hrmap0 $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1
+    iApply (switch_trusted_stack_exhausted_path_spec with
+      "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1
         $Hcode $Hmie $Hheld]");
       [done|done|done|done|].
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
-      "(%Hrestored & %Hrmap' & Hworld_interp & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
+      "(%Hrestored & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp
       & Hcells & Hrmap & Hlc)".
     iSplit; cycle 1.
     { (* The return address of the caller is a valid target *)
@@ -569,7 +568,6 @@ Section Switcher.
     iIntros "(HPC & Hmie & Hheld & Hlc')".
     iCombine "Hlc Hlc'" as "Hlc".
     iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
-    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iApply ("Hpost" $! W rmap' [] [] rcgp rcra rcs0 rcs1 InterruptDisabled); iRight.
     iFrame "Hna HPC Hcgp Hcra Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hstk Hworld_interp Hstk_val Hcstk
       Hcont Hlc Hmie Hheld".
@@ -612,7 +610,7 @@ Section Switcher.
     trusted_stack_inv_opened cstk' a_tstk -∗
     switcher_cc_args W C wct1_caller arg_rmap is_entry_point_known -∗
     regs[th] delete ctp (delete ct2 rmap) -∗
-    world_interp W C -∗
+    world_resources W C -∗
     StackRevokedResources W C (stk_free b_stk e_stk a_stk) -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation cstk Ws Cs -∗
@@ -669,15 +667,17 @@ Section Switcher.
       apply trap_no_resume_switcher_pc. by vm_compute. }
     { (* The fault is in the switcher *)
       iLeft; iPureIntro. apply switcher_fault_pc_cap. }
-    iMod (switcher_cc_world_reinstate _ W C b_stk e_stk a_stk with "Hworld_interp Hstk_val Hstk")
-      as "(Hworld_interp & #Hstk4v & _ & _)"; [done| | | |].
+    iDestruct (world_resources_split with "Hworld_interp") as "[Hlocal Hperm]".
+    iMod (local_cc_world_reinstate _ W C b_stk e_stk a_stk with "Hlocal Hstk_val Hstk")
+      as "(Hlocal & #Hstk4v & _ & _)"; [done| | | |].
     { rewrite /callee_stk_bounds; stk_unfold;
         split_and!; solve_addr+Hastk Hastk_bounds Hastk_bstk. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
-    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
+    iAssert (world_resources W' C) with "[Hlocal Hperm]" as "Hworld_interp".
+    { rewrite world_resources_split. iFrame "Hlocal Hperm". }
     iMod (trusted_stack_inv_opened_push frame cstk with
            "Hopened Hcstk Hmtdc Hframeoffset Hhazard Hframe_csp Hframe_tbl Hframe_cnt Htstk [Hcells]")
       as "[Hna Hcstk]";
@@ -724,7 +724,7 @@ Section Switcher.
     thread_in th C -∗
     switcher_trap_safety -∗
     trusted_stack_inv_opened cstk' a_tstk -∗
-    world_interp W' C -∗
+    world_resources W' C -∗
     ◯(CSTK)[th] cstk -∗
     interp_continuation (cstack_push frame cstk) (W' :: Ws) (C :: Cs) -∗
     switcher_stk_cells (stk_spill_a a_stk) wcs0_caller wcs1_caller wcgp_caller wcra_caller -∗
@@ -772,7 +772,6 @@ Section Switcher.
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; [done|done|].
     iDestruct (switcher_cc_full_regs with "Hrmap0 Hcra Hcgp Hcsp Hcs0 Hcs1 Hca0 Hca1")
       as (regs) "[%Hfull_regs Hregs]"; first done.
-    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iApply (switcher_call_stack_too_small_unwind_of_safety W' C (cstack_push frame cstk)
               (W' :: Ws) (C :: Cs) regs);
       [done|simpl; split; [apply related_sts_pub_refl_world|done]|].
@@ -836,7 +835,7 @@ Section Switcher.
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ world_interp W C
+    ∗ world_resources W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
@@ -940,9 +939,9 @@ Section Switcher.
          unseal the entry point; its fault and failure exits close through
          [switcher_cc_unseal_fault], [switcher_cc_spec_tstack_exhausted] and
          [switcher_cc_spill_fault];
-       - [switcher_entry_point_prop]: the entry point satisfies the sealing
+       - [ot_switcher_entry_prop]: the entry point satisfies the sealing
          predicate of the switcher;
-       - [switcher_cc_world_reinstate]: reinstate the callee's stack frame;
+       - [local_cc_world_reinstate]: reinstate the callee's stack frame;
        - [switcher_decode_entry_path_spec]: check the size of the callee's
          stack, load the callee and jump to it; when the stack is too small,
          [switcher_cc_stack_too_small];
@@ -999,8 +998,7 @@ Section Switcher.
     iDestruct "Hpost" as "[Hpost _]".
 
     (* The entry point satisfies the sealing predicate of the switcher *)
-    iDestruct (switcher_entry_point_prop with "Hp_ot_switcher Htarget_v Hworld_interp")
-      as "[Hworld_interp Hentry_prop]".
+    iDestruct (ot_switcher_entry_prop with "Hp_ot_switcher Htarget_v") as "Hentry_prop".
     iNext; iIntros (g_tstk wsb π)
       "(-> & %Htag & %Hstk_bounds & %Ha_next & %Ha_next_e & HPC & Hcs0 & [%wcs1' Hcs1]
       & [%wct2' Hct2] & Hctp & Hcsp & Hcra & Hcgp & Hct1 & Hcells & Hstk & Hmtdc & Hframeoffset
@@ -1013,14 +1011,17 @@ Section Switcher.
 
     (* Reinstate the callee's stack frame in the world *)
     set (W' := std_update_multiple W (callee_stk_region b_stk e_stk a_stk) Temporary).
-    iMod (switcher_cc_world_reinstate _ W C b_stk e_stk a_stk with "Hworld_interp Hstk_val Hstk")
-      as "(Hworld_interp & #Hstk4v & %Hrelated & %Hrev)"; [done| | | |].
+    iDestruct (world_resources_split with "Hworld_interp") as "[Hlocal Hperm]".
+    iMod (local_cc_world_reinstate _ W C b_stk e_stk a_stk with "Hlocal Hstk_val Hstk")
+      as "(Hlocal & #Hstk4v & %Hrelated & %Hrev)"; [done| | | |].
     { rewrite /callee_stk_bounds; stk_unfold;
         split_and!; solve_addr+Hastk Hastk_bounds Hastk_bstk. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
     { eapply switcher_disjoint_subseg; [reflexivity| |split; eassumption].
       stk_unfold; solve_addr+Hastk Hastk_bounds. }
+    iAssert (world_resources W' C) with "[Hlocal Hperm]" as "Hworld_interp".
+    { rewrite world_resources_split. iFrame "Hlocal Hperm". }
     iSpecialize ("Hentry_cont" $! th with "Hthread").
     iSpecialize ("Hentry_cont" $! W').
     set (frame := switcher_cc_frame wcgp_caller wcra_caller wcs0_caller wcs1_caller
@@ -1065,7 +1066,6 @@ Section Switcher.
                 "[$Hcgp $Hcra $Hcsp $Hstk4v $Hargs $Hregs]")
       as (regs) "[Hregs Hregs_interp]"; [done|done|done|].
     iPoseProof (switcher_untrusted_vec_safe_of_safety with "Hsafety") as "#Htv".
-    iMod (world_resources_init with "Hworld_interp") as "Hworld_interp".
     iDestruct (shared_credit_refill C with "Hlc_cred") as "Hcred".
     iApply ("Hentry_cont" $! (cstack_push frame cstk) (W' :: Ws) (C :: Cs) regs
               (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)).
@@ -1142,7 +1142,7 @@ Section Switcher.
     ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
-    ∗ world_interp W C
+    ∗ world_resources W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk

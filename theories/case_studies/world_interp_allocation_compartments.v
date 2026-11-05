@@ -84,7 +84,8 @@ Section region_alloc_cmpt.
       iNext ; by iApply wcond_nwl_interp_nonlocal.
   Qed.
 
-  Lemma alloc_compartment_interp_rel {E : coPset} (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
+  (** [alloc_compartment_interp_rel] on the map of Permanent regions alone. *)
+  Lemma alloc_compartment_interp_rel_perm {E : coPset} (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
     let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
     let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
     let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
@@ -109,11 +110,11 @@ Section region_alloc_cmpt.
     ) -∗
 
     thread_in th C -∗
-    world_interp W C
+    perm_region_map C ∅
 
     ={E}=∗
 
-    world_interp W C ∗
+    perm_region_map C ∅ ∗
     interp W C pcc_cap ∗
     interp W C cgp_cap ∗
     ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL W C v) ∗
@@ -127,7 +128,7 @@ Section region_alloc_cmpt.
     pose proof (cmpt_cgp_disjoint_from_heap C_cmpt) as Hcgp_heap.
     iIntros "HC_imports HC_code HC_data Himport_interp #Hth Hworld_C".
 
-    iMod (world_interp_extend_perm_sepL2 W C
+    iMod (perm_extend_sepL2 C
             code_addrs (lword_of_word <$> cmpt_code C_cmpt)
             RX (safeGC interp_cmpt_threads)
            with "Hworld_C [HC_code]") as "(Hworld_C & #HC_code)".
@@ -143,7 +144,7 @@ Section region_alloc_cmpt.
       iApply bi.later_intro. iApply interp_cmpt_threads_int.
     }
 
-    iMod (world_interp_extend_perm_sepL2_open W C
+    iMod (perm_extend_sepL2_open C
             data_addrs
             (lword_of_word <$> cmpt_data C_cmpt)
             RW (safeGC interp_nonlocal)
@@ -217,7 +218,7 @@ Section region_alloc_cmpt.
         iApply wcond_nwl_interp_nonlocal.
     }
 
-    iMod (world_interp_extend_perm_sepL2_open_frame W C
+    iMod (perm_extend_sepL2_open_frame C
             imports_addrs
             (lword_of_word <$> cmpt_imports C_cmpt)
             RX (safeGC interp_cmpt_threads)
@@ -240,6 +241,96 @@ Section region_alloc_cmpt.
     iEval (rewrite /interp_cmpt_threads /=) in "Hv". iDestruct "Hv" as "#Hv".
     iApply (interp_monotone with "[] (Hv Hth)").
     iPureIntro. apply related_sts_pub_world_empty.
+  Qed.
+
+  Lemma alloc_compartment_interp_rel {E : coPset} (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
+    let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
+    let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
+    let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
+    let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+
+    Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
+    Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
+
+    ([∗ list] k;v ∈ imports_addrs ; lword_of_word <$> cmpt_imports C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ code_addrs ; lword_of_word <$> cmpt_code C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ data_addrs ; lword_of_word <$> cmpt_data C_cmpt, k ↦ₐ v) -∗
+
+    (
+      (
+        ([∗ list] k ∈ (imports_addrs++code_addrs), LNonHeap k ↪ᵖ[C]{RX} safeGC interp_cmpt_threads) ∗
+        ([∗ list] k ∈ (data_addrs), LNonHeap k ↪ᵖ[C]{RW} safeGC interp_nonlocal)
+      )
+      -∗
+      ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) ∗
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
+    ) -∗
+
+    thread_in th C -∗
+    world_interp W C
+
+    ={E}=∗
+
+    world_interp W C ∗
+    interp W C pcc_cap ∗
+    interp W C cgp_cap ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL W C v) ∗
+    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
+  .
+  Proof.
+    intros * C_code C_data.
+    iIntros "HC_imports HC_code HC_data Himport_interp #Hth Hworld_C".
+    rewrite world_interp_eq. iDestruct "Hworld_C" as "[Hperm Hlocal]".
+    iMod (alloc_compartment_interp_rel_perm W C_cmpt C C_code C_data
+      with "HC_imports HC_code HC_data Himport_interp Hth Hperm") as "[Hperm $]".
+    iModIntro. iFrame.
+  Qed.
+
+  (** [alloc_compartment_interp] on the map of Permanent regions alone. *)
+  Lemma alloc_compartment_interp_perm (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
+    let imports_addrs := finz.seq_between (cmpt_b_pcc C_cmpt) (cmpt_a_code C_cmpt) in
+    let code_addrs := finz.seq_between (cmpt_a_code C_cmpt) (cmpt_e_pcc C_cmpt) in
+    let data_addrs := finz.seq_between (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) in
+    let pcc_cap := (Cap RX Global (cmpt_b_pcc C_cmpt) (cmpt_e_pcc C_cmpt) (cmpt_b_pcc C_cmpt)%a) in
+    let cgp_cap := (Cap RW Global (cmpt_b_cgp C_cmpt) (cmpt_e_cgp C_cmpt) (cmpt_b_cgp C_cmpt)%a) in
+
+    Forall (λ w : Word, is_z w) (cmpt_code C_cmpt) ->
+    Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) ->
+
+    ([∗ list] k;v ∈ imports_addrs ; lword_of_word <$> cmpt_imports C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ code_addrs ; lword_of_word <$> cmpt_code C_cmpt, k ↦ₐ v) -∗
+    ([∗ list] k;v ∈ data_addrs ; lword_of_word <$> cmpt_data C_cmpt, k ↦ₐ v) -∗
+    (
+      (
+        interp W C pcc_cap ∗
+        interp W C cgp_cap
+      )
+      -∗
+      ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) ∗
+      ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
+    )
+    -∗
+
+    thread_in th C -∗
+    perm_region_map C ∅
+
+    ={E}=∗
+
+    perm_region_map C ∅ ∗
+    interp W C pcc_cap ∗
+    interp W C cgp_cap ∗
+    ([∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, interp_in_mem RWL W C v) ∗
+    ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v)
+  .
+  Proof.
+    intros * C_code C_data.
+    iIntros "HC_imports HC_code HC_data Himport_interp #Hth Hworld_C".
+    iApply (alloc_compartment_interp_rel_perm W C_cmpt C C_code C_data
+      with "HC_imports HC_code HC_data [Himport_interp] Hth Hworld_C").
+    iIntros "(#Hrel_pcc & #Hrel_data)".
+    iApply "Himport_interp".
+    iApply (cmpt_caps_interp with "Hrel_pcc Hrel_data").
   Qed.
 
   Lemma alloc_compartment_interp (E : coPset) (W : WORLD) ( C_cmpt : cmpt ) (C : CmptName) :
@@ -280,11 +371,10 @@ Section region_alloc_cmpt.
   Proof.
     intros * C_code C_data.
     iIntros "HC_imports HC_code HC_data Himport_interp #Hth Hworld_C".
-    iApply (alloc_compartment_interp_rel W C_cmpt C C_code C_data
-      with "HC_imports HC_code HC_data [Himport_interp] Hth Hworld_C").
-    iIntros "(#Hrel_pcc & #Hrel_data)".
-    iApply "Himport_interp".
-    iApply (cmpt_caps_interp with "Hrel_pcc Hrel_data").
+    rewrite world_interp_eq. iDestruct "Hworld_C" as "[Hperm Hlocal]".
+    iMod (alloc_compartment_interp_perm E W C_cmpt C C_code C_data
+      with "HC_imports HC_code HC_data Himport_interp Hth Hperm") as "[Hperm $]".
+    iModIntro. iFrame.
   Qed.
 
 End region_alloc_cmpt.

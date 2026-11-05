@@ -183,3 +183,18 @@ Section Assert.
   Qed.
 
 End Assert.
+
+Section assert_thread_indep.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}.
+
+  (** The assert library's static part is the same at any two threads. *)
+  Lemma assert_static_thread_indep (t t' : Thread) (b_assert e_assert a_flag : Addr) :
+    assert_static (ceriseg := ceriseG_of t) b_assert e_assert a_flag ⊣⊢
+    assert_static (ceriseg := ceriseG_of t') b_assert e_assert a_flag.
+  Proof.
+    rewrite /assert_static.
+    setoid_rewrite (codefrag_pers_thread_indep t t').
+    setoid_rewrite (pointsto_pers_thread_indep t t').
+    reflexivity.
+  Qed.
+End assert_thread_indep.
