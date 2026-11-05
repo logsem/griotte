@@ -178,27 +178,30 @@ Section world_resources_init_all.
   Definition shared_of (Cs : gset CmptName) : gset CmptName :=
     filter (λ C, cmpt_shared C = true) Cs.
 
-  (** The first thread turns the world of each compartment into the world
-      premise of its regime. The map of Permanent regions of each shared
-      compartment goes into its invariant, which the other threads then
-      share. *)
-  Lemma world_resources_init_all (E : coPset) (Wf : CmptName → WORLD) (Cs : gset CmptName) :
+  (** The map of Permanent regions of each shared compartment of [Cs] goes
+      into its invariant, which every thread then shares; the maps of the
+      other compartments stay. *)
+  Lemma world_resources_init_all (E : coPset) (Cs : gset CmptName) :
     ([∗ set] C ∈ Cs,
-       world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) (Wf C) C)
+       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅)
     ={E}=∗
-    ([∗ set] C ∈ Cs, world_resources (th := UserThread 0) (Wf C) C) ∗
-    ([∗ set] C ∈ shared_of Cs, wg_inv C).
+    ([∗ set] C ∈ shared_of Cs, wg_inv C) ∗
+    ([∗ set] C ∈ filter (λ C, cmpt_shared C = false) Cs,
+       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅).
   Proof.
-    iIntros "Hworlds".
-    rewrite /shared_of big_sepS_filter' -big_sepS_sep.
+    iIntros "Hperms".
+    rewrite /shared_of !big_sepS_filter' -big_sepS_sep.
     iApply big_sepS_fupd.
-    iApply (big_sepS_impl with "Hworlds").
-    iIntros "!>" (C _) "Hworld".
-    case_decide as Hshared.
-    - by iApply (world_resources_init_shared (th := UserThread 0) with "Hworld").
-    - apply not_true_is_false in Hshared.
-      rewrite (world_resources_exclusive (th := UserThread 0) _ _ Hshared).
-      by iFrame.
+    iApply (big_sepS_impl with "Hperms").
+    iIntros "!>" (C _) "Hperm".
+    case_decide as Hshared; case_decide as Hexcl.
+    - by rewrite Hshared in Hexcl.
+    - iMod (na_inv_alloc crit E (Nwg C) with "Hperm") as "#Hinv".
+      by iFrame "Hinv".
+    - by iFrame.
+    - by apply not_true_is_false in Hshared.
   Qed.
 
   (** Another thread joins the shared compartments with its local maps; it
@@ -356,6 +359,50 @@ Section adversary_world.
     - iApply heap_cap_ok_disjoint. apply cmpt_exp_tbl_disjoint_from_heap.
   Qed.
 
+  (** [alloc_adversary_compartment] on the map of Permanent regions alone. *)
+  Lemma alloc_adversary_compartment_perm {E : coPset} (W : WORLD) (C_cmpt : cmpt) (C : CmptName) :
+    Forall is_z (cmpt_code C_cmpt) →
+    Forall (is_initial_data_word C_cmpt) (cmpt_data C_cmpt) →
+    switcher.ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC -∗
+    [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] -∗
+    [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] -∗
+    [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] -∗
+    □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
+        interp W C (cmpt_pcc_cap C_cmpt) -∗
+        interp W C (cmpt_cgp_cap C_cmpt) -∗
+        ot_switcher_prop W C (WSealable (cmpt_export C_cmpt a))) -∗
+    ((interp W C (cmpt_pcc_cap C_cmpt) ∗ interp W C (cmpt_cgp_cap C_cmpt) ∗
+      [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v) -∗
+     [∗ list] v ∈ lword_of_word <$> cmpt_imports C_cmpt, safeGC interp_cmpt_threads (C, v)) -∗
+    thread_in th C -∗
+    perm_region_map C ∅
+    ={E}=∗
+    perm_region_map C ∅ ∗
+    interp W C (cmpt_pcc_cap C_cmpt) ∗
+    interp W C (cmpt_cgp_cap C_cmpt) ∗
+    [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v.
+  Proof.
+    intros Hcode Hdata.
+    iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports #Hthread Hworld".
+    iAssert (□ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v) -∗
+               [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v)%I as "Hto_interp".
+    { iIntros "#Hexp".
+      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+      destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hbase & _).
+      iApply (interp_in_mem_load_result with "Hv").
+      by right. }
+    iMod (alloc_compartment_interp_perm with "HC_imports HC_code HC_data [Himports] Hthread Hworld")
+      as "($ & $ & $ & _ & #Hexp)"; [done..| |].
+    { iIntros "(#Hpcc & #Hcgp)".
+      iDestruct (exported_entries_sealed_interp W with "Hseal_pred []") as "#Hexp".
+      { iModIntro. iApply big_sepL_intro; iIntros "!>" (i a Ha).
+        iApply ("Hexports" with "[//] Hpcc Hcgp"). }
+      iSplitL "Himports"; first (iApply "Himports"; iFrame "#").
+      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
+      by iApply interp_to_in_mem. }
+    iModIntro. by iApply "Hto_interp".
+  Qed.
+
   (** Allocate an adversary compartment [C_cmpt] in the world: its imports,
       code and data become permanent, and its exported entries are sealed with
       [ot_switcher] in the world. The caller proves that the exported entries
@@ -385,23 +432,11 @@ Section adversary_world.
   Proof.
     intros Hcode Hdata.
     iIntros "#Hseal_pred HC_imports HC_code HC_data #Hexports Himports #Hthread Hworld".
-    iAssert (□ ([∗ set] v ∈ exported_entries_sealed C_cmpt, interp_in_mem RWL W C v) -∗
-               [∗ set] v ∈ exported_entries_sealed C_cmpt, interp W C v)%I as "Hto_interp".
-    { iIntros "#Hexp".
-      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
-      destruct (exported_entries_sealed_words C_cmpt v Hv) as (sb & -> & Hbase & _).
-      iApply (interp_in_mem_load_result with "Hv").
-      by right. }
-    iMod (alloc_compartment_interp with "HC_imports HC_code HC_data [Himports] Hthread Hworld")
-      as "($ & $ & $ & _ & #Hexp)"; [done..| |].
-    { iIntros "(#Hpcc & #Hcgp)".
-      iDestruct (exported_entries_sealed_interp W with "Hseal_pred []") as "#Hexp".
-      { iModIntro. iApply big_sepL_intro; iIntros "!>" (i a Ha).
-        iApply ("Hexports" with "[//] Hpcc Hcgp"). }
-      iSplitL "Himports"; first (iApply "Himports"; iFrame "#").
-      iApply (big_sepS_impl with "Hexp"); iIntros "!>" (v Hv) "Hv".
-      by iApply interp_to_in_mem. }
-    iModIntro. by iApply "Hto_interp".
+    rewrite world_interp_eq. iDestruct "Hworld" as "[Hperm Hlocal]".
+    iMod (alloc_adversary_compartment_perm W C_cmpt C Hcode Hdata
+      with "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hthread Hperm")
+      as "[Hperm $]".
+    iModIntro. iFrame.
   Qed.
 
   (** Initialise the world of an adversary compartment [C_cmpt]:

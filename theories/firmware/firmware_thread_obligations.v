@@ -526,16 +526,20 @@ Section resources_pt.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
   (** The resources shared by the threads of a firmware whose scheduler runs
-      in [C_sched]: the switcher's static facts at every thread, the assert
-      library, the compartments but the scheduler's, initialised, the
-      sealing types, the maps of Permanent regions of the compartments but
-      [C_sched], and the heap. Each thread's local maps are in its
+      in [C_sched]: the switcher's static facts and the trusted-stack
+      invariant of every thread, the assert library, the compartments but
+      the scheduler's, initialised, the sealing types, the maps of Permanent
+      regions of the compartments but [C_sched], and the heap. Each thread's local maps are in its
       [fw_thread_res]. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     "Hswitcher_static" ∷
       ([∗ list] i ↦ _ ∈ fw_threads fw,
          switcher_static (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
+    "Hswitcher_tstacks" ∷
+      ([∗ list] i ↦ _ ∈ fw_threads fw,
+         na_inv (tpool (UserThread i)) Ntstack
+           (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img))) ∗
     "Hassert" ∷
       assert_static (ceriseg := ceriseG_of (UserThread 0))
         (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
@@ -574,6 +578,31 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
          £ 1
          ={⊤}=∗
          let _ : switcherLayout := fw_switcher_layout img in safe[u i]).
+
+(** A compartment whose threads are threads of the firmware has the
+    switcher's resources at each of its threads. *)
+Lemma fw_switcher_threads {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}
+    {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg : sealStoreG Σ} {stsg : STSG Σ} {relg : relGS Σ} {cstackg : CSTACKG Σ}
+    `{MP : MachineParameters} (fw : firmware) (img : fw_image) (C : CmptName) :
+  let swl := fw_switcher_layout img in
+  (∀ t, t ∈ cmpt_threads C → ∃ i, t = UserThread i ∧ i < length (fw_threads fw)) →
+  ([∗ list] i ↦ _ ∈ fw_threads fw,
+     switcher_static (th := UserThread i) (swlayout := swl)) -∗
+  ([∗ list] i ↦ _ ∈ fw_threads fw,
+     na_inv (tpool (UserThread i)) Ntstack
+       (trusted_stack_inv (th := UserThread i) (swlayout := swl))) -∗
+  switcher_threads (swlayout := swl) C.
+Proof.
+  iIntros (swl Hthreads) "#Hstatics #Htstacks !>".
+  iIntros (t') "#Ht'".
+  iDestruct (thread_in_elim with "Ht'") as %Ht'.
+  destruct (Hthreads t' Ht') as (i & -> & Hi).
+  destruct (lookup_lt_is_Some_2 _ _ Hi) as [ft Hft].
+  iDestruct (big_sepL_lookup _ _ i ft Hft with "Hstatics") as "Hstatic".
+  iDestruct (big_sepL_lookup _ _ i ft Hft with "Htstacks") as "Htstack".
+  iFrame "Hstatic Htstack".
+Qed.
 
 Section prepared_pt.
   Context

@@ -113,7 +113,7 @@ Section cmdc_isolated_obligations.
 
     (* 3 - The resources of the image: the thread 1 takes the resources of
        D, the thread 0 the others *)
-    iIntros "Hshared". iNamed "Hshared".
+    iIntros "Hshared". iNamed "Hshared". iClear "Hswitcher_tstacks".
     iEval (rewrite Hthreads big_sepL_cons big_sepL_singleton) in "Hswitcher_static".
     iDestruct "Hswitcher_static" as "[#Hswitcher_static #Hstatic1]".
     iEval (cbv [cmdc_isolated_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
