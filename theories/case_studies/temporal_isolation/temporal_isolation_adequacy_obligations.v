@@ -1,8 +1,8 @@
 From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  firmware_thread_obligations ti_firmware.
+From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations
+  firmware_obligations firmware_thread_obligations ti_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import temporal_isolation temporal_isolation_spec.
 From griotte Require Import assert_spec.
@@ -10,7 +10,8 @@ From griotte Require Import world_interp_allocation world_interp_allocation_comp
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_base_interp.
-From griotte Require Import compartment_layout switcher_adequacy adequacy_helpers adequacy_common_obligations.
+From griotte Require Import
+  compartment_layout switcher_adequacy adequacy_helpers adequacy_common_obligations.
 
 Section ti_obligations.
   Context {Σ : gFunctors}.

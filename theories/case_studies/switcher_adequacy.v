@@ -231,10 +231,11 @@ Section helpers_switcher_adequacy.
 
   (** A thread that starts at an export of an untrusted compartment in
       shared mode runs safely by the FTLR. Its world premise is that of the
-      regime: the first thread gets it from [world_resources_init_shared],
-      the others from [world_resources_join]. A thread that starts in [C]
-      has taken no step yet, so it brings the later credit that the world
-      accessor spends on the invariant of [C]. *)
+      regime: every thread gets it from [world_resources_join], the
+      invariant of [C] being allocated before the threads split
+      ([world_resources_init_all]). A thread that starts in [C] has taken no
+      step yet, so it brings the later credit that the world accessor spends
+      on the invariant of [C]. *)
   Lemma fundamental_untrusted_thread_shared
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
     (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :

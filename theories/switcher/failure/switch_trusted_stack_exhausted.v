@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import memory_region rules proofmode.
-From griotte Require Import logrel call_stack switcher_preamble switcher_load_spec.
+From griotte Require Import call_stack switcher_preamble switcher_load_spec.
 
 (** * Failure: the trusted stack is exhausted
 

@@ -115,8 +115,9 @@ Section TI_Assert_Blocks_3.
                  _ Hdom_exit with "Hrmap [Hcgp Hct1 Hca0 Hca1 Hca2 Hcra Hcs0]")
       as (rmap_exit) "[%Hdom_rmap_exit Hrmap]".
     { cbn. iFrame. }
-    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit with
-             "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie $Hheld]").
+    iApply (switcher_ret_thread_exit_specification _ _ _ _ rmap_exit _ Hframes Hdom_rmap_exit
+             with "[$Hswitcher $Hswitcher_static $Hna $HPC $Hctp $Hct0 $Hct2 $Hrmap $Hcstk $Hmie
+                    $Hheld]").
   Qed.
 
 End TI_Assert_Blocks_3.

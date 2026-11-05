@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel monotone interp_weakening proofmode.
 From griotte Require Import sts_multiple_updates.
-From griotte Require Import world_ghost_theory world_interp_stack world_interp_allocation_compartments.
+From griotte Require Import world_ghost_theory world_interp_stack.
 From griotte Require Import ti_spec_states.
 
 (** * Logical steps of the proof of [ti_spec]
@@ -115,7 +115,7 @@ Section TI_World.
     intros x Hx.
     rewrite /revoked_addresses Forall_forall in Hstack_revoked.
     pose proof (Hstack_revoked x Hx) as Hx_revoked.
-    assert (LNonHeap x ≠ LNonHeap cgp_b).
+    assert (LNonHeap x ≠ LNonHeap cgp_b) as Hx_ne.
     { intros Heq. apply Hcgp_b. rewrite -Heq elem_of_dom; eauto. }
     rewrite /W1 /ti_Wshare /=.
     rewrite lookup_insert_ne //.
