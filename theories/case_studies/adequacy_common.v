@@ -54,50 +54,40 @@ Section world_interp_init_ctx.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
   (** The worlds of the start: the scheduler's compartment [C_sched] at the
-      context-switch thread, the other compartments at the user thread 0,
-      empty local maps for the user threads [k < nthreads] but 0. *)
+      context-switch thread, the maps of Permanent regions of the other
+      compartments, and empty local maps of every compartment for the user
+      threads [k < nthreads]. *)
   #[local] Lemma world_interp_init_ctx (oset : gset OType) (nthreads : nat) (C_sched : CmptName) :
-    0 < nthreads →
     ⊢ |==> ∃ (relg : relGS Σ) (stsg : STSG Σ) (sstoreg : sealStoreG Σ),
         world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
           (MkWorld ∅ (∅,∅)) C_sched ∗
         ([∗ set] C ∈ CNames ∖ {[C_sched]},
-           world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0)
-             (MkWorld ∅ (∅,∅)) C) ∗
-        ([∗ list] k ∈ seq 1 (nthreads - 1), [∗ set] C ∈ CNames,
-           local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
+           perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+             (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
+        ([∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
+           local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
+             (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
+             (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
         ([∗ set] o ∈ oset, can_alloc_pred o).
   Proof.
-    intros Hn.
     assert (C_sched ∈ CNames) as Hin.
     { rewrite /CNames elem_of_list_to_set. apply elem_of_enum. }
     iMod (gen_sts_init_ctx (A:=LAddr) (B:=region_type) nthreads) as (stsg) "[Hstsc Hsts]".
     iMod (rel_init_ctx nthreads) as (relg) "(Hg & Hlc & HRELS)".
     iMod seal_store_init as (sstoreg) "Hseals".
     iExists relg, stsg, sstoreg; iFrame "Hseals".
-    assert (seq 0 nthreads = 0 :: seq 1 (nthreads - 1)) as Hseq.
-    { destruct nthreads as [|n]; [lia|]. by rewrite /= Nat.sub_0_r. }
-    rewrite Hseq !big_sepL_cons.
-    iDestruct "Hsts" as "[Hsts0 Hsts]". iDestruct "HRELS" as "[Hl0 HRELS]".
     rewrite !(big_sepS_delete _ CNames C_sched) //.
     iDestruct "Hg" as "[Hg_s Hg]". iDestruct "Hlc" as "[Hlc_s _]".
     iDestruct "Hstsc" as "[Hstsc_s _]".
-    iDestruct "Hl0" as "[_ Hl0]". iDestruct "Hsts0" as "[_ Hsts0]".
     iModIntro. iSplitL "Hg_s Hlc_s Hstsc_s".
     { rewrite world_interp_eq. iSplitL "Hg_s".
       - iExists ∅. rewrite /perm_region_map_M /rmap !big_sepM_empty. by iFrame.
       - iExists ∅. rewrite /local_region_map_M /rmap !big_sepM_empty /=. iFrame.
         iPureIntro. by rewrite !dom_empty_L. }
-    iSplitL "Hg Hl0 Hsts0".
-    - iCombine "Hg Hl0 Hsts0" as "H".
-      rewrite -!big_sepS_sep.
-      iApply (big_sepS_impl with "H").
-      iModIntro; iIntros (C HC) "(Hg & Hl & Hsts)".
-      rewrite world_interp_eq.
-      iSplitL "Hg".
-      + iExists ∅. rewrite /perm_region_map_M /rmap !big_sepM_empty. by iFrame.
-      + iExists ∅. rewrite /local_region_map_M /rmap !big_sepM_empty /=. iFrame.
-        iPureIntro. by rewrite !dom_empty_L.
+    iSplitL "Hg".
+    - iApply (big_sepS_impl with "Hg").
+      iModIntro; iIntros (C HC) "Hg".
+      iExists ∅. rewrite /perm_region_map_M /rmap !big_sepM_empty. by iFrame.
     - iCombine "HRELS" "Hsts" as "H".
       rewrite -big_sepL_sep.
       iApply (big_sepL_impl with "H").
@@ -268,49 +258,6 @@ Section idle.
 End idle.
 
 (** ** Initial world, seal store and call stack *)
-Section world_init.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
-    {seal_store_preg : sealStorePreG Σ}
-    {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
-    {cstack_preg : CSTACK_preG Σ}
-    `{MP: MachineParameters}.
-  #[local] Remove Hints ceriseG_of : typeclass_instances.
-
-  (** The call stack of the context-switch thread starts with the entry
-      frame [ef_c] only, that of the user thread [k] with [efs !! k] only.
-      The world of the scheduler's compartment [C_sched] is the
-      context-switch thread's, the worlds of the other compartments are the
-      user thread 0's; the local maps of the other threads are empty. *)
-  Lemma initialise_world (C_sched : CmptName) (ots : gset OType) (ef_c : trusted_frame)
-      (efs : list trusted_frame) :
-    efs ≠ [] →
-    ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
-            (stsg : STSG Σ) (cstackg : CSTACKG Σ),
-      ([∗ set] o ∈ ots, can_alloc_pred o) ∗
-      ●(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
-      ◯(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
-      ([∗ list] k ↦ ef ∈ efs,
-         ●(CSTK)[u k] (entry_cstack ef) ∗ ◯(CSTK)[u k] (entry_cstack ef)) ∗
-      world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
-        (MkWorld ∅ (∅,∅)) C_sched ∗
-      ([∗ set] C ∈ CNames ∖ {[C_sched]},
-        world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0)
-          (MkWorld ∅ (∅,∅)) C) ∗
-      [∗ list] k ∈ seq 1 (length efs - 1), [∗ set] C ∈ CNames,
-        local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅.
-  Proof.
-    intros Hefs.
-    iMod (gen_cstack_init_ctx (entry_cstack ef_c) ((λ ef, entry_cstack ef) <$> efs))
-      as (cstackg) "(Hcstk_full & Hcstk_frag & Hcstks)".
-    iEval (rewrite big_sepL_fmap) in "Hcstks".
-    iMod (world_interp_init_ctx ots (length efs) C_sched) as (relg stsg seal_storeg)
-      "(Hctx & Hworlds & Hlocals & Hseal_store)".
-    { destruct efs as [|ef efs]; [done|simpl; lia]. }
-    iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
-  Qed.
-End world_init.
-
-(** ** Iris adequacy for the assert flag *)
 
 (** A big separating conjunction over the indices of [l]. *)
 #[local] Lemma big_sepL_seq_index_gen {PROP : bi} {A} (Φ : nat → PROP) (n : nat) (l : list A) :
@@ -324,6 +271,57 @@ Qed.
 #[local] Lemma big_sepL_seq_index {PROP : bi} {A} (Φ : nat → PROP) (l : list A) :
   ([∗ list] k ∈ seq 0 (length l), Φ k) ⊣⊢ [∗ list] k ↦ _ ∈ l, Φ k.
 Proof. apply (big_sepL_seq_index_gen Φ 0 l). Qed.
+
+Section world_init.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {seal_store_preg : sealStorePreG Σ}
+    {sts_preg : STS_preG Σ} {relpreg : relGpreS Σ}
+    {cstack_preg : CSTACK_preG Σ}
+    `{MP: MachineParameters}.
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+
+  (** The call stack of the context-switch thread starts with the entry
+      frame [ef_c] only, that of the user thread [k] with [efs !! k] only.
+      The world of the scheduler's compartment [C_sched] is the
+      context-switch thread's; the maps of Permanent regions of the other
+      compartments are given once; each user thread [k] with a frame in
+      [efs] has an empty local map of every compartment. *)
+  Lemma initialise_world (C_sched : CmptName) (ots : gset OType) (ef_c : trusted_frame)
+      (efs : list trusted_frame) :
+    efs ≠ [] →
+    ⊢ |==> ∃ (seal_storeg : sealStoreG Σ) (relg : relGS Σ)
+            (stsg : STSG Σ) (cstackg : CSTACKG Σ),
+      ([∗ set] o ∈ ots, can_alloc_pred o) ∗
+      ●(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
+      ◯(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
+      ([∗ list] k ↦ ef ∈ efs,
+         ●(CSTK)[u k] (entry_cstack ef) ∗ ◯(CSTK)[u k] (entry_cstack ef)) ∗
+      world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+        (MkWorld ∅ (∅,∅)) C_sched ∗
+      ([∗ set] C ∈ CNames ∖ {[C_sched]},
+         perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+           (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
+      [∗ list] k ↦ _ ∈ efs, [∗ set] C ∈ CNames,
+        local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
+          (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
+          (UserThread k) (MkWorld ∅ (∅,∅)) C ∅.
+  Proof.
+    intros _.
+    iMod (gen_cstack_init_ctx (entry_cstack ef_c) ((λ ef, entry_cstack ef) <$> efs))
+      as (cstackg) "(Hcstk_full & Hcstk_frag & Hcstks)".
+    iEval (rewrite big_sepL_fmap) in "Hcstks".
+    iMod (world_interp_init_ctx ots (length efs) C_sched) as (relg stsg seal_storeg)
+      "(Hctx & Hworlds & Hlocals & Hseal_store)".
+    iEval (rewrite (big_sepL_seq_index
+             (λ k, [∗ set] C ∈ CNames,
+                local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
+                  (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
+                  (UserThread k) (MkWorld ∅ (∅,∅)) C ∅)%I efs)) in "Hlocals".
+    iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
+  Qed.
+End world_init.
+
+(** ** Iris adequacy for the assert flag *)
 
 (** A big separating conjunction over [imap]. *)
 Lemma big_sepL_imap_index {PROP : bi} {A B} (f : nat → A → B) (Φ : nat → B → PROP)

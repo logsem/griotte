@@ -528,8 +528,9 @@ Section resources_pt.
   (** The resources shared by the threads of a firmware whose scheduler runs
       in [C_sched]: the switcher's static facts at every thread, the assert
       library, the compartments but the scheduler's, initialised, the
-      sealing types, the worlds of the compartments but [C_sched] at the
-      user thread [0], and the heap. *)
+      sealing types, the maps of Permanent regions of the compartments but
+      [C_sched], and the heap. Each thread's local maps are in its
+      [fw_thread_res]. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     "Hswitcher_static" ∷
@@ -542,7 +543,8 @@ Section resources_pt.
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷
       ([∗ set] C ∈ CNames ∖ {[C_sched]},
-         world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 C) ∗
+         perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
+           (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
@@ -667,6 +669,31 @@ Section prepared_pt.
   Qed.
 End prepared_pt.
 
+Section worlds_join.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {stsg : STSG Σ} {relg : relGS Σ} `{MP : MachineParameters}.
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+
+  (** The worlds of the thread [t] of the compartments [S], from their maps
+      of Permanent regions and the local maps of [t]. *)
+  Lemma fw_worlds_join (t : Thread) (S : gset CmptName) (W : WORLD) :
+    ([∗ set] C ∈ S,
+       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
+         (memg := @mem_gen_memG Σ (ceriseG_of t)) C ∅) -∗
+    ([∗ set] C ∈ S,
+       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
+         (memg := @mem_gen_memG Σ (ceriseG_of t)) t W C ∅) -∗
+    [∗ set] C ∈ S, world_interp (ceriseg := ceriseG_of t) (th := t) W C.
+  Proof.
+    iIntros "Hperms Hlocals".
+    iCombine "Hperms Hlocals" as "H".
+    rewrite -big_sepS_sep.
+    iApply (big_sepS_impl with "H").
+    iIntros "!>" (C HC) "[Hperm Hlocal]".
+    rewrite world_interp_eq. iFrame.
+  Qed.
+End worlds_join.
+
 (** The obligations of a firmware with one thread, from an obligation over
     the resources [fw_init_res] of its first thread, for an assignment
     [cthreads] with the context-switch thread in [C_sched], in exclusive
@@ -693,6 +720,10 @@ Proof.
   iIntros "Hshared". iNamed "Hshared". iModIntro.
   rewrite Hthreads !big_sepL_singleton.
   iIntros "Hthread _". iNamed "Hthread".
+  (* The worlds of the user thread 0 *)
+  iDestruct (big_sepS_delete _ CNames C_sched with "Hlocals") as "[_ Hlocals]".
+  { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+  iDestruct (fw_worlds_join (UserThread 0) with "Hworlds Hlocals") as "Hworlds".
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_cra_eq) in "Hcra".
   iEval (rewrite fw_thread_of_0) in "Hstack".
@@ -805,6 +836,10 @@ Proof.
   iIntros "Hshared". iNamed "Hshared". iModIntro.
   rewrite Hthreads !big_sepL_singleton.
   iIntros "Hthread _". iNamed "Hthread".
+  (* The worlds of the user thread 0 *)
+  iDestruct (big_sepS_delete _ CNames C_sched with "Hlocals") as "[_ Hlocals]".
+  { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+  iDestruct (fw_worlds_join (UserThread 0) with "Hworlds Hlocals") as "Hworlds".
   iDestruct "Hswitcher" as "#Hswitcher".
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
   iDestruct "Hassert" as "#Hassert".

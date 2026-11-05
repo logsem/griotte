@@ -2122,8 +2122,9 @@ Section resources.
 
   (** The resources of the thread [i], the user thread [i]: its
       trusted-stack invariant, in its pool, its registers, its stack, its
-      call stack, the non-atomic token of its pool, and its posture at the
-      posture of its entry: its MIE fragment and what it holds there. *)
+      call stack, the non-atomic token of its pool, its posture at the
+      posture of its entry (its MIE fragment and what it holds there), and
+      its empty local map of every compartment. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
     let t := thread_of img i in
     "Hswitcher" ∷
@@ -2144,7 +2145,12 @@ Section resources.
       held (th := UserThread i)
         (CL := crit_link_full (swlayout := fw_switcher_layout img) (UserThread i))
         (CR := crit_route_full (swlayout := fw_switcher_layout img) (UserThread i))
-        (fw_entry_posture fw img i).
+        (fw_entry_posture fw img i) ∗
+    "Hlocals" ∷
+      ([∗ set] C ∈ CNames,
+         local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread i)))
+           (memg := @mem_gen_memG Σ (ceriseG_of (UserThread i)))
+           (UserThread i) fw_world0 C ∅).
 End resources.
 
 (** ** Splitting the initial memory *)
