@@ -8,7 +8,6 @@
  (package griotte)
  ; The demo images, excluded from the build.
  (modules :standard \
-   case_studies.dle.deep_locality_concrete
    case_studies.error_handling.error_handling_concrete
    case_studies.hts_ownership.heap_temporal_safety_concrete
    case_studies.lse_downward.lse_concrete
