@@ -77,25 +77,27 @@ Section relPre.
         rewrite bool_decide_eq_false_2; [done|set_solver].
   Qed.
 
-  (** The Permanent maps, and the local maps of the user threads [k], for
-      [k < nthreads]: one name each per compartment. The context-switch
-      thread and the other user threads share names that are allocated and
-      dropped. *)
-  Lemma rel_init (nthreads : nat) :
-    ⊢ |==> ∃ (relg: relGS Σ),
-        ([∗ set] C ∈ CNames, ghost_map_auth (γrel_perm C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
-        [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-          ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
-  Proof.
-    iMod rel_rel_init as (γg) "Hg".
-    iMod rel_rel_init as (γd) "_".
-    iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
-    iExists (RelGS _ _ _ _ _ γg
-      (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γd end)).
-    iModIntro. iFrame.
-  Qed.
-
 End relPre.
+
+(** The Permanent maps, the local maps of the context-switch thread, and
+    those of the user threads [k], for [k < nthreads]: one name each per
+    compartment. The other user threads share names that are allocated and
+    dropped. *)
+Lemma rel_init_ctx {Σ : gFunctors} {Cname : CmptNameG} {relpreg : relGpreS Σ} (nthreads : nat) :
+  ⊢ |==> ∃ (relg : relGS Σ),
+      ([∗ set] C ∈ CNames, ghost_map_auth (γrel_perm C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
+      ([∗ set] C ∈ CNames, ghost_map_auth (γrel_l CtxSwitch C) 1 (∅ : gmap LAddr (gname * Perm))) ∗
+      [∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
+        ghost_map_auth (γrel_l (UserThread k) C) 1 (∅ : gmap LAddr (gname * Perm)).
+Proof.
+  iMod rel_rel_init as (γg) "Hg".
+  iMod rel_rel_init as (γc) "Hc".
+  iMod rel_rel_init as (γd) "_".
+  iMod (alloc_thread_names _ γd nthreads rel_rel_init) as (γls) "Hls".
+  iExists (RelGS _ _ _ _ _ γg
+    (λ th, match th with UserThread k => nth k γls γd | CtxSwitch => γc end)).
+  iModIntro. iFrame.
+Qed.
 
 (** ** The two maps of a compartment *)
 

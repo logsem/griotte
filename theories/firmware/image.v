@@ -43,6 +43,22 @@ Record img_thread : Type := MkImgThread {
   e_hazard : Addr;
 }.
 
+(** The idle thread: its trusted stack, whose save area holds the loop of
+    an exited thread, and its two hazard slots. It has no stack. *)
+Record img_idle_thread : Type := MkImgIdleThread {
+  img_b_idle_trusted_stack : Addr;
+  img_e_idle_trusted_stack : Addr;
+  img_b_idle_hazard : Addr;
+  img_e_idle_hazard : Addr;
+}.
+
+(** The boot stack, which the scheduler inherits: its range and its words. *)
+Record img_boot_stack : Type := MkImgBootStack {
+  img_b_boot_stack : Addr;
+  img_e_boot_stack : Addr;
+  img_boot_stack_words : list Word;
+}.
+
 (** The switcher: its code range, starting with its data words (its sealing
     key the second), its two entry points and the sealing type of the export
     entries. *)
@@ -62,12 +78,15 @@ Record img_assert : Type := MkImgAssert {
   flag_assert : Addr;
 }.
 
-(** An image: the compartments by name, in the order of the firmware. *)
+(** An image: the compartments by name, in the order of the firmware, the
+    threads of the firmware, the idle thread and the boot stack. *)
 Record fw_image : Type := MkFwImage {
   img_sw : img_switcher;
   img_asrt : img_assert;
   img_cmpts : list (string * img_cmpt);
   img_threads : list img_thread;
+  img_idle : img_idle_thread;
+  img_boot : img_boot_stack;
 }.
 
 (** ** Lookups, with a default for absent names *)
@@ -97,3 +116,8 @@ Fixpoint fw_nth {A} (k : nat) (l : list A) (d : A) : A :=
 
 Definition thread_of (img : fw_image) (i : nat) : img_thread :=
   fw_nth i (img_threads img) default_img_thread.
+
+(** The entry word at position [k] of the export table of [c], as an
+    integer (0 if it is not one). *)
+Definition img_entry_word (c : img_cmpt) (k : nat) : Z :=
+  match cmpt_exp_tbl_entries c !! k with Some (WInt z) => z | _ => 0%Z end.

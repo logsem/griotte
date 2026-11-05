@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
-From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations.
+From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
+  firmware_thread_obligations.
 From griotte.case_studies.hts_ownership Require Import hts_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import assert_spec.
@@ -22,19 +23,22 @@ From griotte.allocators.ownership Require Import
 Section hts_obligations.
   Context {Σ : gFunctors}.
   Context {allocator_owner_preg : allocatorOwnerPreG Σ}.
-  Context {cname : CmptNameG} {B : CmptName}.
+  Context {cname : CmptNameG} {B Sched : CmptName}.
   Context {seal_registry_preg : sealRegistryPreG LAddr Σ}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the heap temporal safety
       firmware: the thread runs safely from the export [entry] of [main],
       the untrusted compartment ["B"] being owned by the logical compartment
-      [B]. *)
+      [B], the scheduler running in [Sched]. *)
   Lemma hts_fw_obligations (ot_alloc : OType) :
+    B ≠ Sched →
     fw_obligations Σ (hts_firmware ot_alloc).
   Proof.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros HBS.
+    apply (fw_obligations_of_pinned Σ (hts_firmware ot_alloc) Sched);
+      [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -105,8 +109,9 @@ Section hts_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B HBS)) as "#Hthread_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B HBS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
@@ -115,7 +120,8 @@ Section hts_obligations.
               b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= e)%Z as Hmin_bridge
       by (rewrite /SpillSlot_size /StackEntry_reserved_space; lia).
     apply Hmin_bridge in Hentry_min_stack; clear Hmin_bridge.
-    iEval (cbv [hts_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [hts_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & Hmain_static & _) & (Halloc & _ & #Halloc_pers) & (HB & HB_static & #HB_pers) & _)".
     cbn [fc_name].
@@ -150,7 +156,8 @@ Section hts_obligations.
       as "#Hentry_Bf"; [done|lia|].
     iEval (rewrite HsbB) in "Hentry_Bf".
     iDestruct (big_sepS_elem_of_acc _ _ B with "Hworlds") as "[Hworld_B _]".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HBS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
     (* 7 - The owner words, in the static sealed regions *)
     set (adv_owner_a := cmpt_b_static_sealed B_cmpt).
@@ -283,7 +290,9 @@ Section hts_obligations.
                         $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B $HMIE $Hheld]")
-      as "Hspec"; eauto using fw_cleared_regs_dom.
+      as "Hspec";
+      last (iModIntro; iExact "Hspec").
+    all: eauto using fw_cleared_regs_dom.
     { eapply disjoint_from_shadow_not_in.
       - exact (cmpt_static_sealed_disjoint_from_shadow main_cmpt).
       - apply withinBounds_true_iff. subst main_owner_a. solve_addr+Hmain_owner_size. }
@@ -300,7 +309,5 @@ Section hts_obligations.
       - rewrite elem_of_finz_seq_between; solve_addr+Hmain_data_size. }
     { done. }
     { by rewrite /route_pre. }
-    iModIntro.
-    iApply (wp_mono with "Hspec"); auto.
   Qed.
 End hts_obligations.

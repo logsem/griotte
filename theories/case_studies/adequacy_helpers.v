@@ -97,13 +97,15 @@ Section adequacy_helpers.
         thread: the code and the two keys become persistent, the sealing
         type of the switcher gets the predicate of the export entries, and
         the sealing type of the trusted stacks the predicate of their
-        handles. The layout is the class [swlayout], as in the switcher's
-        specifications. *)
+        handles. The three words of the scheduler after the keys become
+        persistent. The layout is the class [swlayout], as in the
+        switcher's specifications. *)
     Lemma initialise_switcher_shared
-      {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset} :
+      {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
+      (w_pcc w_cgp w_csp : Word) :
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
       ([∗ map] k↦y ∈ mkregion switcher.b_switcher switcher.a_switcher_call
-                       (switcher_data_words switcher.ot_switcher) ∪
+                       (switcher_data_words switcher.ot_switcher w_pcc w_cgp w_csp) ∪
                      mkregion switcher.a_switcher_call switcher.e_switcher switcher_instrs,
          k ↦ₐ lword_of_word y) -∗
       can_alloc_pred switcher.ot_switcher -∗
@@ -112,7 +114,10 @@ Section adequacy_helpers.
       ={E}=∗
       switcher.ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC ∗
       ot_trusted_stacks ↪ₒ{SealGlobal} tstack_handle_propC ∗
-      switcher_static.
+      switcher_static ∗
+      (switcher.b_switcher ^+ 2)%a ↦ₐ□ lword_of_word w_pcc ∗
+      (switcher.b_switcher ^+ 3)%a ↦ₐ□ lword_of_word w_cgp ∗
+      (switcher.b_switcher ^+ 4)%a ↦ₐ□ lword_of_word w_csp.
     Proof.
       intros Hmtcc.
       iIntros "Hswitcher Hseal_store Hseal_store_ts #Hexit".
@@ -130,7 +135,12 @@ Section adequacy_helpers.
       rewrite /switcher_data_words.
       rewrite (finz_seq_between_cons switcher.b_switcher); last solve_addr.
       rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1)); last solve_addr.
-      iDestruct "Hswitcher_data" as "(Htstacks_key & Hswitcher_sealing & _)".
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1)); last solve_addr.
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1));
+        last solve_addr.
+      iDestruct "Hswitcher_data"
+        as "(Htstacks_key & Hswitcher_sealing & Hw_pcc & Hw_cgp & Hw_csp & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { exact Hsize. }
       iMod (seal_store_update_alloc _ SealGlobal ot_switcher_propC with "Hseal_store")
@@ -147,7 +157,17 @@ Section adequacy_helpers.
       iMod (codefrag_persist with "Hswitcher_code") as "#Hswitcher_code".
       iMod (pointsto_persist with "Hswitcher_sealing") as "#Hswitcher_sealing".
       iMod (pointsto_persist with "Htstacks_key") as "#Htstacks_key".
-      iModIntro. iFrame "Hsealed_pred_ot_switcher Hsealed_pred_tstacks".
+      iMod (pointsto_persist with "Hw_pcc") as "#Hw_pcc".
+      iMod (pointsto_persist with "Hw_cgp") as "#Hw_cgp".
+      iMod (pointsto_persist with "Hw_csp") as "#Hw_csp".
+      iModIntro.
+      replace (switcher.b_switcher ^+ 2)%a with (switcher.b_switcher ^+ 1 ^+ 1)%a
+        by solve_addr+Hcall.
+      replace (switcher.b_switcher ^+ 3)%a with (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1)%a
+        by solve_addr+Hcall.
+      replace (switcher.b_switcher ^+ 4)%a with (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a
+        by solve_addr+Hcall.
+      iFrame "Hsealed_pred_ot_switcher Hsealed_pred_tstacks Hw_pcc Hw_cgp Hw_csp".
       rewrite /switcher_static /switcher_sealing_inv.
       iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hexit".
       iPureIntro. split; [done | split; [apply switcher.ot_switcher_size |
@@ -156,10 +176,12 @@ Section adequacy_helpers.
 
     (** The trusted-stack invariant for the user thread [th], from its
         trusted stack with contents [ts], its hazard slots and its call
-        stack, and the register save area of its posture. The entry frame of
-        the thread holds the words [w_csp] and [w_tbl], a capability to the
-        export table at [b_tbl], and no error handler invocation. The home
-        value of the mtdc token of [th] is its trusted stack. *)
+        stack, and the exact save area: the first
+        [TrustedStack_offset_frameoffset] words of the trusted stack. The
+        entry frame of the thread holds the words [w_csp] and [w_tbl], a
+        capability to the export table at [b_tbl], and no error handler
+        invocation. The home value of the mtdc token of [th] is its trusted
+        stack. *)
     Lemma initialise_switcher_thread
       {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
       (ts : list Word) (w_csp w_tbl : Word) (b_tbl : Addr) :
@@ -182,16 +204,20 @@ Section adequacy_helpers.
       mtdc ↦ₜ[th] Capₗ RWL _ switcher.b_trusted_stack switcher.e_trusted_stack switcher.b_trusted_stack
       ={E}=∗
       na_inv (tpool th) Ntstack trusted_stack_inv ∗
-      save_area_part th.
+      ⌜saved_mie_ok (lword_of_word <$> take (Z.to_nat TrustedStack_offset_frameoffset) ts)⌝ ∗
+      save_area_holed th (lword_of_word <$> take (Z.to_nat TrustedStack_offset_frameoffset) ts).
     Proof.
       intros ef Huser Hhome Hts Hw_csp Hw_tbl Htbl_cap.
+      remember (lword_of_word <$> take (Z.to_nat TrustedStack_offset_frameoffset) ts)
+        as ws_save eqn:Hws_save.
       iIntros "Htrusted_stack Hhazard_slots Hcstk_full Hmtdc".
       destruct Hts as [Htstk_size Hframeoffset [n Hfit] Hw_cnt _ Hhazard_cell Hsaved].
       iDestruct (mkregion_prepare with "[Htrusted_stack]") as ">Htrusted_stack"; auto.
       { exact Htstk_size. }
       iDestruct (mkregion_prepare with "[Hhazard_slots]") as ">Hhazard_slots"; auto.
       { apply switcher.hazard_slots_size. }
-      iAssert (|==> switcher_preamble.trusted_stack_inv ∗ save_area_part th)%I
+      iAssert (|==> switcher_preamble.trusted_stack_inv ∗
+                    ⌜saved_mie_ok ws_save⌝ ∗ save_area_holed th ws_save)%I
         with "[Htrusted_stack Hhazard_slots Hcstk_full Hmtdc]" as ">[Hswitcher Hsave]".
       {
         iAssert ([[ switcher.b_trusted_stack, switcher.e_trusted_stack ]]
@@ -249,7 +275,7 @@ Section adequacy_helpers.
         { rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
           by rewrite Hhazard_cell. }
         iSplitR "Hsave_area".
-        2: { iModIntro. iExists _. iFrame "Hsave_area". iPureIntro.
+        2: { iModIntro. iFrame "Hsave_area". iPureIntro.
              intros w. rewrite list_lookup_fmap lookup_take_lt; last (vm_compute; lia).
              intros (w' & Hw' & ->)%fmap_Some. by apply Hsaved. }
         iDestruct (region_pointsto_cons _ a_threadID with "Htrusted_stack")
@@ -282,24 +308,6 @@ Section adequacy_helpers.
       }
       iMod (na_inv_alloc (tpool th) _ Ntstack _ with "Hswitcher") as "#Hswitcher".
       by iFrame "Hswitcher Hsave".
-    Qed.
-
-    (** The link of a user thread at its initial state [σ], from what the
-        thread hands over, its save area and its mtdc token: the link takes
-        them at InterruptEnabled, the thread keeps them at
-        InterruptDisabled. *)
-    Lemma crit_link_full_init {swlayout : switcherLayout} (σ : ExecConf) :
-      th ≠ CtxSwitch ->
-      handover_res -∗
-      save_area_part th -∗
-      mtdc_lent -∗
-      crit_link_def th σ ∗ held (th := th) (mie_st σ).
-    Proof.
-      iIntros (Hth) "Hho Hsave Hlent".
-      destruct (mie_st σ) eqn:Hmie.
-      - rewrite /crit_link_def Hmie. destruct th as [t|]; last done.
-        rewrite /posture_part_of. by iFrame.
-      - rewrite /crit_link_def Hmie held_disabled posture_part_user //. by iFrame.
     Qed.
 
     Lemma initialise_compartment ( C_cmpt : cmpt ) :

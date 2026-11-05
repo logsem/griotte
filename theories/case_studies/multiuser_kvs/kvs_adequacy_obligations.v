@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  kvs_firmware.
+  firmware_thread_obligations kvs_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
   kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
@@ -21,20 +21,23 @@ Section kvs_obligations.
   Context {kvs_alloc_preg : gen_heapGpreS user_key_t kvs_user_map Σ}.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map}.
   Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option LWord)}.
-  Context {cname : CmptNameG} {B : CmptName}.
+  Context {cname : CmptNameG} {B Sched : CmptName}.
   Context {seal_registry_preg : sealRegistryPreG LAddr Σ}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the KVS firmware: the thread
       runs safely from the export of [main], the untrusted compartment
-      ["B"] being owned by the logical compartment [B]. *)
+      ["B"] being owned by the logical compartment [B], the scheduler
+      running in [Sched]. *)
   Lemma kvs_fw_obligations (ot_kvs : OType) (key_main key_B : Z) :
     key_main ≠ key_B →
+    B ≠ Sched →
     fw_obligations Σ (kvs_firmware ot_kvs key_main key_B).
   Proof.
-    intros Hkeys.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros Hkeys HBS.
+    apply (fw_obligations_of_pinned Σ (kvs_firmware ot_kvs key_main key_B) Sched);
+      [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -141,8 +144,9 @@ Section kvs_obligations.
 
     (* 5 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B)) as "#Hthread_B".
-    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B (Hin B HBS)) as "#Hthread_B".
+    iDestruct (switcher_threads_pinned (UserThread 0) B (Hpin B HBS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_B".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
@@ -151,7 +155,8 @@ Section kvs_obligations.
               b + SpillSlot_size + 2 * StackEntry_reserved_space <= e)%Z as Hmin_bridge
       by (rewrite /SpillSlot_size /StackEntry_reserved_space; lia).
     apply Hmin_bridge in Hentry_min_stack; clear Hmin_bridge.
-    iEval (cbv [kvs_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [kvs_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & Hmain_static_sealed & _) & (Hkvs & _ & #Hkvs_pers) &
            (HB & HB_static_sealed & #HB_pers) & _)".
@@ -169,7 +174,8 @@ Section kvs_obligations.
     iEval (cbv [kvs_firmware fw_otypes]) in "Hotypes".
     iDestruct "Hotypes" as "[Hseal_store_kvs _]".
     iDestruct (big_sepS_elem_of _ _ B with "Hworlds") as "Hworld_B".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HBS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     set (W0 := fw_world0).
     cbn [fc_name]. rewrite /fw_cmpt_static_res.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt kvs_cmpt. fw_fold_cmpt B_cmpt.
@@ -248,7 +254,7 @@ Section kvs_obligations.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_addOrUpdate_entry_point_spec;
-        [exact Hkvs_switcher | exact (Hpin B) | exact (Hshared B) |].
+        [exact Hkvs_switcher | exact (Hpin B HBS) | exact (Hshared B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_addOrUpdate".
     }
@@ -260,7 +266,7 @@ Section kvs_obligations.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_read_entry_point_spec;
-        [exact Hkvs_switcher | exact (Hpin B) | exact (Hshared B) |].
+        [exact Hkvs_switcher | exact (Hpin B HBS) | exact (Hshared B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_read".
     }
@@ -272,7 +278,7 @@ Section kvs_obligations.
       replace (cmpt_exp_tbl_cgp kvs_cmpt)
         with (cmpt_exp_tbl_pcc kvs_cmpt ^+ ExportTable_offset_cgp) by solve_addr+H0.
       iApply kvs_erase_entry_point_spec;
-        [exact Hkvs_switcher | exact (Hpin B) | exact (Hshared B) |].
+        [exact Hkvs_switcher | exact (Hpin B HBS) | exact (Hshared B) |].
       iFrame "Hsealed_pred_ot_kvs Hregistry Hkvs_static Hkvs Hkvs_logical Hswitcher Hswitcher_static
         Hkvs_etbl_pcc Hkvs_etbl_cgp Hkvs_etbl_nh Hkvs_etbl_entries_erase".
     }
@@ -394,7 +400,9 @@ Section kvs_obligations.
                         $Hworld_B $Hcstk
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B
                         $HMIE $Hheld
-                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+                        ]") as "Hspec";
+      last (iModIntro; iExact "Hspec").
+    all: eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_base_not_heap main_cmpt). }
@@ -410,8 +418,5 @@ Section kvs_obligations.
     }
     { done. }
     { by rewrite /route_pre. }
-
-    iModIntro.
-    iApply (wp_mono with "Hspec"); auto.
   Qed.
 End kvs_obligations.

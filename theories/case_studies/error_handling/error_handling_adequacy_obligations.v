@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  error_handling_firmware.
+  firmware_thread_obligations error_handling_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import
   error_handling error_handling_spec_handler error_handling_spec_read
@@ -19,18 +19,21 @@ From griotte Require Import allocator_resources heap_region.
 
 Section error_handling_obligations.
   Context {Σ : gFunctors}.
-  Context {cname : CmptNameG} {C : CmptName}.
+  Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the error-handling firmware:
       the thread runs safely from the export [entry] of [main], the
       untrusted compartment ["adv"] being owned by the logical compartment
-      [C]. *)
+      [C], the scheduler running in [Sched]. *)
   Lemma error_handling_fw_obligations :
+    C ≠ Sched →
     fw_obligations Σ error_handling_firmware.
   Proof.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros HCS.
+    apply (fw_obligations_of_pinned Σ error_handling_firmware Sched);
+      [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -112,11 +115,13 @@ Section error_handling_obligations.
 
     (* 4 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-    iEval (cbv [error_handling_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [error_handling_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts"
       as "((Hmain & _ & #Hmain_pers) & (Hstats & _ & #Hstats_pers) & (Hadv & _ & #Hadv_pers) & _)".
     cbn [fc_name].
@@ -136,7 +141,8 @@ Section error_handling_obligations.
       in "Hstats_etbl_eh".
     iEval (cbn [fc_name]) in "Hstats_etbl_pcc Hstats_etbl_cgp Hstats_etbl_entries".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HCS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     fw_fold_cmpt main_cmpt. fw_fold_cmpt stats_cmpt. fw_fold_cmpt adv_cmpt.
     iEval (rewrite stats_exp_tbl big_sepL_cons) in "Hstats_etbl_entries".
     iDestruct "Hstats_etbl_entries" as "[Hstats_etbl_read _]".
@@ -170,7 +176,7 @@ Section error_handling_obligations.
       as "#Hot_switcher_read".
     { iApply (stats_read_entry_point_spec Global fw_world0 C).
       - exact Hstats_switcher.
-      - exact (Hpin C).
+      - exact (Hpin C HCS).
       - exact (Hshared C).
       - iFrame "Hswitcher Hswitcher_static Hstats_static Hinv_stats". }
     iDestruct (seal_main_export (th := UserThread 0) fw_world0 C stats_read_sb

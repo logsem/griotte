@@ -17,72 +17,49 @@ From griotte Require Import image firmware firmware_ok.
 Section img_state.
   Context `{MP : MachineParameters}.
 
-  (** The first thread, its compartment, and the offset and interrupt
-      posture of its entry: the firmware's for a trusted export, the ones
-      its entry word in [img] encodes for an untrusted one. *)
-  Definition thread0_entry (fw : firmware) (img : fw_image) : string * Z * InterruptStatus :=
-    match fw_threads fw with
-    | [] => ("", 0%Z, InterruptEnabled)
-    | ft :: _ =>
-        let '(off, posture) :=
-          match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
-          | TrustedBody b =>
-              let e := fw_export_named (ft_entry ft) (tb_exports b) in
-              (Z.of_nat (fe_offset e), fe_posture e)
-          | UntrustedBody b =>
-              match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
-              | Some k =>
-                  match cmpt_exp_tbl_entries (cmpt_of img (ft_cmpt ft)) !! k with
-                  | Some (WInt z) => (export_entry_offset z, export_entry_posture z)
-                  | _ => (0%Z, InterruptEnabled)
-                  end
-              | None => (0%Z, InterruptEnabled)
-              end
-          end in
-        (ft_cmpt ft, off, posture)
-    end.
+  (** The PC of the start: the switcher's call of the scheduler. *)
+  Definition img_pc (img : fw_image) : Word :=
+    let sw := img_sw img in
+    Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
+      (a_switcher_call sw ^+
+         assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+           ".Lswitch_csp_check" ".Lexception_scheduler_cjalr")%a.
 
-  Definition img_pc (fw : firmware) (img : fw_image) : Word :=
-    let '(n, off, _) := thread0_entry fw img in
-    let c := cmpt_of img n in
-    Cap RX Global (cmpt_b_pcc c) (cmpt_e_pcc c) (cmpt_b_pcc c ^+ off).
-
+  (** The registers of the start: the scheduler's three words in [cra],
+      [cgp] and [csp], the idle thread's handle in [ca0], and every other
+      register zero. *)
   Definition img_regs (fw : firmware) (img : fw_image) : Reg :=
-    let c := cmpt_of img (thread0_entry fw img).1.1 in
-    let t := thread_of img 0 in
-    let sw := img_sw img in
-    <[cgp := Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c)]>
-      (<[cra := Sentry RetDisable XSRW_ Local (b_switcher sw) (e_switcher sw)
-                  (a_switcher_return sw)]>
-         (<[csp := Cap RWL Local (b_stack t) (e_stack t)
-                      (e_stack t ^+ (- StackEntry_reserved_space))]>
-            (gset_to_gmap (WInt 0) all_registers_s))).
+    <[cra := sched_pcc_word fw img]>
+      (<[cgp := sched_cgp_word fw img]>
+         (<[csp := sched_csp_word img]>
+            (<[ca0 := thread_handle fw img (length (fw_threads fw))]>
+               (gset_to_gmap (WInt 0) all_registers_s)))).
 
-  Definition img_sregs (fw : firmware) (img : fw_image) : SReg :=
-    let t := thread_of img 0 in
+  Definition img_sregs (img : fw_image) : SReg :=
     let sw := img_sw img in
-    <[mtdc := Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)]>
-      (<[mstatus := WInt (mstatus_enc (thread0_entry fw img).2 InterruptEnabled)]>
+    <[mtdc := WInt 0]>
+      (<[mstatus := WInt (mstatus_enc InterruptDisabled InterruptEnabled)]>
          (<[mtcc := Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
                       (a_switcher_call sw ^+
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                            ".Lswitch_csp_check" "exception_entry_asm")%a]>
-            (<[mepcc := img_pc fw img]>
+            (<[mepcc := WInt 0]>
                (<[mcause := WInt 0]> (<[mtval := WInt 0]> ∅))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
-      memory of every thread. *)
+      memory of every thread, of the idle thread and of the boot stack. *)
   Definition img_mem (fw : firmware) (img : fw_image) : Mem :=
-    foldr (λ '(i, ft) acc, thread_mem img i ft ∪ acc) ∅
+    boot_mem img ∪ idle_mem img ∪
+    foldr (λ '(i, ft) acc, thread_mem fw img i ft ∪ acc) ∅
       (zip (seq 0 (length (fw_threads fw))) (fw_threads fw)) ∪
     foldr (λ fc acc, cmpt_mem img fc ∪ acc) ∅ (fw_cmpts fw) ∪
-    assert_flag_mem img ∪ assert_code_mem img ∪ switcher_mem img ∪
+    assert_flag_mem img ∪ assert_code_mem img ∪ switcher_mem fw img ∪
     initial_heap_memory.
 
   Definition img_state (fw : firmware) (img : fw_image) : ExecConf :=
-    {| pcc := img_pc fw img;
+    {| pcc := img_pc img;
        reg := img_regs fw img;
-       sreg := img_sregs fw img;
+       sreg := img_sregs img;
        mem := img_mem fw img;
        shadowtbl := initial_heap_shadow;
        timedevs := {| td_mtime := 0; td_mtimecmp := 0 |} |}.
@@ -281,6 +258,31 @@ Section checks.
     rewrite /word_rootedb. intros Hw b _ Hb. rewrite Hb in Hw.
     by apply bool_decide_eq_true in Hw.
   Qed.
+
+  (** A global of the scheduler that is an integer or a thread handle. *)
+  Definition sched_data_wordb (hs : list Word) (w : Word) : bool :=
+    is_z w || bool_decide (w ∈ hs).
+
+  Lemma sched_data_wordb_sound b e hs w :
+    sched_data_wordb hs w = true → sched_data_word b e hs w.
+  Proof.
+    intros [Hz|Hw]%orb_true_iff.
+    - left. left. by rewrite Hz.
+    - right. by apply bool_decide_eq_true in Hw.
+  Qed.
+
+  (** A word of the boot stack that is an integer or a thread handle: the
+      same test as [sched_data_wordb], for another predicate of the image. *)
+  Definition boot_stack_wordb (hs : list Word) (w : Word) : bool :=
+    is_z w || bool_decide (w ∈ hs).
+
+  Lemma boot_stack_wordb_sound hs w :
+    boot_stack_wordb hs w = true → boot_stack_word hs w.
+  Proof.
+    intros [Hz|Hw]%orb_true_iff.
+    - left. by rewrite /is_int Hz.
+    - right. by apply bool_decide_eq_true in Hw.
+  Qed.
 End checks.
 
 Fixpoint ranges_apart (rs : list (Addr * Addr)) : bool :=
@@ -318,6 +320,12 @@ Ltac solve_concrete_condition :=
       apply (Forall_check is_z); [intros ? Hz; by rewrite /is_int Hz | vm_compute; reflexivity]
   | |- Forall (initial_data_word _ _) _ =>
       apply (Forall_check is_z); [intros ? Hz; left; by rewrite Hz | vm_compute; reflexivity]
+  | |- Forall (sched_data_word _ _ ?hs) _ =>
+      apply (Forall_check (sched_data_wordb hs));
+      [intros ?; apply sched_data_wordb_sound | vm_compute; reflexivity]
+  | |- Forall (boot_stack_word ?hs) _ =>
+      apply (Forall_check (boot_stack_wordb hs));
+      [apply boot_stack_wordb_sound | vm_compute; reflexivity]
   | |- Forall (word_rooted ?H) _ =>
       apply (Forall_check (word_rootedb H)); [apply word_rootedb_sound | vm_compute; reflexivity]
   | |- Forall word_exec_ok _ =>

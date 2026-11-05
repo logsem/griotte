@@ -232,6 +232,7 @@ pre { margin: 0; }
 .chip.sentry { --k: var(--sentry); }
 .chip.sealed, .chip.sealrange { --k: var(--sealed); }
 .chip.local { border-style: dashed; }
+.chip.may { border-style: dotted; opacity: .8; }
 .chip .p { font-weight: 600; color: var(--k); }
 .chip .loc { font-size: 11px; padding: 0 3px; border-radius: 2px; background: var(--surface-2); color: var(--muted); }
 .chip.local .loc { background: var(--k); color: var(--surface); }
@@ -401,10 +402,16 @@ const codeOf = (name) => CODE[cs.code[name]];
 const OWNER_INFO = {
   switcher: ["switcher", "trusted"],
   assert: ["assert", "library"],
-  "thread 0": ["thread 0", "thread"],
+  "idle thread": ["idle thread", "thread"],
+  "boot stack": ["boot stack", "scheduler's stack"],
   heap: ["heap", "heap"],
   machine: ["machine", "implicit"],
+  mmio: ["MMIO", "device"],
 };
+/* The name and tag of an owner that is not a compartment; "thread N" by its prefix. */
+const ownerInfo = (o) => OWNER_INFO[o] || (/^thread \d+$/.test(o || "") ? [o, "thread"] : undefined);
+/* The kind of a compartment owner: trusted, untrusted or scheduler. */
+const cmptKind = (own) => (own && ["trusted", "untrusted", "scheduler"].includes(own.kind) ? own.kind : null);
 
 /* The reader's settings, per viewer; the page works without storage. */
 const store = {
@@ -441,6 +448,7 @@ function chip(c, opts = {}) {
   if (!c) return "";
   const cls = ["chip", capClass(c)];
   if (c.loc === "Local") cls.push("local");
+  if (c.src_kind === "may") cls.push("may");
   let p = c.perm;
   if (c.sentry) p = "E·" + c.sentry + " " + p;
   if (c.sealed) p = "⟨" + c.sealed + "⟩ " + p;
@@ -507,6 +515,7 @@ function compHtml(c) {
   if (c.len_text) h += `<span class="len">${esc(c.len_text)}</span>`;
   else if (c.len != null && !/words/.test(c.note || "")) h += `<span class="len">${esc(c.len)} word${c.len === 1 ? "" : "s"}</span>`;
   if (c.arg_caps) h += `<span class="len">arguments:</span>` + c.arg_caps.map((id) => chip(capById[id], { home: true })).join("");
+  if (c.may) h += `<span class="len">may hold:</span>` + c.may.map((id) => chip(capById[id], { home: true })).join("");
   return h;
 }
 function cellBody(c) {
@@ -649,10 +658,11 @@ function renderTape() {
   const html = tape.bands.map((bd, i) => {
     const r = bd.region;
     const own = cs.owners[r.owner];
-    const kind = own && (own.kind === "trusted" || own.kind === "untrusted") ? own.kind : null;
-    const info = OWNER_INFO[r.owner];
-    const cls = ["band", kind === "untrusted" ? "untrusted" : "", r.implicit ? "implicit" : ""].join(" ");
-    const tag = kind ? `<span class="tag ${kind}">${kind}</span>` : info ? `<span class="tag">${esc(info[1])}</span>` : "";
+    const kind = cmptKind(own);
+    const info = ownerInfo(r.owner);
+    // the scheduler's code and data are arbitrary, as an untrusted compartment's
+    const cls = ["band", kind === "untrusted" || kind === "scheduler" ? "untrusted" : "", r.implicit ? "implicit" : ""].join(" ");
+    const tag = kind ? `<span class="tag ${kind === "scheduler" ? "untrusted" : kind}">${kind}</span>` : info ? `<span class="tag">${esc(info[1])}</span>` : "";
     const sub = regionTitle(r);
     return (i ? `<div class="gap" aria-hidden="true"></div>` : "") +
       `<section class="${cls}" id="reg-${r.id}" data-region="${r.id}" tabindex="0" role="button" aria-label="region ${esc(r.label)}">
@@ -675,7 +685,8 @@ function renderRegs() {
   const notes = (bank) => cs.reg_notes.filter((n) => (n.bank || "gpr") === bank).map((n) => `<div class="note">${n.comment ? esc(n.comment[0].toUpperCase() + n.comment.slice(1)) + (n.listed ? ` (${n.listed.length}, dashed)` : "") + ": " : ""}<code>${esc(n.text)}</code></div>`).join("");
   const bank = (cls, name, regs, nb) => regs.length || (nb && notes(nb)) ? `<div class="bankw ${cls}"><div class="panel-h">${name}</div><div class="bank">${regs.map(row).join("")}</div>${nb ? notes(nb) : ""}</div>` : "";
   const known = ["pc", "gpr", "sreg"];
-  $("regs").innerHTML = `<div class="banks">` +
+  const title = String(cs.reg_title || "").replace(/^Registers,?\s*/, "");
+  $("regs").innerHTML = (title ? `<p class="tape-note">Registers ${esc(title)}</p>` : "") + `<div class="banks">` +
     bank("pc", "Program counter", cs.regs.filter((g) => g.bank === "pc")) +
     bank("gpr", "General-purpose registers", cs.regs.filter((g) => g.bank === "gpr"), "gpr") +
     bank("sreg", "System registers", cs.regs.filter((g) => g.bank === "sreg"), "sreg") +
@@ -691,6 +702,7 @@ const FIELD_SHORT = { cmpt_imports: "imports", cmpt_data: "data", cmpt_static_se
 function sourceLabel(c) {
   if (c.src_kind === "reg") return "register " + c.src;
   const r = regById[c.src];
+  if (c.src_kind === "may") return "may hold, " + (r ? regionTitle(r, true) : c.src);
   return (r ? regionTitle(r, true) : c.src) + (c.where === "contents" ? ", contents" : ", " + String(c.where).replace(/^cmpt_/, ""));
 }
 
@@ -698,7 +710,7 @@ function renderDetail(id) {
   const r = regById[id];
   if (!r) return;
   const own = cs.owners[r.owner];
-  const kind = own && (own.kind === "trusted" || own.kind === "untrusted") ? own.kind + " compartment" : (OWNER_INFO[r.owner] || [r.owner])[0];
+  const kind = cmptKind(own) ? cmptKind(own) + " compartment" : (ownerInfo(r.owner) || [r.owner])[0];
   const b = r.badges || [];
   let content;
   if (r.content) content = `<pre class="code">${esc(r.content)}</pre>`;
@@ -827,6 +839,7 @@ function unhover() {
 function capRows(c) {
   const rows = [["permissions", (c.sentry ? "sentry " + c.sentry + ", " : "") + c.perm], ["locality", c.loc], ["base b", c.b], ["end e", c.e], ["cursor a", c.a]];
   if (c.sealed) rows.push(["sealed by", c.sealed]);
+  if (c.comment && /, handle$/.test(c.comment)) rows.push(["handle of", c.comment.replace(/, handle$/, "")]);
   const r = c.target && regById[c.target];
   rows.push(["points to", c.kind === "sealrange" ? "sealing range over otypes (no memory)" : regionTitle(r, true) + (r && r.implicit ? " (implicit)" : "")]);
   if (c.target) {
@@ -964,6 +977,7 @@ function indexCase() {
     if (c.ptr) { const r = regionOf(c.ptr); if (r) (ptrIn[r] = ptrIn[r] || []).push(c.id); }
     push(c.cap); if (c.rep) push(c.rep.cap);
     for (const id of c.arg_caps || []) push(id);
+    for (const id of c.may || []) push(id);
     if (c.code_caps) for (const i of Object.keys(c.code_caps).sort((a, b) => a - b)) { push(c.code_caps[i]); capCode[c.code_caps[i]] = c.id; }
   }
   for (const c of cs.caps) push(c.id);
@@ -973,7 +987,7 @@ function indexCase() {
 /* Within a group the choices are alternatives (OR), except permissions,
    which must all be present; the groups combine with AND. */
 const KINDS = [["cap", "capability", "data"], ["sentry", "sentry", "sentry"], ["sealed", "sealed", "sealed"], ["sealrange", "seal range", "sealed"]];
-const PERM_ORDER = "RWXLS";
+const PERM_ORDER = ["R", "W", "X", "L", "S", "DL", "DRO"];
 let filt = null, fArrows = false, matchList = [], matchAt = -1;
 function capKinds(c) {
   if (c.kind === "sealrange") return ["sealrange"];
@@ -983,12 +997,19 @@ function capKinds(c) {
   if (!k.length) k.push("cap");
   return k;
 }
-const permLetters = (c) => (c.kind === "cap" ? String(c.perm || "").replace(/[^A-Z]|O/g, "") : "");
+/* The permission tokens of a capability: the letters of the part before the
+   first "_" (R, W, X, L for WL, S; not O), then each later "_" part (DL, DRO). */
+const permTokens = (c) => {
+  if (c.kind !== "cap") return [];
+  const [head, ...rest] = String(c.perm || "").split("_");
+  const letters = head.replace(/[^A-Z]|O/g, "").split("");
+  return [...new Set(letters)].concat(rest.filter(Boolean));
+};
 function matches(c) {
   if (filt.kind.size && !capKinds(c).some((k) => filt.kind.has(k))) return false;
   if (filt.loc.size && !filt.loc.has(c.loc)) return false;
   if (filt.ot.size && !filt.ot.has(c.sealed)) return false;
-  if (filt.perm.size) { const l = permLetters(c); for (const x of filt.perm) if (!l.includes(x)) return false; }
+  if (filt.perm.size) { const l = permTokens(c); for (const x of filt.perm) if (!l.includes(x)) return false; }
   return true;
 }
 const filtering = () => filt && (filt.kind.size || filt.loc.size || filt.ot.size || filt.perm.size);
@@ -1004,13 +1025,14 @@ function renderFilters() {
   const kinds = KINDS.map(([k, label, cls]) => [k, label, cls, count((c) => capKinds(c).includes(k))]).filter((x) => x[3]);
   const locs = ["Local", "Global"].map((l) => [l, count((c) => c.loc === l)]).filter((x) => x[1]);
   const ots = [...new Set(cs.caps.map((c) => c.sealed).filter(Boolean))].sort();
-  const letters = [...new Set(cs.caps.map(permLetters).join(""))].sort((a, b) => (PERM_ORDER.indexOf(a) + 1 || 99) - (PERM_ORDER.indexOf(b) + 1 || 99) || (a < b ? -1 : 1));
+  const letters = [...new Set(cs.caps.flatMap(permTokens))].sort((a, b) => (PERM_ORDER.indexOf(a) + 1 || 99) - (PERM_ORDER.indexOf(b) + 1 || 99) || (a < b ? -1 : 1));
+  const OT_TIP = { "ot_switcher sw ^+ 1": "thread handles (unsealed by the switcher's first data word)" };
   $("filters").innerHTML =
     `<span class="fh">Highlight capabilities</span>` +
     `<span class="fg"><i>kind</i>${kinds.map(([k, label, cls, n]) => btn("kind", k, label, n, cls)).join("")}</span>` +
     `<span class="fg"><i>locality</i>${locs.map(([l, n]) => btn("loc", l, l, n)).join("")}</span>` +
-    (ots.length ? `<span class="fg"><i>sealed by</i>${ots.map((o) => btn("ot", o, o, count((c) => c.sealed === o), "sealed")).join("")}</span>` : "") +
-    `<span class="fg"><i>permission contains</i>${letters.map((x) => btn("perm", x, x, count((c) => permLetters(c).includes(x)), "", "capabilities (not seal ranges) whose permission has the letter " + x)).join("")}</span>` +
+    (ots.length ? `<span class="fg"><i>sealed by</i>${ots.map((o) => btn("ot", o, o, count((c) => c.sealed === o), "sealed", OT_TIP[o])).join("")}</span>` : "") +
+    `<span class="fg"><i>permission contains</i>${letters.map((x) => btn("perm", x, x, count((c) => permTokens(c).includes(x)), "", "capabilities (not seal ranges) whose permission has " + x)).join("")}</span>` +
     `<span class="fstat" id="fstat"></span>`;
 }
 function applyFilters() {

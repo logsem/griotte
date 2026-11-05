@@ -1,11 +1,12 @@
 From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
-  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  switcher assert allocator_resources compartment_layout
+  machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang
+  hw_lang hw_machine_run switcher assert allocator_resources compartment_layout
   deep_locality deep_locality_adequacy.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok image_state link dle_firmware.
+From griotte Require Import image firmware firmware_ok image_state link dle_firmware
+  round_robin_scheduler_concrete.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -13,9 +14,11 @@ From griotte Require Import image firmware firmware_ok image_state link dle_firm
 
 (** * A concrete instance of the deep-locality case study
 
-    The deep-locality firmware with a concrete adversary [C], laid out by
-    the linker. Its initial state satisfies [dle_initial_state_ok] by
-    computation, runs to [Halted], and [dle_adequacy] applies to it. *)
+    The deep-locality firmware with a concrete adversary [C] and the
+    round-robin scheduler, laid out by the linker. Its initial state
+    satisfies [dle_initial_state_ok] by computation; from it the thread
+    runs, through the scheduler, to its exit, where the scheduler halts the
+    machine; [dle_adequacy] applies to the run. *)
 
 Definition dle_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
@@ -36,10 +39,8 @@ Definition dle_C_code : list Word :=
 
 Definition dle_C_data : list Word := [WInt 0].
 
-Definition dle_demo_link_cfg : link_cfg := {|
-  lk_base        := 16;
-  lk_ot_switcher := dle_switcher_sealing_type;
-  lk_adv         := [
+Definition dle_demo_link_cfg : link_cfg :=
+  rr_link_cfg 16 dle_switcher_sealing_type [
     ("C", {| la_code    := dle_C_code;
              la_data    := dle_C_data;
              la_exports := [
@@ -47,8 +48,7 @@ Definition dle_demo_link_cfg : link_cfg := {|
              ];
              la_handler := ExportTable_no_handler;
              la_handler_stackless := ExportTable_no_handler |})
-  ]
-|}.
+  ] 16 dle_firmware.
 
 (** ** The linked image and its initial state *)
 
@@ -63,39 +63,45 @@ Proof. vm_compute; reflexivity. Qed.
 
 Definition dle_demo_state : ExecConf := img_state dle_firmware dle_demo_image.
 
-Ltac solve_other_registers :=
-  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
-  rewrite !lookup_insert_ne; try set_solver;
-  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
-
 Lemma dle_demo_ok :
   dle_initial_state_ok (flag_assert (img_asrt dle_demo_image)) dle_demo_state.
 Proof.
   rewrite /dle_initial_state_ok.
   exists (img_sw dle_demo_image), (img_asrt dle_demo_image), (thread_of dle_demo_image 0),
-    (cmpt_of dle_demo_image "main"), (cmpt_of dle_demo_image "C").
+    (img_idle dle_demo_image), (img_boot dle_demo_image),
+    (cmpt_of dle_demo_image "main"), (cmpt_of dle_demo_image "C"),
+    (cmpt_of dle_demo_image "sched").
   split; first done.
   split_and!.
   (* The error handler offsets of the adversaries, as the configuration gives them. *)
   all: try exists_adv_handlers dle_demo_link_cfg.
   all: try (exists 1%nat, 0%nat; split_and!).
   all: try (lazymatch goal with
-            | |- ∀ r, _ => rewrite /dle_demo_state /img_state /img_regs; solve_other_registers
+            | |- ∃ _ _ _ : Z, _ => exists 0%Z, 0%Z, 0%Z; split_and!
+            end).
+  all: try (lazymatch goal with
+            | |- ∃ _ : InterruptStatus, _ => exists InterruptEnabled
+            end).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /dle_demo_state /img_state /img_regs;
+                           solve_start_other_registers
             end).
   all: solve_concrete_condition.
 Qed.
 
 (** ** The run
 
-    [dle_demo_state] runs to [Halted], and [dle_adequacy] applies to it:
-    the flag of the assert library is still zero. Fuel 3000 does not
-    suffice; 5000 reaches [Halted]. *)
+    [dle_demo_state] starts at the switcher's call of the scheduler, which
+    resumes the thread; the thread runs to its exit, and the scheduler then
+    halts the machine. [dle_adequacy] applies to the run: the flag of the
+    assert library is still zero. The proof runs it with fuel 6500; fuel
+    3000 does not suffice, 3100 reaches [Halted]. *)
 Theorem dle_runs_and_gracefully_halts :
   ∃ σ',
-    rtc erased_step ([Exec], dle_demo_state) ([Instr Halted], σ')
+    rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], dle_demo_state) ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt dle_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat 5000%N) Executable dle_demo_state Halted) as Hrun.
+  pose proof (machine_run_hw_correct (N.to_nat 6500%N) dle_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [σ' Hrun].
   exists σ'. split; first exact Hrun.

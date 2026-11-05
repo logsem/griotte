@@ -71,6 +71,10 @@ Module FwPrintNotations.
   Notation "'entry' m n stk off" :=
     (WInt (encode_entry_point m (Z.of_nat n) (Z.of_nat stk) (Z.of_nat off)))
     (only printing, at level 10, m at level 0, n at level 0, stk at level 0, off at level 0).
+  (** An offset at a label [s] of the switcher. *)
+  Notation "'label' s" :=
+    (assembler.Asm_Griotte.label_offset_from (concat switcher_asm) ".Lswitch_csp_check" s)
+    (only printing, at level 10, s at level 0).
 End FwPrintNotations.
 
 (** Notations for the operands of instructions: canonical registers,
@@ -114,13 +118,12 @@ End FwMapNotations.
 Ltac2 rec flat_aux (s : string) (i : int) (n : int) (sp : bool) (acc : string list) :=
   if Int.equal i n then List.rev acc else
   let c := Char.to_int (String.get s i) in
-  if Int.equal c 34 then flat_aux s (Int.add i 1) n sp acc
-  else if Int.le c 32 then
+  if Int.le c 32 then
     if sp then flat_aux s (Int.add i 1) n true acc
     else flat_aux s (Int.add i 1) n true (" " :: acc)
   else flat_aux s (Int.add i 1) n false (String.make 1 (Char.of_int c) :: acc).
 
-(** One line, without string quotes nor surrounding spaces. *)
+(** One line, without surrounding spaces. *)
 Ltac2 rec trim_end (s : string) : string :=
   let n := String.length s in
   if Int.ge n 1 then
@@ -219,18 +222,85 @@ Ltac2 rec list_of (c : constr) : constr list :=
 Ltac2 print_lines (ls : string list) : unit :=
   List.iter (fun l => Message.print (Message.of_string l)) ls.
 
+(** The application [f args] when [f] is [g]. *)
+Ltac2 app_of (g : constr) (p : constr) : constr array option :=
+  match Constr.Unsafe.kind p with
+  | Constr.Unsafe.App f args => if Constr.equal f g then Some args else None
+  | _ => None
+  end.
+
+Ltac2 rebuild_app (f : constr) (args : constr array) (i : int) (a : constr) : constr :=
+  let args := Array.copy args in
+  Array.set args i a;
+  Constr.Unsafe.make (Constr.Unsafe.App f args).
+
+(** *** Notes inside terms *)
+
+Ltac2 rec has_note (c : constr) : bool :=
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.App f args =>
+      if Constr.equal f constr:(@note) then true
+      else Bool.or (has_note f) (List.exist has_note (Array.to_list args))
+  | Constr.Unsafe.Lambda _ b => has_note b
+  | Constr.Unsafe.Prod _ b => has_note b
+  | _ => false
+  end.
+
+(** [c] without its [note] nodes. *)
+Ltac2 rec strip_notes (c : constr) : constr :=
+  if has_note c then
+    match Constr.Unsafe.kind c with
+    | Constr.Unsafe.App f args =>
+        if Bool.and (Constr.equal f constr:(@note)) (Int.equal (Array.length args) 3)
+        then strip_notes (Array.get args 2)
+        else Constr.Unsafe.make (Constr.Unsafe.App (strip_notes f) (Array.map strip_notes args))
+    | Constr.Unsafe.Lambda b bd => Constr.Unsafe.make (Constr.Unsafe.Lambda b (strip_notes bd))
+    | Constr.Unsafe.Prod b bd => Constr.Unsafe.make (Constr.Unsafe.Prod b (strip_notes bd))
+    | _ => c
+    end
+  else c.
+
+(** The outermost [note] of [c], also under [Some]: [c] without it, and its
+    comment. *)
+Ltac2 top_note (c : constr) : constr * string option :=
+  let peel x :=
+    match app_of constr:(@note) x with
+    | Some args =>
+        if Int.equal (Array.length args) 3 then Some (Array.get args 2, Array.get args 1) else None
+    | None => None
+    end in
+  match peel c with
+  | Some (x, t) => (x, Some (str t))
+  | None =>
+      match app_of constr:(@Some) c with
+      | Some args =>
+          if Int.equal (Array.length args) 2 then
+            match peel (Array.get args 1) with
+            | Some (x, t) => (rebuild_app constr:(@Some) args 1 x, Some (str t))
+            | None => (c, None)
+            end
+          else (c, None)
+      | None => (c, None)
+      end
+  end.
+
 (** ** The predicate printer
 
     The walk produces logical lines: headings, equations (aligned on [=]
-    within a block of consecutive ones) and other lines, each with an
-    optional comment. [layout] then lays out each section: it breaks lines
-    longer than [max_width] and aligns the comments of the section on one
+    within a block of consecutive ones), with the note of their right-hand
+    side as comment or not, terms, lines laid out already and
+    other lines, each with an optional comment. [layout] then lays out each
+    section: it breaks lines longer than [max_width], a term with notes
+    inside by its structure, and aligns the comments of the section on one
     column. *)
 
 Ltac2 Type pline := [
   PHead (string)
 | PEq (string, string, string, string option)  (* prefix, left, right, comment *)
+| PLift (string, string, string, string)       (* an equation with the note of its right side *)
 | PText (string, string, string option)        (* prefix, code, comment *)
+| PTerm (string, constr, string option)        (* prefix, term, comment *)
+| PRaw (string, string option)                 (* line, comment: never broken *)
 ].
 
 Ltac2 max_width (_ : unit) : int := 112.
@@ -279,7 +349,10 @@ Ltac2 set_comment (c : string) (ls : pline list) : pline list :=
   | l :: rest =>
       match l with
       | PEq i a b _ => PEq i a b (Some c) :: rest
+      | PLift i a b _ => PLift i a b c :: rest
       | PText i x _ => PText i x (Some c) :: rest
+      | PTerm i t _ => PTerm i t (Some c) :: rest
+      | PRaw x _ => PRaw x (Some c) :: rest
       | PHead _ => l :: rest
       end
   end.
@@ -289,8 +362,8 @@ Ltac2 quote (s : string) : string :=
 
 (** An equation [l = Some c] where [c] is a capability at a label [s] of
     the switcher, printed [(p, g, b, e, a ^+ label "s")]: [label "s"] is
-    [label_offset_from (concat switcher_asm) ".Lswitch_csp_check" s].
-    The exception entry gets its comment. *)
+    [label_offset_from (concat switcher_asm) ".Lswitch_csp_check" s], on
+    one line. The exception entry gets its comment. *)
 Ltac2 label_eq (ind : string) (p : constr) : pline option :=
   Control.plus (fun () =>
     lazy_match! p with
@@ -300,10 +373,59 @@ Ltac2 label_eq (ind : string) (p : constr) : pline option :=
                         ".Lswitch_csp_check" ?s)))) =>
         let s := str s in
         let c := if String.equal s "exception_entry_asm" then Some "exception entry" else None in
-        Some (PEq ind (pp l)
-                (String.concat "" ["Some ("; pp p; ", "; pp g; ", "; pp b; ", "; pp e; ", ";
-                                   pp a; " ^+ label "; quote s; ")"]) c)
+        Some (PRaw (String.concat "" [ind; pp l; " = Some ("; pp p; ", "; pp g; ", "; pp b; ", ";
+                                     pp e; ", "; pp a; " ^+ label "; quote s; ")"]) c)
     end) (fun _ => None).
+
+(** *** Words of a printed term *)
+
+Ltac2 is_open (c : int) : bool :=
+  Bool.or (Int.equal c 40) (Bool.or (Int.equal c 91) (Int.equal c 123)).
+Ltac2 is_close (c : int) : bool :=
+  Bool.or (Int.equal c 41) (Bool.or (Int.equal c 93) (Int.equal c 125)).
+
+(** The words of [s] at the outer level, between its spaces outside brackets. *)
+Ltac2 outer_words (s : string) : string list :=
+  let n := String.length s in
+  let rec go i depth start acc :=
+    if Int.equal i n then List.rev (String.sub s start (Int.sub n start) :: acc)
+    else
+      let c := Char.to_int (String.get s i) in
+      if is_open c then go (Int.add i 1) (Int.add depth 1) start acc
+      else if is_close c then go (Int.add i 1) (Int.sub depth 1) start acc
+      else if Bool.and (Int.equal c 32) (Int.equal depth 0) then
+        go (Int.add i 1) depth (Int.add i 1) (String.sub s start (Int.sub i start) :: acc)
+      else go (Int.add i 1) depth start acc in
+  go 0 0 0 [].
+
+(** An argument printed [s] is parenthesised when it has several words. *)
+Ltac2 needs_parens (s : string) : bool := Int.gt (List.length (outer_words s)) 1.
+
+Ltac2 paren_if (b : bool) (s : string) : string := if b then String.concat "" ["("; s; ")"] else s.
+
+(** The printing of [t] without its notes. [a ++ b] is printed by its
+    sides: alone, it would read [(a ++ b)%list] under [string_scope]. *)
+Ltac2 rec flat_text (t : constr) : string :=
+  let plain () := pp (strip_notes t) in
+  match app_of constr:(@app) t with
+  | Some args =>
+      if Int.equal (Array.length args) 3 then
+        let a := flat_text (Array.get args 1) in
+        let infix := List.exist (fun w => Bool.or (String.equal w "++") (String.equal w "::")) (outer_words a) in
+        String.concat "" [paren_if infix a; " ++ "; flat_text (Array.get args 2)]
+      else plain ()
+  | None => plain ()
+  end.
+
+(** The right-hand side [Some x] of an equation whose note was lifted. *)
+Ltac2 some_text (r : constr) : string :=
+  match app_of constr:(@Some) r with
+  | Some args =>
+      if Int.equal (Array.length args) 2 then
+        let s := flat_text (Array.get args 1) in String.app "Some " (paren_if (needs_parens s) s)
+      else pp r
+  | None => pp r
+  end.
 
 (** Types, with the names of the address and otype abbreviations. *)
 Ltac2 pp_type (t : constr) : string :=
@@ -374,12 +496,23 @@ Ltac2 rec walk (offs : ident list) (ind : string) (p : constr) : pline list :=
       | @union _ _ _ _ =>
           PText ind (String.app (pp l) " =") None ::
           List.mapi (fun i e =>
-                       let (code, c) := elem e in
-                       PText (String.app ind (if Int.equal i 0 then "      " else "    ∪ ")) code c)
+                       let (t, c) := top_note e in
+                       PTerm (String.app ind (if Int.equal i 0 then "      " else "    ∪ ")) t c)
             (unions r)
-      | _ => [PEq ind (pp l) (pp r) None]
+      | _ =>
+          (* a note on the right-hand side is the comment of the equation *)
+          match top_note r with
+          | (_, None) => [PEq ind (pp l) (pp r) None]
+          | (r, c) =>
+              if has_note r then [PTerm (String.concat "" [ind; pp l; " = "]) r c]
+              else
+                match c with
+                | Some c => [PLift ind (pp l) (some_text r) c]
+                | None => [PEq ind (pp l) (some_text r) None]
+                end
+          end
       end
-  | _ => [PText ind (pp p) None]
+  | _ => [PTerm ind p None]
   end
   end
   end
@@ -405,11 +538,6 @@ Ltac2 sub_is (s : string) (i : int) (t : string) : bool :=
   let m := String.length t in
   if Int.gt (Int.add i m) (String.length s) then false
   else String.equal (String.sub s i m) t.
-
-Ltac2 is_open (c : int) : bool :=
-  Bool.or (Int.equal c 40) (Bool.or (Int.equal c 91) (Int.equal c 123)).
-Ltac2 is_close (c : int) : bool :=
-  Bool.or (Int.equal c 41) (Bool.or (Int.equal c 93) (Int.equal c 125)).
 
 (** The last space at the outer level before a parenthesis or a bracket,
     not after [=]: where the last argument of an application starts. *)
@@ -487,36 +615,41 @@ Ltac2 rec take_eqs (ind : string) (ls : pline list) : pline list * pline list :=
       match l with
       | PEq i _ _ _ =>
           if String.equal i ind then let (b, r) := take_eqs ind rest in (l :: b, r) else ([], ls)
+      | PLift i _ _ _ =>
+          if String.equal i ind then let (b, r) := take_eqs ind rest in (l :: b, r) else ([], ls)
       | _ => ([], ls)
       end
   end.
 
 (** Equations of a block of consecutive ones at the same indentation,
-    aligned on [=] as far as the lines fit. *)
+    aligned on [=] as far as the lines fit, or overflow by at most 4. *)
 Ltac2 rec align_eqs (ls : pline list) : pline list :=
   match ls with
   | [] => []
   | l :: rest =>
-      match l with
-      | PEq i _ _ _ =>
+      let block i :=
           let (blk, rest) := take_eqs i ls in
           let w := List.fold_left (fun m l =>
                      match l with
                      | PEq i a _ _ => let k := Int.add (width i) (width a) in if Int.lt m k then k else m
+                     | PLift i a _ _ => let k := Int.add (width i) (width a) in if Int.lt m k then k else m
                      | _ => m
                      end) 0 blk in
+          let padded i a b :=
+            let room := Int.sub (Int.sub (max_width ()) 3) (width b) in
+            let w' := if Int.lt room w then (if Int.le (Int.sub w room) 4 then w else room) else w in
+            pad a (Int.sub w' (width i)) in
           List.append
             (List.map (fun l =>
                          match l with
-                         | PEq i a b c =>
-                             (* pad as far as the line fits; a capability at a label of
-                                the switcher stays on one line anyway *)
-                             let room := Int.sub (Int.sub (max_width ()) 3) (width b) in
-                             let w' := if Int.lt room w then (if contains b " ^+ label " then w else room) else w in
-                             PText i (String.concat "" [pad a (Int.sub w' (width i)); " = "; b]) c
+                         | PEq i a b c => PEq i (padded i a b) b c
+                         | PLift i a b c => PLift i (padded i a b) b c
                          | _ => l
                          end) blk)
-            (align_eqs rest)
+            (align_eqs rest) in
+      match l with
+      | PEq i _ _ _ => block i
+      | PLift i _ _ _ => block i
       | _ => l :: align_eqs rest
       end
   end.
@@ -544,12 +677,173 @@ Ltac2 drop_remark (c : string) : string :=
   if Bool.and (Int.ge n 1) (Int.equal (Char.to_int (String.get c (Int.sub n 1))) 41)
   then go (Int.sub n 2) else c.
 
+(** *** Terms by their structure *)
+
+Ltac2 rec list_lit (c : constr) : constr list option :=
+  match app_of constr:(@cons) c with
+  | Some args =>
+      if Int.equal (Array.length args) 3 then
+        match list_lit (Array.get args 2) with
+        | Some xs => Some (Array.get args 1 :: xs)
+        | None => None
+        end
+      else None
+  | None => match app_of constr:(@nil) c with Some _ => Some [] | None => None end
+  end.
+
+Ltac2 head_name (f : constr) : string option :=
+  let name r := Ident.to_string (List.last (Env.path r)) in
+  match Constr.Unsafe.kind f with
+  | Constr.Unsafe.Constant c _ => Some (name (Std.ConstRef c))
+  | Constr.Unsafe.Ind i _ => Some (name (Std.IndRef i))
+  | _ => None
+  end.
+
+(** The names of the parameters of a type [∀ x y …, T], [w_] dropped. *)
+Ltac2 rec param_names (t : constr) : string option list :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.Prod b bd =>
+      let x := match Constr.Binder.name b with
+               | Some x =>
+                   let x := Ident.to_string x in
+                   Some (if sub_is x 0 "w_" then String.sub x 2 (Int.sub (String.length x) 2) else x)
+               | None => None
+               end in
+      x :: param_names bd
+  | _ => []
+  end.
+
+Ltac2 rec nth_opt (l : 'a option list) (i : int) : 'a option :=
+  match l with
+  | [] => None
+  | x :: rest => if Int.equal i 0 then x else nth_opt rest (Int.sub i 1)
+  end.
+
+(** The heads whose arguments are printed one per line, each with the
+    name of its parameter as comment. *)
+Ltac2 named_args (n : string) : bool :=
+  List.exist (String.equal n) ["save_area_content"; "initial_trusted_stack_content"; "switcher_data_words"].
+
+Ltac2 with_comment (c : string option) (ls : (string * string option) list) : (string * string option) list :=
+  match c with
+  | None => ls
+  | Some c =>
+      match ls with
+      | [] => []
+      | l :: rest =>
+          let (x, c0) := l in
+          match c0 with
+          | None => (x, Some c) :: rest
+          | Some c0 => (x, Some (String.concat "" [c; "; "; c0])) :: rest
+          end
+      end
+  end.
+
+Ltac2 default_comment (c : string option) (ls : (string * string option) list) : (string * string option) list :=
+  match ls with
+  | [] => []
+  | l :: rest => let (x, c0) := l in match c0 with None => (x, c) :: rest | Some _ => ls end
+  end.
+
+(** The lines of the term [t] after [pre] on its first line, parenthesised
+    if [paren], followed by [suf], each with its comment: one line if it
+    fits and has no note inside; else a list literal one element per line,
+    [a ++ b] as [a ++] and [b], [Some x] as [Some] and [x], an application
+    of a constant as its head and its arguments one per line (after those
+    that fit on the head's line, if the head is not one of [named_args]),
+    and other terms broken by [wrap]. The comment of a line is the note of
+    its term. *)
+Ltac2 rec term_lines (pre : string) (paren : bool) (t : constr) (suf : string)
+    : (string * string option) list :=
+  let (t, c) := top_note t in
+  let cl := if paren then String.app ")" suf else suf in
+  let s := flat_text t in
+  let pre := if paren then String.app pre "(" else pre in
+  let one := String.concat "" [pre; s; cl] in
+  if Bool.and (Bool.neg (has_note t)) (Int.le (width one) (max_width ())) then [(one, c)]
+  else
+    let col := spaces (width pre) in
+    let arg_parens x := needs_parens (flat_text x) in
+    let fallback () :=
+      List.map (fun l => (l, None))
+        (wrap (max_width ()) pre (String.app (if has_note t then pp t else s) cl)) in
+    with_comment c
+      (match list_lit t with
+       | Some es =>
+           let n := List.length es in
+           if Int.equal n 0 then fallback () else
+           List.flat_map (fun ie =>
+             let (i, e) := ie in
+             term_lines (if Int.equal i 0 then String.app pre "[" else String.app col " ") false e
+               (if Int.equal i (Int.sub n 1) then String.app "]" cl else ";"))
+             (List.mapi (fun i e => (i, e)) es)
+       | None =>
+       match app_of constr:(@Some) t with
+       | Some args =>
+           if Bool.neg (Int.equal (Array.length args) 2) then fallback () else
+           let x := Array.get args 1 in
+           term_lines (String.app pre "Some ") (arg_parens x) x cl
+       | None =>
+       match app_of constr:(@app) t with
+       | Some args =>
+           if Bool.neg (Int.equal (Array.length args) 3) then fallback () else
+           let a := Array.get args 1 in
+           let infix := List.exist (fun w => Bool.or (String.equal w "++") (String.equal w "::"))
+                          (outer_words (flat_text a)) in
+           List.append (term_lines pre infix a " ++") (term_lines col false (Array.get args 2) cl)
+       | None =>
+       match Constr.Unsafe.kind t with
+       | Constr.Unsafe.App f args =>
+           match head_name f with
+           | Some name =>
+               let k := Int.sub (List.length (outer_words s)) 1 in
+               let na := Array.length args in
+               if Bool.and (sub_is s 0 (String.app name " ")) (Bool.and (Int.ge k 1) (Int.le k na)) then
+                 let named := named_args name in
+                 let first := Int.sub na k in
+                 let xs := List.skipn first (Array.to_list args) in
+                 let names := List.skipn first (param_names (Constr.type f)) in
+                 let argcol := spaces (Int.add (width pre) 2) in
+                 (* the arguments without notes that fit on the head's line *)
+                 let rec head line i xs :=
+                   if named then (line, i, xs) else
+                   match xs with
+                   | [] => (line, i, xs)
+                   | x :: rest =>
+                       match rest with
+                       | [] => (line, i, xs)
+                       | _ :: _ =>
+                           if has_note x then (line, i, xs) else
+                           let sx := flat_text x in
+                           let sx := paren_if (needs_parens sx) sx in
+                           let l := String.concat "" [line; " "; sx] in
+                           if Int.le (width l) (max_width ()) then head l (Int.add i 1) rest else (line, i, xs)
+                       end
+                   end in
+                 let (hl, i0, rest) := head (String.app pre name) 0 xs in
+                 let m := List.length rest in
+                 (hl, None) ::
+                 List.flat_map (fun jx =>
+                   let (j, x) := jx in
+                   let ls := term_lines argcol (arg_parens x) x (if Int.equal j (Int.sub m 1) then cl else "") in
+                   if named then default_comment (nth_opt names (Int.add i0 j)) ls else ls)
+                   (List.mapi (fun j x => (j, x)) rest)
+               else fallback ()
+           | None => fallback ()
+           end
+       | _ => fallback ()
+       end end end end).
+
 (** A section: equations aligned, long lines broken (earlier when they
-    carry a comment), comments on one column; a comment whose line is
-    still longer than the column goes on the next line, at the column. A
-    [∀ x, P] that does not fit with its comment is broken after [∀ x,]; a
-    comment that does not fit after the column loses its trailing
-    parenthetical remark. *)
+    carry a comment), terms with notes inside broken by their structure,
+    comments on one column. An equation that fits without its comment is
+    not broken. A comment whose line is longer than the column goes on the
+    next line, at the column; a comment that does not fit after the column
+    loses its trailing parenthetical remark, and if it still does not fit,
+    goes on the next line, indented by 4. A [∀ x, P] that does not fit with
+    its comment is broken after [∀ x,]. The lines of a term broken by its
+    structure take their comments on the column of the section, or further
+    right if one of them is longer. *)
 Ltac2 layout_section (ls : pline list) : string list :=
   (* a line with a comment is broken earlier, to leave room for it *)
   let limit c := match c with None => max_width () | Some _ => comment_cap () end in
@@ -564,39 +858,81 @@ Ltac2 layout_section (ls : pline list) : string list :=
         wrap (limit c) (String.app i "  ") (String.sub x (Int.add k 2) (Int.sub (String.length x) (Int.add k 2)))
     | None => wrap (limit c) i x
     end in
+  let fits x := Int.le (width x) (max_width ()) in
+  (* an item: groups of lines, the comment of each group, whether it sets
+     the column of the section *)
+  let eq_lines i a b c :=
+    let x := String.concat "" [a; " = "; b] in
+    if Int.le (width (String.concat "" [i; trim_end a; " = "; b])) (Int.add (max_width ()) 4)
+    then [String.app i x] else wrap (limit c) i x in
   let items := List.map (fun l =>
                  match l with
-                 | PText i x c =>
-                     (* a capability at a label of the switcher stays on one line *)
-                     ((if contains x " ^+ label " then [String.app i x] else forall_lines i x c), c)
-                 | PEq i a b c => (wrap (limit c) i (String.concat "" [a; " = "; b]), c)
-                 | PHead h => ([h], None)
+                 | PText i x c => [(forall_lines i x c, c, true)]
+                 | PEq i a b c => [(eq_lines i a b c, c, true)]
+                 | PLift i a b c => [(eq_lines i a b (Some c), Some c, false)]
+                 | PTerm i t c =>
+                     let old := forall_lines i (pp t) c in
+                     if Bool.and (Bool.neg (has_note t)) (List.for_all fits old) then [(old, c, true)]
+                     else
+                       List.mapi (fun k l => let (x, c) := l in ([x], c, Int.equal k 0))
+                         (with_comment c (term_lines i false t ""))
+                 | PRaw x c => [([x], c, true)]
+                 | PHead h => [([h], None, true)]
                  end) (align_eqs ls) in
-  let col := List.fold_left (fun m it =>
-               let (lines, c) := it in
-               match c with
-               | None => m
-               | Some _ =>
-                   match lines with
-                   | [] => m
-                   | l :: _ =>
-                       let k := width l in
-                       if Int.le k (comment_cap ()) then (if Int.lt m k then k else m) else m
-                   end
-               end) 0 items in
-  let col := Int.add col 2 in
-  List.flat_map (fun it =>
-    let (lines, c) := it in
+  (* the longest first line of a group that sets the column, among those
+     not longer than [cap] whose comment, or [w] characters, fit after
+     them *)
+  let longest cap w m g :=
+    let (lines, c, counts) := g in
+    match c with
+    | None => m
+    | Some c =>
+        match lines with
+        | [] => m
+        | l :: _ =>
+            let k := width l in
+            let w := if Int.lt w (width (drop_remark c)) then width (drop_remark c) else w in
+            if Bool.and counts (Bool.and (Int.le k cap) (Int.le (Int.add (Int.add k 5) w) (max_width ())))
+            then (if Int.lt m k then k else m) else m
+        end
+    end in
+  let col := Int.add (List.fold_left (fun m it => match it with [] => m | g :: _ => longest (comment_cap ()) 0 m g end)
+                        0 items) 2 in
+  let place col g :=
+    let (lines, c, _) := g in
     match c with
     | None => lines
     | Some c =>
-        let c := if Int.le (Int.add (Int.add col 3) (width c)) (max_width ()) then c else drop_remark c in
+        let room c := Int.le (Int.add (Int.add col 3) (width c)) (max_width ()) in
+        let c := if room c then c else drop_remark c in
         match lines with
         | [] => []
         | l :: rest =>
-            if Int.le (Int.add (width l) 2) col then String.concat "" [pad l col; "-- "; c] :: rest
-            else List.append lines [String.concat "" [spaces col; "-- "; c] ]
+            if room c then
+              if Int.le (Int.add (width l) 2) col then String.concat "" [pad l col; "-- "; c] :: rest
+              else List.append lines [String.concat "" [spaces col; "-- "; c] ]
+            else
+              let ind := Int.sub (width l) (width (trim_start l)) in
+              l :: String.concat "" [spaces (Int.add ind 4); "-- "; c] :: rest
         end
+    end in
+  List.flat_map (fun it =>
+    match it with
+    | [] => []
+    | g :: gs =>
+        (* the lines of a term broken by its structure: on a column where
+           the comments that fit after the column of the section fit *)
+        let w := List.fold_left (fun m g =>
+                   let (_, c, _) := g in
+                   match c with
+                   | Some c =>
+                       let k := width (drop_remark c) in
+                       if Bool.and (Int.lt m k) (Int.le (Int.add (Int.add col 3) k) (max_width ())) then k else m
+                   | None => m
+                   end) 0 gs in
+        let gs := List.map (fun g => let (x, c, _) := g in (x, c, true)) gs in
+        let k := Int.add (List.fold_left (longest (max_width ()) w) 0 gs) 2 in
+        List.append (place col g) (List.flat_map (place (if Int.lt k col then col else k)) gs)
     end) items.
 
 Ltac2 rec split_sections (ls : pline list) (cur : pline list) (acc : pline list list) : pline list list :=
@@ -657,13 +993,6 @@ Ltac2 ident_chars (s : string) : string :=
     let c := Char.to_int (String.get s i) in
     String.make 1 (Char.of_int (if ok c then c else 95))) (List.init (String.length s) (fun i => i))).
 
-(** The application [f args] when [f] is [g]. *)
-Ltac2 app_of (g : constr) (p : constr) : constr array option :=
-  match Constr.Unsafe.kind p with
-  | Constr.Unsafe.App f args => if Constr.equal f g then Some args else None
-  | _ => None
-  end.
-
 (** The names of the exports imported somewhere: [(X, k, e)] for a
     comment [X, export e] on a sealed word at an address
     [_ ^+ ExportTable_offset_entry k]. *)
@@ -708,11 +1037,6 @@ Ltac2 rec lookup_export (x : string) (k : int) (ns : (string * int * string) lis
       let (y, j, e) := n in
       if Bool.and (String.equal x y) (Int.equal j k) then e else lookup_export x k rest
   end.
-
-Ltac2 rebuild_app (f : constr) (args : constr array) (i : int) (a : constr) : constr :=
-  let args := Array.copy args in
-  Array.set args i a;
-  Constr.Unsafe.make (Constr.Unsafe.App f args).
 
 Ltac2 starts_with (s : string) (t : string) : bool := sub_is s 0 t.
 
@@ -1011,12 +1335,13 @@ Definition rle (ws : list Word) : list cell :=
 
     [<address> (v:<tag> <base>-<top> l:<length> o:<otype> p: G RWcgml Xa SU0)],
     in hexadecimal. Griotte has no load/store-capability permission: [c]
-    is shown whenever the capability can read or write. Loads keep the
-    global bit unless [DL] ([g]) and the write permission unless [DRO]
-    ([m]); [l] is [WL], [X] is [X] or [XSR], [a] is [XSR]. A sentry has the
-    otype of its kind (1 to 5, as cheriot-sail's sentry otypes), a sealing
-    range shows its seal permissions ([S], [U]) and no memory permission;
-    [0] (the user permission) never appears. *)
+    is shown whenever the capability can read or write, except on a
+    capability to a memory-mapped device, which CHERIoT builds without
+    [MC]. Loads keep the global bit unless [DL] ([g]) and the write
+    permission unless [DRO] ([m]); [l] is [WL], [X] is [X] or [XSR], [a] is
+    [XSR]. A sentry has the otype of its kind (1 to 5, as cheriot-sail's
+    sentry otypes), a sealing range shows its seal permissions ([S], [U])
+    and no memory permission; [0] (the user permission) never appears. *)
 
 Definition hex_digit (d : Z) : string := String.substring (Z.to_nat d) 1 "0123456789abcdef".
 
@@ -1051,13 +1376,13 @@ Definition seal_letters (sp : SealPerms) : string :=
 Definition global_letter (g : Locality) : string :=
   flag (match g with Global => true | Local => false end) "G".
 
-Definition perm_letters (p : Perm) (g : Locality) : string :=
+Definition perm_letters (mmio : bool) (p : Perm) (g : Locality) : string :=
   match p with
   | BPerm rx w dl dro =>
       let rd := match rx with Orx => false | _ => true end in
       let wr := match w with Ow => false | _ => true end in
       strs [global_letter g; " ";
-            flag rd "R"; flag wr "W"; flag (rd || wr) "c";
+            flag rd "R"; flag wr "W"; flag ((rd || wr) && negb mmio) "c";
             flag (match dl with LG => true | DL => false end) "g";
             flag (match dro with LM => true | DRO => false end) "m";
             flag (match w with WL => true | _ => false end) "l"; " ";
@@ -1078,21 +1403,6 @@ Definition cheriot_cap (t : bool) (b e a o : Z) (ps : string) : string :=
   strs [hex a; " (v:"; if t then "1" else "0"; " "; hex b; "-"; hex e;
         " l:"; hex (e - b)%Z; " o:"; hex o; " p: "; ps; ")"].
 
-Definition sealable_text (o : Z) (sb : Sealable) : string :=
-  match sb with
-  | SCap t p g b e a => cheriot_cap t b e a o (perm_letters p g)
-  | SSealRange t sp g b e a => cheriot_cap t b e a o (range_perm_letters g sp)
-  end.
-
-(** The text of a capability; [None] for an integer. *)
-Definition word_text (w : Word) : option string :=
-  match w with
-  | WInt _ => None
-  | WSealable sb => Some (sealable_text 0 sb)
-  | WSentry k t p g b e a => Some (cheriot_cap t b e a (sentry_otype k) (perm_letters p g))
-  | WSealed o sb => Some (sealable_text o sb)
-  end.
-
 (** An export entry, decoded as in the predicate: posture, number of
     arguments, minimum stack size, offset. *)
 Definition entry_text (z : Z) : string :=
@@ -1107,14 +1417,30 @@ Definition entry_text (z : Z) : string :=
 Definition entry_cell (w : Word) : cell :=
   match w with WInt z => CText (entry_text z) | _ => CWord w end.
 
-Definition word_cell (w : Word) : cell :=
-  match word_text w with Some s => CText s | None => CWord w end.
-
-Definition text_cell (c : cell) : cell :=
-  match c with CWord w => word_cell w | _ => c end.
-
 Section memory_map.
   Context `{MP : MachineParameters}.
+
+  Definition sealable_text (o : Z) (sb : Sealable) : string :=
+    match sb with
+    | SCap t p g b e a => cheriot_cap t b e a o (perm_letters (is_mmio_address b) p g)
+    | SSealRange t sp g b e a => cheriot_cap t b e a o (range_perm_letters g sp)
+    end.
+
+  (** The text of a capability; [None] for an integer. *)
+  Definition word_text (w : Word) : option string :=
+    match w with
+    | WInt _ => None
+    | WSealable sb => Some (sealable_text 0 sb)
+    | WSentry k t p g b e a =>
+        Some (cheriot_cap t b e a (sentry_otype k) (perm_letters (is_mmio_address b) p g))
+    | WSealed o sb => Some (sealable_text o sb)
+    end.
+
+  Definition word_cell (w : Word) : cell :=
+    match word_text w with Some s => CText s | None => CWord w end.
+
+  Definition text_cell (c : cell) : cell :=
+    match c with CWord w => word_cell w | _ => c end.
 
   Definition words_cells (ws : list Word) : list cell := map word_cell ws.
   Definition code_cells : list Word → list cell :=
@@ -1167,7 +1493,16 @@ Section memory_map.
            [CText "assert_subroutine_instrs, flag capability"];
          row (flag_assert asrt) 1 "flag" "assert" [] ]
         (app (concat (map cmpt_rows (img_cmpts img)))
-           (concat (imap thread_rows (img_threads img))))).
+           (app (concat (imap thread_rows (img_threads img)))
+              (let d := img_idle img in
+               let bs := img_boot img in
+               [row (img_b_idle_trusted_stack d)
+                  (Z.to_nat (img_e_idle_trusted_stack d - img_b_idle_trusted_stack d)%Z)
+                  "trusted stack" "idle thread" [];
+                row (img_b_idle_hazard d) (Z.to_nat (img_e_idle_hazard d - img_b_idle_hazard d)%Z)
+                  "hazard slots" "idle thread" [];
+                row (img_b_boot_stack bs) (Z.to_nat (img_e_boot_stack bs - img_b_boot_stack bs)%Z)
+                  "boot stack" "scheduler" (map text_cell (rle (img_boot_stack_words bs)))])))).
 End memory_map.
 
 Ltac2 cell_str (c : constr) : string :=

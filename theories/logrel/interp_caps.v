@@ -640,4 +640,16 @@ Section logrel.
       iApply interp_clear_tag.
   Qed.
 
+  (** A capability that reaches only exposed devices is valid. *)
+  Lemma interp_exposed_mmio_cap W C p g b e a π :
+    isO p = false →
+    has_sreg_access p = false →
+    exposed_mmio_cap p b e π →
+    ⊢ interp W C (Cap p g b e a @@? π).
+  Proof.
+    iIntros (HnO HnXSR Hexp).
+    rewrite interp_unfold interp1_eq HnO HnXSR.
+    iRight. by iPureIntro.
+  Qed.
+
 End logrel.

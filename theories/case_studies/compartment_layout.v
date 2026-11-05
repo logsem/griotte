@@ -145,51 +145,60 @@ Section CmptLayout.
     cmpt_exp_tbl_mregion C.
 
   (** A word of an initial trusted stack: it has no authority over the heap
-      and is not executable. *)
+      and, if executable, its bounds avoid the heap. *)
   Definition trusted_stack_word (w : Word) : Prop :=
-    heap_authority_base w = None ∧ executable_word w = false.
+    heap_authority_base w = None ∧ lword_exec (lword_of_word w).
 
   Lemma trusted_stack_word_int z : trusted_stack_word (WInt z).
-  Proof. by split. Qed.
+  Proof. split; first done. by apply (lword_exec_not_executable (lword_of_word (WInt z))). Qed.
+
+  (** The register save area of a thread as the loader writes it: [mepcc]
+      [w_mepcc], then the registers [cra] [w_cra], [csp] [w_csp], [cgp]
+      [w_cgp], the other registers zero, [hazardPointers] [w_hazard],
+      [mstatus] [w_mstatus], and [mcause] and the words after it zero. *)
+  Definition save_area_content (w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus : Word) : list Word :=
+    [w_mepcc; w_cra; w_csp; w_cgp] ++
+    replicate (Z.to_nat (TrustedStack_offset_hazardPointers - TrustedStack_offset_ctp)) (WInt 0) ++
+    [w_hazard; w_mstatus] ++
+    replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_mcause)) (WInt 0).
 
   (** The initial contents of a trusted stack with room for the entry frame
-      and [n] frames: a register save area, zeroed but for its word
-      [hazardPointers], which holds the capability [w_hazard] to the hazard
-      slots of the thread, [frameoffset] pointing after the entry frame,
-      the [threadID] [thread_id], the entry frame, and zeroed frames. The
-      entry frame holds the stack pointer [w_csp] of the thread, the export
-      table [w_export_table] of the compartment it starts in, and no error
-      handler invocation. *)
-  Definition initial_trusted_stack_content (w_csp w_export_table w_hazard : Word)
+      and [n] frames: the register save area [save], [frameoffset] pointing
+      after the entry frame, the [threadID] [thread_id], the entry frame, and
+      zeroed frames. The entry frame holds the stack pointer [w_csp] of the
+      thread, the export table [w_export_table] of the compartment it starts
+      in, and no error handler invocation. *)
+  Definition initial_trusted_stack_content (save : list Word) (w_csp w_export_table : Word)
       (thread_id : nat) (n : nat) : list Word :=
-    replicate (Z.to_nat TrustedStack_offset_hazardPointers) (WInt 0) ++
-    [w_hazard] ++
-    replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)) (WInt 0) ++
+    save ++
     [WInt (tstack_frameoffset 0); WInt (Z.of_nat thread_id)] ++
     [w_csp; w_export_table; WInt 0] ++
     replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_words (w_csp w_export_table w_hazard : Word)
+  Lemma initial_trusted_stack_content_words (save : list Word) (w_csp w_export_table : Word)
       (thread_id : nat) (n : nat) :
+    Forall trusted_stack_word save →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
-    trusted_stack_word w_hazard →
     Forall trusted_stack_word
-      (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n).
+      (initial_trusted_stack_content save w_csp w_export_table thread_id n).
   Proof.
-    intros Hcsp Hexport_table Hhazard. rewrite /initial_trusted_stack_content.
+    intros Hsave Hcsp Hexport_table. rewrite /initial_trusted_stack_content.
     pose proof (trusted_stack_word_int 0) as Hzero.
-    repeat apply Forall_app_2; try by apply Forall_replicate.
-    - by apply Forall_singleton.
+    repeat apply Forall_app_2; try done; try by apply Forall_replicate.
     - apply Forall_cons_2; first apply trusted_stack_word_int.
       apply Forall_singleton, trusted_stack_word_int.
     - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
   Qed.
 
-  (** The word [hazardPointers] of an initial trusted stack. *)
-  Lemma initial_trusted_stack_content_hazard (w_csp w_export_table w_hazard : Word)
-      (thread_id : nat) (n : nat) :
-    initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n
+  (** The length of a register save area. *)
+  Lemma length_save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus :
+    length (save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus) = 21.
+  Proof. reflexivity. Qed.
+
+  (** The word [hazardPointers] of a register save area. *)
+  Lemma save_area_content_hazard w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus :
+    save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus
       !! Z.to_nat TrustedStack_offset_hazardPointers = Some w_hazard.
   Proof. reflexivity. Qed.
 
@@ -341,9 +350,9 @@ Section CmptLayout.
       ∪ (cmpt_switcher_stack_region Cswitcher).
 
   Definition cmpt_switcher_code_mregion
-    (Cswitcher : cmptSwitcher) : gmap Addr Word :=
+    (Cswitcher : cmptSwitcher) (w_pcc w_cgp w_csp : Word) : gmap Addr Word :=
     mkregion (b_switcher Cswitcher) (a_switcher_call Cswitcher)
-      (switcher_data_words (ot_switcher Cswitcher))
+      (switcher_data_words (ot_switcher Cswitcher) w_pcc w_cgp w_csp)
       ∪ mkregion (a_switcher_call Cswitcher) (e_switcher Cswitcher) switcher_instrs .
 
   Definition switcher_cmpt_disjoint
@@ -715,7 +724,7 @@ Section CmptLayout.
   Proof. by apply word_exec_ok_not_executable. Qed.
 
   Lemma word_exec_ok_trusted_stack_word w : trusted_stack_word w → word_exec_ok w.
-  Proof. intros [_ Hw]. by apply word_exec_ok_not_executable. Qed.
+  Proof. by intros [_ Hw]. Qed.
 
   Lemma word_exec_ok_ints (ws : list Word) :
     Forall is_z ws → Forall word_exec_ok ws.

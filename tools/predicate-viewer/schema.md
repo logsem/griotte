@@ -35,7 +35,10 @@ and arrows. Text is always the term printed with `FwPrintNotations`, as in the
 ## Statements (`Stmt`)
 
 Every statement may carry `"comment": string`, taken from its `note`.
-They follow `walk` in `print.v`:
+A `note` on a word (under `Some`, as a list item, as an argument of an
+application) is that word's `comment`; an `eq` whose right-hand side is a
+noted word, and that has no note of its own, takes the word's note as its
+`comment` too. They follow `walk` in `print.v`:
 
 | `k` | Fields | Source |
 |---|---|---|
@@ -43,8 +46,18 @@ They follow `walk` in `print.v`:
 | `exists` | `binders: [{names, type}]`, `body: [Stmt]` | consecutive `∃`, grouped as in `ex_line` |
 | `eq` | `lhs: string`, `rhs: Rhs`, optional `lhs_kind` | `l = r` |
 | `disjoint` | `ranges: [{b: Addr, e: Addr, comment?}]` | `ranges_disjoint l` |
+| `forall` | `pred`, `args: [Word]`, `allowed: [Word]`, `list`, `text` | `Forall (P a… [w; …]) l` |
 | `regs_except` | `bank`, `except: [string]`, `all: [string]`, `value: Word`, `some`, `text` | `∀ r : RegName, r ∉ {[…]} → reg σ !! r = Some w` |
 | `prop` | `text` | anything else |
+
+`forall`: a `Forall` whose predicate is an application ending with a literal
+list of words, such as `Forall (sched_data_word b e [h0; h1; t; tc])
+(cmpt_data sched)` or `Forall (boot_stack_word [h0; h1]) (img_boot_stack_words
+boot)`. `pred` is the head's name, `args` its other arguments (the machine
+parameters left out), each a structured word when it is one and `{"w":
+"term", …}` otherwise, `allowed` the words of the list, each with the
+`comment` of its note (`thread 0, handle`), `list` the text of `l` and `text`
+the statement as text without its notes. Any other `Forall` stays a `prop`.
 
 `regs_except`: `bank` is `gpr` (or `sreg` for the same shape on `sreg σ`),
 `except` the registers of the set, `all` every register of the bank in order
@@ -100,10 +113,17 @@ printer matches them:
   When unfolding the head constant and reducing (delta of the head, beta,
   not a full computation) gives a literal list or a concatenation (`++`,
   `::`), the piece also carries `"unfolded": [Piece]`, split like `content`.
-  Example: `switcher_data_words (ot_switcher sw)` gives one `words` piece
-  with its 5 words, the unsealing key among them;
-  `initial_trusted_stack_content …` gives `replicate` pieces and `words`
-  pieces with the capabilities at their slots. In an unfolded piece,
+  An unfolded piece that is itself such an application carries its own
+  `unfolded`.
+  Example: `switcher_data_words (ot_switcher sw) pcc cgp csp` gives one
+  `words` piece with its 5 words: the two sealing ranges (the trusted-stack
+  key `ot ^+ 1`, then the export key `ot`), then the scheduler's exception
+  entry, its globals and the boot-stack capability, each with the
+  `comment` of its note;
+  `initial_trusted_stack_content (save_area_content …) …` gives a
+  `save_area_content …` piece (itself unfolded: `words` and `replicate`
+  pieces), the two integers, the entry frame and the zeroed frames. In an
+  unfolded piece,
   `replicate n w` gets `"count": k` when `n` computes to a closed numeral
   `k` (its text, e.g. `Z.to_nat TrustedStack_offset_hazardPointers`, stays in
   `args`). A `replicate` piece at the top of `content` is not unfolded: the
@@ -117,6 +137,7 @@ printer matches them:
 {"w": "sentry", "kind": "FwdDisable", "p": "XSRW_", "g": "Local", "b": Addr, "e": Addr, "a": Addr}
 {"w": "sealrange", "perm": "SU", "g": "Global", "b": Addr, "e": Addr, "a": Addr}
 {"w": "sealed", "ot": Addr, "inner": Word}
+{"w": "sealed", "ot": {"text": "ot_switcher sw ^+ 1", "base": "ot_switcher sw", "off": "1"}, "inner": Word, "comment": "thread 0, handle"}
 {"w": "entry", "mie": "InterruptEnabled", "args": "1", "stack": "4", "off": "12"}
 {"w": "term", "text": "cmpt_exp_tbl_handler main"}
 ```
@@ -138,13 +159,18 @@ printer matches them:
 {"text": "cmpt_b_pcc main ^+ 3", "base": "cmpt_b_pcc main", "off": "3"}
 {"text": "a_switcher_call sw ^+ label \"exception_entry_asm\"", "base": "a_switcher_call sw", "label": "exception_entry_asm"}
 {"text": "(e_stack t0 ^- StackEntry_reserved_space)%f", "base": "e_stack t0", "off": "-StackEntry_reserved_space"}
+{"text": "(a_switcher_call sw ^+ label \".Lexited_thread\") ^+ 2", "base": "a_switcher_call sw ^+ label \".Lexited_thread\"", "off": "2",
+ "base_addr": {"text": "a_switcher_call sw ^+ label \".Lexited_thread\"", "base": "a_switcher_call sw", "label": ".Lexited_thread"}}
 {"text": "b_switcher sw"}
 ```
 
 `text` is always present. `base` and `off` (or `label`, for the switcher
 labels of `label_eq`) are present when the address is
 `finz.incr_default base off` or a subtraction. Otherwise the address has no
-offset and `base` is left out (the viewer uses `text`).
+offset and `base` is left out (the viewer uses `text`). When `base` is itself
+an offset, `base_addr` gives it as an `Addr`. In every text, a switcher label
+reads `label ".Lname"`, with its quotes (the printing notation of
+`FwPrintNotations`).
 
 ## Code (`code`)
 

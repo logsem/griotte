@@ -77,6 +77,7 @@ Definition body_str (b : fw_body) : string :=
   match b with
   | TrustedBody _ => " (trusted)"
   | UntrustedBody b => " (untrusted, " ++ ub_owner b ++ ")"
+  | SchedulerBody _ => " (scheduler)"
   end.
 
 (** The export entry word of an export. *)
@@ -94,6 +95,92 @@ Section translation.
   Context (fw : firmware) (img : fw_image).
 
   (** *** The words the loader writes *)
+
+  (** The handle of the user thread [i]: its trusted stack, sealed with the
+      otype after [ot_switcher]; for [i] the number of threads, the idle
+      thread's. *)
+  Definition thread_handle (i : nat) : Word :=
+    let ot := (ot_switcher (img_sw img) ^+ 1)%ot in
+    if Nat.eqb i (fw_length (fw_threads fw)) then
+      let d := img_idle img in
+      note "idle thread, handle"
+        (Sealed ot RWL Global (img_b_idle_trusted_stack d) (img_e_idle_trusted_stack d)
+           (img_b_idle_trusted_stack d))
+    else
+      let t := thread_of img i in
+      note ("thread " ++ nat_str i ++ ", handle")
+        (Sealed ot RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)).
+
+  (** The handles of every user thread, the idle thread's last. *)
+  Definition thread_handles : list Word :=
+    fw_app (fw_imap (λ i _, thread_handle i) (fw_threads fw))
+      [thread_handle (fw_length (fw_threads fw))].
+
+  (** The capability to the time device at [a] that the loader builds for
+      an import of it: global, read-write without load-global or
+      load-mutable, over the one word of the device. *)
+  Definition time_dev_cap (a : Addr) : Word :=
+    Cap RW_DL_DRO Global a (a ^+ 1)%a a.
+
+  (** The time-device capabilities that the scheduler imports, which its
+      initialisation may have copied into its globals. *)
+  Definition sched_time_dev_words : list Word :=
+    match fw_sched_of (fw_cmpts fw) with
+    | Some (fc, _) =>
+        fw_flat_map
+          (λ w, match w with
+                | IMtime => [time_dev_cap mtime_addr]
+                | IMtimecmp => [time_dev_cap mtimecmp_addr]
+                | _ => []
+                end)
+          (fc_imports fc)
+    | None => []
+    end.
+
+  (** The three words of the scheduler that the loader writes into the
+      switcher: its exception entry, an interrupt-disabling sentry; its
+      globals; its stack, the boot stack at its top. *)
+  Definition sched_pcc_word : Word :=
+    match fw_sched_of (fw_cmpts fw) with
+    | Some (fc, sb) =>
+        let s := cmpt_of img (fc_name fc) in
+        note "the scheduler's exception entry, interrupts disabled"
+          (Sentry FwdDisable RX Global (cmpt_b_pcc s) (cmpt_e_pcc s)
+             (addr_off (cmpt_b_pcc s) (sb_entry sb)))
+    | None => WInt 0
+    end.
+
+  Definition sched_cgp_word : Word :=
+    match fw_sched_of (fw_cmpts fw) with
+    | Some (fc, _) =>
+        let s := cmpt_of img (fc_name fc) in
+        note "the scheduler's globals" (Cap RW Global (cmpt_b_cgp s) (cmpt_e_cgp s) (cmpt_b_cgp s))
+    | None => WInt 0
+    end.
+
+  Definition sched_csp_word : Word :=
+    let bs := img_boot img in
+    note "the boot stack, at its top"
+      (Cap RWL Local (img_b_boot_stack bs) (img_e_boot_stack bs) (img_e_boot_stack bs)).
+
+  (** The PC and the interrupt posture of the entry of the thread [ft]: for
+      a trusted compartment, the firmware's; for an untrusted one, the ones
+      its entry word encodes, as the loader decodes it. *)
+  Definition thread_entry (ft : fw_thread) : Word * InterruptStatus :=
+    let m := cmpt_of img (ft_cmpt ft) in
+    match fc_body (fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft)) with
+    | TrustedBody b =>
+        let e := fw_export_named (ft_entry ft) (tb_exports b) in
+        (Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m) (addr_off (cmpt_b_pcc m) (fe_offset e)),
+         fe_posture e)
+    | UntrustedBody b =>
+        let k := match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
+                 | Some k => k | None => 0 end in
+        (Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
+           (cmpt_b_pcc m ^+ export_entry_offset (img_entry_word m k)),
+         export_entry_posture (img_entry_word m k))
+    | SchedulerBody _ => (WInt 0, InterruptDisabled)
+    end.
 
   (** The word for [w] in the compartment [c], whose static sealed objects
       are [ss]. *)
@@ -119,6 +206,8 @@ Section translation.
         let a := addr_off (cmpt_b_static_sealed c) k in
         note ("own static " ++ s)
           (Sealed o RO Global a (a ^+ 1) a)
+    | IMtime => note "time device mtime" (time_dev_cap mtime_addr)
+    | IMtimecmp => note "time device mtimecmp" (time_dev_cap mtimecmp_addr)
     end.
 
   (** The words of a list of chunks. *)
@@ -163,6 +252,7 @@ Section translation.
          (match fc_body fc with
           | TrustedBody b => chunks_fw_words (tb_data b)
           | UntrustedBody _ => []
+          | SchedulerBody _ => []
           end)).
 
   (** *** Compartments *)
@@ -205,6 +295,17 @@ Section translation.
         note "arbitrary error handler offsets"
           (∃ eh ehs : Z, cmpt_exp_tbl_handler c = WInt eh ∧ cmpt_exp_tbl_handler_stackless c = WInt ehs) ∧
         note "arbitrary offsets, inside the PCC range, and minimum stack sizes" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
+    | SchedulerBody _ =>
+        note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
+        note "arbitrary, any length: initial globals, thread handles or imported time-device capabilities"
+          (Forall (sched_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)
+                     (fw_app thread_handles sched_time_dev_words)) (cmpt_data c)) ∧
+        note "no error handler"
+          (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
+           cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
+        note "no export: its exception entry is in the switcher" (cmpt_exp_tbl_entries c = []) ∧
+        note "the boot stack: integers or thread handles"
+          (Forall (boot_stack_word thread_handles) (img_boot_stack_words (img_boot img)))
     end.
 
   Definition cmpt_ok (fc : fw_cmpt) : Prop :=
@@ -222,7 +323,9 @@ Section translation.
 
   Definition switcher_mem : Mem :=
     let sw := img_sw img in
-    mem_region (b_switcher sw) (switcher_data_words (ot_switcher sw) ++ switcher_instrs).
+    mem_region (b_switcher sw)
+      (switcher_data_words (ot_switcher sw) sched_pcc_word sched_cgp_word sched_csp_word
+       ++ switcher_instrs).
 
   Definition assert_code_mem : Mem :=
     let asrt := img_asrt img in
@@ -246,30 +349,67 @@ Section translation.
           cmpt_exp_tbl_handler_stackless c ::
           cmpt_exp_tbl_entries c)).
 
-  (** The trusted stack holds a register save area, the header, the entry
-      frame and zeroed frames. The register save area is zeroed but for its
-      word [hazardPointers], the store-only capability to the hazard slots
-      of the thread. As the loader does, the entry frame holds the stack
-      pointer of the thread (its initial [csp]) and the export table of the
-      compartment the thread starts in, read-write and global, as the loader
-      writes it. Its [threadID] is [i + 1], as the loader writes it (0 is
-      the idle thread). The stack and the hazard slots are zeroed. *)
+  (** The trusted stack holds the register save area of the thread as the
+      loader writes it, the header, the entry frame and zeroed frames. The
+      save area holds what the switcher's resume path installs to start the
+      thread at its entry: [mepcc] the entry, [cra] the switcher's return
+      sentry (a return from the entry exits the thread), [csp] its stack
+      pointer, [cgp] the globals of its compartment, the other registers
+      zero, [hazardPointers] the store-only capability to its hazard slots,
+      [mstatus] with MIE disabled and MPIE the posture of the entry, and
+      [mcause] zero. The entry frame holds the stack pointer and the export
+      table of the compartment it starts in, read-write and global. Its
+      [threadID] is [i + 1] (0 is the idle thread). The stack and the hazard
+      slots are zeroed. *)
   Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
-    note ("thread " ++ nat_str i ++ ", trusted stack, entry frame in " ++ ft_cmpt ft)
+    let sw := img_sw img in
+    let '(pc, posture) := thread_entry ft in
+    note ("thread " ++ nat_str i ++ ", trusted stack, saved at its entry in " ++ ft_cmpt ft)
       (mem_region (b_trusted_stack t)
          (initial_trusted_stack_content
-            (Cap RWL Local (b_stack t) (e_stack t)
-               (e_stack t ^+ (- StackEntry_reserved_space)))
-            (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
-               (cmpt_exp_tbl_pcc c))
-            (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+            (save_area_content pc
+               (Sentry RetDisable XSRW_ Local (b_switcher sw) (e_switcher sw) (a_switcher_return sw))
+               (Cap RWL Local (b_stack t) (e_stack t) (e_stack t ^+ (- StackEntry_reserved_space)))
+               (Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c))
+               (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+               (WInt (mstatus_enc InterruptDisabled posture)))
+            (Cap RWL Local (b_stack t) (e_stack t) (e_stack t ^+ (- StackEntry_reserved_space)))
+            (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
             (S i) (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
       (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
     note ("thread " ++ nat_str i ++ ", hazard slots")
       (mem_region (b_hazard t) [WInt 0; WInt 0]).
+
+  (** The idle thread: its trusted stack holds a save area at the loop of an
+      exited thread, the last two words of the switcher, with every register
+      zero, MIE disabled and MPIE enabled; its [threadID] is 0; its entry
+      frame and its hazard slots are zeroed. *)
+  Definition idle_mem : Mem :=
+    let sw := img_sw img in
+    let d := img_idle img in
+    let a_loop := (a_switcher_call sw ^+
+                     assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                       ".Lswitch_csp_check" ".Lexited_thread")%a in
+    note "idle thread, trusted stack, saved at the loop of an exited thread"
+      (mem_region (img_b_idle_trusted_stack d)
+         (initial_trusted_stack_content
+            (save_area_content (Cap RX Local a_loop (a_loop ^+ 2)%a a_loop)
+               (WInt 0) (WInt 0) (WInt 0)
+               (Cap WO Global (img_b_idle_hazard d) (img_e_idle_hazard d) (img_b_idle_hazard d))
+               (WInt (mstatus_enc InterruptDisabled InterruptEnabled)))
+            (WInt 0) (WInt 0) 0 0)) ∪
+    note "idle thread, hazard slots"
+      (mem_region (img_b_idle_hazard d) [WInt 0; WInt 0]).
+
+  (** The boot stack: the words the loader, the initialisers and the
+      scheduler's initialisation leave on it. *)
+  Definition boot_mem : Mem :=
+    let bs := img_boot img in
+    note "boot stack, the scheduler's stack"
+      (mem_region (img_b_boot_stack bs) (img_boot_stack_words bs)).
 
   Definition mem_ok (σ : ExecConf) : Prop :=
     mem σ =
@@ -278,73 +418,50 @@ Section translation.
       note "assert, code and flag capability" assert_code_mem ∪
       note "assert, flag" assert_flag_mem ∪
       big_union (fw_map cmpt_mem (fw_cmpts fw)) ∪
-      big_union (fw_imap thread_mem (fw_threads fw)) ∧
+      big_union (fw_imap thread_mem (fw_threads fw)) ∪
+      idle_mem ∪
+      boot_mem ∧
     note "every heap address live" (shadowtbl σ = initial_heap_shadow).
 
   (** *** Registers
 
-      The first thread starts at an export of its compartment, with the
-      interrupt posture of that export, and the switcher's return sentry in
-      [cra]. The PC of a trusted export is at the offset that the firmware
-      gives; the PC of an untrusted export is at the offset that its entry
-      word in the export table encodes ([export_entry_offset]), as the
-      switcher decodes it, and so is its posture ([export_entry_posture]).
-      The state is the one after the switcher's [mret] into the thread:
-      MPIE enabled, and [mepcc] the entry. *)
-
-  Definition regs_ok (σ : ExecConf) : Prop :=
-    match fw_threads fw with
-    | [] => note "no thread" False
-    | ft :: _ =>
-        let fc := fw_cmpt_of (fw_cmpts fw) (ft_cmpt ft) in
-        let m := cmpt_of img (ft_cmpt ft) in
-        let t := thread_of img 0 in
-        match fc_body fc with
-        | TrustedBody b =>
-            note (ft_cmpt ft ++ ", export " ++ ft_entry ft)
-              (pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
-                         (addr_off (cmpt_b_pcc m)
-                            (fe_offset (fw_export_named (ft_entry ft) (tb_exports b))))) ∧
-            note "interrupts as the posture of the export"
-              (sreg σ !! mstatus =
-                 Some (WInt (mstatus_enc
-                               (fe_posture (fw_export_named (ft_entry ft) (tb_exports b)))
-                               InterruptEnabled)))
-        | UntrustedBody b =>
-            match fw_index_of ue_name (ft_entry ft) (ub_exports b) with
-            | None => note ("unknown export " ++ ft_entry ft ++ " of " ++ ft_cmpt ft) False
-            | Some k =>
-                note (ft_cmpt ft ++ ", export " ++ ft_entry ft ++
-                        ", at the offset its entry word encodes")
-                  (∃ z : Z, cmpt_exp_tbl_entries m !! k = Some (WInt z) ∧
-                     pcc σ = Cap RX Global (cmpt_b_pcc m) (cmpt_e_pcc m)
-                               (cmpt_b_pcc m ^+ export_entry_offset z) ∧
-                     note "interrupts as the posture its entry word encodes"
-                       (sreg σ !! mstatus =
-                          Some (WInt (mstatus_enc (export_entry_posture z) InterruptEnabled))))
-            end
-        end ∧
-        reg σ !! cgp = Some (Cap RW Global (cmpt_b_cgp m) (cmpt_e_cgp m) (cmpt_b_cgp m)) ∧
-        reg σ !! csp =
-          Some (Cap RWL Local (b_stack t) (e_stack t)
-                  (e_stack t ^+ (- StackEntry_reserved_space))) ∧
-        note "the switcher's return sentry: a return from the entry exits the thread"
-          (reg σ !! cra =
-             Some (Sentry RetDisable XSRW_ Local (b_switcher (img_sw img))
-                     (e_switcher (img_sw img)) (a_switcher_return (img_sw img)))) ∧
-        note "every other register cleared"
-          (∀ r, r ∉ ({[cgp; cra; csp]} : gset RegName) → reg σ !! r = Some (WInt 0)) ∧
-        sreg σ !! mtdc =
-          Some (Cap RWL Global (b_trusted_stack t) (e_trusted_stack t) (b_trusted_stack t)) ∧
-        sreg σ !! mtcc =
-          Some (Cap XSRW_ Local (b_switcher (img_sw img)) (e_switcher (img_sw img))
-                  (a_switcher_call (img_sw img) ^+
-                     assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
-                       ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
-        note "the entry, as the switcher's mret leaves it" (sreg σ !! mepcc = Some (pcc σ)) ∧
-        sreg σ !! mcause = Some (WInt 0) ∧
-        sreg σ !! mtval = Some (WInt 0)
-    end.
+      The machine starts at the switcher's call of the scheduler, as after
+      the boot thread's trap: every user thread is parked in its save area,
+      [mtdc] is zero, interrupts are disabled; [cra], [cgp] and [csp] hold
+      the scheduler's three words, [ca0] the idle thread's handle and
+      [ca1]–[ca3] integers (the trap's cause, the address of its PC, its
+      [mtval]); the other registers are zero. [mepcc], [mcause] and [mtval]
+      are integers, dead until the resume path writes them. *)
+  Definition start_ok (σ : ExecConf) : Prop :=
+    let sw := img_sw img in
+    note "the switcher's call of the scheduler"
+      (pcc σ = Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
+                 (a_switcher_call sw ^+
+                    assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                      ".Lswitch_csp_check" ".Lexception_scheduler_cjalr")%a) ∧
+    reg σ !! cra = Some sched_pcc_word ∧
+    reg σ !! cgp = Some sched_cgp_word ∧
+    reg σ !! csp = Some sched_csp_word ∧
+    reg σ !! ca0 = Some (thread_handle (fw_length (fw_threads fw))) ∧
+    note "arbitrary integers"
+      (∃ z1 z2 z3 : Z,
+         reg σ !! ca1 = Some (WInt z1) ∧ reg σ !! ca2 = Some (WInt z2) ∧
+         reg σ !! ca3 = Some (WInt z3)) ∧
+    note "every other register cleared"
+      (∀ r, r ∉ ({[cra; cgp; csp; ca0; ca1; ca2; ca3]} : gset RegName) →
+            reg σ !! r = Some (WInt 0)) ∧
+    sreg σ !! mtdc = Some (WInt 0) ∧
+    sreg σ !! mtcc =
+      Some (Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
+              (a_switcher_call sw ^+
+                 assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
+                   ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
+    note "interrupts disabled, MPIE arbitrary"
+      (∃ mpie : InterruptStatus, sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled mpie))) ∧
+    note "arbitrary integers, dead until the resume path"
+      (∃ z1 z2 z3 : Z,
+         sreg σ !! mepcc = Some (WInt z1) ∧ sreg σ !! mcause = Some (WInt z2) ∧
+         sreg σ !! mtval = Some (WInt z3)).
 
   (** *** Layout conditions *)
 
@@ -376,12 +493,17 @@ Section translation.
   Definition all_ranges : list (Addr * Addr) :=
     let sw := img_sw img in
     let asrt := img_asrt img in
+    let d := img_idle img in
+    let bs := img_boot img in
     fw_map (λ '(s, b, e), note s (b, e))
       (("switcher", b_switcher sw, e_switcher sw) ::
        ("assert", b_assert asrt, e_assert asrt) ::
        ("assert flag", flag_assert asrt, flag_assert asrt ^+ 1) ::
        fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
-         (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))).
+         (fw_app (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))
+            [("idle thread, trusted stack", img_b_idle_trusted_stack d, img_e_idle_trusted_stack d);
+             ("idle thread, hazard slots", img_b_idle_hazard d, img_e_idle_hazard d);
+             ("boot stack", img_b_boot_stack bs, img_e_boot_stack bs)])).
 
   (** The words of a compartment that the loader placed. *)
   Definition img_cmpt_words (c : img_cmpt) : list Word :=
@@ -413,6 +535,9 @@ Section translation.
             (match fc_body fc with
              | TrustedBody b => fw_imap (export_in_pcc c) (tb_exports b)
              | UntrustedBody _ => []
+             | SchedulerBody sb =>
+                 [note "exception entry inside the PCC range"
+                    (Z.of_nat (sb_entry sb) < cmpt_e_pcc c - cmpt_b_pcc c)%Z]
              end)
             [note
                (match fw_heap_roots fw with
@@ -488,7 +613,32 @@ Section translation.
                        export_entry_min_stack z + StackEntry_reserved_space <=
                          Z.of_nat (ft_stack_size ft))%Z)
            end
+       | SchedulerBody _ => note ("thread entry in the scheduler " ++ ft_cmpt ft) False
        end).
+
+  (** The layout of the idle thread: its trusted stack with room for the
+      entry frame, and its two hazard slots. *)
+  Definition idle_wf : Prop :=
+    let d := img_idle img in
+    section "idle thread, layout"
+      ((img_b_idle_trusted_stack d + tstack_frame_offset 1)%a = Some (img_e_idle_trusted_stack d) ∧
+       note "trusted stack" (range_ok (img_b_idle_trusted_stack d) (img_e_idle_trusted_stack d)) ∧
+       note "trusted stack not at address 0" ((img_b_idle_trusted_stack d : Z) ≠ 0) ∧
+       (img_b_idle_hazard d + 2)%a = Some (img_e_idle_hazard d) ∧
+       note "hazard slots" (range_ok (img_b_idle_hazard d) (img_e_idle_hazard d))).
+
+  (** The layout of the boot stack: its size is the scheduler's. *)
+  Definition boot_wf : Prop :=
+    let bs := img_boot img in
+    section "boot stack, layout"
+      ((img_b_boot_stack bs + Z.of_nat (length (img_boot_stack_words bs)))%a =
+         Some (img_e_boot_stack bs) ∧
+       match fw_sched_of (fw_cmpts fw) with
+       | Some (_, sb) =>
+           note "the size of the boot stack" (length (img_boot_stack_words bs) = sb_boot_stack sb)
+       | None => note "no scheduler" False
+       end ∧
+       range_ok (img_b_boot_stack bs) (img_e_boot_stack bs)).
 
   (** The conditions on the machine that the use of the heap and of the
       revoker needs, when the firmware hands out heap authority: the shadow
@@ -521,17 +671,36 @@ Section translation.
              (fw_app
                 (fw_map (λ a, note "heap root in the heap" (is_heap_address a = true))
                    (fw_heap_roots fw))
-                (match fw_heap_roots fw with
-                 | [] => []
-                 | _ => [section "Machine (heap and revoker)" heap_machine_ok]
-                 end))))).
+                (fw_app
+                   (match fw_heap_roots fw with
+                    | [] => []
+                    | _ => [section "Machine (heap and revoker)" heap_machine_ok]
+                    end)
+                   (fw_app
+                      [idle_wf; boot_wf]
+                      (fw_app
+                         (match fw_threads fw with
+                          | [] => [note "no thread" False]
+                          | _ => []
+                          end)
+                         (match fw_sched_of (fw_cmpts fw), Nat.eqb (fw_sched_count (fw_cmpts fw)) 1 with
+                          | Some (fc, _), true =>
+                              match fc_imports fc, fc_static_sealed fc with
+                              | [ISwitcherCall], [] => []
+                              | [ISwitcherCall; IMtime; IMtimecmp], [] => []
+                              | _, _ =>
+                                  [note "the scheduler imports the switcher call, and the two time devices or neither, and has no static sealed object"
+                                     False]
+                              end
+                          | _, _ => [note "exactly one scheduler" False]
+                          end)))))))).
 End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
     (fw : firmware) (img : fw_image) (σ : ExecConf) : Prop :=
   big_and (fw_map (cmpt_ok fw img) (fw_cmpts fw)) ∧
   section "Memory" (mem_ok fw img σ) ∧
-  section "Registers" (regs_ok fw img σ) ∧
+  section "Registers, at the switcher's call of the scheduler" (start_ok fw img σ) ∧
   img_wf fw img.
 
 (** The start of a firmware: the flag of the assert library at [flag],
@@ -554,10 +723,13 @@ Definition fw_start `{MP : MachineParameters} (params : list Prop)
     case study must be unfolded first. *)
 Ltac reduce_firmware_ok t :=
   eval cbv beta iota zeta delta [
-    fw_start firmware_ok mem_ok regs_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
+    fw_start firmware_ok mem_ok start_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
     hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
+    thread_handle thread_handles time_dev_cap sched_time_dev_words
+    sched_pcc_word sched_cgp_word sched_csp_word thread_entry
+    idle_mem boot_mem idle_wf boot_wf fw_sched_of fw_sched_count sb_entry sb_boot_stack
     export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf thread_layout_ok heap_machine_ok
     fw_map fw_imap fw_imap_from fw_length fw_app fw_flat_map big_and big_union nat_str
     addr_off default_export fw_export_named body_str fw_set handler_word
@@ -570,6 +742,6 @@ Ltac reduce_firmware_ok t :=
     ub_owner ub_exports
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
-    img_sw img_asrt img_cmpts img_threads
+    img_sw img_asrt img_cmpts img_threads img_idle img_boot
     String.append String.eqb Ascii.eqb Bool.eqb Nat.eqb andb]
   in t.

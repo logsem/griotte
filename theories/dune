@@ -6,24 +6,6 @@
 (rocq.theory
  (name griotte)
  (package griotte)
- ; The end-to-end theorems, the demo images and the file printing their
- ; assumptions, excluded from the build.
- (modules :standard \
-   assumptions
-   case_studies.adequacy_common
-   firmware.firmware_adequacy
-   case_studies.cmdc.cmdc_adequacy case_studies.cmdc.cmdc_concrete
-   case_studies.dle.deep_locality_adequacy case_studies.dle.deep_locality_concrete
-   case_studies.droe.deep_immutability_adequacy case_studies.droe.deep_immutability_concrete
-   case_studies.error_handling.error_handling_adequacy
-   case_studies.error_handling.error_handling_concrete
-   case_studies.hts_ownership.heap_temporal_safety_adequacy
-   case_studies.hts_ownership.heap_temporal_safety_concrete
-   case_studies.lse_downward.lse_adequacy case_studies.lse_downward.lse_concrete
-   case_studies.multiuser_kvs.kvs_adequacy case_studies.multiuser_kvs.kvs_concrete
-   case_studies.stack_object.stack_object_adequacy case_studies.stack_object.stack_object_concrete
-   case_studies.vae.vae_adequacy case_studies.vae.vae_concrete
-   case_studies.vae.vae_untrusted_entry_adequacy case_studies.vae.vae_untrusted_entry_concrete)
  (rocqdoc_header ../rocqdoc_extra/header.html)
  (rocqdoc_footer ../rocqdoc_extra/footer.html)
  (rocqdoc_flags

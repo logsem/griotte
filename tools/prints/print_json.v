@@ -138,8 +138,14 @@ Ltac2 with_comment (c : string option) (j : json) : json :=
 
 (** An address: [finz.incr_default base off] with its base and offset, a
     subtraction with a negative offset, an offset at a label of the
-    switcher with its label. *)
-Ltac2 addr_j (a : constr) : json :=
+    switcher with its label. A base that is itself an offset also comes
+    structured, as [base_addr]. *)
+Ltac2 rec addr_j (a : constr) : json :=
+  let base_addr b :=
+    lazy_match! b with
+    | finz.incr_default _ _ => [("base_addr", addr_j b)]
+    | _ => []
+    end in
   Control.plus (fun () =>
     lazy_match! a with
     | finz.incr_default ?b
@@ -150,12 +156,13 @@ Ltac2 addr_j (a : constr) : json :=
     | finz.incr_default ?b (Z.opp ?o) =>
         let o := ppz o in
         let o := if contains o " " then String.concat "" ["("; o; ")"] else o in
-        JObj [("text", JStr (pp a)); ("base", JStr (pp b)); ("off", JStr (String.app "-" o))]
+        JObj (List.append [("text", JStr (pp a)); ("base", JStr (pp b)); ("off", JStr (String.app "-" o))]
+                (base_addr b))
     | finz.incr_default ?b ?o =>
-        JObj [("text", JStr (pp a)); ("base", JStr (pp b)); ("off", JStr (ppz o))]
+        JObj (List.append [("text", JStr (pp a)); ("base", JStr (pp b)); ("off", JStr (ppz o))] (base_addr b))
     end) (fun _ => JObj [("text", JStr (pp a))]).
 
-Ltac2 term_word (w : constr) : json := JObj [("w", JStr "term"); ("text", JStr (pp w))].
+Ltac2 term_word (w : constr) : json := JObj [("w", JStr "term"); ("text", JStr (pp (strip_notes w)))].
 
 Ltac2 seal_perm (x : constr) (y : constr) : string :=
   lazy_match! constr:(($x, $y)) with
@@ -207,10 +214,11 @@ Ltac2 value_of (pr : constr -> string) (x : constr) : string option :=
 (** A word: tagged capabilities, sentries and sealing ranges, sealed words,
     export entries and integers structured, anything else as a term. An
     integer, or a field of an export entry, that is a closed term but not a
-    numeral also carries its value. *)
-Ltac2 word_j (w : constr) : json :=
+    numeral also carries its value. The note of a word is its comment. *)
+Ltac2 rec word_j (w : constr) : json :=
   Control.plus (fun () =>
     lazy_match! w with
+    | note ?c ?w => with_comment (Some (str c)) (word_j w)
     | WInt (encode_entry_point ?m (Z.of_nat ?n) (Z.of_nat ?s) (Z.of_nat ?o)) =>
         (* each field that is not a numeral but computes to one also
            carries its value *)
@@ -726,7 +734,8 @@ Ltac2 rec conses (ws : constr) : constr list * constr :=
   end.
 
 (** The pieces of an unfolded list, split on [++] and [::] as the contents
-    of a region: [replicate n w] carries the [count] [n] computes to. *)
+    of a region: [replicate n w] carries the [count] [n] computes to, an
+    application of a constant its own [unfolded] pieces. *)
 Ltac2 rec unfolded_pieces (ws : constr) : json list :=
   lazy_match! ws with
   | app ?a ?b => List.append (unfolded_pieces a) (unfolded_pieces b)
@@ -740,13 +749,13 @@ Ltac2 rec unfolded_pieces (ws : constr) : json list :=
         | replicate ?n _ => match value_of ppn n with Some k => [("count", JLit k)] | None => [] end
         | _ => []
         end in
-      [JObj (("term", JStr (pp ws)) :: List.append (app_head_args ws) count)]
-  end.
-
+      [JObj (("term", JStr (pp (strip_notes ws)))
+               :: List.append (app_head_args ws) (List.append count (unfolded_j ws)))]
+  end
 (** The [unfolded] field of an application of a constant (but [replicate])
     that is a literal list or a concatenation once its head is unfolded and
     beta-reduced: its pieces. *)
-Ltac2 unfolded_j (c : constr) : (string * json) list :=
+with unfolded_j (c : constr) : (string * json) list :=
   Control.plus (fun () =>
     match Constr.Unsafe.kind c with
     | Constr.Unsafe.App f _ =>
@@ -795,7 +804,7 @@ Ltac2 rec pieces (cands : constr list ref) (ws : constr) : json list :=
       JObj [("words", JArr (List.map item_j xs))] :: pieces cands rest
   | _ =>
       cands.(contents) := ws :: cands.(contents);
-      [JObj (("term", JStr (pp ws)) :: List.append (app_head_args ws) (unfolded_j ws))]
+      [JObj (("term", JStr (pp (strip_notes ws))) :: List.append (app_head_args ws) (unfolded_j ws))]
   end.
 
 Ltac2 part_j (cands : constr list ref) (e : constr) : json :=
@@ -807,7 +816,7 @@ Ltac2 part_j (cands : constr list ref) (e : constr) : json :=
     (lazy_match! m with
      | mem_region ?b ?ws =>
          JObj [("region", JLit "true"); ("base", addr_j b); ("content", JArr (pieces cands ws))]
-     | _ => JObj [("region", JLit "false"); ("text", JStr (pp m))]
+     | _ => JObj [("region", JLit "false"); ("text", JStr (pp (strip_notes m)))]
      end).
 
 Ltac2 range_j (e : constr) : json :=
@@ -824,7 +833,7 @@ Ltac2 rhs_j (cands : constr list ref) (r : constr) : json :=
             (List.append (if some then [("some", JLit "true")] else []) [("word", word_j w)])) in
   let term () :=
     (cands.(contents) := r :: cands.(contents));
-    JObj [("r", JStr "term"); ("text", JStr (pp r))] in
+    JObj [("r", JStr "term"); ("text", JStr (pp (strip_notes r)))] in
   lazy_match! r with
   | cons _ _ => JObj [("r", JStr "list"); ("items", JArr (List.map item_j (list_of r)))]
   | @union _ _ _ _ => JObj [("r", JStr "union"); ("parts", JArr (List.map (part_j cands) (unions r)))]
@@ -846,11 +855,13 @@ Ltac2 eq_j (cands : constr list ref) (p : constr) (l : constr) (r : constr) : js
   | Some (k, rhs) => stmt "eq" [("lhs", JStr (pp l)); ("lhs_kind", k); ("rhs", rhs)]
   | None =>
   let kind := match lhs_kind l with Some k => [("lhs_kind", k)] | None => [] end in
-  (* the comment that [label_eq] gives the exception entry *)
+  (* the comment that [label_eq] gives the exception entry, or the note of
+     the right-hand side *)
   let c := match label_eq "" p with
-           | Some pl => match pl with PEq _ _ _ c => c | _ => None end
+           | Some pl => match pl with PRaw _ c => c | _ => None end
            | None => None
            end in
+  let c := match c with Some _ => c | None => let (_, c) := top_note r in c end in
   with_comment c (stmt "eq" (List.append (("lhs", JStr (pp l)) :: kind) [("rhs", rhs_j cands r)]))
   end.
 
@@ -899,6 +910,32 @@ Ltac2 regs_except_j (p : constr) : json option :=
     | _ => None
     end) (fun _ => None).
 
+(** A statement [Forall (P a… [w; …]) l] whose predicate ends with a list
+    of words: the predicate, its other arguments, the allowed words with
+    their notes as comments, and the list. *)
+Ltac2 forall_j (p : constr) (pr : constr) (l : constr) : json option :=
+  Control.plus (fun () =>
+    match Constr.Unsafe.kind pr with
+    | Constr.Unsafe.App f args =>
+        let n := Array.length args in
+        match list_lit (Array.get args (Int.sub n 1)) with
+        | Some ws =>
+            if List.for_all (fun w => has_type w constr:(Word)) ws then
+              let others := List.filter (fun a => Bool.neg (has_type a constr:(MachineParameters)))
+                              (List.firstn (Int.sub n 1) (Array.to_list args)) in
+              let head := match head_name f with Some h => h | None => pp f end in
+              Some (stmt "forall"
+                      [("pred", JStr head);
+                       ("args", JArr (List.map (fun a => if has_type a constr:(Word) then word_j a
+                                                         else term_word a) others));
+                       ("allowed", JArr (List.map item_j ws)); ("list", JStr (pp l));
+                       ("text", JStr (pp (strip_notes p)))])
+            else None
+        | None => None
+        end
+    | _ => None
+    end) (fun _ => None).
+
 (** The walk of [walk] (print.v): the statements of [p]. *)
 Ltac2 rec walk_j (cands : constr list ref) (p : constr) : json list :=
   match ex_head [] p with
@@ -910,6 +947,7 @@ Ltac2 rec walk_j (cands : constr list ref) (p : constr) : json list :=
   | note ?c ?q => set_comment_j (str c) (walk_j cands q)
   | ranges_disjoint ?l => [stmt "disjoint" [("ranges", JArr (List.map range_j (list_of l)))]]
   | ?l = ?r => [eq_j cands p l r]
+  | Forall ?pr ?l => match forall_j p pr l with Some j => [j] | None => [prop_j p] end
   | _ => match regs_except_j p with Some j => [j] | None => [prop_j p] end
   end
   end
@@ -973,3 +1011,7 @@ Ltac2 initial_state_json (cs : string) (c : constr) : json :=
     [constr:(@name_annot)], as one JSON document. *)
 Ltac2 print_initial_state_json (cs : string) (c : constr) : unit :=
   print_lines (json_lines "" "" (initial_state_json cs c) "").
+
+(** Prints [n] lines of the JSON document from line [from] only. *)
+Ltac2 print_initial_state_json_part (cs : string) (c : constr) (from : int) (n : int) : unit :=
+  print_lines (take_lines n (drop_lines from (json_lines "" "" (initial_state_json cs c) ""))).

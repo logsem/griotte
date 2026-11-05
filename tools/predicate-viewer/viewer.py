@@ -41,7 +41,7 @@ def build_page(out, paths):
             d["name"] = d["name"] + " (" + os.path.basename(d["file"]) + ")"
     # vae first: the page opens on it.
     cases.sort(key=lambda d: (d["name"] != "vae", d["name"]))
-    # Code constants are shared by the case studies (the switcher's 290 words
+    # Code constants are shared by the case studies (the switcher's words
     # in each): store each distinct one once, cases name it by key.
     code, keys = {}, {}
     for d in cases:

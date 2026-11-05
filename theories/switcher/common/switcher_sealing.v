@@ -294,3 +294,32 @@ Section Switcher_sealing.
   Qed.
 
 End Switcher_sealing.
+
+(** ** The switcher's sealing predicate at another thread *)
+Section switcher_sealing_thread_indep.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {cthreads : CmptThreads} {sealsg : sealStoreG Σ} {stsg : STSG Σ}
+    {relg : relGS Σ} {cstackg : CSTACKG Σ} `{MP : MachineParameters}
+    {swlayout : switcherLayout}.
+  #[local] Remove Hints ceriseG_of : typeclass_instances.
+
+  (** The switcher's sealing predicate does not depend on the thread. *)
+  Lemma ot_switcher_prop_thread_indep (t t' : Thread) W C w :
+    ot_switcher_prop (th := t) W C w ⊢ ot_switcher_prop (th := t') W C w.
+  Proof.
+    iIntros "Hot". iEval (cbn) in "Hot". iEval (cbn). iNamed "Hot".
+    iExists g_tbl, b_tbl, e_tbl, a_tbl, bpcc, epcc, bcgp, ecgp, nargs, minstk, off, posture,
+      eh, ehs.
+    repeat (iSplitR; [iPureIntro; assumption|]).
+    rewrite (handler_stackful_thread_indep t t') (handler_stackless_thread_indep t t').
+    iFrame "Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs Htbl_entry Hentry_cont".
+  Qed.
+
+  Lemma ot_switcher_propC_thread_indep (t t' : Thread) x :
+    ot_switcher_propC (th := t) x ⊣⊢ ot_switcher_propC (th := t') x.
+  Proof.
+    rewrite /ot_switcher_propC.
+    apply (anti_symm (⊢));
+      [apply (ot_switcher_prop_thread_indep t t') | apply (ot_switcher_prop_thread_indep t' t)].
+  Qed.
+End switcher_sealing_thread_indep.

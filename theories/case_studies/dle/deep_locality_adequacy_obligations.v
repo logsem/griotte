@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 (* Imported first: the fields of the layout records of [compartment_layout]
    and [switcher] shadow those of the image records. *)
 From griotte Require Import image firmware firmware_ok firmware_adequacy_obligations firmware_obligations
-  dle_firmware.
+  firmware_thread_obligations dle_firmware.
 From griotte Require Import logrel interp_weakening monotone.
 From griotte Require Import deep_locality deep_locality_spec.
 From griotte Require Import assert_spec logrel.
@@ -17,17 +17,20 @@ From griotte Require Import allocator_resources heap_region.
 
 Section dle_obligations.
   Context {Σ : gFunctors}.
-  Context {cname : CmptNameG} {C : CmptName}.
+  Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
   (** The obligations of the trusted code of the deep-locality firmware:
       the thread runs safely from the export of [main], the untrusted
-      compartment ["C"] being owned by the logical compartment [C]. *)
+      compartment ["C"] being owned by the logical compartment [C], the
+      scheduler running in [Sched]. *)
   Lemma dle_fw_obligations :
+    C ≠ Sched →
     fw_obligations Σ dle_firmware.
   Proof.
-    apply (fw_obligations_of_pinned Σ); first reflexivity.
-    intros cthreads Hpin Hin Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
+    intros HCS.
+    apply (fw_obligations_of_pinned Σ dle_firmware Sched); [reflexivity | reflexivity |].
+    intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
     pose proof (fw_cmpt_ok_at _ _ _ 0 _ Hok eq_refl) as Hok_main.
@@ -62,12 +65,14 @@ Section dle_obligations.
 
     (* 3 - The resources of the image *)
     iIntros "Hres". iNamed "Hres".
-    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C)) as "#Hthread_C".
-    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C) with "Hswitcher Hswitcher_static")
+    iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) C (Hin C HCS)) as "#Hthread_C".
+    iDestruct (switcher_threads_pinned (UserThread 0) C (Hpin C HCS)
+      with "Hswitcher Hswitcher_static")
       as "#Hswitcher_threads_C".
     pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hentry_min_stack.
     change (fw_entry_min_stack dle_firmware 0) with 4 in Hentry_min_stack.
-    iEval (cbv [dle_firmware fw_cmpts]) in "Hcmpts".
+    iEval (cbv [dle_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
+           cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts" as "((Hmain & _ & _) & (HC & _ & #HC_pers) & _)".
     cbn [fc_name].
     change (fw_entry_cmpt dle_firmware img 0) with (cmpt_of img "main").
@@ -79,7 +84,8 @@ Section dle_obligations.
       as "#Hentry_Cf"; [done|lia|].
     iEval (rewrite HsbC) in "Hentry_Cf".
     iDestruct (big_sepS_elem_of_acc _ _ C with "Hworlds") as "[Hworld_C _]".
-    { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
+    { apply elem_of_difference. split; last set_solver+HCS.
+      rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
 
     (* 4 - Close the world of C: its compartment becomes Permanent regions, and the
        stack temporary, because main shares it with C; its export is safe
@@ -107,7 +113,9 @@ Section dle_obligations.
                         $Hinterp_C $Hcstk
                         $Hentry_Cf $Hinterp_stack_C
                         $HMIE $Hheld
-                        ]") as "Hspec"; eauto using fw_cleared_regs_dom.
+                        ]") as "Hspec";
+      last (iModIntro; iExact "Hspec").
+    all: eauto using fw_cleared_regs_dom.
     { exact (cmpt_pcc_disjoint_from_shadow main_cmpt). }
     { exact (cmpt_pcc_base_not_heap main_cmpt). }
     { exact (cmpt_cgp_disjoint_from_mmio main_cmpt). }
@@ -124,7 +132,5 @@ Section dle_obligations.
     { apply sealed_cap_nonheap, cmpt_exp_tbl_base_not_heap. }
     { done. }
     { by rewrite /route_pre. }
-    iModIntro.
-    iApply (wp_mono with "Hspec"); auto.
   Qed.
 End dle_obligations.
