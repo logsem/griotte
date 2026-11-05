@@ -2,11 +2,11 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  switcher assert allocator_resources compartment_layout
+  hw_lang hw_machine_run switcher assert allocator_resources compartment_layout
   vae vae_concrete vae_untrusted_entry_adequacy.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import image firmware firmware_ok image_state link
-  vae_untrusted_entry_firmware.
+  vae_untrusted_entry_firmware round_robin_scheduler_concrete.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -17,19 +17,26 @@ From griotte Require Import image firmware firmware_ok image_state link
     The firmware [vae_untrusted_entry_firmware] with [vae_concrete]'s
     adversary, laid out by the linker. The thread starts at the adversary's
     [adv]. [adv] calls [awkward] with its callback [g], then returns, and
-    the switcher exits the thread. The initial state satisfies
-    [vae_untrusted_entry_initial_state_ok] by computation, runs to [Halted],
-    and [vae_untrusted_entry_adequacy] applies to it. *)
+    the thread exits. The configuration is its own, over [vae_concrete]'s
+    adversary list and the round-robin scheduler: the handles in the
+    scheduler's globals depend on this firmware's layout. The initial state
+    satisfies [vae_untrusted_entry_initial_state_ok] by computation; from it
+    the thread runs, through the scheduler, to its exit, where the scheduler
+    halts the machine; [vae_untrusted_entry_adequacy] applies to the run. *)
+
+Definition vae_untrusted_entry_demo_link_cfg : link_cfg :=
+  rr_link_cfg 16 vae_switcher_sealing_type vae_demo_adv 16 vae_untrusted_entry_firmware.
 
 (** ** The linked image and its initial state *)
 
 Definition vae_untrusted_entry_demo_image : fw_image :=
   Eval vm_compute in
-    default (place vae_demo_link_cfg vae_untrusted_entry_firmware).1
-      (link vae_demo_link_cfg vae_untrusted_entry_firmware).
+    default (place vae_untrusted_entry_demo_link_cfg vae_untrusted_entry_firmware).1
+      (link vae_untrusted_entry_demo_link_cfg vae_untrusted_entry_firmware).
 
 Lemma vae_untrusted_entry_demo_linked :
-  link vae_demo_link_cfg vae_untrusted_entry_firmware = Some vae_untrusted_entry_demo_image.
+  link vae_untrusted_entry_demo_link_cfg vae_untrusted_entry_firmware
+  = Some vae_untrusted_entry_demo_image.
 Proof. vm_compute; reflexivity. Qed.
 
 Definition vae_untrusted_entry_demo_state : ExecConf :=
@@ -47,11 +54,13 @@ Proof.
   rewrite /vae_untrusted_entry_initial_state_ok.
   exists (img_sw vae_untrusted_entry_demo_image), (img_asrt vae_untrusted_entry_demo_image),
     (thread_of vae_untrusted_entry_demo_image 0),
-    (cmpt_of vae_untrusted_entry_demo_image "main"), (cmpt_of vae_untrusted_entry_demo_image "C").
+    (img_idle vae_untrusted_entry_demo_image), (img_boot vae_untrusted_entry_demo_image),
+    (cmpt_of vae_untrusted_entry_demo_image "main"), (cmpt_of vae_untrusted_entry_demo_image "C"),
+    (cmpt_of vae_untrusted_entry_demo_image "sched").
   split; first done.
   split_and!.
   (* The error handler offsets of the adversaries, as the configuration gives them. *)
-  all: try exists_adv_handlers vae_demo_link_cfg.
+  all: try exists_adv_handlers vae_untrusted_entry_demo_link_cfg.
   all: try (exists vae_C_adv_entry, 0%nat; split; [|exists vae_C_g_entry, 0%nat; split_and!]).
   (* The entry word of [adv]: the PC and the minimum stack *)
   all: try (lazymatch goal with
@@ -59,25 +68,33 @@ Proof.
                 exists vae_untrusted_entry_adv_word; split
             end).
   all: try (lazymatch goal with
+            | |- ∃ _ _ _ : Z, _ => exists 0%Z, 0%Z, 0%Z; split_and!
+            end).
+  all: try (lazymatch goal with
+            | |- ∃ _ : InterruptStatus, _ => exists InterruptEnabled
+            end).
+  all: try (lazymatch goal with
             | |- ∀ r, _ =>
                 rewrite /vae_untrusted_entry_demo_state /img_state /img_regs;
-                solve_other_registers
+                solve_start_other_registers
             end).
   all: solve_concrete_condition.
 Qed.
 
 (** ** The run
 
-    [vae_untrusted_entry_demo_state] runs to [Halted], and
-    [vae_untrusted_entry_adequacy] applies to it: the flag of the assert
-    library is still zero. *)
+    [vae_untrusted_entry_demo_state] starts at the switcher's call of the
+    scheduler, which resumes the thread; the thread runs to its exit, and
+    the scheduler then halts the machine. [vae_untrusted_entry_adequacy]
+    applies to the run: the flag of the assert library is still zero. *)
 Theorem vae_untrusted_entry_runs_and_gracefully_halts :
   ∃ σ',
-    rtc erased_step ([Exec], vae_untrusted_entry_demo_state) ([Instr Halted], σ')
+    rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], vae_untrusted_entry_demo_state)
+      ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt vae_untrusted_entry_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat 15000%N) Executable vae_untrusted_entry_demo_state
-                Halted) as Hrun.
+  pose proof (machine_run_hw_correct (N.to_nat 16500%N) vae_untrusted_entry_demo_state Halted)
+    as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [σ' Hrun].
   exists σ'. split; first exact Hrun.

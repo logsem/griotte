@@ -2,10 +2,11 @@ From stdpp Require Import gmap strings.
 From iris.program_logic Require Import language.
 From griotte Require Import
   machine_base machine_parameters machine_parameters_instance griotte_opsem griotte_lang machine_run
-  switcher assert allocator_resources compartment_layout
+  hw_lang hw_machine_run switcher assert allocator_resources compartment_layout
   vae vae_adequacy.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok image_state link vae_firmware.
+From griotte Require Import image firmware firmware_ok image_state link vae_firmware
+  round_robin_scheduler_concrete.
 
 #[export] Existing Instance machine_parameters_instance.
 #[local] Transparent MemNum ONum.
@@ -13,9 +14,11 @@ From griotte Require Import image firmware firmware_ok image_state link vae_firm
 
 (** * A concrete instance of the very awkward example
 
-    The very awkward example's firmware with a concrete adversary [C], laid
-    out by the linker. Its initial state satisfies [vae_initial_state_ok] by
-    computation, runs to [Halted], and [vae_adequacy] applies to it. *)
+    The very awkward example's firmware with a concrete adversary [C] and
+    the round-robin scheduler, laid out by the linker. Its initial state
+    satisfies [vae_initial_state_ok] by computation; from it the thread
+    runs, through the scheduler, to its exit, where the scheduler halts the
+    machine; [vae_adequacy] applies to the run. *)
 
 Definition vae_switcher_sealing_type : OType := @finz.FinZ ONum 9 eq_refl eq_refl.
 
@@ -28,20 +31,19 @@ Definition vae_C_code : list Word := encodeInstrsW vae_C_instrs.
 
 Definition vae_C_data : list Word := [WInt 0].
 
-Definition vae_demo_link_cfg : link_cfg := {|
-  lk_base        := 16;
-  lk_ot_switcher := vae_switcher_sealing_type;
-  lk_adv         := [
-    ("C", {| la_code    := vae_C_code;
-             la_data    := vae_C_data;
-             la_exports := [
-               vae_C_adv_entry;
-               vae_C_g_entry
-             ];
-             la_handler := ExportTable_no_handler;
-             la_handler_stackless := ExportTable_no_handler |})
-  ]
-|}.
+Definition vae_demo_adv : list (string * link_adv) := [
+  ("C", {| la_code    := vae_C_code;
+           la_data    := vae_C_data;
+           la_exports := [
+             vae_C_adv_entry;
+             vae_C_g_entry
+           ];
+           la_handler := ExportTable_no_handler;
+           la_handler_stackless := ExportTable_no_handler |})
+].
+
+Definition vae_demo_link_cfg : link_cfg :=
+  rr_link_cfg 16 vae_switcher_sealing_type vae_demo_adv 16 vae_firmware.
 
 (** ** The linked image and its initial state *)
 
@@ -56,38 +58,44 @@ Proof. vm_compute; reflexivity. Qed.
 
 Definition vae_demo_state : ExecConf := img_state vae_firmware vae_demo_image.
 
-Ltac solve_other_registers :=
-  intros r Hr; cbn [pcc reg sreg mem shadowtbl fst snd];
-  rewrite !lookup_insert_ne; try set_solver;
-  apply lookup_gset_to_gmap_Some; split; [apply all_registers_s_correct | done].
-
 Lemma vae_demo_ok :
   vae_initial_state_ok (flag_assert (img_asrt vae_demo_image)) vae_demo_state.
 Proof.
   rewrite /vae_initial_state_ok.
   exists (img_sw vae_demo_image), (img_asrt vae_demo_image), (thread_of vae_demo_image 0),
-    (cmpt_of vae_demo_image "main"), (cmpt_of vae_demo_image "C").
+    (img_idle vae_demo_image), (img_boot vae_demo_image),
+    (cmpt_of vae_demo_image "main"), (cmpt_of vae_demo_image "C"),
+    (cmpt_of vae_demo_image "sched").
   split; first done.
   split_and!.
   (* The error handler offsets of the adversaries, as the configuration gives them. *)
   all: try exists_adv_handlers vae_demo_link_cfg.
   all: try (exists vae_C_adv_entry, 0%nat; split; [|exists vae_C_g_entry, 0%nat; split_and!]).
   all: try (lazymatch goal with
-            | |- ∀ r, _ => rewrite /vae_demo_state /img_state /img_regs; solve_other_registers
+            | |- ∃ _ _ _ : Z, _ => exists 0%Z, 0%Z, 0%Z; split_and!
+            end).
+  all: try (lazymatch goal with
+            | |- ∃ _ : InterruptStatus, _ => exists InterruptEnabled
+            end).
+  all: try (lazymatch goal with
+            | |- ∀ r, _ => rewrite /vae_demo_state /img_state /img_regs;
+                           solve_start_other_registers
             end).
   all: solve_concrete_condition.
 Qed.
 
 (** ** The run
 
-    [vae_demo_state] runs to [Halted], and [vae_adequacy] applies to it:
-    the flag of the assert library is still zero. *)
+    [vae_demo_state] starts at the switcher's call of the scheduler, which
+    resumes the thread; the thread runs to its exit, and the scheduler then
+    halts the machine. [vae_adequacy] applies to the run: the flag of the
+    assert library is still zero. *)
 Theorem vae_runs_and_gracefully_halts :
   ∃ σ',
-    rtc erased_step ([Exec], vae_demo_state) ([Instr Halted], σ')
+    rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], vae_demo_state) ([Instr Halted], σ')
     ∧ mem σ' !! flag_assert (img_asrt vae_demo_image) = Some (WInt 0%Z).
 Proof.
-  pose proof (machine_run_correct (N.to_nat 15000%N) Executable vae_demo_state Halted) as Hrun.
+  pose proof (machine_run_hw_correct (N.to_nat 16500%N) vae_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
   destruct Hrun as [σ' Hrun].
   exists σ'. split; first exact Hrun.
