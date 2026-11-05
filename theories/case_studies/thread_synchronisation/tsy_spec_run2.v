@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel.
 From griotte Require Import switcher_base.
-From griotte Require Import wp_core_full yield.
+From griotte Require Import wp_core_full.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import tsy_flag tsy_spec_states tsy_spec_exit_blocks_3.
 
