@@ -35,7 +35,7 @@ Disassembly of section .text:
 
 0000002e <.LBB0_4>:
       2e:      	ct.auipcc	t1, 0x0
-			0000002e:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_B__Z1fPPi
+			0000002e:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_C__Z1fPPi
 			0000002e:  R_RISCV_RELAX	*ABS*
       32:      	ct.clc	t1, 0x0(t1)
 			00000032:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_4
@@ -55,7 +55,7 @@ Disassembly of section .text:
 
 0000004a <.LBB0_6>:
       4a:      	ct.auipcc	t1, 0x0
-			0000004a:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_B__Z1fPPi
+			0000004a:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_C__Z1fPPi
 			0000004a:  R_RISCV_RELAX	*ABS*
       4e:      	ct.clc	t1, 0x0(t1)
 			0000004e:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_6

@@ -24,7 +24,7 @@ _Z3runv:                                # @_Z3runv
 	ct.csw	zero, 0(s0)
 	ct.candperm	a0, a0, a1
 .LBB0_4:                                # Label of block must be emitted
-	ct.auipcc	t1, %cheriot_compartment_hi(__import_B__Z1fPPi)
+	ct.auipcc	t1, %cheriot_compartment_hi(__import_C__Z1fPPi)
 	ct.clc	t1, %cheriot_compartment_lo_i(.LBB0_4)(t1)
 .LBB0_3:                                # Label of block must be emitted
 	ct.auipcc	t2, %cheriot_compartment_hi(.compartment_switcher)
@@ -34,7 +34,7 @@ _Z3runv:                                # @_Z3runv
 	ct.csw	a0, 0(s0)
 	ct.cmove	a0, zero
 .LBB0_6:                                # Label of block must be emitted
-	ct.auipcc	t1, %cheriot_compartment_hi(__import_B__Z1fPPi)
+	ct.auipcc	t1, %cheriot_compartment_hi(__import_C__Z1fPPi)
 	ct.clc	t1, %cheriot_compartment_lo_i(.LBB0_6)(t1)
 .LBB0_5:                                # Label of block must be emitted
 	ct.auipcc	t2, %cheriot_compartment_hi(.compartment_switcher)
@@ -99,14 +99,14 @@ __export_main__Z3runv:
 	.byte	2
 	.byte	8
 	.size	__export_main__Z3runv, 4
-	.section	.compartment_imports._Z1fPPi,"aG",@progbits,__import_B__Z1fPPi,comdat
-	.type	__import_B__Z1fPPi,@object
-	.weak	__import_B__Z1fPPi
+	.section	.compartment_imports._Z1fPPi,"aG",@progbits,__import_C__Z1fPPi,comdat
+	.type	__import_C__Z1fPPi,@object
+	.weak	__import_C__Z1fPPi
 	.p2align	3, 0x0
-__import_B__Z1fPPi:
-	.word	__export_B__Z1fPPi
+__import_C__Z1fPPi:
+	.word	__export_C__Z1fPPi
 	.word	0
-	.size	__import_B__Z1fPPi, 8
+	.size	__import_C__Z1fPPi, 8
 	.section	.compartment_imports._Z14griotte_assertii,"aG",@progbits,__library_import_libcalls__Z14griotte_assertii,comdat
 	.type	__library_import_libcalls__Z14griotte_assertii,@object
 	.weak	__library_import_libcalls__Z14griotte_assertii

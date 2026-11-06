@@ -1,6 +1,6 @@
 	.attribute	4, 16
 	.attribute	5, "rv32e2p0_m2p0_c2p0_zmmul1p0_zca1p0_xcheri0p0_xcheriot1p0_xcheripurecap0p0"
-	.file	"B.cc"
+	.file	"C.cc"
 	.section	.text._Z1fPPi,"ax",@progbits
 	.globl	_Z1fPPi                         # -- Begin function _Z1fPPi
 	.p2align	1
@@ -91,11 +91,11 @@ keptB:
 	.addrsig_sym keptA
 	.addrsig_sym keptB
 	.section	.compartment_exports,"aR",@progbits
-	.type	__export_B__Z1fPPi,@object
-	.globl	__export_B__Z1fPPi
+	.type	__export_C__Z1fPPi,@object
+	.globl	__export_C__Z1fPPi
 	.p2align	2, 0x0
-__export_B__Z1fPPi:
+__export_C__Z1fPPi:
 	.half	_Z1fPPi-__compartment_pcc_start
 	.byte	0
 	.byte	9
-	.size	__export_B__Z1fPPi, 4
+	.size	__export_C__Z1fPPi, 4
