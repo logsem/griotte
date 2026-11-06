@@ -15,7 +15,7 @@ From griotte.program_logic.virtualise Require virtualise.
 From griotte Require context_switching_specs.
 From griotte Require context_switching_scheduler_valid.
 From griotte Require Import
-  machine_base griotte_opsem switcher assert allocator_resources compartment_layout
+  machine_base griotte_opsem switcher assert locks allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling.
 (* Imported last: the fields of the image records. *)
 From griotte Require Import

@@ -8,9 +8,8 @@ From griotte Require Import
   kvs kvs_main kvs_preamble kvs_main_spec kvs_spec_addOrUpdate_safe kvs_spec_read_safe kvs_spec_erase_safe.
 From griotte Require Import assert_spec logrel.
 From griotte Require Import locks locks_spec.
-From griotte Require Import mkregion_helpers.
 From griotte Require Import
-  world_interp_revocation world_interp_allocation world_interp_allocation_compartments.
+  world_interp_allocation world_interp_allocation_compartments.
 From iris.base_logic Require Import invariants.
 From griotte Require Import disjoint_regions_tactics.
 From griotte Require Import switcher_base_interp.

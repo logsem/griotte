@@ -528,10 +528,11 @@ Section resources_pt.
 
   (** The resources shared by the threads of a firmware whose scheduler runs
       in [C_sched]: the switcher's static facts and the trusted-stack
-      invariant of every thread, the assert library, the compartments but
-      the scheduler's, initialised, the sealing types, the maps of Permanent
-      regions of the compartments but [C_sched], and the heap. Each thread's
-      local maps are in its [fw_thread_res]. *)
+      invariant of every thread, the assert library, the code of the lock
+      library, when imported, the compartments but the scheduler's,
+      initialised, the sealing types, the maps of Permanent regions of the
+      compartments but [C_sched], and the heap. Each thread's local maps are
+      in its [fw_thread_res]. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     "Hswitcher_static" ∷

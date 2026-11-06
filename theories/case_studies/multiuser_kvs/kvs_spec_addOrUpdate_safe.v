@@ -23,24 +23,6 @@ Section KVS_spec_addOrUpdate_safe.
     (kvs_users : gmap user_key_t CmptName)
   .
 
-  (* TODO: move to logrel/interp_world_free.v *)
-  (** A word stored through a capability that is not write-local is valid
-      in every world, at every thread: it is either untagged or not local. *)
-  Lemma interp_store_every_thread W C p w :
-    isWL p = false →
-    interp W C w -∗ ∀ t : Thread, safeGC (interp_in_mem (th := t) RWL) (C, lstore_word p w).
-  Proof.
-    iIntros (Hwl) "#Hw". iIntros (t).
-    iApply (interp_to_in_mem (th := t)).
-    destruct (canStore p w.(lw)) eqn:Hcs.
-    - rewrite lstore_word_canStore //.
-      rewrite -(interp_global_thread_world_free th t W ∅ C w); first done.
-      by eapply canStore_global_nonisWL.
-    - assert (lstore_word p w = lclear_tag w) as ->.
-      { by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcs. }
-      iApply interp_clear_tag.
-  Qed.
-
   (*** Specification from unknown *)
   Lemma KVS_addOrupdate_spec_safe
     (Wca W : WORLD) (C : CmptName)

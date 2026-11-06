@@ -5,7 +5,7 @@ From griotte Require Import world_interp_revocation wp_rules_interp interp_weake
 From griotte Require Import switcher_base.
 From griotte Require Import locks locks_spec.
 From griotte Require Import
-  kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_erase kvs_spec_addOrUpdate_safe.
+  kvs kvs_preamble kvs_spec_check_uint16 kvs_spec_erase.
 
 Section KVS_spec_erase_safe.
   Context
@@ -159,7 +159,7 @@ Section KVS_spec_erase_safe.
     iSplitR.
     - (* the critical section: the map of the user [uk], its entry emptied *)
       iIntros "(Hphys & Hlog & Husers)".
-      iDestruct (big_sepM_lookup_acc with "Husers") as "[[Huser Hpts] Husers_close]"; first exact Huk.
+      iDestruct (big_sepM_lookup_acc with "Husers") as "[ [Huser Hpts] Husers_close]"; first exact Huk.
       iDestruct (big_sepS_delete _ _ nkey with "Hpts") as "[Hnk Hpts]"; first done.
       iAssert (∃ o, (uk, nkey) ↦(UKVS) o)%I with "[Hnk]" as (o) "Hk".
       { iDestruct "Hnk" as "[ (%w & Hk & _) | Hk ]"; iExists _; iExact "Hk". }

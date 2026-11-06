@@ -149,8 +149,10 @@ Section KVS_acquire.
     assert (is_shadow_address kvs_lock_addr = false) as Hshadow.
     { apply (disjoint_from_shadow_not_in KVS_cgp_b KVS_cgp_e); first apply KVS_cgp_disjoint_from_shadow.
       rewrite /withinBounds /kvs_lock_addr /KVS_LOCK_OFFSET. solve_addr. }
-    rewrite /kvs_acquire_instrs. codefrag_facts "Hcode".
-    rename H into Hcontiguous, H0 into Hsub'.
+    rewrite /kvs_acquire_instrs.
+    iDestruct (codefrag_contiguous_region_pers with "Hcode") as %Hcontiguous.
+    assert (SubBounds pc_b pc_e pc_a (pc_a ^+ length (encodeInstrsW (kvs_acquire off))))
+      as Hsub' by exact Hsub.
     assert (length (encodeInstrsW (kvs_acquire off)) = 17) as Hinstrs by reflexivity.
     (* The sentry of [try_lock] is not a heap capability. The fact on its
        base goes, so that the side conditions of [Subseg] do not pick it. *)

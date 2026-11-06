@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import image firmware firmware_ok firmware_adequacy kvs_firmware.
-From griotte Require Import hw_lang logrel seal_registry kvs_preamble.
+From griotte Require Import hw_lang logrel kvs_preamble.
 From griotte Require Export kvs_adequacy_obligations.
 
 (** We initialise concretely the compartments name typeclass: the
@@ -45,7 +45,7 @@ Proof.
         & <- & Hkeys & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
-              ghost_varΣ kvs_physical_map; @seal_registryΣ CmptNames_kvs_CmptNameG LAddr _ _]
+              ghost_varΣ kvs_physical_map]
             (kvs_firmware ot_kvs key_main key_B)
             (kvs_img sw asrt lck t0 t1 idle boot main kvs B sched));
     [| exact Hfw | exact Hstep].

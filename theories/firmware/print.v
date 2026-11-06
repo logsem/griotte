@@ -1497,7 +1497,7 @@ Section memory_map.
           (* The lock library, when linked: its range is empty otherwise. *)
           (if (e_locks lck - b_locks lck =? 0)%Z then []
            else [row (b_locks lck) (Z.to_nat (e_locks lck - b_locks lck)%Z) "code" "locks"
-                   [CText "locks_try_lock_instrs"]])
+                   [CText "locks_try_lock_instrs"] ])
           (app (concat (map cmpt_rows (img_cmpts img)))
              (app (concat (imap thread_rows (img_threads img)))
                 (let d := img_idle img in

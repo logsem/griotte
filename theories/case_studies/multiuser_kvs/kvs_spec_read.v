@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
-From griotte Require Import locks locks_spec.
+From griotte Require Import locks.
 From griotte Require Import
   switcher_base_ktk kvs kvs_preamble kvs_spec_getFullKey kvs_spec_search kvs_spec_check_uint16
   kvs_spec_acquire map_simpl register_tactics.
@@ -230,7 +230,7 @@ Section KVS_spec_read.
     iApply (kvs_acquire_spec kvs_users KVS_pcc_b KVS_pcc_e a_acquire kvs_read_acquire_off mie wret
              with "[- $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hct0 $Hct1 $Hct2 $Hmie $Hheld $Hcode $Ha_try_lock
                      $Hlock_static $Hlock]").
-    { exact H0. }
+    { assumption. }
     { rewrite !length_app in Ha_acquire. cbn in Ha_acquire.
       rewrite /kvs_read_acquire_off /kvs_acquire_fetch_at.
       rewrite /kvs_read_pcc_addr kvs_read_pcc_off_eq in Ha_acquire.
@@ -268,7 +268,7 @@ Section KVS_spec_read.
     iApply (KVS_search_unified_spec KVS_pcc_b KVS_pcc_e a_search KVS_cgp_b kvs_lock_addr
               ca0 ctp ct1 ct2 pkvs fkey
              with "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hct2 $HPKVS $Hcode]");
-      [exact Htable_shadow | exact H0 | rewrite /withinBounds; solve_addr | exact Hlock_addr
+      [exact Htable_shadow | assumption | rewrite /withinBounds; solve_addr | exact Hlock_addr
       | done | done | done | done |].
     iNext. iIntros "Hout".
     rewrite /kvs_search_outcome_resources /kvs_search_found_resources /kvs_search_missing_resources.
