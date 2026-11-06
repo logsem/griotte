@@ -1,0 +1,1 @@
+fail/csw_no_scratch.s:5: error: cannot translate ct.csw a0, 0(s0): no scratch register dead here for the integer store (D11)

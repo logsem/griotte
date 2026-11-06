@@ -1,0 +1,1 @@
+fail/frame_escape.s:7: error: cannot translate ct.cincoffset a0, sp, 8: sp used other than as the base of a frame access (D6: escaping stack objects need a layout)

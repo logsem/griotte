@@ -1,0 +1,1 @@
+fail/posture_inherit.s:12: error: export __export_main__Z3runv: interrupt posture inherit, which a compartment export cannot have in Griotte (review R26)

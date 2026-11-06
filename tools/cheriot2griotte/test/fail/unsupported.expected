@@ -1,0 +1,1 @@
+fail/unsupported.s:5: error: cannot translate ct.cgettag a0, a0: not in the subset the lowering supports

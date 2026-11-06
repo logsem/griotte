@@ -1,0 +1,1 @@
+fail/global_unknown.s:13: error: global b: element type unknown (8 bytes of .bss data); only 4-byte integers are laid out (D6)

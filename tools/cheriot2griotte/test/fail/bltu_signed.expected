@@ -1,0 +1,1 @@
+fail/bltu_signed.s:6: error: cannot translate bltu a0, a1, .LBB0_1: unsigned comparison of a0, not known to be non-negative (D5)

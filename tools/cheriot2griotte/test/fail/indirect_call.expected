@@ -1,0 +1,1 @@
+fail/indirect_call.s:5: error: cannot translate ct.cjalr a0: indirect call: the jump register is not fetched from an import right before

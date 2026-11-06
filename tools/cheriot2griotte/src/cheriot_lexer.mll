@@ -25,8 +25,8 @@ let directives =
 
 (* The mnemonics of the subset; their operands are in the grammar. *)
 let mnemonics =
-  [ ("li", LI); ("lui", LUI); ("addi", ADDI); ("andi", ANDI); ("add", ADD);
-    ("beq", BEQ); ("bltu", BLTU); ("bgeu", BGEU); ("beqz", BEQZ); ("bnez", BNEZ);
+  [ ("li", LI); ("lui", LUI); ("mv", MV); ("addi", ADDI); ("andi", ANDI); ("add", ADD);
+    ("slli", SLLI); ("beq", BEQ); ("bne", BNE); ("bltu", BLTU); ("bgeu", BGEU); ("beqz", BEQZ); ("bnez", BNEZ);
     ("j", J); ("ecall", ECALL); ("unimp", UNIMP);
     ("ct.cret", CRET); ("ct.cjalr", CJALR);
     ("ct.auipcc", AUIPCC); ("ct.auicgp", AUICGP);

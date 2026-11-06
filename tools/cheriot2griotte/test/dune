@@ -208,3 +208,253 @@
  (alias cheriot2griotte-test)
  (action
   (diff census.expected census.out)))
+
+; {1 Generated Rocq files (D7)}
+;
+; The checked-in generated files are regenerated here, with the sha256 of
+; the input (sha256sum), and compared with the checked-in copies: the
+; alias fails if they drift. After an intended change: `dune build
+; @cheriot2griotte-test` then `dune promote`, which updates the files
+; under theories/.
+
+(rule
+ (targets cmdc_main.sha256)
+ (deps
+  (:s ../inputs/cmdc/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets cmdc_compiled.v.out)
+ (deps
+  (:s ../inputs/cmdc/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    cmdc_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc/main.s
+    --input-sha256
+    %{read-lines:cmdc_main.sha256}
+    --description
+    "The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (D1: a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff %{project_root}/theories/case_studies/cmdc/cmdc_compiled.v cmdc_compiled.v.out)))
+
+(rule
+ (targets lib_griotte_assert.sha256)
+ (deps
+  (:s ../inputs/lib/griotte_assert.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets assert_compiled.v.out)
+ (deps
+  (:s ../inputs/lib/griotte_assert.s)
+  (:l ../labels/lib_griotte_assert.labels))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    assert_compiled
+    --label-prefix
+    assert
+    --labels
+    %{l}
+    --source
+    tools/cheriot2griotte/inputs/lib/griotte_assert.s
+    --input-sha256
+    %{read-lines:lib_griotte_assert.sha256}
+    --description
+    "The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler (D4): it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import; as in the hand-written library (assert.v), the capability to it is the word after the code."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/macros/assert_compiled.v
+   assert_compiled.v.out)))
+
+; {1 Rejection tests of the lowering}
+;
+; One small hand-made input per rejection rule (fail/*.s); the tool must
+; exit with status 2 and the expected message.
+
+(rule
+ (targets fail_bltu_signed.out)
+ (deps
+  (:s fail/bltu_signed.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/bltu_signed.expected fail_bltu_signed.out)))
+
+(rule
+ (targets fail_csw_no_scratch.out)
+ (deps
+  (:s fail/csw_no_scratch.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/csw_no_scratch.expected fail_csw_no_scratch.out)))
+
+(rule
+ (targets fail_frame_escape.out)
+ (deps
+  (:s fail/frame_escape.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/frame_escape.expected fail_frame_escape.out)))
+
+(rule
+ (targets fail_global_unknown.out)
+ (deps
+  (:s fail/global_unknown.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/global_unknown.expected fail_global_unknown.out)))
+
+(rule
+ (targets fail_indirect_call.out)
+ (deps
+  (:s fail/indirect_call.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/indirect_call.expected fail_indirect_call.out)))
+
+(rule
+ (targets fail_offset_unknown.out)
+ (deps
+  (:s fail/offset_unknown.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/offset_unknown.expected fail_offset_unknown.out)))
+
+(rule
+ (targets fail_posture_inherit.out)
+ (deps
+  (:s fail/posture_inherit.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/posture_inherit.expected fail_posture_inherit.out)))
+
+(rule
+ (targets fail_setbounds_no_scratch.out)
+ (deps
+  (:s fail/setbounds_no_scratch.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/setbounds_no_scratch.expected fail_setbounds_no_scratch.out)))
+
+(rule
+ (targets fail_slli_overflow.out)
+ (deps
+  (:s fail/slli_overflow.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/slli_overflow.expected fail_slli_overflow.out)))
+
+(rule
+ (targets fail_unsupported.out)
+ (deps
+  (:s fail/unsupported.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/unsupported.expected fail_unsupported.out)))

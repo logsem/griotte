@@ -34,7 +34,7 @@ let ins p mnemonic operands = Instr { mnemonic; operands; iloc = loc p }
 %token COLON COMMA LPAREN RPAREN PLUS MINUS NEWLINE EOF
 %token RELOC_HI RELOC_LO_I RELOC_SIZE
 %token DSECTION DGLOBL DWEAK DSIZE DWORD DHALF DBYTE DZERO
-%token LI LUI ADDI ANDI ADD BEQ BLTU BGEU BEQZ BNEZ J ECALL UNIMP
+%token LI LUI MV ADDI ANDI ADD SLLI BEQ BNE BLTU BGEU BEQZ BNEZ J ECALL UNIMP
 %token CRET CJALR AUIPCC AUICGP CINCOFFSET CSETBOUNDS CLC CLW CSC CSW CMOVE
 %token CGETTAG CGETBASE CGETLEN CGETPERM CSETADDR CANDPERM
 
@@ -103,10 +103,13 @@ target:
 instr:
   | LI d = reg COMMA n = int { ins $startpos "li" [ Reg d; Imm (Int n) ] }
   | LUI d = reg COMMA n = int { ins $startpos "lui" [ Reg d; Imm (Int n) ] }
+  | MV d = reg COMMA s = reg { ins $startpos "mv" [ Reg d; Reg s ] }
   | ADDI d = reg COMMA s = reg COMMA n = int { ins $startpos "addi" [ Reg d; Reg s; Imm (Int n) ] }
   | ANDI d = reg COMMA s = reg COMMA n = int { ins $startpos "andi" [ Reg d; Reg s; Imm (Int n) ] }
   | ADD d = reg COMMA s1 = reg COMMA s2 = reg { ins $startpos "add" [ Reg d; Reg s1; Reg s2 ] }
+  | SLLI d = reg COMMA s = reg COMMA n = int { ins $startpos "slli" [ Reg d; Reg s; Imm (Int n) ] }
   | BEQ a = reg COMMA b = reg COMMA t = target { ins $startpos "beq" [ Reg a; Reg b; t ] }
+  | BNE a = reg COMMA b = reg COMMA t = target { ins $startpos "bne" [ Reg a; Reg b; t ] }
   | BLTU a = reg COMMA b = reg COMMA t = target { ins $startpos "bltu" [ Reg a; Reg b; t ] }
   | BGEU a = reg COMMA b = reg COMMA t = target { ins $startpos "bgeu" [ Reg a; Reg b; t ] }
   | BEQZ a = reg COMMA t = target { ins $startpos "beqz" [ Reg a; t ] }

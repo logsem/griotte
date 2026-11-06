@@ -1,0 +1,1 @@
+fail/slli_overflow.s:5: error: cannot translate slli a0, a0, 2: slli of a value not known to stay within 32 bits (Griotte integers are unbounded, D14)

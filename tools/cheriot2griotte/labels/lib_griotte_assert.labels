@@ -1,0 +1,4 @@
+# Label overrides (D8) for the compiled assert library
+# (inputs/lib/griotte_assert.s): one "generated-label new-label" pair per
+# line. The branch target of `beq a0, a1, .LBB0_2` is the return.
+.Lassert_griotte_assert_bb_1 .Lassert_griotte_assert_return
