@@ -1491,6 +1491,23 @@ Section KVS_preamble.
 
 End KVS_preamble.
 
+Section KVS_static_thread.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+    {LK : locksLayout}
+    {KVS_layout : kvsLayout}
+  .
+
+  (** The read-only memory of the KVS does not depend on the thread. *)
+  Lemma kvs_static_thread_indep (t t' : Thread) :
+    kvs_static (th := t) ⊣⊢ kvs_static (th := t').
+  Proof. rewrite /kvs_static /lock_static !(codefrag_pers_thread_indep t t'). done. Qed.
+
+End KVS_static_thread.
+
 Section UserKvsInit.
     Context
       {Σ:gFunctors}
