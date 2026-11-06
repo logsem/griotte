@@ -3,11 +3,12 @@
    [ct.candperm] with a constant mask to [restrict ... (encodePermPair
    (P, g))].
 
-   CHERIoT bits (the ISA's [CGetPerm]/[CAndPerm] layout):
+   CHERIoT bits (the ISA's [CGetPerm]/[CAndPerm] layout, cheri.h's
+   CHERIPermission):
      0 GL global          1 LG load global      2 SD store
      3 LM load mutable    4 SL store local      5 LD load
      6 MC load/store cap  7 SR system regs      8 EX execute
-     9 U0 user 0         10 SE seal            11 US unseal
+     9 US unseal         10 SE seal            11 U0 user 0
 
    The Griotte pair (BPerm rx w dl dro, g) has the CHERIoT image:
      GL <-> g = Global
@@ -18,7 +19,7 @@
      MC <-> LD or SD (Griotte has no separate capability-access
             permission: a readable or writable capability loads and
             stores capabilities)
-     U0, SE, US: none (sealing permissions are on [WSealRange] only).
+     US, SE, U0: none (sealing permissions are on [WSealRange] only).
    A CHERIoT set has a Griotte counterpart when it is the image of a
    pair (then of exactly one) and is representable in CHERIoT's
    compressed encoding (the ISA's formats; GL is free in all of them):
@@ -27,7 +28,7 @@
      cap write-only  SD MC
      data only       any of LD SD (no MC)
      executable      EX LD MC + any of SR LM LG
-     sealing         any of U0 SE US
+     sealing         any of US SE U0
    [CAndPerm] of a non-representable set gives a smaller set; the
    lowering only accepts representable results, so the AND is exact. *)
 
@@ -39,10 +40,10 @@ type loc = Global | Local
 type pair = { rx : rx; w : w; dl : dl; dro : dro; g : loc }
 
 let gl = 0 and lg = 1 and sd = 2 and lm = 3 and sl = 4 and ld = 5
-let mc = 6 and sr = 7 and ex = 8 and u0 = 9 and se = 10 and us = 11
+let mc = 6 and sr = 7 and ex = 8 and us = 9 and se = 10 and u0 = 11
 
 let bit_names =
-  [| "GL"; "LG"; "SD"; "LM"; "SL"; "LD"; "MC"; "SR"; "EX"; "U0"; "SE"; "US" |]
+  [| "GL"; "LG"; "SD"; "LM"; "SL"; "LD"; "MC"; "SR"; "EX"; "US"; "SE"; "U0" |]
 
 let has s b = s land (1 lsl b) <> 0
 let of_list l = List.fold_left (fun acc b -> acc lor (1 lsl b)) 0 l
@@ -76,7 +77,7 @@ let representable s =
   || s = of_list [ sd; mc ]
   || only [ ld; sd ]
   || (req [ ex; ld; mc ] && only [ ex; ld; mc; sr; lm; lg ])
-  || only [ u0; se; us ]
+  || only [ us; se; u0 ]
 
 (* The Griotte pair whose image is exactly [s], if any. *)
 let of_bits s =

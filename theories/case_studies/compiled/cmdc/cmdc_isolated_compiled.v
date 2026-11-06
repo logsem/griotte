@@ -55,11 +55,11 @@ Section Cmdc_isolated_compiled_main.
         lea cs0 cgp 0
       ] ++
       (* ct.csetbounds s0, s0, %cheriot_compartment_size(b) *)
-      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct0 cs0; add ct1 ct0 1; subseg cs0 cs0 ct0 ct1 *)
-      (* [deviation] scratch ct0, ct1: dead after this instruction *)
+      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct1 cs0; add ct2 ct1 1; subseg cs0 cs0 ct1 ct2 *)
+      (* [deviation] scratch ct1, ct2: dead after this instruction *)
       (* [deviation] length %cheriot_compartment_size(b) = 4 bytes = 1 word(s) *)
       (* [deviation] Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as 4 bytes is below 512 *)
-      setbounds_asm cs0 cs0 1 ct0 ct1 ++
+      setbounds_asm cs0 cs0 1 ct1 ct2 ++
       [
         (* .LBB0_2: ct.auicgp s1, %cheriot_compartment_hi(c) *)
         (* ct.cincoffset s1, s1, %cheriot_compartment_lo_i(.LBB0_2) *)
@@ -67,11 +67,11 @@ Section Cmdc_isolated_compiled_main.
         lea cs1 cgp 1
       ] ++
       (* ct.csetbounds s1, s1, %cheriot_compartment_size(c) *)
-      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct0 cs1; add ct1 ct0 1; subseg cs1 cs1 ct0 ct1 *)
-      (* [deviation] scratch ct0, ct1: dead after this instruction *)
+      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct1 cs1; add ct2 ct1 1; subseg cs1 cs1 ct1 ct2 *)
+      (* [deviation] scratch ct1, ct2: dead after this instruction *)
       (* [deviation] length %cheriot_compartment_size(c) = 4 bytes = 1 word(s) *)
       (* [deviation] Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as 4 bytes is below 512 *)
-      setbounds_asm cs1 cs1 1 ct0 ct1 ++
+      setbounds_asm cs1 cs1 1 ct1 ct2 ++
       [
         (* ct.csw zero, 0(s0) *)
         store cs0 0;

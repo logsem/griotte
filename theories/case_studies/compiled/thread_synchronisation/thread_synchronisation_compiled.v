@@ -46,11 +46,11 @@ Section Tsy_compiled_K.
         lea ca0 cgp 0
       ] ++
       (* ct.csetbounds a0, a0, %cheriot_compartment_size(b) *)
-      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct0 ca0; add ct1 ct0 1; subseg ca0 ca0 ct0 ct1 *)
-      (* [deviation] scratch ct0, ct1: dead after this instruction *)
+      (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct1 ca0; add ct2 ct1 1; subseg ca0 ca0 ct1 ct2 *)
+      (* [deviation] scratch ct1, ct2: dead after this instruction *)
       (* [deviation] length %cheriot_compartment_size(b) = 4 bytes = 1 word(s) *)
       (* [deviation] Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as 4 bytes is below 512 *)
-      setbounds_asm ca0 ca0 1 ct0 ct1
+      setbounds_asm ca0 ca0 1 ct1 ct2
     ;
       [
         #".Lsync_run1_call_B_f"

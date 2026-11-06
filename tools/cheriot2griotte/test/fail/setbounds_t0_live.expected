@@ -1,0 +1,1 @@
+fail/setbounds_t0_live.s:8: error: cannot translate ct.csetbounds s0, s0, %cheriot_compartment_size(b): no two scratch registers dead here for setbounds_asm (D3)

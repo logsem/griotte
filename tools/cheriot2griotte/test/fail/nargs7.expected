@@ -1,0 +1,1 @@
+fail/nargs7.s:11: error: export __export_main__Z3runv: 7 arguments; Griotte passes at most 6, in ca0-ca5 (the 7th, in t0, is not supported; D34)

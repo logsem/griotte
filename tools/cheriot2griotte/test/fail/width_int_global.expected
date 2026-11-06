@@ -1,0 +1,1 @@
+fail/width_int_global.s:9: error: cannot translate ct.clc a1, 0(a0): 8-byte access to b, a global of 4-byte elements (4-byte integers, D34)

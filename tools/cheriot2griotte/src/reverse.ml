@@ -18,26 +18,33 @@
    The lowering is not injective; the checker accepts the `.s` when it is
    one of the preimages of the Griotte code, under the side conditions of
    the rule that produced it:
-   - [mov r n]: [li r, n], [lui r, n >> 12], or [ct.cmove r, zero] (n = 0);
-     [add r s n]: [addi r, s, n], [mv r, s] (n = 0); [mov r s]:
-     [ct.cmove r, s] (a callback's [ct.cmove t1, r] included).
+   - [mov r n]: [li r, n], [lui r, n >> 12], or [ct.cmove r, zero] (n = 0),
+     n within the signed 32-bit range; [add r s n]: [addi r, s, n], [mv r,
+     s] (n = 0); [add r x y]: [add r, x, y]; an addition only when its
+     result is known to stay within the signed 32-bit range (CHERIoT wraps,
+     Griotte does not; D34): constants, one operand 0, or a non-negative
+     integer plus a constant <= 0. [mov r s]: [ct.cmove r, s] (a
+     callback's [ct.cmove t1, r] included).
    - [load_imm r s w]: [ct.clc r, o(s)]; followed by [geta r r]:
      [ct.clw r, o(s)]. [store_imm s v w]: [ct.csc v, o(s)], or [ct.csw v,
      o(s)] when v is known to hold an integer; [geta t v; store_imm s t
      w]: [ct.csw v, o(s)], with t dead after the store (or v itself) and
      t <> s. For s = sp, o is the byte offset of slot w of the frame, and
-     the slot size decides clc/csc (8) or clw/csw (4); otherwise w = o = 0.
+     the slot size decides clc/csc (8) or clw/csw (4); otherwise w = o = 0,
+     and when s holds a capability to a global, the global's element size
+     decides it (one derived from cgp to no known global is rejected).
    - [lea sp sp -/+k]: the frame allocation/release, k the number of
      slots, back to the frame's byte size.
    - [lea r cgp k]: the [ct.auicgp r, hi(g); ct.cincoffset r, r, lo_i(L)]
-     pair of the global g starting at word k, L the label of the auicgp.
+     pair of the global g starting at word k, L the label of the auicgp;
+     not in a library (no cgp of its own). No instruction writes cgp.
    - [fetch_asm sym r]: [ct.auipcc r, hi(imp); ct.clc r, lo_i(L)(r)], imp
      the CHERIoT import whose Griotte name is sym (decoded here, and
      required unique).
    - [setbounds_asm d s w t1 t2]: [ct.csetbounds d, s, len], len in bytes:
      w times the element size (4, or 8 for the one-word null-capability
      global) of the global whose start s holds (value analysis), as a
-     number or as %cheriot_compartment_size of a global of that size;
+     number or as %cheriot_compartment_size of that global;
      t1, t2 distinct, not cnull, not s, each d or dead after the macro;
      len below 512 (CHERIoT's exact bounds).
    - [restrict d s c]: [ct.candperm d, s, m] with m any register holding a
@@ -60,7 +67,8 @@
    import exactly once, each name decoding to its entry); the globals
    (order .data then .bss, word offsets, and their words back to bytes,
    equal to the `.s` data); the frame slot tables (sorted, disjoint,
-   within the frame); each export's label and word offset.
+   within the frame); each export's label and word offset, and its number
+   of arguments (at most 6, ca0-ca5).
 
    Not recoverable, hence not checked against the `.s`: the CHERIoT
    labels themselves (only the targets they designate); the mask register
@@ -95,12 +103,15 @@ let rset = List.fold_left (fun acc r -> acc lor bit r) 0
 let live r s = s land bit r <> 0
 
 (* CHERIoT's calling convention (RV32E, CHERIoT ABI): a call reads its
-   jump register, ct1 (the switcher's target), the arguments ca0..ca5 and
-   the registers kept across calls (csp, cgp, ctp, cs0, cs1); it clobbers
-   cra, the temporaries ct0..ct2 and ca0..ca5. A return reads cra, the
-   kept registers and the results ca0, ca1. *)
-let call_uses r = rset ([ r; ct1; csp; cgp; ctp; cs0; cs1 ] @ ca_regs)
-let call_defs = rset ([ cra; ct0; ct1; ct2 ] @ ca_regs)
+   jump register, ct1 (the switcher's target), the arguments ca0..ca5, ct0
+   (the pointer to the arguments beyond ca0..ca5, or to variadic ones:
+   the switcher passes it to a callee of 7 arguments, and a library callee
+   reads it alike) and the registers kept across calls (csp, cgp, ctp,
+   cs0, cs1); it clobbers cra, the temporaries ct0..ct2 and ca0..ca5, and
+   ctp when it goes through the switcher (zeroed on return, entry.S). A
+   return reads cra, the kept registers and the results ca0, ca1. *)
+let call_uses r = rset ([ r; ct0; ct1; csp; cgp; ctp; cs0; cs1 ] @ ca_regs)
+let call_defs ~switcher = rset ([ cra; ct0; ct1; ct2 ] @ ca_regs @ if switcher then [ ctp ] else [])
 let ret_uses = rset [ cra; csp; cgp; ctp; cs0; cs1; 10; 11 ]
 
 (* {1 Permissions}
@@ -127,7 +138,7 @@ let cgp_bits = b_gl lor b_lg lor b_sd lor b_lm lor b_ld lor b_mc
 
 (* Sets CHERIoT's compressed permission formats encode exactly (GL free):
    capability read-write, read-only, write-only, data only, executable;
-   sealing sets (U0 SE US) are not Griotte's. *)
+   sealing sets (US SE U0) are not Griotte's. *)
 let representable s =
   let s = s land 0xffe in
   let within m = s land lnot m = 0 in
@@ -218,7 +229,7 @@ let uses_defs = function
       | G.Jeq (o, x, y) | G.Jne (o, x, y) | G.Jlt (o, x, y) | G.Jle (o, x, y) ->
           (rset (arg_regs o @ arg_regs x @ arg_regs y), 0)
       | G.Jalr (d, s) when d = cnull && s = cra -> (ret_uses, 0)
-      | G.Jalr (d, r) when d = cra -> (call_uses r, call_defs)
+      | G.Jalr (d, r) when d = cra -> (call_uses r, call_defs ~switcher:true)  (* see [node_ud] *)
       | G.Jalr (d, s) -> (rset [ s ], rset [ d ])
       | G.Mov (d, x) -> (rset (arg_regs x), rset [ d ])
       | G.CLoad (d, s, _) -> (rset [ s ], rset [ d ])
@@ -235,10 +246,21 @@ let uses_defs = function
       | G.Ecall | G.Fail | G.Halt -> (0, 0)
       | G.Auipcc (d, _) -> (0, rset [ d ]))
 
+(* Registers read and written by node i: a call clobbers ctp only when
+   it goes through the switcher (fetched right before). *)
+let node_ud gf i =
+  match gf.nodes.(i) with
+  | I (G.Jalr (d, r)) when d = cra ->
+      let switcher =
+        i > 0 && match gf.nodes.(i - 1) with M (G.Fetch (".Limport_switcher", _)) -> true | _ -> false
+      in
+      (call_uses r, call_defs ~switcher)
+  | nd -> uses_defs nd
+
 (* live_out.(i): the registers read after node i before being written. *)
 let liveness gf sx =
   let n = Array.length gf.nodes in
-  let ud = Array.map uses_defs gf.nodes in
+  let ud = Array.init n (node_ud gf) in
   let lin = Array.make n 0 and lout = Array.make n 0 in
   let changed = ref true in
   while !changed do
@@ -266,6 +288,16 @@ type value = Top | Int of bool | Const of int | Cap of { bits : int; glob : stri
 let is_int = function Int _ | Const _ -> true | Top | Cap _ -> false
 let nonneg = function Int b -> b | Const c -> c >= 0 | Top | Cap _ -> false
 
+(* x + y, when known to stay within the signed 32-bit range; None when it
+   may leave it. Constants are within the range, and non-negative
+   integers within [0, 2^31). *)
+let sum x y =
+  match (x, y) with
+  | Const a, Const b -> if fits32 (a + b) then Some (Const (a + b)) else None
+  | v, Const 0 | Const 0, v -> Some (if is_int v then v else Int false)
+  | (Int true, Const c | Const c, Int true) when c <= 0 -> Some (Int false)
+  | _ -> None
+
 let join a b =
   match (a, b) with
   | Const x, Const y when x = y -> a
@@ -292,9 +324,10 @@ type pop =
   | PReg of int
   | PImm of string * (int -> bool)  (* an integer immediate: description, predicate *)
   | PRel of C.reloc * string
-  | PLen of int option
-      (* a length of n bytes: n, or %cheriot_compartment_size of a global of n
-         bytes; None: unknown (the side condition says why) *)
+  | PLen of (int * string) option
+      (* a length of n bytes of the global g: n, or
+         %cheriot_compartment_size(g); None: unknown (the side condition
+         says why) *)
   | PLoSelf  (* %cheriot_compartment_lo_i(L), L a label of the preceding instruction *)
   | PMem of pop * int
   | PTarget of string  (* the Griotte label a branch goes to *)
@@ -306,7 +339,7 @@ let rec string_of_pop = function
   | PReg r -> C.string_of_reg r
   | PImm (d, _) -> d
   | PRel (r, s) -> C.string_of_imm (C.Reloc (r, s))
-  | PLen (Some n) -> Printf.sprintf "%d (or the size of a %d-byte global)" n n
+  | PLen (Some (n, g)) -> Printf.sprintf "%d (or %%cheriot_compartment_size(%s))" n g
   | PLen None -> "<length>"
   | PLoSelf -> "%cheriot_compartment_lo_i(<its hi>)"
   | PMem (p, r) -> Printf.sprintf "%s(%s)" (string_of_pop p) (C.string_of_reg r)
@@ -321,7 +354,7 @@ let string_of_pins (m, ops) =
 type cand = { take : int; out : pins list; conds : string option list }
 
 let imm n = PImm (string_of_int n, ( = ) n)
-let imm32 n = PImm (string_of_int n, fun m -> signed32 m = n)
+let imm32 n = PImm (string_of_int n, fun m -> m = n && fits32 m)
 
 (* {1 Checking one file} *)
 
@@ -450,8 +483,10 @@ let check (l : Lower.t) =
         Array.iter
           (fun nd -> if live cgp (snd (uses_defs nd)) then bad "cgp written by %s" (string_of_node nd))
           gf.nodes;
+        let library = src.ukind = Classify.Library in
         let get st = function G.R r -> if r = cnull then Const 0 else st.(r) | G.E (G.Z k) -> Const k | G.E _ -> Top in
-        let transfer st nd =
+        let transfer st i =
+          let nd = gf.nodes.(i) and defs = snd (node_ud gf i) in
           let st = Array.copy st in
           let set r v = if r <> cnull then st.(r) <- v in
           (match nd with
@@ -471,12 +506,7 @@ let check (l : Lower.t) =
            | I i -> (
                match i with
                | G.Mov (d, x) -> set d (get st x)
-               | G.Add (d, x, y) ->
-                   set d
-                     (match (get st x, get st y) with
-                      | Const a, Const b when fits32 (a + b) -> Const (a + b)
-                      | ((Int _ | Const _) as v), Const 0 -> v
-                      | _ -> Int false)
+               | G.Add (d, x, y) -> set d (Option.value ~default:(Int false) (sum (get st x) (get st y)))
                | G.LShiftL (d, x, y) ->
                    set d
                      (match (get st x, get st y) with
@@ -491,7 +521,7 @@ let check (l : Lower.t) =
                | G.GetB (d, _) | G.GetE (d, _) | G.GetLen (d, _) | G.GetA (d, _) | G.GetP (d, _) | G.GetL (d, _)
                | G.GetWType (d, _) | G.GetOType (d, _) | G.GetTag (d, _) ->
                    set d (Int false)
-               | G.Jalr (d, _) when d = cra -> List.iter (fun r -> if live r call_defs then st.(r) <- Top) (List.init 16 Fun.id)
+               | G.Jalr (d, _) when d = cra -> List.iter (fun r -> if live r defs then st.(r) <- Top) (List.init 16 Fun.id)
                | _ -> List.iter (fun r -> if live r (snd (uses_defs nd)) then st.(r) <- Top) (List.init 16 Fun.id)));
           st
         in
@@ -504,7 +534,7 @@ let check (l : Lower.t) =
           match vals.(i) with
           | None -> ()
           | Some st ->
-              let o = transfer st gf.nodes.(i) in
+              let o = transfer st i in
               List.iter
                 (fun s ->
                   let nw = match vals.(s) with None -> o | Some old -> Array.init 16 (fun r -> join old.(r) o.(r)) in
@@ -532,6 +562,19 @@ let check (l : Lower.t) =
         in
         let mem_of s w = PMem (imm (fst (offset s w)), s) in
         let size_ok s w want = match snd (offset s w) with None -> true | Some sz -> sz = want in
+        (* An access of [want] bytes through s, at node i: when s holds a
+           capability to a global, the global's element size. *)
+        let width_ok i s want =
+          if s = csp then None
+          else
+            match (match vals.(i) with Some st -> get st (G.R s) | None -> Top) with
+            | Cap { glob = Some g; _ } -> (
+                match glob_named g with
+                | Some gl -> cond (gl.elem = want) "a %d-byte access to %s, a global of %d-byte elements" want g gl.elem
+                | None -> Some ("unknown global " ^ g))
+            | Cap { glob = None; _ } -> Some (Printf.sprintf "an access through %s, derived from cgp but to no known global" (G.string_of_reg s))
+            | _ -> None
+        in
         let call_ok i r =
           let fetch k reg =
             if k < 0 then None
@@ -579,7 +622,7 @@ let check (l : Lower.t) =
                     match glob_named g with
                     | Some gl ->
                         let bytes = w * gl.elem in
-                        ( Some bytes,
+                        ( Some (bytes, g),
                           [ cond (w > 0 && w <= gl.words) "%d words, outside the %d-word global %s" w gl.words g;
                             cond (bytes < 512) "%d bytes: CHERIoT's bounds are exact only below 512" bytes ] )
                     | None -> (None, [ Some ("unknown global " ^ g) ]))
@@ -601,10 +644,14 @@ let check (l : Lower.t) =
                           [ PReg d;
                             PImm (Printf.sprintf "%d >> 12" k, fun m -> m >= 0 && m < 0x100000 && signed32 (m lsl 12) = k) ] ) ] ]
                   @ if k = 0 then [ c1 [ ("ct.cmove", [ PReg d; PReg cnull ]) ] ] else []
-              | G.Add (d, x, G.E (G.Z k)) ->
-                  (c1 [ ("addi", [ PReg d; r x; imm k ]) ] :: if k = 0 then [ c1 [ ("mv", [ PReg d; r x ]) ] ] else [])
-                  @ if k = 0 then [ c1 [ ("add", [ PReg d; r x; PReg cnull ]) ] ] else []
-              | G.Add (d, x, y) -> [ c1 [ ("add", [ PReg d; r x; r y ]) ] ]
+              | G.Add (d, x, y) ->
+                  let conds = [ cond (sum (v x) (v y) <> None) "an addition not known to stay within the signed 32-bit range (D34)" ] in
+                  (match y with
+                   | G.E (G.Z k) ->
+                       (c1 ~conds [ ("addi", [ PReg d; r x; imm k ]) ] :: if k = 0 then [ c1 ~conds [ ("mv", [ PReg d; r x ]) ] ] else [])
+                       @ if k = 0 then [ c1 ~conds [ ("add", [ PReg d; r x; PReg cnull ]) ] ] else []
+                   | _ -> [])
+                  @ (match y with G.R _ -> [ c1 ~conds [ ("add", [ PReg d; r x; r y ]) ] ] | _ -> [])
               | G.LShiftL (d, x, G.E (G.Z k)) ->
                   [ c1
                       ~conds:
@@ -632,6 +679,7 @@ let check (l : Lower.t) =
                     bad "lea csp csp %d, but the frame has %d slots" k nslots
                   else [ c1 [ ("ct.cincoffset", [ PReg csp; PReg csp; imm (if k < 0 then -fr.fbytes else fr.fbytes) ]) ] ]
               | G.Lea (d, s, G.E (G.Z k)) when s = cgp -> (
+                  if library then bad "lea from cgp in a library, which has no cgp of its own";
                   match glob_at k with
                   | Some g ->
                       [ c1 [ ("ct.auicgp", [ PReg d; PRel (C.Hi, g.name) ]); ("ct.cincoffset", [ PReg d; PReg d; PLoSelf ]) ] ]
@@ -653,9 +701,10 @@ let check (l : Lower.t) =
               | G.CLoad (d, s, G.Z w) ->
                   (match next with
                    | Some (I (G.GetA (d', d''))) when d' = d && d'' = d ->
-                       [ c2 ~conds:[ cond (size_ok s w 4) "clw of an 8-byte frame slot" ] [ ("ct.clw", [ PReg d; mem_of s w ]) ] ]
+                       [ c2 ~conds:[ cond (size_ok s w 4) "clw of an 8-byte frame slot"; width_ok i s 4 ] [ ("ct.clw", [ PReg d; mem_of s w ]) ] ]
                    | _ -> [])
-                  @ [ c1 ~conds:[ cond (size_ok s w 8) "clc of a 4-byte frame slot (geta missing?)" ] [ ("ct.clc", [ PReg d; mem_of s w ]) ] ]
+                  @ [ c1 ~conds:[ cond (size_ok s w 8) "clc of a 4-byte frame slot (geta missing?)"; width_ok i s 8 ]
+                        [ ("ct.clc", [ PReg d; mem_of s w ]) ] ]
               | G.GetA (t, x) -> (
                   match next with
                   | Some (I (G.Store (s, G.R t', G.Z w))) when t' = t ->
@@ -663,14 +712,16 @@ let check (l : Lower.t) =
                           ~conds:
                             [ cond (t <> cnull && t <> s && not (live t lout.(i + 1)))
                                 "geta scratch %s: cnull, the store's base, or live after the store" (G.string_of_reg t);
-                              cond (size_ok s w 4) "csw to an 8-byte frame slot" ]
+                              cond (size_ok s w 4) "csw to an 8-byte frame slot";
+                              width_ok (i + 1) s 4 ]
                           [ ("ct.csw", [ PReg x; mem_of s w ]) ] ]
                   | _ -> bad "geta outside the clw/csw sequences")
               | G.Store (s, x, G.Z w) ->
-                  [ c1 ~conds:[ cond (size_ok s w 8) "csc to a 4-byte frame slot" ] [ ("ct.csc", [ r x; mem_of s w ]) ];
+                  [ c1 ~conds:[ cond (size_ok s w 8) "csc to a 4-byte frame slot"; width_ok i s 8 ] [ ("ct.csc", [ r x; mem_of s w ]) ];
                     c1
                       ~conds:
                         [ cond (size_ok s w 4) "csw to an 8-byte frame slot";
+                          width_ok i s 4;
                           cond (is_int (v x)) "csw of %s, not known to hold an integer, without geta (D11)" (G.string_of_arg x) ]
                       [ ("ct.csw", [ r x; mem_of s w ]) ] ]
               | _ -> bad "no inverse rule for %s" (G.string_of_instr ins))
@@ -692,8 +743,8 @@ let check (l : Lower.t) =
           | PReg r, C.Reg r' when r = r' -> Some ([], [])
           | PImm (_, f), C.Imm (C.Int m) when f m -> Some ([], [])
           | PRel (k, s), C.Imm (C.Reloc (k', s')) when k = k' && s = s' -> Some ([], [])
-          | PLen (Some b), C.Imm (C.Int m) when m = b -> Some ([], [])
-          | PLen (Some b), C.Imm (C.Reloc (C.Size, g)) when (match glob_named g with Some gl -> gl.size = b | None -> false) ->
+          | PLen (Some (b, _)), C.Imm (C.Int m) when m = b -> Some ([], [])
+          | PLen (Some (b, g)), C.Imm (C.Reloc (C.Size, g')) when g' = g && (match glob_named g with Some gl -> gl.size = b | None -> false) ->
               Some ([], [])
           | PLen None, C.Imm _ -> Some ([], [])
           | PLoSelf, C.Imm (C.Reloc (C.Lo_i, lb)) when si > 0 && List.mem lb slabels.(si - 1) -> Some ([], [])
@@ -769,6 +820,7 @@ let check (l : Lower.t) =
       match List.find_opt (fun (f, _, _) -> f = e.ex.efunc) !offsets with
       | None -> err "export %s: no function %s" e.ex.esym e.ex.efunc
       | Some (_, o, labels) ->
+          if e.ex.enargs > 6 then err "export %s: %d arguments, more than ca0-ca5" e.ex.esym e.ex.enargs;
           if not (List.mem e.ex_label labels) then err "export %s: entry %s is not the first label of %s" e.ex.esym e.ex_label e.ex.efunc;
           if o <> e.ex_offset then err "export %s: word offset %d, but %s starts at word %d" e.ex.esym e.ex_offset e.ex.efunc o)
     l.exports;

@@ -1,0 +1,1 @@
+fail/addi_unknown.s:6: error: cannot translate addi a0, a0, 1: result not known to stay within the signed 32-bit range (CHERIoT wraps, Griotte integers are unbounded, D34)

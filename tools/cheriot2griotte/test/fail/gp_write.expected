@@ -1,0 +1,1 @@
+fail/gp_write.s:5: error: cannot translate ct.cmove gp, a0: writes gp, which the translation takes to hold cgp throughout (D34)

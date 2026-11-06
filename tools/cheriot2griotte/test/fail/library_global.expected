@@ -1,0 +1,1 @@
+fail/library_global.s:6: error: cannot translate ct.auicgp a0, %cheriot_compartment_hi(b); ct.cincoffset a0, a0, %cheriot_compartment_lo_i(.LBB0_1): global addressing in a library, which has no cgp of its own (D34)

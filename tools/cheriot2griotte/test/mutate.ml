@@ -95,6 +95,9 @@ let () =
   let entry = (List.hd asrt.Lower.funcs).Lower.fo_entry in
   expect_caught "assert"
     (mutate (function Lower.C (G.Instr (G.Jeq (_, x, y))) -> Some [ Lower.C (G.Instr (G.Jeq (G.E (G.Lbl entry), x, y))) ] | _ -> None) asrt);
+  print_endline "\n(8) t0 as a scratch register: the first setbounds_asm clobbers ct0, which a later call may read (D34)";
+  expect_caught "cmdc"
+    (mutate (function Lower.M (G.Setbounds (d, s, w, _, t2)) -> Some [ Lower.M (G.Setbounds (d, s, w, 5, t2)) ] | _ -> None) cmdc);
   if !failures > 0 then (
     Printf.printf "\n%d failure(s)\n" !failures;
     exit 1)

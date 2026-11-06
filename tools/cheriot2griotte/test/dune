@@ -939,6 +939,182 @@
  (action
   (diff fail/setbounds_partial.expected fail_setbounds_partial.out)))
 
+(rule
+ (targets fail_addi_overflow.out)
+ (deps
+  (:s fail/addi_overflow.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/addi_overflow.expected fail_addi_overflow.out)))
+
+(rule
+ (targets fail_addi_unknown.out)
+ (deps
+  (:s fail/addi_unknown.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/addi_unknown.expected fail_addi_unknown.out)))
+
+(rule
+ (targets fail_li_range.out)
+ (deps
+  (:s fail/li_range.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/li_range.expected fail_li_range.out)))
+
+(rule
+ (targets fail_setbounds_t0_live.out)
+ (deps
+  (:s fail/setbounds_t0_live.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/setbounds_t0_live.expected fail_setbounds_t0_live.out)))
+
+(rule
+ (targets fail_tp_switcher_call.out)
+ (deps
+  (:s fail/tp_switcher_call.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/tp_switcher_call.expected fail_tp_switcher_call.out)))
+
+(rule
+ (targets fail_width_int_global.out)
+ (deps
+  (:s fail/width_int_global.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/width_int_global.expected fail_width_int_global.out)))
+
+(rule
+ (targets fail_width_cap_global.out)
+ (deps
+  (:s fail/width_cap_global.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/width_cap_global.expected fail_width_cap_global.out)))
+
+(rule
+ (targets fail_setbounds_size_other.out)
+ (deps
+  (:s fail/setbounds_size_other.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/setbounds_size_other.expected fail_setbounds_size_other.out)))
+
+(rule
+ (targets fail_gp_write.out)
+ (deps
+  (:s fail/gp_write.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/gp_write.expected fail_gp_write.out)))
+
+(rule
+ (targets fail_library_global.out)
+ (deps
+  (:s fail/library_global.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/library_global.expected fail_library_global.out)))
+
+(rule
+ (targets fail_nargs7.out)
+ (deps
+  (:s fail/nargs7.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/nargs7.expected fail_nargs7.out)))
+
 ; {1 Reverse-map validation (Reverse)}
 ;
 ; For each generated file: the same lowering as above (same --name,

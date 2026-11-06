@@ -1,0 +1,1 @@
+fail/width_cap_global.s:9: error: cannot translate ct.csw zero, 0(a0): 4-byte access to c, a global of 8-byte elements (a capability, D34)

@@ -1,0 +1,1 @@
+fail/li_range.s:5: error: cannot translate li a0, 2147483648: li immediate outside the signed 32-bit range (D34)

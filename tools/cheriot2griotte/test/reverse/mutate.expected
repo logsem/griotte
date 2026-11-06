@@ -20,7 +20,7 @@ temporal_isolation: rejected
 
 (5) live scratch register: the second setbounds_asm clobbers cs0, which holds b
 cmdc: rejected
-  mismatch: _Z3runv: Griotte setbounds_asm cs1 cs1 1 ct0 cs0, .s line 21 (ct.csetbounds s1, s1, %cheriot_compartment_size(c)): scratch cs0: cnull, the source, or live after
+  mismatch: _Z3runv: Griotte setbounds_asm cs1 cs1 1 ct1 cs0, .s line 21 (ct.csetbounds s1, s1, %cheriot_compartment_size(c)): scratch cs0: cnull, the source, or live after
 
 (6) integer load without geta (D11): the first clw becomes a capability load
 cmdc: rejected
@@ -29,3 +29,7 @@ cmdc: rejected
 (7) wrong branch target: the beq of the assert library jumps to the function's entry
 assert: rejected
   mismatch: _Z14griotte_assertii: .s line 10 (beq a0, a1, .LBB0_2): the Griotte target .Lassert_griotte_assert is not the instruction at .LBB0_2
+
+(8) t0 as a scratch register: the first setbounds_asm clobbers ct0, which a later call may read (D34)
+cmdc: rejected
+  mismatch: _Z3runv: Griotte setbounds_asm cs0 cs0 1 ct0 ct2, .s line 17 (ct.csetbounds s0, s0, %cheriot_compartment_size(b)): scratch ct0: cnull, the source, or live after
