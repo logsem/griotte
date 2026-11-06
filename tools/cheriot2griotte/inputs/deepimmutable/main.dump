@@ -1,0 +1,69 @@
+
+build/cheriot/cheriot/release/main.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	ct.csc	ra, 0x8(sp)
+       4:      	ct.csc	s0, 0x0(sp)
+
+00000006 <.LBB0_1>:
+       6:      	ct.auicgp	s0, 0x0
+			00000006:  R_RISCV_CHERIOT_COMPARTMENT_HI	b
+			00000006:  R_RISCV_RELAX	*ABS*
+       a:      	ct.cincoffset	s0, s0, 0x0
+			0000000a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_1
+			0000000a:  R_RISCV_RELAX	*ABS*
+       e:      	ct.csetbounds	s0, s0, 0x0
+			0000000e:  R_RISCV_CHERIOT_COMPARTMENT_SIZE	b
+      12:      	li	a0, 0x2a
+
+00000016 <.LBB0_2>:
+      16:      	ct.auicgp	a1, 0x0
+			00000016:  R_RISCV_CHERIOT_COMPARTMENT_HI	a
+			00000016:  R_RISCV_RELAX	*ABS*
+      1a:      	ct.cincoffset	a1, a1, 0x0
+			0000001a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_2
+			0000001a:  R_RISCV_RELAX	*ABS*
+      1e:      	ct.csetbounds	a1, a1, 0x0
+			0000001e:  R_RISCV_CHERIOT_COMPARTMENT_SIZE	a
+      22:      	ct.csw	a0, 0x0(s0)
+      24:      	ct.csetbounds	a0, s0, 0x4
+      28:      	ct.csc	a0, 0x0(a1)
+      2a:      	li	a0, -0xd
+      2c:      	ct.candperm	a0, a1, a0
+
+00000030 <.LBB0_4>:
+      30:      	ct.auipcc	t1, 0x0
+			00000030:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_B__Z1fPPi
+			00000030:  R_RISCV_RELAX	*ABS*
+      34:      	ct.clc	t1, 0x0(t1)
+			00000034:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_4
+			00000034:  R_RISCV_RELAX	*ABS*
+
+00000038 <.LBB0_3>:
+      38:      	ct.auipcc	t2, 0x0
+			00000038:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			00000038:  R_RISCV_RELAX	*ABS*
+      3c:      	ct.clc	t2, 0x0(t2)
+			0000003c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_3
+			0000003c:  R_RISCV_RELAX	*ABS*
+      40:      	ct.cjalr	t2
+      42:      	ct.clw	a0, 0x0(s0)
+      44:      	li	a1, 0x2a
+
+00000048 <.LBB0_5>:
+      48:      	ct.auipcc	t2, 0x0
+			00000048:  R_RISCV_CHERIOT_COMPARTMENT_HI	__library_import_libcalls__Z14griotte_assertii
+			00000048:  R_RISCV_RELAX	*ABS*
+      4c:      	ct.clc	t2, 0x0(t2)
+			0000004c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_5
+			0000004c:  R_RISCV_RELAX	*ABS*
+      50:      	ct.cjalr	t2
+      52:      	li	a0, 0x0
+      54:      	li	a1, 0x0
+      56:      	ct.clc	ra, 0x8(sp)
+      58:      	ct.clc	s0, 0x0(sp)
+      5a:      	ct.cincoffset	sp, sp, 0x10
+      5c:      	ct.cret

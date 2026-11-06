@@ -1,0 +1,68 @@
+
+build/cheriot/cheriot/release/B.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	beqz	a0, 0x0 <__compartment_code_start>
+			00000000:  R_RISCV_RVC_BRANCH	.L0 
+       2:      	ct.clc	a1, 0x0(a0)
+       4:      	li	a2, 0x7
+       6:      	ct.csw	a2, 0x0(a1)
+
+00000008 <.LBB0_8>:
+       8:      	ct.auicgp	a2, 0x0
+			00000008:  R_RISCV_CHERIOT_COMPARTMENT_HI	keptA
+			00000008:  R_RISCV_RELAX	*ABS*
+       c:      	ct.cincoffset	a2, a2, 0x0
+			0000000c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_8
+			0000000c:  R_RISCV_RELAX	*ABS*
+      10:      	ct.csc	a0, 0x0(a2)
+
+00000012 <.LBB0_9>:
+      12:      	ct.auicgp	a0, 0x0
+			00000012:  R_RISCV_CHERIOT_COMPARTMENT_HI	keptB
+			00000012:  R_RISCV_RELAX	*ABS*
+      16:      	ct.cincoffset	a0, a0, 0x0
+			00000016:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_9
+			00000016:  R_RISCV_RELAX	*ABS*
+      1a:      	ct.csc	a1, 0x0(a0)
+      1c:      	j	0x1c <.LBB0_9+0xa>
+			0000001c:  R_RISCV_RVC_JUMP	.L0 
+
+0000001e <.LBB0_10>:
+      1e:      	ct.auicgp	a0, 0x0
+			0000001e:  R_RISCV_CHERIOT_COMPARTMENT_HI	keptB
+			0000001e:  R_RISCV_RELAX	*ABS*
+      22:      	ct.cincoffset	a0, a0, 0x0
+			00000022:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_10
+			00000022:  R_RISCV_RELAX	*ABS*
+      26:      	ct.clc	a1, 0x0(a0)
+      28:      	ct.cgettag	a1, a1
+      2c:      	beqz	a1, 0x36 <.LBB0_11>
+      2e:      	ct.clc	a0, 0x0(a0)
+      30:      	li	a1, 0xd
+      32:      	ct.csw	a1, 0x0(a0)
+      34:      	j	0x34 <.LBB0_10+0x16>
+			00000034:  R_RISCV_RVC_JUMP	.L0 
+
+00000036 <.LBB0_11>:
+      36:      	ct.auicgp	a0, 0x0
+			00000036:  R_RISCV_CHERIOT_COMPARTMENT_HI	keptA
+			00000036:  R_RISCV_RELAX	*ABS*
+      3a:      	ct.cincoffset	a0, a0, 0x0
+			0000003a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_11
+			0000003a:  R_RISCV_RELAX	*ABS*
+      3e:      	ct.clc	a1, 0x0(a0)
+      40:      	ct.cgettag	a1, a1
+      44:      	beqz	a1, 0x54 <.LBB0_11+0x1e>
+      46:      	ct.clc	a1, 0x0(a0)
+      48:      	ct.clc	a1, 0x0(a1)
+      4a:      	ct.cgettag	a1, a1
+      4e:      	beqz	a1, 0x54 <.LBB0_11+0x1e>
+      50:      	ct.clc	a0, 0x0(a0)
+      52:      	j	0x52 <.LBB0_11+0x1c>
+			00000052:  R_RISCV_RVC_JUMP	.L0 
+      54:      	li	a0, 0x0
+      56:      	li	a1, 0x0
+      58:      	ct.cret

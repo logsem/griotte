@@ -1,0 +1,132 @@
+
+build/cheriot/cheriot/release/B.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <compartment_error_handler_stackless>:
+       0:      	ct.cgettop	t0, sp
+       4:      	ct.csetaddr	sp, sp, t0
+       8:      	ct.clc	s0, -0x8(sp)
+       c:      	beqz	s0, 0xc <compartment_error_handler_stackless+0xc>
+			0000000c:  R_RISCV_RVC_BRANCH	.Lforce_unwind
+       e:      	ct.clc	t0, 0x0(s0)
+      12:      	ct.csc	t0, -0x8(sp)
+
+00000016 <.Llookup_reset>:
+      16:      	ct.auipcc	t2, 0x0
+			00000016:  R_RISCV_CHERIOT_COMPARTMENT_HI	__library_import_libcalls__Z39switcher_handler_invocation_count_resetv
+			00000016:  R_RISCV_RELAX	*ABS*
+      1a:      	ct.clc	t2, 0x0(t2)
+			0000001a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.Llookup_reset
+			0000001a:  R_RISCV_RELAX	*ABS*
+      1e:      	ct.cjalr	t2
+      20:      	ct.clc	s1, 0x10(s0)
+      22:      	ct.clc	sp, 0x18(s0)
+      26:      	ct.clc	ra, 0x20(s0)
+      2a:      	ct.clc	s0, 0x8(s0)
+      2c:      	ct.cret
+
+0000002e <.Lforce_unwind>:
+      2e:      	li	a0, 0x1
+      30:      	ct.cret
+      32:      	unimp
+      34:      	nop
+			00000034:  R_RISCV_ALIGN	*ABS*+0x2
+
+00000036 <setjmp>:
+      36:      	ct.csc	s0, 0x0(a0)
+      38:      	ct.csc	s1, 0x8(a0)
+      3a:      	ct.csc	sp, 0x10(a0)
+      3e:      	ct.csc	ra, 0x18(a0)
+      42:      	li	a0, 0x0
+      44:      	ct.cret
+
+00000046 <f(int**)>:
+      46:      	ct.cincoffset	sp, sp, -0x10
+      48:      	ct.csc	ra, 0x8(sp)
+      4a:      	ct.csc	s0, 0x0(sp)
+      4c:      	ct.cmove	s0, a0
+      50:      	ct.auipcc	ra, 0x0
+			00000050:  R_RISCV_CALL_PLT	try_write_b(int**)
+			00000050:  R_RISCV_RELAX	*ABS*
+      54:      	ct.cjalr	ra
+      58:      	ct.cmove	a0, s0
+      5c:      	ct.clc	ra, 0x8(sp)
+      5e:      	ct.clc	s0, 0x0(sp)
+      60:      	ct.cincoffset	sp, sp, 0x10
+      62:      	ct.auipcc	t1, 0x0
+			00000062:  R_RISCV_CALL_PLT	try_write_a(int**)
+			00000062:  R_RISCV_RELAX	*ABS*
+      66:      	ct.cjr	t1
+
+0000006a <try_write_b(int**)>:
+      6a:      	ct.cincoffset	sp, sp, -0x40
+      6c:      	ct.csc	ra, 0x38(sp)
+      6e:      	ct.csc	s0, 0x30(sp)
+      70:      	ct.csc	s1, 0x28(sp)
+      72:      	ct.cmove	a1, sp
+      76:      	ct.cgettop	a2, a1
+      7a:      	addi	a2, a2, -0x8
+      7c:      	ct.csetaddr	a1, a1, a2
+      80:      	ct.csetbounds	s0, a1, 0x8
+      84:      	ct.clc	a1, 0x0(s0)
+      86:      	ct.clc	s1, 0x0(a0)
+      88:      	ct.csc	a1, 0x0(sp)
+      8a:      	ct.cincoffset	a0, sp, 0x0
+      8e:      	ct.csetbounds	a0, a0, 0x28
+      92:      	ct.csc	a0, 0x0(s0)
+      94:      	ct.cincoffset	a0, a0, 0x8
+      98:      	ct.auipcc	ra, 0x0
+			00000098:  R_RISCV_CALL_PLT	setjmp
+			00000098:  R_RISCV_RELAX	*ABS*
+      9c:      	ct.cjalr	ra
+      a0:      	bnez	a0, 0xa8 <try_write_b(int**)+0x3e>
+      a2:      	li	a0, 0x25
+      a6:      	ct.csw	a0, 0x0(s1)
+      a8:      	ct.clc	a0, 0x0(sp)
+      aa:      	ct.csc	a0, 0x0(s0)
+      ac:      	ct.clc	ra, 0x38(sp)
+      ae:      	ct.clc	s0, 0x30(sp)
+      b0:      	ct.clc	s1, 0x28(sp)
+      b2:      	ct.cincoffset	sp, sp, 0x40
+      b4:      	ct.cret
+
+000000b6 <try_write_a(int**)>:
+      b6:      	ct.cincoffset	sp, sp, -0x40
+      b8:      	ct.csc	ra, 0x38(sp)
+      ba:      	ct.csc	s0, 0x30(sp)
+      bc:      	ct.csc	s1, 0x28(sp)
+      be:      	ct.cmove	s0, a0
+      c2:      	ct.cmove	a0, sp
+      c6:      	ct.cgettop	a1, a0
+      ca:      	addi	a1, a1, -0x8
+      cc:      	ct.csetaddr	a0, a0, a1
+      d0:      	ct.csetbounds	s1, a0, 0x8
+      d4:      	ct.clc	a0, 0x0(s1)
+      d6:      	ct.csc	a0, 0x0(sp)
+      d8:      	ct.cincoffset	a0, sp, 0x0
+      dc:      	ct.csetbounds	a0, a0, 0x28
+      e0:      	ct.csc	a0, 0x0(s1)
+      e2:      	ct.cincoffset	a0, a0, 0x8
+      e6:      	ct.auipcc	ra, 0x0
+			000000e6:  R_RISCV_CALL_PLT	setjmp
+			000000e6:  R_RISCV_RELAX	*ABS*
+      ea:      	ct.cjalr	ra
+      ee:      	bnez	a0, 0xee <try_write_a(int**)+0x38>
+			000000ee:  R_RISCV_RVC_BRANCH	.L0 
+
+000000f0 <.LBB2_3>:
+      f0:      	ct.auicgp	a0, 0x0
+			000000f0:  R_RISCV_CHERIOT_COMPARTMENT_HI	c
+			000000f0:  R_RISCV_RELAX	*ABS*
+      f4:      	ct.cincoffset	a0, a0, 0x0
+			000000f4:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB2_3
+			000000f4:  R_RISCV_RELAX	*ABS*
+      f8:      	ct.csc	a0, 0x0(s0)
+      fa:      	ct.clc	a0, 0x0(sp)
+      fc:      	ct.csc	a0, 0x0(s1)
+      fe:      	ct.clc	ra, 0x38(sp)
+     100:      	ct.clc	s0, 0x30(sp)
+     102:      	ct.clc	s1, 0x28(sp)
+     104:      	ct.cincoffset	sp, sp, 0x40
+     106:      	ct.cret

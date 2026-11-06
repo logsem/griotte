@@ -1,11 +1,11 @@
 	.attribute	4, 16
 	.attribute	5, "rv32e2p0_m2p0_c2p0_zmmul1p0_zca1p0_xcheri0p0_xcheriot1p0_xcheripurecap0p0"
-	.file	"known.cc"
-	.section	.text._Z3awkPU10chericcallFvvE,"ax",@progbits
-	.globl	_Z3awkPU10chericcallFvvE        # -- Begin function _Z3awkPU10chericcallFvvE
+	.file	"main.cc"
+	.section	.text._Z7awkwardPU10chericcallFvvE,"ax",@progbits
+	.globl	_Z7awkwardPU10chericcallFvvE    # -- Begin function _Z7awkwardPU10chericcallFvvE
 	.p2align	1
-	.type	_Z3awkPU10chericcallFvvE,@function
-_Z3awkPU10chericcallFvvE:               # @_Z3awkPU10chericcallFvvE
+	.type	_Z7awkwardPU10chericcallFvvE,@function
+_Z7awkwardPU10chericcallFvvE:           # @_Z7awkwardPU10chericcallFvvE
 # %bb.0:
 	ct.cincoffset	sp, sp, -32
 	ct.csc	ra, 24(sp)                      # 8-byte Folded Spill
@@ -42,22 +42,26 @@ _Z3awkPU10chericcallFvvE:               # @_Z3awkPU10chericcallFvvE
 	ct.cincoffset	sp, sp, 32
 	ct.cret
 .Lfunc_end0:
-	.size	_Z3awkPU10chericcallFvvE, .Lfunc_end0-_Z3awkPU10chericcallFvvE
+	.size	_Z7awkwardPU10chericcallFvvE, .Lfunc_end0-_Z7awkwardPU10chericcallFvvE
                                         # -- End function
-	.section	.text._Z3runv,"ax",@progbits
-	.globl	_Z3runv                         # -- Begin function _Z3runv
+	.section	.text._Z5entryv,"ax",@progbits
+	.globl	_Z5entryv                       # -- Begin function _Z5entryv
 	.p2align	1
-	.type	_Z3runv,@function
-_Z3runv:                                # @_Z3runv
+	.type	_Z5entryv,@function
+_Z5entryv:                              # @_Z5entryv
 # %bb.0:
 	ct.cincoffset	sp, sp, -16
 	ct.csc	ra, 8(sp)                       # 8-byte Folded Spill
-.LBB1_2:                                # Label of block must be emitted
-	ct.auipcc	t1, %cheriot_compartment_hi(__import_evil__Z3advv)
-	ct.clc	t1, %cheriot_compartment_lo_i(.LBB1_2)(t1)
 .LBB1_1:                                # Label of block must be emitted
+	ct.auicgp	a0, %cheriot_compartment_hi(a)
+	ct.cincoffset	a0, a0, %cheriot_compartment_lo_i(.LBB1_1)
+	ct.csw	zero, 0(a0)
+.LBB1_3:                                # Label of block must be emitted
+	ct.auipcc	t1, %cheriot_compartment_hi(__import_C__Z3advv)
+	ct.clc	t1, %cheriot_compartment_lo_i(.LBB1_3)(t1)
+.LBB1_2:                                # Label of block must be emitted
 	ct.auipcc	t2, %cheriot_compartment_hi(.compartment_switcher)
-	ct.clc	t2, %cheriot_compartment_lo_i(.LBB1_1)(t2)
+	ct.clc	t2, %cheriot_compartment_lo_i(.LBB1_2)(t2)
 	ct.cjalr	t2
 	li	a0, 0
 	li	a1, 0
@@ -65,7 +69,7 @@ _Z3runv:                                # @_Z3runv
 	ct.cincoffset	sp, sp, 16
 	ct.cret
 .Lfunc_end1:
-	.size	_Z3runv, .Lfunc_end1-_Z3runv
+	.size	_Z5entryv, .Lfunc_end1-_Z5entryv
                                         # -- End function
 	.type	__default_malloc_capability,@object # @__default_malloc_capability
 	.section	.sealed_objects,"awG",@progbits,__default_malloc_capability,comdat
@@ -93,22 +97,22 @@ a:
 	.addrsig_sym __export.sealing_type.allocator.MallocKey
 	.addrsig_sym __default_malloc_capability
 	.section	.compartment_exports,"aR",@progbits
-	.type	__export_known__Z3awkPU10chericcallFvvE,@object
-	.globl	__export_known__Z3awkPU10chericcallFvvE
+	.type	__export_main__Z7awkwardPU10chericcallFvvE,@object
+	.globl	__export_main__Z7awkwardPU10chericcallFvvE
 	.p2align	2, 0x0
-__export_known__Z3awkPU10chericcallFvvE:
-	.half	_Z3awkPU10chericcallFvvE-__compartment_pcc_start
+__export_main__Z7awkwardPU10chericcallFvvE:
+	.half	_Z7awkwardPU10chericcallFvvE-__compartment_pcc_start
 	.byte	4
 	.byte	9
-	.size	__export_known__Z3awkPU10chericcallFvvE, 4
-	.type	__export_known__Z3runv,@object
-	.globl	__export_known__Z3runv
+	.size	__export_main__Z7awkwardPU10chericcallFvvE, 4
+	.type	__export_main__Z5entryv,@object
+	.globl	__export_main__Z5entryv
 	.p2align	2, 0x0
-__export_known__Z3runv:
-	.half	_Z3runv-__compartment_pcc_start
+__export_main__Z5entryv:
+	.half	_Z5entryv-__compartment_pcc_start
 	.byte	2
 	.byte	8
-	.size	__export_known__Z3runv, 4
+	.size	__export_main__Z5entryv, 4
 	.section	.compartment_imports._Z14griotte_assertii,"aG",@progbits,__library_import_libcalls__Z14griotte_assertii,comdat
 	.type	__library_import_libcalls__Z14griotte_assertii,@object
 	.weak	__library_import_libcalls__Z14griotte_assertii
@@ -117,11 +121,11 @@ __library_import_libcalls__Z14griotte_assertii:
 	.word	__library_export_libcalls__Z14griotte_assertii+1
 	.word	0
 	.size	__library_import_libcalls__Z14griotte_assertii, 8
-	.section	.compartment_imports._Z3advv,"aG",@progbits,__import_evil__Z3advv,comdat
-	.type	__import_evil__Z3advv,@object
-	.weak	__import_evil__Z3advv
+	.section	.compartment_imports._Z3advv,"aG",@progbits,__import_C__Z3advv,comdat
+	.type	__import_C__Z3advv,@object
+	.weak	__import_C__Z3advv
 	.p2align	3, 0x0
-__import_evil__Z3advv:
-	.word	__export_evil__Z3advv
+__import_C__Z3advv:
+	.word	__export_C__Z3advv
 	.word	0
-	.size	__import_evil__Z3advv, 8
+	.size	__import_C__Z3advv, 8

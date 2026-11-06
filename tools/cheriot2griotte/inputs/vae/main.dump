@@ -1,5 +1,5 @@
 
-build/cheriot/cheriot/release/known.compartment:	file format elf32-littleriscv
+build/cheriot/cheriot/release/main.compartment:	file format elf32-littleriscv
 
 Disassembly of section .text:
 
@@ -59,28 +59,37 @@ Disassembly of section .text:
       50:      	ct.cincoffset	sp, sp, 0x20
       52:      	ct.cret
 
-00000054 <run()>:
+00000054 <entry()>:
       54:      	ct.cincoffset	sp, sp, -0x10
       56:      	ct.csc	ra, 0x8(sp)
 
-00000058 <.LBB1_2>:
-      58:      	ct.auipcc	t1, 0x0
-			00000058:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_evil__Z3advv
+00000058 <.LBB1_1>:
+      58:      	ct.auicgp	a0, 0x0
+			00000058:  R_RISCV_CHERIOT_COMPARTMENT_HI	a
 			00000058:  R_RISCV_RELAX	*ABS*
-      5c:      	ct.clc	t1, 0x0(t1)
-			0000005c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_2
+      5c:      	ct.cincoffset	a0, a0, 0x0
+			0000005c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_1
 			0000005c:  R_RISCV_RELAX	*ABS*
+      60:      	ct.csw	zero, 0x0(a0)
 
-00000060 <.LBB1_1>:
-      60:      	ct.auipcc	t2, 0x0
-			00000060:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
-			00000060:  R_RISCV_RELAX	*ABS*
-      64:      	ct.clc	t2, 0x0(t2)
-			00000064:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_1
+00000064 <.LBB1_3>:
+      64:      	ct.auipcc	t1, 0x0
+			00000064:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_C__Z3advv
 			00000064:  R_RISCV_RELAX	*ABS*
-      68:      	ct.cjalr	t2
-      6a:      	li	a0, 0x0
-      6c:      	li	a1, 0x0
-      6e:      	ct.clc	ra, 0x8(sp)
-      70:      	ct.cincoffset	sp, sp, 0x10
-      72:      	ct.cret
+      68:      	ct.clc	t1, 0x0(t1)
+			00000068:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_3
+			00000068:  R_RISCV_RELAX	*ABS*
+
+0000006c <.LBB1_2>:
+      6c:      	ct.auipcc	t2, 0x0
+			0000006c:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			0000006c:  R_RISCV_RELAX	*ABS*
+      70:      	ct.clc	t2, 0x0(t2)
+			00000070:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_2
+			00000070:  R_RISCV_RELAX	*ABS*
+      74:      	ct.cjalr	t2
+      76:      	li	a0, 0x0
+      78:      	li	a1, 0x0
+      7a:      	ct.clc	ra, 0x8(sp)
+      7c:      	ct.cincoffset	sp, sp, 0x10
+      7e:      	ct.cret
