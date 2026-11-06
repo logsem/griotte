@@ -21,7 +21,8 @@ let noise_directives =
 
 let directives =
   [ (".section", DSECTION); (".globl", DGLOBL); (".weak", DWEAK); (".size", DSIZE);
-    (".word", DWORD); (".half", DHALF); (".byte", DBYTE); (".zero", DZERO) ]
+    (".word", DWORD); (".half", DHALF); (".byte", DBYTE); (".zero", DZERO);
+    (".chericap", DCHERICAP) ]
 
 (* The mnemonics of the subset; their operands are in the grammar. *)
 let mnemonics =

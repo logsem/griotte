@@ -1,0 +1,1 @@
+fail/chericap_nonnull.s:10: error: global a: a capability other than a single null [.chericap 0] (D6)

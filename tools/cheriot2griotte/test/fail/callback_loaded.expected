@@ -1,0 +1,1 @@
+fail/callback_loaded.s:9: error: cannot translate ct.cjalr t2: switcher call without the fetch of its target into t1, or its move into t1 from another register, right before

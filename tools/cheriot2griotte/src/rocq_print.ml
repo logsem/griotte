@@ -102,7 +102,11 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
   if l.gslots = [] then p "    Globals: none.\n"
   else (
     p "    Globals (from [cgp], one word per 4-byte integer):\n";
-    List.iter (fun g -> p "    - [%s]: word %d, %d word(s)\n" g.gl.Classify.gname g.gword g.gwords) l.gslots);
+    List.iter
+      (fun g ->
+        p "    - [%s]: word %d, %d word(s)%s\n" g.gl.Classify.gname g.gword g.gwords
+          (if g.gcap then " (a capability, initially null)" else ""))
+      l.gslots);
   List.iter
     (fun fo ->
       let fr = fo.fo_frame in
@@ -116,8 +120,30 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
   let sec = String.capitalize_ascii name in
   p "Section %s.\n" sec;
   p "  Import Asm_Griotte.\n  #[local] Open Scope Z_scope.\n  Context `{MP: MachineParameters}.\n\n";
-  p "  Definition %s_asm : list (list asm_code) :=\n" name;
   let blocks = List.concat_map (fun fo -> fo.fo_blocks) l.funcs in
+  (* The permission pairs of the [restrict]s, as constants (as the
+     hand-written temporal_isolation.v): [encodePermPair] is abstract. *)
+  let perms =
+    List.fold_left
+      (fun acc (b : block) ->
+        List.fold_left
+          (fun acc (lw : lowered) ->
+            List.fold_left
+              (fun acc -> function
+                | C (G.Instr (G.Restrict (_, _, G.E (G.Perm pp)))) when not (List.mem pp acc) -> acc @ [ pp ]
+                | _ -> acc)
+              acc lw.outs)
+          acc b.items)
+      [] blocks
+  in
+  G.perm_name := (fun pp -> name ^ "_" ^ Cheriot_perms.ident pp);
+  List.iter
+    (fun pp ->
+      p "  (** The encoding of the permission and locality %s, for [restrict]. *)\n"
+        (Cheriot_perms.string_of_pair pp);
+      p "  Definition %s : Z := encodePermPair %s.\n\n" (!G.perm_name pp) (Cheriot_perms.string_of_pair pp))
+    perms;
+  p "  Definition %s_asm : list (list asm_code) :=\n" name;
   let nb = List.length blocks in
   let imp_elems =
     List.mapi
@@ -131,7 +157,8 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
       print_block "      " (segments b ~head ~tail:[]))
     blocks;
   p "    ].\n\n";
-  p "  Definition %s_assembled :=\n    Eval compute in assemble_block %s_asm.\n" name name;
+  p "  Definition %s_assembled :=\n    Eval %s in assemble_block %s_asm.\n" name
+    (if perms = [] then "compute" else "cbv -[encodePermPair]") name;
   p "  Lemma %s_assembles : asm_ok (assemble_block_check %s_asm).\n  Proof. asm_check. Qed.\n" name name;
   p "  Definition %s_instrs_n (n : nat) : list Word :=\n    encodeInstrsW (default [] (%s_assembled !! n)).\n\n" name name;
   p "  Definition %s_code : list Word :=\n" name;
@@ -147,7 +174,11 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
       let en = Demangle.demangle e.ex.efunc in
       let id = name ^ "_" ^ en in
       p "\n  (** The export [%s] ([%s], %s). *)\n" en e.ex.efunc e.ex.esym;
-      p "  (** Entry: word %d of the PCC region: the %d imports, then [%s]. *)\n" e.ex_offset nimp e.ex_label;
+      if e.ex_offset = nimp then
+        p "  (** Entry: word %d of the PCC region: the %d imports, then [%s]. *)\n" e.ex_offset nimp e.ex_label
+      else
+        p "  (** Entry: word %d of the PCC region: the %d imports, the %d word(s) of the functions\n      before it, then [%s]. *)\n"
+          e.ex_offset nimp (e.ex_offset - nimp) e.ex_label;
       p "  Definition %s_offset : nat := %d.\n" id e.ex_offset;
       p "  Lemma %s_offset_label :\n    label_offset (concat %s_asm) %s = %s_offset.\n  Proof. vm_compute. reflexivity. Qed.\n" id name
         (G.str e.ex_label) id;
@@ -155,11 +186,30 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
       (match e.ex.eposture with
        | Classify.Inherit -> p "  (** Posture: inherited (a library export, called through a [Sentry Inherit]). *)\n"
        | ps -> p "  Definition %s_posture : InterruptStatus := %s.\n" id (posture_string ps));
+      if e.ex_frame_words > 0 then (
+        p "  (** The stack frame of [%s], in words (one per stack slot). *)\n" en;
+        p "  Definition %s_frame_size : nat := %d.\n" id e.ex_frame_words);
       p "  (** Minimum stack, in words: the frame (%d word(s))%s. The CHERIoT\n      export says %d (8-byte units, the frame only). *)\n"
         e.ex_frame_words
         (if e.ex_switcher_spill then "\n      and the spill of the switcher for its calls (SpillSlot_size = 4)" else "")
         e.ex.emin_stack;
-      p "  Definition %s_min_stack : nat := %d.\n" id e.ex_min_stack)
+      let frame = if e.ex_frame_words > 0 then id ^ "_frame_size" else "" in
+      let rhs =
+        match (frame, e.ex_switcher_spill) with
+        | "", _ -> string_of_int e.ex_min_stack
+        | f, true -> f ^ " + " ^ string_of_int (e.ex_min_stack - e.ex_frame_words)
+        | f, false -> f
+      in
+      p "  Definition %s_min_stack : nat := %s.\n" id rhs)
     l.exports;
+  (* Functions that are not exports, with a frame. *)
+  List.iter
+    (fun fo ->
+      if fo.fo_frame.fbytes > 0
+         && not (List.exists (fun (e : export_out) -> e.ex.efunc = fo.fo_func.Classify.fname) l.exports)
+      then (
+        p "\n  (** The stack frame of [%s], in words (one per stack slot). *)\n" fo.fo_name;
+        p "  Definition %s_%s_frame_size : nat := %d.\n" name fo.fo_name (frame_words fo.fo_frame)))
+    l.funcs;
   p "End %s.\n" sec;
   Buffer.contents buf

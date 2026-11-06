@@ -18,6 +18,7 @@ let string_of_data = function
   | Half e -> "half " ^ string_of_expr e
   | Byte e -> "byte " ^ string_of_expr e
   | Zero n -> Printf.sprintf "zero %d" n
+  | Chericap e -> "chericap " ^ string_of_expr e
 
 let name_with_mangled s =
   let d = Demangle.demangle s in

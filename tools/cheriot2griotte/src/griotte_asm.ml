@@ -16,7 +16,14 @@ let reg_names =
 
 let string_of_reg r = reg_names.(r)
 
-type expr = Lbl of string | Z of int | Plus of expr * expr | Minus of expr * expr
+type expr =
+  | Lbl of string
+  | Z of int
+  | Plus of expr * expr
+  | Minus of expr * expr
+  | Perm of Cheriot_perms.pair
+      (* [encodePermPair (P, g)], printed as the name of a constant (see
+         [perm_name]): the encoding is abstract in [MachineParameters] *)
 
 type arg = E of expr | R of reg
 
@@ -82,7 +89,12 @@ let z n = if n < 0 then Printf.sprintf "(%d)" n else string_of_int n
 
 let str s = Printf.sprintf "%S" s
 
+(* The Rocq constant that holds [encodePermPair (P, g)]; set by the
+   printer, which defines it. *)
+let perm_name : (Cheriot_perms.pair -> string) ref = ref Cheriot_perms.ident
+
 let rec string_of_expr = function
+  | Perm p -> !perm_name p
   | Lbl s -> Printf.sprintf "(%s)%%asm" (str s)
   | Z n -> z n
   | Plus (a, b) -> Printf.sprintf "(%s + %s)%%asm" (string_of_expr a) (string_of_expr b)

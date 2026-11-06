@@ -1,0 +1,1 @@
+fail/candperm_unrepresentable.s:9: error: cannot translate ct.candperm a0, a0, a1: candperm: {GL LG SD LM LD MC} & 0xfbf = {GL LG SD LM LD} is not representable in CHERIoT (candperm would drop more)

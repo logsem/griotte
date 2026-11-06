@@ -66,8 +66,9 @@ type data =
   | Half of expr  (* 2 bytes *)
   | Byte of expr  (* 1 byte *)
   | Zero of int  (* n zero bytes *)
+  | Chericap of expr  (* 8 bytes: a capability ([.chericap 0]: null) *)
 
-let data_size = function Word _ -> 4 | Half _ -> 2 | Byte _ -> 1 | Zero n -> n
+let data_size = function Word _ -> 4 | Half _ -> 2 | Byte _ -> 1 | Zero n -> n | Chericap _ -> 8
 
 type directive =
   | Section of section

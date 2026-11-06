@@ -2,7 +2,7 @@
    (sha256 c37647ecff05b35ebe4967cb43bbccf8d79ed318a03a688369688083354fcf78). Do not edit. *)
 From griotte Require Import machine_parameters assembler fetch setbounds.
 
-(** The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (D1: a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified.
+(** The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified.
 
     Imports: a data prefix of 4 word(s) before the code, in this order:
     - [.Limport_switcher]: the switcher (.compartment_switcher), the first slot, reserved even when unused
@@ -58,6 +58,7 @@ Section Cmdc_compiled_main.
       (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct0 cs0; add ct1 ct0 1; subseg cs0 cs0 ct0 ct1 *)
       (* [deviation] scratch ct0, ct1: dead after this instruction *)
       (* [deviation] length %cheriot_compartment_size(b) = 4 bytes = 1 word(s) *)
+      (* [deviation] Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as 4 bytes is below 512 *)
       setbounds_asm cs0 cs0 1 ct0 ct1 ++
       [
         (* .LBB0_2: ct.auicgp s1, %cheriot_compartment_hi(c) *)
@@ -69,6 +70,7 @@ Section Cmdc_compiled_main.
       (* [deviation] no CSetBounds in Griotte: setbounds_asm = geta ct0 cs1; add ct1 ct0 1; subseg cs1 cs1 ct0 ct1 *)
       (* [deviation] scratch ct0, ct1: dead after this instruction *)
       (* [deviation] length %cheriot_compartment_size(c) = 4 bytes = 1 word(s) *)
+      (* [deviation] Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as 4 bytes is below 512 *)
       setbounds_asm cs1 cs1 1 ct0 ct1 ++
       [
         (* ct.csw zero, 0(s0) *)
@@ -96,7 +98,7 @@ Section Cmdc_compiled_main.
       [
         #".Lcmdc_run_return_B_f";
         (* ct.clw a0, 0(s1) *)
-        (* [deviation] integer load: geta keeps the address only, as clw drops the tag (D11) *)
+        (* [deviation] integer load: geta keeps the address only, as clw drops the tag *)
         load ca0 cs1;
         geta ca0 ca0;
         (* li a1, 0 *)
@@ -141,7 +143,7 @@ Section Cmdc_compiled_main.
       [
         #".Lcmdc_run_return_C_g";
         (* ct.clw a0, 0(s0) *)
-        (* [deviation] integer load: geta keeps the address only, as clw drops the tag (D11) *)
+        (* [deviation] integer load: geta keeps the address only, as clw drops the tag *)
         load ca0 cs0;
         geta ca0 ca0;
         (* li a1, 42 *)
@@ -216,8 +218,10 @@ Section Cmdc_compiled_main.
   Proof. vm_compute. reflexivity. Qed.
   Definition cmdc_compiled_main_run_nargs : nat := 0.
   Definition cmdc_compiled_main_run_posture : InterruptStatus := InterruptEnabled.
+  (** The stack frame of [run], in words (one per stack slot). *)
+  Definition cmdc_compiled_main_run_frame_size : nat := 3.
   (** Minimum stack, in words: the frame (3 word(s))
       and the spill of the switcher for its calls (SpillSlot_size = 4). The CHERIoT
       export says 4 (8-byte units, the frame only). *)
-  Definition cmdc_compiled_main_run_min_stack : nat := 7.
+  Definition cmdc_compiled_main_run_min_stack : nat := cmdc_compiled_main_run_frame_size + 4.
 End Cmdc_compiled_main.

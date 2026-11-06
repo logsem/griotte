@@ -1,0 +1,1 @@
+fail/candperm_mask_unknown.s:8: error: cannot translate ct.candperm a0, a0, a1: candperm with a mask in a1 not known to be a constant

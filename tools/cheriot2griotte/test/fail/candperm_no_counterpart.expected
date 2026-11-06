@@ -1,0 +1,1 @@
+fail/candperm_no_counterpart.s:9: error: cannot translate ct.candperm a0, a0, a1: candperm: {GL SD LD} has no exact Griotte counterpart

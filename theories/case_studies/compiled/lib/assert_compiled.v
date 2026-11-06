@@ -2,7 +2,7 @@
    (sha256 f53e4334708dd4693bce61e8a1362797eff7f52adc9733fea55b7ffd19f636b9). Do not edit. *)
 From griotte Require Import machine_parameters assembler fetch.
 
-(** The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler (D4): it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import. As CHERIoT lays out a library (sdk/library.ldscript), the import table (the switcher slot, then the flag) comes before the code.
+(** The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler: it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import. As CHERIoT lays out a library (sdk/library.ldscript), the import table (the switcher slot, then the flag) comes before the code.
 
     Imports: a data prefix of 2 word(s) before the code, in this order:
     - [.Limport_switcher]: the switcher (.compartment_switcher), the first slot, reserved even when unused

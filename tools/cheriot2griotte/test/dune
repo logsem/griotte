@@ -246,7 +246,7 @@
     --input-sha256
     %{read-lines:cmdc_main.sha256}
     --description
-    "The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (D1: a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified."))))
+    "The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified."))))
 
 (rule
  (alias cheriot2griotte-test)
@@ -285,7 +285,7 @@
     --input-sha256
     %{read-lines:lib_griotte_assert.sha256}
     --description
-    "The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler (D4): it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import. As CHERIoT lays out a library (sdk/library.ldscript), the import table (the switcher slot, then the flag) comes before the code."))))
+    "The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler: it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import. As CHERIoT lays out a library (sdk/library.ldscript), the import table (the switcher slot, then the flag) comes before the code."))))
 
 (rule
  (alias cheriot2griotte-test)
@@ -293,6 +293,358 @@
   (diff
    %{project_root}/theories/case_studies/compiled/lib/assert_compiled.v
    assert_compiled.v.out)))
+
+; {2 The compiled variants of step 5}
+;
+; Same shape as cmdc_compiled.v. The two vae examples compile to the same
+; main.s (checked below): one generated file, vae_compiled.v.
+
+(rule
+ (targets cmdc_shared_main.sha256)
+ (deps
+  (:s ../inputs/cmdc_shared/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets cmdc_shared_compiled.v.out)
+ (deps
+  (:s ../inputs/cmdc_shared/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    cmdc_shared_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc_shared/main.s
+    --input-sha256
+    %{read-lines:cmdc_shared_main.sha256}
+    --description
+    "The compartment [main] of the CMDC example with a second thread in C (the cmdc_shared variant), as compiled by the CHERIoT compiler: the code of cmdc_compiled.v, with the exports of B and C taking volatile pointers. It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/cmdc/cmdc_shared_compiled.v
+   cmdc_shared_compiled.v.out)))
+
+(rule
+ (targets cmdc_isolated_thread_main.sha256)
+ (deps
+  (:s ../inputs/cmdc_isolated_thread/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets cmdc_isolated_compiled.v.out)
+ (deps
+  (:s ../inputs/cmdc_isolated_thread/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    cmdc_isolated_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc_isolated_thread/main.s
+    --input-sha256
+    %{read-lines:cmdc_isolated_thread_main.sha256}
+    --description
+    "The compartment [main] of the CMDC example with an isolated second thread (the cmdc_isolated variant), as compiled by the CHERIoT compiler: the code of cmdc_compiled.v, with the exports of B and C taking volatile pointers. It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/cmdc/cmdc_isolated_compiled.v
+   cmdc_isolated_compiled.v.out)))
+
+(rule
+ (targets interrupt_status_K.sha256)
+ (deps
+  (:s ../inputs/interrupt_status/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets interrupt_status_compiled.v.out)
+ (deps
+  (:s ../inputs/interrupt_status/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    ist_compiled_K
+    --label-prefix
+    status
+    --source
+    tools/cheriot2griotte/inputs/interrupt_status/K.s
+    --input-sha256
+    %{read-lines:interrupt_status_K.sha256}
+    --description
+    "The compartment [K] of the interrupt_status example, as compiled by the CHERIoT compiler (a variant of the hand-written interrupt_status.v). Its export run runs with interrupts disabled: it calls B.f with a capability to its global b, sets b to 42 and asserts that b is 42."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/interrupt_status/interrupt_status_compiled.v
+   interrupt_status_compiled.v.out)))
+
+(rule
+ (targets thread_synchronisation_K.sha256)
+ (deps
+  (:s ../inputs/thread_synchronisation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets thread_synchronisation_compiled.v.out)
+ (deps
+  (:s ../inputs/thread_synchronisation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    tsy_compiled_K
+    --label-prefix
+    sync
+    --source
+    tools/cheriot2griotte/inputs/thread_synchronisation/K.s
+    --input-sha256
+    %{read-lines:thread_synchronisation_K.sha256}
+    --description
+    "The compartment [K] of the thread_synchronisation example, as compiled by the CHERIoT compiler (a variant of the hand-written thread_synchronisation.v). The export run1 calls B.f with a capability to its global b, then sets flag to 1; the export run2 yields (ecall) until flag is set, then sets b to 42 and asserts that b is 42."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/thread_synchronisation/thread_synchronisation_compiled.v
+   thread_synchronisation_compiled.v.out)))
+
+(rule
+ (targets temporal_isolation_K.sha256)
+ (deps
+  (:s ../inputs/temporal_isolation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets temporal_isolation_compiled.v.out)
+ (deps
+  (:s ../inputs/temporal_isolation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    ti_compiled_K
+    --label-prefix
+    ti
+    --source
+    tools/cheriot2griotte/inputs/temporal_isolation/K.s
+    --input-sha256
+    %{read-lines:temporal_isolation_K.sha256}
+    --description
+    "The compartment [K] of the temporal_isolation example, as compiled by the CHERIoT compiler (a variant of the hand-written temporal_isolation.v). It calls B.f with a local (non-global) capability to its global b, then sets b to 42, yields (ecall), and asserts that b is still 42."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/temporal_isolation/temporal_isolation_compiled.v
+   temporal_isolation_compiled.v.out)))
+
+(rule
+ (targets lse_downward_main.sha256)
+ (deps
+  (:s ../inputs/lse_downward/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets lse_downward_compiled.v.out)
+ (deps
+  (:s ../inputs/lse_downward/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    lse_compiled_main
+    --label-prefix
+    lse
+    --source
+    tools/cheriot2griotte/inputs/lse_downward/main.s
+    --input-sha256
+    %{read-lines:lse_downward_main.sha256}
+    --description
+    "The compartment [main] of the lse_downward example, as compiled by the CHERIoT compiler (a variant of the hand-written lse.v). The export entry sets its global a to 2 and calls C.adv; the export f, called back by C, stores a capability to a on its stack, reloads it, and asserts that a is 2."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/lse_downward/lse_downward_compiled.v
+   lse_downward_compiled.v.out)))
+
+(rule
+ (targets vae_main.sha256)
+ (deps
+  (:s ../inputs/vae_untrusted_entry/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets vae_compiled.v.out)
+ (deps
+  (:s ../inputs/vae_untrusted_entry/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    vae_compiled_main
+    --label-prefix
+    vae
+    --source
+    tools/cheriot2griotte/inputs/vae_untrusted_entry/main.s
+    --input-sha256
+    %{read-lines:vae_main.sha256}
+    --description
+    "The compartment [main] of the vae example, as compiled by the CHERIoT compiler (a variant of the hand-written vae.v); the input of both vae variants (vae/main.s and vae_untrusted_entry/main.s are identical). The export entry clears its global a and calls C.adv; the export awkward, called by C with a sealed capability g, clears a, calls g, sets a to 1, calls g again, and asserts that a is 1."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/vae/vae_compiled.v
+   vae_compiled.v.out)))
+
+(rule
+ (targets deeplocal_main.sha256)
+ (deps
+  (:s ../inputs/deeplocal/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets dle_compiled.v.out)
+ (deps
+  (:s ../inputs/deeplocal/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    dle_compiled_main
+    --label-prefix
+    dle
+    --source
+    tools/cheriot2griotte/inputs/deeplocal/main.s
+    --input-sha256
+    %{read-lines:deeplocal_main.sha256}
+    --description
+    "The compartment [main] of the deeplocal example, as compiled by the CHERIoT compiler (a variant of the hand-written deep_locality.v). It stores in its global a a capability to its global b, clears b, calls C.f with a deep-local (RW_DL, Local) capability to a, sets b to 42, calls C.f with null, and asserts that b is 42."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/dle/dle_compiled.v
+   dle_compiled.v.out)))
+
+(rule
+ (targets deepimmutable_main.sha256)
+ (deps
+  (:s ../inputs/deepimmutable/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (system "sha256sum < %{s} | cut -d ' ' -f 1"))))
+
+(rule
+ (targets droe_compiled.v.out)
+ (deps
+  (:s ../inputs/deepimmutable/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    rocq
+    %{s}
+    --name
+    droe_compiled_main
+    --label-prefix
+    droe
+    --source
+    tools/cheriot2griotte/inputs/deepimmutable/main.s
+    --input-sha256
+    %{read-lines:deepimmutable_main.sha256}
+    --description
+    "The compartment [main] of the deepimmutable example, as compiled by the CHERIoT compiler (a variant of the hand-written deep_immutability.v). It sets its global b to 42, stores in its global a a capability to b, calls C.f with a deeply read-only (RO_DRO, Global) capability to a, and asserts that b is still 42."))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff
+   %{project_root}/theories/case_studies/compiled/droe/droe_compiled.v
+   droe_compiled.v.out)))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff ../inputs/vae_untrusted_entry/main.s ../inputs/vae/main.s)))
 
 ; {1 Rejection tests of the lowering}
 ;
@@ -458,3 +810,131 @@
  (alias cheriot2griotte-test)
  (action
   (diff fail/unsupported.expected fail_unsupported.out)))
+
+(rule
+ (targets fail_callback_loaded.out)
+ (deps
+  (:s fail/callback_loaded.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/callback_loaded.expected fail_callback_loaded.out)))
+
+(rule
+ (targets fail_candperm_mask_unknown.out)
+ (deps
+  (:s fail/candperm_mask_unknown.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/candperm_mask_unknown.expected fail_candperm_mask_unknown.out)))
+
+(rule
+ (targets fail_candperm_no_counterpart.out)
+ (deps
+  (:s fail/candperm_no_counterpart.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/candperm_no_counterpart.expected fail_candperm_no_counterpart.out)))
+
+(rule
+ (targets fail_candperm_unknown_source.out)
+ (deps
+  (:s fail/candperm_unknown_source.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/candperm_unknown_source.expected fail_candperm_unknown_source.out)))
+
+(rule
+ (targets fail_candperm_unrepresentable.out)
+ (deps
+  (:s fail/candperm_unrepresentable.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/candperm_unrepresentable.expected fail_candperm_unrepresentable.out)))
+
+(rule
+ (targets fail_chericap_nonnull.out)
+ (deps
+  (:s fail/chericap_nonnull.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/chericap_nonnull.expected fail_chericap_nonnull.out)))
+
+(rule
+ (targets fail_lui_range.out)
+ (deps
+  (:s fail/lui_range.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/lui_range.expected fail_lui_range.out)))
+
+(rule
+ (targets fail_setbounds_partial.out)
+ (deps
+  (:s fail/setbounds_partial.s))
+ (action
+  (with-outputs-to
+   %{targets}
+   (with-accepted-exit-codes
+    2
+    (run %{exe:../src/cheriot2griotte.exe} rocq %{s} --name x --label-prefix x)))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff fail/setbounds_partial.expected fail_setbounds_partial.out)))

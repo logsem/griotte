@@ -22,7 +22,10 @@
      numbering on both sides).
    - Calls. A [ct.cjalr r] must jump to a sentry fetched right before it
      from the switcher import (a cross-compartment call, target in t1) or
-     from a library import (a library call). For liveness, a call reads
+     from a library import (a library call). The target in t1 is fetched
+     from an import right before the switcher fetch, or (a callback: a
+     sealed capability received as an argument) moved there from another
+     register by a [ct.cmove t1, r] right before it. For liveness, a call reads
      its jump register, t1, a0-a5, sp, gp, tp, s0, s1, and clobbers ra,
      t0-t2, a0-a5 (the CHERIoT calling convention: t0 is never an argument;
      the switcher overwrites ct0 before reading it and zeroes it for the
@@ -41,7 +44,15 @@
      [sp] adjustments are rescaled to the number of slots. Globals get one
      word per 4-byte integer, in section order ([.data], then [.bss]);
      only globals whose element type is known to be a 4-byte integer are
-     accepted. Accesses through other pointers must be at offset 0. *)
+     accepted, or a single null capability ([.chericap 0], one word).
+     Accesses through other pointers must be at offset 0.
+   - Permissions: a capability derived from [cgp] (auicgp pair, then
+     csetbounds) has cgp's permissions (RW, Global); [ct.candperm] with a
+     mask known to be a constant (li, lui, addi) on such a capability is a
+     [restrict] to the exact Griotte counterpart of the remaining CHERIoT
+     permissions (Cheriot_perms), or an error.
+   - [ecall] (yield, inline assembly) is Griotte's [ecall]; registers are
+     preserved across it. *)
 
 open Cheriot_ast
 module G = Griotte_asm
@@ -117,7 +128,9 @@ let uses_defs (n : node) =
   | Ins i -> (
       let op = n.op in
       match (i.mnemonic, i.operands) with
-      | "li", [ Reg d; Imm (Int _) ] -> (0, set [ d ])
+      | ("li" | "lui"), [ Reg d; Imm (Int _) ] -> (0, set [ d ])
+      | "ecall", [] -> (0, 0)
+      | "ct.candperm", [ Reg d; Reg x; Reg m ] -> (set [ x; m ], set [ d ])
       | ("mv" | "ct.cmove"), [ Reg d; Reg s ] -> (set [ s ], set [ d ])
       | ("addi" | "slli"), [ Reg d; Reg s; Imm (Int _) ] -> (set [ s ], set [ d ])
       | "add", [ Reg d; Reg x; Reg y ] -> (set [ x; y ], set [ d ])
@@ -195,8 +208,12 @@ let liveness cfg =
 (* {1 Integer values} *)
 
 (* The value of a register in the translated code: unknown (possibly a
-   capability), an integer (known non-negative or not), a constant. *)
-type value = Top | Int of bool | Const of int
+   capability), an integer (known non-negative or not), a constant, or a
+   capability of known Griotte permissions, whose address is at the start
+   of the global [glob] (with bounds that contain it) when known. *)
+type capv = { perm : Cheriot_perms.pair; glob : string option }
+
+type value = Top | Int of bool | Const of int | Cap of capv
 
 let signed32 n =
   let n = n land 0xffffffff in
@@ -204,26 +221,41 @@ let signed32 n =
 
 let fits32 n = n >= -0x80000000 && n < 0x80000000
 
-let is_int = function Top -> false | Int _ | Const _ -> true
-let nonneg = function Top -> false | Int b -> b | Const c -> c >= 0
+let is_int = function Top | Cap _ -> false | Int _ | Const _ -> true
+let nonneg = function Top | Cap _ -> false | Int b -> b | Const c -> c >= 0
 
 let join a b =
   match (a, b) with
   | Const x, Const y when x = y -> Const x
+  | Cap x, Cap y when x.perm = y.perm -> Cap { perm = x.perm; glob = (if x.glob = y.glob then x.glob else None) }
   | _ when is_int a && is_int b -> Int (nonneg a && nonneg b)
   | _ -> Top
 
 let read st r = if r = zero then Const 0 else st.(r)
 
-let transfer (st : value array) (nd : node) =
+(* [lui d, n]: n << 12, as a signed 32-bit integer. *)
+let lui_value n = signed32 (n lsl 12)
+let lui_ok n = n >= 0 && n < 0x100000
+
+(* The result of [ct.candperm] of [s] with the mask in [m], when both are
+   known. *)
+let candperm_result st s m =
+  match (read st s, read st m) with
+  | Cap c, Const k -> Some (c, k, Cheriot_perms.and_perm c.perm k)
+  | _ -> None
+
+(* [gsize g]: the size in bytes of the global [g]. *)
+let transfer ~gsize (st : value array) (nd : node) =
   let st = Array.copy st in
   let set r v = if r <> zero then st.(r) <- v in
   (match nd.op with
-   | Fetch { reg; _ } | Gaddr { reg; _ } -> set reg Top
+   | Fetch { reg; _ } -> set reg Top
+   | Gaddr { reg; glob; _ } -> set reg (Cap { perm = Cheriot_perms.cgp_perms; glob = Some glob })
    | Ins i -> (
        match (i.mnemonic, i.operands) with
        | "li", [ Reg d; Imm (Int n) ] -> set d (Const (signed32 n))
-       | "mv", [ Reg d; Reg s ] -> set d (match read st s with Top -> Int false | v -> v)
+       | "lui", [ Reg d; Imm (Int n) ] -> set d (if lui_ok n then Const (lui_value n) else Int false)
+       | "mv", [ Reg d; Reg s ] -> set d (match read st s with Top | Cap _ -> Int false | v -> v)
        | "ct.cmove", [ Reg d; Reg s ] -> set d (read st s)
        | "addi", [ Reg d; Reg s; Imm (Int n) ] ->
            set d (match read st s with Const c when fits32 (c + n) -> Const (c + n) | _ -> Int false)
@@ -233,13 +265,24 @@ let transfer (st : value array) (nd : node) =
            (* checked in the translation: s is a constant and no overflow *)
            set d (match read st s with Const c when k >= 0 && k < 32 && fits32 (c lsl k) -> Const (c lsl k) | _ -> Int false)
        | "ct.clw", [ Reg d; _ ] -> set d (Int false)
+       | "ct.csetbounds", [ Reg d; Reg s; Imm len ] ->
+           (* bounds [a, a + len): still the whole global when len is its size *)
+           set d
+             (match read st s with
+              | Cap ({ glob = Some g; _ } as c) ->
+                  let whole = match len with Reloc (Size, g') -> g' = g | Int n -> Some n = gsize g | _ -> false in
+                  Cap { c with glob = (if whole then Some g else None) }
+              | Cap c -> Cap { c with glob = None }
+              | _ -> Top)
+       | "ct.candperm", [ Reg d; Reg s; Reg m ] ->
+           set d (match candperm_result st s m with Some (c, _, Ok p) -> Cap { c with perm = p } | _ -> Top)
        | ("ct.clc" | "ct.cincoffset" | "ct.csetbounds"), Reg d :: _ -> set d Top
        | "ct.cjalr", _ -> for r = 1 to 15 do if mem r call_defs then st.(r) <- Top done
        | _ -> ()));
   st
 
 (* The value of each register before each node. *)
-let values cfg =
+let values ~gsize cfg =
   let n = Array.length cfg.nodes in
   let before = Array.make n None in
   if n > 0 then before.(0) <- Some (Array.init 16 (fun r -> if r = zero then Const 0 else Top));
@@ -250,7 +293,7 @@ let values cfg =
     match before.(i) with
     | None -> ()
     | Some st ->
-        let out = transfer st cfg.nodes.(i) in
+        let out = transfer ~gsize st cfg.nodes.(i) in
         List.iter
           (fun s ->
             let nw =
@@ -343,14 +386,21 @@ let frame_analysis fname cfg =
 
 (* {1 Globals} *)
 
-type gslot = { gl : Classify.global; gword : int; gwords : int; ginit_words : int list }
+type gslot = { gl : Classify.global; gword : int; gwords : int; ginit_words : int list; gcap : bool }
 
 (* One word per 4-byte integer. A global is accepted when its element type
    is known to be a 4-byte integer: it is 4 bytes long (a capability takes
-   8), or all its data are [.word] constants. *)
+   8), or all its data are [.word] constants. A global that is exactly one
+   null capability ([.chericap 0]) is one word, initially [WInt 0] (the
+   null capability of Griotte). *)
 let globals_layout (t : Classify.t) =
   let order = List.filter (fun g -> not g.Classify.gbss) t.globals @ List.filter (fun g -> g.Classify.gbss) t.globals in
   let words_of (g : Classify.global) =
+    match g.ginit with
+    | [ Chericap (Num 0) ] -> [ 0 ]
+    | _ when List.exists (function Chericap _ -> true | _ -> false) g.ginit ->
+        Diag.error g.gloc "global %s: a capability other than a single null [.chericap 0] (D6)" g.gname
+    | _ ->
     let consts = List.map (function Word (Num n) -> Some (signed32 n) | Zero 4 -> Some 0 | _ -> None) g.ginit in
     if g.gsize = 4 || List.for_all (function Word (Num _) -> true | _ -> false) g.ginit then
       if List.exists Option.is_none consts || g.gsize mod 4 <> 0 then
@@ -363,7 +413,8 @@ let globals_layout (t : Classify.t) =
     List.fold_left
       (fun (w, acc) g ->
         let ws = words_of g in
-        (w + List.length ws, { gl = g; gword = w; gwords = List.length ws; ginit_words = ws } :: acc))
+        let gcap = match g.ginit with [ Chericap _ ] -> true | _ -> false in
+        (w + List.length ws, { gl = g; gword = w; gwords = List.length ws; ginit_words = ws; gcap } :: acc))
       (0, []) order
   in
   List.rev l
@@ -444,7 +495,8 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
   let n = Array.length cfg.nodes in
   if n = 0 then Diag.error f.floc "function %s without instructions" f.fname;
   let live_out = liveness cfg in
-  let vals = values cfg in
+  let gsize g = Option.map (fun s -> s.gl.Classify.gsize) (List.find_opt (fun s -> s.gl.Classify.gname = g) gslots) in
+  let vals = values ~gsize cfg in
   let fr = frame_analysis f.fname cfg in
   let fname = Demangle.demangle f.fname in
   let base =
@@ -470,16 +522,31 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
         | _ -> assert false)
     | _ -> assert false
   in
-  (* Calls: (index of the cjalr, start of the call sequence, kind, callee). *)
+  (* The source register of a [ct.cmove t1, r] at node [i], if any. *)
+  let move_to_t1 i =
+    if i < 0 then None
+    else
+      match cfg.nodes.(i).op with
+      | Ins { mnemonic = "ct.cmove"; operands = [ Reg 6; Reg r ]; _ } when r <> zero && r <> t1 -> Some r
+      | _ -> None
+  in
+  (* Calls: (index of the cjalr, start of the call sequence, kind, callee).
+     A callback's callee is the register it comes from. *)
   let calls =
     List.filter_map
       (fun i ->
         match cfg.nodes.(i).op with
         | Ins { mnemonic = "ct.cjalr"; operands = [ Reg r ]; _ } as op ->
             if is_fetch_of (i - 1) r (fun im -> im.ikind = Classify.Switcher) then
-              if is_fetch_of (i - 2) t1 (fun im -> match im.ikind with Cross_call _ -> true | _ -> false) then
+              if r = t1 then fail op "switcher fetched into t1, which holds the target"
+              else if is_fetch_of (i - 2) t1 (fun im -> match im.ikind with Cross_call _ -> true | _ -> false) then
                 Some (i, i - 2, `Cross, callee_of (i - 2))
-              else fail op "switcher call without the fetch of its target into t1 right before"
+              else
+                match move_to_t1 (i - 2) with
+                | Some src -> Some (i, i - 2, `Callback, string_of_reg src)
+                | None ->
+                    fail op
+                      "switcher call without the fetch of its target into t1, or its move into t1 from another register, right before"
             else if is_fetch_of (i - 1) r (fun im -> match im.ikind with Library_call _ -> true | _ -> false) then
               Some (i, i - 1, `Lib, callee_of (i - 1))
             else fail op "indirect call: the jump register is not fetched from an import right before"
@@ -495,11 +562,11 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
       let name =
         match kind with
         | `Lib -> callee ^ "_" ^ string_of_int k
-        | `Cross -> if count_callee callee > 1 then callee ^ "_" ^ string_of_int k else callee
+        | `Cross | `Callback -> if count_callee callee > 1 then callee ^ "_" ^ string_of_int k else callee
       in
       (match kind with
        | `Lib -> add_cut start (base ^ "_" ^ name)
-       | `Cross -> add_cut start (base ^ "_call_" ^ name));
+       | `Cross | `Callback -> add_cut start (base ^ "_call_" ^ name));
       add_cut (i + 1) (base ^ "_return_" ^ name))
     calls;
   (* Epilogues: the reloads from the frame, the release, the return. *)
@@ -551,7 +618,8 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
     else if o = 0 then (0, [])
     else fail op "offset %d from %s: the layout of the object is unknown (D6)" o (string_of_reg s)
   in
-  let switcher_calls = List.exists (fun (_, _, k, _) -> k = `Cross) calls in
+  let switcher_calls = List.exists (fun (_, _, k, _) -> k = `Cross || k = `Callback) calls in
+  let callback_starts = List.filter_map (fun (_, start, k, _) -> if k = `Callback then Some start else None) calls in
   let lower_node idx nd =
     let op = nd.op in
     let st = Option.value vals.(idx) ~default:(Array.make 16 Top) in
@@ -574,6 +642,36 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
         let lbl l = G.E (G.Lbl (target_label op l)) in
         match (i.mnemonic, i.operands) with
         | "li", [ Reg d; Imm (Int v) ] -> mk [ ci (G.Mov (d, G.E (G.Z (signed32 v)))) ]
+        | "lui", [ Reg d; Imm (Int v) ] ->
+            if not (lui_ok v) then fail op "lui immediate outside 0..0xfffff";
+            mk
+              ~devs:[ Printf.sprintf "lui: the constant %d << 12 = %d (a signed 32-bit integer)" v (lui_value v) ]
+              [ ci (G.Mov (d, G.E (G.Z (lui_value v)))) ]
+        | "ecall", [] -> mk [ ci G.Ecall ]
+        | "ct.cmove", [ Reg d; Reg s ] when List.mem idx callback_starts ->
+            mk
+              ~devs:
+                [ Printf.sprintf
+                    "callback: the target of the switcher call is the capability in %s (received as an argument), not an import"
+                    (G.string_of_reg s) ]
+              [ ci (G.Mov (d, arg_of s)) ]
+        | "ct.candperm", [ Reg d; Reg s; Reg m ] -> (
+            match candperm_result st s m with
+            | None -> (
+                match (read st s, read st m) with
+                | Cap _, _ -> fail op "candperm with a mask in %s not known to be a constant" (string_of_reg m)
+                | _ -> fail op "candperm of %s, a capability of unknown permissions (known: those derived from cgp)" (string_of_reg s))
+            | Some (_, _, Error why) -> fail op "candperm: %s" why
+            | Some (c, k, Ok p) ->
+                let src = Cheriot_perms.to_bits c.perm in
+                mk
+                  ~devs:
+                    [ Printf.sprintf "candperm: %s has the permissions of cgp %s = CHERIoT %s; the mask %s = %d (low 12 bits %#x) keeps %s"
+                        (G.string_of_reg s) (Cheriot_perms.string_of_pair c.perm) (Cheriot_perms.string_of_bits src)
+                        (G.string_of_reg m) k (k land Cheriot_perms.all)
+                        (Cheriot_perms.string_of_bits (src land k land Cheriot_perms.all));
+                      Printf.sprintf "restrict to their Griotte counterpart: encodePermPair %s" (Cheriot_perms.string_of_pair p) ]
+                  [ ci (G.Restrict (d, s, G.E (G.Perm p))) ])
         | "mv", [ Reg d; Reg s ] -> mk [ ci (G.Add (d, arg_of s, G.E (G.Z 0))) ]
         | "ct.cmove", [ Reg d; Reg s ] -> mk [ ci (G.Mov (d, arg_of s)) ]
         | "addi", [ Reg d; Reg s; Imm (Int v) ] -> mk [ ci (G.Add (d, arg_of s, G.E (G.Z v))) ]
@@ -592,7 +690,7 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
                 if not (nonneg (read st r)) then
                   fail op "unsigned comparison of %s, not known to be non-negative (D5)" (string_of_reg r))
               [ x; y ];
-            let dev = "signed comparison: both operands are known non-negative (D5)" in
+            let dev = "signed comparison: both operands are known non-negative" in
             if m = "bltu" then mk ~devs:[ dev ] [ ci (G.Jlt (lbl l, arg_of x, arg_of y)) ]
             else mk ~devs:[ dev ] [ ci (G.Jle (lbl l, arg_of y, arg_of x)) ]
         | "j", [ Sym l ] -> mk [ ci (G.Jmp (lbl l)) ]
@@ -601,17 +699,33 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
         | "ct.cincoffset", [ Reg 2; Reg 2; Imm (Int v) ] ->
             let w = if v < 0 then - frame_words fr else frame_words fr in
             mk
-              ~devs:[ Printf.sprintf "frame of %d bytes = %d words, one per stack slot" fr.fbytes (frame_words fr) ]
+              ~devs:
+                [ Printf.sprintf "frame of %d bytes = %d word%s, one per stack slot" fr.fbytes (frame_words fr)
+                    (if frame_words fr = 1 then "" else "s") ]
               [ ci (G.Lea (sp, sp, G.E (G.Z w))) ]
         | "ct.cincoffset", _ -> fail op "pointer arithmetic on an object of unknown layout (D6)"
         | "ct.csetbounds", [ Reg d; Reg s; Imm len ] ->
-            let words, ldev =
+            let bytes, words, ldev =
               match len with
               | Reloc (Size, g) ->
                   let sl = gslot op g in
-                  (sl.gwords, Printf.sprintf "length %%cheriot_compartment_size(%s) = %d bytes = %d word(s)" g sl.gl.gsize sl.gwords)
+                  (sl.gl.gsize, sl.gwords, Printf.sprintf "length %%cheriot_compartment_size(%s) = %d bytes = %d word(s)" g sl.gl.gsize sl.gwords)
+              | Int n -> (
+                  (* An immediate length: only the whole of a global whose
+                     start the source is known to hold. *)
+                  match read st s with
+                  | Cap { glob = Some g; _ } when gsize g = Some n ->
+                      let sl = gslot op g in
+                      ( n, sl.gwords,
+                        Printf.sprintf "length %d bytes = the whole of %s (%s holds its start) = %d word(s)" n g
+                          (G.string_of_reg s) sl.gwords )
+                  | _ -> fail op "bounds of %d bytes, not the whole of a global known to start at %s (D6)" n (string_of_reg s))
               | _ -> fail op "bounds of an object of unknown layout (D6)"
             in
+            (* CHERIoT's bounds are exact below 512 bytes (a 9-bit mantissa,
+               exponent 0, any base); Griotte's subseg is always exact. *)
+            if bytes >= 512 then
+              fail op "bounds of %d bytes, which CHERIoT may round (exact only below 512 bytes), while subseg is exact" bytes;
             let cands = pick_scratch live_out.(idx) [ d; s ] in
             let x1, x2 =
               match cands with
@@ -625,7 +739,10 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
                     (G.string_of_reg x1) (G.string_of_reg s) (G.string_of_reg x2) (G.string_of_reg x1) words
                     (G.string_of_reg d) (G.string_of_reg s) (G.string_of_reg x1) (G.string_of_reg x2);
                   Printf.sprintf "scratch %s, %s: dead after this instruction" (G.string_of_reg x1) (G.string_of_reg x2);
-                  ldev ]
+                  ldev;
+                  Printf.sprintf
+                    "Griotte's subseg sets exact bounds, while CHERIoT's csetbounds may round them: exact here, as %d bytes is below 512"
+                    bytes ]
               [ M (G.Setbounds (d, s, words, x1, x2)) ]
         | "ct.clc", [ Reg d; Mem (Int o, s) ] ->
             let w, devs = mem_word op o s in
@@ -634,7 +751,7 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
             let w, devs = mem_word op o s in
             if d = zero then fail op "load into zero";
             mk
-              ~devs:(devs @ [ "integer load: geta keeps the address only, as clw drops the tag (D11)" ])
+              ~devs:(devs @ [ "integer load: geta keeps the address only, as clw drops the tag" ])
               [ ci (G.CLoad (d, s, G.Z w)); ci (G.GetA (d, d)) ]
         | "ct.csc", [ Reg v; Mem (Int o, s) ] ->
             let w, devs = mem_word op o s in
@@ -653,7 +770,7 @@ let lower_func ~prefix ~(t : Classify.t) ~gslots (f : Classify.func) =
               mk
                 ~devs:
                   (devs
-                  @ [ Printf.sprintf "integer store: geta %s %s keeps the address only, as csw drops the tag (D11); %s dead after"
+                  @ [ Printf.sprintf "integer store: geta %s %s keeps the address only, as csw drops the tag; %s dead after"
                         (G.string_of_reg tmp) (G.string_of_reg v) (G.string_of_reg tmp) ])
                 [ ci (G.GetA (tmp, v)); ci (G.Store (s, G.R tmp, G.Z w)) ]
         | _ -> fail op "not in the subset the lowering supports")

@@ -1,0 +1,1 @@
+fail/setbounds_partial.s:8: error: cannot translate ct.csetbounds a0, a0, 2: bounds of 2 bytes, not the whole of a global known to start at a0 (D6)

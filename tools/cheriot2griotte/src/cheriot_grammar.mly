@@ -33,7 +33,7 @@ let ins p mnemonic operands = Instr { mnemonic; operands; iloc = loc p }
 %token <string> IDENT STRING AT_IDENT NOISE
 %token COLON COMMA LPAREN RPAREN PLUS MINUS NEWLINE EOF
 %token RELOC_HI RELOC_LO_I RELOC_SIZE
-%token DSECTION DGLOBL DWEAK DSIZE DWORD DHALF DBYTE DZERO
+%token DSECTION DGLOBL DWEAK DSIZE DWORD DHALF DBYTE DZERO DCHERICAP
 %token LI LUI MV ADDI ANDI ADD SLLI BEQ BNE BLTU BGEU BEQZ BNEZ J ECALL UNIMP
 %token CRET CJALR AUIPCC AUICGP CINCOFFSET CSETBOUNDS CLC CLW CSC CSW CMOVE
 %token CGETTAG CGETBASE CGETLEN CGETPERM CSETADDR CANDPERM
@@ -165,6 +165,7 @@ directive:
   | DHALF e = expr { Data (Half e) }
   | DBYTE e = expr { Data (Byte e) }
   | DZERO n = INT { Data (Zero n) }
+  | DCHERICAP e = expr { Data (Chericap e) }
   | n = NOISE { Noise n }
 
 (* ,group or ,group,comdat *)
