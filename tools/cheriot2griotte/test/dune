@@ -938,3 +938,290 @@
  (alias cheriot2griotte-test)
  (action
   (diff fail/setbounds_partial.expected fail_setbounds_partial.out)))
+
+; {1 Reverse-map validation (Reverse)}
+;
+; For each generated file: the same lowering as above (same --name,
+; --label-prefix, --labels), then the Griotte code mapped back to CHERIoT
+; instructions and compared with the .s. The tool exits 1 on a mismatch;
+; the summary of what was checked is a golden file (reverse/*.expected).
+
+(rule
+ (targets reverse_cmdc.out)
+ (deps
+  (:s ../inputs/cmdc/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    cmdc_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/cmdc.expected reverse_cmdc.out)))
+
+(rule
+ (targets reverse_cmdc_shared.out)
+ (deps
+  (:s ../inputs/cmdc_shared/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    cmdc_shared_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc_shared/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/cmdc_shared.expected reverse_cmdc_shared.out)))
+
+(rule
+ (targets reverse_cmdc_isolated.out)
+ (deps
+  (:s ../inputs/cmdc_isolated_thread/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    cmdc_isolated_compiled_main
+    --label-prefix
+    cmdc
+    --source
+    tools/cheriot2griotte/inputs/cmdc_isolated_thread/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/cmdc_isolated.expected reverse_cmdc_isolated.out)))
+
+(rule
+ (targets reverse_interrupt_status.out)
+ (deps
+  (:s ../inputs/interrupt_status/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    ist_compiled_K
+    --label-prefix
+    status
+    --source
+    tools/cheriot2griotte/inputs/interrupt_status/K.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/interrupt_status.expected reverse_interrupt_status.out)))
+
+(rule
+ (targets reverse_thread_synchronisation.out)
+ (deps
+  (:s ../inputs/thread_synchronisation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    tsy_compiled_K
+    --label-prefix
+    sync
+    --source
+    tools/cheriot2griotte/inputs/thread_synchronisation/K.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/thread_synchronisation.expected reverse_thread_synchronisation.out)))
+
+(rule
+ (targets reverse_temporal_isolation.out)
+ (deps
+  (:s ../inputs/temporal_isolation/K.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    ti_compiled_K
+    --label-prefix
+    ti
+    --source
+    tools/cheriot2griotte/inputs/temporal_isolation/K.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/temporal_isolation.expected reverse_temporal_isolation.out)))
+
+(rule
+ (targets reverse_lse_downward.out)
+ (deps
+  (:s ../inputs/lse_downward/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    lse_compiled_main
+    --label-prefix
+    lse
+    --source
+    tools/cheriot2griotte/inputs/lse_downward/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/lse_downward.expected reverse_lse_downward.out)))
+
+(rule
+ (targets reverse_vae.out)
+ (deps
+  (:s ../inputs/vae_untrusted_entry/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    vae_compiled_main
+    --label-prefix
+    vae
+    --source
+    tools/cheriot2griotte/inputs/vae_untrusted_entry/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/vae.expected reverse_vae.out)))
+
+(rule
+ (targets reverse_dle.out)
+ (deps
+  (:s ../inputs/deeplocal/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    dle_compiled_main
+    --label-prefix
+    dle
+    --source
+    tools/cheriot2griotte/inputs/deeplocal/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/dle.expected reverse_dle.out)))
+
+(rule
+ (targets reverse_droe.out)
+ (deps
+  (:s ../inputs/deepimmutable/main.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    droe_compiled_main
+    --label-prefix
+    droe
+    --source
+    tools/cheriot2griotte/inputs/deepimmutable/main.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/droe.expected reverse_droe.out)))
+
+(rule
+ (targets reverse_assert.out)
+ (deps
+  (:s ../inputs/lib/griotte_assert.s)
+  (:l ../labels/lib_griotte_assert.labels))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run
+    %{exe:../src/cheriot2griotte.exe}
+    reverse-check
+    %{s}
+    --name
+    assert_compiled
+    --label-prefix
+    assert
+    --labels
+    %{l}
+    --source
+    tools/cheriot2griotte/inputs/lib/griotte_assert.s))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/assert.expected reverse_assert.out)))
+
+; Mutation tests: the reverse map rejects a lowered file with one
+; deliberate error in its Griotte code (test/mutate.ml).
+
+(executable
+ (name mutate)
+ (modules mutate)
+ (libraries cheriot2griotte_lib))
+
+(rule
+ (targets mutate.out)
+ (deps
+  (:c ../inputs/cmdc/main.s)
+  (:t ../inputs/temporal_isolation/K.s)
+  (:a ../inputs/lib/griotte_assert.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:mutate.exe} %{c} %{t} %{a}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff reverse/mutate.expected mutate.out)))

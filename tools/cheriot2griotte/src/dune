@@ -1,9 +1,17 @@
 ; The cheriot2griotte executable (see ../dune). Not built by a plain
-; `dune build`.
+; `dune build`. The modules are a library, so that the tests
+; (../test/mutate.ml) can lower a file and mutate the result.
+
+(library
+ (name cheriot2griotte_lib)
+ (wrapped false)
+ (modules :standard \ cheriot2griotte)
+ (libraries str))
 
 (executable
  (name cheriot2griotte)
- (libraries str))
+ (modules cheriot2griotte)
+ (libraries cheriot2griotte_lib))
 
 (ocamllex cheriot_lexer)
 

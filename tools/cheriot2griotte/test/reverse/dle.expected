@@ -1,0 +1,6 @@
+file: tools/cheriot2griotte/inputs/deeplocal/main.s
+imports: 3 entries, the switcher first, each name decoding to its CHERIoT import
+globals: 2, at word offsets .data then .bss; initial words back to bytes equal to the .s data
+function _Z3runv: 32 Griotte instructions/macros back to 38 CHERIoT instructions; 0 branch target(s) aligned; 31 side condition(s) hold
+exports: 1, each at the entry label and word offset of its function
+reverse map: OK

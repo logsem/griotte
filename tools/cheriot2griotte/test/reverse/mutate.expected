@@ -1,0 +1,31 @@
+cmdc, unmutated: accepted
+temporal_isolation, unmutated: accepted
+assert, unmutated: accepted
+
+(1) wrong frame word: the spill of ra to word 1 instead of word 2
+cmdc: rejected
+  mismatch: _Z3runv: Griotte store_imm csp cra 1 inverts to ct.csc ra, 16(sp) | ct.csw ra, 16(sp); the .s has .s line 11 (ct.csc ra, 24(sp))
+
+(2) wrong global word: lea of c (word 1) to word 0, the global b
+cmdc: rejected
+  mismatch: _Z3runv: Griotte lea cs1 cgp 0 inverts to ct.auicgp s1, %cheriot_compartment_hi(b); ct.cincoffset s1, s1, %cheriot_compartment_lo_i(<its hi>); the .s has .s line 19 (ct.auicgp s1, %cheriot_compartment_hi(c))
+
+(3) wrong import: the call to B.f fetches C.g
+cmdc: rejected
+  mismatch: _Z3runv: Griotte fetch_asm ".Limport_C_g" ct1 inverts to ct.auipcc t1, %cheriot_compartment_hi(__import_C__Z1gPi); ct.clc t1, %cheriot_compartment_lo_i(<its hi>)(t1); the .s has .s line 26 (ct.auipcc t1, %cheriot_compartment_hi(__import_B__Z1fPi))
+
+(4) wrong permission constant: the restrict keeps the locality Global
+temporal_isolation: rejected
+  mismatch: _Z3runv: Griotte restrict ca0 cs0 rw_global, .s line 20 (ct.candperm a0, s0, a0): mask a0 = 4094 (0xffe): cs0 & mask = 0x6e, but the restrict to (RW, Global) means 0x6f
+
+(5) live scratch register: the second setbounds_asm clobbers cs0, which holds b
+cmdc: rejected
+  mismatch: _Z3runv: Griotte setbounds_asm cs1 cs1 1 ct0 cs0, .s line 21 (ct.csetbounds s1, s1, %cheriot_compartment_size(c)): scratch cs0: cnull, the source, or live after
+
+(6) integer load without geta (D11): the first clw becomes a capability load
+cmdc: rejected
+  mismatch: _Z3runv: Griotte load ca0 cs1 inverts to ct.clc a0, 0(s1); the .s has .s line 32 (ct.clw a0, 0(s1))
+
+(7) wrong branch target: the beq of the assert library jumps to the function's entry
+assert: rejected
+  mismatch: _Z14griotte_assertii: .s line 10 (beq a0, a1, .LBB0_2): the Griotte target .Lassert_griotte_assert is not the instruction at .LBB0_2

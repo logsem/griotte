@@ -1,0 +1,6 @@
+file: tools/cheriot2griotte/inputs/cmdc/main.s
+imports: 4 entries, the switcher first, each name decoding to its CHERIoT import
+globals: 2, at word offsets .data then .bss; initial words back to bytes equal to the .s data
+function _Z3runv: 37 Griotte instructions/macros back to 43 CHERIoT instructions; 0 branch target(s) aligned; 30 side condition(s) hold
+exports: 1, each at the entry label and word offset of its function
+reverse map: OK
