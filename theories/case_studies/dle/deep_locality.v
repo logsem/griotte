@@ -14,7 +14,7 @@ Section DLE_Main.
     call B.adv (RW-DL, Local, a, a+1, a)
     set b := 42
     call B.adv null
-    assert (b==0)
+    assert (b==42)
     return
 
    *)
@@ -53,7 +53,7 @@ Section DLE_Main.
         lea cgp cgp (-1);       (* cgp := (RW, Global, b, e, b) *)
         add ct1 ct2 1;      (* ct1 := a+1 *)
         subseg ca0 ca0 ct2 ct1; (* ca0 := (RW, Global, a, a+1, a) *)
-        restrict ca0 ca0 rw_dl (* ca0 := (RO_DRO, Global, a, a+1, a) *)
+        restrict ca0 ca0 rw_dl (* ca0 := (RW-DL, Local, a, a+1, a) *)
       ];
       #".Ldle_fetch_switcher" ::
       fetch_asm ".Limport_switcher" ct0; (* ct0 -> switcher entry point *)
@@ -67,7 +67,7 @@ Section DLE_Main.
         jalr cra ct0;
         (* set b := 42 *)
         #".Ldle_overwrite";
-        store cgp 42;      (* b <- 0 *)
+        store cgp 42;      (* b <- 42 *)
         (* call B.adv null *)
         mov ca0 0
       ];
