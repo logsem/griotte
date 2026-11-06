@@ -181,7 +181,7 @@ Section KVS_spec_addOrUpdate_safe.
     iSplitR.
     - (* the critical section: the map of the user [uk], valid in [C] *)
       iIntros "(Hphys & Hlog & Husers)".
-      iDestruct (big_sepM_lookup_acc with "Husers") as "[[Huser Hpts] Husers_close]"; first exact Huk.
+      iDestruct (big_sepM_lookup_acc with "Husers") as "[ [Huser Hpts] Husers_close]"; first exact Huk.
       iDestruct (big_sepS_delete _ _ nkey with "Hpts") as "[Hnk Hpts]"; first done.
       iAssert (∃ o, (uk, nkey) ↦(UKVS) o ∗
                  ∀ b : bool, (uk, nkey) ↦(UKVS) (if b then Some (lstore_word RW wca2) else o) -∗
