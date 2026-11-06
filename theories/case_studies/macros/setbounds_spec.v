@@ -2,6 +2,9 @@ From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
 From griotte Require Export setbounds.
 
+(** Specifications of the [setbounds_asm] macro: the destination gets the
+    bounds [[a, a + n)] of its source's address [a]. *)
+
 Section Setbounds_spec.
   Context
     {Σ : gFunctors}
@@ -12,8 +15,9 @@ Section Setbounds_spec.
 
   (** [setbounds_asm r r n t1 t2] (the destination is the source, as in
       the compiled code): [r] gets the bounds [[a, a + n)], when they are
-      within its bounds. A source without identifier must not give a heap
-      capability whose base is not an allocation root ([Subseg]). *)
+      within its bounds. A source without identifier must not have a heap
+      address (a sufficient condition for [Subseg]'s new tag; heap roots
+      are not covered). *)
   Lemma setbounds_same_spec
     (r t1 t2 : RegName) (n : Z)
     (pc_p : Perm) (pc_g : Locality) (pc_b pc_e pc_a : Addr)

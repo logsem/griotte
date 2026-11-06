@@ -9,7 +9,8 @@ Section Setbounds.
       cleared when they are not within the bounds of [rsrc]).
       [deviation] Griotte has no [CSetBounds]: the macro computes the
       bounds in the scratch registers [t1] and [t2], which it clobbers
-      (the translator chooses them dead), and [Subseg] sets them. The
+      (the translator chooses them dead), and [Subseg] sets them, exactly
+      (CHERIoT may round the bounds of large lengths). The
       length [len] is in words. [rdst] may be [rsrc]; [t1] and [t2] are
       distinct from [rsrc] and from each other, and [t1] may be [rdst]
       when [rdst] is not [rsrc]. *)
