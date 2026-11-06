@@ -1,7 +1,7 @@
 kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (idle : img_idle_thread)
+  ∃ (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread) (idle : img_idle_thread)
       (boot : img_boot_stack) (main kvs B sched : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
-  -- also, in section B (untrusted, B): ∃ (eh_B ehs_B : Z) (off_B_f min_B_f : nat)
+  -- also, in section B (untrusted, B): ∃ (eh_B ehs_B : Z) (off_B_f min_B_f off_B_1 min_B_1 : nat)
   flag_assert asrt = flag  -- the flag of the assert library
 ── Parameters ──────────────────────────────────────────────────────────────
   key_main ≠ key_B
@@ -32,6 +32,7 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   cmpt_imports kvs =
       [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
       [1]  [U, Global, ot_kvs, ot_kvs ^+ 1, ot_kvs]
+      [2]  (E-FwdDisable RX, Global, b_locks lck, e_locks lck, b_locks lck)               -- try_lock
   cmpt_static_sealed kvs             = []
   cmpt_code kvs                      = kvs_service_instrs
   cmpt_data kvs                      = kvs_data
@@ -67,7 +68,9 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   ∃ off_B_f min_B_f : nat,
       -- arbitrary offsets, inside the PCC range, and minimum stack sizes
     (off_B_f < cmpt_e_pcc B - cmpt_b_pcc B)%Z ∧
-    cmpt_exp_tbl_entries B = [entry InterruptEnabled 0 min_B_f off_B_f]
+    ∃ off_B_1 min_B_1 : nat,
+    (off_B_1 < cmpt_e_pcc B - cmpt_b_pcc B)%Z ∧
+    cmpt_exp_tbl_entries B = [entry InterruptEnabled 0 min_B_f off_B_f; entry InterruptEnabled 0 min_B_1 off_B_1]
 ── sched (scheduler) ───────────────────────────────────────────────────────
   cmpt_imports sched =
       [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
@@ -82,6 +85,8 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
     (sched_data_word (cmpt_b_cgp sched) (cmpt_e_cgp sched)
        [{ ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0) };
                                                                                           -- thread 0, handle
+        { ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t1, e_trusted_stack t1, b_trusted_stack t1) };
+                                                                                          -- thread 1, handle
         { ot_switcher sw ^+ 1,                                                            -- idle thread, handle
           (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) };
         (RW_DL_DRO, Global, mtime_addr, mtime_addr ^+ 1, mtime_addr);
@@ -96,6 +101,8 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
     (boot_stack_word
        [{ ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0) };
                                                                                           -- thread 0, handle
+        { ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t1, e_trusted_stack t1, b_trusted_stack t1) };
+                                                                                          -- thread 1, handle
         { ot_switcher sw ^+ 1,                                                            -- idle thread, handle
           (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) }])
     (img_boot_stack_words boot)
@@ -116,6 +123,7 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
           (assert_subroutine_instrs ++
            [(RW, Global, flag_assert asrt, flag_assert asrt ^+ 1, flag_assert asrt)])
       ∪ mem_region (flag_assert asrt) [WInt 0]                                 -- assert, flag
+      ∪ mem_region (b_locks lck) locks_try_lock_instrs                         -- locks, code
       ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)     -- main, PCC range
       ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                          -- main, CGP range
       ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)       -- main, static sealed
@@ -169,6 +177,27 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
              24)                                                                                 -- n
       ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                       -- thread 0, stack
       ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                              -- thread 0, hazard slots
+      ∪ mem_region (b_trusted_stack t1)
+          -- thread 1, trusted stack, saved at its entry in B
+          (initial_trusted_stack_content
+             (save_area_content                                                                  -- save
+                (RX,                                                                             -- mepcc
+                 Global,
+                 cmpt_b_pcc B,
+                 cmpt_e_pcc B,
+                 cmpt_b_pcc B ^+ export_entry_offset (img_entry_word B 1))
+                (E-RetDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_return sw)  -- cra
+                (RWL, Local, b_stack t1, e_stack t1, e_stack t1 ^- StackEntry_reserved_space)    -- csp
+                (RW, Global, cmpt_b_cgp B, cmpt_e_cgp B, cmpt_b_cgp B)                           -- cgp
+                (WO, Global, b_hazard t1, e_hazard t1, b_hazard t1)                              -- hazard
+                (WInt (mstatus_enc InterruptDisabled (export_entry_posture (img_entry_word B 1)))))
+                                                                                                 -- mstatus
+             (RWL, Local, b_stack t1, e_stack t1, e_stack t1 ^- StackEntry_reserved_space)       -- csp
+             (RW, Global, cmpt_exp_tbl_pcc B, cmpt_exp_tbl_entries_end B, cmpt_exp_tbl_pcc B)    -- export_table
+             2                                                                                   -- thread_id
+             24)                                                                                 -- n
+      ∪ mem_region (b_stack t1) (replicate 100 (WInt 0))                       -- thread 1, stack
+      ∪ mem_region (b_hazard t1) [WInt 0; WInt 0]                              -- thread 1, hazard slots
       ∪ mem_region (img_b_idle_trusted_stack idle)
           -- idle thread, trusted stack, saved at the loop of an exited thread
           (initial_trusted_stack_content
@@ -437,6 +466,30 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   revoker_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
   mtime_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
   mtimecmp_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
+── thread 1, layout ────────────────────────────────────────────────────────
+  b_stack t1 + 100%nat                        = Some (e_stack t1)
+  b_trusted_stack t1 + tstack_frame_offset 25 = Some (e_trusted_stack t1)
+  not_heap_range (b_stack t1) (e_stack t1)                  -- stack
+  disjoint_from_shadow (b_stack t1) (e_stack t1)
+  revoker_addr ∉ finz.seq_between (b_stack t1) (e_stack t1)
+  mtime_addr ∉ finz.seq_between (b_stack t1) (e_stack t1)
+  mtimecmp_addr ∉ finz.seq_between (b_stack t1) (e_stack t1)
+  not_heap_range (b_trusted_stack t1) (e_trusted_stack t1)  -- trusted stack
+  disjoint_from_shadow (b_trusted_stack t1) (e_trusted_stack t1)
+  revoker_addr ∉ finz.seq_between (b_trusted_stack t1) (e_trusted_stack t1)
+  mtime_addr ∉ finz.seq_between (b_trusted_stack t1) (e_trusted_stack t1)
+  mtimecmp_addr ∉ finz.seq_between (b_trusted_stack t1) (e_trusted_stack t1)
+  b_trusted_stack t1 ≠ 0                                    -- trusted stack not at address 0
+  ∃ z : Z,
+      -- minimum stack size of the entry, as its entry word encodes it
+    cmpt_exp_tbl_entries B !! 1 = Some (WInt z)
+    (export_entry_min_stack z + StackEntry_reserved_space ≤ 100%nat)%Z
+  b_hazard t1 + 2 = Some (e_hazard t1)
+  not_heap_range (b_hazard t1) (e_hazard t1)                -- hazard slots
+  disjoint_from_shadow (b_hazard t1) (e_hazard t1)
+  revoker_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
+  mtime_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
+  mtimecmp_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
 ── image, layout ───────────────────────────────────────────────────────────
   ranges_disjoint                                                           -- pairwise disjoint
       [00]  [b_switcher sw, e_switcher sw)                                  -- switcher
@@ -461,9 +514,13 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
       [19]  [b_trusted_stack t0, e_trusted_stack t0)                        -- thread 0, trusted stack
       [20]  [b_stack t0, e_stack t0)                                        -- thread 0, stack
       [21]  [b_hazard t0, e_hazard t0)                                      -- thread 0, hazard slots
-      [22]  [img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle)  -- idle thread, trusted stack
-      [23]  [img_b_idle_hazard idle, img_e_idle_hazard idle)                -- idle thread, hazard slots
-      [24]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
+      [22]  [b_trusted_stack t1, e_trusted_stack t1)                        -- thread 1, trusted stack
+      [23]  [b_stack t1, e_stack t1)                                        -- thread 1, stack
+      [24]  [b_hazard t1, e_hazard t1)                                      -- thread 1, hazard slots
+      [25]  [img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle)  -- idle thread, trusted stack
+      [26]  [img_b_idle_hazard idle, img_e_idle_hazard idle)                -- idle thread, hazard slots
+      [27]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
+      [28]  [b_locks lck, e_locks lck)                                      -- locks
   NoDup [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]                       -- sealing types distinct
   Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]          -- sealing types valid
 ── idle thread, layout ─────────────────────────────────────────────────────
@@ -489,3 +546,11 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   revoker_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
   mtime_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
   mtimecmp_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
+── locks, layout ───────────────────────────────────────────────────────────
+  b_locks lck + length locks_try_lock_instrs = Some (e_locks lck)
+  not_heap_range (b_locks lck) (e_locks lck)
+  disjoint_from_shadow (b_locks lck) (e_locks lck)
+  revoker_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
+  mtime_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
+  mtimecmp_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
+  is_heap_address (e_locks lck) = false  -- closed bounds outside the heap

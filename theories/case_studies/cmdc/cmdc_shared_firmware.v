@@ -81,7 +81,7 @@ Definition cmdc_shared_firmware `{MP : MachineParameters} : firmware := {|
 (** The image of the firmware, from the records of its sections. *)
 Definition cmdc_shared_img (sw : img_switcher) (asrt : img_assert) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main B C sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("B", B); ("C", C); ("sched", sched)]
+  MkFwImage sw asrt default_img_locks [("main", main); ("B", B); ("C", C); ("sched", sched)]
     [t0; t1] idle boot.
 
 (** The start of the firmware: some layout, with the flag of the assert

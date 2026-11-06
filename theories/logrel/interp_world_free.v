@@ -313,6 +313,40 @@ Section logrel_threads.
 
 End logrel_threads.
 
+Section logrel_store.
+
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ}
+    {relg : relGS Σ}
+    {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads}
+    {CL : ∀ t, CritLink Σ t}
+    `{MP: MachineParameters}
+    {CR : ∀ t, CritRoute Σ t (CL t)}
+  .
+
+  (** A word stored through a capability that is not write-local is valid
+      in every world, at every thread: it is either untagged or not local. *)
+  Lemma interp_store_every_thread W C p w :
+    isWL p = false →
+    interp W C w -∗ ∀ t : Thread, safeGC (interp_in_mem (th := t) RWL) (C, lstore_word p w).
+  Proof.
+    iIntros (Hwl) "#Hw". iIntros (t).
+    iApply (interp_to_in_mem (th := t)).
+    destruct (canStore p w.(lw)) eqn:Hcs.
+    - rewrite lstore_word_canStore //.
+      rewrite -(interp_global_thread_world_free th t W ∅ C w); first done.
+      by eapply canStore_global_nonisWL.
+    - assert (lstore_word p w = lclear_tag w) as ->.
+      { by rewrite /lstore_word /lclear_tag /lift_word /store_word Hcs. }
+      iApply interp_clear_tag.
+  Qed.
+
+End logrel_store.
+
 (** The trap path of the logical relation: trap entry and the trap
     vector, at the thread's link. *)
 Section logrel_trap.

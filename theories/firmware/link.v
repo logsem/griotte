@@ -1,5 +1,5 @@
 From stdpp Require Import gmap strings.
-From griotte Require Import machine_base machine_parameters switcher assert compartment_layout.
+From griotte Require Import machine_base machine_parameters switcher assert locks compartment_layout.
 From griotte Require Import image firmware firmware_ok.
 
 #[local] Open Scope string_scope.
@@ -7,9 +7,10 @@ From griotte Require Import image firmware firmware_ok.
 (** * A linker for concrete instances
 
     [link cfg fw] lays out the firmware [fw] from the address [lk_base cfg]
-    on, section after section: the switcher, the assert library, then for
-    each compartment its export table, its PCC range, its globals and its
-    static sealed objects, then for each thread its trusted stack and its
+    on, section after section: the switcher, the assert library, the lock
+    library when a compartment imports it, then for each compartment its
+    export table, its PCC range, its globals and its static sealed
+    objects, then for each thread its trusted stack and its
     stack, then the idle thread's trusted stack and hazard slots, and the
     boot stack. The contents of the untrusted compartments, including their
     error handler offsets, the code and globals of the scheduler, and the
@@ -109,7 +110,10 @@ Section link.
     let ret := (b + 5 + Z.of_nat (length switcher_call_instrs))%Z in
     let cap := (esw + Z.of_nat (length assert_subroutine_instrs))%Z in
     let flag := (cap + 1)%Z in
-    let '(cs, a) := place_cmpts (flag + 1) (fw_cmpts fw) in
+    let blk := (flag + 1)%Z in
+    let elk := match fw_uses_try_lock fw with [] => blk
+               | _ => (blk + Z.of_nat (length locks_try_lock_instrs))%Z end in
+    let '(cs, a) := place_cmpts elk (fw_cmpts fw) in
     let '(ts, a') := place_threads a (fw_threads fw) in
     let eits := (a' + tstack_frame_offset 1)%Z in
     let eihz := (eits + 2)%Z in
@@ -117,6 +121,7 @@ Section link.
     (MkFwImage
        (MkImgSwitcher (mk_addr b) (mk_addr esw) (mk_addr call) (mk_addr ret) (lk_ot_switcher cfg))
        (MkImgAssert (mk_addr esw) (mk_addr flag) (mk_addr cap) (mk_addr flag))
+       (MkImgLocks (mk_addr blk) (mk_addr elk))
        cs ts
        (MkImgIdleThread (mk_addr a') (mk_addr eits) (mk_addr eits) (mk_addr eihz))
        (MkImgBootStack (mk_addr eihz) (mk_addr eboot) (lk_boot cfg)),
@@ -153,7 +158,8 @@ Section link.
     let '(img, a) := place fw in
     match (finz.of_z a : option Addr) with
     | Some _ =>
-        Some (MkFwImage (img_sw img) (img_asrt img) (map (fill_cmpt fw img) (fw_cmpts fw))
+        Some (MkFwImage (img_sw img) (img_asrt img) (img_lck img)
+                (map (fill_cmpt fw img) (fw_cmpts fw))
                 (img_threads img) (img_idle img) (img_boot img))
     | None => None
     end.

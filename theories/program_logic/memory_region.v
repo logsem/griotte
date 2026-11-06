@@ -514,6 +514,20 @@ Section codefrag.
 
 End codefrag.
 
+(** A persistent region holding the lifted words of [cs] is a persistent
+    code fragment. *)
+Lemma codefrag_pers_of_region {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}
+    (a0 e : Addr) (cs : list Word) :
+  (a0 + length cs)%a = Some e →
+  [[ a0 , e ]] ↦ₐ□ [[ lword_of_word <$> cs ]] -∗ codefrag_pers a0 cs.
+Proof.
+  iIntros (He) "Hcs".
+  rewrite codefrag_pers_unseal /codefrag_pers_def.
+  iSplit; first (iPureIntro; by exists e).
+  rewrite region_pointsto_pers_cells; last by rewrite length_fmap.
+  by rewrite big_sepL_fmap.
+Qed.
+
 Section codefrag_thread.
   Context {Σ:gFunctors} {ceriseb:ceriseBaseG Σ}.
 

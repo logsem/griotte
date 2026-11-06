@@ -74,7 +74,7 @@ Definition tsy_firmware `{MP : MachineParameters} : firmware := {|
     its sections. *)
 Definition tsy_img (sw : img_switcher) (asrt : img_assert) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (K B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("K", K); ("B", B); ("sched", sched)] [t0; t1] idle boot.
+  MkFwImage sw asrt default_img_locks [("K", K); ("B", B); ("sched", sched)] [t0; t1] idle boot.
 
 (** The start of the firmware: some layout, with the flag of the assert
     library at [flag], such that [σ] is the state the loader builds. *)

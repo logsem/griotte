@@ -263,7 +263,7 @@ FIELD_REGION = {"cmpt_imports": "PCC range", "cmpt_code": "PCC range",
                 "cmpt_exp_tbl_handler_stackless": "export table"}
 CMPT_SUBS = set(FIELD_REGION.values())
 # Shown after the compartments, in this order of appearance.
-LIBRARY_OWNERS = {"switcher", "assert", "allocator"}
+LIBRARY_OWNERS = {"switcher", "assert", "locks", "allocator"}
 FIELD_NOTE = {"cmpt_exp_tbl_handler": "error handler",
               "cmpt_exp_tbl_handler_stackless": "stackless handler"}
 EXPORT_TABLE_NO_HANDLER = 0xffff  # ExportTable_no_handler
@@ -347,6 +347,8 @@ class Model:
             return "switcher"
         if ty.endswith("assert"):
             return "assert"
+        if ty.endswith("locks"):
+            return "locks"
         if ty.endswith("thread"):
             m = re.fullmatch(r"t(\d+)", var)
             return f"thread {m.group(1)}" if m else var

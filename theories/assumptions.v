@@ -17,7 +17,7 @@ From griotte Require
   thread_synchronisation_adequacy
 .
 From griotte Require Import
-  machine_base griotte_opsem switcher assert allocator_resources compartment_layout
+  machine_base griotte_opsem switcher assert locks allocator_resources compartment_layout
   kvs kvs_main cmdc deep_locality deep_immutability lse stack_object vae error_handling
   temporal_isolation interrupt_status thread_synchronisation.
 (* Imported last: the fields of the image records. *)

@@ -30,6 +30,7 @@ Section KVS_Service.
 
   (*
     Import+UNSEALING_USER_KEY_OFFSET  : [U, Global, OUserKey, OUserKey + 1, OUserKey]
+    Import+TRY_LOCK_OFFSET            : the sentry of [try_lock]
 
     ca0 : sealedUserKey
     ca1 : key
@@ -42,6 +43,7 @@ Section KVS_Service.
     cgp45 : option15
     cgp46 : key15
     cgp47 : val15
+    cgp48 : lock
    *)
   Definition SIZE_MAP := 16.
 
@@ -50,6 +52,8 @@ Section KVS_Service.
 
   Definition ASM_SIZEOF_KVS_ENTRY : Z := 3.
   Definition UNSEALING_USER_KEY_OFFSET := 1.
+  Definition KVS_LOCK_OFFSET : Z := ASM_SIZEOF_KVS_ENTRY * SIZE_MAP.
+  Definition TRY_LOCK_OFFSET : nat := 2.
 
   (** CHERIoT-C++ code of `getFullKey`:
 <<
@@ -218,23 +222,63 @@ bool dyn_check_uint16(MKeyT mk) {
     encodeInstrsW (kvs_check_uint16 rv rdst).
 
 
+  (** [acquire()]: [cgp] at the base of the globals. Spins until
+      [try_lock] takes the lock, yielding between attempts; then [cs0]
+      holds the capability to the lock word. Clobbers [ct0], [ct1],
+      [ct2], [cs1]. *)
+  Definition kvs_acquire_asm : list asm_code :=
+    macro: (
+      [ mov cs1 cgp;
+        lea cs1 cs1 KVS_LOCK_OFFSET;
+        geta ct0 cs1;
+        add ct1 ct0 1;
+        subseg cs1 cs1 ct0 ct1;   (* cs1 -> lock *)
+        (* while (try_lock(&lock) != 0) { yield(); } *)
+        #".acquire_retry";
+        mov ct0 cs1 ] ++
+      fetch_asm ".Limport_try_lock" ct1 ++
+      [ mov ct2 cra;              (* ct2 -> the return to the switcher *)
+        jalr cra ct1;
+        mov cra ct2;
+        jeqz (".acquire_done")%asm ct0;
+        ecall;                    (* yield(); *)
+        jmp (".acquire_retry")%asm;
+        #".acquire_done";
+        mov ct2 0;
+        mov cs0 cs1;              (* cs0 -> lock, until the release *)
+        mov cs1 0 ]).
+
+  (** [cgp] restricted to the table, for [search]. Clobbers [ct0], [ct1]. *)
+  Definition kvs_table_asm : list asm_code :=
+    [ geta ct0 cgp;
+      add ct1 ct0 KVS_LOCK_OFFSET;
+      subseg cgp cgp ct0 ct1 ].
+
+  (** [release()]. *)
+  Definition kvs_release_asm : list asm_code :=
+    [ store cs0 0;
+      mov cs0 0 ].
+
   (** CHERIoT-C++ code of `insert`:
 <<
 bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
 {
   if ( !dyn_check_uint16( mk ) ) { return false; }
   FKeyT fk = getFullKey(suk, mk);
+  acquire();
 
   // Search if the full key already exists
   pair<int, int> res = search(fk);
   // The key exists and is updated
   if ( res.first != -1 )
-  { entries[res.first]->second = val; return true; }
+  { entries[res.first]->second = val; release(); return true; }
   // The key does not exists, check if there is an empty spot
   if (res.second != -1) {
     entries[res.second] = {fk, val};
+    release();
     return true;
   }
+  release();
   return false;
 }
 >>
@@ -267,6 +311,8 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
+      (#".LaddOrUpdate_acquire" :: kvs_acquire_asm) ;
+      (#".LaddOrUpdate_table" :: kvs_table_asm) ;
       (kvs_search_asm ca0 ctp ct1 ct2) ;
       (* ctp: -1 if element not found  *)
       (* ct1: -1 if no empty slot, otherwise index of empty slot *)
@@ -284,8 +330,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         (* no empty slot found, return false *)
         #".addOrUpdate_empty_slot_not_found";
         mov ca0 ASM_FALSE;
-        mov ca1 0;
-        jalr cnull cra;
+        jmp (".addOrUpdate_release")%asm;
         (* empty slot found: insert some/key/value *)
 
         #".addOrUpdate_empty_slot_found";
@@ -302,8 +347,7 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         store cgp ca2;
         (* return true *)
         mov ca0 ASM_TRUE;
-        mov ca1 0;
-        jalr cnull cra;
+        jmp (".addOrUpdate_release")%asm;
 
         (* key was found, we know that [cgp] points-to it *)
         #".addOrUpdate_key_found";
@@ -311,11 +355,11 @@ bool __cheri_compartment("kvs") insert(Sealed<UKeyT> suk, MKeyT mk, Val val)
         lea cgp cgp 2;
         store cgp ca2;
         (* return true *)
-        mov ca0 ASM_TRUE;
-        mov ca1 0;
-        jalr cnull cra
-
-      ]
+        mov ca0 ASM_TRUE
+      ] ;
+      (#".addOrUpdate_release" :: kvs_release_asm) ++
+      [ mov ca1 0;
+        jalr cnull cra ]
     ].
 
 
@@ -325,13 +369,15 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
 {
     if ( !dyn_check_uint16( mk ) ) { return nullopt; }
     FKeyT fk = getFullKey(suk, mk);
+    acquire();
 
     // Search if the full key exists
     pair<int, int> res = search(fk);
     // The key exists and is read
     if ( res.first != -1 )
-    { return entries[res.second]->second; }
+    { Val v = entries[res.first]->second; release(); return v; }
     // The key is not found
+    release();
     return nullopt;
 }
 >>
@@ -363,6 +409,8 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
+      (#".Lread_acquire" :: kvs_acquire_asm) ;
+      (#".Lread_table" :: kvs_table_asm) ;
       (kvs_search_asm ca0 ctp ct1 ct2) ;
       [
         sub ctp ctp (-1)%Z;
@@ -378,10 +426,10 @@ optional<Val> __cheri_compartment("kvs") read(Sealed<UKeyT> suk, MKeyT mk)
         lea cgp cgp 2;
         load ca1 cgp;
         (* return true *)
-        mov ca0 ASM_TRUE;
-        #".read_key_ret";
-        jalr cnull cra
-      ]
+        mov ca0 ASM_TRUE
+      ] ;
+      (#".read_key_ret" :: kvs_release_asm) ++
+      [ jalr cnull cra ]
     ].
 
   (** CHERIoT-C++ code of `erase`:
@@ -390,12 +438,14 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 {
     if ( !dyn_check_uint16( mk ) ) { return; }
     FKeyT fk = getFullKey(suk, mk);
+    acquire();
 
     // Search if the full key already exists
     pair<int, int> res = search(fk);
     // The key exists and is erased
     if ( res.first != -1 )
-    { entries[res.second] = nullopt; }
+    { entries[res.first] = nullopt; }
+    release();
 }
 >>
    *)
@@ -425,6 +475,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
       (* ca0 contains the full key *)
       ;
       [ mov ca0 ctp ] ;
+      (#".Lerase_acquire" :: kvs_acquire_asm) ;
+      (#".Lerase_table" :: kvs_table_asm) ;
       (kvs_search_asm ca0 ctp ct1 ct2) ;
       [
         sub ctp ctp (-1)%Z;
@@ -432,16 +484,16 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
         (* key was found, we know that [cgp] points-to it *)
         (* return void *)
         #".erase_key_not_found";
-        jmp (".erase_return");
+        jmp (".erase_return")%asm;
         #".erase_key_found";
         (* erase the key *)
-        store cgp ASM_NONE;
-        #".erase_return";
-        (* return void *)
+        store cgp ASM_NONE
+      ] ;
+      (#".erase_return" :: kvs_release_asm) ++
+      [ (* return void *)
         mov ca0 0;
         mov ca1 0;
-        jalr cnull cra
-      ]
+        jalr cnull cra ]
     ].
 
   (** The imports of the service are named by data symbols, before the code
@@ -449,7 +501,8 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
       that their fetches resolve the symbols. *)
   Definition kvs_import_symbols_asm : list asm_code :=
     [ #@".Limport_switcher";
-      #@".Limport_unsealing_key"
+      #@".Limport_unsealing_key";
+      #@".Limport_try_lock"
     ].
 
   Definition kvs_service_asm : list (list asm_code) :=
@@ -500,14 +553,16 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
   #[local] Definition kvs_service_unsealing_key_pre (KVS_OTYPE : OType) :=
     SealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1) KVS_OTYPE.
 
-  #[local] Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
+  #[local] Definition kvs_imports_pre (b_switcher e_switcher a_cc_switcher : Addr)
+    (b_locks e_locks : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
       Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_cc_switcher;
-      (kvs_service_unsealing_key_pre KVS_OTYPE)
+      (kvs_service_unsealing_key_pre KVS_OTYPE);
+      Sentry FwdDisable RX Global b_locks e_locks b_locks
     ].
 
-  Definition length_kvs_imports := length (kvs_imports_pre za za za za_ot za_ot).
+  Definition length_kvs_imports := length (kvs_imports_pre za za za za za za_ot za_ot).
 
   Fixpoint repeat_list `{A : Type} (l : list A) (n : nat) : list A :=
     match n with
@@ -515,8 +570,9 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     | S n => l ++ repeat_list l n
     end.
 
+  (** The table, then the lock word, free. *)
   Definition kvs_data :=
-    repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP.
+    repeat_list [WInt ASM_NONE;WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP ++ [WInt 0].
 
   Definition length_kvs_data := length kvs_data.
 
@@ -620,8 +676,9 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
 
   Definition kvs_service_unsealing_key {KVS : kvsLayout} :=
     SealRange (false, true) Global KVS_OTYPE (KVS_OTYPE^+1) KVS_OTYPE.
-  Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr) (ot_switcher : OType) :=
-    kvs_imports_pre b_switcher e_switcher a_cc_switcher KVS_OTYPE ot_switcher.
+  Definition kvs_imports {KVS : kvsLayout} (b_switcher e_switcher a_cc_switcher : Addr)
+    (b_locks e_locks : Addr) (ot_switcher : OType) :=
+    kvs_imports_pre b_switcher e_switcher a_cc_switcher b_locks e_locks KVS_OTYPE ot_switcher.
 
   Definition kvs_full_key (user_key nkey : Z) := Z.lor (user_key ≪ 16) nkey.
 

@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode.
 From griotte Require Import logrel rules.
-From griotte Require Import switcher switcher_link kvs.
+From griotte Require Import switcher switcher_link kvs locks locks_spec.
 From griotte Require Export seal_registry.
 
 
@@ -1191,10 +1191,10 @@ Section KVS_init.
 
   Lemma kvs_initial_map_init (b e : Addr) :
     (b + (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))%a = Some e ->
-    ([[b,e]]↦ₐ[[lword_of_word <$> kvs_data]]) -∗
+    ([[b,e]]↦ₐ[[lword_of_word <$> repeat_list [WInt ASM_NONE; WInt EMPTY_SLOT; WInt DEFAULT_VAL] SIZE_MAP]]) -∗
     [∗ map] idx↦kw ∈ kvs_physical_map_init, physical_kvs_entry b idx kw.
   Proof.
-    rewrite /kvs_physical_map_init /kvs_data.
+    rewrite /kvs_physical_map_init.
     generalize dependent e.
     replace b with (b^+(ASM_SIZEOF_KVS_ENTRY*0%nat)) by solve_addr.
     rewrite {3}(_ : b^+(ASM_SIZEOF_KVS_ENTRY*0%nat) = b); last solve_addr.
@@ -1302,9 +1302,89 @@ Proof.
 Qed.
 
 (** The namespaces of the KVS: its physical and logical invariants
-    ([Nkvs .@ "physical"], [Nkvs .@ "logical"]) and its otype. *)
+    ([Nkvs .@ "physical"], [Nkvs .@ "logical"]), and its lock. *)
 Definition Nkvs : namespace := nroot .@ "kvs".
-Definition Nkvs_otype : namespace := nroot .@ "kvs_otype".
+Definition Nkvs_lock : namespace := nroot .@ "kvs" .@ "lock".
+
+(** * The lock of the KVS
+
+    The table, the logical map and the maps of the users registered at boot
+    are the resource of the lock. [kvs_users] maps the user key of each
+    registered user (the static sealed keys of untrusted compartments) to
+    the compartment its values are valid in. Nothing here depends on the
+    thread: both threads take the lock. *)
+Section KVS_lock.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {cthreads : CmptThreads}
+    {sealsg: sealStoreG Σ}
+    {stsg : STSG Σ} {relg : relGS Σ}
+    {kvsg:kvsG Σ}
+    {cstackg : CSTACKG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+    {KVS : kvsLayout}
+    (kvs_users : gmap user_key_t CmptName)
+  .
+
+  (** A map entry of a user: a word valid in every world of [C], at every
+      thread, or none. *)
+  Definition safe_kvs_pointsto (C : CmptName) (uk : user_key_t) (mk : map_key_t) : iProp Σ :=
+    (∃ (w : LWord), (uk,mk)↦(KVS) w ∗ ∀ t : Thread, safeGC (interp_in_mem (th := t) RWL) (C, w))
+    ∨
+      (uk,mk)↦(KVS) ⊥.
+
+  (** The lock word, after the table. *)
+  Definition kvs_lock_addr : Addr := (KVS_cgp_b ^+ KVS_LOCK_OFFSET)%a.
+
+  (** The resource of the lock, thread-free: the table, the logical map,
+      and the maps of the registered users. The table's points-to are the
+      base's memory, here through the instance of the thread 0. *)
+  Definition kvs_R : iProp Σ :=
+    physical_kvs_inv (Σ := Σ) (ceriseg := ceriseG_of (UserThread 0)) ∗
+    logical_kvs_inv ∗
+    ([∗ map] uk ↦ C ∈ kvs_users,
+       user_kvs_inv uk ∗
+       [∗ set] mk ∈ kvs_all_map_keys, safe_kvs_pointsto C uk mk).
+
+  Definition kvs_lock : iProp Σ := lock_inv Nkvs_lock kvs_lock_addr kvs_R.
+
+  #[global] Instance kvs_lock_persistent : Persistent kvs_lock.
+  Proof. apply _. Qed.
+
+  (** The table at any thread is the table at the thread 0. *)
+  Lemma physical_kvs_inv_thread_indep (t t' : Thread) :
+    physical_kvs_inv (Σ := Σ) (ceriseg := ceriseG_of t) ⊣⊢
+    physical_kvs_inv (Σ := Σ) (ceriseg := ceriseG_of t').
+  Proof. rewrite /ceriseG_of. reflexivity. Qed.
+
+  (** The predicate of a sealed user key: a Global read-only capability on
+      a static word holding a registered user key, whose values are valid
+      in the compartment [C]. It does not depend on the thread nor on the
+      world, and it is persistent and timeless: no invariant holds the
+      registered keys. *)
+  Definition kvs_otype_propC (x : Thread * WORLD * CmptName * LWord) : iProp Σ :=
+    ∃ (a : Addr) (uk : user_key_t),
+      ⌜ sealed_cap_key x.2 = Some (LNonHeap a) ⌝ ∗
+      ⌜ static_word_shape x.2 ⌝ ∗
+      a ↦ₐ□ WInt uk ∗
+      ⌜ kvs_users !! uk = Some x.1.2 ⌝.
+
+  #[global] Instance kvs_otype_propC_persistent x :
+    Persistent (kvs_otype_propC x).
+  Proof. rewrite /kvs_otype_propC. apply _. Qed.
+
+  #[global] Instance kvs_otype_propC_timeless x :
+    Timeless (kvs_otype_propC x).
+  Proof. rewrite /kvs_otype_propC. apply _. Qed.
+
+  Lemma kvs_otype_kind_ok (C : CmptName) : ⊢ seal_kind_ok SealGlobal C kvs_otype_propC.
+  Proof.
+    iSplit; first (iPureIntro; intros x; apply _).
+    iIntros "!>" (t t' W W' w) "H". done.
+  Qed.
+
+End KVS_lock.
 
 Section KVS_preamble.
   Context
@@ -1313,21 +1393,23 @@ Section KVS_preamble.
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {relg : relGS Σ}
     {kvsg:kvsG Σ}
-    {seal_registryg : sealRegistryG LAddr Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters}
     {swlayout : switcherLayout}
+    {LK : locksLayout}
   .
 
   (** The read-only memory of the KVS service, its imports and its code, is
-      persistent: it is not in the invariant. *)
+      persistent: it is not in the invariant. So is the code of the lock
+      library. *)
   Definition kvs_static
     {KVS : kvsLayout} : iProp Σ :=
     let imports :=
-      kvs_imports b_switcher e_switcher a_switcher_call ot_switcher
+      kvs_imports b_switcher e_switcher a_switcher_call b_locks e_locks ot_switcher
     in
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ□ [[ lword_of_word <$> imports ]] ∗
-      codefrag_pers KVS_pcc_b' kvs_service_instrs.
+      codefrag_pers KVS_pcc_b' kvs_service_instrs ∗
+      lock_static.
 
   #[global] Instance kvs_static_persistent {KVS : kvsLayout} :
     Persistent kvs_static.
@@ -1349,113 +1431,82 @@ Section KVS_preamble.
     iIntros "[(_ & $ & _) _]".
   Qed.
 
+  (** The sentry of [try_lock], loaded by the service from its import
+      table. *)
+  Lemma kvs_static_try_lock {KVS : kvsLayout} {KVS_wf : kvsLayoutWf} :
+    kvs_static ⊢
+    (KVS_pcc_b ^+ TRY_LOCK_OFFSET) ↦ₐ□ lword_of_word try_lock_entry.
+  Proof.
+    pose proof KVS_size_imports as Hsize.
+    rewrite /length_kvs_imports /= in Hsize.
+    rewrite /kvs_static /region_pointsto_pers /kvs_imports /kvs.kvs_imports_pre.
+    rewrite !fmap_cons fmap_nil.
+    rewrite (finz_seq_between_cons KVS_pcc_b); last solve_addr.
+    rewrite (finz_seq_between_cons (KVS_pcc_b ^+ 1)); last solve_addr.
+    rewrite (finz_seq_between_cons (KVS_pcc_b ^+ 1 ^+ 1)); last solve_addr.
+    rewrite (_ : (KVS_pcc_b ^+ 1 ^+ 1)%a = (KVS_pcc_b ^+ TRY_LOCK_OFFSET)%a);
+      last (rewrite /TRY_LOCK_OFFSET; solve_addr).
+    iIntros "[(_ & _ & $ & _) _]".
+  Qed.
+
   Definition kvs_inv
     {KVS : kvsLayout} : iProp Σ :=
       physical_kvs_inv.
 
-  (** A map entry of a user: a word valid in every world of [C], or none. *)
-  Definition safe_kvs_pointsto (C : CmptName) (uk : user_key_t) (mk : map_key_t) : iProp Σ :=
-    (∃ (w : LWord), (uk,mk)↦(KVS) w ∗ interp_in_mem_gC (C, w))
-    ∨
-      (uk,mk)↦(KVS) ⊥.
-
-  (** The contents of the registry at the key of a sealed user key, for the
-      compartment [C]: the user key word, and the user's map. *)
-  Definition kvs_sealed_obj_resources (C : CmptName) (k : LAddr) : iProp Σ :=
-    ∃ (uk : user_key_t) (a : Addr),
-      ⌜ k = LNonHeap a ⌝ ∗
-      a ↦ₐ WInt uk ∗
-      user_kvs_inv uk ∗
-      ([∗ set] mk ∈ kvs_all_map_keys, safe_kvs_pointsto C uk mk).
-
-  (** The registry: its invariant holds the contents of every recorded
-      key. *)
-  Definition kvs_otype_registry {KVS : kvsLayout} : iProp Σ :=
-    registry_inv (tpool th) Nkvs_otype KVS_OTYPE kvs_sealed_obj_resources.
-
-  #[global] Instance kvs_otype_registry_persistent {KVS : kvsLayout} :
-    Persistent kvs_otype_registry.
-  Proof. rewrite /kvs_otype_registry. apply _. Qed.
-
-  (** The predicate of a sealed user key: a Global read-only capability on
-      a static word, whose key is recorded in the registry for the
-      compartment. *)
-  Definition kvs_otype_propC {KVS : kvsLayout} : Thread * WORLD * CmptName * LWord -> iProp Σ :=
-    registry_propC KVS_OTYPE sealed_cap_key static_word_shape.
-
-  #[global] Instance kvs_otype_propC_persistent {KVS : kvsLayout} x :
-    Persistent (kvs_otype_propC x).
-  Proof. rewrite /kvs_otype_propC. apply _. Qed.
-
-  #[global] Instance kvs_otype_propC_timeless {KVS : kvsLayout} x :
-    Timeless (kvs_otype_propC x).
-  Proof. rewrite /kvs_otype_propC. apply _. Qed.
-
-  (** The predicate does not depend on the thread nor on the world. *)
-  Lemma kvs_otype_kind_ok {KVS : kvsLayout} (C : CmptName) :
-    ⊢ seal_kind_ok SealGlobal C kvs_otype_propC.
-  Proof. rewrite /kvs_otype_propC. apply registry_kind_ok. Qed.
-
-  (** A valid word sealed with [KVS_OTYPE] is a sealed user key, whose key
-      the registry records for [C]. The user key word comes out of the
-      registry now, the user's map after a step; the registry is closed
-      again with any contents of the same user key. The validity of a sealed
-      word does not depend on the world, so [w] may be valid in any world
-      [Ww]. *)
-  Lemma kvs_otype_acc {KVS : kvsLayout} (E F : coPset) (Ww : WORLD) (C : CmptName) (w : LWord) :
-    ↑Nkvs_otype ⊆ F → ↑Nkvs_otype ⊆ E →
-    get_tag w.(lw) = true ->
-    is_sealed_with_o w.(lw) KVS_OTYPE = true ->
-    kvs_otype_registry -∗
-    KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC -∗
-    interp Ww C w -∗
-    na_own (tpool th) F
+  (** A valid word sealed with [KVS_OTYPE]: its key word and its user. The
+      validity of a sealed word does not depend on the world, so [w] may be
+      valid in any world [W]. *)
+  Lemma kvs_otype_acc {KVS : kvsLayout} (kvs_users : gmap user_key_t CmptName)
+    (E : coPset) (W : WORLD) (C : CmptName) (w : LWord) :
+    get_tag w.(lw) = true →
+    is_sealed_with_o w.(lw) KVS_OTYPE = true →
+    KVS_OTYPE ↪ₒ{SealGlobal} kvs_otype_propC kvs_users -∗
+    interp W C w
     ={E}=∗
     ∃ (g : Locality) (a : Addr) (uk : user_key_t),
       ⌜ w = lword_of_word (WSealed KVS_OTYPE (kvs_user_seal_key_scap g a)) ⌝ ∗
       ⌜ withinBounds a (a ^+ 1) a = true ⌝ ∗
       ⌜ is_shadow_address a = false ⌝ ∗
-      a ↦ₐ WInt uk ∗
-      ▷ user_kvs_inv uk ∗
-      ▷ ([∗ set] mk ∈ kvs_all_map_keys, safe_kvs_pointsto C uk mk) ∗
-      na_own (tpool th) (F ∖ ↑Nkvs_otype) ∗
-      (▷ (a ↦ₐ WInt uk ∗
-          user_kvs_inv uk ∗
-          ([∗ set] mk ∈ kvs_all_map_keys, safe_kvs_pointsto C uk mk)) ∗
-        na_own (tpool th) (F ∖ ↑Nkvs_otype)
-        ={E}=∗ na_own (tpool th) F).
+      a ↦ₐ□ WInt uk ∗
+      ⌜ kvs_users !! uk = Some C ⌝.
   Proof.
-    iIntros (HF HE Htag Hsealed) "#Hreg #Hspred #Hinterp Hna".
+    iIntros (Htag Hsealed) "#Hspred #Hinterp".
     destruct w as [w π].
     destruct w as [ | | | ot sb]; try done.
     rewrite /is_sealed_with_o Z.eqb_eq in Hsealed.
     assert (ot = KVS_OTYPE) as -> by solve_addr+Hsealed.
-    iMod (registry_acc (tpool th) Nkvs_otype KVS_OTYPE sealed_cap_key static_word_shape
-            kvs_sealed_obj_resources E F Ww C sb π
-           with "Hreg Hspred Hinterp Hna")
-      as (k) "(%Hkey & %Hshape & Hk & Hna & Hclose)"; [done|done|exact Htag|].
-    destruct Hshape as (a & Heq_w & Hbounds & Hshadow).
+    iDestruct (interp_sb_elim W C KVS_OTYPE SealGlobal (kvs_otype_propC kvs_users) sb π Htag
+                with "Hspred Hinterp") as "[HP _]".
+    (* The seal predicate is timeless: its later goes. *)
+    iMod "HP" as (a uk) "(%Hkey & %Hshape & #Ha & %Huk)".
+    destruct Hshape as (a' & Heq_w & Hbounds & Hshadow).
     rewrite Heq_w in Hkey. cbn in Hkey. injection Hkey as <-.
-    destruct sb as [t p g b e a' | ]; cbn in Heq_w; simplify_eq.
+    destruct sb as [t p g b e a'' | ]; cbn in Heq_w; simplify_eq.
     rewrite /lforce_global /lift_word /force_global /= in Heq_w.
     simplify_eq.
-    (* The contents mention [interp]: only their timeless parts lose their
-       later, and no [iNext] goes over them. *)
-    rewrite /kvs_sealed_obj_resources.
-    iDestruct "Hk" as (uk a') "(>%Ha' & >Ha & Huser & Hpts)".
-    injection Ha' as <-.
     iModIntro.
-    iExists g, a, uk. iFrame "Ha Huser Hpts Hna".
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; first done.
-    iIntros "[Hres Hna]".
-    iApply ("Hclose" with "[Hres $Hna]").
-    iApply (bi.later_mono with "Hres"). iIntros "(Ha & Huser & Hpts)".
-    iExists uk, a. iFrame "Ha Huser Hpts". done.
+    iExists g, a', uk. iFrame "Ha".
+    done.
   Qed.
 
 End KVS_preamble.
+
+Section KVS_static_thread.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout}
+    {LK : locksLayout}
+    {KVS_layout : kvsLayout}
+  .
+
+  (** The read-only memory of the KVS does not depend on the thread. *)
+  Lemma kvs_static_thread_indep (t t' : Thread) :
+    kvs_static (th := t) ⊣⊢ kvs_static (th := t').
+  Proof. rewrite /kvs_static /lock_static !(codefrag_pers_thread_indep t t'). done. Qed.
+
+End KVS_static_thread.
 
 Section UserKvsInit.
     Context
@@ -1465,25 +1516,28 @@ Section UserKvsInit.
         `{MP: MachineParameters}
         {KVS : kvsLayout} {kvslayoutwf : kvsLayoutWf}
         {swlayout : switcherLayout}
-
+        {LK : locksLayout}
     .
   Context {kvs_alloc_preg: gen_heapGpreS user_key_t kvs_user_map Σ}.
   Context {kvs_physical_user_preg : ghost_varG Σ kvs_physical_map }.
   Context {kvs_logical_user_preg : ghost_mapG Σ user_key_t (option LWord) }.
 
   (** Initialisation of the user kvs resources, assuming an initial empty KVS.
-     `UK` is the _finite_ set of user keys that we want to initialise. *)
+     `UK` is the _finite_ set of user keys that we want to initialise. The
+     table, the logical map and the lock word come out apart, for the
+     resource of the lock. *)
   Lemma user_kvs_init
     {E : coPset}
     (UK : gset user_key_t)
     :
     let imports :=
-      @kvs_imports KVS b_switcher e_switcher a_switcher_call ot_switcher
+      @kvs_imports KVS b_switcher e_switcher a_switcher_call b_locks e_locks ot_switcher
     in
 
     (
       [[ KVS_pcc_b , KVS_pcc_b' ]] ↦ₐ [[ lword_of_word <$> imports ]]
       ∗ codefrag KVS_pcc_b' kvs_service_instrs
+      ∗ lock_static
       ∗ [[KVS_cgp_b,KVS_cgp_e]]↦ₐ[[lword_of_word <$> kvs.kvs_data]]
     )
     ={E}=∗
@@ -1496,8 +1550,9 @@ Section UserKvsInit.
         let kvsuserg := Build_KvsUserG Σ kvs_logical_user_preg γf in
         let kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg in
         kvs_static ∗
-        na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
-        na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+        kvs_lock_addr ↦ₐ WInt 0 ∗
+        physical_kvs_inv ∗
+        logical_kvs_inv ∗
         ([∗ set] uk ∈ UK,
            (user_kvs_inv uk
             ∗ [∗ set] mk ∈ kvs_all_map_keys, (uk, mk)↦(KVS) ⊥))
@@ -1505,7 +1560,7 @@ Section UserKvsInit.
   .
   Proof.
     intros kvs_imports.
-    iIntros "(Hkvs_imports & Hkvs_code & Hkvs_data)".
+    iIntros "(Hkvs_imports & Hkvs_code & #Hlock_static & Hkvs_data)".
     iMod (ghost_var_alloc kvs_physical_map_init) as (γpkvs) "[Hpkvs Hpkvs']".
     pose kvsphysicalg := Build_KvsPhysicalG Σ kvs_physical_user_preg γpkvs.
     set (lkvs_init := (gset_to_gmap ∅ UK : kvs_logical_map)).
@@ -1517,25 +1572,35 @@ Section UserKvsInit.
     pose kvsg := KvsG Σ kvsphysicalg kvslogicalg kvsuserg.
     iExists γpkvs, kvs_logical_heapg, γf.
 
-    (* Allocate the KVS invariants *)
     iMod (region_pointsto_persist with "Hkvs_imports") as "#Hkvs_imports".
     iMod (codefrag_persist with "Hkvs_code") as "#Hkvs_code".
-    iMod (na_inv_alloc (tpool th) _ (Nkvs.@"physical") kvs_inv
-           with "[Hkvs_data Hpkvs']") as "#Hkvs".
-    { iNext.
-      iFrame "∗".
+    iFrame "Hkvs_imports Hkvs_code Hlock_static".
+    iClear "Hkvs_imports Hkvs_code Hlock_static".
+    iModIntro.
+
+    (* The table, then the lock word *)
+    pose proof KVS_size_data as Hdata_size.
+    rewrite /length_kvs_data /kvs.kvs_data fmap_app in Hdata_size |- *.
+    rewrite length_app /= in Hdata_size.
+    iDestruct (region_pointsto_split KVS_cgp_b KVS_cgp_e (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * SIZE_MAP))
+                with "Hkvs_data") as "[Hkvs_table Hkvs_lock]".
+    { solve_addr. }
+    { rewrite length_fmap /finz.dist; solve_addr. }
+    iDestruct (region_pointsto_single with "Hkvs_lock") as (wl) "[Hlock %Hwl]".
+    { solve_addr. }
+    injection Hwl as <-.
+    iSplitL "Hlock".
+    { rewrite /kvs_lock_addr /KVS_LOCK_OFFSET. iExact "Hlock". }
+    iSplitL "Hkvs_table Hpkvs'".
+    { iExists _. iFrame "Hpkvs'".
       rewrite /is_physical_kvs.
       iSplit.
       { iPureIntro; apply wf_kvs_physical_map_kvs_physical_map_init. }
       iEval (cbn).
-      pose proof KVS_size_data as Hdata_size.
-      iApply (kvs_initial_map_init with "Hkvs_data"); rewrite /SIZE_MAP;solve_addr+Hdata_size.
-    }
+      iApply (kvs_initial_map_init with "Hkvs_table"). solve_addr. }
 
-    iMod (na_inv_alloc (tpool th) _ (Nkvs.@"logical") logical_kvs_inv
-           with "[Hlkvs_auth Hpkvs]") as "#Hkvs_logical".
-    { iNext.
-      iFrame.
+    iSplitL "Hlkvs_auth Hpkvs".
+    { iExists _. iFrame.
       iPureIntro; apply kvs_alloc_synced_map_init.
       intros ku sk Hsk; clear -Hsk.
       rewrite /lkvs_init in Hsk.
@@ -1544,9 +1609,6 @@ Section UserKvsInit.
       + intros uk uk' Huk Huk' Heq; cbn in Heq; done.
     }
 
-    iFrame "Hkvs Hkvs_logical Hkvs_imports Hkvs_code".
-    iClear "Hkvs Hkvs_logical Hkvs_imports Hkvs_code".
-    iModIntro.
     subst lkvs_init.
     iStopProof.
 

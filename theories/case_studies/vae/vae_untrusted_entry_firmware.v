@@ -77,7 +77,7 @@ Definition vae_untrusted_entry_firmware `{MP : MachineParameters} : firmware := 
 (** The image of the firmware, from the records of its sections. *)
 Definition vae_untrusted_entry_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("C", C); ("sched", sched)] [t0] idle boot.
+  MkFwImage sw asrt default_img_locks [("main", main); ("C", C); ("sched", sched)] [t0] idle boot.
 
 (** The start of the firmware: some layout, with the flag of the assert
     library at [flag], such that [σ] is the state the loader builds. *)

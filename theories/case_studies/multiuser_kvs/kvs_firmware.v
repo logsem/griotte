@@ -11,9 +11,11 @@ From griotte Require Import image firmware firmware_ok initial_state.
 
 (** The main compartment calls the KVS service, then the adversary [B],
     then reads back its value; [B] can use the service with its own key.
-    The sealing type [ot_kvs] of the user keys and the two user keys are
-    parameters. The thread starts at the export [entry] of [main], after
-    its seven imports. *)
+    The KVS takes the lock of the lock library around its accesses to the
+    table. The sealing type [ot_kvs] of the user keys and the two user keys
+    are parameters. The thread 0 starts at the export [entry] of [main],
+    after its seven imports; the thread 1 at the export [adv] of [B]. [B]
+    is shared by the two threads. *)
 Definition kvs_firmware `{MP : MachineParameters}
     (ot_kvs : OType) (key_main key_B : Z) : firmware := {|
   fw_cmpts      := [
@@ -44,7 +46,8 @@ Definition kvs_firmware `{MP : MachineParameters}
     {| fc_name          := "kvs";
        fc_imports       := [
          ISwitcherCall;
-         FW (SealRange (false, true) Global ot_kvs (ot_kvs ^+ 1) ot_kvs)  (* unseal-only key of [ot_kvs] *)
+         FW (SealRange (false, true) Global ot_kvs (ot_kvs ^+ 1) ot_kvs);  (* unseal-only key of [ot_kvs] *)
+         ITryLock
        ];
        fc_static_sealed := [];
        fc_body          := TrustedBody {|
@@ -73,7 +76,8 @@ Definition kvs_firmware `{MP : MachineParameters}
        fc_body          := UntrustedBody {|
          ub_owner   := "B";
          ub_exports := [
-           {| ue_name := "f"; ue_nargs := 0 |}
+           {| ue_name := "f"; ue_nargs := 0 |};
+           {| ue_name := "adv"; ue_nargs := 0 |}
          ] |} |};
     {| fc_name          := "sched";
        fc_imports       := [
@@ -88,7 +92,8 @@ Definition kvs_firmware `{MP : MachineParameters}
          sb_boot_stack := 16 |} |}
   ];
   fw_threads    := [
-    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
+    {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |};
+    {| ft_cmpt := "B";    ft_entry := "adv";   ft_stack_size := 100; ft_tstack_frames := 24 |}
   ];
   fw_otypes     := [
     ot_kvs
@@ -97,19 +102,22 @@ Definition kvs_firmware `{MP : MachineParameters}
 |}.
 
 (** The image of the KVS firmware, from the records of its sections. *)
-Definition kvs_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+Definition kvs_img (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main kvs B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)] [t0] idle boot.
+  MkFwImage sw asrt lck [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)]
+    [t0; t1] idle boot.
 
 (** The start of the firmware: some layout and parameters, with the flag of the
-    assert library at [flag], such that [σ] is the state the loader
-    builds. *)
+    assert library at [flag] and the lock library at [lck], such that [σ] is
+    the state the loader builds. Two threads: the thread 0 starts in [main],
+    the thread 1 in [B], which both threads may run. *)
 Definition kvs_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+  ∃ (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack)
     (main kvs B sched : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
     fw_start [key_main ≠ key_B]
-      (kvs_firmware ot_kvs key_main key_B) (kvs_img sw asrt t0 idle boot main kvs B sched) flag σ.
+      (kvs_firmware ot_kvs key_main key_B)
+      (kvs_img sw asrt lck t0 t1 idle boot main kvs B sched) flag σ.
 
 (** The predicate, computed from [kvs_start], with its comments. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :
