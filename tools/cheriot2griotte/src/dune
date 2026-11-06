@@ -1,0 +1,18 @@
+; The cheriot2griotte executable (see ../dune). Not built by a plain
+; `dune build`.
+
+(executable
+ (name cheriot2griotte)
+ (libraries str))
+
+(ocamllex cheriot_lexer)
+
+(menhir
+ (modules cheriot_grammar))
+
+(alias
+ (name cheriot2griotte)
+ (deps cheriot2griotte.exe))
+
+(alias
+ (name default))

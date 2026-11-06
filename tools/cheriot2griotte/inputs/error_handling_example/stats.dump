@@ -1,0 +1,299 @@
+
+build/cheriot/cheriot/release/stats.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <compartment_error_handler>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	ct.csc	ra, 0x8(sp)
+       4:      	ct.csc	s0, 0x0(sp)
+       6:      	li	a3, 0x1c
+       8:      	bne	a1, a3, 0x8 <compartment_error_handler+0x8>
+			00000008:  R_RISCV_BRANCH	.L0 
+       c:      	ct.cmove	s0, a0
+      10:      	mv	a0, a2
+      12:      	ct.auipcc	ra, 0x0
+			00000012:  R_RISCV_CALL_PLT	CHERI::extract_cheri_mtval(unsigned int)
+			00000012:  R_RISCV_RELAX	*ABS*
+      16:      	ct.cjalr	ra
+      1a:      	li	a2, 0x1
+      1c:      	bne	a0, a2, 0x48 <.LBB1_9>
+      20:      	addi	a1, a1, -0x1
+      22:      	li	a0, 0xe
+      24:      	bltu	a0, a1, 0x48 <.LBB1_9>
+      28:      	slli	a1, a1, 0x3
+      2a:      	addi	a1, a1, 0x8
+      2c:      	ct.cincoffset	a1, s0, a1
+      30:      	ct.clc	a2, 0x0(a1)
+      32:      	ct.cgetlen	a0, a2
+      36:      	beqz	a0, 0x48 <.LBB1_9>
+      38:      	ct.cgetbase	a3, a2
+      3c:      	bltu	a3, s0, 0x3c <compartment_error_handler+0x3c>
+			0000003c:  R_RISCV_BRANCH	.L0 
+      40:      	addi	a0, s0, 0x80
+      44:      	bgeu	a3, a0, 0x44 <compartment_error_handler+0x44>
+			00000044:  R_RISCV_BRANCH	.L0 
+
+00000048 <.LBB1_9>:
+      48:      	ct.auicgp	a0, 0x0
+			00000048:  R_RISCV_CHERIOT_COMPARTMENT_HI	locked
+			00000048:  R_RISCV_RELAX	*ABS*
+      4c:      	ct.cincoffset	a0, a0, 0x0
+			0000004c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_9
+			0000004c:  R_RISCV_RELAX	*ABS*
+      50:      	ct.csw	zero, 0x0(a0)
+      54:      	li	a0, 0x1
+      56:      	ct.clc	ra, 0x8(sp)
+      58:      	ct.clc	s0, 0x0(sp)
+      5a:      	ct.cincoffset	sp, sp, 0x10
+      5c:      	ct.cret
+      5e:      	li	a0, 0x0
+      60:      	ct.csetaddr	a2, a2, a3
+      64:      	ct.csc	a2, 0x0(a1)
+      66:      	j	0x56 <.LBB1_9+0xe>
+
+00000068 <stats_read(int*)>:
+      68:      	ct.auicgp	a1, 0x0
+			00000068:  R_RISCV_CHERIOT_COMPARTMENT_HI	locked
+			00000068:  R_RISCV_RELAX	*ABS*
+      6c:      	ct.cincoffset	a1, a1, 0x0
+			0000006c:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_4
+			0000006c:  R_RISCV_RELAX	*ABS*
+      70:      	ct.clw	a2, 0x0(a1)
+      72:      	beqz	a2, 0x78 <stats_read(int*)+0x10>
+      74:      	li	a0, -0x10
+      76:      	j	0x82 <stats_read(int*)+0x1a>
+      78:      	li	a2, 0x1
+      7a:      	ct.csw	a2, 0x0(a1)
+      7c:      	ct.clw	a0, 0x0(a0)
+      7e:      	ct.csw	zero, 0x0(a1)
+      82:      	li	a1, 0x0
+      84:      	ct.cret
+
+00000086 <CHERI::extract_cheri_mtval(unsigned int)>:
+      86:      	ct.cincoffset	sp, sp, -0x10
+      88:      	ct.csc	ra, 0x8(sp)
+      8a:      	ct.csc	s0, 0x0(sp)
+      8c:      	mv	s0, a0
+      8e:      	andi	a0, a0, 0x1f
+      90:      	ct.auipcc	ra, 0x0
+			00000090:  R_RISCV_CALL_PLT	magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)
+			00000090:  R_RISCV_RELAX	*ABS*
+      94:      	ct.cjalr	ra
+      98:      	andi	a1, a1, 0x1
+      9a:      	slli	a2, s0, 0x15
+      9e:      	addi	a1, a1, -0x1
+      a0:      	or	s0, a1, a0
+      a4:      	srli	a0, a2, 0x1a
+      a8:      	ct.auipcc	ra, 0x0
+			000000a8:  R_RISCV_CALL_PLT	magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)
+			000000a8:  R_RISCV_RELAX	*ABS*
+      ac:      	ct.cjalr	ra
+      b0:      	andi	a1, a1, 0x1
+      b2:      	addi	a1, a1, -0x1
+      b4:      	or	a1, a1, a0
+      b6:      	mv	a0, s0
+      b8:      	ct.clc	ra, 0x8(sp)
+      ba:      	ct.clc	s0, 0x0(sp)
+      bc:      	ct.cincoffset	sp, sp, 0x10
+      be:      	ct.cret
+
+000000c0 <magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)>:
+      c0:      	ct.cincoffset	sp, sp, -0x10
+      c2:      	ct.csc	ra, 0x8(sp)
+      c4:      	mv	a1, a0
+      c6:      	ct.cincoffset	a0, sp, 0x7
+      ca:      	ct.cincoffset	a2, sp, 0x6
+      ce:      	ct.csetbounds	a0, a0, 0x1
+      d2:      	ct.csetbounds	a3, a2, 0x1
+
+000000d6 <.LBB3_1>:
+      d6:      	ct.auipcc	a2, 0x0
+			000000d6:  R_RISCV_CHERIOT_COMPARTMENT_HI	magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>
+			000000d6:  R_RISCV_RELAX	*ABS*
+      da:      	ct.cincoffset	a2, a2, 0x0
+			000000da:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB3_1
+			000000da:  R_RISCV_RELAX	*ABS*
+      de:      	ct.csetbounds	a2, a2, 0x0
+			000000de:  R_RISCV_CHERIOT_COMPARTMENT_SIZE	magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>
+      e2:      	ct.auipcc	ra, 0x0
+			000000e2:  R_RISCV_CALL_PLT	std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::CauseCode>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::CauseCode, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::CauseCode>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>&&)
+			000000e2:  R_RISCV_RELAX	*ABS*
+      e6:      	ct.cjalr	ra
+      ea:      	zext.b	a1, a1
+      ee:      	ct.clc	ra, 0x8(sp)
+      f0:      	ct.cincoffset	sp, sp, 0x10
+      f2:      	ct.cret
+
+000000f4 <magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)>:
+      f4:      	ct.cincoffset	sp, sp, -0x10
+      f6:      	ct.csc	ra, 0x8(sp)
+      f8:      	mv	a1, a0
+      fa:      	ct.cincoffset	a0, sp, 0x7
+      fe:      	ct.cincoffset	a2, sp, 0x6
+     102:      	ct.csetbounds	a0, a0, 0x1
+     106:      	ct.csetbounds	a3, a2, 0x1
+
+0000010a <.LBB4_1>:
+     10a:      	ct.auipcc	a2, 0x0
+			0000010a:  R_RISCV_CHERIOT_COMPARTMENT_HI	magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>
+			0000010a:  R_RISCV_RELAX	*ABS*
+     10e:      	ct.cincoffset	a2, a2, 0x0
+			0000010e:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB4_1
+			0000010e:  R_RISCV_RELAX	*ABS*
+     112:      	ct.csetbounds	a2, a2, 0x0
+			00000112:  R_RISCV_CHERIOT_COMPARTMENT_SIZE	magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>
+     116:      	ct.auipcc	ra, 0x0
+			00000116:  R_RISCV_CALL_PLT	std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::RegisterNumber>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::RegisterNumber, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::RegisterNumber>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>&&)
+			00000116:  R_RISCV_RELAX	*ABS*
+     11a:      	ct.cjalr	ra
+     11e:      	zext.b	a1, a1
+     122:      	ct.clc	ra, 0x8(sp)
+     124:      	ct.cincoffset	sp, sp, 0x10
+     126:      	ct.cret
+
+00000128 <std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::CauseCode>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::CauseCode, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::CauseCode>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>&&)>:
+     128:      	ct.cincoffset	sp, sp, -0x10
+     12a:      	ct.csc	ra, 0x8(sp)
+     12c:      	addi	a1, a1, 0x1
+     12e:      	li	a0, 0x19
+     130:      	bltu	a0, a1, 0x130 <std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::CauseCode>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::CauseCode, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::CauseCode>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::CauseCode>::type>>::type magic_enum::enum_cast<CHERI::CauseCode>(magic_enum::underlying_type<CHERI::CauseCode>::type)::'lambda'(CHERI::CauseCode)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::CauseCode>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::CauseCode>>::'lambda'() const&, std::__1::equal_to<void>&&)+0x8>
+			00000130:  R_RISCV_BRANCH	.L0 
+     134:      	slli	a1, a1, 0x2
+
+00000136 <.LBB5_14>:
+     136:      	ct.auipcc	a0, 0x0
+			00000136:  R_RISCV_CHERIOT_COMPARTMENT_HI	.LJTI5_0
+			00000136:  R_RISCV_RELAX	*ABS*
+     13a:      	ct.cincoffset	a0, a0, 0x0
+			0000013a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB5_14
+			0000013a:  R_RISCV_RELAX	*ABS*
+     13e:      	ct.cincoffset	a0, a0, a1
+     142:      	ct.clw	a0, 0x0(a0)
+     144:      	li	a1, 0x1
+
+00000146 <.LBB5_15>:
+     146:      	ct.auipcc	a2, 0x0
+			00000146:  R_RISCV_CHERIOT_COMPARTMENT_HI	.L_ZN10magic_enum6detail16constexpr_switchITnPDaXadL_ZNS0_8values_vIN5CHERI9CauseCodeEEEEELNS0_11case_call_tE1ELj0ENS0_16constexpr_hash_tIS5_vEEZNS_9enum_castIS5_EENS0_14enable_if_enumIXaasr3stdE9is_enum_vINSt3__15decayIT_E4typeEEL_ZNSB_16is_invocable_r_vIbNSB_8equal_toIvEEJccEEEEENSB_8optionalISF_EEE4typeENS_15underlying_typeISD_E4typeEEUlS5_E_RKNS0_26default_result_type_lambdaINSJ_IS5_EEEMUlvE_ESI_EENSB_13invoke_resultIT4_JEE4typeEOT3_NSC_IDTdeT_EE4type10value_typeEOSY_OT5_$jump_table_base
+			00000146:  R_RISCV_RELAX	*ABS*
+     14a:      	ct.cincoffset	a2, a2, 0x0
+			0000014a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB5_15
+			0000014a:  R_RISCV_RELAX	*ABS*
+     14e:      	ct.cincoffset	a2, a2, a0
+     152:      	li	a0, -0x1
+     154:      	ct.cjr	a2
+     156:      	li	a0, 0x0
+     158:      	j	0x184 <.LBB5_15+0x3e>
+     15a:      	li	a0, 0x18
+     15c:      	j	0x184 <.LBB5_15+0x3e>
+     15e:      	li	a0, 0x3
+     160:      	j	0x184 <.LBB5_15+0x3e>
+     162:      	li	a0, 0x11
+     164:      	j	0x184 <.LBB5_15+0x3e>
+     166:      	li	a0, 0x2
+     168:      	j	0x184 <.LBB5_15+0x3e>
+     16a:      	li	a0, 0x1
+     16c:      	li	a1, 0x1
+     16e:      	j	0x184 <.LBB5_15+0x3e>
+     170:      	li	a0, 0x12
+     172:      	j	0x184 <.LBB5_15+0x3e>
+     174:      	li	a0, 0x13
+     176:      	j	0x184 <.LBB5_15+0x3e>
+     178:      	li	a0, 0x16
+     17a:      	j	0x184 <.LBB5_15+0x3e>
+     17c:      	li	a0, 0x15
+     17e:      	j	0x184 <.LBB5_15+0x3e>
+     180:      	li	a0, 0x0
+     182:      	li	a1, 0x0
+     184:      	zext.b	a1, a1
+     188:      	ct.clc	ra, 0x8(sp)
+     18a:      	ct.cincoffset	sp, sp, 0x10
+     18c:      	ct.cret
+
+0000018e <std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::RegisterNumber>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::RegisterNumber, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::RegisterNumber>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>&&)>:
+     18e:      	ct.cincoffset	sp, sp, -0x10
+     190:      	ct.csc	ra, 0x8(sp)
+     192:      	addi	a0, a1, 0x1
+     196:      	li	a3, 0x21
+     19a:      	li	a2, 0x1
+     19c:      	bltu	a3, a0, 0x19c <std::__1::invoke_result<magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&>::type magic_enum::detail::constexpr_switch<&magic_enum::detail::values_v<CHERI::RegisterNumber>, (magic_enum::detail::case_call_t)1, 0u, magic_enum::detail::constexpr_hash_t<CHERI::RegisterNumber, void>, magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber), magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>>(magic_enum::detail::enable_if_enum<std::is_enum_v<std::__1::decay<CHERI::RegisterNumber>::type> && std::__1::is_invocable_r_v<bool, std::__1::equal_to<void>, char, char>, std::__1::optional<std::__1::decay<CHERI::RegisterNumber>::type>>::type magic_enum::enum_cast<CHERI::RegisterNumber>(magic_enum::underlying_type<CHERI::RegisterNumber>::type)::'lambda'(CHERI::RegisterNumber)&&, std::__1::decay<decltype(*(&magic_enum::detail::values_v<CHERI::RegisterNumber>))>::type::value_type, magic_enum::detail::default_result_type_lambda<std::__1::optional<CHERI::RegisterNumber>>::'lambda'() const&, std::__1::equal_to<void>&&)+0xe>
+			0000019c:  R_RISCV_BRANCH	.L0 
+     1a0:      	slli	a0, a0, 0x2
+
+000001a2 <.LBB6_29>:
+     1a2:      	ct.auipcc	a1, 0x0
+			000001a2:  R_RISCV_CHERIOT_COMPARTMENT_HI	.LJTI6_0
+			000001a2:  R_RISCV_RELAX	*ABS*
+     1a6:      	ct.cincoffset	a1, a1, 0x0
+			000001a6:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB6_29
+			000001a6:  R_RISCV_RELAX	*ABS*
+     1aa:      	ct.cincoffset	a0, a1, a0
+     1ae:      	ct.clw	a0, 0x0(a0)
+
+000001b0 <.LBB6_30>:
+     1b0:      	ct.auipcc	a1, 0x0
+			000001b0:  R_RISCV_CHERIOT_COMPARTMENT_HI	.L_ZN10magic_enum6detail16constexpr_switchITnPDaXadL_ZNS0_8values_vIN5CHERI14RegisterNumberEEEEELNS0_11case_call_tE1ELj0ENS0_16constexpr_hash_tIS5_vEEZNS_9enum_castIS5_EENS0_14enable_if_enumIXaasr3stdE9is_enum_vINSt3__15decayIT_E4typeEEL_ZNSB_16is_invocable_r_vIbNSB_8equal_toIvEEJccEEEEENSB_8optionalISF_EEE4typeENS_15underlying_typeISD_E4typeEEUlS5_E_RKNS0_26default_result_type_lambdaINSJ_IS5_EEEMUlvE_ESI_EENSB_13invoke_resultIT4_JEE4typeEOT3_NSC_IDTdeT_EE4type10value_typeEOSY_OT5_$jump_table_base
+			000001b0:  R_RISCV_RELAX	*ABS*
+     1b4:      	ct.cincoffset	a1, a1, 0x0
+			000001b4:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB6_30
+			000001b4:  R_RISCV_RELAX	*ABS*
+     1b8:      	ct.cincoffset	a1, a1, a0
+     1bc:      	li	a0, -0x1
+     1be:      	ct.cjr	a1
+     1c0:      	li	a0, 0x0
+     1c2:      	j	0x23c <.LBB6_30+0x8c>
+     1c4:      	addi	a0, a1, -0x3c
+     1c8:      	beqz	a0, 0x22c <.LBB6_30+0x7c>
+     1ca:      	addi	a0, a1, -0x3d
+     1ce:      	beqz	a0, 0x238 <.LBB6_30+0x88>
+     1d0:      	addi	a0, a1, -0x3e
+     1d4:      	beqz	a0, 0x232 <.LBB6_30+0x82>
+     1d6:      	addi	a0, a1, -0x3f
+     1da:      	bnez	a0, 0x1e2 <.LBB6_30+0x32>
+     1dc:      	li	a0, 0x3f
+     1e0:      	j	0x23c <.LBB6_30+0x8c>
+     1e2:      	li	a0, 0x0
+     1e4:      	li	a2, 0x0
+     1e6:      	j	0x23c <.LBB6_30+0x8c>
+     1e8:      	li	a0, 0x20
+     1ec:      	j	0x23c <.LBB6_30+0x8c>
+     1ee:      	li	a0, 0x3
+     1f0:      	j	0x23c <.LBB6_30+0x8c>
+     1f2:      	li	a0, 0x4
+     1f4:      	j	0x23c <.LBB6_30+0x8c>
+     1f6:      	li	a0, 0xc
+     1f8:      	j	0x23c <.LBB6_30+0x8c>
+     1fa:      	li	a0, 0x9
+     1fc:      	j	0x23c <.LBB6_30+0x8c>
+     1fe:      	li	a0, 0x1
+     200:      	li	a2, 0x1
+     202:      	j	0x23c <.LBB6_30+0x8c>
+     204:      	li	a0, 0x2
+     206:      	j	0x23c <.LBB6_30+0x8c>
+     208:      	li	a0, 0x5
+     20a:      	j	0x23c <.LBB6_30+0x8c>
+     20c:      	li	a0, 0x6
+     20e:      	j	0x23c <.LBB6_30+0x8c>
+     210:      	li	a0, 0xf
+     212:      	j	0x23c <.LBB6_30+0x8c>
+     214:      	li	a0, 0x7
+     216:      	j	0x23c <.LBB6_30+0x8c>
+     218:      	li	a0, 0xa
+     21a:      	j	0x23c <.LBB6_30+0x8c>
+     21c:      	li	a0, 0x8
+     21e:      	j	0x23c <.LBB6_30+0x8c>
+     220:      	li	a0, 0xb
+     222:      	j	0x23c <.LBB6_30+0x8c>
+     224:      	li	a0, 0xe
+     226:      	j	0x23c <.LBB6_30+0x8c>
+     228:      	li	a0, 0xd
+     22a:      	j	0x23c <.LBB6_30+0x8c>
+     22c:      	li	a0, 0x3c
+     230:      	j	0x23c <.LBB6_30+0x8c>
+     232:      	li	a0, 0x3e
+     236:      	j	0x23c <.LBB6_30+0x8c>
+     238:      	li	a0, 0x3d
+     23c:      	zext.b	a1, a2
+     240:      	ct.clc	ra, 0x8(sp)
+     242:      	ct.cincoffset	sp, sp, 0x10
+     244:      	ct.cret

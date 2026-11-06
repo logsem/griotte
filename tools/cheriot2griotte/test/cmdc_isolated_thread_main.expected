@@ -1,0 +1,32 @@
+file: ../inputs/cmdc_isolated_thread/main.s
+kind: compartment main
+exports (1):
+  run (_Z3runv): nargs 0, posture enabled, min-stack byte 4, flags 0x08 (__export_main__Z3runv)
+imports (4):
+  .compartment_switcher: switcher, 2 use(s)
+  __import_B__Z1fPVi: cross-compartment call B.f, 1 use(s)
+  __library_import_libcalls__Z14griotte_assertii: library call griotte_assert, 2 use(s)
+  __import_C__Z1gPVi: cross-compartment call C.g, 1 use(s)
+globals (2):
+  b: .bss, 4 bytes, init [0]
+  c: .bss, 4 bytes, init [0]
+sealed objects (1):
+  __default_malloc_capability: sealing type allocator.MallocKey, 32 bytes, data [0; 4096; 0; zero 16]
+functions (1):
+  run (_Z3runv): 43 instructions, 6 import fetches, 2 global addresses
+census: 43 instructions, 12 distinct mnemonics
+  ct.clc           9
+  ct.auipcc        6
+  li               5
+  ct.cincoffset    4
+  ct.cjalr         4
+  ct.csc           3
+  ct.csw           3
+  ct.auicgp        2
+  ct.clw           2
+  ct.cmove         2
+  ct.csetbounds    2
+  ct.cret          1
+relocations: hi 8, lo_i 8, size 2
+cross-check with ../inputs/cmdc_isolated_thread/main.dump: OK
+  run: 43 instructions, same mnemonics and registers

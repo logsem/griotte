@@ -1,0 +1,33 @@
+files: 10
+census: 368 instructions, 30 distinct mnemonics
+  ct.clc           65
+  li               49
+  ct.cincoffset    44
+  ct.auipcc        40
+  ct.cjalr         27
+  ct.csc           24
+  ct.csw           23
+  ct.auicgp        16
+  ct.cret          14
+  ct.clw           13
+  ct.cmove         12
+  ct.csetbounds    10
+  addi             3
+  bgeu             3
+  add              2
+  beqz             2
+  bltu             2
+  bnez             2
+  ct.cgetbase      2
+  ct.cgetlen       2
+  ct.cgettag       2
+  ecall            2
+  j                2
+  andi             1
+  beq              1
+  ct.candperm      1
+  ct.cgetperm      1
+  ct.csetaddr      1
+  lui              1
+  unimp            1
+relocations: hi 56, lo_i 56, size 9

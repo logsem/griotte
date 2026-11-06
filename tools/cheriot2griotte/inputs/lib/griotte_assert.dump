@@ -1,0 +1,19 @@
+
+build/cheriot/cheriot/release/griotte_assert.library:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <griotte_assert(int, int)>:
+       0:      	beq	a0, a1, 0x0 <griotte_assert(int, int)>
+			00000000:  R_RISCV_BRANCH	.L0 
+
+00000004 <.LBB0_3>:
+       4:      	ct.auipcc	a0, 0x0
+			00000004:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_cheriot_shared_object_griotte_assert_flag_RW---
+			00000004:  R_RISCV_RELAX	*ABS*
+       8:      	ct.clc	a0, 0x0(a0)
+			00000008:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_3
+			00000008:  R_RISCV_RELAX	*ABS*
+       c:      	li	a1, 0x1
+       e:      	ct.csw	a1, 0x0(a0)
+      10:      	ct.cret

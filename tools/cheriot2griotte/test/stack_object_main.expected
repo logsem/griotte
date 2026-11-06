@@ -1,0 +1,45 @@
+file: ../inputs/stack_object/main.s
+kind: compartment main
+exports (2):
+  f (_Z1fPPvPU10chericcallFvS0_S0_E): nargs 2, posture enabled, min-stack byte 4, flags 0x0a (__export_main__Z1fPPvPU10chericcallFvS0_S0_E)
+  entry (_Z5entryv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_main__Z5entryv)
+imports (3):
+  .compartment_switcher: switcher, 2 use(s)
+  __library_import_libcalls__Z14griotte_assertii: library call griotte_assert, 1 use(s)
+  __import_C__Z3advv: cross-compartment call C.adv, 1 use(s)
+globals (0):
+sealed objects (1):
+  __default_malloc_capability: sealing type allocator.MallocKey, 32 bytes, data [0; 4096; 0; zero 16]
+functions (2):
+  f (_Z1fPPvPU10chericcallFvS0_S0_E): 48 instructions, 2 import fetches, 0 global addresses
+  entry (_Z5entryv): 12 instructions, 2 import fetches, 0 global addresses
+census: 60 instructions, 25 distinct mnemonics
+  ct.clc           7
+  ct.cincoffset    6
+  li               6
+  ct.auipcc        4
+  bgeu             3
+  ct.cjalr         3
+  ct.csw           3
+  add              2
+  addi             2
+  beqz             2
+  bltu             2
+  ct.cgetbase      2
+  ct.cgetlen       2
+  ct.cgettag       2
+  ct.cmove         2
+  ct.cret          2
+  ct.csc           2
+  andi             1
+  bnez             1
+  ct.cgetperm      1
+  ct.clw           1
+  ct.csetaddr      1
+  ct.csetbounds    1
+  j                1
+  unimp            1
+relocations: hi 4, lo_i 4, size 0
+cross-check with ../inputs/stack_object/main.dump: OK
+  f: 48 instructions, same mnemonics and registers
+  entry: 12 instructions, same mnemonics and registers

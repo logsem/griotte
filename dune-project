@@ -1,5 +1,6 @@
 (lang dune 3.21)
 (using rocq 0.11)
+(using menhir 3.0)
 
 (name griotte)
 

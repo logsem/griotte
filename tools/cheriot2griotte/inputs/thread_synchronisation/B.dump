@@ -1,0 +1,21 @@
+
+build/cheriot/cheriot/release/B.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	li	a1, 0x7
+       2:      	ct.csw	a1, 0x0(a0)
+
+00000004 <.LBB0_1>:
+       4:      	ct.auicgp	a1, 0x0
+			00000004:  R_RISCV_CHERIOT_COMPARTMENT_HI	stash
+			00000004:  R_RISCV_RELAX	*ABS*
+       8:      	ct.cincoffset	a1, a1, 0x0
+			00000008:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_1
+			00000008:  R_RISCV_RELAX	*ABS*
+       c:      	ct.csc	a0, 0x0(a1)
+       e:      	ecall
+      12:      	li	a0, 0x0
+      14:      	li	a1, 0x0
+      16:      	ct.cret

@@ -1,0 +1,47 @@
+
+build/cheriot/cheriot/release/C.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	ct.csc	ra, 0x8(sp)
+
+00000004 <.LBB0_2>:
+       4:      	ct.auipcc	t1, 0x0
+			00000004:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_main__Z1fv
+			00000004:  R_RISCV_RELAX	*ABS*
+       8:      	ct.clc	t1, 0x0(t1)
+			00000008:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_2
+			00000008:  R_RISCV_RELAX	*ABS*
+
+0000000c <.LBB0_1>:
+       c:      	ct.auipcc	t2, 0x0
+			0000000c:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			0000000c:  R_RISCV_RELAX	*ABS*
+      10:      	ct.clc	t2, 0x0(t2)
+			00000010:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_1
+			00000010:  R_RISCV_RELAX	*ABS*
+      14:      	ct.cjalr	t2
+
+00000016 <.LBB0_4>:
+      16:      	ct.auipcc	t1, 0x0
+			00000016:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_main__Z1fv
+			00000016:  R_RISCV_RELAX	*ABS*
+      1a:      	ct.clc	t1, 0x0(t1)
+			0000001a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_4
+			0000001a:  R_RISCV_RELAX	*ABS*
+
+0000001e <.LBB0_3>:
+      1e:      	ct.auipcc	t2, 0x0
+			0000001e:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			0000001e:  R_RISCV_RELAX	*ABS*
+      22:      	ct.clc	t2, 0x0(t2)
+			00000022:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_3
+			00000022:  R_RISCV_RELAX	*ABS*
+      26:      	ct.cjalr	t2
+      28:      	li	a0, 0x0
+      2a:      	li	a1, 0x0
+      2c:      	ct.clc	ra, 0x8(sp)
+      2e:      	ct.cincoffset	sp, sp, 0x10
+      30:      	ct.cret

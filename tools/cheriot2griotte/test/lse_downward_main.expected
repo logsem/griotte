@@ -1,0 +1,31 @@
+file: ../inputs/lse_downward/main.s
+kind: compartment main
+exports (2):
+  f (_Z1fv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_main__Z1fv)
+  entry (_Z5entryv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_main__Z5entryv)
+imports (3):
+  .compartment_switcher: switcher, 1 use(s)
+  __library_import_libcalls__Z14griotte_assertii: library call griotte_assert, 1 use(s)
+  __import_C__Z3advv: cross-compartment call C.adv, 1 use(s)
+globals (1):
+  a: .data, 4 bytes, init [2]
+sealed objects (1):
+  __default_malloc_capability: sealing type allocator.MallocKey, 32 bytes, data [0; 4096; 0; zero 16]
+functions (2):
+  f (_Z1fv): 16 instructions, 1 import fetches, 1 global addresses
+  entry (_Z5entryv): 16 instructions, 2 import fetches, 1 global addresses
+census: 32 instructions, 10 distinct mnemonics
+  ct.cincoffset    6
+  ct.clc           6
+  li               6
+  ct.auipcc        3
+  ct.csc           3
+  ct.auicgp        2
+  ct.cjalr         2
+  ct.cret          2
+  ct.clw           1
+  ct.csw           1
+relocations: hi 5, lo_i 5, size 0
+cross-check with ../inputs/lse_downward/main.dump: OK
+  f: 16 instructions, same mnemonics and registers
+  entry: 16 instructions, same mnemonics and registers

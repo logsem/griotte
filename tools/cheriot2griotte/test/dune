@@ -1,0 +1,210 @@
+; Golden tests of cheriot2griotte, on the alias cheriot2griotte-test:
+; `classify --dump` of each in-scope trusted compartment and library, the
+; exports of the untrusted compartments of the in-scope examples, and the
+; mnemonic census of the in-scope trusted files. After an intended change
+; of the output: `dune build @cheriot2griotte-test` then `dune promote`.
+; Not built by a plain `dune build`.
+
+(alias
+ (name default))
+
+(rule
+ (targets cmdc_main.out)
+ (deps
+  (:s ../inputs/cmdc/main.s)
+  (:d ../inputs/cmdc/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff cmdc_main.expected cmdc_main.out)))
+
+(rule
+ (targets cmdc_isolated_thread_main.out)
+ (deps
+  (:s ../inputs/cmdc_isolated_thread/main.s)
+  (:d ../inputs/cmdc_isolated_thread/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff cmdc_isolated_thread_main.expected cmdc_isolated_thread_main.out)))
+
+(rule
+ (targets cmdc_shared_main.out)
+ (deps
+  (:s ../inputs/cmdc_shared/main.s)
+  (:d ../inputs/cmdc_shared/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff cmdc_shared_main.expected cmdc_shared_main.out)))
+
+(rule
+ (targets interrupt_status_K.out)
+ (deps
+  (:s ../inputs/interrupt_status/K.s)
+  (:d ../inputs/interrupt_status/K.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff interrupt_status_K.expected interrupt_status_K.out)))
+
+(rule
+ (targets temporal_isolation_K.out)
+ (deps
+  (:s ../inputs/temporal_isolation/K.s)
+  (:d ../inputs/temporal_isolation/K.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff temporal_isolation_K.expected temporal_isolation_K.out)))
+
+(rule
+ (targets thread_synchronisation_K.out)
+ (deps
+  (:s ../inputs/thread_synchronisation/K.s)
+  (:d ../inputs/thread_synchronisation/K.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff thread_synchronisation_K.expected thread_synchronisation_K.out)))
+
+(rule
+ (targets lse_downward_main.out)
+ (deps
+  (:s ../inputs/lse_downward/main.s)
+  (:d ../inputs/lse_downward/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff lse_downward_main.expected lse_downward_main.out)))
+
+(rule
+ (targets vae_untrusted_entry_main.out)
+ (deps
+  (:s ../inputs/vae_untrusted_entry/main.s)
+  (:d ../inputs/vae_untrusted_entry/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff vae_untrusted_entry_main.expected vae_untrusted_entry_main.out)))
+
+(rule
+ (targets stack_object_main.out)
+ (deps
+  (:s ../inputs/stack_object/main.s)
+  (:d ../inputs/stack_object/main.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff stack_object_main.expected stack_object_main.out)))
+
+(rule
+ (targets lib_griotte_assert.out)
+ (deps
+  (:s ../inputs/lib/griotte_assert.s)
+  (:d ../inputs/lib/griotte_assert.dump))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} classify %{s} --dump %{d}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff lib_griotte_assert.expected lib_griotte_assert.out)))
+
+(rule
+ (targets untrusted_exports.out)
+ (deps
+  (:s
+   ../inputs/cmdc/B.s
+   ../inputs/cmdc/C.s
+   ../inputs/cmdc_isolated_thread/B.s
+   ../inputs/cmdc_isolated_thread/C.s
+   ../inputs/cmdc_isolated_thread/D.s
+   ../inputs/cmdc_shared/B.s
+   ../inputs/cmdc_shared/C.s
+   ../inputs/interrupt_status/B.s
+   ../inputs/temporal_isolation/B.s
+   ../inputs/thread_synchronisation/B.s
+   ../inputs/lse_downward/C.s
+   ../inputs/vae_untrusted_entry/C.s
+   ../inputs/stack_object/C.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} exports %{s}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff untrusted_exports.expected untrusted_exports.out)))
+
+(rule
+ (targets census.out)
+ (deps
+  (:s
+   ../inputs/cmdc/main.s
+   ../inputs/cmdc_isolated_thread/main.s
+   ../inputs/cmdc_shared/main.s
+   ../inputs/interrupt_status/K.s
+   ../inputs/temporal_isolation/K.s
+   ../inputs/thread_synchronisation/K.s
+   ../inputs/lse_downward/main.s
+   ../inputs/vae_untrusted_entry/main.s
+   ../inputs/stack_object/main.s
+   ../inputs/lib/griotte_assert.s))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run %{exe:../src/cheriot2griotte.exe} census %{s}))))
+
+(rule
+ (alias cheriot2griotte-test)
+ (action
+  (diff census.expected census.out)))

@@ -1,0 +1,15 @@
+
+build/cheriot/cheriot/release/B.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	li	a1, 0x7
+       4:      	ct.csw	a1, 0x0(a0)
+       6:      	ct.csc	a0, 0x8(sp)
+       8:      	ecall
+       c:      	li	a0, 0x0
+       e:      	li	a1, 0x0
+      10:      	ct.cincoffset	sp, sp, 0x10
+      12:      	ct.cret

@@ -1,0 +1,44 @@
+file: ../inputs/cmdc/B.s
+exports (1):
+  f (_Z1fPi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_B__Z1fPi)
+file: ../inputs/cmdc/C.s
+exports (1):
+  g (_Z1gPi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_C__Z1gPi)
+file: ../inputs/cmdc_isolated_thread/B.s
+exports (1):
+  f (_Z1fPVi): nargs 1, posture enabled, min-stack byte 2, flags 0x09 (__export_B__Z1fPVi)
+file: ../inputs/cmdc_isolated_thread/C.s
+exports (1):
+  g (_Z1gPVi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_C__Z1gPVi)
+file: ../inputs/cmdc_isolated_thread/D.s
+exports (1):
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_D__Z3advv)
+file: ../inputs/cmdc_shared/B.s
+exports (1):
+  f (_Z1fPVi): nargs 1, posture enabled, min-stack byte 2, flags 0x09 (__export_B__Z1fPVi)
+file: ../inputs/cmdc_shared/C.s
+exports (2):
+  g (_Z1gPVi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_C__Z1gPVi)
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 0, flags 0x08 (__export_C__Z3advv)
+file: ../inputs/interrupt_status/B.s
+exports (2):
+  f (_Z1fPVi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_B__Z1fPVi)
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 0, flags 0x08 (__export_B__Z3advv)
+file: ../inputs/temporal_isolation/B.s
+exports (2):
+  f (_Z1fPVi): nargs 1, posture enabled, min-stack byte 2, flags 0x09 (__export_B__Z1fPVi)
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 0, flags 0x08 (__export_B__Z3advv)
+file: ../inputs/thread_synchronisation/B.s
+exports (1):
+  f (_Z1fPVi): nargs 1, posture enabled, min-stack byte 0, flags 0x09 (__export_B__Z1fPVi)
+file: ../inputs/lse_downward/C.s
+exports (1):
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_C__Z3advv)
+file: ../inputs/vae_untrusted_entry/C.s
+exports (2):
+  g (_Z1gv): nargs 0, posture enabled, min-stack byte 0, flags 0x08 (__export_C__Z1gv)
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_C__Z3advv)
+file: ../inputs/stack_object/C.s
+exports (2):
+  g (_Z1gPPvS0_): nargs 2, posture enabled, min-stack byte 0, flags 0x0a (__export_C__Z1gPPvS0_)
+  adv (_Z3advv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_C__Z3advv)

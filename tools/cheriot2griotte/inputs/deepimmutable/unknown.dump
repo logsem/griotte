@@ -1,0 +1,76 @@
+
+build/cheriot/cheriot/release/unknown.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <compartment_error_handler_stackless>:
+       0:      	ct.cgettop	t0, sp
+       4:      	ct.csetaddr	sp, sp, t0
+       8:      	ct.clc	s0, -0x8(sp)
+       c:      	beqz	s0, 0xc <compartment_error_handler_stackless+0xc>
+			0000000c:  R_RISCV_RVC_BRANCH	.Lforce_unwind
+       e:      	ct.clc	t0, 0x0(s0)
+      12:      	ct.csc	t0, -0x8(sp)
+
+00000016 <.Llookup_reset>:
+      16:      	ct.auipcc	t2, 0x0
+			00000016:  R_RISCV_CHERIOT_COMPARTMENT_HI	__library_import_libcalls__Z39switcher_handler_invocation_count_resetv
+			00000016:  R_RISCV_RELAX	*ABS*
+      1a:      	ct.clc	t2, 0x0(t2)
+			0000001a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.Llookup_reset
+			0000001a:  R_RISCV_RELAX	*ABS*
+      1e:      	ct.cjalr	t2
+      20:      	ct.clc	s1, 0x10(s0)
+      22:      	ct.clc	sp, 0x18(s0)
+      26:      	ct.clc	ra, 0x20(s0)
+      2a:      	ct.clc	s0, 0x8(s0)
+      2c:      	ct.cret
+
+0000002e <.Lforce_unwind>:
+      2e:      	li	a0, 0x1
+      30:      	ct.cret
+      32:      	unimp
+      34:      	nop
+			00000034:  R_RISCV_ALIGN	*ABS*+0x2
+
+00000036 <setjmp>:
+      36:      	ct.csc	s0, 0x0(a0)
+      38:      	ct.csc	s1, 0x8(a0)
+      3a:      	ct.csc	sp, 0x10(a0)
+      3e:      	ct.csc	ra, 0x18(a0)
+      42:      	li	a0, 0x0
+      44:      	ct.cret
+
+00000046 <adv(int**)>:
+      46:      	ct.cincoffset	sp, sp, -0x40
+      48:      	ct.csc	ra, 0x38(sp)
+      4a:      	ct.csc	s0, 0x30(sp)
+      4c:      	ct.csc	s1, 0x28(sp)
+      4e:      	ct.cmove	a1, sp
+      52:      	ct.cgettop	a2, a1
+      56:      	addi	a2, a2, -0x8
+      58:      	ct.csetaddr	a1, a1, a2
+      5c:      	ct.csetbounds	s0, a1, 0x8
+      60:      	ct.clc	a1, 0x0(s0)
+      62:      	ct.clc	s1, 0x0(a0)
+      64:      	ct.csc	a1, 0x0(sp)
+      66:      	ct.cincoffset	a0, sp, 0x0
+      6a:      	ct.csetbounds	a0, a0, 0x28
+      6e:      	ct.csc	a0, 0x0(s0)
+      70:      	ct.cincoffset	a0, a0, 0x8
+      74:      	ct.auipcc	ra, 0x0
+			00000074:  R_RISCV_CALL_PLT	setjmp
+			00000074:  R_RISCV_RELAX	*ABS*
+      78:      	ct.cjalr	ra
+      7c:      	bnez	a0, 0x84 <adv(int**)+0x3e>
+      7e:      	li	a0, 0x25
+      82:      	ct.csw	a0, 0x0(s1)
+      84:      	li	a0, 0x0
+      86:      	ct.clc	a1, 0x0(sp)
+      88:      	ct.csc	a1, 0x0(s0)
+      8a:      	li	a1, 0x0
+      8c:      	ct.clc	ra, 0x38(sp)
+      8e:      	ct.clc	s0, 0x30(sp)
+      90:      	ct.clc	s1, 0x28(sp)
+      92:      	ct.cincoffset	sp, sp, 0x40
+      94:      	ct.cret

@@ -1,0 +1,32 @@
+file: ../inputs/vae_untrusted_entry/main.s
+kind: compartment main
+exports (2):
+  awkward (_Z7awkwardPU10chericcallFvvE): nargs 1, posture enabled, min-stack byte 4, flags 0x09 (__export_main__Z7awkwardPU10chericcallFvvE)
+  entry (_Z5entryv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_main__Z5entryv)
+imports (3):
+  .compartment_switcher: switcher, 3 use(s)
+  __library_import_libcalls__Z14griotte_assertii: library call griotte_assert, 1 use(s)
+  __import_C__Z3advv: cross-compartment call C.adv, 1 use(s)
+globals (1):
+  a: .bss, 4 bytes, init [0]
+sealed objects (1):
+  __default_malloc_capability: sealing type allocator.MallocKey, 32 bytes, data [0; 4096; 0; zero 16]
+functions (2):
+  awkward (_Z7awkwardPU10chericcallFvvE): 30 instructions, 3 import fetches, 1 global addresses
+  entry (_Z5entryv): 15 instructions, 2 import fetches, 1 global addresses
+census: 45 instructions, 11 distinct mnemonics
+  ct.clc           9
+  ct.cincoffset    6
+  li               6
+  ct.auipcc        5
+  ct.cjalr         4
+  ct.csc           4
+  ct.cmove         3
+  ct.csw           3
+  ct.auicgp        2
+  ct.cret          2
+  ct.clw           1
+relocations: hi 7, lo_i 7, size 0
+cross-check with ../inputs/vae_untrusted_entry/main.dump: OK
+  awkward: 30 instructions, same mnemonics and registers
+  entry: 15 instructions, same mnemonics and registers

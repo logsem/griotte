@@ -1,0 +1,14 @@
+
+build/cheriot/cheriot/release/griotte_locks.library:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <try_lock(int*)>:
+       0:      	ct.cmove	a1, a0
+       4:      	ct.clw	a0, 0x0(a0)
+       6:      	beqz	a0, 0xc <try_lock(int*)+0xc>
+       8:      	li	a0, -0x1
+       a:      	ct.cret
+       c:      	li	a2, 0x1
+       e:      	ct.csw	a2, 0x0(a1)
+      10:      	ct.cret

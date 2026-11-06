@@ -1,0 +1,46 @@
+
+build/cheriot/cheriot/release/B.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	li	a1, 0x7
+       4:      	ct.csw	a1, 0x0(a0)
+
+00000006 <.LBB0_1>:
+       6:      	ct.auicgp	a1, 0x0
+			00000006:  R_RISCV_CHERIOT_COMPARTMENT_HI	stash
+			00000006:  R_RISCV_RELAX	*ABS*
+       a:      	ct.cincoffset	a1, a1, 0x0
+			0000000a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_1
+			0000000a:  R_RISCV_RELAX	*ABS*
+       e:      	ct.csc	a0, 0x0(a1)
+      10:      	ct.csc	a0, 0x8(sp)
+      12:      	ecall
+      16:      	li	a0, 0x0
+      18:      	li	a1, 0x0
+      1a:      	ct.cincoffset	sp, sp, 0x10
+      1c:      	ct.cret
+
+0000001e <adv()>:
+      1e:      	li	a0, 0x3
+
+00000020 <.LBB1_5>:
+      20:      	ct.auicgp	a1, 0x0
+			00000020:  R_RISCV_CHERIOT_COMPARTMENT_HI	stash
+			00000020:  R_RISCV_RELAX	*ABS*
+      24:      	ct.cincoffset	a1, a1, 0x0
+			00000024:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_5
+			00000024:  R_RISCV_RELAX	*ABS*
+      28:      	li	a2, 0xd
+      2a:      	beqz	a0, 0x3e <.LBB1_5+0x1e>
+      2c:      	ct.clc	a3, 0x0(a1)
+      2e:      	ct.cgettag	a4, a3
+      32:      	beqz	a4, 0x36 <.LBB1_5+0x16>
+      34:      	ct.csw	a2, 0x0(a3)
+      36:      	ecall
+      3a:      	addi	a0, a0, -0x1
+      3c:      	bnez	a0, 0x2c <.LBB1_5+0xc>
+      3e:      	li	a1, 0x0
+      40:      	ct.cret

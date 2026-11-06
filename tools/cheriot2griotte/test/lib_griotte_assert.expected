@@ -1,0 +1,20 @@
+file: ../inputs/lib/griotte_assert.s
+kind: library
+exports (1):
+  griotte_assert (_Z14griotte_assertii): nargs 2, posture inherit, min-stack byte 0, flags 0x02 (__library_export_libcalls__Z14griotte_assertii)
+imports (1):
+  __import_cheriot_shared_object_griotte_assert_flag_RW---: shared object griotte_assert_flag, permissions RW---, 1 use(s)
+globals (0):
+sealed objects (0):
+functions (1):
+  griotte_assert (_Z14griotte_assertii): 6 instructions, 1 import fetches, 0 global addresses
+census: 6 instructions, 6 distinct mnemonics
+  beq              1
+  ct.auipcc        1
+  ct.clc           1
+  ct.cret          1
+  ct.csw           1
+  li               1
+relocations: hi 1, lo_i 1, size 0
+cross-check with ../inputs/lib/griotte_assert.dump: OK
+  griotte_assert: 6 instructions, same mnemonics and registers

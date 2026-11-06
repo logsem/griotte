@@ -1,0 +1,8 @@
+; cheriot2griotte: the CHERIoT compiler's assembly of a compartment
+; (inputs/, copied from cheriot-examples-griotte) to Griotte assembly.
+; Built by `dune build @cheriot2griotte`, tested by
+; `dune build @cheriot2griotte-test` (golden files in test/, refreshed by
+; `dune promote`). OCaml only. Not built by a plain `dune build`.
+
+(alias
+ (name default))

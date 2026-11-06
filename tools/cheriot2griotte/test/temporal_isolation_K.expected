@@ -1,0 +1,33 @@
+file: ../inputs/temporal_isolation/K.s
+kind: compartment K
+exports (1):
+  run (_Z3runv): nargs 0, posture enabled, min-stack byte 2, flags 0x08 (__export_K__Z3runv)
+imports (3):
+  .compartment_switcher: switcher, 1 use(s)
+  __import_B__Z1fPVi: cross-compartment call B.f, 1 use(s)
+  __library_import_libcalls__Z14griotte_assertii: library call griotte_assert, 1 use(s)
+globals (1):
+  b: .bss, 4 bytes, init [0]
+sealed objects (1):
+  __default_malloc_capability: sealing type allocator.MallocKey, 32 bytes, data [0; 4096; 0; zero 16]
+functions (1):
+  run (_Z3runv): 29 instructions, 3 import fetches, 1 global addresses
+census: 29 instructions, 15 distinct mnemonics
+  ct.clc           5
+  li               4
+  ct.auipcc        3
+  ct.cincoffset    3
+  ct.cjalr         2
+  ct.csc           2
+  ct.csw           2
+  addi             1
+  ct.auicgp        1
+  ct.candperm      1
+  ct.clw           1
+  ct.cret          1
+  ct.csetbounds    1
+  ecall            1
+  lui              1
+relocations: hi 4, lo_i 4, size 1
+cross-check with ../inputs/temporal_isolation/K.dump: OK
+  run: 29 instructions, same mnemonics and registers

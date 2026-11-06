@@ -1,0 +1,51 @@
+
+build/cheriot/cheriot/release/C.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	a2, zero, 0x7
+       4:      	ct.csc	a2, -0x8(a0)
+       8:      	ct.cincoffset	a0, zero, 0x9
+       c:      	ct.csc	a0, 0x0(a1)
+       e:      	li	a0, 0x0
+      10:      	li	a1, 0x0
+      12:      	ct.cret
+
+00000014 <adv()>:
+      14:      	ct.cincoffset	sp, sp, -0x10
+      16:      	ct.csc	ra, 0x8(sp)
+      18:      	ct.csw	zero, 0x4(sp)
+      1a:      	ct.csw	zero, 0x0(sp)
+      1c:      	ct.cincoffset	a0, sp, 0x0
+      20:      	ct.csetbounds	a0, a0, 0x8
+
+00000024 <.LBB1_1>:
+      24:      	ct.auipcc	a1, 0x0
+			00000024:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_C__Z1gPPvS0_
+			00000024:  R_RISCV_RELAX	*ABS*
+      28:      	ct.clc	a1, 0x0(a1)
+			00000028:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_1
+			00000028:  R_RISCV_RELAX	*ABS*
+
+0000002c <.LBB1_3>:
+      2c:      	ct.auipcc	t1, 0x0
+			0000002c:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_main__Z1fPPvPU10chericcallFvS0_S0_E
+			0000002c:  R_RISCV_RELAX	*ABS*
+      30:      	ct.clc	t1, 0x0(t1)
+			00000030:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_3
+			00000030:  R_RISCV_RELAX	*ABS*
+
+00000034 <.LBB1_2>:
+      34:      	ct.auipcc	t2, 0x0
+			00000034:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			00000034:  R_RISCV_RELAX	*ABS*
+      38:      	ct.clc	t2, 0x0(t2)
+			00000038:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_2
+			00000038:  R_RISCV_RELAX	*ABS*
+      3c:      	ct.cjalr	t2
+      3e:      	li	a0, 0x0
+      40:      	li	a1, 0x0
+      42:      	ct.clc	ra, 0x8(sp)
+      44:      	ct.cincoffset	sp, sp, 0x10
+      46:      	ct.cret

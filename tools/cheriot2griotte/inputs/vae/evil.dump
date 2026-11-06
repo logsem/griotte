@@ -1,0 +1,109 @@
+
+build/cheriot/cheriot/release/evil.compartment:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+00000000 <__compartment_code_start>:
+       0:      	ct.cincoffset	sp, sp, -0x10
+       2:      	ct.csc	ra, 0x8(sp)
+
+00000004 <.LBB0_5>:
+       4:      	ct.auicgp	a1, 0x0
+			00000004:  R_RISCV_CHERIOT_COMPARTMENT_HI	b
+			00000004:  R_RISCV_RELAX	*ABS*
+       8:      	ct.cincoffset	a1, a1, 0x0
+			00000008:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_5
+			00000008:  R_RISCV_RELAX	*ABS*
+       c:      	ct.clw	a0, 0x0(a1)
+       e:      	addi	a2, a0, 0x1
+      12:      	li	a3, 0x1
+      14:      	ct.csw	a2, 0x0(a1)
+      16:      	bne	a0, a3, 0x16 <.LBB0_5+0x12>
+			00000016:  R_RISCV_BRANCH	.L0 
+
+0000001a <.LBB0_6>:
+      1a:      	ct.auicgp	a0, 0x0
+			0000001a:  R_RISCV_CHERIOT_COMPARTMENT_HI	ret
+			0000001a:  R_RISCV_RELAX	*ABS*
+      1e:      	ct.cincoffset	a0, a0, 0x0
+			0000001e:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_6
+			0000001e:  R_RISCV_RELAX	*ABS*
+      22:      	ct.csc	ra, 0x0(a0)
+
+00000026 <.LBB0_7>:
+      26:      	ct.auipcc	a0, 0x0
+			00000026:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_evil__Z1gv
+			00000026:  R_RISCV_RELAX	*ABS*
+      2a:      	ct.clc	a0, 0x0(a0)
+			0000002a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_7
+			0000002a:  R_RISCV_RELAX	*ABS*
+
+0000002e <.LBB0_9>:
+      2e:      	ct.auipcc	t1, 0x0
+			0000002e:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_known__Z3awkPU10chericcallFvvE
+			0000002e:  R_RISCV_RELAX	*ABS*
+      32:      	ct.clc	t1, 0x0(t1)
+			00000032:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_9
+			00000032:  R_RISCV_RELAX	*ABS*
+
+00000036 <.LBB0_8>:
+      36:      	ct.auipcc	t2, 0x0
+			00000036:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			00000036:  R_RISCV_RELAX	*ABS*
+      3a:      	ct.clc	t2, 0x0(t2)
+			0000003a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_8
+			0000003a:  R_RISCV_RELAX	*ABS*
+      3e:      	ct.cjalr	t2
+      40:      	j	0x48 <.LBB0_8+0x12>
+      42:      	li	a1, 0x2
+      44:      	beq	a0, a1, 0x52 <.LBB0_10>
+      48:      	li	a0, 0x0
+      4a:      	li	a1, 0x0
+      4c:      	ct.clc	ra, 0x8(sp)
+      4e:      	ct.cincoffset	sp, sp, 0x10
+      50:      	ct.cret
+
+00000052 <.LBB0_10>:
+      52:      	ct.auicgp	a0, 0x0
+			00000052:  R_RISCV_CHERIOT_COMPARTMENT_HI	ret
+			00000052:  R_RISCV_RELAX	*ABS*
+      56:      	ct.cincoffset	a0, a0, 0x0
+			00000056:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB0_10
+			00000056:  R_RISCV_RELAX	*ABS*
+      5a:      	ct.clc	a0, 0x0(a0)
+      5c:      	ct.cmove	ra, a0
+      60:      	ct.cret
+
+00000062 <adv()>:
+      62:      	ct.cincoffset	sp, sp, -0x10
+      64:      	ct.csc	ra, 0x8(sp)
+
+00000066 <.LBB1_1>:
+      66:      	ct.auipcc	a0, 0x0
+			00000066:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_evil__Z1gv
+			00000066:  R_RISCV_RELAX	*ABS*
+      6a:      	ct.clc	a0, 0x0(a0)
+			0000006a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_1
+			0000006a:  R_RISCV_RELAX	*ABS*
+
+0000006e <.LBB1_3>:
+      6e:      	ct.auipcc	t1, 0x0
+			0000006e:  R_RISCV_CHERIOT_COMPARTMENT_HI	__import_known__Z3awkPU10chericcallFvvE
+			0000006e:  R_RISCV_RELAX	*ABS*
+      72:      	ct.clc	t1, 0x0(t1)
+			00000072:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_3
+			00000072:  R_RISCV_RELAX	*ABS*
+
+00000076 <.LBB1_2>:
+      76:      	ct.auipcc	t2, 0x0
+			00000076:  R_RISCV_CHERIOT_COMPARTMENT_HI	.compartment_switcher
+			00000076:  R_RISCV_RELAX	*ABS*
+      7a:      	ct.clc	t2, 0x0(t2)
+			0000007a:  R_RISCV_CHERIOT_COMPARTMENT_LO_I	.LBB1_2
+			0000007a:  R_RISCV_RELAX	*ABS*
+      7e:      	ct.cjalr	t2
+      80:      	li	a0, 0x0
+      82:      	li	a1, 0x0
+      84:      	ct.clc	ra, 0x8(sp)
+      86:      	ct.cincoffset	sp, sp, 0x10
+      88:      	ct.cret
