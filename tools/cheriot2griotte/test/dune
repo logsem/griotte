@@ -251,7 +251,7 @@
 (rule
  (alias cheriot2griotte-test)
  (action
-  (diff %{project_root}/theories/case_studies/cmdc/cmdc_compiled.v cmdc_compiled.v.out)))
+  (diff %{project_root}/theories/case_studies/compiled/cmdc/cmdc_compiled.v cmdc_compiled.v.out)))
 
 (rule
  (targets lib_griotte_assert.sha256)
@@ -291,7 +291,7 @@
  (alias cheriot2griotte-test)
  (action
   (diff
-   %{project_root}/theories/case_studies/macros/assert_compiled.v
+   %{project_root}/theories/case_studies/compiled/lib/assert_compiled.v
    assert_compiled.v.out)))
 
 ; {1 Rejection tests of the lowering}
