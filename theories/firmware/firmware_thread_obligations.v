@@ -582,19 +582,6 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
          ={⊤}=∗
          let _ : switcherLayout := fw_switcher_layout img in safe[u i]).
 
-(* TODO: move to program_logic/memory_region.v *)
-Lemma codefrag_pers_of_region {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}
-    (a0 e : Addr) (cs : list Word) :
-  (a0 + length cs)%a = Some e →
-  [[ a0 , e ]] ↦ₐ□ [[ lword_of_word <$> cs ]] -∗ codefrag_pers a0 cs.
-Proof.
-  iIntros (He) "Hcs".
-  rewrite memory_region.codefrag_pers_unseal /memory_region.codefrag_pers_def.
-  iSplit; first (iPureIntro; by exists e).
-  rewrite region_pointsto_pers_cells; last by rewrite length_fmap.
-  by rewrite big_sepL_fmap.
-Qed.
-
 (** The code of the lock library, from ["Hlocks"], when a compartment
     imports it, at any thread. *)
 Lemma fw_lock_static {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
