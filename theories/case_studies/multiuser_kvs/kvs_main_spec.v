@@ -6,6 +6,7 @@ From griotte Require Import
   assert_spec fetch_spec.
 From griotte Require Import
   switcher_base switcher_base_ktk.
+From griotte Require Import locks.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main
   kvs_main_spec_blocks.
@@ -22,6 +23,8 @@ Section KVS_main_spec.
     `{MP: MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg:kvsG Σ} {KVS_layout : kvsLayout} {KVS_layout_Wf : kvsLayoutWf}
+    {LK : locksLayout}
+    (kvs_users : gmap user_key_t CmptName)
   .
 
   Context {B : CmptName}.
@@ -56,6 +59,7 @@ Section KVS_main_spec.
     (w_main_tbl : LWord)
     (* The posture of the thread *)
     (mie : InterruptStatus)
+    (csp_content : list LWord)
 
     :
 
@@ -69,6 +73,8 @@ Section KVS_main_spec.
     is_heap_address cgp_b = false ->
     is_shadow_address static_sealed_b = false ->
     is_heap_address static_sealed_b = false ->
+    disjoint_from_mmio csp_b csp_e ->
+    disjoint_from_heap csp_b csp_e ->
 
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp]} ->
     (forall r, r ∈ (dom rmap) -> is_Some (rmap !! r) ) ->
@@ -81,17 +87,19 @@ Section KVS_main_spec.
     (csp_b + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
 
     is_heap_cap (WSealed ot_switcher B_f) = false ->
+    (* The stack is revoked in the world of [B]: the thread keeps it *)
+    revoked_addresses W0 (finz.seq_between csp_b csp_e) ->
     frame_match Ws Cs (main_entry_cstack csp_b csp_e w_main_tbl) W0 B ->
     route_pre th mie ->
-    cmpt_shared B = false ->
+    is_heap_address kvs_lock_addr = false ->
+    is_heap_address b_locks = false ->
     (
       assert_static b_assert e_assert a_flag ∗
       thread_in th B ∗
       na_inv (tpool th) Ntstack trusted_stack_inv ∗
       switcher_static ∗
       kvs_static ∗
-      na_inv (tpool th) (Nkvs.@"physical") kvs_inv ∗
-      na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv ∗
+      kvs_lock kvs_users ∗
 
       b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b ∗
       a_kvs_exp_tbl_cgp ↦ₐ□ Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b ∗
@@ -112,17 +120,21 @@ Section KVS_main_spec.
       codefrag_pers pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_data ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
+      [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]] ∗
 
       user_kvs_inv KVS_USER_KEY_MAIN ∗
       (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
 
-      world_interp W0 B ∗
+      (* the world of [B] in its regime: the thread's local map and the
+         invariant of the map of Permanent regions *)
+      world_resources W0 B ∗
       interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs ∗
       ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
-      interp W0 B (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
+      (* the initial stack is revoked in the world of [B] *)
+      StackRevokedResources W0 B (finz.seq_between csp_b csp_e) ∗
       MIE ↦ₜ[th] mie ∗
       held (th := th) mie
 
@@ -131,22 +143,23 @@ Section KVS_main_spec.
     intros imports a_kvs_exp_tbl_cgp.
     subst imports a_kvs_exp_tbl_cgp.
     set (cstk0 := main_entry_cstack csp_b csp_e w_main_tbl).
-    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap Hrmap_dom Hrmap_init HsubBounds
+    iIntros (Hpc_shadow Hpc_nonheap Hcgp_nonheap Hstatic_shadow Hstatic_nonheap
+               Hstk_shadow Hstk_heap Hrmap_dom Hrmap_init HsubBounds
                Hstatic_sealed_contiguous Hcgp_contiguous Himports_contiguous Hstk_min HB_f_nonheap
-               Hframe_match Hroute Hshared
+               Hrevoked_stack Hframe_match Hroute Hlock_heap Hlocks_heap
             )
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static
-      & #Hkvs_static & #Hkvs & #Hkvs_logical
+      & #Hkvs_static & #Hlock
       & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_addOrUpdate & #Hkvs_exp_tbl_read
       & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
-      & #Himports_main & #Hcode_main & Hcgp_main & Hstatic_sealed_main
+      & #Himports_main & #Hcode_main & Hcgp_main & Hstatic_sealed_main & Hstk
       & HLUKVS & Hkvs_1
       & Hworld_B
       & HK & Hcstk_frag
       & #Hinterp_W0_B_f
       & #HentryB_f
-      & #Hinterp_W0_csp
+      & Hstack_revoked
       & Hmie & Hheld
       )".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous ; clear H0.
@@ -161,30 +174,19 @@ Section KVS_main_spec.
     iDestruct (region_pointsto_single with "Hstatic_sealed_main") as "(% & Hstatic_sealed_b & %Heq')" ; last (rewrite /kvs_main_static_sealed /= in Heq' ; simplify_eq).
     { rewrite /kvs_main_static_sealed //= in Hstatic_sealed_contiguous. }
 
-    (* Revoke the world to get the stack frame *)
-    set (stk_frame_addrs := finz.seq_between csp_b csp_e).
-    iAssert ([∗ list] a ∈ stk_frame_addrs, ⌜std W0 !! LNonHeap a = Some Temporary⌝)%I as "Hstk_frm_tmp_W0".
-    { iApply (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hinterp_W0_csp"); eauto. }
-    iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
-      as %[Hstk_shadow Hstk_heap]; first done.
-    pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
-    iMod (world_interp_revoke_stack with "[$Hinterp_W0_csp $Hworld_B]")
-        as (l) "(%Hl_unk & Hworld_B & #Hstack_revoked_W0 & >%Hstack_revoked_W0 & >[%stk_mem Hstk] & [Hrevoked_l _])".
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min).
     iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
       first exact Hstk_res_size.
-    set (W1 := revoke W0).
-    assert (related_sts_priv_world W0 W1) as Hrelared_priv_W0_W1 by eapply revoke_related_sts_priv_world.
 
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
     rewrite /length_kvs_exports_tbl /kvs_nb_exports in Hkvs_exp_tbl_size.
-    iApply (kvs_main_add_phase_spec
+    iApply (kvs_main_add_phase_spec kvs_users
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap KVS_USER_KEY_MAIN b_assert e_assert B_f stk_mem_free cstk0
       with
-      "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
+      "[- $Hswitcher $Hswitcher_static $Hkvs_static $Hlock
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
        $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
@@ -251,24 +253,12 @@ Section KVS_main_spec.
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
     set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
 
-    iAssert (interp W1 B (WSealed ot_switcher B_f)) as "#Hinterp_W1_B_f".
-    { iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
-      iApply (interp_sealed_global_kind_world_free W0 W1 B with "Hseal_switcher Hinterp_W0_B_f"). }
+    iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked")
+      as "[Hstack_revoked_free _]".
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_stack)
+      as Hstack_revoked_free.
 
-    assert ( revoked_addresses W1 (finz.seq_between csp_b csp_e) ) as Hstack_revoked_W1.
-    {
-      rewrite /revoked_addresses Forall_forall.
-      rewrite /revoked_addresses Forall_forall in Hstack_revoked_W0.
-      intros a Ha; cbn in *.
-      by apply Hstack_revoked_W0.
-    }
-    iDestruct (StackRevokedResources_mono_priv with "Hstack_revoked_W0") as "Hstack_revoked_W1"; eauto.
-    iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W1")
-      as "[Hstack_revoked_W1_free _]".
-    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hstack_revoked_W1)
-      as Hstack_revoked_W1_free.
-
-    iApply (kvs_main_adversary_phase_spec W1 B
+    iApply (kvs_main_adversary_phase_spec W0 B
              (Cap RW Global cgp_b cgp_e cgp_b)
              (Sentry (ret_kind mie) RX Global pc_b pc_e (a_call ^+ 1))
              thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
@@ -284,14 +274,13 @@ Section KVS_main_spec.
          | subst rmap_B;
            repeat (rewrite dom_insert_L); repeat (rewrite dom_delete_L);
            rewrite Hdom_rmap_ret; set_solver+
-         | exact Hshared
          | ].
     iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
-      Hstack_revoked_W1_free Hinterp_W1_B_f HentryB_f HK Hmie Hheld".
+      Hstack_revoked_free Hinterp_W0_B_f HentryB_f HK Hmie Hheld".
     iFrame "%".
     clear dependent rmap.
-    clear stk_mem.
+    clear csp_content.
     iNext.
     iIntros (W2 rmap stk_mem l' rcgp rcra rcs0 rcs1 m)
       "( %Hl_unk' & Hrevoked_l' & %Hrevoked_l'
@@ -325,13 +314,13 @@ Section KVS_main_spec.
         /kvs_main_adversary_phase_instrs.
       solve_addr+Ha_call. }
     iEval (rewrite Hread_start) in "HPC".
-    iApply (kvs_main_read_assert_phase_spec
+    iApply (kvs_main_read_assert_phase_spec kvs_users
       pc_b pc_e pc_a cgp_b cgp_e static_sealed_b csp_b csp_e
       rmap warg0 warg1
       (Sentry (ret_kind mie) RX Global pc_b pc_e (a_call ^+ 1))
       KVS_USER_KEY_MAIN b_assert e_assert a_flag
       stk_mem cstk0 with
-      "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hkvs $Hkvs_logical
+      "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hlock
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1
        $Hrmap $Hstk $Hcstk_frag $Hstatic_sealed_b $HLUKVS $Hkvs_1

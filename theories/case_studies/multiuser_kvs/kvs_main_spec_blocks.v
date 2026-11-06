@@ -5,6 +5,7 @@ From griotte Require Import
 From griotte Require Import assert_spec fetch_spec.
 From griotte Require Import
   switcher_base switcher_base_ktk.
+From griotte Require Import locks.
 From griotte Require Import
   kvs kvs_preamble kvs_spec_read kvs_spec_addOrUpdate kvs_main.
 From griotte Require Import map_simpl register_tactics proofmode.
@@ -60,7 +61,9 @@ Section KVS_Main_Blocks.
     `{MP : MachineParameters}
     {swlayout : switcherLayout} {swlayoutWf : switcherLayoutWf}
     {kvsg : kvsG Σ} {KVS_layout : kvsLayout}
-    {KVS_layout_Wf : kvsLayoutWf}.
+    {KVS_layout_Wf : kvsLayoutWf}
+    {LK : locksLayout}
+    (kvs_users : gmap user_key_t CmptName).
 
   Context {B : CmptName}.
 
@@ -179,7 +182,6 @@ Section KVS_Main_Blocks.
     dom rmap =
       all_registers_s ∖
         ({[ cgp; cra; csp; ct1; cs0; cs1]} ∪ dom_arg_rmap 8) ->
-    cmpt_shared C = false ->
     thread_in th C
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
@@ -196,7 +198,7 @@ Section KVS_Main_Blocks.
     ∗ ct0 ↦ᵣ[th] WInt 0
     ∗ regs[th] rmap
     ∗ [[stk_free_b b_stk a_stk, stk_free_e e_stk a_stk]] ↦ₐ [[stk_mem]]
-    ∗ world_interp W C
+    ∗ world_resources W C
     ∗ StackRevokedResources W C (stk_free b_stk e_stk a_stk)
     ∗ ⌜revoked_addresses W (stk_free b_stk e_stk a_stk)⌝
     ∗ ◯(CSTK)[th] cstk
@@ -221,7 +223,7 @@ Section KVS_Main_Blocks.
             (stk_free b_stk e_stk a_stk)⌝
         ∗ na_own (tpool th) ⊤
         ∗ ⌜callee_stk_bounds b_stk e_stk a_stk⌝
-        ∗ world_interp (revoke W2) C
+        ∗ world_resources (revoke W2) C
         ∗ ◯(CSTK)[th] cstk
         ∗ PC ↦ₚ[th] lupdatePcPerm (rcra)
         ∗ cgp ↦ᵣ[th] rcgp ∗ cra ↦ᵣ[th] rcra
@@ -240,7 +242,7 @@ Section KVS_Main_Blocks.
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap Hshared)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hstk_spill Hwcra_jalr Hwcra_heap Hrmap)
       "(#Hthread & #Hswitcher & #Hswitcher_static & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hct1 & #Htarget & #Hentry & Hcs0 & Hcs1
        & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hct0
@@ -248,15 +250,14 @@ Section KVS_Main_Blocks.
        & Hcstk & HK & Hmie & Hheld & Hpost)".
     iPoseProof (kvs_main_adversary_arg_rmap_resources W C with
       "[$Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hct0]") as "Hargs".
-    iApply (switcher_cc_specification W C wcgp wcra wcs0 wcs1
+    iApply (switcher_cc_specification_shared W C wcgp wcra wcs0 wcs1
       b_stk e_stk a_stk target stk_mem kvs_main_adversary_arg_rmap
       rmap cstk Ws Cs 0 with
       "[$Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
        $Hcs0 $Hcs1 $Hrmap $Hstk $Hworld $Hrevoked $Hcstk $HK
        $Htarget $Hmie $Hheld Hargs Hpost]");
       [exact Hstk_shadow | exact Hstk_heap | exact Hb_a | exact Hrmap
-      | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap
-      | exact Hshared |].
+      | apply kvs_main_adversary_arg_rmap_is_arg | exact Hwcra_jalr | exact Hwcra_heap |].
     iSplitR; first iExact "Hentry".
     iSplitL "Hargs".
     { iApply (big_sepM_impl with "Hargs").
@@ -336,11 +337,12 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
     route_pre th mie ->
+    is_heap_address kvs_lock_addr = false ->
+    is_heap_address b_locks = false ->
     na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
-    ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
-    ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
+    ∗ kvs_lock kvs_users
     ∗ b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
@@ -399,8 +401,8 @@ Section KVS_Main_Blocks.
     subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow
                Hstatic_nonheap Hrmap_dom Hrmap_init Hframes HsubBounds Himports_contiguous
-               Hstatic_sealed_b Hroute)
-      "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
+               Hstatic_sealed_b Hroute Hlock_heap Hlocks_heap)
+      "(#Hswitcher & #Hswitcher_static & #Hkvs_static & #Hlock
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp
        & #Hkvs_exp_tbl_addOrUpdate
        & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap
@@ -508,13 +510,13 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap' := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_add_spec_known_to_known
+    iPoseProof (KVS_add_spec_known_to_known kvs_users
                   (Cap RW Global cgp_b cgp_e cgp_b)
                   (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
                   thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
                   csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk ⊤
                   KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
-                 with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
+                 with "[$Hkvs_static $Hlock]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
@@ -681,12 +683,13 @@ Section KVS_Main_Blocks.
     withinBounds static_sealed_b (static_sealed_b ^+ 1)
       static_sealed_b = true ->
     route_pre th mie ->
+    is_heap_address kvs_lock_addr = false ->
+    is_heap_address b_locks = false ->
     assert_static b_assert e_assert a_flag
     ∗ na_inv (tpool th) Ntstack trusted_stack_inv
     ∗ switcher_static
     ∗ kvs_static
-    ∗ na_inv (tpool th) (Nkvs.@"physical") kvs_inv
-    ∗ na_inv (tpool th) (Nkvs.@"logical") logical_kvs_inv
+    ∗ kvs_lock kvs_users
     ∗ b_kvs_exp_tbl ↦ₐ□ Cap RX Global KVS_pcc_b KVS_pcc_e KVS_pcc_b
     ∗ a_kvs_exp_tbl_cgp ↦ₐ□
         Cap RW Global KVS_cgp_b KVS_cgp_e KVS_cgp_b
@@ -722,8 +725,8 @@ Section KVS_Main_Blocks.
     subst a_kvs_exp_tbl_cgp.
     iIntros (Hpc_shadow Hpc_nonheap Hstk_shadow Hstk_heap Hstk_min Hcgp_nonheap Hstatic_shadow
                Hstatic_nonheap Hdom_rmap Hframes HsubBounds Himports_contiguous
-               Hstatic_sealed_b Hroute)
-      "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hkvs & #Hkvs_logical
+               Hstatic_sealed_b Hroute Hlock_heap Hlocks_heap)
+      "(#Hassert & #Hswitcher & #Hswitcher_static & #Hkvs_static & #Hlock
        & #Hkvs_exp_tbl_pcc & #Hkvs_exp_tbl_cgp & #Hkvs_exp_tbl_read
        & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & Hca0 & Hca1 & Hrmap & Hstk & Hcstk_frag
@@ -821,13 +824,13 @@ Section KVS_Main_Blocks.
     iInsertList "Hrmap" [ctp].
     set (rmap_read_call := <[ctp := _]> _ ).
 
-    iPoseProof (KVS_read_spec_known_to_known
+    iPoseProof (KVS_read_spec_known_to_known kvs_users
       (Cap RW Global cgp_b cgp_e cgp_b)
       (Sentry (ret_kind mie) RX Global pc_b pc_e (a_insert_kvs ^+ 1))
       thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
       csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg_read cstk ⊤
       KVS_USER_KEY_MAIN 1 Global static_sealed_b (WInt 12)
-      with "[$Hkvs_static $Hkvs $Hkvs_logical]") as "HKVS_f"; auto.
+      with "[$Hkvs_static $Hlock]") as "HKVS_f"; auto.
     { rewrite /is_uint16 /UINT16_MIN /UINT16_MAX; lia. }
 
     iApply (switcher_cc_specification_known_to_known_end_to_end
