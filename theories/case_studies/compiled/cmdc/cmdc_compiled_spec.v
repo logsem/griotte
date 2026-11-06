@@ -165,8 +165,8 @@ Section CMDC_Compiled.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
-    iExtractList "Hrmap" [ca0;ct0;ct1;ct2;cs0;cs1]
-      as ["Hca0";"Hct0";"Hct1";"Hct2";"Hcs0";"Hcs1"].
+    iExtractList "Hrmap" [ca0;ct1;ct2;cs0;cs1]
+      as ["Hca0";"Hct1";"Hct2";"Hcs0";"Hcs1"].
     iEval (cbn [fmap list_fmap cmdc_compiled_main_data cmdc_compiled_main_imports])
       in "Hcgp_main Himports_main".
     iRegionSplit "Hcgp_main" as "[Hcgp_b Hcgp_c]".
@@ -198,10 +198,10 @@ Section CMDC_Compiled.
 
     (* Block 0: the prologue *)
     iApply (cmdc_compiled_prologue_blocks_1_spec with
-             "[- $HPC $Hcgp $Hcsp $Hcra $Hcs0 $Hcs1 $Hca0 $Hct0 $Hct1 $Hf0 $Hf1 $Hf2
+             "[- $HPC $Hcgp $Hcsp $Hcra $Hcs0 $Hcs1 $Hca0 $Hct1 $Hct2 $Hf0 $Hf1 $Hf2
                  $Hcgp_b $Hcgp_c $Hcode_main]"); [done..|].
-    iNext; iIntros "(HPC & Hcgp & Hcsp & Hcra & Hcs0 & Hcs1 & Hca0 & [%wct0' Hct0]
-                    & [%wct1' Hct1] & Hf0 & Hf1 & Hf2 & Hcgp_b & Hcgp_c & _)".
+    iNext; iIntros "(HPC & Hcgp & Hcsp & Hcra & Hcs0 & Hcs1 & Hca0 & [%wct1' Hct1]
+                    & [%wct2' Hct2] & Hf0 & Hf1 & Hf2 & Hcgp_b & Hcgp_c & _)".
 
     (* Block 1: fetch the callee and the switcher, and jump to the switcher *)
     iApply (cmdc_compiled_call_blocks_2_spec cmdc_compiled_call_B with
@@ -215,7 +215,7 @@ Section CMDC_Compiled.
            "Hworld_interp_B Hinterp_Winit_B_f Hcgp_b")
       as "(Hworld_interp_B & #Hrel_cgp_b & #Hinterp_ca0 & _)";
       [solve_addr | done | done |].
-    iInsertRegs "Hrmap" ["Hct0"; "Hct2"].
+    iInsertRegs "Hrmap" ["Hct2"].
     iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0 Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }

@@ -22,7 +22,7 @@ Section CMDC_Compiled_Prologue_Blocks_1.
 
   Lemma cmdc_compiled_prologue_blocks_1_spec
     (pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e a_f : Addr)
-    (wcra wcs0 wcs1 wca0 wct0 wct1 wf0 wf1 wf2 wb wc : LWord) :
+    (wcra wcs0 wcs1 wca0 wct1 wct2 wf0 wf1 wf2 wb wc : LWord) :
     SubBounds pc_b pc_e pc_a (pc_a ^+ length cmdc_compiled_main_code) ->
     (cgp_b + length cmdc_compiled_main_data)%a = Some cgp_e ->
     is_mmio_address cgp_b = false ->
@@ -40,8 +40,8 @@ Section CMDC_Compiled_Prologue_Blocks_1.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     ca0 ↦ᵣ[th] wca0 ∗
-    ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
+    ct2 ↦ᵣ[th] wct2 ∗
     a_f ↦ₐ wf0 ∗
     (a_f ^+ 1) ↦ₐ wf1 ∗
     (a_f ^+ 2) ↦ₐ wf2 ∗
@@ -56,8 +56,8 @@ Section CMDC_Compiled_Prologue_Blocks_1.
         cs0 ↦ᵣ[th] Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b ∗
         cs1 ↦ᵣ[th] Cap RW Global (cgp_b ^+ 1) (cgp_b ^+ 2) (cgp_b ^+ 1) ∗
         ca0 ↦ᵣ[th] Cap RW Global cgp_b (cgp_b ^+ 1) cgp_b ∗
-        (∃ w, ct0 ↦ᵣ[th] w) ∗
         (∃ w, ct1 ↦ᵣ[th] w) ∗
+        (∃ w, ct2 ↦ᵣ[th] w) ∗
         a_f ↦ₐ wcs1 ∗
         (a_f ^+ 1) ↦ₐ wcs0 ∗
         (a_f ^+ 2) ↦ₐ wcra ∗
@@ -69,7 +69,7 @@ Section CMDC_Compiled_Prologue_Blocks_1.
   Proof.
     iIntros (HsubBounds Hcgp_contiguous Hcgp_mmio Hcgp_heap Hcgp1_mmio Hcgp1_heap
                Hstk_mmio Ha_f Hcsp_b Hstk_start)
-      "(HPC & Hcgp & Hcsp & Hcra & Hcs0 & Hcs1 & Hca0 & Hct0 & Hct1
+      "(HPC & Hcgp & Hcsp & Hcra & Hcs0 & Hcs1 & Hca0 & Hct1 & Hct2
         & Hf0 & Hf1 & Hf2 & Hcgp_b & Hcgp_c & Hcode_main & Hpost)".
     rewrite /cmdc_compiled_main_run_frame_size in Ha_f.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
@@ -96,14 +96,14 @@ Section CMDC_Compiled_Prologue_Blocks_1.
     (* Lea cs0 cgp 0 *)
     iInstr "Hcode".
     { transitivity (Some cgp_b); auto; solve_addr. }
-    (* GetA ct0 cs0 *)
+    (* GetA ct1 cs0 *)
     iInstr "Hcode".
-    (* Add ct1 ct0 1 *)
+    (* Add ct2 ct1 1 *)
     iInstr "Hcode".
     (* The side condition of [Subseg] on the new base takes the last
        non-heap fact of the context: that of [b]. *)
     move Hcgp_heap at bottom.
-    (* Subseg cs0 cs0 ct0 ct1 *)
+    (* Subseg cs0 cs0 ct1 ct2 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
     { solve_addr. }
@@ -111,12 +111,12 @@ Section CMDC_Compiled_Prologue_Blocks_1.
     (* Lea cs1 cgp 1 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
-    (* GetA ct0 cs1 *)
+    (* GetA ct1 cs1 *)
     iInstr "Hcode".
-    (* Add ct1 ct0 1 *)
+    (* Add ct2 ct1 1 *)
     iInstr "Hcode".
     move Hcgp1_heap at bottom.
-    (* Subseg cs1 cs1 ct0 ct1 *)
+    (* Subseg cs1 cs1 ct1 ct2 *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 2)); auto; solve_addr. }
     { solve_addr. }
