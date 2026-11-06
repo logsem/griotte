@@ -2,9 +2,10 @@
    (sha256 f53e4334708dd4693bce61e8a1362797eff7f52adc9733fea55b7ffd19f636b9). Do not edit. *)
 From griotte Require Import machine_parameters assembler fetch.
 
-(** The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler (D4): it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import; as in the hand-written library (assert.v), the capability to it is the word after the code.
+(** The assert library griotte_assert(a, b), as compiled by the CHERIoT compiler (D4): it sets its flag to 1 when a and b differ. The flag is a shared object, reached through an import. As CHERIoT lays out a library (sdk/library.ldscript), the import table (the switcher slot, then the flag) comes before the code.
 
-    Imports: 1 word(s) after the code, in this order:
+    Imports: a data prefix of 2 word(s) before the code, in this order:
+    - [.Limport_switcher]: the switcher (.compartment_switcher), the first slot, reserved even when unused
     - [.Limport_assert_flag]: shared object griotte_assert_flag, permissions RW--- (__import_cheriot_shared_object_griotte_assert_flag_RW---)
     Globals: none.
     Function [griotte_assert]: no stack frame.
@@ -18,6 +19,11 @@ Section Assert_compiled.
   Definition assert_compiled_asm : list (list asm_code) :=
     [
       [
+        (* the imports *)
+        (* the switcher (.compartment_switcher), the first slot, reserved even when unused *)
+        #@".Limport_switcher";
+        (* shared object griotte_assert_flag, permissions RW--- (__import_cheriot_shared_object_griotte_assert_flag_RW---) *)
+        #@".Limport_assert_flag";
         #".Lassert_griotte_assert";
         (* beq a0, a1, .LBB0_2 *)
         jeq (".Lassert_griotte_assert_return")%asm ca0 ca1
@@ -35,10 +41,7 @@ Section Assert_compiled.
       [
         #".Lassert_griotte_assert_return";
         (* .LBB0_2: ct.cret *)
-        ret;
-        (* the imports *)
-        (* shared object griotte_assert_flag, permissions RW--- (__import_cheriot_shared_object_griotte_assert_flag_RW---) *)
-        #@".Limport_assert_flag"
+        ret
       ]
     ].
 
@@ -57,8 +60,8 @@ Section Assert_compiled.
   Definition assert_compiled_data : list Word := [].
 
   (** The export [griotte_assert] ([_Z14griotte_assertii], __library_export_libcalls__Z14griotte_assertii). *)
-  (** Entry: word 0 of the code, at [.Lassert_griotte_assert]; the imports follow the code. *)
-  Definition assert_compiled_griotte_assert_offset : nat := 0.
+  (** Entry: word 2 of the PCC region: the 2 imports, then [.Lassert_griotte_assert]. *)
+  Definition assert_compiled_griotte_assert_offset : nat := 2.
   Lemma assert_compiled_griotte_assert_offset_label :
     label_offset (concat assert_compiled_asm) ".Lassert_griotte_assert" = assert_compiled_griotte_assert_offset.
   Proof. vm_compute. reflexivity. Qed.

@@ -384,10 +384,14 @@ let find_import (t : Classify.t) sym =
   | Some i -> i
   | None -> failwith ("unknown import " ^ sym)
 
-(* Canonical order (the hand-written case studies): the switcher, the
-   library calls, the cross-compartment calls, the shared objects; within
-   a kind, by first use in the code, then the unused ones in declaration
-   order. *)
+(* The import table, a data prefix before the code, in every compartment
+   and library, as CHERIoT's linker scripts lay it out
+   (cheriot-rtos/sdk/{compartment,library}.ldscript: the switcher slot
+   first, reserved even when unused, then the other imports, then the
+   code). Canonical order of the other imports (the hand-written case
+   studies): the library calls, the cross-compartment calls, the shared
+   objects; within a kind, by first use in the code, then the unused ones
+   in declaration order. *)
 let import_order (t : Classify.t) (cfgs : cfg list) =
   let uses =
     List.concat_map
@@ -739,7 +743,6 @@ type export_out = {
 type t = {
   src : Classify.t;
   imports : (Classify.import * string) list;  (* in table order, with their symbol *)
-  imports_suffix : bool;  (* a library: the import table after the code *)
   funcs : func_out list;
   gslots : gslot list;
   exports : export_out list;
@@ -754,9 +757,15 @@ let lower ?(overrides = []) ~prefix (t : Classify.t) =
   let funcs = List.map (lower_func ~prefix ~t ~gslots) t.funcs in
   let funcs = rename_labels overrides funcs in
   let cfgs = List.map build_cfg t.funcs in
-  let imports = List.map (fun i -> (i, import_name i)) (import_order t cfgs) in
+  let switcher_slot =
+    if List.exists (fun (i : Classify.import) -> i.ikind = Classify.Switcher) t.imports then []
+    else [ { Classify.isym = ".compartment_switcher"; ikind = Switcher; iwords = []; iloc = Diag.no_loc t.file } ]
+  in
+  let imports =
+    List.map (fun i -> (i, import_name i)) (import_order { t with imports = switcher_slot @ t.imports } cfgs)
+  in
   let library = t.ukind = Classify.Library in
-  let prefix_words = if library then 0 else List.length imports in
+  let prefix_words = List.length imports in
   let exports =
     List.map
       (fun (e : Classify.export) ->
@@ -774,4 +783,4 @@ let lower ?(overrides = []) ~prefix (t : Classify.t) =
           ex_frame_words = fw; ex_switcher_spill = fo.fo_switcher_calls })
       t.exports
   in
-  { src = t; imports; imports_suffix = library; funcs; gslots; exports }
+  { src = t; imports; funcs; gslots; exports }

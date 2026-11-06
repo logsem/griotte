@@ -5,7 +5,7 @@ From griotte Require Import machine_parameters assembler fetch setbounds.
 (** The compartment [main] of the CMDC example, as compiled by the CHERIoT compiler (D1: a variant of the hand-written cmdc.v). It calls B.f with a capability to its global b, then C.g with one to c, and asserts after each call that the other global was not modified.
 
     Imports: a data prefix of 4 word(s) before the code, in this order:
-    - [.Limport_switcher]: the switcher (.compartment_switcher)
+    - [.Limport_switcher]: the switcher (.compartment_switcher), the first slot, reserved even when unused
     - [.Limport_assert]: library call griotte_assert (__library_import_libcalls__Z14griotte_assertii)
     - [.Limport_B_f]: export B.f (__import_B__Z1fPi)
     - [.Limport_C_g]: export C.g (__import_C__Z1gPi)
@@ -27,7 +27,7 @@ Section Cmdc_compiled_main.
     [
       [
         (* the imports *)
-        (* the switcher (.compartment_switcher) *)
+        (* the switcher (.compartment_switcher), the first slot, reserved even when unused *)
         #@".Limport_switcher";
         (* library call griotte_assert (__library_import_libcalls__Z14griotte_assertii) *)
         #@".Limport_assert";

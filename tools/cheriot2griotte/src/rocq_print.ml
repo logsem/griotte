@@ -73,7 +73,7 @@ let posture_string = function
 
 let import_comment (i : Classify.import) =
   match i.ikind with
-  | Classify.Switcher -> "the switcher (.compartment_switcher)"
+  | Classify.Switcher -> "the switcher (.compartment_switcher), the first slot, reserved even when unused"
   | Library_call f -> Printf.sprintf "library call %s (%s)" (Demangle.demangle f) i.isym
   | Cross_call (c, f) -> Printf.sprintf "export %s.%s (%s)" c (Demangle.demangle f) i.isym
   | Shared_object (n, perms) ->
@@ -97,8 +97,6 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
   (* Layout summary. *)
   let nimp = List.length l.imports in
   if nimp = 0 then p "    Imports: none.\n"
-  else if l.imports_suffix then
-    p "    Imports: %d word(s) after the code, in this order:\n" nimp
   else p "    Imports: a data prefix of %d word(s) before the code, in this order:\n" nimp;
   List.iter (fun (i, sym) -> p "    - [%s]: %s\n" sym (import_comment i)) l.imports;
   if l.gslots = [] then p "    Globals: none.\n"
@@ -128,10 +126,9 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
   in
   List.iteri
     (fun k b ->
-      let head = if k = 0 && not l.imports_suffix then imp_elems else [] in
-      let tail = if k = nb - 1 && l.imports_suffix then imp_elems else [] in
+      let head = if k = 0 then imp_elems else [] in
       if k = 0 then p "    [\n" else p "    ;\n";
-      print_block "      " (segments b ~head ~tail))
+      print_block "      " (segments b ~head ~tail:[]))
     blocks;
   p "    ].\n\n";
   p "  Definition %s_assembled :=\n    Eval compute in assemble_block %s_asm.\n" name name;
@@ -150,10 +147,7 @@ let print ~name ~source ~sha256 ~description (l : Lower.t) =
       let en = Demangle.demangle e.ex.efunc in
       let id = name ^ "_" ^ en in
       p "\n  (** The export [%s] ([%s], %s). *)\n" en e.ex.efunc e.ex.esym;
-      if l.imports_suffix then
-        p "  (** Entry: word %d of the code, at [%s]; the imports follow the code. *)\n" e.ex_offset e.ex_label
-      else
-        p "  (** Entry: word %d of the PCC region: the %d imports, then [%s]. *)\n" e.ex_offset nimp e.ex_label;
+      p "  (** Entry: word %d of the PCC region: the %d imports, then [%s]. *)\n" e.ex_offset nimp e.ex_label;
       p "  Definition %s_offset : nat := %d.\n" id e.ex_offset;
       p "  Lemma %s_offset_label :\n    label_offset (concat %s_asm) %s = %s_offset.\n  Proof. vm_compute. reflexivity. Qed.\n" id name
         (G.str e.ex_label) id;
