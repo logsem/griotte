@@ -905,7 +905,7 @@ Section Switcher_error_handler.
     ⌜trap_no_resume w⌝ ∗
     ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk h True ∗ ⌜switcher_fault_pc w⌝)
-    ∨ ((∀ h', unwind_cont F cstk h' True) ∗ no_handler (top_export_tbl cstk))
+    ∨ ((∀ h', ⌜(h' <= h)%Z⌝ -∗ unwind_cont F cstk h' True) ∗ no_handler (top_export_tbl cstk))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₑ□{stackful} eh ∗
@@ -938,7 +938,7 @@ Section Switcher_error_handler.
     trap_no_resume w →
     (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0) →
     no_handler (top_export_tbl cstk) -∗
-    (∀ h', unwind_cont F cstk h' True) -∗
+    (∀ h', ⌜(h' <= h)%Z⌝ -∗ unwind_cont F cstk h' True) -∗
     trap_handler_ok_cause P_mcause P_mtval F cstk w regs h.
   Proof.
     rewrite trap_handler_ok_unseal. iIntros (Hno Hset) "Hnh HU".
@@ -982,7 +982,7 @@ Section Switcher_error_handler.
     ⌜trap_no_resume w⌝ ∗
     ⌜¬ switcher_fault_pc w → (top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ ∗
     ( (unwind_cont F cstk h True ∗ ⌜switcher_fault_pc w⌝)
-    ∨ ((∀ h', unwind_cont F cstk h' True) ∗ no_handler (top_export_tbl cstk))
+    ∨ ((∀ h', ⌜(h' <= h)%Z⌝ -∗ unwind_cont F cstk h' True) ∗ no_handler (top_export_tbl cstk))
     ∨ (∃ (P_fault : coPset → CSTK → LWord → LReg → Z → Z → iProp Σ) (eh : Z),
          trusted_handler (top_export_tbl cstk) P_fault ∗
          top_export_tbl cstk ↦ₑ□{stackful} eh ∗

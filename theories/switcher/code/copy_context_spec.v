@@ -134,7 +134,7 @@ Section CopyContextMacro.
     (p_s : Perm) (g_s : Locality) (b_s e_s a_s : Addr)
     (p_d : Perm) (g_d : Locality) (b_d e_d a_d : Addr) (π_d : option AId)
     (ws : list LWord) (D : nat → iProp Σ) (i : nat) (wscratch : LWord)
-    (hb f : Addr) (h : Z) φ :
+    (hb f : Addr) (h h0 : Z) φ :
     executeAllowed pc_p = true →
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (copy_context_instrs dst src scratch counter)) →
     length ws = 15%nat →
@@ -149,6 +149,7 @@ Section CopyContextMacro.
     (b_d <= a_d)%a →
     cnull ∉ [dst; src; scratch; counter] →
     (f <= h)%Z →
+    (h <= h0)%Z →
 
     PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 1) ∗
     codefrag_pers pc_a (copy_context_instrs dst src scratch counter) ∗
@@ -171,6 +172,7 @@ Section CopyContextMacro.
           ([∗ list] k ↦ w ∈ ws, (a_s ^+ k) ↦ₐ w) -∗
           D j -∗
           ⌜(f <= h')%Z⌝ -∗
+          ⌜(h' <= h0)%Z⌝ -∗
           hwm_regs hb h' -∗
           hwm_locked hb f -∗
           PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
@@ -186,19 +188,20 @@ Section CopyContextMacro.
           ([∗ list] k ↦ w ∈ ws, (a_s ^+ k) ↦ₐ w) -∗
           D 15 -∗
           ⌜(f <= h')%Z⌝ -∗
+          ⌜(h' <= h0)%Z⌝ -∗
           hwm_regs hb h' -∗
           hwm_locked hb f -∗
           WP Exec {{ φ }} ) )
     ⊢ WP Exec {{ φ }}.
   Proof.
-    iIntros (Hexec Hsub Hlen Hi Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull Hfh)
+    iIntros (Hexec Hsub Hlen Hi Hread Hdl Hdro Hb_s He_s Hshadow_s Hwrite Hb_d Hnull Hfh Hhh0)
       "(HPC & #Hcode & Hsrc & Hdst & Hscratch & Hcounter & Hws & HD & #Hacc & Hhwm & Hlocked
       & Hpost)".
     assert (dst ≠ cnull ∧ src ≠ cnull ∧ scratch ≠ cnull ∧ counter ≠ cnull)
       as (Hdst_null & Hsrc_null & Hscratch_null & Hcounter_null)
       by (clear -Hnull; set_solver).
     codefrag_facts "Hcode".
-    iLöb as "IH" forall (i wscratch h Hi Hfh).
+    iLöb as "IH" forall (i wscratch h Hi Hfh Hhh0).
     destruct (lookup_lt_is_Some_2 ws i) as [wi Hwi]; first lia.
     iDestruct (big_sepL_lookup_acc _ _ i with "Hws") as "[Hwi Hws]"; first exact Hwi.
     (* CLoad scratch src 0 *)
@@ -217,7 +220,7 @@ Section CopyContextMacro.
       { solve_addr. }
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[Hfailed _]".
-      iApply ("Hfailed" $! i h with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD [//] Hhwm
+      iApply ("Hfailed" $! i h with "[//] [%] Hsrc Hdst [$Hscratch] Hcounter Hws HD [//] [//] Hhwm
                 Hlocked [HPC]").
       { solve_addr. }
       by rewrite (_ : pc_a ^+ Z.to_nat 2 = pc_a ^+ 2); last solve_addr. }
@@ -233,6 +236,9 @@ Section CopyContextMacro.
     { rewrite /withinBounds; solve_addr. }
     { solve_addr. }
     pose proof (hwm_after_floor _ _ _ _ _ Hnot_locked Hfh Hh1) as Hfh1.
+    assert (h1 <= h0)%Z as Hh10.
+    { destruct Hh1 as [-> | ->]; first done.
+      rewrite /hwm_after. case_decide; lia. }
     rewrite -(list_lookup_total_correct _ _ _ Hwi).
     iMod ("Hclose" with "Hcell Hderef") as "HD".
     (* Add counter counter (-1) *)
@@ -247,7 +253,7 @@ Section CopyContextMacro.
     - (* Jne -5 counter 0 *)
       iInstr "Hcode".
       iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" $! _ h1 with "[%] HPC Hsrc Hdst Hscratch Hcounter Hws HD [//] Hhwm
+      iApply ("Hpost" $! _ h1 with "[%] HPC Hsrc Hdst Hscratch Hcounter Hws HD [//] [//] Hhwm
                 Hlocked").
       solve_addr.
     - (* Jne -5 counter 0 *)
@@ -255,7 +261,7 @@ Section CopyContextMacro.
       { apply negb_true_iff, Z.eqb_neq. cbn. lia. }
       { transitivity (Some (pc_a ^+ 1)); solve_addr. }
       replace (15 - i + -1)%Z with (15 - S i)%Z by lia.
-      iApply ("IH" $! (S i) _ h1 with "[] [//] HPC Hsrc Hdst Hscratch Hcounter Hws HD Hhwm
+      iApply ("IH" $! (S i) _ h1 with "[] [//] [//] HPC Hsrc Hdst Hscratch Hcounter Hws HD Hhwm
                 Hlocked Hpost").
       iPureIntro; lia.
   Qed.
@@ -309,6 +315,7 @@ Section CopyContextMacro.
           [[ a_s , a_s ^+ 15 ]] ↦ₐ [[ ws ]] -∗
           D j -∗
           ⌜(f <= h')%Z⌝ -∗
+          ⌜(h' <= h)%Z⌝ -∗
           hwm_regs hb h' -∗
           hwm_locked hb f -∗
           PC ↦ₚ Cap pc_p pc_g pc_b pc_e (pc_a ^+ 2) -∗
@@ -324,6 +331,7 @@ Section CopyContextMacro.
           [[ a_s , a_s ^+ 15 ]] ↦ₐ [[ ws ]] -∗
           D 15 -∗
           ⌜(f <= h')%Z⌝ -∗
+          ⌜(h' <= h)%Z⌝ -∗
           hwm_regs hb h' -∗
           hwm_locked hb f -∗
           WP Exec {{ φ }} ) )
@@ -339,21 +347,22 @@ Section CopyContextMacro.
     iEval (rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr)) in "Hws".
     assert (a_s ^+ 0%nat = a_s) as Ha_s0 by solve_addr.
     assert (a_d ^+ 0%nat = a_d) as Ha_d0 by solve_addr.
-    iApply (copy_context_loop_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ D 0 _ hb f h
+    iApply (copy_context_loop_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ D 0 _ hb f h h
              with "[$HPC $Hcode $Hscratch $Hcounter $Hws $HD $Hacc $Hhwm $Hlocked Hsrc Hdst
                     Hpost]").
     all: try (lia || done).
     rewrite Ha_s0 Ha_d0. iFrame "Hsrc Hdst".
     iNext. iSplit.
-    - iIntros (j h' Hj Hout) "Hsrc Hdst Hscratch Hcounter Hws HD %Hfh' Hhwm Hlocked".
+    - iIntros (j h' Hj Hout) "Hsrc Hdst Hscratch Hcounter Hws HD %Hfh' %Hhh' Hhwm Hlocked".
       iDestruct "Hpost" as "[Hfailed _]".
-      iApply ("Hfailed" with "[//] [//] Hsrc Hdst Hscratch Hcounter [Hws] HD [//] Hhwm
+      iApply ("Hfailed" with "[//] [//] Hsrc Hdst Hscratch Hcounter [Hws] HD [//] [//] Hhwm
                 Hlocked").
       rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr).
       iFrame.
-    - iIntros (wscratch' h' Hin) "HPC Hsrc Hdst Hscratch Hcounter Hws HD %Hfh' Hhwm Hlocked".
+    - iIntros (wscratch' h' Hin)
+        "HPC Hsrc Hdst Hscratch Hcounter Hws HD %Hfh' %Hhh' Hhwm Hlocked".
       iDestruct "Hpost" as "[_ Hpost]".
-      iApply ("Hpost" with "[//] HPC Hsrc Hdst Hscratch Hcounter [Hws] HD [//] Hhwm Hlocked").
+      iApply ("Hpost" with "[//] HPC Hsrc Hdst Hscratch Hcounter [Hws] HD [//] [//] Hhwm Hlocked").
       rewrite (region_pointsto_cells a_s); last (rewrite Hlen; solve_addr).
       iFrame.
   Qed.

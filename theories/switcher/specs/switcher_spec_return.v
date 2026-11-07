@@ -137,7 +137,7 @@ Section Switcher.
     iApply (common_defer_irqs_and_thread_exit_spec with "[- $HPC $Hcode]").
     iIntros "!> _".
     iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
+           "Hsave_mshwmb Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
             Hcstk_full Hstk_interp") as "Hna"; [done|done|].
     iModIntro; iIntros (_); iExact "Hna".
   Qed.

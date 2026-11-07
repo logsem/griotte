@@ -38,15 +38,17 @@ Section Switcher_Spec_Install.
   (** A fault of the installation, at the switcher's PC of offset [off],
       with the trusted-stack invariant closed: the handler's [csp] in
       [rmap] does not allow the loads of the [ErrorState]
-      ([install_skipped]); a load faults once [i] words [ls] are loaded. *)
+      ([install_skipped]); a load faults once [i] words [ls] are loaded.
+      MSHWM is unchanged, at [h]. *)
   Definition install_nested_k (F : coPset) (cstk : CSTK) (rmap : LReg)
-    (L : nat → list LWord → iProp Σ) : iProp Σ :=
+    (L : nat → list LWord → iProp Σ) (h : Z) : iProp Σ :=
     ⌜install_skipped cstk rmap⌝ -∗
     ∀ (off : Z) (rmap' : LReg) (i : nat) (ls : list LWord),
       ⌜trap_no_resume (switcher_pc off)⌝ -∗
       ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
       registers_pointsto rmap' -∗
       ◯(CSTK)[th] cstk -∗
+      hwm_res cstk h -∗
       L i ls -∗
       na_own (tpool th) F -∗
       trap_safe (switcher_pc off) ⊤ (HO th).
@@ -54,14 +56,15 @@ Section Switcher_Spec_Install.
   (** The context is installed: the PC is the PCC [wpcc] of the topmost
       table with the address of the first loaded word, the registers hold
       the 15 others, and the error handler count of the topmost frame is
-      incremented. *)
+      incremented. MSHWM is restored to its value [h] at the installation. *)
   Definition install_resume_k (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
-    (L : nat → list LWord → iProp Σ) : iProp Σ :=
+    (L : nat → list LWord → iProp Σ) (h : Z) : iProp Σ :=
     ∀ ls : list LWord,
       ⌜length ls = Z.to_nat ErrorState_size⌝ -∗
       PC ↦ₚ[th] llegalise mepcc (resumed_pc wpcc (get_a (ls !!! 0%nat).(lw))) -∗
       registers_pointsto (error_state_install rmap (drop 1 ls)) -∗
       ◯(CSTK)[th] (cstack_set_top_count cstk (top_error_count cstk + 1)) -∗
+      hwm_res cstk h -∗
       L (Z.to_nat ErrorState_size) ls -∗
       na_own (tpool th) F -∗
       safe[th].
@@ -73,7 +76,7 @@ Section Switcher_Spec_Install.
       registers are rebuilt from any fifteen words. *)
   #[local] Lemma switcher_install_nested_finish
     (F : coPset) (cstk : CSTK) (off : Z) (rmap : LReg) (L : nat → list LWord → iProp Σ)
-    (i : nat) (ls : list LWord)
+    (i : nat) (ls : list LWord) (h : Z)
     (wcra wcsp wcgp wctp wct0 wct1 wct2 wcs0 wcs1 wca0 wca1 wca2 wca3 wca4 wca5 : LWord) :
     (∀ r, is_Some (rmap !! r)) ->
     trap_no_resume (switcher_pc off) ->
@@ -97,19 +100,20 @@ Section Switcher_Spec_Install.
     ca5 ↦ᵣ[th] wca5 ∗
     (|={⊤}=> na_own (tpool th) F) ∗
     ◯(CSTK)[th] cstk ∗
+    hwm_res cstk h ∗
     L i ls ∗
-    install_nested_k F cstk rmap L
+    install_nested_k F cstk rmap L h
     ⊢ trap_safe (switcher_pc off) ⊤ (HO th).
   Proof.
     iIntros (Hfull Hno_resume Hskipped)
       "(Hrmap & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hclose & Hcstk & HL & Hnested)".
+       & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hclose & Hcstk & Hhwm & HL & Hnested)".
     iApply trap_safe_fupd. iSplitL; last (iNext; rewrite /HO; by iIntros).
     iMod "Hclose" as "Hna". iModIntro.
     iDestruct (error_state_install_pointsto with
                 "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
       as "Hrmap".
-    iApply ("Hnested" with "[//] [//] [] Hrmap Hcstk HL Hna").
+    iApply ("Hnested" with "[//] [//] [] Hrmap Hcstk Hhwm HL Hna").
     iPureIntro. by apply error_state_install_full.
   Qed.
 
@@ -120,10 +124,11 @@ Section Switcher_Spec_Install.
       frame's table word is set, at a token [F] that
       contains the trusted-stack invariant and the trap-entry part: the
       [ErrorState] is read at the handler's [csp] through the accessor,
-      and the context it holds is resumed, or a load faults. *)
+      and the context it holds is resumed, or a load faults. MSHWM is
+      [h]. *)
   Lemma switcher_install_context_spec
     (F : coPset) (cstk : CSTK) (rmap : LReg) (wpcc : LWord)
-    (L : nat → list LWord → iProp Σ) :
+    (L : nat → list LWord → iProp Σ) (h : Z) :
     ↑Ntstack ⊆ F ->
     ↑Ntrap ⊆ F ->
     (∀ r, is_Some (rmap !! r)) ->
@@ -136,23 +141,28 @@ Section Switcher_Spec_Install.
     registers_pointsto rmap ∗
     na_own (tpool th) F ∗
     ◯(CSTK)[th] cstk ∗
+    hwm_res cstk h ∗
     top_export_tbl cstk ↦ₐ□ wpcc ∗
     L 0 [] ∗
     (∀ (p : Perm) (g : Locality) (b e a : Addr) (π : option AId),
        ⌜rmap !!! csp = Cap p g b e a @@? π⌝ -∗
        ⌜readAllowed p = true ∧ (b <= a)%a⌝ -∗
        cells_load_acc L p e a π (Z.to_nat ErrorState_size)) ∗
-    ▷ ( install_nested_k F cstk rmap L ∧
-        install_resume_k F cstk rmap wpcc L )
+    ▷ ( install_nested_k F cstk rmap L h ∧
+        install_resume_k F cstk rmap wpcc L h )
     ⊢ safe[th].
   Proof.
     iIntros (HF HFtrap Hfull Hnz Htbl_set)
-      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & #Hpcc & HL & Hacc & Hpost)".
+      "(#Hinv_switcher & #Hstatic & HPC & Hrmap & Hna & Hcstk & Hhwm & #Hpcc & HL & Hacc & Hpost)".
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hhwm_ord & Hlocked) #Hts]".
     iPoseProof "Hstatic" as "(#Hcode & _ & _)".
     iMod (na_inv_acc with "Hinv_switcher Hna") as "(Hswitcher_inv & Hna & Hclose)";
       [done | done |].
     iModNamed trusted_stack_inv_open "Hswitcher_inv".
     iDestruct (cstack_agree with "Hcstk_full Hcstk") as %->.
+    (* The word of MSHWMB of the register save area is MSHWMB *)
+    iDestruct "Hsave_mshwmb" as (hb' es') "[%Hsave_hb Hts']".
+    iDestruct (thread_stack_agree with "Hts Hts'") as %[<- <-].
     iDestruct (tstack_save_area_length with "Hsave_area") as %Hsave_len.
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     rewrite /registers_pointsto.
@@ -174,7 +184,9 @@ Section Switcher_Spec_Install.
        save area and any error handler count of the topmost frame *)
     iAssert (∀ (save' : list LWord) (n' : Z),
                ⌜save' !! Z.to_nat TrustedStack_offset_hazardPointers
-                = save_area !! Z.to_nat TrustedStack_offset_hazardPointers⌝ -∗
+                = save_area !! Z.to_nat TrustedStack_offset_hazardPointers ∧
+                save' !! Z.to_nat TrustedStack_offset_mshwmb
+                = save_area !! Z.to_nat TrustedStack_offset_mshwmb⌝ -∗
                mtdc ↦ₜ Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
                [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save' ]] -∗
                (b_trusted_stack ^+ TrustedStack_offset_frameoffset)
@@ -185,13 +197,16 @@ Section Switcher_Spec_Install.
                ={⊤}=∗
                na_own (tpool th) F)%I
       with "[HthreadID Hhazard_slots Htstk Hclose]" as "Hclose".
-    { iIntros (save' n' Hsave'_hazard) "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
+    { iIntros (save' n' [Hsave'_hazard Hsave'_mshwmb])
+        "Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna".
       iApply ("Hclose" with "[- $Hna]").
       iNext. rewrite /trusted_stack_inv /tstack_save_end.
       iExists a_tstk, (cstack_set_top_count cstk n'), _, tstk_next.
       rewrite cstack_set_top_count_frames_length.
       iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
-      iPureIntro. split_and!; [by rewrite Hsave'_hazard | done | done]. }
+      iSplit; first (iPureIntro; by rewrite Hsave'_hazard).
+      iSplit; first (iExists _, _; iFrame "Hts"; iPureIntro; by rewrite Hsave'_mshwmb).
+      iPureIntro. split; done. }
     iAssert (cstack_full (cstack_set_top_count cstk (top_error_count cstk)))
       with "[Hcstk_full]" as "Hcstk_full"; first by rewrite cstack_set_top_count_id.
 
@@ -203,6 +218,7 @@ Section Switcher_Spec_Install.
     destruct Hwcell as [Hz | (-> & Hexp & Hprov)]; first (exfalso; by apply Htbl_set).
     iEval (fold (top_error_count cstk)) in "Hcnt".
 
+    iCombine "Hmshwmb Hmshwm" as "Hhwm_regs".
     (* [.Lhandle_error_install_context]: the loads of the [ErrorState] and
        the count *)
     iApply (handle_error_install_context_spec (length cstk.(cstk_frames)) a_tstk
@@ -210,7 +226,7 @@ Section Switcher_Spec_Install.
               (top_tframe cstk).(tf_export_tbl) wcsp
               _ _ _ _ _ _ _ _ _ _ dq L
              with "[- $HPC $Hcsp $Hcra $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca2 $Hca3 $Hca4
-                     $Hmtdc $Hframeoffset $Hcell $Hcnt $Hsave_area $Hcode $HL $Hacc]").
+                     $Hmtdc $Hframeoffset $Hcell $Hcnt $Hsave_area $Hhwm_regs $Hcode $HL $Hacc]").
     { exact Hlen_cstk. }
     { exact Ha_tstk_e. }
     { exact Hsave_len. }
@@ -218,19 +234,22 @@ Section Switcher_Spec_Install.
     iSplitR; first (iIntros "_"; iExact "Hpcc").
     iNext; iSplit.
     - (* A load faults: the invariant is closed, the count unchanged *)
-      iIntros (Hwhy off i ls save' Hoff Hsave' Hsave'_hazard)
+      iIntros (Hwhy off i ls save' Hoff Hsave' Hsave'_hazard Hsave'_mshwmb)
         "(Hcsp & [%wcra_f Hcra] & [%wctp_f Hctp] & [%wct0_f Hct0] & [%wct1_f Hct1]
           & [%wct2_f Hct2] & [%wcs0_f Hcs0] & [%wcs1_f Hcs1] & [%wca2_f Hca2]
           & [%wca3_f Hca3] & [%wca4_f Hca4] & Hmtdc & Hframeoffset & Hcell & Hcnt
-          & Hsave_area & HL)".
+          & Hsave_area & [Hmshwmb Hmshwm] & HL)".
       iDestruct ("Htf_close" $! (top_error_count cstk) with "Hcsp_cell Hcell Hcnt") as "Htf".
       iDestruct ("Hstk_close" with "Htf") as "Hstk_interp".
-      iSpecialize ("Hclose" with "[//] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna").
+      iSpecialize ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna");
+        first by split.
       iDestruct "Hpost" as "[Hnested _]".
       iApply (switcher_install_nested_finish F cstk off rmap L i ls with
                "[$Hrmap $Hcra $Hcsp $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $HL $Hnested]");
-        [done | done |].
+                 $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hclose $Hcstk $HL $Hnested
+                 Hmshwmb Hmshwm Hlocked]");
+        [done | done | |
+         rewrite /hwm_res /hwm_res_at; iFrame "Hmshwmb Hmshwm Hlocked Hts"; by iPureIntro].
       (* The reason of the fault *)
       rewrite /install_skipped Hrmap_csp.
       destruct Hwhy as [Hz | Hnok]; [exfalso; by apply Htbl_set | exact Hnok].
@@ -238,7 +257,31 @@ Section Switcher_Spec_Install.
       iIntros (g_tstk ls Hls Htbl)
         "(HPC & Hcsp & [%wcra_r Hcra] & [%wctp_r Hctp] & [%wct0_r Hct0] & Hct1 & Hct2
           & [%wcs0_r Hcs0] & [%wcs1_r Hcs1] & [%wca2_r Hca2] & [%wca3_r Hca3] & [%wca4_r Hca4]
-          & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & HL)".
+          & Hmtdc & Hframeoffset & Hcell & Hcnt & Hsave_area & Hhwm_regs & HL)".
+      (* The register save area holds MSHWM, stored by the installation, and
+         MSHWMB *)
+      set (save_ret := save_area !!! 0%nat :: drop 1 ls ++
+             drop 16 (<[Z.to_nat TrustedStack_offset_mshwm := lword_of_word (WInt h)]> save_area)).
+      assert (save_ret !!! Z.to_nat TrustedStack_offset_mshwm = lword_of_word (WInt h))
+        as Hret_mshwm.
+      { subst save_ret. rewrite /TrustedStack_offset_mshwm /=.
+        rewrite lookup_total_app_r; last (rewrite length_drop Hls /ErrorState_size; lia).
+        rewrite length_drop Hls /ErrorState_size lookup_total_drop /=.
+        apply list_lookup_total_correct, list_lookup_insert_eq. simpl. lia. }
+      assert (save_ret !! Z.to_nat TrustedStack_offset_mshwmb
+              = save_area !! Z.to_nat TrustedStack_offset_mshwmb) as Hret_mshwmb.
+      { subst save_ret. rewrite /TrustedStack_offset_mshwmb /=.
+        rewrite lookup_app_r; last (rewrite length_drop Hls /ErrorState_size; lia).
+        rewrite length_drop Hls /ErrorState_size lookup_drop /=.
+        by rewrite list_lookup_insert_ne. }
+      assert (save_ret !! Z.to_nat TrustedStack_offset_hazardPointers
+              = save_area !! Z.to_nat TrustedStack_offset_hazardPointers) as Hret_hazard.
+      { subst save_ret. rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r;
+          rewrite length_drop Hls /ErrorState_size //.
+        by rewrite lookup_drop list_lookup_insert_ne. }
+      assert (length save_ret = 21%nat) as Hret_len.
+      { subst save_ret. rewrite /= length_app !length_drop length_insert Hls Hsave_len.
+        reflexivity. }
       iMod (cstack_update _ _ (cstack_set_top_count cstk (top_error_count cstk + 1)%Z)
              with "Hcstk_full Hcstk") as "[Hcstk_full Hcstk]".
       iDestruct ("Htf_close" $! (top_error_count cstk + 1)%Z with "Hcsp_cell Hcell Hcnt")
@@ -249,29 +292,32 @@ Section Switcher_Spec_Install.
         first solve_ndisj.
       iApply (common_context_install_spec with
                "[- $HPC $Hcsp $Hcra $Hcgp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1
-                   $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave_area $Htok $Hcode]").
-      { rewrite /= length_app !length_drop Hls Hsave_len. reflexivity. }
+                   $Hca0 $Hca1 $Hca2 $Hca3 $Hca4 $Hca5 $Hsave_area $Hhwm_regs $Htok $Hcode]").
+      { exact Hret_len. }
+      { left. rewrite Hret_mshwm /=. destruct Hhwm_ord. solve_addr. }
+      { by rewrite (list_lookup_total_correct _ _ _ (eq_trans Hret_mshwmb Hsave_hb)). }
       iNext; iIntros
         "(HPC & Hcra & Hcsp & Hcgp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1
-          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & Htok)".
+          & Hca0 & Hca1 & Hca2 & Hca3 & Hca4 & Hca5 & Hsave_area & [Hmshwmb Hmshwm] & Htok)".
+      iEval (rewrite Hret_mshwm /=) in "Hmshwm".
       (* After [mret]: the token is recombined, the invariant closed *)
       iDestruct (trap_entry_res_split (F ∖ ↑Ntstack) with "[$Htok $Hna]") as "Hna";
         first solve_ndisj.
       iMod ("Hclose" with "[%] Hmtdc Hsave_area Hframeoffset Hcstk_full Hstk_interp Hna") as "Hna".
-      { rewrite /TrustedStack_offset_hazardPointers /= lookup_app_r;
-          rewrite length_drop Hls /ErrorState_size //.
-        by rewrite lookup_drop. }
+      { by split. }
       (* The registers receive words 1-15 of the [ErrorState] *)
       destruct ls as [|w0 [|w1 [|w2 [|w3 [|w4 [|w5 [|w6 [|w7 [|w8 [|w9 [|w10 [|w11 [|w12
                      [|w13 [|w14 [|w15 [|w16 ls] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
         rewrite /ErrorState_size /= in Hls; try lia.
+      subst save_ret.
       iDestruct (error_state_install_pointsto with
                   "Hrmap Hcra Hcsp Hcgp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1
                    Hca0 Hca1 Hca2 Hca3 Hca4 Hca5")
         as "Hrmap".
       iDestruct "Hpost" as "[_ Hresume]".
-      iApply ("Hresume" with "[] HPC Hrmap Hcstk HL Hna").
-      iPureIntro. rewrite /ErrorState_size. reflexivity.
+      iApply ("Hresume" with "[] HPC Hrmap Hcstk [Hmshwmb Hmshwm Hlocked] HL Hna").
+      { iPureIntro. rewrite /ErrorState_size. reflexivity. }
+      rewrite /hwm_res /hwm_res_at. iFrame "Hmshwmb Hmshwm Hlocked Hts". by iPureIntro.
   Qed.
 
 End Switcher_Spec_Install.

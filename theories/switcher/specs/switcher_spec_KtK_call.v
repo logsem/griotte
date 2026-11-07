@@ -177,6 +177,7 @@ Section Switcher_KtK_Call.
     na_own (tpool th) (F ∖ ↑Ntstack) ∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack ∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] ∗
+    save_area_mshwmb save_area ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
     a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
     (∃ w, a_threadID ↦ₐ w) ∗
@@ -227,7 +228,7 @@ Section Switcher_KtK_Call.
        invariant. The return address is a valid
        target, so the jump back does not fault. *)
     iIntros (Hstk_mmio Hdom Hrdom Hstk_bounds Hlen_cstk Ha_tstk_e Hsave_hazard Hret_jalr Hret_heap)
-      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & Hhazard_slots & Hframeoffset & HthreadID
+      "(Hclose_switcher_inv & Hna & Hmtdc & Hsave_area & #Hsave_mshwmb & Hhazard_slots & Hframeoffset & HthreadID
       & Htstk & #Hstatic & Hcstk_full & Hstk_interp
       & HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hctp & Hct2 & Hct1 & Hcsp & Hcells & Hstk & Hhwm
       & Hargs & Hregs & Hcstk & Hpost)".
@@ -307,8 +308,10 @@ Section Switcher_KtK_Call.
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
-    (* The caller's stack starts at the floor *)
+    (* The caller's stack starts at the floor, which is the base of the
+       thread's stack *)
     b_stk = cstk_hwm_floor cstk ->
+    b_stk = cstk_hwm_base cstk ->
     ↑Ntstack ⊆ F ->
 
     (* Well formed entry point *)
@@ -438,7 +441,7 @@ Section Switcher_KtK_Call.
     intros a_tbl_cgp a_tbl_ehs wct1_caller frame.
     subst a_tbl_cgp a_tbl_ehs.
     iIntros (Hstk_mmio Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow Hbpcc_heap Hbcgp_heap Hstk_heap
-             Hb_a Hfloor HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
+             Hb_a Hfloor Hbase HE atbl_tgt_inbounds Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap
              Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_exp_tbl_pcc & #Hinv_exp_tbl_cgp & #Hinv_exp_tbl_entry
         & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hhwm
@@ -477,7 +480,8 @@ Section Switcher_KtK_Call.
     iEval (rewrite -switcher_call_entry_label) in "HPC".
     iApply (switcher_call_path_spec with
       "[- $HPC $Hcsp $Hct2 $Hctp $Hcs0 $Hcs1 $Hcra $Hcgp $Hct1 $Hstk $Hhwm_regs $Hmtdc
-          $Hframeoffset $Hhazard $Htstk $Hb_switcher $Hcode]"); [done..| solve_addr |].
+          $Hframeoffset $Hhazard $Htstk $Hb_switcher $Hcode]");
+      [done..| solve_addr | by rewrite Hbase |].
     iNext.
     iSplit; [ |iSplit; [ |iSplit; [ |iSplit] ] ]; cycle 1.
     { (* The entry point is sealed by the switcher: the unsealing does not
@@ -491,7 +495,7 @@ Section Switcher_KtK_Call.
       iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
       iSpecialize ("Hsave_area" with "Hhazard_cell").
       iApply (switcher_cc_spec_tstack_exhausted_known_to_known with
-        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hhazard_slots $Hframeoffset $HthreadID $Htstk
+        "[$Hclose_switcher_inv $Hna $Hmtdc $Hsave_area $Hsave_mshwmb $Hhazard_slots $Hframeoffset $HthreadID $Htstk
           $Hstatic
           $Hcstk_full $Hstk_interp
           $HPC $Hcs0 $Hcs1 $Hcgp $Hcra $Hctp $Hct2 $Hct1 $Hcsp $Hcells $Hstk
@@ -579,7 +583,7 @@ Section Switcher_KtK_Call.
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iMod (trusted_stack_inv_push_frame frame cstk with
-           "Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
+           "Hsave_mshwmb Hcstk_full Hcstk Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp
             Hframe_tbl Hframe_cnt Htstk Hstk_interp [Hcells]")
       as "[Hinv Hcstk]";
       [done|done|done|done|exact Hstk_bounds|done|done|by intros _

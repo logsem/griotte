@@ -210,6 +210,12 @@ Section Switcher.
         (* [deviation] the locality is not a permission bit: a second test *)
         getl ct2 csp;
         mov ctp COMPARTMENT_STACK_LOCALITY;
+        jne (".Lcommon_force_unwind")%asm ctp ct2;
+        (* cgetbase t2, csp *)
+        getb ct2 csp;
+        (* csrr tp, CSR_MSHWMB *)
+        csrr ctp mshwmb;
+        (* bne tp, t2, .Lcommon_force_unwind *)
         jne (".Lcommon_force_unwind")%asm ctp ct2
         (* [deviation] word memory: no alignment check *)
       ]

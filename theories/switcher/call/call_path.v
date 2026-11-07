@@ -40,7 +40,8 @@ Section Call_Path.
       leaves MSHWM at its value [h], or lowers it to one of the spilled
       cells.
 
-      The stack pointer is a [RWL] [Local] capability, so the checks pass.
+      The stack pointer is a [RWL] [Local] capability whose base is the
+      value of MSHWMB, so the checks pass.
       There is one continuation per exit, in this order: the entry point is
       unsealed, at [.Lswitcher_decode_entry]; the unsealing faults, with the
       frame pushed; the trusted stack is exhausted, at
@@ -65,6 +66,7 @@ Section Call_Path.
     (b_trusted_stack + tstack_frame_offset d)%a = Some a_tstk ->
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     (0 <= hb <= h)%Z ->
+    (b : Z) = hb ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_csp_check" ∗
     csp ↦ᵣ[th] Cap RWL Local b e a ∗
@@ -204,8 +206,8 @@ Section Call_Path.
         (* The first store of the spill faults *)
         ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
           csp ↦ᵣ[th] Cap RWL Local b e a ∗
-          ct2 ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
-          ctp ↦ᵣ[th] WInt COMPARTMENT_STACK_LOCALITY ∗
+          ct2 ↦ᵣ[th] WInt hb ∗
+          ctp ↦ᵣ[th] WInt hb ∗
           cs0 ↦ᵣ[th] wcs0 ∗
           cs1 ↦ᵣ[th] wcs1 ∗
           cra ↦ᵣ[th] wcra ∗
@@ -223,13 +225,14 @@ Section Call_Path.
   Proof.
     intros a_frameoffset a_next a_free a_csp a_export_table a_error_count.
     subst a_frameoffset a_next a_free a_csp a_export_table a_error_count.
-    iIntros (Hstk_mmio Hstk_heap Hcursor Ha_tstk Ha_tstk_e Hhwm)
-      "(HPC & Hcsp & Hct2 & Hctp & Hcs0 & Hcs1 & Hcra & Hcgp & Hct1 & Hstk & Hhwm_regs
+    iIntros (Hstk_mmio Hstk_heap Hcursor Ha_tstk Ha_tstk_e Hhwm Hb)
+      "(HPC & Hcsp & Hct2 & Hctp & Hcs0 & Hcs1 & Hcra & Hcgp & Hct1 & Hstk & [Hmshwmb Hmshwm]
       & Hmtdc & Hframeoffset & Hhazard & Htstk & #Hb_switcher & #Hswitcher & Hpost)".
     (* [.Lswitch_csp_check]: checks on the stack pointer *)
-    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hswitcher]").
-    iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
-      last (exfalso; apply Hcontra, switcher_csp_checked_stk).
+    iApply (switch_csp_check_spec with "[- $HPC $Hcsp $Hct2 $Hctp $Hmshwmb $Hswitcher]").
+    iNext; iIntros "[(_ & _ & HPC & Hcsp & Hct2 & Hctp & Hmshwmb) | (%Hcontra & _)]";
+      last (exfalso; apply Hcontra; split; [apply switcher_csp_checked_stk | done]).
+    iCombine "Hmshwmb Hmshwm" as "Hhwm_regs".
     (* [.Lswitch_entry_first_spill]: spill the callee-save registers *)
     iApply (switch_entry_first_spill_spec with
       "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hhwm_regs $Hswitcher]"); [done|done|].

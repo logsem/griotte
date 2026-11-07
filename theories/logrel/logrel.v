@@ -934,7 +934,9 @@ Section logrel_expr.
         (* Continuation for the rest of the call-stack *)
         interp_cont_aux interp ef frms' Ws' Cs' ∗
         (if is_known_to_known_frm frm
-         then True%I
+         then
+           (* the caller's stack starts at the base of the thread's stack *)
+           ⌜cf_stk_b frm = tf_stk_b ef⌝
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct
@@ -949,10 +951,11 @@ Section logrel_expr.
                   (* the stack addresses between the floor and the caller's
                      cursor are Temporary in the caller's world *)
                   ⌜zone_temporary Wt (frames_hwm_floor ef frms') (cf_caller_a frm)⌝ ∗
-                  (* the caller's stack starts at or above the floor *)
-                  ⌜(frames_hwm_floor ef frms' <= cf_stk_b frm)%a⌝
+                  (* the caller's stack starts at the base of the thread's
+                     stack *)
+                  ⌜cf_stk_b frm = tf_stk_b ef⌝
                 else
-                  ⌜(frames_hwm_floor ef frms' <= cf_stk_b frm)%a⌝ ∗
+                  ⌜cf_stk_b frm = tf_stk_b ef⌝ ∗
                   (∀ W', ⌜related_sts_pub_world Wt W'⌝
                     -∗ interp_cont_exec interp (interp_cont_aux interp ef frms' Ws' Cs')
                          cstk' W' Ct frm))))%I
@@ -1759,6 +1762,21 @@ Section logrel.
     destruct cstk as [ef [|frm frms] ]; by destruct Ws, Cs.
   Qed.
 
+  (** Every caller's stack starts at the base of the thread's stack, so the
+      floor is that base. *)
+  Lemma interp_cont_floor_base (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
+    interp_continuation cstk Ws Cs -∗ ⌜cstk_hwm_floor cstk = cstk_hwm_base cstk⌝.
+  Proof.
+    destruct cstk as [ef frms]. rewrite /cstk_hwm_floor /cstk_hwm_base /=.
+    revert Ws Cs; induction frms as [|frm frms IH]; intros Ws Cs; first by iIntros "_".
+    destruct Ws as [|Wt Ws], Cs as [|Ct Cs]; cbn; try by iIntros "[]".
+    iIntros "[Hrest Hfrm]".
+    destruct (is_untrusted_caller_frm frm) eqn:Hfrm.
+    { by iApply (IH with "Hrest"). }
+    destruct (is_known_to_known_frm frm); first done.
+    by iDestruct "Hfrm" as "(_ & %Hb & _)".
+  Qed.
+
   (** The continuation of [cstk], with the record of an untrusted topmost
       caller relaxed: its stack addresses between the floor and its cursor
       are Temporary, or MSHWM [h] is below its stack base, in which case the
@@ -1773,7 +1791,7 @@ Section logrel.
           interp_callee_part_of_the_stack interp Wt Ct
             (Cap RWL Local (cf_stk_b frm) (cf_stk_e frm) (cf_caller_a frm)) true ∗
           top_cmpt_untrusted interp Wt Ct cstk' ∗
-          ⌜(cstk_hwm_floor cstk' <= cf_stk_b frm)%a⌝ ∗
+          ⌜cf_stk_b frm = cstk_hwm_base cstk'⌝ ∗
           ⌜zone_temporary Wt (cstk_hwm_floor cstk') (cf_caller_a frm) ∨ (h < cf_stk_b frm)%Z⌝
         else interp_continuation cstk Ws Cs
     | _, _, _ => interp_continuation cstk Ws Cs
@@ -1788,7 +1806,7 @@ Section logrel.
     destruct (is_untrusted_caller_frm frm) eqn:Hfrm; last done.
     iDestruct "Hcont" as "[Hrest Hfrm]".
     destruct frm as [tf saved [ | | | ] ]; cbn in Hfrm |- *; try discriminate.
-    all: iDestruct "Hfrm" as "(Hcallee & Htop & %Hzone & %Hfloor)".
+    all: iDestruct "Hfrm" as "(Hcallee & Htop & %Hzone & %Hbase)".
     all: iFrame; iPureIntro; split; [done|by left].
   Qed.
 
@@ -1797,7 +1815,7 @@ Section logrel.
   Lemma interp_cont_weak_doomed (frm : cframe) (cstk : CSTK) (Wt : WORLD) (Ws : list WORLD)
     (Ct : CmptName) (Cs : list CmptName) (h : Z) :
     is_untrusted_caller_frm frm = true →
-    (cstk_hwm_floor cstk <= cf_stk_b frm)%a →
+    cf_stk_b frm = cstk_hwm_base cstk →
     (h < cf_stk_b frm)%Z →
     interp_continuation cstk Ws Cs -∗
     interp_callee_part_of_the_stack interp Wt Ct
@@ -1805,7 +1823,7 @@ Section logrel.
     top_cmpt_untrusted interp Wt Ct cstk -∗
     interp_cont_weak (cstack_push frm cstk) (Wt :: Ws) (Ct :: Cs) h.
   Proof.
-    iIntros (Hfrm Hfloor Hh) "Hcont Hcallee Htop".
+    iIntros (Hfrm Hbase Hh) "Hcont Hcallee Htop".
     rewrite /interp_cont_weak /= Hfrm. destruct cstk as [ef frms]. iFrame.
     iPureIntro. split; [done|by right].
   Qed.

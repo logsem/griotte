@@ -44,8 +44,8 @@ Section switcher_helper.
         (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
       world_interp Wcur C -∗
-      [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+      stack_region a_stk a_stk4 (region_addrs_zeroes a_stk a_stk4) -∗
+      stack_region b_stk a_stk (region_addrs_zeroes b_stk a_stk) -∗
 
       CloseRes Wfixed C a_stk l ccrel -∗
 
@@ -54,7 +54,7 @@ Section switcher_helper.
             world_interp Wfixed C
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
+               else stack_region a_stk a_stk4 (region_addrs_zeroes a_stk a_stk4)
               )
     .
     Proof.
@@ -80,7 +80,7 @@ Section switcher_helper.
         iDestruct (interp_WL_addr_key with "Hvalid") as %Hkeys; first done.
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H"; auto.
         iClear "#"; clear -Hrelated_pub_W0_Wfixed Hkeys.
-        rewrite /region_pointsto /RevokedResources big_sepL_fmap.
+        rewrite /stack_region /region_addrs_zeroes /RevokedResources big_sepL_fmap.
         rewrite big_sepL2_replicate_r; last by rewrite finz_seq_between_length.
         iDestruct (big_sepL_sep with "[$Hstk $H]") as "H".
         iNext.
@@ -91,8 +91,8 @@ Section switcher_helper.
         iDestruct "Hrel" as "(#Hrel & _ & #Hmono)".
         iExists p', (safeC P). iFrame "Hrel".
         iSplit; first (iPureIntro; intros [ [W C'] w]; apply Hpers).
-        rewrite /temp_res /heap_key_resource /temp_cell /=.
-        iExists (WInt 0). iFrame "Hv".
+        rewrite /temp_res /heap_key_resource /=.
+        iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Hv".
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplit; first iApply "Hmono".
         iNext. iApply "Hwcond"; iApply interp_int.
@@ -123,53 +123,45 @@ Section switcher_helper.
              rewrite finz_dist_0; last (solve_addr+Ha_stk4).
              done.
         }
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk0 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 1) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk1 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 2) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk2 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 3) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk3 _]"
-        ; [ transitivity ( Some (a_stk ^+ 4) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 1) with "Hstk'") as "[Ha_stk0 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 2) with "Hstk'") as "[Ha_stk1 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 3) with "Hstk'") as "[Ha_stk2 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 4) with "Hstk'") as "[Ha_stk3 _]";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
         rewrite /RevokedResources /=.
         iSplitL "Hdata0 Ha_stk0".
         { iExists p0, P0. iFrame "Hrel0". iSplit; first done.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_cell /=.
-          iExists (WInt 0). iFrame "Ha_stk0 Hmono %".
+          rewrite /temp_res /heap_key_resource /=.
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk0 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata1 Ha_stk1".
         { iExists p1, P1. iFrame "Hrel1". iSplit; first done.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_cell /=.
-          iExists (WInt 0). iFrame "Ha_stk1 Hmono %".
+          rewrite /temp_res /heap_key_resource /=.
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk1 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata2 Ha_stk2".
         { iExists p2, P2. iFrame "Hrel2". iSplit; first done.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_cell /=.
-          iExists (WInt 0). iFrame "Ha_stk2 Hmono %".
+          rewrite /temp_res /heap_key_resource /=.
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk2 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata3 Ha_stk3".
         { iExists p3, P3. iFrame "Hrel3". iSplit; first done.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
-          rewrite /temp_res /heap_key_resource /temp_cell /=.
-          iExists (WInt 0). iFrame "Ha_stk3 Hmono %".
+          rewrite /temp_res /heap_key_resource /=.
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk3 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         done.
@@ -208,8 +200,9 @@ Section switcher_helper.
            (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
            a_stk) -∗
       world_interp Wcur C -∗
-      [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+      stack_region s (s ^+ SpillSlot_size) (region_addrs_zeroes s (s ^+ SpillSlot_size)) -∗
+      stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
+        (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)) -∗
 
       CloseRes Wfixed C s l ccrel -∗
 
@@ -218,7 +211,7 @@ Section switcher_helper.
             world_interp Wfixed C
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]
+               else stack_region s (s ^+ SpillSlot_size) (region_addrs_zeroes s (s ^+ SpillSlot_size))
               )
     .
     Proof.

@@ -29,19 +29,20 @@ Section Switcher_trap_safety.
       compartment (with the whole non-atomic token) or a fault that the
       switcher handles, for any token [F] that contains the switcher's
       invariant and the trap-entry part, any cause predicate [P_mcause] of
-      fault causes, and any value predicate [P_mtval]. *)
+      fault causes, and any value predicate [P_mtval]. MSHWM is [h]. *)
   Definition exception_entry_safe : iProp Σ :=
     □ ∀ (P_mcause P_mtval : Z → Prop) (F : coPset) (cstk : CSTK) (rmap : LReg)
-        (w : LWord),
+        (w : LWord) (h : Z),
       ⌜∀ c, P_mcause c → mcause_ok c⌝ -∗
       ⌜↑Ntstack ⊆ F⌝ -∗
       ⌜↑Ntrap ⊆ F⌝ -∗
       ⌜∀ r, is_Some (rmap !! r)⌝ -∗
-      ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap) ∨
-       trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
+      ((⌜F = ⊤⌝ ∗ untrusted_fault cstk rmap h) ∨
+       trap_handler_ok_cause P_mcause P_mtval F cstk w rmap h) -∗
       PC ↦ₚ[th] lword_of_word mtcc_vec -∗
       trap_entry_out_cause P_mcause P_mtval w -∗
       registers_pointsto rmap -∗
+      hwm_res cstk h -∗
       na_own (tpool th) (F ∖ ↑Ntrap) -∗
       ◯(CSTK)[th] cstk -∗
       safe[th].
@@ -53,7 +54,8 @@ Section Switcher_trap_safety.
   (** A fault that the exception path resumes (a fault of the first spill
       of the call path) is safe: after trap entry, the switcher overwrites
       the return values with [-ENOTENOUGHSTACK] and 0, and installs the
-      context again, at [.Lswitch_just_return]. *)
+      context again, at [.Lswitch_just_return], with MSHWM at its value [h]
+      at the fault. *)
   Definition switcher_resume_safe : iProp Σ :=
     □ ∀ (F : coPset) (w : LWord),
       ⌜↑Ntstack ⊆ F⌝ -∗
@@ -64,15 +66,18 @@ Section Switcher_trap_safety.
            ⌜∀ r, is_Some (rmap !! r)⌝ ∗
            na_own (tpool th) F ∗
            registers_pointsto rmap ∗
-           (∀ rmap' : LReg,
-              ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
-              ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
-              ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
-              ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-              PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
-              registers_pointsto rmap' -∗
-              na_own (tpool th) F -∗
-              safe[th])) -∗
+           (∃ (cstk : CSTK) (h : Z),
+              hwm_res cstk h ∗
+              (∀ rmap' : LReg,
+                 ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
+                 ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
+                 ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
+                 ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
+                 PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
+                 registers_pointsto rmap' -∗
+                 hwm_res cstk h -∗
+                 na_own (tpool th) F -∗
+                 safe[th]))) -∗
       trap_safe w ⊤ (HO th).
 
   #[global] Instance switcher_resume_safe_persistent :
@@ -100,16 +105,16 @@ Section Switcher_trap_safety.
     exception_entry_safe ⊢
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec).
   Proof.
-    iIntros "#Hsafe !>" (cstk regs w Hfull) "Hfault HPC Hout Hrmap Hna Hcstk".
+    iIntros "#Hsafe !>" (cstk regs w h Hfull) "Hfault HPC Hout Hrmap Hhwm Hna Hcstk".
     iApply ("Hsafe" $! mcause_ok (λ _ : Z, True%type) ⊤
-             with "[%] [%] [%] [//] [Hfault] HPC Hout Hrmap Hna Hcstk");
+             with "[%] [%] [%] [//] [Hfault] HPC Hout Hrmap Hhwm Hna Hcstk");
       [done | set_solver | set_solver |].
     iDestruct "Hfault" as "[Hfault | Hfault]"; [iLeft; by iFrame | by iRight].
   Qed.
 
   (** The unwind continuation from the logical relation's resources, for a
       safe trap vector: the return routine pops the frame of the faulting
-      compartment, whatever its error handler count. *)
+      compartment, whatever its error handler count and MSHWM. *)
   Lemma logrel_unwind_cont_gen (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) :
     frame_match Ws Cs cstk W C →
@@ -119,13 +124,15 @@ Section Switcher_trap_safety.
     trap_vector_safe (trap_handler_ok ⊤) (lword_of_word mtcc_vec) -∗
     world_interp W C -∗
     interp_continuation cstk Ws Cs -∗
-    unwind_cont ⊤ cstk True.
+    ∀ h : Z, unwind_cont ⊤ cstk h True.
   Proof.
     iIntros (Hframe) "#Hthread #Hinv #Hstatic #Htrap Hworld Hcont".
-    iIntros (n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk _ Hna".
+    iIntros (h n rmap Hfull Hca0 Hca1) "HPC Hrmap Hcstk Hhwm _ Hna".
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "Hcont".
-    iApply (switcher_return_unwind _ W C (cstack_set_top_count cstk n) Ws Cs
-             with "[$HPC $Hrmap $Hthread $Hinv $Hstatic $Htrap $Hworld $Hcont $Hna $Hcstk]");
+    iEval (rewrite -(hwm_res_set_top_count cstk n h)) in "Hhwm".
+    iDestruct (interp_cont_weak_intro _ _ _ h with "Hcont") as "Hcont".
+    iApply (switcher_return_unwind _ W C (cstack_set_top_count cstk n) Ws Cs _ _ _ h
+             with "[$HPC $Hrmap $Hthread $Hinv $Hstatic $Htrap $Hworld $Hcont $Hhwm $Hna $Hcstk]");
       [done | done | done | by apply frame_match_set_top_count |].
     iSplit; iApply interp_int.
   Qed.
@@ -163,23 +170,24 @@ Section Switcher_trap_safety.
     ↑Ntrap ⊆ F →
     switcher_trap_safety -∗
     (|={⊤}=>
-       ∃ (rmap : LReg) (cstk : CSTK),
+       ∃ (rmap : LReg) (cstk : CSTK) (h : Z),
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
          ◯(CSTK)[th] cstk ∗
-         trap_handler_ok_cause P_mcause P_mtval F cstk w rmap) -∗
+         hwm_res cstk h ∗
+         trap_handler_ok_cause P_mcause P_mtval F cstk w rmap h) -∗
     trap_safe_cause P_mcause P_mtval w ⊤ (HO th).
   Proof.
     iIntros (HP_mcause HF HFtrap) "#Hsafety Hres".
     iNamed "Hsafety".
     iApply trap_safe_entry_intro.
     iSplit; last by iIntros "!> %Hv".
-    iMod "Hres" as (rmap cstk Hfull_rmap) "(Hna & Hrmap & Hcstk & Hhandled)".
+    iMod "Hres" as (rmap cstk h Hfull_rmap) "(Hna & Hrmap & Hcstk & Hhwm & Hhandled)".
     iDestruct (trap_entry_res_split F with "Hna") as "[Htok Hna]"; first done.
     iModIntro. iFrame "Htok". iIntros "!> Hout HPC".
-    iApply ("Hentry_safe" $! P_mcause P_mtval F cstk rmap w with
-             "[//] [//] [//] [//] [Hhandled] HPC Hout Hrmap Hna Hcstk").
+    iApply ("Hentry_safe" $! P_mcause P_mtval F cstk rmap w h with
+             "[//] [//] [//] [//] [Hhandled] HPC Hout Hrmap Hhwm Hna Hcstk").
     by iRight.
   Qed.
 
@@ -196,15 +204,18 @@ Section Switcher_trap_safety.
          ⌜∀ r, is_Some (rmap !! r)⌝ ∗
          na_own (tpool th) F ∗
          registers_pointsto rmap ∗
-         (∀ rmap' : LReg,
-            ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
-            ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
-            ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
-            ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
-            PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
-            registers_pointsto rmap' -∗
-            na_own (tpool th) F -∗
-            safe[th])) -∗
+         (∃ (cstk : CSTK) (h : Z),
+            hwm_res cstk h ∗
+            (∀ rmap' : LReg,
+               ⌜∀ r, is_Some (rmap' !! r)⌝ -∗
+               ⌜∀ r, r ≠ ca0 → r ≠ ca1 → rmap' !! r = rmap !! r⌝ -∗
+               ⌜rmap' !! ca0 = Some (WInt ENOTENOUGHSTACK : LWord)⌝ -∗
+               ⌜rmap' !! ca1 = Some (WInt 0 : LWord)⌝ -∗
+               PC ↦ₚ[th] switcher_label_pc ".Lswitch_just_return" -∗
+               registers_pointsto rmap' -∗
+               hwm_res cstk h -∗
+               na_own (tpool th) F -∗
+               safe[th]))) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (HF HFtrap Hresume) "#Hsafety Hres".
@@ -222,7 +233,8 @@ Section Switcher_trap_safety.
        registers_pointsto rmap ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
-       (untrusted_fault cstk rmap ∨ trap_handler_ok ⊤ cstk w rmap)) -∗
+       ∃ h : Z, hwm_res cstk h ∗
+         (untrusted_fault cstk rmap h ∨ trap_handler_ok ⊤ cstk w rmap h)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap) "#Hsafety Hres".
@@ -251,21 +263,23 @@ Section Switcher_trap_safety.
        registers_pointsto rmap ∗
        world_interp W C ∗
        interp_cont interp cstk Ws Cs ∗
+       (∃ h : Z, hwm_res cstk h) ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull_rmap Hframe Hno_resume) "#Hthread #Hsafety Hcase Hres".
     iApply (trap_safe_unwind_of_safety with "Hsafety"); [done |].
-    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & Hna & Hcstk)".
-    iModIntro. iFrame "Hrmap Hna Hcstk". iRight.
+    iMod "Hres" as "(Hrmap & Hworld_interp & Hcont & [%h Hhwm] & Hna & Hcstk)".
+    iModIntro. iFrame "Hrmap Hna Hcstk". iExists h. iFrame "Hhwm". iRight.
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iNamed "Hsafety".
     iPoseProof (logrel_unwind_cont_gen with "Hthread Hinv_switcher Hstatic Htrap Hworld_interp Hcont")
       as "HU"; [done |].
     iDestruct "Hcase" as "[%Hpc | [Hnh %Hset] ]".
-    - by iApply (trap_handler_ok_switcher with "HU").
-    - by iApply (trap_handler_ok_no_handler with "Hnh HU").
+    - iApply trap_handler_ok_switcher; [done | done |]. iApply "HU".
+    - iApply (trap_handler_ok_no_handler with "Hnh"); [done | done |].
+      iIntros (h' _). iApply "HU".
   Qed.
 
 End Switcher_trap_safety.

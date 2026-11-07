@@ -275,7 +275,7 @@ Section Switcher_KtK_Return.
     (* Pop the frame and close the trusted-stack invariant *)
     subst hclose_switcher_inv.
     iMod (switcher_return_pop_close F _ cstk with
-           "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
+           "Hsave_mshwmb Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
             Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next")
       as "[Hna Hcstk]"; [done|done|done|].
 

@@ -50,6 +50,7 @@ Section Switcher_Return_States.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
+    save_area_mshwmb save_area -∗
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
     na_own (tpool th) (F ∖ ↑Ntstack) -∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
@@ -65,13 +66,14 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next.
     subst a_frameoffset a_save_end a_threadID a_next.
-    iIntros (Hlen Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
+    iIntros (Hlen Hsave_hazard) "#Hsave_mshwmb Hclose Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID
       Htstk Hcstk_full Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
     iApply ("Hclose" with "[- $Hna]").
     iNext. iExists a_tstk, cstk, save_area, tstk_next.
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full Hstk_interp".
+    iFrame "Hsave_mshwmb Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Htstk Hcstk_full
+      Hstk_interp".
     iSplit; iPureIntro; done.
   Qed.
 
@@ -92,6 +94,7 @@ Section Switcher_Return_States.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
+    save_area_mshwmb save_area -∗
     (▷ trusted_stack_inv ∗ na_own (tpool th) (F ∖ ↑Ntstack) ={⊤}=∗ na_own (tpool th) F) -∗
     na_own (tpool th) (F ∖ ↑Ntstack) -∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
@@ -111,7 +114,7 @@ Section Switcher_Return_States.
   Proof.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
-    iIntros (Ha_tstk Ha_tstk_e Hsave_hazard) "Hclose Hna Hmtdc Hsave_area Hframeoffset
+    iIntros (Ha_tstk Ha_tstk_e Hsave_hazard) "#Hsave_mshwmb Hclose Hna Hmtdc Hsave_area Hframeoffset
       Hhazard HthreadID Hframe_csp Hframe_tbl Hframe_cnt Htstk Hcstk_full Hcstk Hstk_interp".
     iDestruct "Hhazard" as "[Hhazard_cell Hhazard_slots]".
     iSpecialize ("Hsave_area" with "Hhazard_cell").
@@ -119,7 +122,7 @@ Section Switcher_Return_States.
     iApply ("Hclose" with "[- $Hna]").
     iNext.
     iApply (trusted_stack_inv_pop_frame _ cstk with
-             "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp Hframe_tbl
+             "Hsave_mshwmb Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hframe_csp Hframe_tbl
               Hframe_cnt Htstk Hcstk_full Hstk_interp"); done.
   Qed.
 

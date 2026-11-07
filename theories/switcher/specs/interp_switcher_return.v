@@ -91,14 +91,132 @@ Section fundamental.
 
    *)
 
+  (* TODO: move to logrel/call_stack.v *)
+  (** When every caller's stack starts at the base of the thread's stack, so
+      does the floor. *)
+  Lemma frames_hwm_floor_base (ef : trusted_frame) (frms : list cframe) :
+    Forall (λ frm, cf_stk_b frm = tf_stk_b ef) frms →
+    frames_hwm_floor ef frms = tf_stk_b ef.
+  Proof.
+    induction 1 as [|frm frms Hfrm _ IH]; first done.
+    cbn. by destruct (is_untrusted_caller_frm frm).
+  Qed.
+
+  (* TODO: move to logrel/logrel.v *)
+  (** The continuation records that every caller's stack starts at the base
+      of the thread's stack. *)
+  Lemma interp_cont_bases (ef : trusted_frame) (frms : list cframe)
+    (Ws : list WORLD) (Cs : list CmptName) :
+    interp_cont_aux interp ef frms Ws Cs ⊢
+    interp_cont_aux interp ef frms Ws Cs ∗ ⌜Forall (λ frm, cf_stk_b frm = tf_stk_b ef) frms⌝.
+  Proof.
+    revert Ws Cs; induction frms as [|frm frms IH]; intros Ws Cs; first by iIntros "$".
+    destruct Ws as [|Wt Ws], Cs as [|Ct Cs]; cbn; try by iIntros "[]".
+    iIntros "[Hrest Hfrm]".
+    iDestruct (IH with "Hrest") as "[$ %Hfrms]".
+    destruct (is_known_to_known_frm frm).
+    { iDestruct "Hfrm" as %Hb. iSplit; first done. iPureIntro. by constructor. }
+    iDestruct "Hfrm" as "[Hcallee Hfrm]".
+    destruct (is_untrusted_caller_frm frm).
+    - iDestruct "Hfrm" as "(Htop & %Hzone & %Hb)". iFrame. iPureIntro.
+      split_and!; [done|done|by constructor].
+    - iDestruct "Hfrm" as "[%Hb Hexec]". iFrame. iPureIntro.
+      split; [done|by constructor].
+  Qed.
+
+  (* TODO: move to logrel/logrel.v *)
+  (** When MSHWM is at or above the base of the thread's stack, the weak
+      continuation is the continuation: the return to an untrusted topmost
+      caller, whose stack starts at that base, does not fault. *)
+  Lemma interp_cont_weak_strong (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (h : Z) :
+    (cstk_hwm_base cstk <= h)%Z →
+    interp_cont_weak cstk Ws Cs h -∗ interp_continuation cstk Ws Cs.
+  Proof.
+    iIntros (Hh) "Hcont". rewrite /interp_cont_weak.
+    destruct cstk as [ef [|frm frms] ]; cbn; first done.
+    destruct Ws as [|Wt Ws], Cs as [|Ct Cs]; try done.
+    destruct (is_untrusted_caller_frm frm) eqn:Hfrm; last done.
+    iDestruct "Hcont" as "(Hrest & Hcallee & Htop & %Hb & %Hzone)".
+    rewrite /cstk_hwm_base /= in Hb Hh.
+    destruct Hzone as [Hzone|Hlt]; last (exfalso; rewrite Hb in Hlt; lia).
+    destruct frm as [tf saved [ | | | ] ]; cbn in Hfrm |- *; try discriminate.
+    all: iFrame; iPureIntro; split; done.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** Everything is zeroed from an address below the cells. *)
+  Lemma stack_zeroed_from_below (b : Addr) (v : Z) (ws : list LWord) :
+    (v <= b)%Z →
+    stack_zeroed_from b v ws = replicate (length ws) (lword_of_word (WInt 0)).
+  Proof.
+    intros Hv. rewrite /stack_zeroed_from Z2Nat.nonpos; last lia.
+    by rewrite take_0 Nat.sub_0_r.
+  Qed.
+
+  (* TODO: move to switcher/code/clear_stack_spec.v *)
+  (** The cells of a stack region above MSHWMB and below MSHWM are cells of
+      the zone, which hold 0: zeroing them from MSHWM zeroes them all. *)
+  Lemma stack_region_below_hwm E (b e : Addr) (ws : list LWord) (hb h : Z) :
+    (hb <= b)%Z →
+    stack_region b e ws -∗
+    hwm_regs hb h -∗
+    |~{E}~>
+    ⌜stack_zeroed_from b h ws = replicate (length ws) (lword_of_word (WInt 0))⌝ ∗
+    stack_region b e ws ∗
+    hwm_regs hb h.
+  Proof.
+    iInduction ws as [|w ws] "IH" forall (b); iIntros (Hhb) "Hstk Hhwm".
+    { iModIntro. iFrame. iPureIntro. by rewrite /stack_zeroed_from take_nil. }
+    destruct (decide (h <= b)%Z) as [Hh | Hh].
+    { iModIntro. iFrame. iPureIntro. by apply stack_zeroed_from_below. }
+    iDestruct (stack_region_length with "Hstk") as %Hlen.
+    rewrite finz_seq_between_length /= in Hlen.
+    assert (b < e)%a as Hbe by (rewrite /finz.dist in Hlen; solve_addr).
+    destruct (b + 1)%a as [b'|] eqn:Hb'; last solve_addr.
+    iDestruct (stack_region_cons b b' e with "Hstk") as "[[Hb | [Hb ->]] Hstk]"; [done|done|..].
+    - (* A full points-to is outside the zone *)
+      iDestruct "Hhwm" as "[Hhb Hh]".
+      iMod (hwm_pointsto_outside with "Hb Hhb Hh") as "(%Hout & _)".
+      exfalso; lia.
+    - iMod ("IH" $! b' with "[%] Hstk Hhwm") as "(%Hz & Hstk & Hhwm)"; first solve_addr.
+      iModIntro. iFrame "Hhwm".
+      iSplit.
+      + iPureIntro. revert Hz. rewrite /stack_zeroed_from.
+        rewrite (_ : Z.to_nat (h - b) = S (Z.to_nat (h - b'))); last solve_addr.
+        cbn. by intros ->.
+      + iApply (stack_region_cons b b' e); [done|done|]. iFrame.
+        by iApply stack_cell_of_zone.
+  Qed.
+
+  (* TODO: move to logrel/logrel.v *)
+  (** The cells of a stack region are the cells of Temporary keys. *)
+  Lemma stack_region_temp_cells (b e : Addr) (ws : list LWord) :
+    stack_region b e ws ⊣⊢
+    [∗ list] a;v ∈ finz.seq_between b e; ws, temp_cell th (LNonHeap a) v.
+  Proof.
+    rewrite /stack_region. apply big_sepL2_proper. intros. apply stack_cell_temp_cell.
+  Qed.
+
+  (* TODO: move to switcher/common/switcher_preamble.v *)
+  #[global] Instance cframe_stk_own_timeless (a : Addr) (saved : callee_saved_registers)
+    (ccrel : caller_callee_relation) :
+    Timeless (cframe_stk_own a saved ccrel).
+  Proof. rewrite /cframe_stk_own. destruct (is_untrusted_caller ccrel); apply _. Qed.
+
+  (* TODO: move to program_logic/stack_cells.v *)
+  (** No cell is locked between an address and itself. *)
+  Lemma hwm_locked_empty (x : Addr) : hwm_locked x x ⊣⊢ emp.
+  Proof. by rewrite /hwm_locked finz_seq_between_empty; last solve_addr. Qed.
+
   (** The return routine, from its entry point: from a full register file
       whose return values [ca0] and [ca1] are safe, the switcher pops the
       caller's frame and returns to it, or exits the thread when the frame to
-      pop is the entry frame. No other register is read. *)
-  Lemma switcher_return_unwind (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+      pop is the entry frame. No other register is read. MSHWM is [h]. *)
+  Lemma switcher_return_unwind (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
     (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (rmap : LReg) (wca0 wca1 : LWord) :
+    (rmap : LReg) (wca0 wca1 : LWord) (h : Z) :
     (∀ r, is_Some (rmap !! r)) ->
     rmap !! ca0 = Some wca0 ->
     rmap !! ca1 = Some wca1 ->
@@ -113,7 +231,8 @@ Section fundamental.
     switcher_static ∗
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) ∗
     world_interp W C ∗
-    interp_cont interp cstk Ws Cs ∗
+    interp_cont_weak cstk Ws Cs h ∗
+    hwm_res cstk h ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk
     ⊢ safe[th].
@@ -122,22 +241,27 @@ Section fundamental.
        - open the trusted-stack invariant;
        - when the frame to pop is the entry frame, the thread exits:
          [switcher_return_exit_path_spec], [switcher_return_exit_close];
-       - otherwise, [switcher_return_path_world_spec]: pop the trusted
-         stack; obtain the caller's stack frame ([open_world_interp_cframe],
-         [open_world_interp_callee_stack]); restore the callee-save
-         registers, clear the stack frame and the registers, and jump to the
-         caller;
+       - otherwise, obtain the caller's stack frame
+         ([open_world_interp_cframe], [open_world_interp_callee_stack]): its
+         cells below MSHWM hold 0, since the caller's stack starts at the
+         base of the thread's stack;
+       - [switcher_return_path_world_spec]: pop the trusted stack, restore
+         the callee-save registers, clear the stack frame and the registers,
+         and jump to the caller; the zeroing does not fault;
        - close the trusted-stack invariant ([switcher_return_pop_close]);
        - when the caller is trusted, use the continuation relation;
        - when the caller is untrusted, close the world and
          [switcher_jump_to_caller_cases_spec]. *)
     iIntros (Hfull_rmap Hwca0 Hwca1 Hfreq)
       "(HPC & Hrmap & #Hinterp_wca0 & #Hinterp_wca1 & #Hthread & #Hinv_switcher & #[Hcode _] & #Htrap
-        & Hworld_interp & Hcont_K & Hna & Hcstk)".
+        & Hworld_interp & Hcont_K & Hhwm & Hna & Hcstk)".
+    (* MSHWM is at or above the base of the thread's stack *)
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hhwm_ord & Hlocked) #Hts]".
+    iDestruct (interp_cont_weak_strong with "Hcont_K") as "Hcont_K";
+      first (destruct Hhwm_ord; solve_addr).
     iDestruct (ret_regs_extract_full with "Hrmap")
       as "(Hca0 & Hca1 & [%wcsp Hcsp] & [%wcgp Hcgp] & [%wcra Hcra] & [%wcs0 Hcs0] & [%wcs1 Hcs1]
           & %rmap0 & %Hrmap0 & Hrmap)"; [done|done|done|].
-
     (* Open the trusted-stack invariant *)
     iMod (na_inv_acc with "Hinv_switcher Hna")
       as "(Hswitcher_inv & Hna & Hclose_switcher_inv)" ; auto.
@@ -158,7 +282,7 @@ Section fundamental.
       iIntros "!> (Hmtdc & Hframeoffset & Hhazard)".
       subst hclose_switcher_inv.
       iMod (switcher_return_exit_close ⊤ (entry_cstack ef) with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
+             "Hsave_mshwmb Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htstk
               Hcstk_full Hstk_interp") as "Hna"; [done|done|].
       iModIntro; iIntros (_); iExact "Hna".
     }
@@ -185,34 +309,62 @@ Section fundamental.
     pose proof Hstk_bounds as (Hb_a4 & He_a1 & Ha4).
     stk_unfold. change (4 - 1)%Z with 3%Z in He_a1.
 
+    (* The caller's stack, and the stacks of the frames below, start at the
+       base of the thread's stack: so does the floor *)
     iDestruct (interp_monotone_continuation with "Hcont_K") as "Hcont_K"; eauto.
     rewrite /interp_continuation /interp_cont.
+    iDestruct (interp_cont_bases with "Hcont_K") as "[Hcont_K %Hbases]".
+    apply Forall_cons in Hbases as [Hbase Hbases].
+    cbn in Hbase.
+    pose proof (frames_hwm_floor_base _ _ Hbases) as Hfloor_next.
+    rewrite /cstk_hwm_base /cstk_hwm_floor /= in Hhwm_ord.
+    iEval (rewrite /cstk_hwm_base /cstk_hwm_floor /=) in "Hlocked Hts Hmshwmb".
+    cbn in Hbases, Hfloor_next.
+    rewrite /is_untrusted_caller_frm /= in Hhwm_ord.
+    iEval (rewrite /is_untrusted_caller_frm /=) in "Hlocked".
     iEval (cbn) in "Hcont_K". rewrite Hspill; last done.
     stk_unfold.
     rewrite Hccrel_known_to_known /is_untrusted_caller_frm /=.
     iDestruct "Hcont_K" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iEval (cbn) in "Hinterp_callee_wstk".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
-
-    (* Pop the trusted stack, restore, clear and return *)
-    destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
-    iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
-      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode]");
-      [done|done|done|done|done|done|].
-    iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
+    (* The floor of the call stack is the base of the thread's stack *)
+    assert ((if is_untrusted_caller ccrel then frames_hwm_floor ef frms else b_stk) = tf_stk_b ef)
+      as Hfloor by (destruct (is_untrusted_caller ccrel); by rewrite ?Hfloor_next).
+    rewrite Hfloor in Hhwm_ord.
+    iEval (rewrite Hfloor hwm_locked_empty) in "Hlocked".
+    destruct Hhwm_ord as [_ Hhwm_ord].
 
     (* Obtain the caller's stack frame *)
+    iMod "Hcframe_interp" as "Hcframe_interp".
     iDestruct (open_world_interp_cframe with "[$Hcframe_interp $Hworld_interp]")
       as "(%wastk & %wastk1 & %wastk2 & %wastk3
           & Hstk'
           & Hclose_res & %Hwastks & Hworld_interp)";
     eauto.
-    rewrite -/(interp_cont).
-    iDestruct (lc_fupd_elim_later with "[$Hlc] [$Hclose_res]") as ">Hclose_res".
-    iDestruct "Hclose_res" as "[#Hsave Hstates]".
-    iCombine "Hsave Hstates" as "Hclose_res".
+    iDestruct (open_world_interp_callee_stack
+                with "[$Hinterp_callee_wstk $Hworld_interp]")
+      as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
     set (s := a_stk ^+ - (4)).
     assert ((s + 4)%a = Some a_stk) as Hs4 by (subst s; solve_addr+Ha4).
+    rewrite /callee_stk_region. stk_unfold.
+    iEval (rewrite -stack_region_temp_cells) in "Hstk".
+    (* The cells of the caller's stack below MSHWM hold 0 *)
+    iMod (stack_region_below_hwm with "Hstk [$Hmshwmb $Hmshwm]")
+      as "(%Hzero & Hstk & Hhwm_regs)"; first solve_addr.
+    iMod (stack_region_below_hwm with "Hstk' Hhwm_regs")
+      as "(%Hzero' & Hstk' & Hhwm_regs)"; first solve_addr.
+
+    (* Pop the trusted stack, restore, clear and return *)
+    destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
+    iApply (switcher_return_path_world_spec W W C ccrel (length frms) with
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp
+          $Hhwm_regs $Hcode]");
+      [done|done|done|done|done|done| split; [solve_addr|lia] |].
+    iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & _)".
+    rewrite -/(interp_cont).
+    iDestruct "Hclose_res" as "[#Hsave Hstates]".
+    iCombine "Hsave Hstates" as "Hclose_res".
     iAssert (if is_untrusted_caller ccrel then
         interp_in_mem RWL W C wastk2 ∗
         interp_in_mem RWL W C wastk3 ∗
@@ -234,18 +386,20 @@ Section fundamental.
       iDestruct (StackWorldResource_interp_in_mem with "Hsave3") as "$".
       iDestruct (StackWorldResource_interp_in_mem with "Hsave1") as "$".
       iDestruct (StackWorldResource_interp_in_mem with "Hsave0") as "$". }
-    iDestruct (switcher_stk_cells_region_4 with "Hstk'") as "Hcells";
-      first (stk_unfold; solve_addr+Ha4).
-    iDestruct (open_world_interp_callee_stack
-                with "[$Hinterp_callee_wstk $Hworld_interp]")
-      as "(Hworld_interp & (%lv & Hstk & Hres))"; eauto.
     iModIntro.
     iExists _, wastk, wastk1, wastk2, wastk3, lv.
-    iFrame "Hcells Hstk Hworld_interp Hnormal".
-    iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
-      "(%Hloaded & Hworld_interp & Hinterp_loaded & %Harg_rmap' & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp
-      & Hstk_register_save & Hstk & Hrmap & _)".
+    iFrame "Hstk' Hstk Hworld_interp Hnormal".
+    iNext; iSplit; cycle 1.
+    { (* The caller's stack starts at the base of the thread's stack, at or
+         below MSHWM: the zeroing does not fault *)
+      iIntros (rmap1 rcgp rcra rcs1 rcs0 off) "(_ & %Hlt & _)". exfalso.
+      rewrite Hbase in Hlt; lia. }
+    iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
+      "(%Hloaded & _ & Hworld_interp & Hinterp_loaded & %Harg_rmap' & Hcra & Hcgp & Hcs0 & Hcs1
+      & Hcsp & Hstk_register_save & Hstk & Hhwm_regs & Hrmap & _)".
     destruct Hloaded as (Hr3 & Hr2 & Hr1 & Hr0).
+    iEval (rewrite Hzero') in "Hstk_register_save".
+    iEval (rewrite Hzero) in "Hstk".
 
     (* Depop the topmost frame of the call-stack and close the switcher's
        invariant, after the jump or the exception entry *)
@@ -255,9 +409,17 @@ Section fundamental.
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv]" as "Hupd".
     { subst hclose_switcher_inv.
       iApply (switcher_return_pop_close ⊤ _ {| cstk_entry := ef; cstk_frames := frms |} with
-             "Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
+             "Hsave_mshwmb Hclose_switcher_inv Hna Hmtdc Hsave_area Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl
               Htf_cnt Htstk Hcstk_full Hcstk Hstk_interp_next");
         [done|done|done]. }
+
+    (* MSHWM is the caller's cursor *)
+    iAssert (hwm_res {| cstk_entry := ef; cstk_frames := frms |} a_stk)%I
+      with "[Hhwm_regs Hlocked]" as "Hhwm".
+    { iDestruct "Hhwm_regs" as "[Hmshwmb Hmshwm]".
+      rewrite /hwm_res /hwm_res_at /cstk_hwm_base /cstk_hwm_floor /cstk_hwm_top /= Hfloor_next
+        hwm_locked_empty.
+      iFrame "Hmshwmb Hmshwm Hts". iPureIntro. split; solve_addr. }
 
     set (lv' := region_addrs_zeroes b_stk s).
     assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
@@ -265,6 +427,10 @@ Section fundamental.
       rewrite /region_addrs_zeroes.
       by apply Forall_replicate.
     }
+    iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv".
+    rewrite length_replicate in Hlen_lv.
+    rewrite (_ : replicate (length lv) (lword_of_word (WInt 0)) = lv');
+      last (subst lv'; by rewrite /region_addrs_zeroes -Hlen_lv finz_seq_between_length).
 
     destruct (is_untrusted_caller ccrel) eqn:Hccrel ; cycle 1.
     - (* Case where caller is trusted, we use the continuation relation K *)
@@ -282,13 +448,17 @@ Section fundamental.
         subst rstk2; congruence. }
       iIntros "[HPC _]".
       iMod "Hupd" as "[Hna Hcstk_frag]".
+      iDestruct "Htopmost_frm" as "[_ Htopmost_frm]".
       iSpecialize ("Htopmost_frm" $! W (related_sts_pub_refl_world W)).
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /= ?Hccrel)
         in "Htopmost_frm".
       stk_unfold.
+      (* The caller's cells between the floor and its stack: none *)
+      iAssert (hwm_locked (frames_hwm_floor ef frms) b_stk) as "Hlocked'".
+      { by rewrite Hfloor_next -Hbase hwm_locked_empty. }
       iApply ("Htopmost_frm" with "[%] [%] [%] [%]
                [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1 $Hinterp_wca0 $Hinterp_wca1
-      $Hrmap $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread]");
+      $Hrmap $Hhwm $Hlocked' $Hstk_register_save $Hstk $Hworld_interp $Hres $Hcont_K $Hcstk_frag $Hna $Hthread]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iPureIntro;rewrite Harg_rmap'; set_solver.
 
@@ -296,6 +466,7 @@ Section fundamental.
          return address *)
       iDestruct (big_sepL2_length with "Hstk") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ lv lv' with "Hres") as "Hres"; auto.
+      iEval (rewrite stack_region_temp_cells) in "Hstk".
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk $Hres]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
       { clear -He_a1 Ha4 Hs4.
@@ -312,9 +483,14 @@ Section fundamental.
       set (lv' := region_addrs_zeroes s (s ^+ 4)).
       assert (Forall (λ y : LWord, y = WInt 0) lv') as Hlv'.
       { subst lv'; rewrite /region_addrs_zeroes; by apply Forall_replicate. }
+      assert (replicate (length [wastk; wastk1; wastk2; wastk3]) (lword_of_word (WInt 0)) = lv')
+        as Hlv'_eq.
+      { subst lv'; rewrite /region_addrs_zeroes /finz.dist; f_equal; cbn; solve_addr+Hs4. }
+      iEval (rewrite Hlv'_eq) in "Hstk_register_save".
 
       iDestruct (big_sepL2_length with "Hstk_register_save") as "%Hlen_lv'".
       iDestruct (StackOpenWorldResources_zeros _ _ _ _ lv' with "Hclose_res") as "Hclose_res"; auto.
+      iEval (rewrite stack_region_temp_cells) in "Hstk_register_save".
       iEval (rewrite -(app_nil_r (finz.seq_between s (s ^+ 4)))) in "Hworld_interp".
       iDestruct (close_world_interp_opening_resources with "[$Hworld_interp $Hstk_register_save $Hclose_res]") as "Hworld_interp".
       { apply finz_seq_between_NoDup. }
@@ -324,12 +500,14 @@ Section fundamental.
 
       rewrite /is_untrusted_caller_frm /= Hccrel in Hfreq.
       (* The untrusted caller recorded that its topmost compartment is
-         untrusted *)
-      iDestruct "Htopmost_frm" as "#Htop_caller".
+         untrusted, and that its stack addresses between the floor and its
+         cursor are Temporary *)
+      iDestruct "Htopmost_frm" as "(#Htop_caller & %Hzone & _)".
       iApply (switcher_jump_to_caller_cases_spec with
                "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk
                 Hinterp_wca0 Hinterp_wca1 Htop_caller Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
-                Hrmap Hcont_K [Hupd Hworld_interp]"); [done|done|].
+                Hrmap [Hhwm] Hcont_K [Hupd Hworld_interp]"); [done|done| |].
+      { iExists a_stk. iFrame "Hhwm". iPureIntro. exact Hzone. }
       iMod "Hupd" as "[Hna Hcstk_frag]".
       by iFrame.
   Qed.

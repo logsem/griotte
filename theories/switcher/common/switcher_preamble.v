@@ -410,6 +410,20 @@ Section Switcher_preamble.
     tstack_hazard_cell ↦ₐ hazard_slots_cap ∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]).
 
+  (** The word of MSHWMB of the register save area [save_area] holds the
+      base of the thread's stack. *)
+  Definition save_area_mshwmb (save_area : list LWord) : iProp Σ :=
+    ∃ hb' es' : Addr,
+      ⌜save_area !! Z.to_nat TrustedStack_offset_mshwmb = Some (lword_of_word (WInt hb'))⌝ ∗
+      thread_stack hb' es'.
+
+  #[global] Instance save_area_mshwmb_persistent save_area :
+    Persistent (save_area_mshwmb save_area).
+  Proof. apply _. Qed.
+  #[global] Instance save_area_mshwmb_timeless save_area :
+    Timeless (save_area_mshwmb save_area).
+  Proof. apply _. Qed.
+
   (** [trusted_stack_inv] is the part of the switcher's invariant for the
       thread [th]: the private state of the switcher for that thread.
 
@@ -450,6 +464,7 @@ Section Switcher_preamble.
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
          = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "#Hsave_mshwmb" ∷ save_area_mshwmb save_area ∗
       "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
@@ -475,6 +490,7 @@ Section Switcher_preamble.
       "%Hsave_hazard" ∷
         ⌜save_area !! Z.to_nat TrustedStack_offset_hazardPointers
          = Some (lword_of_word hazard_slots_cap)⌝ ∗
+      "#Hsave_mshwmb" ∷ save_area_mshwmb save_area ∗
       "Hhazard_slots" ∷ (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) ∗
       "Hframeoffset" ∷ a_frameoffset ↦ₐ WInt (tstack_frameoffset (length cstk'.(cstk_frames))) ∗
       "HthreadID" ∷ (∃ w, a_threadID ↦ₐ w) ∗
@@ -488,9 +504,9 @@ Section Switcher_preamble.
     intros a_frameoffset a_save_end a_threadID; subst a_frameoffset a_save_end a_threadID.
     iIntros "Hinv". rewrite /trusted_stack_inv /=.
     iDestruct "Hinv" as (a_tstk cstk' save_area tstk_next)
-      "(>Hmtdc & >Hsave_area & >% & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
+      "(>Hmtdc & >Hsave_area & >% & >#Hsave_mshwmb & >Hhazard_slots & >Hframeoffset & >HthreadID & >Htstk
        & >Hcstk_full & >% & Hstk_interp)".
-    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ %".
+    iModIntro. iExists a_tstk, cstk', save_area, tstk_next. by iFrame "∗ # %".
   Qed.
 
   (** Close [trusted_stack_inv] after popping the topmost frame, at [a_tstk],
@@ -509,6 +525,7 @@ Section Switcher_preamble.
     (a_tstk + TrustedStackFrame_size <= e_trusted_stack)%Z ->
     save_area !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) ->
 
+    save_area_mshwmb save_area -∗
     mtdc ↦ₜ[th] Capₗ RWL _ b_trusted_stack e_trusted_stack b_trusted_stack -∗
     [[ b_trusted_stack, a_save_end ]] ↦ₐ [[ save_area ]] -∗
     (∃ ws, [[ b_hazard_slots, e_hazard_slots ]] ↦ₐ [[ ws ]]) -∗
@@ -525,10 +542,11 @@ Section Switcher_preamble.
     intros a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     subst a_frameoffset a_save_end a_threadID a_next a_prev a_csp a_export_table a_error_count.
     iIntros (Hlen_cstk Ha_tstk_e Hsave_hazard)
-      "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
+      "#Hsave_mshwmb Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hw0 Hw1 Hw2 Htstk Hcstk_full
        Hstk_interp".
     iExists (a_tstk ^+ - TrustedStackFrame_size), cstk, save_area, (w0 :: w1 :: w2 :: tstk_next).
-    iFrame "Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full Hstk_interp".
+    iFrame "Hsave_mshwmb Hmtdc Hsave_area Hhazard_slots Hframeoffset HthreadID Hcstk_full
+      Hstk_interp".
     replace ((a_tstk ^+ - TrustedStackFrame_size) ^+ TrustedStackFrame_size) with a_tstk
       by (tstack_unfold; solve_addr).
     iSplit; first done.
@@ -805,7 +823,7 @@ Section Switcher_Stack_Traps.
     apply Z.leb_le in H0. apply Z.ltb_lt in Hlt. apply negb_true_iff, Z.eqb_neq in Hne.
     apply trap_no_resume_addr. cbn.
     pose proof switcher_size as Hsize. pose proof switcher_call_entry_point as Hcall.
-    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 6%Z) as Hfirst
+    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 9%Z) as Hfirst
       by reflexivity.
     rewrite Hfirst in Hne |- *.
     remember (length switcher_instrs) as len.

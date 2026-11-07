@@ -362,10 +362,10 @@ Proof.
     iSplit; first done.
     iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
   - destruct (is_untrusted_caller_frm frm).
-    { iDestruct "Htopmost_frm" as "(Htop & %Hzone & %Hfloor)".
+    { iDestruct "Htopmost_frm" as "(Htop & %Hzone & %Hbase)".
       iSplitL "Htop"; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
       iPureIntro. split; last done. by eapply zone_temporary_mono_pub. }
-    iDestruct "Htopmost_frm" as "[%Hfloor Hexec]". iSplit; first done.
+    iDestruct "Htopmost_frm" as "[%Hbase Hexec]". iSplit; first done.
     iIntros (W'' Hrel'). iApply "Hexec". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.
 Qed.
@@ -383,7 +383,7 @@ Qed.
     rewrite /interp_cont_weak. cbn [cstk_frames cstk_entry].
     destruct (is_untrusted_caller_frm frm) eqn:Hfrm.
     2: by iApply (interp_monotone_continuation with "Hcont").
-    iDestruct "Hcont" as "(Hrest & [%Hheap Hcallee] & Htop & %Hfloor & %Hzone)".
+    iDestruct "Hcont" as "(Hrest & [%Hheap Hcallee] & Htop & %Hbase & %Hzone)".
     iFrame "Hrest". iSplitL "Hcallee".
     { iSplit; first done. iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver. }
     iSplitL "Htop"; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").

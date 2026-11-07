@@ -45,11 +45,11 @@ Section Switcher_unwind.
   (** The callee's stack is smaller than the minimum stack size of the
       entry point plus the reserved space: [.Lswitch_stack_too_small] sets
       the return values, and the return routine pops the frame already
-      pushed. No register needs to be safe. *)
+      pushed. No register needs to be safe. MSHWM is [h]. *)
   Lemma switcher_call_stack_too_small_unwind_of_safety
     (W : WORLD) (C : CmptName)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (rmap : LReg) :
+    (rmap : LReg) (h : Z) :
     (∀ r, is_Some (rmap !! r)) ->
     frame_match Ws Cs cstk W C ->
 
@@ -59,12 +59,14 @@ Section Switcher_unwind.
     switcher_trap_safety ∗
     world_interp W C ∗
     interp_cont interp cstk Ws Cs ∗
+    hwm_res cstk h ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk
     ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
-      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hna & Hcstk)".
+      "(HPC & Hrmap & #Hthread & #Hsafety & Hworld_interp & Hcont & Hhwm & Hna & Hcstk)".
+    iDestruct (interp_cont_weak_intro _ _ _ h with "Hcont") as "Hcont".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -76,7 +78,8 @@ Section Switcher_unwind.
     iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
     iApply (switcher_return_unwind with
-             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hna $Hcstk]");
+             "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_interp $Hcont $Hhwm $Hna
+               $Hcstk]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     iSplit; iApply interp_int.

@@ -131,6 +131,9 @@ Section Switcher_entry_point.
          ∗ world_resources W C
          ∗ shared_credit C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝
+         (* The callee's stack starts at the base of the thread's stack, which
+            the switcher checked against MSHWMB *)
+         ∗ ⌜b_stk = cstk_hwm_base cstk⌝
          (* The switcher checked that the callee's stack holds the minimum
             stack size of the entry point plus the space reserved at its
             top. *)
