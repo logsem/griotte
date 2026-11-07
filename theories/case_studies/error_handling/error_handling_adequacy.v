@@ -36,10 +36,10 @@ Theorem error_handling_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' 
 Proof.
   intros Hok Hstep.
   destruct (error_handling_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & stats & adv & sched & <- & Hfw).
+    as (sw & la & fo & t0 & idle & boot & main & stats & adv & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_error_handling_CmptNameG) #[]
             error_handling_firmware
-            (error_handling_img sw asrt t0 idle boot main stats adv sched));
+            (error_handling_img sw la fo t0 idle boot main stats adv sched));
     [| exact Hfw | exact Hstep].
   apply (error_handling_fw_obligations (C := error_handling_adv_name)
            (Sched := error_handling_sched_name)); done.

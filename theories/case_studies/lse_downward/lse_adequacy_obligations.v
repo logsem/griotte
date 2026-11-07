@@ -20,6 +20,10 @@ Section lse_obligations.
   Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] must not unfold it: its library code would be
+     computed. *)
+  #[local] Typeclasses Opaque assert_static.
+
   (** The obligations of the trusted code of the LSE downward firmware:
       the thread runs safely from the export [entry] of [main], the
       untrusted compartment ["C"] being owned by the logical compartment
@@ -29,7 +33,9 @@ Section lse_obligations.
     fw_obligations Σ lse_firmware.
   Proof.
     intros HCS.
-    apply (fw_obligations_of_pinned Σ lse_firmware Sched); [reflexivity | reflexivity |].
+    apply (fw_obligations_of_pinned Σ lse_firmware Sched);
+      [reflexivity | reflexivity | apply Forall_singleton, assert_lib_ok |
+       apply list_elem_of_here |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -39,7 +45,10 @@ Section lse_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts lse_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _ & main_exp_tbl).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
@@ -132,6 +141,9 @@ Section lse_obligations.
         rewrite /length_lse_main_imports /lse_main_imports /LSE_main_code_run /=.
         solve_addr+Hmain_imports_size Hcode_size. }
       pose proof (Hpin C HCS) as HpinC.
+      iAssert (assert_static (ceriseg := ceriseG_of (UserThread 0))
+                 (@b_assert asl) (@e_assert asl) (@a_flag asl)) as "#Hassert_asl";
+        first iExact "Hassert".
       iApply (lse_f_spec (swlayout := swl) (assertlayout := asl)
                 _ _ _ _ _ _ _ _ _ fw_world0);
         last iFrame "Hswitcher_static #"; auto.
@@ -175,7 +187,7 @@ Section lse_obligations.
     (* 7 - We can apply the specification! *)
     iPoseProof (lse_run_spec (swlayout := swl) (assertlayout := asl) (C := C)
                   _ _ _ _ _ _ _ _ _ _ _ _ [] [] _
-                 with "[ $Hassert $Hthread_C $Hswitcher $Hswitcher_static
+                 with "[ $Hassert_asl $Hthread_C $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code $Hlse_data
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
                          $Hna

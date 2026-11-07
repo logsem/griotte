@@ -121,7 +121,7 @@ Proof. vm_compute; reflexivity. Qed.
 Definition hts_demo_state : ExecConf := img_state hts_demo_firmware hts_demo_image.
 
 Lemma hts_demo_ok :
-  hts_initial_state_ok (flag_assert (img_asrt hts_demo_image)) hts_demo_state.
+  hts_initial_state_ok (img_flag hts_demo_image) hts_demo_state.
 Proof.
   rewrite /hts_initial_state_ok.
   exists (img_sw hts_demo_image), (img_asrt hts_demo_image), (thread_of hts_demo_image 0),
@@ -157,7 +157,7 @@ Qed.
 Theorem hts_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], hts_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt hts_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag hts_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 11500%N) hts_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

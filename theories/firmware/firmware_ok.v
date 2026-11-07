@@ -1,9 +1,9 @@
 From stdpp Require Import gmap strings.
 From griotte Require Import machine_base griotte_opsem.
-From griotte Require Import switcher assert locks allocator_resources compartment_layout.
+From griotte Require Import switcher allocator_resources compartment_layout.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and [switcher]. *)
-From griotte Require Import image firmware.
+From griotte Require Import image firmware libraries.
 
 #[local] Open Scope string_scope.
 
@@ -35,12 +35,6 @@ Fixpoint fw_app {A} (l1 l2 : list A) : list A :=
 
 Fixpoint fw_flat_map {A B} (f : A → list B) (l : list A) : list B :=
   match l with [] => [] | x :: l => fw_app (f x) (fw_flat_map f l) end.
-
-(** Whether a compartment imports the lock library. *)
-Definition fw_imports_try_lock (fc : fw_cmpt) : list unit :=
-  fw_flat_map (λ w, match w with ITryLock => [tt] | _ => [] end) (fc_imports fc).
-Definition fw_uses_try_lock (fw : firmware) : list unit :=
-  match fw_flat_map fw_imports_try_lock (fw_cmpts fw) with [] => [] | _ => [tt] end.
 
 (** The conjunction and the union of a list, without a trailing [True] or
     [∅]. *)
@@ -78,6 +72,16 @@ Definition default_export : fw_export := MkFwExport "" 0 0 0 InterruptDisabled.
 (** The export named [e] of a trusted compartment, if any. *)
 Definition fw_export_named (e : string) (exps : list fw_export) : fw_export :=
   match fw_find_export e exps with Some x => x | None => default_export end.
+
+Definition default_lib_export : fw_lib_export := MkFwLibExport "" 0 None.
+
+(** The export named [e] of the library named [l] of [ls], if any. *)
+Definition fw_lib_export_named (ls : list fw_lib) (l e : string) : fw_lib_export :=
+  match fw_lib_of ls l with
+  | Some fl =>
+      match fw_find_lib_export e (fl_exports fl) with Some x => x | None => default_lib_export end
+  | None => default_lib_export
+  end.
 
 Definition body_str (b : fw_body) : string :=
   match b with
@@ -198,14 +202,15 @@ Section translation.
           (Sentry FwdDisable XSRW_ Local
              (b_switcher (img_sw img)) (e_switcher (img_sw img))
              (a_switcher_call (img_sw img)))
-    | IAssert =>
-        note "assert"
-          (Sentry Inherit RX Global
-             (b_assert (img_asrt img)) (e_assert (img_asrt img)) (b_assert (img_asrt img)))
-    | ITryLock =>
-        note "try_lock"
-          (Sentry FwdDisable RX Global
-             (b_locks (img_lck img)) (e_locks (img_lck img)) (b_locks (img_lck img)))
+    | ILibCall l e =>
+        let L := lib_of img l in
+        let x := fw_lib_export_named (fw_libs fw) l e in
+        note (l ++ ", libcall " ++ e)
+          (Sentry (lib_sentry_kind (le_posture x)) RX Global (lib_b L) (lib_e L)
+             (addr_off (lib_b L) (le_offset x)))
+    | ISharedObject s p =>
+        let O := shared_of img s in
+        note ("shared object " ++ s) (Cap (so_perm_perm p) Global (sh_b O) (sh_e O) (sh_b O))
     | IExport n e =>
         let x := cmpt_of img n in
         let k := match fw_export_index fw n e with Some k => k | None => 0 end in
@@ -243,6 +248,20 @@ Section translation.
         | Some _ => None
         | None => Some ("static sealed object " ++ s)
         end
+    | ILibCall l e =>
+        match fw_lib_of (fw_libs fw) l with
+        | Some fl =>
+            match fw_find_lib_export e (fl_exports fl) with
+            | Some _ => None
+            | None => Some ("export " ++ e ++ " of the library " ++ l)
+            end
+        | None => Some ("library " ++ l)
+        end
+    | ISharedObject s _ =>
+        match fw_shared_of (fw_shared fw) s with
+        | Some _ => None
+        | None => Some ("shared object " ++ s)
+        end
     | _ => None
     end.
 
@@ -264,6 +283,23 @@ Section translation.
           | UntrustedBody _ => []
           | SchedulerBody _ => []
           end)).
+
+  (** The first library or shared object that a compartment that is not
+      trusted (untrusted or the scheduler) imports, if any: only trusted
+      code imports libraries and shared objects. *)
+  Definition fc_untrusted_lib_import (fc : fw_cmpt) : option string :=
+    match fc_body fc with
+    | TrustedBody _ => None
+    | _ =>
+        match fw_flat_map (λ w, match w with
+                                | ILibCall l _ => ["library " ++ l]
+                                | ISharedObject s _ => ["shared object " ++ s]
+                                | _ => []
+                                end) (fc_imports fc) with
+        | [] => None
+        | n :: _ => Some n
+        end
+    end.
 
   (** *** Compartments *)
 
@@ -324,9 +360,13 @@ Section translation.
       (match fc_unknown_export fc with
        | Some s => note ("unknown " ++ s) False
        | None =>
-           cmpt_imports c = fw_imap (λ _ w, fw_word_of (fc_static_sealed fc) c w) (fc_imports fc) ∧
-           cmpt_static_sealed c = fw_map ss_word (fc_static_sealed fc) ∧
-           body_ok (fc_static_sealed fc) c (fc_body fc)
+           match fc_untrusted_lib_import fc with
+           | Some s => note (s ++ " imported by code that is not trusted") False
+           | None =>
+               cmpt_imports c = fw_imap (λ _ w, fw_word_of (fc_static_sealed fc) c w) (fc_imports fc) ∧
+               cmpt_static_sealed c = fw_map ss_word (fc_static_sealed fc) ∧
+               body_ok (fc_static_sealed fc) c (fc_body fc)
+           end
        end).
 
   (** *** Memory *)
@@ -337,18 +377,21 @@ Section translation.
       (switcher_data_words (ot_switcher sw) sched_pcc_word sched_cgp_word sched_csp_word
        ++ switcher_instrs).
 
-  Definition assert_code_mem : Mem :=
-    let asrt := img_asrt img in
-    mem_region (b_assert asrt)
-      (assert_subroutine_instrs ++
-         [Cap RW Global (flag_assert asrt) (flag_assert asrt ^+ 1) (flag_assert asrt)])%list.
+  (** A library: its import table, the switcher call sentry in the switcher
+      slot, then its imports, resolved as in a compartment without static
+      sealed objects; then its code. *)
+  Definition lib_mem (l : fw_lib) : Mem :=
+    let L := lib_of img (fl_name l) in
+    note (fl_name l ++ ", import table and code")
+      (mem_region (lib_b L)
+         (fw_app (fw_word_of [] default_img_cmpt ISwitcherCall ::
+                  fw_map (fw_word_of [] default_img_cmpt) (fl_imports l))
+            (fl_code l))).
 
-  Definition assert_flag_mem : Mem := mem_region (flag_assert (img_asrt img)) [WInt 0].
-
-  (** The code of the lock library, a list of zero or one map: one when a
-      compartment imports it. *)
-  Definition locks_code_mems : list Mem :=
-    fw_map (λ _, mem_region (b_locks (img_lck img)) locks_try_lock_instrs) (fw_uses_try_lock fw).
+  (** A shared object, zeroed. *)
+  Definition shared_mem (o : fw_shared_object) : Mem :=
+    note ("shared object " ++ so_name o ++ ", zeroed")
+      (mem_region (sh_b (shared_of img (so_name o))) (replicate (so_size o) (WInt 0))).
 
   Definition cmpt_mem (fc : fw_cmpt) : Mem :=
     let n := fc_name fc in
@@ -430,10 +473,9 @@ Section translation.
     mem σ =
       note "heap, zeroed" initial_heap_memory ∪
       note "switcher" switcher_mem ∪
-      note "assert, code and flag capability" assert_code_mem ∪
-      note "assert, flag" assert_flag_mem ∪
-      big_union (fw_app (fw_map (λ m, note "locks, code" m) locks_code_mems)
-                   (fw_map cmpt_mem (fw_cmpts fw))) ∪
+      big_union (fw_app (fw_map shared_mem (fw_shared fw))
+                   (fw_app (fw_map lib_mem (fw_libs fw))
+                      (fw_map cmpt_mem (fw_cmpts fw)))) ∪
       big_union (fw_imap thread_mem (fw_threads fw)) ∪
       idle_mem ∪
       boot_mem ∧
@@ -502,27 +544,32 @@ Section translation.
      ("thread " ++ nat_str i ++ ", stack", b_stack t, e_stack t);
      ("thread " ++ nat_str i ++ ", hazard slots", b_hazard t, e_hazard t)].
 
+  (** The region of a library and of a shared object, named. *)
+  Definition lib_range (l : fw_lib) : string * Addr * Addr :=
+    let L := lib_of img (fl_name l) in
+    (fl_name l ++ ", import table and code", lib_b L, lib_e L).
+
+  Definition shared_range (o : fw_shared_object) : string * Addr * Addr :=
+    let O := shared_of img (so_name o) in
+    ("shared object " ++ so_name o, sh_b O, sh_e O).
+
   Definition ranges_ok (rs : list (string * Addr * Addr)) : Prop :=
     big_and (fw_map (λ '(s, b, e), note s (range_ok b e)) rs).
 
   (** Every region of the image. *)
   Definition all_ranges : list (Addr * Addr) :=
     let sw := img_sw img in
-    let asrt := img_asrt img in
     let d := img_idle img in
     let bs := img_boot img in
     fw_map (λ '(s, b, e), note s (b, e))
       (("switcher", b_switcher sw, e_switcher sw) ::
-       ("assert", b_assert asrt, e_assert asrt) ::
-       ("assert flag", flag_assert asrt, flag_assert asrt ^+ 1) ::
-       fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
-         (fw_app (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))
-            (fw_app
-               [("idle thread, trusted stack", img_b_idle_trusted_stack d, img_e_idle_trusted_stack d);
-                ("idle thread, hazard slots", img_b_idle_hazard d, img_e_idle_hazard d);
-                ("boot stack", img_b_boot_stack bs, img_e_boot_stack bs)]
-               (fw_map (λ _, ("locks", b_locks (img_lck img), e_locks (img_lck img)))
-                  (fw_uses_try_lock fw))))).
+       fw_app (fw_map shared_range (fw_shared fw))
+         (fw_app (fw_map lib_range (fw_libs fw))
+            (fw_app (fw_flat_map cmpt_ranges (fw_cmpts fw))
+               (fw_app (fw_flat_map (λ x, x) (fw_imap thread_ranges (fw_threads fw)))
+                  [("idle thread, trusted stack", img_b_idle_trusted_stack d, img_e_idle_trusted_stack d);
+                   ("idle thread, hazard slots", img_b_idle_hazard d, img_e_idle_hazard d);
+                   ("boot stack", img_b_boot_stack bs, img_e_boot_stack bs)])))).
 
   (** The words of a compartment that the loader placed. *)
   Definition img_cmpt_words (c : img_cmpt) : list Word :=
@@ -577,23 +624,32 @@ Section translation.
        range_ok (b_switcher sw) (e_switcher sw) ∧
        note "closed bounds outside the heap" (is_heap_address (e_switcher sw) = false)).
 
-  Definition assert_wf : Prop :=
-    let asrt := img_asrt img in
-    section "assert, layout"
-      ((b_assert asrt + Z.of_nat (length assert_subroutine_instrs))%a = Some (cap_assert asrt) ∧
-       (cap_assert asrt + 1)%a = Some (e_assert asrt) ∧
-       note "the flag is not the last address" (is_Some (flag_assert asrt + 1)%a) ∧
-       range_ok (b_assert asrt) (e_assert asrt) ∧
-       note "closed bounds outside the heap" (is_heap_address (e_assert asrt) = false) ∧
-       note "flag" (range_ok (flag_assert asrt) (flag_assert asrt ^+ 1))).
+  (** The layout of a library: its import table (the switcher slot, then
+      its imports, which name known libraries, exports and shared objects),
+      then its code; each export enters its code. *)
+  Definition lib_wf (l : fw_lib) : Prop :=
+    let L := lib_of img (fl_name l) in
+    section (fl_name l ++ ", layout")
+      (match fw_words_unknown [] (fl_imports l) with
+       | Some s => note ("unknown " ++ s) False
+       | None =>
+           (lib_b L + Z.of_nat (S (fw_length (fl_imports l)) + length (fl_code l)))%a =
+             Some (lib_e L) ∧
+           range_ok (lib_b L) (lib_e L) ∧
+           note "closed bounds outside the heap" (is_heap_address (lib_e L) = false) ∧
+           big_and
+             (fw_map (λ x, note ("export " ++ le_name x ++ " in the code")
+                             (S (fw_length (fl_imports l)) <= le_offset x <
+                                S (fw_length (fl_imports l)) + length (fl_code l))%nat)
+                (fl_exports l))
+       end).
 
-  (** The layout of the lock library, when a compartment imports it. *)
-  Definition locks_wf : Prop :=
-    let lck := img_lck img in
-    section "locks, layout"
-      ((b_locks lck + Z.of_nat (length locks_try_lock_instrs))%a = Some (e_locks lck) ∧
-       range_ok (b_locks lck) (e_locks lck) ∧
-       note "closed bounds outside the heap" (is_heap_address (e_locks lck) = false)).
+  (** The layout of a shared object: its region, of its size. *)
+  Definition shared_wf (o : fw_shared_object) : Prop :=
+    let O := shared_of img (so_name o) in
+    section ("shared object " ++ so_name o ++ ", layout")
+      ((sh_b O + Z.of_nat (so_size o))%a = Some (sh_e O) ∧
+       range_ok (sh_b O) (sh_e O)).
 
   (** The layout of the thread [i]: its stack, its trusted stack with room
       for the entry frame and [ft_tstack_frames] frames ([tstack_frame_offset]
@@ -678,7 +734,7 @@ Section translation.
 
   Definition img_wf : Prop :=
     switcher_wf ∧
-    assert_wf ∧
+    big_and (fw_app (fw_map shared_wf (fw_shared fw)) (fw_map lib_wf (fw_libs fw))) ∧
     big_and (fw_map cmpt_wf (fw_cmpts fw)) ∧
     big_and (fw_imap thread_wf (fw_threads fw)) ∧
     section "image, layout"
@@ -689,7 +745,9 @@ Section translation.
              (NoDup (ot_switcher (img_sw img) :: ot_switcher (img_sw img) ^+ 1 :: fw_otypes fw));
            note "sealing types valid"
              (Forall otype_valid
-                (ot_switcher (img_sw img) :: ot_switcher (img_sw img) ^+ 1 :: fw_otypes fw))]
+                (ot_switcher (img_sw img) :: ot_switcher (img_sw img) ^+ 1 :: fw_otypes fw));
+           note "library names distinct" (NoDup (fw_map fl_name (fw_libs fw)));
+           note "shared object names distinct" (NoDup (fw_map so_name (fw_shared fw)))]
           (fw_app
              (match Nat.eqb (fw_length (img_threads img)) (fw_length (fw_threads fw)) with
               | true => []
@@ -722,7 +780,14 @@ Section translation.
                                  end
                              | _, _ => [note "exactly one scheduler" False]
                              end)
-                            (fw_map (λ _, locks_wf) (fw_uses_try_lock fw)))))))))).
+                            (match fw_shared_of (fw_shared fw) "assert_flag" with
+                             | Some o =>
+                                 match so_size o with
+                                 | 1 => []
+                                 | _ => [note "the assert flag, the shared object assert_flag, is one word" False]
+                                 end
+                             | None => [note "no assert flag (the shared object assert_flag)" False]
+                             end))))))))).
 End translation.
 
 Definition firmware_ok `{MP : MachineParameters}
@@ -732,13 +797,13 @@ Definition firmware_ok `{MP : MachineParameters}
   section "Registers, at the switcher's call of the scheduler" (start_ok fw img σ) ∧
   img_wf fw img.
 
-(** The start of a firmware: the flag of the assert library at [flag],
+(** The start of a firmware: the assert flag at [flag],
     the conditions [params] on the parameters of the firmware, and the
     machine state [σ] built by the loader for [fw] laid out as [img].
     Without parameter conditions, there is no section for them. *)
 Definition fw_start `{MP : MachineParameters} (params : list Prop)
     (fw : firmware) (img : fw_image) (flag : Addr) (σ : ExecConf) : Prop :=
-  note "the flag of the assert library" (flag_assert (img_asrt img) = flag) ∧
+  note "the assert flag" (img_flag img = flag) ∧
   match params with
   | [] => firmware_ok fw img σ
   | _ => section "Parameters" (big_and params) ∧ firmware_ok fw img σ
@@ -753,25 +818,28 @@ Definition fw_start `{MP : MachineParameters} (params : list Prop)
 Ltac reduce_firmware_ok t :=
   eval cbv beta iota zeta delta [
     fw_start firmware_ok mem_ok start_ok img_wf cmpt_ok body_ok fw_word_of chunks_words
-    hole_exports export_word switcher_mem assert_code_mem assert_flag_mem
+    hole_exports export_word switcher_mem lib_mem shared_mem lib_range shared_range
     cmpt_mem thread_mem range_ok ranges_ok cmpt_ranges thread_ranges all_ranges
     img_cmpt_words
     thread_handle thread_handles time_dev_cap sched_time_dev_words
     sched_pcc_word sched_cgp_word sched_csp_word thread_entry
     idle_mem boot_mem idle_wf boot_wf fw_sched_of fw_sched_count sb_entry sb_boot_stack
-    export_in_pcc cmpt_wf switcher_wf assert_wf thread_wf thread_layout_ok heap_machine_ok
+    export_in_pcc cmpt_wf switcher_wf lib_wf shared_wf thread_wf thread_layout_ok heap_machine_ok
     fw_map fw_imap fw_imap_from fw_length fw_app fw_flat_map big_and big_union nat_str
     addr_off default_export fw_export_named body_str fw_set handler_word
-    fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export
+    fw_word_unknown fw_words_unknown chunks_fw_words fc_unknown_export fc_untrusted_lib_import
     fw_index_of fw_body_export_index fw_export_index fw_find_export
-    cmpt_of thread_of assoc fw_nth fw_cmpt_of
-    fw_cmpts fw_threads fw_otypes fw_heap_roots
+    cmpt_of thread_of assoc fw_nth fw_cmpt_of lib_of shared_of img_flag
+    fw_lib_of fw_shared_of fw_find_lib_export fw_lib_export_named default_lib_export
+    lib_sentry_kind so_perm_perm
+    fw_cmpts fw_libs fw_shared fw_threads fw_otypes fw_heap_roots
+    fl_name fl_imports fl_code fl_exports le_name le_offset le_posture so_name so_size
+    assert_lib try_lock_lib assert_flag_object assert.assert_entry_offset locks.try_lock_entry_offset
     fc_name fc_imports fc_static_sealed fc_body ss_name ss_word
     tb_code tb_data tb_exports tb_error_handler tb_error_handler_stackless
     ub_owner ub_exports
     fe_name fe_offset fe_nargs fe_min_stack fe_posture ue_name ue_nargs
     ft_cmpt ft_entry ft_stack_size ft_tstack_frames
-    img_sw img_asrt img_cmpts img_threads img_idle img_boot
-    fw_imports_try_lock fw_uses_try_lock locks_code_mems locks_wf img_lck
+    img_sw img_libs img_shared img_cmpts img_threads img_idle img_boot
     String.append String.eqb Ascii.eqb Bool.eqb Nat.eqb andb]
   in t.

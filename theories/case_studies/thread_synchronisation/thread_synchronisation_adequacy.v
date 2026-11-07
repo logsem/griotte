@@ -43,9 +43,9 @@ Theorem tsy_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (tsy_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
+    as (sw & la & fo & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_tsy_CmptNameG) #[]
-            tsy_firmware (tsy_img sw asrt t0 t1 idle boot K B sched));
+            tsy_firmware (tsy_img sw la fo t0 t1 idle boot K B sched));
     [| exact Hfw | exact Hstep].
   apply (tsy_fw_obligations (B := tsy_adv_B) (Sched := tsy_sched)); done.
 Qed.

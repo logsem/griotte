@@ -42,9 +42,9 @@ Theorem cmdc_isolated_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' :
 Proof.
   intros Hok Hstep.
   destruct (cmdc_isolated_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & t1 & idle & boot & main & B & C & D & sched & <- & Hfw).
+    as (sw & la & fo & t0 & t1 & idle & boot & main & B & C & D & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_CMDC_isolated_CmptNameG) #[]
-            cmdc_isolated_firmware (cmdc_isolated_img sw asrt t0 t1 idle boot main B C D sched));
+            cmdc_isolated_firmware (cmdc_isolated_img sw la fo t0 t1 idle boot main B C D sched));
     [| exact Hfw | exact Hstep].
   apply (cmdc_isolated_fw_obligations (B := cmdc_isolated_adv_B) (C := cmdc_isolated_adv_C)
            (D := cmdc_isolated_adv_D) (Sched := cmdc_isolated_sched));

@@ -37,9 +37,9 @@ Theorem cmdc_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf
 Proof.
   intros Hok Hstep.
   destruct (cmdc_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & B & C & sched & <- & Hfw).
+    as (sw & la & fo & t0 & idle & boot & main & B & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_CMDC_CmptNameG) #[]
-            cmdc_firmware (cmdc_img sw asrt t0 idle boot main B C sched));
+            cmdc_firmware (cmdc_img sw la fo t0 idle boot main B C sched));
     [| exact Hfw | exact Hstep].
   apply (cmdc_fw_obligations (B := cmdc_adv_B) (C := cmdc_adv_C) (Sched := cmdc_sched));
     done.

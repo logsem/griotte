@@ -76,10 +76,11 @@ Definition ist_B_adv_word : Z :=
   encode_entry_point InterruptEnabled 0 0 (Z.of_nat ist_B_adv_offset).
 
 Lemma ist_demo_ok :
-  ist_initial_state_ok (flag_assert (img_asrt ist_demo_image)) ist_demo_state.
+  ist_initial_state_ok (img_flag ist_demo_image) ist_demo_state.
 Proof.
   rewrite /ist_initial_state_ok.
-  exists (img_sw ist_demo_image), (img_asrt ist_demo_image),
+  exists (img_sw ist_demo_image), (lib_of ist_demo_image "assert"),
+    (shared_of ist_demo_image "assert_flag"),
     (thread_of ist_demo_image 0), (thread_of ist_demo_image 1),
     (img_idle ist_demo_image), (img_boot ist_demo_image),
     (cmpt_of ist_demo_image "K"), (cmpt_of ist_demo_image "B"),
@@ -121,7 +122,7 @@ Qed.
 Theorem ist_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], ist_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt ist_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag ist_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 16500%N) ist_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

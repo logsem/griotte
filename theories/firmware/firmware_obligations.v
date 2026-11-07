@@ -25,9 +25,12 @@ From griotte Require Import image firmware.
     follows.
 
     - [apply (fw_obligations_of_pinned Σ fw Sched); [reflexivity |
-      reflexivity |] ], [Sched] the scheduler's logical compartment: the
-      export the first thread starts at is at the end of the imports of its
-      compartment ([fw_entry_at_code]), and the firmware has one thread.
+      reflexivity | repeat constructor | apply list_elem_of_here |] ],
+      [Sched] the scheduler's logical compartment: the export the first
+      thread starts at is at the end of the imports of its compartment
+      ([fw_entry_at_code]), the firmware has one thread, its libraries are
+      integer code importing shared objects ([fw_lib_ok]) and the assert
+      library is one of them.
     - Per compartment at position [i] of the firmware, [fw_cmpt_ok_at Hok i
       eq_refl] gives its contents (reduced with [cbv] as the predicate is)
       and [fw_cmpt_layout_at Hok i eq_refl] its layout [Hc], hence its record
@@ -112,14 +115,16 @@ Section obligation_facts.
   Proof. intros (_ & _ & _ & Hwf). by apply img_wf_cmpts_disjoint. Qed.
 
   (** The layouts of the program logic for the switcher, with the stacks
-      of the first thread, and for the assert library of an image, as the
-      specifications take them. *)
+      of the first thread, and for the assert library of an image (the
+      library named ["assert"] and the assert flag), as the specifications
+      take them. *)
   Definition fw_assert_layout (img : fw_image) : assertLayout :=
-    mkAssertLayout (b_assert (img_asrt img)) (e_assert (img_asrt img)) (flag_assert (img_asrt img)).
+    mkAssertLayout (lib_b (lib_of img "assert")) (lib_e (lib_of img "assert")) (img_flag img).
 
-  (** The layout of the lock library of an image. *)
+  (** The layout of the lock library of an image, the library named
+      ["locks"]. *)
   Definition fw_locks_layout (img : fw_image) : locksLayout :=
-    mkLocksLayout (b_locks (img_lck img)) (e_locks (img_lck img)).
+    mkLocksLayout (lib_b (lib_of img "locks")) (lib_e (lib_of img "locks")).
 
   Lemma fw_switcher_layout_wf_of fw img σ :
     firmware_ok fw img σ → @switcherLayoutWf MP (fw_switcher_layout img).

@@ -3,7 +3,7 @@ From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
 (* Exported, so that the code of the case study prints unqualified (tools/prints/). *)
 From griotte Require Export interrupt_status.
-From griotte Require Import image firmware firmware_ok initial_state.
+From griotte Require Import image firmware libraries firmware_ok initial_state.
 
 #[local] Open Scope string_scope.
 
@@ -23,7 +23,7 @@ Definition ist_firmware `{MP : MachineParameters} : firmware := {|
     {| fc_name          := "K";
        fc_imports       := [
          ISwitcherCall;
-         IAssert;
+         ILibCall "assert" "assert";
          IExport "B" "f"
        ];
        fc_static_sealed := [];
@@ -61,6 +61,12 @@ Definition ist_firmware `{MP : MachineParameters} : firmware := {|
          sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
+  fw_libs       := [
+    assert_lib
+  ];
+  fw_shared     := [
+    assert_flag_object
+  ];
   fw_threads    := [
     {| ft_cmpt := "K"; ft_entry := "run"; ft_stack_size := 100; ft_tstack_frames := 24 |};
     {| ft_cmpt := "B"; ft_entry := "adv"; ft_stack_size := 100; ft_tstack_frames := 24 |}
@@ -71,16 +77,17 @@ Definition ist_firmware `{MP : MachineParameters} : firmware := {|
 
 (** The image of the interrupt-status firmware, from the records of its
     sections. *)
-Definition ist_img (sw : img_switcher) (asrt : img_assert) (t0 t1 : img_thread)
+Definition ist_img (sw : img_switcher) (la : img_lib) (fo : img_shared_object) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (K B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt default_img_locks [("K", K); ("B", B); ("sched", sched)] [t0; t1] idle boot.
+  MkFwImage sw [("assert", la)] [("assert_flag", fo)]
+    [("K", K); ("B", B); ("sched", sched)] [t0; t1] idle boot.
 
-(** The start of the firmware: some layout, with the flag of the assert
-    library at [flag], such that [σ] is the state the loader builds. *)
+(** The start of the firmware: some layout, with the assert flag at
+    [flag], such that [σ] is the state the loader builds. *)
 Definition ist_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 t1 : img_thread)
+  ∃ (sw : img_switcher) (la : img_lib) (fo : img_shared_object) (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (K B sched : img_cmpt),
-    fw_start [] ist_firmware (ist_img sw asrt t0 t1 idle boot K B sched) flag σ.
+    fw_start [] ist_firmware (ist_img sw la fo t0 t1 idle boot K B sched) flag σ.
 
 (** The predicate, computed from [ist_start], with its comments. *)
 Definition ist_initial_state_ok_annot `{MP : MachineParameters} :

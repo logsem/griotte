@@ -36,9 +36,9 @@ Theorem dle_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (dle_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & C & sched & <- & Hfw).
+    as (sw & la & fo & t0 & idle & boot & main & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_dle_CmptNameG) #[]
-            dle_firmware (dle_img sw asrt t0 idle boot main C sched));
+            dle_firmware (dle_img sw la fo t0 idle boot main C sched));
     [| exact Hfw | exact Hstep].
   apply (dle_fw_obligations (C := dle_adv_C) (Sched := dle_sched)); done.
 Qed.

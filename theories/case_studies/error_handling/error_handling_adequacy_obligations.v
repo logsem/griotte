@@ -22,6 +22,10 @@ Section error_handling_obligations.
   Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] must not unfold it: its library code would be
+     computed. *)
+  #[local] Typeclasses Opaque assert_static.
+
   (** The obligations of the trusted code of the error-handling firmware:
       the thread runs safely from the export [entry] of [main], the
       untrusted compartment ["adv"] being owned by the logical compartment
@@ -32,7 +36,8 @@ Section error_handling_obligations.
   Proof.
     intros HCS.
     apply (fw_obligations_of_pinned Σ error_handling_firmware Sched);
-      [reflexivity | reflexivity |].
+      [reflexivity | reflexivity | apply Forall_singleton, assert_lib_ok |
+       apply list_elem_of_here |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -44,7 +49,10 @@ Section error_handling_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts error_handling_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset]
       in Hok_main, Hok_stats, Hok_adv.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _ & main_exp_tbl).
     destruct Hok_stats as (stats_imports & _ & stats_code_eq & stats_data_eq & _ & stats_exp_tbl).
@@ -226,10 +234,13 @@ Section error_handling_obligations.
     iEval (rewrite main_data) in "Hmain_data".
     pose proof (main_spec_size_obligations _ _ _ _ main_imports' main_code main_data)
       as (Hmain_bounds & Hmain_data_size & Hmain_imports_size).
+    iAssert (assert_static (ceriseg := ceriseG_of (UserThread 0))
+               (@b_assert asl) (@e_assert asl) (@a_flag asl)) as "#Hassert_asl";
+      first iExact "Hassert".
     iPoseProof (error_handling_main_spec (swlayout := swl) (assertlayout := asl)
                   (statslayout := statsl) (C := C)
                   _ _ _ _ _ _ _ _ adv_f _ [] [] _
-                 with "[$Hassert $Hthread_C $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
+                 with "[$Hassert_asl $Hthread_C $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
                         $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs $Hmain_imports $Hmain_code $Hmain_data
                         $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C
                         $HMIE $Hheld]")

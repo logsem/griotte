@@ -3,7 +3,7 @@ From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
 (* Exported, so that the code of the case study prints unqualified (tools/prints/). *)
 From griotte Require Export deep_immutability.
-From griotte Require Import image firmware firmware_ok initial_state.
+From griotte Require Import image firmware libraries firmware_ok initial_state.
 
 #[local] Open Scope string_scope.
 
@@ -21,7 +21,7 @@ Definition droe_firmware `{MP : MachineParameters} : firmware := {|
     {| fc_name          := "main";
        fc_imports       := [
          ISwitcherCall;
-         IAssert;
+         ILibCall "assert" "assert";
          IExport "C" "f"
        ];
        fc_static_sealed := [];
@@ -58,6 +58,12 @@ Definition droe_firmware `{MP : MachineParameters} : firmware := {|
          sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
+  fw_libs       := [
+    assert_lib
+  ];
+  fw_shared     := [
+    assert_flag_object
+  ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
   ];
@@ -67,16 +73,17 @@ Definition droe_firmware `{MP : MachineParameters} : firmware := {|
 
 (** The image of the deep-immutability firmware, from the records of its
     sections. *)
-Definition droe_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+Definition droe_img (sw : img_switcher) (la : img_lib) (fo : img_shared_object) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt default_img_locks [("main", main); ("C", C); ("sched", sched)] [t0] idle boot.
+  MkFwImage sw [("assert", la)] [("assert_flag", fo)]
+    [("main", main); ("C", C); ("sched", sched)] [t0] idle boot.
 
-(** The start of the firmware: some layout, with the flag of the assert
-    library at [flag], such that [σ] is the state the loader builds. *)
+(** The start of the firmware: some layout, with the assert flag at
+    [flag], such that [σ] is the state the loader builds. *)
 Definition droe_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+  ∃ (sw : img_switcher) (la : img_lib) (fo : img_shared_object) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt),
-    fw_start [] droe_firmware (droe_img sw asrt t0 idle boot main C sched) flag σ.
+    fw_start [] droe_firmware (droe_img sw la fo t0 idle boot main C sched) flag σ.
 
 (** The predicate, computed from [droe_start], with its comments. *)
 Definition droe_initial_state_ok_annot `{MP : MachineParameters} :

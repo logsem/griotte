@@ -42,9 +42,9 @@ Theorem ist_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (ist_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
+    as (sw & la & fo & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_ist_CmptNameG) #[]
-            ist_firmware (ist_img sw asrt t0 t1 idle boot K B sched));
+            ist_firmware (ist_img sw la fo t0 t1 idle boot K B sched));
     [| exact Hfw | exact Hstep].
   apply (ist_fw_obligations (B := ist_adv_B) (Sched := ist_sched)); done.
 Qed.
