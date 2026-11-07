@@ -153,44 +153,72 @@ Section CmptLayout.
   Proof. by split. Qed.
 
   (** The initial contents of a trusted stack with room for the entry frame
-      and [n] frames: a register save area, zeroed but for its word
+      and [n] frames: a register save area, zeroed but for its words
       [hazardPointers], which holds the capability [w_hazard] to the hazard
-      slots of the thread, [frameoffset] pointing after the entry frame,
-      the [threadID] [thread_id], the entry frame, and zeroed frames. The
-      entry frame holds the stack pointer [w_csp] of the thread, the export
-      table [w_export_table] of the compartment it starts in, and no error
-      handler invocation. *)
-  Definition initial_trusted_stack_content (w_csp w_export_table w_hazard : Word)
+      slots of the thread, [mshwm] and [mshwmb], which hold the stack
+      high-water mark [w_mshwm] and its base [w_mshwmb] (the loader writes
+      the top and the base of the thread's stack), [frameoffset] pointing
+      after the entry frame, the [threadID] [thread_id], the entry frame,
+      and zeroed frames. The entry frame holds the stack pointer [w_csp] of
+      the thread, the export table [w_export_table] of the compartment it
+      starts in, and no error handler invocation. *)
+  Definition initial_trusted_stack_content
+      (w_csp w_export_table w_hazard w_mshwm w_mshwmb : Word)
       (thread_id : nat) (n : nat) : list Word :=
     replicate (Z.to_nat TrustedStack_offset_hazardPointers) (WInt 0) ++
     [w_hazard] ++
-    replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_hazardPointers - 1)) (WInt 0) ++
+    replicate (Z.to_nat (TrustedStack_offset_mshwm - TrustedStack_offset_hazardPointers - 1))
+      (WInt 0) ++
+    [w_mshwm; w_mshwmb] ++
     [WInt (tstack_frameoffset 0); WInt (Z.of_nat thread_id)] ++
     [w_csp; w_export_table; WInt 0] ++
     replicate (Z.to_nat (TrustedStackFrame_size * Z.of_nat n)) (WInt 0).
 
-  Lemma initial_trusted_stack_content_words (w_csp w_export_table w_hazard : Word)
+  Lemma initial_trusted_stack_content_words
+      (w_csp w_export_table w_hazard w_mshwm w_mshwmb : Word)
       (thread_id : nat) (n : nat) :
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
+    trusted_stack_word w_mshwm →
+    trusted_stack_word w_mshwmb →
     Forall trusted_stack_word
-      (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n).
+      (initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+         thread_id n).
   Proof.
-    intros Hcsp Hexport_table Hhazard. rewrite /initial_trusted_stack_content.
+    intros Hcsp Hexport_table Hhazard Hmshwm Hmshwmb.
+    rewrite /initial_trusted_stack_content.
     pose proof (trusted_stack_word_int 0) as Hzero.
     repeat apply Forall_app_2; try by apply Forall_replicate.
-    - by apply Forall_singleton.
-    - apply Forall_cons_2; first apply trusted_stack_word_int.
-      apply Forall_singleton, trusted_stack_word_int.
-    - by apply Forall_cons_2; [| apply Forall_cons_2; [| apply Forall_singleton] ].
+    all: repeat first [ apply Forall_nil_2 | apply Forall_cons_2 ];
+      first [ assumption | apply trusted_stack_word_int ].
   Qed.
 
   (** The word [hazardPointers] of an initial trusted stack. *)
-  Lemma initial_trusted_stack_content_hazard (w_csp w_export_table w_hazard : Word)
+  Lemma initial_trusted_stack_content_hazard
+      (w_csp w_export_table w_hazard w_mshwm w_mshwmb : Word)
       (thread_id : nat) (n : nat) :
-    initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n
+    initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+      thread_id n
       !! Z.to_nat TrustedStack_offset_hazardPointers = Some w_hazard.
+  Proof. reflexivity. Qed.
+
+  (** The word [mshwm] of an initial trusted stack. *)
+  Lemma initial_trusted_stack_content_mshwm
+      (w_csp w_export_table w_hazard w_mshwm w_mshwmb : Word)
+      (thread_id : nat) (n : nat) :
+    initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+      thread_id n
+      !! Z.to_nat TrustedStack_offset_mshwm = Some w_mshwm.
+  Proof. reflexivity. Qed.
+
+  (** The word [mshwmb] of an initial trusted stack. *)
+  Lemma initial_trusted_stack_content_mshwmb
+      (w_csp w_export_table w_hazard w_mshwm w_mshwmb : Word)
+      (thread_id : nat) (n : nat) :
+    initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+      thread_id n
+      !! Z.to_nat TrustedStack_offset_mshwmb = Some w_mshwmb.
   Proof. reflexivity. Qed.
 
   Record cmptSwitcher : Type :=

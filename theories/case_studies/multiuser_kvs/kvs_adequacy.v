@@ -332,10 +332,15 @@ Section kvs_obligations.
 
     (* 7 - Close the world of B: its compartment becomes Global regions, and
        the stack temporary; its export is safe to share. *)
+    (* The bounds of the stack of the thread, from its MSHWMB and MSHWM. *)
+    iAssert (thread_stack (th := UserThread 0)
+               (b_stack (thread_of img 0)) (e_stack (thread_of img 0)))
+      as "#Htstk".
+    { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
     iMod (fw_close_adv_world (th := UserThread 0) _ _ _ 2
             (fw_nth 2 (fw_cmpts (kvs_firmware ot_kvs key_main key_B)) default_fw_cmpt) _
             HB_l W0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hfamily_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
+           with "Hfamily_B Hswitcher_static HB HB_pers Hstack Htstk [] Hthread_B Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _

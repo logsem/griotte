@@ -392,11 +392,17 @@ Section prepared.
 
   (** The resources of [fw_shared_res] and [fw_thread_res] at the first
       thread, run as the thread [th], with the compartments initialised and
-      the first thread at the code of its compartment. *)
+      the first thread at the code of its compartment. Its stack is the zone
+      of the stack high-water mark: MSHWMB at its base, MSHWM at its top. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) : iProp Σ :=
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
+    let ef :=
+      {| tf_csp := Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
+         tf_export_tbl :=
+           Cap RW Global (cmpt_exp_tbl_pcc m) (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
+         tf_error_count := 0 |} in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
@@ -414,25 +420,21 @@ Section prepared.
     "Hcra" ∷ cra ↦ᵣ[th] thread_return_sentry (swlayout := fw_switcher_layout img) ∗
     "Hregs" ∷ regs[th] fw_cleared_regs ∗
     "Hstack" ∷
-      [[ b_stack t, e_stack t ]] ↦ₐ
-        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
+      stack_region (b_stack t) (e_stack t)
+        (lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)) ∗
+    "Hhwm" ∷ hwm_res (entry_cstack ef) (e_stack t) ∗
     "%Hstack_min" ∷
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space
          <= e_stack t)%Z ⌝ ∗
-    "Hcstk" ∷
-      ◯(CSTK)[th]
-        (entry_cstack {| tf_csp := Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
-                         tf_export_tbl :=
-                           Cap RW Global (cmpt_exp_tbl_pcc m)
-                             (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
-                         tf_error_count := 0 |}) ∗
+    "Hcstk" ∷ ◯(CSTK)[th] (entry_cstack ef) ∗
     "Hna" ∷ na_own (tpool th) ⊤.
 
   (** The resources of [fw_init_res] that set up the worlds: those of a
       firmware whose first thread starts in an untrusted compartment,
       without the thread's registers, call stack and non-atomic token
-      ([fw_obligations_of_untrusted]). The stack is there: the case study
-      closes it in the world of the entry compartment. *)
+      ([fw_obligations_of_untrusted]). The stack is there, with the bounds
+      of the thread's stack: the case study closes it in the world of the
+      entry compartment. *)
   Definition fw_setup_res (fw : firmware) (img : fw_image) : iProp Σ :=
     let asrt := img_asrt img in
     let t := thread_of img 0 in
@@ -447,8 +449,9 @@ Section prepared.
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
     "Hstack" ∷
-      [[ b_stack t, e_stack t ]] ↦ₐ
-        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]].
+      stack_region (b_stack t) (e_stack t)
+        (lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)) ∗
+    "#Htstk" ∷ thread_stack (b_stack t) (e_stack t).
 
   (** The export tables of the compartments, as persistent facts beside
       the compartments. *)
@@ -712,8 +715,9 @@ Section adversary.
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
-    [[ b_stack t, e_stack t ]] ↦ₐ
-      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    stack_region (b_stack t) (e_stack t)
+      (lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)) -∗
+    thread_stack (b_stack t) (e_stack t) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
@@ -730,7 +734,8 @@ Section adversary.
       interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack Himports #Hthread Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack #Htstk Himports #Hthread
+      Hworld".
     iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
@@ -739,7 +744,7 @@ Section adversary.
     destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W' C Hok Hin Hbody Hnargs)
       as (Hcode & Hdata & Hexports).
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
-           with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hthread Hworld")
+           with "Hseal Himp Hcode Hdata Hstack Htstk [] [Himports] Hthread Hworld")
       as "($ & $ & $ & $ & #Hexp)".
     - by eapply (fw_switcher_cmpt_disjoint_at _ _ _ Hok).
     - exact Hfree.
@@ -770,8 +775,9 @@ Section adversary.
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
-    [[ b_stack t, e_stack t ]] ↦ₐ
-      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    stack_region (b_stack t) (e_stack t)
+      (lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)) -∗
+    thread_stack (b_stack t) (e_stack t) -∗
     ((interp W' C (cmpt_pcc_cap C_cmpt) ∗
       interp W' C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W' C v)) -∗
@@ -784,9 +790,9 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t W' Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack Himports #Hthread Hworld".
+    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack #Htstk Himports #Hthread Hworld".
     by iMod (fw_close_adv_world_entry fw img σ i fc ub Hc W C Hok Hi Hbody Hnargs Hfree
-           with "Hswitcher Hstatic Hmem Hpers Hstack Himports Hthread Hworld")
+           with "Hswitcher Hstatic Hmem Hpers Hstack Htstk Himports Hthread Hworld")
       as "($ & _ & _ & $ & $)".
   Qed.
 
@@ -911,6 +917,10 @@ Proof.
   iDestruct "Hpers" as "(#Htbl_pcc & #Htbl_cgp & (%eh & %ehs & #Heh & #Hehs) & _)".
   (* The case study's worlds *)
   iEval (rewrite fw_thread_of_0) in "Hstack".
+  iAssert (thread_stack (th := UserThread 0)
+             (b_stack (thread_of img 0)) (e_stack (thread_of img 0)))
+    as "#Htstk".
+  { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
   iMod (Hsetup img σ ceriseb sealsg stsg relg cstackg Hok
          with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
     as (W C) "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".

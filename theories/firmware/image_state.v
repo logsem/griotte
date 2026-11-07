@@ -68,10 +68,7 @@ Section img_state.
             (<[mepcc := WInt 0]>
                (<[mcause := WInt 0]>
                   (<[mtval := WInt 0]>
-                     (* Temporary: an empty stack high-water-mark zone. The loader
-                        sets MSHWM and MSHWMB to the top and base of the thread's
-                        stack. *)
-                     (<[mshwm := WInt 0]> (<[mshwmb := WInt 0]> ∅))))))).
+                     (<[mshwm := WInt (e_stack t)]> (<[mshwmb := WInt (b_stack t)]> ∅))))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
       memory of every thread. *)

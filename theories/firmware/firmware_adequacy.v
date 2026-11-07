@@ -232,6 +232,21 @@ Section regions.
     rewrite (mem_region_mkregion b e) // in Ha.
     by apply dom_mkregion_incl, elem_of_list_to_set in Ha.
   Qed.
+
+  (** A region of [n] copies of [w] holds [w] at each of its addresses. *)
+  Lemma mem_region_replicate_lookup (b e a : Addr) (n : nat) (w : Word) :
+    (b + Z.of_nat n)%a = Some e →
+    (b <= a < e)%a →
+    mem_region b (replicate n w) !! a = Some w.
+  Proof.
+    intros Hbe Ha. rewrite /mem_region length_replicate.
+    apply elem_of_list_to_map_1.
+    - rewrite fst_zip; last (rewrite finz_seq_length length_replicate; lia).
+      apply finz_seq_NoDup. by eexists.
+    - apply list_elem_of_lookup_2 with (Z.to_nat (a - b)).
+      rewrite lookup_zip_with (finz_seq_lookup b a); [| solve_addr | solve_addr].
+      rewrite lookup_replicate_2 //. solve_addr.
+  Qed.
 End regions.
 
 (** ** Bridges to the layout records of the program logic *)
@@ -390,6 +405,7 @@ Section layout_memory.
       (Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)))
       (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
       (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+      (WInt (e_stack t)) (WInt (b_stack t))
       (S i) (ft_tstack_frames ft).
 
   (** The stack pointer cell of the entry frame of the thread [i]. *)
@@ -599,27 +615,34 @@ Section layout_of_img_wf.
     constructor.
   Qed.
 
-  Lemma initial_trusted_stack_content_length w_csp w_export_table w_hazard thread_id n :
+  Lemma initial_trusted_stack_content_length
+      w_csp w_export_table w_hazard w_mshwm w_mshwmb thread_id n :
     Z.of_nat
-      (length (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n)) =
+      (length (initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+                 thread_id n)) =
       tstack_frame_offset (S n).
   Proof.
     rewrite /initial_trusted_stack_content !length_app !length_replicate /=.
     rewrite /tstack_frame_offset /TrustedStack_offset_frames /TSTACK_REGFRAME_SZ
-      /TSTACK_HEADER_SZ /TrustedStackFrame_size /TrustedStack_offset_hazardPointers.
+      /TSTACK_HEADER_SZ /TrustedStackFrame_size /TrustedStack_offset_hazardPointers
+      /TrustedStack_offset_mshwm.
     lia.
   Qed.
 
-  Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table thread_id n :
+  Lemma initial_trusted_stack_layout b e b_hz e_hz w_csp w_export_table w_mshwm w_mshwmb
+      thread_id n :
     let w_hazard := Cap WO Global b_hz e_hz b_hz in
     (b + tstack_frame_offset (S n))%a = Some e →
     trusted_stack_word w_csp →
     trusted_stack_word w_export_table →
     trusted_stack_word w_hazard →
+    trusted_stack_word w_mshwm →
+    trusted_stack_word w_mshwmb →
     trusted_stack_layout b e b_hz e_hz
-      (initial_trusted_stack_content w_csp w_export_table w_hazard thread_id n).
+      (initial_trusted_stack_content w_csp w_export_table w_hazard w_mshwm w_mshwmb
+         thread_id n).
   Proof.
-    intros w_hazard Hsize Hcsp Hexport_table Hhazard. split.
+    intros w_hazard Hsize Hcsp Hexport_table Hhazard Hmshwm Hmshwmb. split.
     - by rewrite initial_trusted_stack_content_length.
     - reflexivity.
     - by exists n.
@@ -749,7 +772,8 @@ Section layout_of_img_wf.
     intros Hcmpts Hthread.
     destruct (thread_entry_frame_words _ _ _ _ Hcmpts Hthread) as (Hcsp & Hexport_table & _).
     apply initial_trusted_stack_content_words;
-      [done | done | exact (thread_hazard_word _ _ _ _ Hthread)].
+      [done | done | exact (thread_hazard_word _ _ _ _ Hthread)
+      | apply trusted_stack_word_int | apply trusted_stack_word_int].
   Qed.
 
   Lemma img_wf_otypes fw img :
@@ -848,7 +872,8 @@ Section layout_of_img_wf.
       as (Hcsp & Hexport_table & _).
     destruct (thread_wf_inv _ _ _ _ Hthread) as (_ & _ & _ & Htstack & _).
     apply initial_trusted_stack_layout;
-      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread)].
+      [done | done | done | exact (thread_hazard_word _ _ _ _ Hthread)
+      | apply trusted_stack_word_int | apply trusted_stack_word_int].
   Qed.
 
   Lemma img_wf_switcher_layout fw img i ft :
@@ -1068,9 +1093,8 @@ Section entry.
     | mstatus => WInt (mstatus_enc InterruptDisabled InterruptDisabled)
     | mtcc => fw_mtcc img
     | mepcc | mcause | mtval => WInt 0
-    (* Temporary: an empty stack high-water-mark zone. The loader sets MSHWM and
-       MSHWMB to the top and base of the thread's stack. *)
-    | mshwm | mshwmb => WInt 0
+    | mshwm => WInt (e_stack (thread_of img 0))
+    | mshwmb => WInt (b_stack (thread_of img 0))
     end.
 
   Lemma regs_ok_inv fw img σ :
@@ -1394,6 +1418,56 @@ Section ghost_init.
     rewrite /fw_ranges. intros t. rewrite !elem_of_app !elem_of_cons. naive_solver.
   Qed.
 
+  (** The stack of the first thread holds zero in the initial memory. *)
+  Lemma firmware_ok_stack_zero fw img σ :
+    firmware_ok fw img σ →
+    (b_stack (thread_of img 0) <= e_stack (thread_of img 0))%a ∧
+    ∀ a : Addr,
+      (b_stack (thread_of img 0) <= a < e_stack (thread_of img 0))%a →
+      mem σ !! a = Some (WInt 0).
+  Proof.
+    intros Hok.
+    pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
+    pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
+    destruct Hok as (_ & [Hmem _] & Hregs & Hwf).
+    destruct (regs_ok_inv _ _ _ Hregs) as ([fts Hthreads] & _).
+    pose proof (img_wf_switcher_layout _ _ _ _ H0 Hwf) as Hsw0.
+    pose proof (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf) as Hts0.
+    destruct (thread_mem_disjoint _ _ _ Hsw0) as [Hd_tstack_stack _].
+    pose proof (isl_stack_size _ _ _ Hsw0) as Hstack_size.
+    rewrite length_replicate in Hstack_size.
+    split; first solve_addr.
+    intros a Ha.
+    pose proof (img_wf_rngs_disjoint _ _ Hwf) as Hdisj.
+    pose proof (img_wf_ranges_ok _ _ Hwf) as Hrok.
+    pose proof Hwf as (Hsw & Hasrt & Hcmpts & Hthr & _). apply big_and_fw_map in Hcmpts.
+    pose proof (switcher_mem_in _ Hsw) as HS.
+    pose proof (assert_code_mem_in _ Hasrt) as HAC.
+    pose proof (assert_flag_mem_in _ Hasrt) as HAF.
+    pose proof (cmpts_mem_in fw _ _ Hcmpts) as HCM.
+    pose proof (threads_mem_in fw _ 0 _ Hthr) as HTM.
+    rewrite /note in Hmem. rewrite Hmem.
+    match goal with |- (?H ∪ ?S ∪ ?AC ∪ ?AF ∪ ?CM ∪ ?TM) !! _ = _ =>
+      replace (H ∪ S ∪ AC ∪ AF ∪ CM ∪ TM) with (H ∪ (S ∪ AC ∪ AF ∪ CM ∪ TM))
+        by (by rewrite !(assoc_L (∪)))
+    end.
+    (* Outside the heap and the parts before the threads *)
+    apply lookup_union_Some_r.
+    { eapply mem_in_heap_disjoint; [exact Hmem_in | exact Hrok]. }
+    apply lookup_union_Some_r.
+    { eapply mem_in_disjoint_sub;
+        [ exact (mem_in_union _ _ _ _ (mem_in_union _ _ _ _ (mem_in_union _ _ _ _ HS HAC) HAF) HCM)
+        | exact HTM | | exact Hdisj].
+      rewrite /fw_ranges -!app_assoc. reflexivity. }
+    (* In the stack of the first thread *)
+    rewrite /fw_imap Hthreads. cbn [fw_imap_from]. rewrite big_union_cons.
+    apply lookup_union_Some_l.
+    rewrite (thread_mem_layout _ _ _ Hts0 Hsw0).
+    apply lookup_union_Some_l, lookup_union_Some_r; first exact Hd_tstack_stack.
+    rewrite -(mem_region_mkregion _ _ _ (isl_stack_size _ _ _ Hsw0)).
+    by apply (mem_region_replicate_lookup _ (e_stack (thread_of img 0))).
+  Qed.
+
   Lemma firmware_ok_ghost_init_cond fw img w_pc regs sregs m sh :
     firmware_ok fw img (w_pc, regs, sregs, m, sh) →
     ghost_init_cond (TV := fw_trap_vector img) (w_pc, regs, sregs, m, sh) (fw_set (fw_heap_roots fw)) ∧
@@ -1402,6 +1476,7 @@ Section ghost_init.
     intros Hok.
     pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
     pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
+    destruct (firmware_ok_stack_zero _ _ _ Hok) as [Hstack_le Hstack_zero].
     destruct Hok as (Hcmpts_ok & [Hmem Hsh] & Hregs & Hwf).
     change (mem (w_pc, regs, sregs, m, sh)) with m in Hmem.
     change (shadowtbl (w_pc, regs, sregs, m, sh)) with sh in Hsh.
@@ -1523,7 +1598,10 @@ Section ghost_init.
     - exact (Hsreg mtcc).
     - exists 0%Z. exact (Hsreg mtval).
     - exists InterruptDisabled, InterruptDisabled. exact (Hsreg mstatus).
-    - exists 0%Z. split; [exact (Hsreg mshwmb) | exact (Hsreg mshwm)].
+    - (* MSHWMB and MSHWM at the base and the top of the zeroed stack of the
+         first thread *)
+      exists (b_stack (thread_of img 0)), (e_stack (thread_of img 0)).
+      split_and!; [exact (Hsreg mshwmb) | exact (Hsreg mshwm) | exact Hstack_le | exact Hstack_zero].
   Qed.
 End ghost_init.
 
@@ -1717,7 +1795,9 @@ Section resources.
 
   (** The resources of the thread [i], the user thread [i]: its
       trusted-stack invariant, in its pool, its registers, its stack, its
-      call stack and the non-atomic token of its pool. *)
+      MSHWMB and MSHWM, its call stack and the non-atomic token of its
+      pool. Its stack starts as the zone of the stack high-water mark:
+      MSHWMB at its base, MSHWM at its top. *)
   Definition fw_thread_res (fw : firmware) (img : fw_image) (i : nat) : iProp Σ :=
     let t := thread_of img i in
     "Hswitcher" ∷
@@ -1729,8 +1809,9 @@ Section resources.
     "Hcra" ∷ cra ↦ᵣ[u i] fw_thread_cra img ∗
     "Hregs" ∷ regs[u i] fw_cleared_regs ∗
     "Hstack" ∷
-      region_pointsto (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
+      stack_region (ceriseg := ceriseG_of (UserThread i)) (b_stack t) (e_stack t)
         (lword_of_word <$> replicate (ft_stack_size (fw_thread_of fw i)) (WInt 0)) ∗
+    "Hhwm" ∷ hwm_res (th := UserThread i) (entry_cstack (fw_entry_frame fw img i)) (e_stack t) ∗
     "Hcstk" ∷ ◯(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) ∗
     "Hna" ∷ na_own (tpool (UserThread i)) ⊤.
 End resources.
@@ -1739,11 +1820,11 @@ End resources.
 Section memory_split.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} `{MP : MachineParameters}.
 
-  Lemma cmpts_mem_split fw img (fcs : list fw_cmpt) :
+  Lemma cmpts_mem_split_gen fw img (fcs : list fw_cmpt) (Φ : Addr → Word → iProp Σ) :
     Forall (cmpt_wf fw img) fcs →
     rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
-    ([∗ map] a↦w ∈ big_union (fw_map (cmpt_mem img) fcs), a ↦ₐ lword_of_word w) ⊢
-    [∗ list] fc ∈ fcs, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w.
+    ([∗ map] a↦w ∈ big_union (fw_map (cmpt_mem img) fcs), Φ a w) ⊢
+    [∗ list] fc ∈ fcs, [∗ map] a↦w ∈ cmpt_mem img fc, Φ a w.
   Proof.
     induction fcs as [|fc fcs IH]; intros Hwf Hdisj; first by iIntros "_".
     apply Forall_cons in Hwf as [Hfc Hwf]. rewrite fw_flat_map_cons in Hdisj.
@@ -1754,11 +1835,11 @@ Section memory_split.
     eapply rngs_disjoint_sublist; last exact Hdisj. by apply sublist_inserts_l.
   Qed.
 
-  Lemma threads_mem_split fw img k (fts : list fw_thread) :
+  Lemma threads_mem_split_gen fw img k (fts : list fw_thread) (Φ : Addr → Word → iProp Σ) :
     big_and (fw_imap_from (thread_wf fw img) k fts) →
     rngs_disjoint (fw_flat_map (λ x, x) (fw_imap_from (thread_ranges img) k fts)) →
-    ([∗ map] a↦w ∈ big_union (fw_imap_from (thread_mem img) k fts), a ↦ₐ lword_of_word w) ⊢
-    [∗ list] j ↦ ft ∈ fts, [∗ map] a↦w ∈ thread_mem img (k + j) ft, a ↦ₐ lword_of_word w.
+    ([∗ map] a↦w ∈ big_union (fw_imap_from (thread_mem img) k fts), Φ a w) ⊢
+    [∗ list] j ↦ ft ∈ fts, [∗ map] a↦w ∈ thread_mem img (k + j) ft, Φ a w.
   Proof.
     revert k. induction fts as [|ft fts IH]; intros k Hwf Hdisj; first by iIntros "_".
     cbn [fw_imap_from] in Hwf |- *. apply big_and_cons in Hwf as [Hft Hwf].
@@ -1775,15 +1856,16 @@ Section memory_split.
     rewrite Nat.add_succ_r. iExact "H".
   Qed.
 
-  (** The memory of a state satisfying [firmware_ok], by part. *)
-  Lemma firmware_ok_mem_split fw img σ :
+  (** The memory of a state satisfying [firmware_ok], by part, for any
+      predicate [Φ] on its cells. *)
+  Lemma firmware_ok_mem_split_gen fw img σ (Φ : Addr → Word → iProp Σ) :
     firmware_ok fw img σ →
-    ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) ⊢
-    ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
-    ([∗ map] a↦w ∈ switcher_mem img, a ↦ₐ lword_of_word w) ∗
-    ([∗ map] a↦w ∈ assert_code_mem img ∪ assert_flag_mem img, a ↦ₐ lword_of_word w) ∗
-    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
-    ([∗ list] i ↦ ft ∈ fw_threads fw, [∗ map] a↦w ∈ thread_mem img i ft, a ↦ₐ lword_of_word w).
+    ([∗ map] a↦w ∈ mem σ, Φ a w) ⊢
+    ([∗ map] a↦w ∈ initial_heap_memory, Φ a w) ∗
+    ([∗ map] a↦w ∈ switcher_mem img, Φ a w) ∗
+    ([∗ map] a↦w ∈ assert_code_mem img ∪ assert_flag_mem img, Φ a w) ∗
+    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, Φ a w) ∗
+    ([∗ list] i ↦ ft ∈ fw_threads fw, [∗ map] a↦w ∈ thread_mem img i ft, Φ a w).
   Proof.
     intros Hok.
     pose proof (firmware_ok_mem_in _ _ _ Hok) as Hmem_in.
@@ -1823,12 +1905,52 @@ Section memory_split.
       eapply mem_in_disjoint_sub; [exact HAC | exact HAF | | exact Hdisj].
       rewrite /fw_ranges. cbn. apply sublist_cons. do 2 apply sublist_skip. apply sublist_nil_l. }
     iSplitL "Hcmpts".
-    { iApply (cmpts_mem_split with "Hcmpts"); first done.
+    { iApply (cmpts_mem_split_gen with "Hcmpts"); first done.
       eapply rngs_disjoint_sublist; last exact Hdisj.
       rewrite /fw_ranges. do 3 apply sublist_cons. by apply sublist_inserts_r. }
-    iApply (threads_mem_split fw img 0 with "Hthreads"); first done.
+    iApply (threads_mem_split_gen fw img 0 _ Φ with "Hthreads"); first done.
     eapply rngs_disjoint_sublist; last exact Hdisj.
     rewrite /fw_ranges. do 3 apply sublist_cons. by apply sublist_inserts_l.
+  Qed.
+
+  Lemma cmpts_mem_split fw img (fcs : list fw_cmpt) :
+    Forall (cmpt_wf fw img) fcs →
+    rngs_disjoint (fw_flat_map (cmpt_ranges img) fcs) →
+    ([∗ map] a↦w ∈ big_union (fw_map (cmpt_mem img) fcs), a ↦ₐ lword_of_word w) ⊢
+    [∗ list] fc ∈ fcs, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w.
+  Proof. exact (cmpts_mem_split_gen fw img fcs (λ a w, a ↦ₐ lword_of_word w)%I). Qed.
+
+  Lemma threads_mem_split fw img k (fts : list fw_thread) :
+    big_and (fw_imap_from (thread_wf fw img) k fts) →
+    rngs_disjoint (fw_flat_map (λ x, x) (fw_imap_from (thread_ranges img) k fts)) →
+    ([∗ map] a↦w ∈ big_union (fw_imap_from (thread_mem img) k fts), a ↦ₐ lword_of_word w) ⊢
+    [∗ list] j ↦ ft ∈ fts, [∗ map] a↦w ∈ thread_mem img (k + j) ft, a ↦ₐ lword_of_word w.
+  Proof. exact (threads_mem_split_gen fw img k fts (λ a w, a ↦ₐ lword_of_word w)%I). Qed.
+
+  (** The memory of a state satisfying [firmware_ok], by part. *)
+  Lemma firmware_ok_mem_split fw img σ :
+    firmware_ok fw img σ →
+    ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) ⊢
+    ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
+    ([∗ map] a↦w ∈ switcher_mem img, a ↦ₐ lword_of_word w) ∗
+    ([∗ map] a↦w ∈ assert_code_mem img ∪ assert_flag_mem img, a ↦ₐ lword_of_word w) ∗
+    ([∗ list] fc ∈ fw_cmpts fw, [∗ map] a↦w ∈ cmpt_mem img fc, a ↦ₐ lword_of_word w) ∗
+    ([∗ list] i ↦ ft ∈ fw_threads fw, [∗ map] a↦w ∈ thread_mem img i ft, a ↦ₐ lword_of_word w).
+  Proof. exact (firmware_ok_mem_split_gen fw img σ (λ a w, a ↦ₐ lword_of_word w)%I). Qed.
+
+  (** A memory [m] disjoint from a memory [m0] whose domain covers [Z] has
+      no address in [Z]: a predicate conditional on [Z] is its second branch
+      on [m]. *)
+  Lemma big_sepM_cond_disjoint (m m0 : Mem) (Z : gset Addr) (P : Addr → iProp Σ)
+      (Q : Addr → Word → iProp Σ) :
+    m ##ₘ m0 →
+    (∀ a, a ∈ Z → a ∈ dom m0) →
+    ([∗ map] a↦w ∈ m, if decide (a ∈ Z) then P a else Q a w) ⊣⊢ [∗ map] a↦w ∈ m, Q a w.
+  Proof.
+    intros Hdisj HZ. apply big_sepM_proper. intros a w Ha.
+    rewrite decide_False //. intros HaZ.
+    destruct (proj1 (elem_of_dom m0 a) (HZ a HaZ)) as [w0 Hw0].
+    exact (proj1 (map_disjoint_spec m m0) Hdisj a w w0 Ha Hw0).
   Qed.
 
   (** The registers of a state satisfying [firmware_ok]. *)
@@ -2013,10 +2135,12 @@ Proof.
      thread [S k] holds its trusted stack. *)
   eapply (cerise_flag_adequacy Σ (TV := fw_trap_vector img)
             Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw))
-            _ _ _ _ _ _ _ _ _ _ _ (fw_thread_tstack img 0)
+            _ _ _ _ _ _ _ _ _ _ _ (b_stack (thread_of img 0)) (e_stack (thread_of img 0))
+            (fw_thread_tstack img 0)
             (fw_imap_from (λ i _, fw_thread_tstack img i) 1 fts));
-    [exact Hinit | exact Hnull | exact (Hsreg mtdc) | by exists Global | | exact Hstep].
-  iIntros (ceriseb Hmtcc) "HPC Hreg Hmtdc Hmem Hshadow Hclaims Hna Hothers".
+    [exact Hinit | exact Hnull | exact (Hsreg mtdc) | by exists Global
+    | exact (Hsreg mshwmb) | exact (Hsreg mshwm) | | exact Hstep].
+  iIntros (ceriseb Hmtcc) "HPC Hreg Hmtdc Hmshwmb Hmshwm Hmem Hshadow Hclaims Hna Hothers".
   iEval (rewrite big_sepL_fw_imap_from) in "Hothers".
   iDestruct (big_sepL_sep with "Hothers") as "[Hmtdcs _]".
   (* The seal store, the call stacks and the worlds. *)
@@ -2024,7 +2148,8 @@ Proof.
           (finite.enum CmptName)
           ({[ot_switcher (img_sw img)]} ∪ list_to_set (fw_otypes fw)) (fw_entry_frame fw img 0)
           (fw_imap_from (λ i _, fw_entry_frame fw img i) 1 fts))
-    as (sealsg relg stsg cstackg) "(Hseal_store & Hcstk_full & Hcstk_frag & Hcstks & Hworlds)";
+    as (sealsg relg stsg cstackg)
+         "(Hseal_store & Hcstk_full & Hcstk_frag & #Htstk & Hcstks & Hworlds)";
     [done | apply finite.NoDup_enum |].
   iEval (rewrite big_sepL_fw_imap_from) in "Hcstks".
   iDestruct (big_sepL_sep with "Hcstks") as "[Hcstks _]".
@@ -2032,6 +2157,15 @@ Proof.
   rewrite big_sepS_singleton big_sepS_list_to_set //.
   iDestruct "Hseal_store" as "[Hseal_switcher Hotypes]".
   (* The memory and the registers, by part. *)
+  (* PREPORT-UNSURE: "Hmem" now holds zone cells on [init_zone sregs], the
+     stack of the user thread [0] ([init_zone_eq] with [Hsreg mshwmb] and
+     [Hsreg mshwm]). Split it with [firmware_ok_mem_split_gen] at
+     [Φ a w := if decide (a ∈ init_zone sregs) then zone_cell[u 0] a
+     else a ↦ₐ lword_of_word w], turn every part but the stack of the
+     thread [0] back into points-to with [big_sepM_cond_disjoint] (each part
+     is map-disjoint from that stack), and give the stack, as zone cells, to
+     [fw_thread_trusted_stack_inv_alloc] once it is restated with
+     [stack_region]. Not written: it depends on that restatement. *)
   iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0))
               fw img (w_pc, regs, sregs, m, sh) Hok with "Hmem")
     as "(Hheap & Hsw_code & Hasrt & Hcmpts & Hthreads_mem)".
@@ -2057,13 +2191,30 @@ Proof.
   iDestruct (big_sepL_sep_2 with "Hcstks Hmtdcs") as "Hothers".
   iDestruct (big_sepL_sep_2 with "Hthreads_mem Hothers") as "Hothers".
   iMod (fw_threads_trusted_stack_inv_alloc fw img fts ⊤ Hwf H0 Hthreads with "Hothers") as "_".
+  (* MSHWMB and MSHWM of the user thread [0], at the base and the top of its
+     stack, with no locked cell. *)
+  pose proof (isl_stack_size _ _ _ Hsw) as Hstack_size.
+  rewrite length_replicate in Hstack_size.
+  iAssert (hwm_res (th := UserThread 0) (entry_cstack (fw_entry_frame fw img 0))
+             (e_stack (thread_of img 0)))
+    with "[Hmshwmb Hmshwm]" as "Hhwm".
+  (* PREPORT-UNSURE: relies on [iFrame] seeing [cstk_hwm_base] of the entry
+     call stack as [b_stack (thread_of img 0)] by conversion, on [/=]
+     computing the floor to it, and on [done] closing the empty
+     [hwm_locked]. *)
+  { rewrite /hwm_res /hwm_res_at.
+    iFrame "Hmshwmb Hmshwm Htstk".
+    rewrite /hwm_locked /cstk_hwm_floor /cstk_hwm_base /=.
+    rewrite finz_seq_between_empty; last solve_addr.
+    iSplit; first (iPureIntro; split; solve_addr).
+    done. }
   (* The obligations of the trusted code. *)
   iPoseProof (Hobl img _ ceriseb sealsg stsg relg cstackg Hok) as "Hobl".
-  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]
-                     [HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna]") as "Hwp".
+  iMod ("Hobl" with "[-HPC Hcgp Hcsp Hcra Hregs Hstack Hhwm Hcstk_frag Hna]
+                     [HPC Hcgp Hcsp Hcra Hregs Hstack Hhwm Hcstk_frag Hna]") as "Hwp".
   { rewrite /fw_shared_res /CNames big_sepS_list_to_set; last apply finite.NoDup_enum.
     iFrame "Hotypes Hheap Hshadow Hclaims Hcmpts Hworlds". iFrame "#". }
-  { iFrame "HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk_frag Hna Hswitcher". }
+  { iFrame "HPC Hcgp Hcsp Hcra Hregs Hstack Hhwm Hcstk_frag Hna Hswitcher". }
   iModIntro. iFrame "Hwp Hflag".
 Qed.
 End adequacy.

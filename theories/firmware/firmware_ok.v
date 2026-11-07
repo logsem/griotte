@@ -249,7 +249,9 @@ Section translation.
   (** The trusted stack holds a register save area, the header, the entry
       frame and zeroed frames. The register save area is zeroed but for its
       word [hazardPointers], the store-only capability to the hazard slots
-      of the thread. As the loader does, the entry frame holds the stack
+      of the thread, and its words [mshwm] and [mshwmb], the top and the
+      base of the stack of the thread, as the loader writes them. As the
+      loader does, the entry frame holds the stack
       pointer of the thread (its initial [csp]) and the export table of the
       compartment the thread starts in, read-write and global, as the loader
       writes it. Its [threadID] is [i + 1], as the loader writes it (0 is
@@ -265,6 +267,7 @@ Section translation.
             (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c)
                (cmpt_exp_tbl_pcc c))
             (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
+            (WInt (e_stack t)) (WInt (b_stack t))
             (S i) (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
       (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
@@ -335,10 +338,10 @@ Section translation.
         sreg σ !! mepcc = Some (WInt 0) ∧
         sreg σ !! mcause = Some (WInt 0) ∧
         sreg σ !! mtval = Some (WInt 0) ∧
-        (* Temporary: an empty stack high-water-mark zone. The loader sets MSHWM and
-           MSHWMB to the top and base of the thread's stack. *)
-        sreg σ !! mshwm = Some (WInt 0) ∧
-        sreg σ !! mshwmb = Some (WInt 0)
+        note "the stack high-water mark at the top of the stack"
+          (sreg σ !! mshwm = Some (WInt (e_stack t))) ∧
+        note "the stack high-water-mark base at the base of the stack"
+          (sreg σ !! mshwmb = Some (WInt (b_stack t)))
     end.
 
   (** *** Layout conditions *)
