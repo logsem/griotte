@@ -1,12 +1,13 @@
 vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread) (idle : img_idle_thread)
-      (boot : img_boot_stack) (main C sched : img_cmpt),
+  ∃ (sw : img_switcher) (assert : img_lib) (assert_flag : img_shared_object) (t0 : img_thread)
+      (idle : img_idle_thread) (boot : img_boot_stack) (main C sched : img_cmpt),
   -- also, in section C (untrusted, C): ∃ (eh_C ehs_C : Z) (off_C_adv min_C_adv off_C_g min_C_g : nat)
-  flag_assert asrt = flag  -- the flag of the assert library
+  sh_b assert_flag = flag  -- the assert flag
 ── main (trusted) ──────────────────────────────────────────────────────────
   cmpt_imports main =
       [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
-      [1]  (E-Inherit RX, Global, b_assert asrt, e_assert asrt, b_assert asrt)            -- assert
+      [1]  (E-Inherit RX, Global, lib_b assert, lib_e assert, lib_b assert ^+ 2)
+          -- assert, libcall assert
       [2]  { ot_switcher sw,                                                              -- C, export adv
              (RO, Global, cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C, cmpt_exp_tbl_pcc C ^+ ExportTable_offset_entry 0) }
   cmpt_static_sealed main             = []
@@ -83,11 +84,9 @@ vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
              (RWL, Local, img_b_boot_stack boot, img_e_boot_stack boot, img_e_boot_stack boot) ++
                                                                                  -- the boot stack, at its top
            switcher_instrs)
-      ∪ mem_region (b_assert asrt)
-          -- assert, code and flag capability
-          (assert_subroutine_instrs ++
-           [(RW, Global, flag_assert asrt, flag_assert asrt ^+ 1, flag_assert asrt)])
-      ∪ mem_region (flag_assert asrt) [WInt 0]                                 -- assert, flag
+      ∪ mem_region (sh_b assert_flag) (replicate 1 (WInt 0))
+          -- shared object assert_flag, zeroed
+      ∪ mem_region (lib_b assert) (lib_words assert)                           -- assert, import table and code
       ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)     -- main, PCC range
       ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                          -- main, CGP range
       ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)       -- main, static sealed
@@ -192,21 +191,31 @@ vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   mtime_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
   mtimecmp_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
   is_heap_address (e_switcher sw) = false  -- closed bounds outside the heap
+── shared object assert_flag, layout ───────────────────────────────────────
+  sh_b assert_flag + 1%nat = Some (sh_e assert_flag)
+  not_heap_range (sh_b assert_flag) (sh_e assert_flag)
+  disjoint_from_shadow (sh_b assert_flag) (sh_e assert_flag)
+  revoker_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+  mtime_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+  mtimecmp_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+── assert (library) ────────────────────────────────────────────────────────
+  lib_words assert =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      [1]  (RW, Global, sh_b assert_flag, sh_e assert_flag, sh_b assert_flag)
+          -- shared object assert_flag
+      ++ assert_subroutine_instrs
 ── assert, layout ──────────────────────────────────────────────────────────
-  b_assert asrt + length assert_subroutine_instrs = Some (cap_assert asrt)
-  cap_assert asrt + 1                             = Some (e_assert asrt)
-  is_Some (flag_assert asrt + 1)                             -- the flag is not the last address
-  not_heap_range (b_assert asrt) (e_assert asrt)
-  disjoint_from_shadow (b_assert asrt) (e_assert asrt)
-  revoker_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  mtime_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  mtimecmp_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  is_heap_address (e_assert asrt) = false                    -- closed bounds outside the heap
-  not_heap_range (flag_assert asrt) (flag_assert asrt ^+ 1)  -- flag
-  disjoint_from_shadow (flag_assert asrt) (flag_assert asrt ^+ 1)
-  revoker_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
-  mtime_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
-  mtimecmp_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
+  lib_b assert + (2 + length assert_subroutine_instrs)%nat = Some (lib_e assert)
+  not_heap_range (lib_b assert) (lib_e assert)
+  disjoint_from_shadow (lib_b assert) (lib_e assert)
+  revoker_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  mtime_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  mtimecmp_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  is_heap_address (lib_e assert) = false     -- closed bounds outside the heap
+  2 ≤ 2                                      -- export assert in the code
+  (2 < 2 + length assert_subroutine_instrs)%nat
+  Forall (word_rooted ∅) (lib_words assert)  -- no heap capability (no heap root)
+  Forall word_exec_ok (lib_words assert)     -- executable words outside the heap
 ── main, layout ────────────────────────────────────────────────────────────
   cmpt_b_pcc main + length (cmpt_imports main)                         = Some (cmpt_a_code main)
   cmpt_a_code main + length (cmpt_code main)                           = Some (cmpt_e_pcc main)
@@ -359,8 +368,8 @@ vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
 ── image, layout ───────────────────────────────────────────────────────────
   ranges_disjoint                                                           -- pairwise disjoint
       [00]  [b_switcher sw, e_switcher sw)                                  -- switcher
-      [01]  [b_assert asrt, e_assert asrt)                                  -- assert
-      [02]  [flag_assert asrt, flag_assert asrt ^+ 1)                       -- assert flag
+      [01]  [sh_b assert_flag, sh_e assert_flag)                            -- shared object assert_flag
+      [02]  [lib_b assert, lib_e assert)                                    -- assert, import table and code
       [03]  [cmpt_b_pcc main, cmpt_e_pcc main)                              -- main, PCC range
       [04]  [cmpt_b_cgp main, cmpt_e_cgp main)                              -- main, CGP range
       [05]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)          -- main, static sealed
@@ -381,6 +390,8 @@ vae_initial_state_ok (flag : Addr) (σ : ExecConf) :=
       [20]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
   NoDup [ot_switcher sw; ot_switcher sw ^+ 1]                               -- sealing types distinct
   Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1]                  -- sealing types valid
+  NoDup ["assert"]                                                          -- library names distinct
+  NoDup ["assert_flag"]                                                     -- shared object names distinct
 ── idle thread, layout ─────────────────────────────────────────────────────
   img_b_idle_trusted_stack idle + tstack_frame_offset 1 = Some (img_e_idle_trusted_stack idle)
   not_heap_range (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)  -- trusted stack

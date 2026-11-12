@@ -401,16 +401,16 @@ const codeOf = (name) => CODE[cs.code[name]];
 
 const OWNER_INFO = {
   switcher: ["switcher", "trusted"],
-  assert: ["assert", "library"],
-  locks: ["locks", "library"],
   "idle thread": ["idle thread", "thread"],
   "boot stack": ["boot stack", "scheduler's stack"],
   heap: ["heap", "heap"],
   machine: ["machine", "implicit"],
   mmio: ["MMIO", "device"],
 };
-/* The name and tag of an owner that is not a compartment; "thread N" by its prefix. */
-const ownerInfo = (o) => OWNER_INFO[o] || (/^thread \d+$/.test(o || "") ? [o, "thread"] : undefined);
+/* The name and tag of an owner that is not a compartment: a library or a
+   shared object of the image (cs.owner_kinds, from the model), "thread N" by
+   its prefix. */
+const ownerInfo = (o) => OWNER_INFO[o] || (cs.owner_kinds || {})[o] || (/^thread \d+$/.test(o || "") ? [o, "thread"] : undefined);
 /* The kind of a compartment owner: trusted, untrusted or scheduler. */
 const cmptKind = (own) => (own && ["trusted", "untrusted", "scheduler"].includes(own.kind) ? own.kind : null);
 
@@ -711,7 +711,8 @@ function renderDetail(id) {
   const r = regById[id];
   if (!r) return;
   const own = cs.owners[r.owner];
-  const kind = cmptKind(own) ? cmptKind(own) + " compartment" : (ownerInfo(r.owner) || [r.owner])[0];
+  const kind = cmptKind(own) ? cmptKind(own) + " compartment"
+    : (cs.owner_kinds || {})[r.owner] ? cs.owner_kinds[r.owner][1] : (ownerInfo(r.owner) || [r.owner])[0];
   const b = r.badges || [];
   let content;
   if (r.content) content = `<pre class="code">${esc(r.content)}</pre>`;
