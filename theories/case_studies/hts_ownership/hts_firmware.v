@@ -4,7 +4,7 @@ From griotte Require Import
 (* Exported, so that the code of the case study prints unqualified (tools/prints/). *)
 From griotte.case_studies.hts_ownership Require Export heap_temporal_safety.
 From griotte.allocators.ownership Require Export allocator.
-From griotte Require Import image firmware firmware_ok initial_state.
+From griotte Require Import image firmware libraries firmware_ok initial_state.
 
 #[local] Open Scope string_scope.
 
@@ -27,7 +27,7 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
     {| fc_name          := "main";
        fc_imports       := [
          ISwitcherCall;
-         IAssert;
+         ILibCall "assert" "assert";
          IExport "B" "adv";
          IExport "allocator" "malloc";
          IExport "allocator" "free";
@@ -97,6 +97,12 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
          sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
+  fw_libs       := [
+    assert_lib
+  ];
+  fw_shared     := [
+    assert_flag_object
+  ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
   ];
@@ -110,22 +116,22 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
 
 (** The image of the heap temporal safety firmware, from the records of its
     sections. *)
-Definition hts_img (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+Definition hts_img (sw : img_switcher) (assert : img_lib) (assert_flag : img_shared_object)
+    (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack)
     (main allocator B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt default_img_locks
+  MkFwImage sw [("assert", assert)] [("assert_flag", assert_flag)]
     [("main", main); ("allocator", allocator); ("B", B); ("sched", sched)]
     [t0] idle boot.
 
-(** The start of the firmware: some layout and sealing type, with the flag of the
-    assert library at [flag], such that [σ] is the state the loader
-    builds. *)
+(** The start of the firmware: some layout and sealing type, with the assert
+    flag at [flag], such that [σ] is the state the loader builds. *)
 Definition hts_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (t0 : img_thread)
+  ∃ (sw : img_switcher) (assert : img_lib) (assert_flag : img_shared_object) (t0 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack)
     (main allocator B sched : img_cmpt) (ot_alloc : OType),
     fw_start [] (hts_firmware ot_alloc)
-      (hts_img sw asrt t0 idle boot main allocator B sched) flag σ.
+      (hts_img sw assert assert_flag t0 idle boot main allocator B sched) flag σ.
 
 (** The predicate, computed from [hts_start], with its comments. *)
 Definition hts_initial_state_ok_annot `{MP : MachineParameters} :
