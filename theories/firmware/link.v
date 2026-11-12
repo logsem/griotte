@@ -1,5 +1,5 @@
 From stdpp Require Import gmap strings.
-From griotte Require Import machine_base machine_parameters switcher assert locks compartment_layout.
+From griotte Require Import machine_base machine_parameters switcher compartment_layout.
 From griotte Require Import image firmware firmware_ok.
 
 #[local] Open Scope string_scope.
@@ -7,8 +7,8 @@ From griotte Require Import image firmware firmware_ok.
 (** * A linker for concrete instances
 
     [link cfg fw] lays out the firmware [fw] from the address [lk_base cfg]
-    on, section after section: the switcher, the assert library, the lock
-    library when a compartment imports it, then for each compartment its
+    on, section after section: the switcher, the shared objects, the
+    libraries (import table, then code), then for each compartment its
     export table, its PCC range, its globals and its static sealed
     objects, then for each thread its trusted stack and its
     stack, then the idle thread's trusted stack and hazard slots, and the
@@ -90,6 +90,29 @@ Section link.
         ((fc_name fc, c) :: cs, a'')
     end.
 
+  (** The shared objects placed from [a], in the order of the firmware, and
+      the next free address. *)
+  Fixpoint place_shared (a : Z) (os : list fw_shared_object)
+      : list (string * img_shared_object) * Z :=
+    match os with
+    | [] => ([], a)
+    | o :: os =>
+        let e := (a + Z.of_nat (so_size o))%Z in
+        let '(xs, a') := place_shared e os in
+        ((so_name o, MkImgShared (mk_addr a) (mk_addr e)) :: xs, a')
+    end.
+
+  (** The libraries placed from [a]: each its import table (the switcher
+      slot, then its imports), then its code. *)
+  Fixpoint place_libs (a : Z) (ls : list fw_lib) : list (string * img_lib) * Z :=
+    match ls with
+    | [] => ([], a)
+    | l :: ls =>
+        let e := (a + Z.of_nat (S (length (fl_imports l)) + length (fl_code l)))%Z in
+        let '(xs, a') := place_libs e ls in
+        ((fl_name l, MkImgLib (mk_addr a) (mk_addr e)) :: xs, a')
+    end.
+
   Fixpoint place_threads (a : Z) (fts : list fw_thread) : list img_thread * Z :=
     match fts with
     | [] => ([], a)
@@ -108,21 +131,16 @@ Section link.
     let call := (b + 5)%Z in
     let esw := (call + Z.of_nat (length switcher_instrs))%Z in
     let ret := (b + 5 + Z.of_nat (length switcher_call_instrs))%Z in
-    let cap := (esw + Z.of_nat (length assert_subroutine_instrs))%Z in
-    let flag := (cap + 1)%Z in
-    let blk := (flag + 1)%Z in
-    let elk := match fw_uses_try_lock fw with [] => blk
-               | _ => (blk + Z.of_nat (length locks_try_lock_instrs))%Z end in
-    let '(cs, a) := place_cmpts elk (fw_cmpts fw) in
+    let '(os, eso) := place_shared esw (fw_shared fw) in
+    let '(ls, elib) := place_libs eso (fw_libs fw) in
+    let '(cs, a) := place_cmpts elib (fw_cmpts fw) in
     let '(ts, a') := place_threads a (fw_threads fw) in
     let eits := (a' + tstack_frame_offset 1)%Z in
     let eihz := (eits + 2)%Z in
     let eboot := (eihz + Z.of_nat (length (lk_boot cfg)))%Z in
     (MkFwImage
        (MkImgSwitcher (mk_addr b) (mk_addr esw) (mk_addr call) (mk_addr ret) (lk_ot_switcher cfg))
-       (MkImgAssert (mk_addr esw) (mk_addr flag) (mk_addr cap) (mk_addr flag))
-       (MkImgLocks (mk_addr blk) (mk_addr elk))
-       cs ts
+       ls os cs ts
        (MkImgIdleThread (mk_addr a') (mk_addr eits) (mk_addr eits) (mk_addr eihz))
        (MkImgBootStack (mk_addr eihz) (mk_addr eboot) (lk_boot cfg)),
      eboot).
@@ -158,7 +176,7 @@ Section link.
     let '(img, a) := place fw in
     match (finz.of_z a : option Addr) with
     | Some _ =>
-        Some (MkFwImage (img_sw img) (img_asrt img) (img_lck img)
+        Some (MkFwImage (img_sw img) (img_libs img) (img_shared img)
                 (map (fill_cmpt fw img) (fw_cmpts fw))
                 (img_threads img) (img_idle img) (img_boot img))
     | None => None
