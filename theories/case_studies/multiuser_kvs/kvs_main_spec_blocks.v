@@ -81,7 +81,7 @@ Section KVS_Main_Blocks.
     ⊢
       pc_b ↦ₐ□ switcher_entry_call
       ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ□
-        Sentry Inherit RX Global b_assert e_assert b_assert
+        Sentry Inherit RX Global b_assert e_assert (b_assert ^+ 2)%a
       ∗ (pc_b ^+ ADV_F_OFFSET) ↦ₐ□ WSealed ot_switcher B_f
       ∗ (pc_b ^+ KVS_INSERT_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_addOrUpdate Global)
@@ -715,7 +715,7 @@ Section KVS_Main_Blocks.
     ∗ (pc_b ^+ KVS_READ_OFFSET) ↦ₐ□
         WSealed ot_switcher (KVS_read Global)
     ∗ (pc_b ^+ ASSERT_OFFSET) ↦ₐ□
-        Sentry Inherit RX Global b_assert e_assert b_assert
+        Sentry Inherit RX Global b_assert e_assert (b_assert ^+ 2)%a
     ∗ codefrag_pers pc_a kvs_main_code
     ∗ MIE ↦ₜ[th] mie
     ∗ held (th := th) mie

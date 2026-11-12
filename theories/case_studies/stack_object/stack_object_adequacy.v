@@ -36,9 +36,9 @@ Theorem so_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (so_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & C & sched & <- & Hfw).
+    as (sw & assert & assert_flag & t0 & idle & boot & main & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_so_CmptNameG) #[]
-            so_firmware (so_img sw asrt t0 idle boot main C sched));
+            so_firmware (so_img sw assert assert_flag t0 idle boot main C sched));
     [| exact Hfw | exact Hstep].
   apply (so_fw_obligations (C := so_adv_C) (Sched := so_sched)); done.
 Qed.

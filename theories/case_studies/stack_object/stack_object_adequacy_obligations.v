@@ -20,6 +20,10 @@ Section so_obligations.
   Context {cname : CmptNameG} {C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] must not unfold it: its library code would be
+     computed. *)
+  #[local] Typeclasses Opaque assert_static.
+
   (** The obligations of the trusted code of the stack object firmware:
       the thread runs safely from the export [entry] of [main], the
       untrusted compartment ["C"] being owned by the logical compartment
@@ -29,7 +33,8 @@ Section so_obligations.
     fw_obligations Σ so_firmware.
   Proof.
     intros HCS.
-    apply (fw_obligations_of_pinned Σ so_firmware Sched); [reflexivity | reflexivity |].
+    apply (fw_obligations_of_pinned Σ so_firmware Sched);
+      [reflexivity | reflexivity | apply list_elem_of_here |].
     intros cthreads Hpin Hin _ Hshared img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
     (* 1 - The contents and the layouts of the compartments *)
@@ -39,7 +44,10 @@ Section so_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts so_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset] in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _ & main_exp_tbl).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
     pose proof (fw_cmpt_layout_at _ _ _ 1 _ Hok eq_refl) as HC_l.
@@ -115,6 +123,9 @@ Section so_obligations.
     set (main_f := SCap true RO Global (cmpt_exp_tbl_pcc main_cmpt)
                      (cmpt_exp_tbl_entries_end main_cmpt)
                        (cmpt_exp_tbl_pcc main_cmpt ^+ ExportTable_offset_entry so_entry_f)) in *.
+    iAssert (assert_static (ceriseg := ceriseG_of (UserThread 0))
+               (@b_assert asl) (@e_assert asl) (@a_flag asl)) as "#Hassert_asl";
+      first iExact "Hassert".
     iAssert (ot_switcher_prop (th := UserThread 0) fw_world0 C (WSealable main_f))
       as "#Hot_switcher_main_f".
     { assert (is_Some (cmpt_b_pcc main_cmpt +
@@ -187,7 +198,7 @@ Section so_obligations.
     (* 6 - We can apply the specification! *)
     iPoseProof (so_init_spec (swlayout := swl) (assertlayout := asl) (C := C)
                   _ _ _ _ _ _ _ _ _ _ _ _ [] [] _
-                 with "[ $Hassert $Hthread_C $Hswitcher $Hswitcher_static
+                 with "[ $Hassert_asl $Hthread_C $Hswitcher $Hswitcher_static
                          $Hmain_imports $Hmain_code
                          $Hmain_etbl_pcc $Hmain_etbl_cgp $Hmain_etbl_f
                          $Hna
