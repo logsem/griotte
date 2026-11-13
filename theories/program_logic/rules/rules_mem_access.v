@@ -1590,6 +1590,8 @@ Section mem_access_rules.
     iApply ("HΦ" $! v'). iSplitR; first (iPureIntro; exact Hpost). iFrame.
   Qed.
 
+  (** Exact loads. The cell [ea] may be the PC's cell: both points-to then
+      agree. *)
   Lemma wp_load_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
       {r1 w1 imm p g b e a ea dq' v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
@@ -1598,7 +1600,7 @@ Section mem_access_rules.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     w1.(lw) = Cap p g b e a → (a + imm)%a = Some ea → readAllowed p = true →
-    withinBounds b e ea = true → ea ≠ pc_a →
+    withinBounds b e ea = true →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 ∗
@@ -1612,10 +1614,18 @@ Section mem_access_rules.
         ea ↦ₐ{dq'} v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hchoice Hlive Hvpc Hpc_a' Hr1 Hw1 Hadd Hperm Hwb Hne Φ) "Hpre HΦ".
-    iApply (wp_load_choice_next_1 (post := load_exact) with "Hpre"); [done.. |].
-    iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hr1 & Hea & Hwit)".
-    rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
+    iIntros (Hi Hsw Hmember Hagree Hchoice Hlive Hvpc Hpc_a' Hr1 Hw1 Hadd Hperm Hwb Φ)
+      "(>HPC & >Hpc_a & >Hr1 & >Hea & Hwit) HΦ".
+    destruct (decide (ea = pc_a)) as [-> | Hne].
+    - iDestruct (pointsto_agree with "Hpc_a Hea") as %<-.
+      iApply (wp_load_choice_next_1_pc (post := load_exact) with "[$HPC $Hpc_a $Hr1 Hwit]");
+        try done.
+      iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hr1 & Hwit)".
+      rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
+    - iApply (wp_load_choice_next_1 (post := load_exact) with "[$HPC $Hpc_a $Hr1 $Hea Hwit]");
+        try done.
+      iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hr1 & Hea & Hwit)".
+      rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
   Qed.
 
   Lemma wp_load_next_1_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
@@ -1652,7 +1662,7 @@ Section mem_access_rules.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
     ws.(lw) = Cap p g b e a → (a + imm)%a = Some ea → readAllowed p = true →
-    withinBounds b e ea = true → ea ≠ pc_a →
+    withinBounds b e ea = true →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wd ∗
@@ -1668,11 +1678,18 @@ Section mem_access_rules.
         ea ↦ₐ{dq'} v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hchoice Hlive Hvpc Hpc_a' Hdst Hsrc Hws Hadd Hperm Hwb Hne Φ)
-      "Hpre HΦ".
-    iApply (wp_load_choice_next_2 (post := load_exact) with "Hpre"); [done.. |].
-    iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hdst & Hsrc & Hea & Hwit)".
-    rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
+    iIntros (Hi Hsw Hmember Hagree Hchoice Hlive Hvpc Hpc_a' Hdst Hsrc Hws Hadd Hperm Hwb Φ)
+      "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hea & Hwit) HΦ".
+    destruct (decide (ea = pc_a)) as [-> | Hne].
+    - iDestruct (pointsto_agree with "Hpc_a Hea") as %<-.
+      iApply (wp_load_choice_next_2_pc (post := load_exact)
+                with "[$HPC $Hpc_a $Hdst $Hsrc Hwit]"); try done.
+      iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hdst & Hsrc & Hwit)".
+      rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
+    - iApply (wp_load_choice_next_2 (post := load_exact)
+                with "[$HPC $Hpc_a $Hdst $Hsrc $Hea Hwit]"); try done.
+      iIntros "!>" (v') "(%Hpost & HPC & Hpc_a & Hdst & Hsrc & Hea & Hwit)".
+      rewrite /load_exact in Hpost. subst v'. iApply "HΦ". iFrame.
   Qed.
 
   Lemma wp_load_next_2_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
@@ -1705,7 +1722,8 @@ Section mem_access_rules.
   Qed.
 
   (** Stores. With one register, the stored word does not read another
-      register (an integer, or the authority itself). *)
+      register (an integer, or the authority itself). The cell [ea], wholly
+      owned, is not the PC's cell. *)
   Lemma wp_store_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i stored_word_ok}
       {dst wd imm p g b e a ea v0 v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
@@ -1714,7 +1732,7 @@ Section mem_access_rules.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     wd.(lw) = Cap p g b e a → (a + imm)%a = Some ea → writeAllowed p = true →
-    withinBounds b e ea = true → ea ≠ pc_a →
+    withinBounds b e ea = true →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wd ∗
@@ -1728,8 +1746,9 @@ Section mem_access_rules.
         ea ↦ₐ lstore_word p v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Hne Φ)
+    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hea & Hwit) HΦ".
+    iDestruct (pointsto_ne with "Hea Hpc_a") as %Hne.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_store_next with "[$HPC $Hpc_a $Hea $Hmap Hwit]");
       [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact Hexact
@@ -1786,7 +1805,7 @@ Section mem_access_rules.
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
     wd.(lw) = Cap p g b e a → (a + imm)%a = Some ea → writeAllowed p = true →
-    withinBounds b e ea = true → ea ≠ pc_a →
+    withinBounds b e ea = true →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ dst ↦ᵣ wd ∗
@@ -1802,8 +1821,9 @@ Section mem_access_rules.
         ea ↦ₐ lstore_word p v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Hne Φ)
+    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hea & Hwit) HΦ".
+    iDestruct (pointsto_ne with "Hea Hpc_a") as %Hne.
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hdst_src]".
     iApply (wp_store_next with "[$HPC $Hpc_a $Hea $Hmap Hwit]");
       [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact (Hexact Hdst_src)

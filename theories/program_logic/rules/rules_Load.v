@@ -103,122 +103,11 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hadd Hpca' Hr1 Hr2 Φ)
       "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hea & Hdw) HΦ".
-    destruct (decide (ea = pc_a)) as [-> | Hne].
-    - iDestruct (pointsto_agree with "Hpc_a Hea") as %<-.
-      iApply (wp_load_next_2_pc (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hr2 $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-        | exact Hr1 | exact Hr2 | done | exact Hadd | exact Hra | exact Hwb |].
-      iIntros "!> (HPC & Hpc_a & Hr1 & Hr2 & Hdw)". iApply "HΦ". iFrame.
-    - iApply (wp_load_next_2 (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hr2 $Hea $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-        | exact Hr1 | exact Hr2 | done | exact Hadd | exact Hra | exact Hwb | exact Hne |].
-      iIntros "!> (HPC & Hpc_a & Hr1 & Hr2 & Hea & Hdw)". iApply "HΦ". iFrame.
-  Qed.
-
-  Lemma wp_load_success_frominstr_imm E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w'' p g b e a πs (imm : Z) pc_a' dq q :
-    is_shadow_address pc_a = false →
-    is_heap_cap w.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r2 imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true ∧ withinBounds b e pc_a = true →
-    (a + imm)%a = Some pc_a →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ Cap p g b e a @@? πs
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ Cap p g b e a @@? πs
-             ∗ deref_res πs q }}}.
-  Proof.
-    iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hadd Hpca' Hr1 Hr2 Φ)
-      "(>HPC & >Hpc_a & >Hr1 & >Hr2 & Hdw) HΦ".
-    iApply (wp_load_next_2_pc (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hr2 $Hdw]");
+    iApply (wp_load_next_2 (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hr2 $Hea $Hdw]");
       [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
       | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
       | exact Hr1 | exact Hr2 | done | exact Hadd | exact Hra | exact Hwb |].
-    iIntros "!> (HPC & Hpc_a & Hr1 & Hr2 & Hdw)". iApply "HΦ". iFrame.
-  Qed.
-
-  Lemma wp_load_success_same_notinstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' p g b e a ea πs (imm : Z) pc_a' dq dq' q :
-    is_shadow_address ea = false →
-    is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r1 imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true →
-    withinBounds b e ea = true →
-    (a + imm)%a = Some ea →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ Cap p g b e a @@? πs
-          ∗ ▷ ea ↦ₐ{dq'} w'
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w'
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ ea ↦ₐ{dq'} w'
-             ∗ deref_res πs q }}}.
-  Proof.
-    iIntros (Hshadow Hheap Hinstr Hvpc Hra Hwb Hadd Hpca' Hr1 Φ)
-      "(>HPC & >Hpc_a & >Hr1 & >Hea & Hdw) HΦ".
-    destruct (decide (ea = pc_a)) as [-> | Hne].
-    - iDestruct (pointsto_agree with "Hpc_a Hea") as %<-.
-      iApply (wp_load_next_1_pc (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-        | exact Hr1 | done | exact Hadd | exact Hra | exact Hwb |].
-      iIntros "!> (HPC & Hpc_a & Hr1 & Hdw)". iApply "HΦ". iFrame.
-    - iApply (wp_load_next_1 (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hea $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-        | exact Hr1 | done | exact Hadd | exact Hra | exact Hwb | exact Hne |].
-      iIntros "!> (HPC & Hpc_a & Hr1 & Hea & Hdw)". iApply "HΦ". iFrame.
-  Qed.
-
-  Lemma wp_load_success_same_frominstr_imm E r1 pc_p pc_g pc_b pc_e pc_a pc_π w p g b e a πs (imm : Z) pc_a' dq q :
-    is_shadow_address pc_a = false →
-    is_heap_cap w.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r1 imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true →
-    withinBounds b e pc_a = true →
-    (a + imm)%a = Some pc_a →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ Cap p g b e a @@? πs
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ deref_res πs q }}}.
-  Proof.
-    iIntros (Hshadow Hheap Hinstr Hvpc Hra Hwb Hadd Hpca' Hr1 Φ)
-      "(>HPC & >Hpc_a & >Hr1 & Hdw) HΦ".
-    iApply (wp_load_next_1_pc (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hdw]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-      | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-      | exact Hr1 | done | exact Hadd | exact Hra | exact Hwb |].
-    iIntros "!> (HPC & Hpc_a & Hr1 & Hdw)". iApply "HΦ". iFrame.
+    iIntros "!> (HPC & Hpc_a & Hr1 & Hr2 & Hea & Hdw)". iApply "HΦ". iFrame.
   Qed.
 
   Lemma wp_load_fail_tag_imm E pc_p pc_g pc_b pc_e pc_a pc_π
@@ -365,36 +254,6 @@ Section griotte_lang_rules.
     iApply "Hφ". iFrame.
   Qed.
 
-  Lemma wp_load_success_notinstr E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs q :
-    is_shadow_address a = false →
-    is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r2 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true ∧ withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ Cap p g b e a @@? πs
-          ∗ ▷ a ↦ₐ{dq'} w'
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w'
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ Cap p g b e a @@? πs
-             ∗ a ↦ₐ{dq'} w'
-             ∗ deref_res πs q }}}.
-  Proof.
-    intros.
-    eapply wp_load_success_notinstr_imm; eauto using decode_load_not_heap_cap.
-    all: try by rewrite finz_add_0.
-  Qed.
-
   (** Without shadow ownership, a load may fail or clear the loaded tag of a
       heap capability ([lload_heap]), in addition to the permission
       transformation performed by [load_word]. *)
@@ -486,125 +345,15 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hread Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) Hφ".
-    iDestruct (pointsto_ne with "Ha Hi") as %Hne.
     iApply (wp_load_next_2 (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc $Ha]");
       [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
       | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpc'
-      | exact Hdst | exact Hsrc | done | by rewrite finz_add_0 | exact Hread | exact Hbounds
-      | done |].
+      | exact Hdst | exact Hsrc | done | by rewrite finz_add_0 | exact Hread | exact Hbounds |].
     iIntros "!> (HPC & Hi & Hdst & Hsrc & Ha & _)".
     iApply ("Hφ" $! (lload_word p raw)). iSplitR; first (iPureIntro; by left). iFrame.
   Qed.
 
-  Lemma wp_load_success_frominstr E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w'' p g b e pc_a' dq πs q :
-    is_shadow_address pc_a = false →
-    decodeInstrW w.(lw) = CLoad r1 r2 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true ∧ withinBounds b e pc_a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ Cap p g b e pc_a @@? πs
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ Cap p g b e pc_a @@? πs
-             ∗ deref_res πs q }}}.
-  Proof.
-    intros.
-    eapply wp_load_success_frominstr_imm; eauto using decode_load_not_heap_cap.
-    all: try by rewrite finz_add_0.
-  Qed.
-
-  Lemma wp_load_success_same_notinstr E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' dq dq' πs q :
-    is_shadow_address a = false →
-    is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r1 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ Cap p g b e a @@? πs
-          ∗ ▷ a ↦ₐ{dq'} w'
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w'
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ a ↦ₐ{dq'} w'
-             ∗ deref_res πs q }}}.
-  Proof.
-    intros.
-    eapply wp_load_success_same_notinstr_imm; eauto using decode_load_not_heap_cap.
-    all: try by rewrite finz_add_0.
-  Qed.
-
-  Lemma wp_load_success_same_frominstr E r1 pc_p pc_g pc_b pc_e pc_a pc_π w p g b e pc_a' dq πs q :
-    is_shadow_address pc_a = false →
-    decodeInstrW w.(lw) = CLoad r1 r1 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true →
-    withinBounds b e pc_a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ Cap p g b e pc_a @@? πs
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ deref_res πs q }}}.
-  Proof.
-    intros.
-    eapply wp_load_success_same_frominstr_imm; eauto using decode_load_not_heap_cap.
-    all: try by rewrite finz_add_0.
-  Qed.
-
   (* If a points to a capability, the load into PC success if its address can be incr *)
-
-  Lemma wp_load_success_alt E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w'' p g b e a pc_a' πs dq q :
-    is_shadow_address a = false →
-    is_heap_cap w'.(lw) = false →
-    decodeInstrW w.(lw) = CLoad r1 r2 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true ∧ withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    r1 ≠ cnull ->
-    r2 ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-          ∗ ▷ pc_a ↦ₐ{dq} w
-          ∗ ▷ r1 ↦ᵣ w''
-          ∗ ▷ r2 ↦ᵣ Cap p g b e a @@? πs
-          ∗ ▷ a ↦ₐ w'
-          ∗ deref_res πs q }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-             ∗ r1 ↦ᵣ lload_word p w'
-             ∗ pc_a ↦ₐ{dq} w
-             ∗ r2 ↦ᵣ Cap p g b e a @@? πs
-             ∗ a ↦ₐ w'
-             ∗ deref_res πs q }}}.
-  Proof.
-    intros. eapply wp_load_success_notinstr; eauto.
-  Qed.
 
   (* Non-revoked heap capabilities use the usual load_word transformation. *)
 
@@ -633,46 +382,6 @@ End griotte_lang_rules.
 
 Section load_witness_rules.
   Context `{MP: MachineParameters} `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
-
-  (** Loading an identifier-less word that satisfies [load_exact_cond]
-      (e.g. a heap root, which has authority) keeps it exactly: the fourth
-      variant of the load rule. *)
-  Lemma wp_load_success_exact E r1 r2 pc_p pc_g pc_b pc_e pc_a pc_π w w' w''
-      p g b e a pc_a' πs dq q :
-    is_shadow_address a = false →
-    w'.(lprov) = None →
-    load_exact_cond w' →
-    decodeInstrW w.(lw) = CLoad r1 r2 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    readAllowed p = true →
-    withinBounds b e a = true →
-    (pc_a + 1)%a = Some pc_a' →
-    a ≠ pc_a →
-    r1 ≠ cnull → r2 ≠ cnull → r1 ≠ r2 →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ r1 ↦ᵣ w'' ∗
-        ▷ r2 ↦ᵣ Cap p g b e a @@? πs ∗
-        ▷ a ↦ₐ w' ∗
-        deref_res πs q }}}
-      Instr Executable @ E
-    {{{ RET NextIV;
-        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ{dq} w ∗
-        r1 ↦ᵣ lload_word p w' ∗
-        r2 ↦ᵣ Cap p g b e a @@? πs ∗
-        a ↦ₐ w' ∗
-        deref_res πs q }}}.
-  Proof.
-    iIntros (Hshadow Hπ Hexact Hinstr Hvpc Hra Hwb Hpca' Hne Hr1 Hr2 Hr12 φ)
-      "(>HPC & >Hi & >Hr1 & >Hr2 & >Ha & Hdw) Hφ".
-    iApply (wp_load_next_2 (W := deref_res πs q) with "[$HPC $Hi $Hr1 $Hr2 $Ha $Hdw]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-      | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
-      | exact Hr1 | exact Hr2 | done | by rewrite finz_add_0 | exact Hra | exact Hwb
-      | exact Hne |].
-    iIntros "!> (HPC & Hi & Hr1 & Hr2 & Ha & Hdw)". iApply "Hφ". iFrame.
-  Qed.
 
   (** A load with a status witness, through a readable source capability
       in bounds, without identifier: the load cannot fault. *)
@@ -743,19 +452,11 @@ Section load_witness_rules.
   Proof.
     iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) HΦ".
-    destruct (decide (a = pc_a)) as [-> | Hne].
-    - iDestruct (pointsto_agree with "Ha Hi") as %->.
-      iApply (wp_load_next_2_pc (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
-        | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds |].
-      iIntros "!> (HPC & Hi & Hdst & Hsrc & _)". iApply "HΦ". iFrame.
-    - iApply (wp_load_next_2 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc $Ha]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
-        | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds
-        | exact Hne |].
-      iIntros "!> (HPC & Hi & Hdst & Hsrc & Ha & _)". iApply "HΦ". iFrame.
+    iApply (wp_load_next_2 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc $Ha]");
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
+      | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds |].
+    iIntros "!> (HPC & Hi & Hdst & Hsrc & Ha & _)". iApply "HΦ". iFrame.
   Qed.
 
   (** A load of a cell of any fraction, through a capability with an
@@ -880,18 +581,11 @@ Section load_witness_rules.
   Proof.
     iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hr Φ)
       "(HPC & Hi & Hsrc & Ha) HΦ".
-    destruct (decide (a = pc_a)) as [-> | Hne].
-    - iDestruct (pointsto_agree with "Ha Hi") as %->.
-      iApply (wp_load_next_1_pc (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hsrc]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
-        | exact Hr | done | exact Hea | exact Hread | exact Hbounds |].
-      iIntros "!> (HPC & Hi & Hsrc & _)". iApply "HΦ". iFrame.
-    - iApply (wp_load_next_1 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hsrc $Ha]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
-        | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
-        | exact Hr | done | exact Hea | exact Hread | exact Hbounds | exact Hne |].
-      iIntros "!> (HPC & Hi & Hsrc & Ha & _)". iApply "HΦ". iFrame.
+    iApply (wp_load_next_1 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hsrc $Ha]");
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
+      | exact Hr | done | exact Hea | exact Hread | exact Hbounds |].
+    iIntros "!> (HPC & Hi & Hsrc & Ha & _)". iApply "HΦ". iFrame.
   Qed.
 
 End load_witness_rules.

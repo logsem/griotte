@@ -628,6 +628,13 @@ Qed.
   FramableMachineResource (deref_res π q).
 Qed.
 
+(* A dereference resource of any identifier, symbolic included, from a
+   hypothesis [deref_res π q] (the memory rules of [iInstr]). *)
+#[export] Instance FramableMachineResource_deref_res_hyp `{ceriseG Σ} π q :
+  FramableMachineResource (deref_res π q)
+| 20.
+Qed.
+
 #[export] Instance frame_deref_res_status `{ceriseG Σ} p ι q :
   Frame p (ι ↦st{q} ALive) (deref_res (Some ι) q) emp.
 Proof. rewrite /Frame /deref_res. iIntros "[H _]". by iApply bi.intuitionistically_if_elim. Qed.
@@ -658,7 +665,7 @@ Qed.
 
 Ltac2 Type hyp_table_kind :=
   [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Held | VolLent | Mem | Codefrag
-  | CodefragPers | Claim | DerefRes ].
+  | CodefragPers | Claim | DerefRes | DerefResHyp ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -695,6 +702,7 @@ Ltac2 record_framed
     | (addr_alloc ?a _) => (a, Claim)
     | (st_own ?ι _ _) => (ι, DerefRes)
     | (deref_res (Some ?ι) _) => (ι, DerefRes)
+    | (deref_res ?π _) => (π, DerefResHyp)
     end in
   table.(contents) := (hname, lhs, kind) :: table.(contents).
 
@@ -858,6 +866,12 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
       ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
         (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
     end
+  | DerefResHyp =>
+    match! goal with [ |- context [ deref_res ?π ?q ] ] =>
+      assert_constr_eq π lhs;
+      ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
+        (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
+    end
   end.
 
 Lemma envs_entails_rew_goal {Σ} (Δ: envs (uPredI (iResUR Σ))) P P' :
@@ -999,6 +1013,21 @@ Ltac instantiate_deref_res_none :=
     lazymatch π' with None => unify q 1%Qp end
   end.
 
+(* An undetermined share of [deref_res π q] is the share of the
+   dereference resource of [π] in the spatial context, if any. *)
+Ltac instantiate_deref_res_ctx :=
+  repeat match goal with
+  | |- envs_entails (Envs _ ?Γs _) ?P =>
+    match P with
+    | context [ deref_res ?π ?q ] =>
+      is_evar q; assert_fails (has_evar π);
+      match Γs with
+      | context [ Esnoc _ _ (deref_res π ?q') ] =>
+        assert_fails (has_evar q'); unify q q'
+      end
+    end
+  end.
+
 (* The resource given back for [deref_res None q] is an anonymous [emp]. *)
 Ltac clear_anonymous_emp :=
   repeat match goal with
@@ -1031,13 +1060,24 @@ Ltac instr_not_route_imp :=
   | _ => idtac
   end.
 
+(* A fact [mem_access_fact P] of the memory fallback waits until [P] has no
+   evar: then it is unfolded and tried. *)
+Ltac instr_mem_fact_ready :=
+  lazymatch goal with
+  | |- mem_access_fact ?P =>
+      tryif has_evar P then fail else change P
+  | _ => idtac
+  end.
+
 Ltac2 iApplyCapAutoCore lemma :=
   let tbl := iApplyCapAutoT_init0 lemma in
+  on_lasts [ (fun _ => ltac1:(instantiate_deref_res_ctx)) ];
   let iFrameCap := fun () => record_framed tbl (iFrameAuto ()) in
   grepeat (fun _ =>
     Control.extend []
       (fun _ => try (Control.once (fun () =>
-                       ltac1:(instr_not_route_imp); solve_pure_iinstr ())))
+                       ltac1:(instr_not_route_imp); ltac1:(instr_mem_fact_ready);
+                       solve_pure_iinstr ())))
       [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
     ltac1:(instantiate_deref_res_none);
@@ -1309,6 +1349,7 @@ Ltac instr_commit_lint :=
   | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
   | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ => try instr_route_imp
   | |- _ ≠ exit_marker => try solve [ cbv [exit_marker MCAUSE_THREAD_EXIT]; congruence ]
+  | |- mem_access_fact ?P => change P
   | _ => idtac
   end.
 

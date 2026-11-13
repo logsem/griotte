@@ -1,7 +1,7 @@
 From iris.proofmode Require Import coq_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules rules_regs solve_pure machine_instructions.
+From griotte Require Import rules rules_regs rules_mem_access solve_pure machine_instructions.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
@@ -618,3 +618,34 @@ Ltac solve_regs_next_ok_lax :=
   unshelve (typeclasses eauto 8 with regs_next_ok_lax_db);
   unfreeze_hyps;
   [ regs_next_ok_postponed_premise .. ].
+
+(** * The memory steps in closed form: premises and search
+
+    The membership and agreement of a memory instruction ([rules_mem_access.v],
+    database [mem_agree_db]), and the word that a store writes, read in the
+    literal register map of a k-ary rule. The settings are global, as for
+    [regs_next_ok_db]. *)
+
+(* The word of a store argument: an integer, or the owned word of a
+   register. *)
+#[global] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_agree_db.
+#[global] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_agree_db.
+#[global] Hint Extern 0 (lword_of_argument _ (inr _) = Some _) =>
+  cbn [lword_of_argument]; regs_next_ok_lookup : mem_agree_db.
+
+(* The permission and the bounds of an access, in the memory fallback of
+   [iInstr]: tried only once their address is known, so that no hypothesis
+   about another cell fixes the address ([instr_mem_fact_ready],
+   [proofmode.v]). *)
+Definition mem_access_fact (P : Prop) : Prop := P.
+
+(* A stored integer is the integer itself. *)
+Lemma lstore_word_int p z π : lstore_word p (WInt z @@? π) = WInt z @@? π.
+Proof. by rewrite /lstore_word /lift_word /= store_word_untagged. Qed.
+
+(* The search, under its distinctness premises and frozen hypotheses. *)
+Ltac solve_mem_agree :=
+  regs_next_ok_intros;
+  ltac2:(griotte_freeze_hyps_once ());
+  typeclasses eauto 8 with mem_agree_db;
+  unfreeze_hyps.
