@@ -4,7 +4,7 @@ From iris.base_logic Require Import invariants.
 From iris.program_logic Require Import adequacy.
 From Stdlib Require Import Eqdep_dec.
 From griotte Require Import stdpp_extra iris_extra
-     memory_region rules_base rules.
+     memory_region shapes.step rules.
 From griotte Require Import disjoint_regions_tactics.
 
 Definition mkregion (r_start r_end: Addr) (contents: list Word): gmap Addr Word :=

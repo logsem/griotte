@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export rules_base.
+From griotte Require Export shapes.step.
 From griotte Require Import wp_core_full.
 Import core_link.
 

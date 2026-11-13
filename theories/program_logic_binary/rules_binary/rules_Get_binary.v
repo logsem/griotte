@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
-From griotte Require Import rules_Get.
+From griotte Require Import instructions.cheri.
 
 (** * Spec rules for [Get] (spec copies of [rules_Get.v]) *)
 

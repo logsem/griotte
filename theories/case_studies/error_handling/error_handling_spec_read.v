@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules logrel proofmode map_simpl register_tactics.
 From griotte Require Import switcher_base switcher_base_ktk.
-From griotte Require Import rules_trap_cause.
+From griotte Require Import traps.cause.
 From griotte Require Import
   error_handling_spec_states error_handling_spec_read_blocks error_handling_spec_handler_blocks
   error_handling_spec_handler.

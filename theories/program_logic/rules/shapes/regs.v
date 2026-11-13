@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_base capability_monotonicity_base.
+From griotte Require Import shapes.step capability_monotonicity_base.
 #[local] Open Scope capability_scope.
 
 (** * Register-step WP rules by shape

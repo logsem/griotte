@@ -1,6 +1,6 @@
 From iris.proofmode Require Import reduction proofmode.
 From iris.proofmode Require Import environments.
-From griotte Require Import stdpp_extra rules_base map_simpl spec_instance_binary.
+From griotte Require Import stdpp_extra shapes.step map_simpl spec_instance_binary.
 From griotte Require Export register_tactics.
 
 (** * Register map tactics for the specification run

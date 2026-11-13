@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import proofmode map_simpl register_tactics.
-From griotte Require Import logrel rules rules_mem_access rules_trap_cause rules_deref_quar.
+From griotte Require Import logrel rules shapes.memory_access traps.cause ghost.deref_quar.
 From griotte Require Import world_interp_revocation wp_rules_interp interp_weakening region_open.
 From griotte Require Import switcher_base.
 From griotte Require Import

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Load map_simpl register_tactics logrel.
+From griotte Require Import instructions.memory_accesses map_simpl register_tactics logrel.
 From griotte Require Import world_ghost_theory wp_rules_interp.
 From griotte Require Export call_stack.
 From griotte Require Import switcher_link.

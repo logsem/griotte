@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
-From griotte Require Import rules_Store.
+From griotte Require Import instructions.memory_accesses.
 
 (** * Spec rules for [Store] (spec copies of [rules_Store.v]) *)
 

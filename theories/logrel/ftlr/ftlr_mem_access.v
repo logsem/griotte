@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From griotte Require Import rules_mem_access capability_monotonicity ftlr_shapes ftlr_base
-  ftlr_contract interp_weakening world_interp_cells rules_registry.
+From griotte Require Import shapes.memory_access instructions.memory_accesses
+  capability_monotonicity ftlr_shapes ftlr_base ftlr_contract interp_weakening
+  world_interp_cells ghost.registry.
 Import CoreWPNotations.
 #[local] Open Scope capability_scope.
 

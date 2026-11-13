@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Export weakestpre ectx_lifting.
-From griotte Require Export rules_trap_entry rules_SpecialRW rules_Mret.
+From griotte Require Export traps.entry instructions.system.
 
 (** * The volatile control and status registers
 

@@ -3,7 +3,7 @@ From iris.program_logic Require Export weakestpre.
 From griotte Require Export griotte_lang memory_region.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From griotte Require Export cerise_instance entry rules_base machine_instructions call_stack_binary.
+From griotte Require Export cerise_instance entry shapes.step machine_instructions call_stack_binary.
 From griotte Require Export memory_region_binary region_invariants_binary sealing_invariants_binary.
 From griotte Require Export world_ghost_theory_binary.
 Import uPred.

@@ -3,9 +3,9 @@ From iris.program_logic Require Export weakestpre.
 From griotte Require Export memory_region.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From griotte Require Export state_interp rules_base rules_trap_entry machine_instructions call_stack.
+From griotte Require Export state_interp shapes.step traps.entry machine_instructions call_stack.
 From griotte Require Export world_ghost_theory.
-From griotte Require Import rules_registry.
+From griotte Require Import ghost.registry.
 Import uPred.
 
 Ltac auto_equiv :=

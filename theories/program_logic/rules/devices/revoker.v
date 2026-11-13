@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Store.
+From griotte Require Import instructions.memory_accesses.
 
 (** * The derived rules of the revoker *)
 Section mmio_revoker_rules.

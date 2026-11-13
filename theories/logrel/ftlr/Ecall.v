@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
 From griotte Require Export logrel.
-From griotte Require Import ftlr_base ftlr_contract interp_weakening rules_Ecall.
+From griotte Require Import ftlr_base ftlr_contract interp_weakening traps.ecall.
 Import CoreWPNotations.
 
 (** * The environment call in the fundamental theorem

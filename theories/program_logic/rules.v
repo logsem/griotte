@@ -1,9 +1,10 @@
 (* Program logic rules for machine instructions are split into several files,
    with one file for each instruction, which we import below. *)
 From griotte Require Export
-     rules_Get rules_Load rules_Store rules_mmio_shadow rules_mmio_revoker
-     rules_mmio_timer rules_regs_steps rules_Subseg rules_Jalr
-     rules_SpecialRW rules_SetMIE rules_Mret rules_Ecall rules_registry rules_trap_entry.
+     instructions.arithmetic instructions.cheri instructions.control
+     instructions.memory_accesses instructions.system
+     devices.shadow devices.revoker devices.timer
+     traps.ecall traps.entry ghost.registry.
 
 (** Program specifications
 
@@ -53,4 +54,4 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 (* Reexport CMRA for Griotte *)
 From griotte Require Export state_interp.
 (* Reexport resources for registers and memory *)
-From griotte Require Export memory_region rules_base machine_instructions.
+From griotte Require Export memory_region shapes.step machine_instructions.

@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Export logrel_binary.
 From griotte Require Import ftlr_base_binary interp_weakening_binary.
-From griotte Require Import rules_Get rules_Get_binary.
+From griotte Require Import instructions.cheri rules_Get_binary.
 From griotte Require Import map_simpl register_tactics.
 
 Section fundamental.

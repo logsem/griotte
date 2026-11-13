@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export rules_base si_modality.
+From griotte Require Export shapes.step si_modality.
 
 (** * Ghost steps on the state interpretation
 

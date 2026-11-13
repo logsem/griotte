@@ -2,7 +2,7 @@ From Stdlib Require Import Eqdep_dec List.
 From griotte Require Import rules.
 From griotte Require Export iris_extra memory_region.
 From griotte Require Import classes tactics_helpers proofmode_instr_rules.
-From griotte Require Export rules_regs rules_mem_access proofmode_instr_support.
+From griotte Require Export shapes.regs shapes.memory_access proofmode_instr_support.
 From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
 From griotte Require Export named_props_extra.

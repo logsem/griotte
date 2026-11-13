@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From griotte Require Import ftlr_base ftlr_contract ftlr_shapes rules_mem_access ftlr_mem_access Jalr
+From griotte Require Import ftlr_base ftlr_contract ftlr_shapes shapes.memory_access ftlr_mem_access Jalr
   Ecall.
 Import CoreWPNotations.
 

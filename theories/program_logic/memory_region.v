@@ -1,4 +1,4 @@
-From griotte Require Export stdpp_extra rules_base.
+From griotte Require Export stdpp_extra shapes.step.
 From iris.proofmode Require Import proofmode.
 From machine_utils Require Import finz_interval.
 From griotte Require Import alloc_registry.

@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_base memory_region.
+From griotte Require Import shapes.step memory_region.
 
 (** The erasure lemmas, the closers and [SI_close] take their hypotheses
     only: the other arguments are determined by them. *)
@@ -555,70 +555,6 @@ Ltac solve_mem_access_member_with solve_wok :=
 
 Ltac solve_mem_access_member := solve_mem_access_member_with idtac.
 
-(** [CLoad dst src imm] loads at the address that [src] authorises at
-    offset [imm], into [dst], through the shadow table. *)
-Lemma CLoad_member `{MachineParameters} dst src imm :
-  load_member exec_opt griotte_load_filter (CLoad dst src imm) dst src imm.
-Proof. solve_mem_access_member. Qed.
-
-(** [Store dst ρ imm] writes the word of its argument [ρ] at the address
-    that [dst] authorises at offset [imm]; that word has [stored_word_ok]. *)
-Lemma Store_member `{MachineParameters} (stored_word_ok : ExecConf → Word → Prop) dst ρ imm :
-  (∀ φ w, word_of_argument (reg φ) ρ = Some w → stored_word_ok φ w) →
-  store_member exec_opt stored_word_ok (Store dst ρ imm) dst imm.
-Proof.
-  intros Hwok. solve_mem_access_member_with ltac:(by eapply Hwok).
-Qed.
-
-(** The same, with the word of the argument itself. *)
-Lemma Store_member_argument `{MachineParameters} dst ρ imm :
-  store_member exec_opt (λ φ w, word_of_argument (reg φ) ρ = Some w) (Store dst ρ imm) dst imm.
-Proof. apply Store_member. intros φ w Hw. exact Hw. Qed.
-
-(** On the checked path to a cell, [CLoad dst src imm] is the access. *)
-Lemma cload_next_ok `{MachineParameters} dst src imm :
-  mem_load_next_ok exec_opt griotte_load_filter (CLoad dst src imm) dst src imm.
-Proof.
-  intros pl φ p ea pv w (g & b & e & a & Hsrc & Hperm & Hadd & Hwb) Hmmio Hpv Hflt.
-  rewrite /griotte_load_filter /load_filter in Hflt.
-  cbn [exec_opt]. rewrite Hsrc /=. rewrite Hadd /=. rewrite Hperm Hwb /=.
-  rewrite Hmmio Hpv /=. revert Hflt.
-  destruct (heap_cap_base pv) as [base|];
-    [destruct (shadowtbl φ !! base) as [ [] |]|]; intros Hflt; simplify_eq/=; done.
-Qed.
-
-(** On the checked path to a cell, [Store dst ρ imm] is the access, of the
-    word of [ρ]. *)
-Lemma store_next_ok `{MachineParameters} dst ρ imm :
-  mem_store_next_ok exec_opt (λ φ w, word_of_argument (reg φ) ρ = Some w) (Store dst ρ imm) dst imm.
-Proof.
-  intros pl φ p ea w (g & b & e & a & Hdst & Hperm & Hadd & Hwb) Hmmio [v Hv] Hw.
-  cbv beta in Hw.
-  cbn [exec_opt]. rewrite Hw /=. rewrite Hdst /=. rewrite Hadd /=. rewrite Hperm Hwb /=.
-  rewrite Hmmio Hv /=. by rewrite /store_effect.
-Qed.
-
-(** On the checked path to a device, [CLoad dst src imm] reads the
-    device. *)
-Lemma cload_next_ok_device `{MachineParameters} dst src imm pl φ p ea :
-  mem_access_authorised readAllowed φ src imm p ea → is_mmio_address ea = true →
-  exec_opt (CLoad dst src imm) pl φ = (w ← mmio_load φ ea; nextPC (φ .[dst :=ᵣ w])).
-Proof.
-  intros (g & b & e & a & Hsrc & Hperm & Hadd & Hwb) Hmmio.
-  cbn [exec_opt]. rewrite Hsrc /=. rewrite Hadd /=. rewrite Hperm Hwb /=. by rewrite Hmmio.
-Qed.
-
-(** On the checked path to a device, [Store dst ρ imm] writes the device. *)
-Lemma store_next_ok_device `{MachineParameters} dst ρ imm pl φ p ea w :
-  mem_access_authorised writeAllowed φ dst imm p ea → is_mmio_address ea = true →
-  word_of_argument (reg φ) ρ = Some w →
-  exec_opt (Store dst ρ imm) pl φ = (φ' ← mmio_store φ ea w; nextPC φ').
-Proof.
-  intros (g & b & e & a & Hdst & Hperm & Hadd & Hwb) Hmmio Hw.
-  cbn [exec_opt]. rewrite Hw /=. rewrite Hdst /=. rewrite Hadd /=. rewrite Hperm Hwb /=.
-  by rewrite Hmmio.
-Qed.
-
 (** ** The memory steps in closed form
 
     The memberships and agreements of the memory instructions are lemmas.
@@ -632,7 +568,6 @@ Create HintDb mem_next_ok_db discriminated.
 #[export] Hint Mode mem_load_next_ok - - - ! - - - : mem_next_ok_db.
 #[export] Hint Mode store_member - - - ! - - : mem_next_ok_db.
 #[export] Hint Mode mem_store_next_ok - - - ! - - : mem_next_ok_db.
-#[export] Hint Resolve CLoad_member cload_next_ok Store_member_argument store_next_ok : mem_next_ok_db.
 
 (** ** The closer of a memory write *)
 

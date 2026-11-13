@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Load rules_Store rules_registry.
+From griotte Require Import instructions.memory_accesses ghost.registry.
 
 (** * Dereferencing a capability of a quarantined object
 

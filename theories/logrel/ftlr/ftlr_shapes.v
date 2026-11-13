@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
 From griotte Require Import ftlr_base ftlr_contract capability_monotonicity interp_weakening
-  rules_base.
+  shapes.step.
 Import CoreWPNotations.
 #[local] Open Scope capability_scope.
 

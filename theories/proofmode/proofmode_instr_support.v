@@ -1,7 +1,7 @@
 From iris.proofmode Require Import coq_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules rules_regs rules_mem_access solve_pure machine_instructions.
+From griotte Require Import rules shapes.regs shapes.memory_access solve_pure machine_instructions.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 

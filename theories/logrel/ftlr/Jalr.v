@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Import ftlr_base ftlr_contract interp_weakening.
-From griotte Require Import rules_base rules_Jalr.
+From griotte Require Import shapes.step instructions.control.
 From griotte Require Import map_simpl register_tactics.
 Import CoreWPNotations.
 

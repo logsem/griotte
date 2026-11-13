@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Load rules_Store rules_mem_access.
+From griotte Require Import instructions.memory_accesses shapes.memory_access.
 
 (** * The derived rules of the time devices
 

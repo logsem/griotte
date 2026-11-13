@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
-From griotte Require Import rules_regs_steps.
+From griotte Require Import instructions.arithmetic instructions.cheri instructions.control.
 
 (** * Spec rules for [BinOp] (spec copies of [rules_BinOp.v]) *)
 
