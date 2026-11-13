@@ -2,7 +2,7 @@
    with one file for each instruction, which we import below. *)
 From griotte Require Export
      rules_Get rules_Load rules_Store rules_mmio_shadow rules_mmio_revoker
-     rules_mmio_timer rules_BinOp rules_regs_steps rules_Subseg rules_Jalr
+     rules_mmio_timer rules_regs_steps rules_Subseg rules_Jalr
      rules_SpecialRW rules_SetMIE rules_Mret rules_Ecall rules_registry rules_trap_entry.
 
 (** Program specifications
