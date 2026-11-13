@@ -15,11 +15,6 @@ Section griotte_lang_rules.
   Implicit Types w : LWord.
   Implicit Types sreg : gmap SRegName LWord.
 
-  (** mstatus after [Mret] on the value [vst]: MIE receives MPIE, and MPIE
-      becomes enabled. *)
-  Definition mret_mstatus (vst : LWord) : LWord :=
-    WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled).
-
   (** The PC after [mret]: the value of MEPCC in [sregs], given the
       permission to access the system registers. mstatus is held by the
       state interpretation: the summary does not expose it. *)
@@ -188,26 +183,6 @@ Section griotte_lang_rules.
     iExact "Hφ".
   Qed.
 
-  (** Without the permission to access the system registers, [mret] faults
-      before it reads MEPCC and mstatus: the rule needs no MIE or MPIE
-      fragment. *)
-  Lemma wp_mret_fail E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
-    decodeInstrW w.(lw) = Mret →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    has_sreg_access pc_p = false →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w }}}
-      Instr Executable @ E
-      {{{ RET FaultedV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-          pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hxsr φ) "H Hφ".
-    iApply (wp_instr_faulted_0 with "H Hφ"); [exact Hinstr | exact Hvpc |].
-    intros r sr m st td. by rewrite /exec /= Hxsr.
-  Qed.
-
 End griotte_lang_rules.
 
 (** The core corollaries, with today's statements. *)
@@ -215,41 +190,6 @@ Section griotte_lang_rules_core.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread}.
   Implicit Types w : LWord.
-
-  Lemma wp_Mret Ep pc_p pc_g pc_b pc_e pc_a pc_π w sregs (b p : InterruptStatus) dq :
-    decodeInstrW w.(lw) = Mret →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (if has_sreg_access pc_p
-     then sregs_of Mret ⊆ dom sregs
-     else True) →
-    (route_pre th b → route_pre th p) →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
-        ▷ MIE ↦ₜ b ∗
-        ▷ MPIE_frag p
-    }}}
-      Instr Executable @ Ep
-    {{{ lpc' retv, RET tval_sw (kind_of th) Mret retv;
-        ⌜ step_outcome ((., tt) <$> mret_next pc_p sregs)
-            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
-        PC ↦ₚ lpc' ∗
-        pc_a ↦ₐ{dq} w ∗
-        ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
-        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ p ∗ MPIE_frag InterruptEnabled ∨
-         ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b ∗ MPIE_frag p)
-    }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Dsregs Hroute φ) "(>HPC & >Hpc_a & >Hsmap & >Hmie & >Hmpie) Hφ".
-    iApply (wp_Mret_link _ _ _ _ _ _ _ _ _ _ _ _ True%I
-              (([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗ MPIE_frag InterruptEnabled ∗ True)%I
-             with "[$HPC $Hpc_a $Hsmap $Hmie $Hmpie]");
-      [done | done | done | apply link_transfer_si_core | done | done |].
-    iNext. iIntros (lpc' retv) "(Hspec & HPC & Hpc_a & HT)". iApply "Hφ". iFrame "Hspec HPC Hpc_a".
-    iDestruct "HT" as "[ (-> & Hmie & Hsmap & Hmpie & _) | (-> & Hsmap & Hmie & Hmpie & _) ]".
-    - iFrame "Hsmap". iLeft. by iFrame.
-    - iFrame "Hsmap". iRight. by iFrame.
-  Qed.
 
   (** [mret]: the PC receives MEPCC; MIE receives MPIE and MPIE becomes
       enabled. *)

@@ -5,24 +5,6 @@ From griotte Require Import rules rules_regs rules_mem_access solve_pure machine
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
-(* Normalize proved register aliases before choosing an explicit-resource rule.
-   Prefer cnull as a representative and never decide an unknown equality. *)
-Ltac instr_normalize_register_aliases :=
-  repeat match goal with
-  | H : @eq RegName ?r1 ?r2 |- _ =>
-      tryif is_var r1 then
-        lazymatch r2 with
-        | context [r1] => fail
-        | _ => progress rewrite -> H in *
-        end
-      else (
-        is_var r2;
-        lazymatch r1 with
-        | context [r2] => fail
-        | _ => progress rewrite <- H in *
-        end)
-  end.
-
 (* Operand aliases share one owned entry. [cnull] needs no register
    resource. *)
 (* Distinct full-ownership hypotheses already imply distinct registers. The
@@ -361,27 +343,10 @@ Ltac instr_auto_solve_success :=
   solve [instr_auto_solve_addr_result | instr_auto_solve_premise |
          apply addr_add_0].
 
-Ltac instr_auto_solve_invalidation :=
-  solve [instr_auto_solve_addr_result | instr_auto_solve_premise |
-         reflexivity | apply addr_add_0].
-
 Ltac instr_auto_solve_failure :=
   solve [solve_instr_failure; instr_auto_simplify_exec;
            try instr_auto_solve_premise |
          instr_auto_solve_addr_result | instr_auto_solve_premise].
-
-(* Explicit invalidation leaves semantic premises to the caller, except that
-   Subseg conversion-overflow rules require evidence before selection. *)
-Ltac instr_guard_invalidation_premise :=
-  lazymatch goal with
-  | |- z_to_addr ?n1 = None ∨ z_to_addr ?n2 = None =>
-      without_evars n1; without_evars n2;
-      solve [solve_pure | left; solve_pure | right; solve_pure]
-  | |- z_to_otype ?n1 = None ∨ z_to_otype ?n2 = None =>
-      without_evars n1; without_evars n2;
-      solve [solve_pure | left; solve_pure | right; solve_pure]
-  | _ => idtac
-  end.
 
 (** * The register steps in closed form: premises and search
 

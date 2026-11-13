@@ -33,10 +33,6 @@ Section seta_next_ok.
     | _ => Some (lclear_tag v)
     end.
 
-  (** [seta_result] is defined on every word. *)
-  Lemma seta_result_is_Some (w : LWord) (n : Z) : is_Some (seta_result w n).
-  Proof. rewrite /seta_result. repeat case_match; eauto. Qed.
-
   (** Setting the address to [n] moves the cursor by the difference to [n]. *)
   Lemma seta_result_lea_result (w : LWord) (n : Z) :
     seta_result w n = lea_result w (n - get_a w.(lw)).

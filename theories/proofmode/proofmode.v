@@ -1378,14 +1378,6 @@ Ltac instr_using_rule dispatch apply_rule hprog hlc :=
 Ltac instr_using dispatch hprog hlc :=
   instr_using_rule dispatch instr_apply_rule hprog hlc.
 
-(* Explicit invalidation leaves the semantic premises that automation cannot
-   prove to the caller; the Subseg conversion-overflow rules require their
-   evidence before being selected. *)
-Ltac instr_apply_invalidation hprog hlc hlc' rule :=
-  iApplyCapAuto rule;
-  [ instr_commit_lint; try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
-  | instr_finish hprog hlc hlc'; try done ].
-
 (* The success interface is the ordinary instruction-rule dispatch,
    including instructions whose specified behavior is Halt or Fail. *)
 Ltac instr_lc hprog hlc := instr_using dispatch_instr_rule hprog hlc.
@@ -1416,15 +1408,6 @@ Tactic Notation "iInstr_fail" constr(H) :=
 Tactic Notation "iInstr_fail" constr(H) "with" constr(Hlc) :=
   instr_using dispatch_instr_failure H Hlc;
   try solve [instr_auto_solve_failure | by simplify_map_eq].
-
-(* The instruction executes, but its result is a capability whose validity
-   tag is cleared. *)
-Tactic Notation "iInstr_invalidate" constr(H) :=
-  instr_normalize_register_aliases;
-  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H "_".
-Tactic Notation "iInstr_invalidate" constr(H) "with" constr(Hlc) :=
-  instr_normalize_register_aliases;
-  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H Hlc.
 
 (** * Explicit instruction rules
 

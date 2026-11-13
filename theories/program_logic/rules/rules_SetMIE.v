@@ -15,11 +15,6 @@ Section griotte_lang_rules.
   Implicit Types w : LWord.
   Implicit Types sreg : gmap SRegName LWord.
 
-  (** mstatus after [SetMIE mie] on the value [vst]: MIE is [mie], MPIE is
-      read from [vst]. *)
-  Definition setmie_mstatus (mie : InterruptStatus) (vst : LWord) : LWord :=
-    WInt (mstatus_enc mie (mpie_of (get_a vst.(lw)))).
-
   (** The PC after [SetMIE]: the next one, given the permission to access
       the system registers. mstatus is held by the state interpretation: the
       summary does not expose it. *)
@@ -168,25 +163,6 @@ Section griotte_lang_rules.
     iExact "Hφ".
   Qed.
 
-  (** Without the permission to access the system registers, [SetMIE mie]
-      faults before it reads mstatus: the rule needs no MIE fragment. *)
-  Lemma wp_setmie_fail E pc_p pc_g pc_b pc_e pc_a pc_π w mie dq :
-    decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    has_sreg_access pc_p = false →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w }}}
-      Instr Executable @ E
-      {{{ RET FaultedV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-          pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hxsr φ) "H Hφ".
-    iApply (wp_instr_faulted_0 with "H Hφ"); [exact Hinstr | exact Hvpc |].
-    intros r sr m st td. by rewrite /exec /= Hxsr.
-  Qed.
-
 End griotte_lang_rules.
 
 (** The core corollaries, with today's statements: at the core link, the
@@ -195,30 +171,6 @@ Section griotte_lang_rules_core.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread}.
   Implicit Types w : LWord.
-
-  Lemma wp_SetMIE Ep pc_p pc_g pc_b pc_e pc_a pc_π w mie (b : InterruptStatus) dq :
-    decodeInstrW w.(lw) = SetMIE mie →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (route_pre th b → route_pre th mie) →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ MIE ↦ₜ b
-    }}}
-      Instr Executable @ Ep
-    {{{ lpc' retv, RET retv;
-        ⌜ step_outcome ((., tt) <$> setmie_next pc_p pc_g pc_b pc_e pc_a pc_π)
-            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
-        PC ↦ₚ lpc' ∗
-        pc_a ↦ₐ{dq} w ∗
-        (⌜retv = NextIV⌝ ∗ MIE ↦ₜ mie ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b)
-    }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hroute φ) "(>HPC & >Hpc_a & >Hmie) Hφ".
-    iApply (wp_SetMIE_link _ _ _ _ _ _ _ _ _ _ _ True%I True%I with "[$HPC $Hpc_a $Hmie]");
-      [done | done | apply link_transfer_si_core | done | done |].
-    iNext. iIntros (lpc' retv) "(Hspec & HPC & Hpc_a & HT)". iApply "Hφ". iFrame.
-    iDestruct "HT" as "[ [-> [Hmie _] ] | [-> [Hmie _] ] ]"; [iLeft | iRight]; by iFrame.
-  Qed.
 
   (** [SetMIE mie], as [csrsi mstatus, 0x8] and [csrci mstatus, 0x8]: MIE
       becomes [mie], MPIE is unchanged. *)

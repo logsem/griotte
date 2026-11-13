@@ -503,22 +503,6 @@ Section mem_access_pure.
     apply (Hagree pl φ p ea w Hauth Hmmio); [by eexists | done].
   Qed.
 
-  (** The device branch of a load by a live authority. *)
-  Lemma load_step_device_inv flt R C φ lpc lreg lsreg lmem regs dst r imm c p g b e a ea :
-    erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg →
-    reg_allows_mem_access MemAccessRead regs r imm p g b e a ea →
-    (∀ v, regs !! r = Some v → ¬ stale_id R v) →
-    is_mmio_address ea = true → load_step flt dst r imm φ c →
-    ∃ w, mmio_load φ ea = Some w ∧ nextPC (φ .[dst :=ᵣ w]) = Some c.
-  Proof.
-    intros Her Hincl Hacc Hlive Hmmio Hstep.
-    pose proof (mem_access_authorised_live MemAccessRead Her Hincl Hlive Hacc) as Hauth.
-    destruct Hstep as [p0 ea0 pv pw Hauth0 Hmmio0 Hpv Hfilter Hnext
-                      |p0 ea0 w Hauth0 Hmmio0 Hload Hnext].
-    - destruct (mem_access_authorised_det Hauth Hauth0) as [_ <-]. congruence.
-    - destruct (mem_access_authorised_det Hauth Hauth0) as [_ <-]. by exists w.
-  Qed.
-
   (** The device branch of a store by a live authority. *)
   Lemma store_step_device_inv stored_word_ok R C φ lpc lreg lsreg lmem regs r imm c p g b e a ea :
     erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg →
@@ -764,9 +748,6 @@ Section mem_access_witness.
   Proof. intros Hπ R. iIntros "_ _ !%". intros (ι & x & Hι & _). congruence. Qed.
 
   (** A part of the witness is enough. *)
-  Lemma live_witness_sep_l W W' v : live_witness W v → live_witness (W ∗ W') v.
-  Proof. intros Hlive R. iIntros "HR [HW _]". iApply (Hlive R with "HR HW"). Qed.
-
   Lemma live_witness_sep_r W W' v : live_witness W' v → live_witness (W ∗ W') v.
   Proof. intros Hlive R. iIntros "HR [_ HW']". iApply (Hlive R with "HR HW'"). Qed.
 
@@ -779,9 +760,6 @@ Section mem_access_witness.
   (** A part of the witness is enough. *)
   Lemma load_choice_sep_l flt W W' post : load_choice flt W post → load_choice flt (W ∗ W') post.
   Proof. intros Hchoice R. iIntros "HR [HW _]". iApply (Hchoice R with "HR HW"). Qed.
-
-  Lemma load_choice_sep_r flt W W' post : load_choice flt W' post → load_choice flt (W ∗ W') post.
-  Proof. intros Hchoice R. iIntros "HR [_ HW']". iApply (Hchoice R with "HR HW'"). Qed.
 
   (** Griotte's filter, with any witness: the exact word. *)
   Lemma load_choice_exact W : load_choice griotte_load_filter W load_exact.

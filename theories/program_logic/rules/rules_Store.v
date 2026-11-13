@@ -50,29 +50,6 @@ Section griotte_lang_rules.
     lw <$> regs !!ₗ r = Some (Cap p g b e a) ∧
     (a + imm)%a = Some ea ∧ writeAllowed p = true ∧ withinBounds b e ea = true.
 
-  (** A shadow store keeps erasure if it stores the cell's current bit, or if
-      the caller holds the cell's permission: the cell is unclaimed, or
-      claimed by a painting allocation. Heap roots are never painted. *)
-  Definition shadow_store_perm (a : Addr) : iProp Σ :=
-    addr_alloc a Unclaimed ∨ ∃ ι q, addr_alloc a (Claimed ι) ∗ ι ↦st{q} APainting.
-
-  Definition shadow_store_allowed (sperm : gset Addr) (shadow : ShadowTbl)
-      (a : Addr) (s : AllocStatus) : Prop :=
-    shadow !! a = Some s ∨ a ∈ sperm.
-
-  Lemma shadow_store_perms_ok (sperm : gset Addr) R C st a s :
-    a ∈ sperm →
-    reg_auth R -∗ addr_alloc_auth C -∗ ([∗ set] a ∈ sperm, shadow_store_perm a) -∗
-    ⌜shadow_store_ok R C st a s⌝.
-  Proof.
-    iIntros (Ha) "HR HC Hperms".
-    iDestruct (big_sepS_elem_of with "Hperms") as "[Hu | (%ι & %q & Hc & Htok)]"; first exact Ha.
-    - iDestruct (addr_alloc_lookup with "HC Hu") as %Hc. iPureIntro. right. by left.
-    - iDestruct (addr_alloc_lookup with "HC Hc") as %Hc.
-      iDestruct (reg_lookup_own with "HR Htok") as %(b & e & γ & HRι).
-      iPureIntro. right. right. exists ι, (b, e, γ, APainting). done.
-  Qed.
-
   Definition reg_allows_store (regs : LReg) (r : RegName) p g b e a :=
     lw <$> regs !!ₗ r = Some (Cap p g b e a) ∧
     writeAllowed p = true ∧ withinBounds b e a = true.
@@ -224,28 +201,6 @@ Section griotte_lang_rules.
     iApply "Hφ". iFrame.
     Qed.
 
-   Lemma wp_store_fail_reg_not_cap_lword E pc_p pc_g pc_b pc_e pc_a pc_π w
-     dst src (wdst : LWord) wstore dq :
-      decodeInstrW w.(lw) = Store dst (inr src) 0 →
-     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-     is_cap wdst.(lw) = false ->
-     src ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ{dq} w
-           ∗ ▷ src ↦ᵣ wstore
-           ∗ ▷ dst ↦ᵣ wdst
-     }}}
-       Instr Executable @ E
-       {{{ RET FaultedV;
-           PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-           pc_a ↦ₐ{dq} w ∗
-           src ↦ᵣ wstore ∗
-           dst ↦ᵣ wdst }}}.
-  Proof.
-    intros. eapply wp_store_fail_reg_not_cap_lword_imm with (imm := 0); eauto; try by rewrite finz_add_0.
-  Qed.
-
    Lemma wp_store_fail_reg_perm_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst src
          p g b e a w'' dq :
      decodeInstrW w.(lw) = Store dst (inr src) imm →
@@ -380,49 +335,6 @@ Section griotte_lang_rules.
     intros Hinstr Hvpc Hdst Htag.
     eapply wp_fault_step; [exact Hinstr | exact Hvpc |].
     by eapply Store_fault_untagged.
-  Qed.
-
-   Lemma wp_store_fail_reg E pc_p pc_g pc_b pc_e pc_a pc_π π w dst src
-         p g b e a w'' dq :
-      decodeInstrW w.(lw) = Store dst (inr src) 0 →
-     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-     withinBounds b e a = false →
-     src ≠ cnull ->
-     dst ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ{dq} w
-           ∗ ▷ src ↦ᵣ w''
-           ∗ ▷ dst ↦ᵣ Cap p g b e a @@? π
-     }}}
-       Instr Executable @ E
-       {{{ RET FaultedV;
-           PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-           pc_a ↦ₐ{dq} w ∗
-           src ↦ᵣ w'' ∗
-           dst ↦ᵣ Cap p g b e a @@? π }}}.
-  Proof.
-    intros. eapply wp_store_fail_reg_imm with (imm := 0); eauto; try by rewrite finz_add_0.
-  Qed.
-
-    Lemma wp_store_fail_z E pc_p pc_g pc_b pc_e pc_a pc_π π w dst
-         p g b e a z dq :
-      decodeInstrW w.(lw) = Store dst (inl z) 0 →
-     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-     withinBounds b e a = false →
-     dst ≠ cnull ->
-
-     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-           ∗ ▷ pc_a ↦ₐ{dq} w
-           ∗ ▷ dst ↦ᵣ Cap p g b e a @@? π
-     }}}
-       Instr Executable @ E
-       {{{ RET FaultedV;
-           PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-           pc_a ↦ₐ{dq} w ∗
-           dst ↦ᵣ Cap p g b e a @@? π }}}.
-  Proof.
-    intros. eapply wp_store_fail_z_imm with (imm := 0); eauto; try by rewrite finz_add_0.
   Qed.
 
 Lemma wp_store_fail_reg_overflow_imm E (imm : Z) pc_p pc_g pc_b pc_e pc_a pc_π π w dst src

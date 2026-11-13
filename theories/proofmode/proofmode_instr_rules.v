@@ -519,12 +519,3 @@ Ltac dispatch_instr_failure instr cont :=
   first [ dispatch_jalr_failure instr cont
         | dispatch_generic_failure instr cont
         | fail "No immediate-failure provider found for instruction" instr ].
-
-(* Like ordinary success dispatch, invalidation selects explicit-resource
-   lemmas. Add an instruction case and its necessary alias/operand variants;
-   resource preparation and side-condition handling belong to the caller. *)
-Ltac dispatch_instr_invalidation instr cont :=
-  let instr := eval cbv [regn cst] in instr in
-  lazymatch instr with
-  | _ => fail "No invalidation rule found for instruction" instr
-  end.
