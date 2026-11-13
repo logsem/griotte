@@ -339,10 +339,6 @@ Ltac instr_auto_simplify_exec :=
         rewrite H /= ]
   end.
 
-Ltac instr_auto_solve_success :=
-  solve [instr_auto_solve_addr_result | instr_auto_solve_premise |
-         apply addr_add_0].
-
 Ltac instr_auto_solve_failure :=
   solve [solve_instr_failure; instr_auto_simplify_exec;
            try instr_auto_solve_premise |

@@ -405,32 +405,6 @@ Section griotte_lang_traps.
     - iIntros "_ _". iExact "Hsafe".
   Qed.
 
-  (* A fault, for a cause predicate [P_mcause] and a value predicate
-     [P_mtval] that the physical cause and value satisfy in every state that
-     erases to logical registers and memory containing [lregs] and [lm]. The
-     register and memory points-to are given back before the obligation
-     [trap_safe_cause P_mcause P_mtval w E Φ]. *)
-  Lemma wp_trap_gen E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg) (lm : LMem) dq :
-    (∀ R C σ lreg lsreg lmem,
-       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → lm ⊆ lmem →
-       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
-    PC ↦ₚ w -∗
-    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
-     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
-     trap_safe_cause P_mcause P_mtval w E Φ) -∗
-    WP Seq (Instr Faulted) @ E {{ Φ }}.
-  Proof.
-    iIntros (HP) "HPC Hregs Hmem Hsafe".
-    iApply (wp_trap_gen_frac _ _ _ _ _ _ ((λ x, (dq, x)) <$> lm)
-             with "HPC Hregs [Hmem] [Hsafe]").
-    - intros R C σ lreg lsreg lmem Her Hsub Hmsub. apply (HP _ _ _ _ _ _ Her Hsub).
-      by rewrite -map_fmap_compose map_fmap_id in Hmsub.
-    - by rewrite big_sepM_fmap.
-    - rewrite big_sepM_fmap /=. iExact "Hsafe".
-  Qed.
-
   (* A fetch fault: the PC is not a correct PC. *)
   Lemma wp_notCorrectPC_trap E Φ w :
     ¬ isCorrectPC w.(lw) →

@@ -756,12 +756,6 @@ Ltac iSpecializeFrameApplyStart lem :=
   |tc_solve
   |pm_reduce].
 
-Ltac iApplyHypLast H :=
-  eapply tac_apply with H _ _ _;
-  [pm_reflexivity
-  |tc_solve
-  |pm_reduce; pm_prettify].
-
 Ltac2 iApplyCapAutoT_init0 lemma :=
   let tbl := { contents := [] } in
   ltac1:(lem |- once (iSpecializeFrameApplyStart lem)) (Ltac1.of_constr lemma);
@@ -1181,11 +1175,6 @@ Ltac instr_get_rule_using dispatch hi cont :=
     dispatch instr cont
   end.
 
-Ltac instr_get_rule0 hi cont :=
-  instr_get_rule_using dispatch_instr_rule hi cont.
-
-Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := instr_get_rule0 hi cont.
-
 (* On persistent code, the instruction looked up is dropped: it is the
    persistent points-to to an instruction in the spatial context, or else an
    anonymous one. *)
@@ -1381,7 +1370,6 @@ Ltac instr_using dispatch hprog hlc :=
 (* The success interface is the ordinary instruction-rule dispatch,
    including instructions whose specified behavior is Halt or Fail. *)
 Ltac instr_lc hprog hlc := instr_using dispatch_instr_rule hprog hlc.
-Ltac iInstr_lc hprog hlc := instr_lc hprog hlc.
 Tactic Notation "iInstr_success" constr(H) := instr_lc H "_".
 Tactic Notation "iInstr_success" constr(H) "with" constr(Hlc) := instr_lc H Hlc.
 Tactic Notation "iInstr" constr(H) := iInstr_success H.

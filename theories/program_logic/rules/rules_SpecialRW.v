@@ -821,28 +821,6 @@ Section griotte_lang_rules.
     iApply "Hφ". iFrame.
   Qed.
 
-  (** The holder of the mtdc token knows that the ghost value of mtdc is
-      its home value, in front of any expression. *)
-  Lemma wp_mtdc_lent_home E e Φ m :
-    to_val e = None →
-    mtdc_lent -∗
-    mtdc ↦ₜ m -∗
-    (⌜m = mtdc_home⌝ -∗ mtdc_lent -∗ mtdc ↦ₜ m -∗ WP e @ E {{ Φ }}) -∗
-    WP e @ E {{ Φ }}.
-  Proof.
-    iIntros (He) "Hl Hmtdc HΦ".
-    rewrite wp_unfold /wp_pre /= He.
-    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
-    iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
-    iDestruct (sys_interp_mtdc_lent with "Hsr Hl") as %Hh.
-    iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc") as %[Hmeq _].
-    iSpecialize ("HΦ" with "[] Hl Hmtdc"); first (iPureIntro; congruence).
-    iApply ("HΦ" $! σ1 ns κ κs nt).
-    iSplitL "HPCa Hr Hsr Hm Hst HR HC".
-    { iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC"). }
-    iFrame "Hlink Hirq %".
-  Qed.
-
 End griotte_lang_rules.
 
 (** The core corollaries of the mtdc writers: at the core link, the link

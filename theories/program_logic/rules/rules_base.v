@@ -503,34 +503,12 @@ Section griotte_lang_rules.
     - by iApply ctx_irq_post_kept.
   Qed.
 
-  (** At the core link, any closing closes a step that may change MIE or
-      mtdc. *)
-  Lemma instr_close_core σ1 σ' (X : iProp Σ) :
-    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
-    |==> (cerise_state_interp σ' ∗ @crit_link Σ _ link_core σ') ∗ X.
-  Proof. iIntros ">(_ & $ & $)". done. Qed.
-
   (** Closes a step that may change MIE or mtdc from [σ0], through a
       closing from [σ1] (the state after the write): the link is
       transferred with [T1] for [T2], with the state interpretation of the
-      new state in hand, and the postcondition receives [T2]. *)
-  Lemma instr_close_link_transfer (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
-      σ0 σ1 σ' (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
-    link_transfer_si P T1 T2 →
-    (sys_kept σ1 σ' → P σ0 σ') →
-    crit_link σ0 -∗ T1 -∗
-    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
-          from_option (λ v, T2 -∗ Ψ v) False (flag_val c)) -∗
-    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗
-         from_option Ψ False (flag_val c).
-  Proof.
-    iIntros (Htr HP) "Hlink HT >(%Hk & HSI & HΨ)".
-    iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
-    destruct (flag_val c); cbn; [by iApply "HΨ" | done].
-  Qed.
-
-  (** The same, with the [ctx_irq_post] that [wp_instr_step_link] asks
-      for, from the routing law's precondition after the step. *)
+      new state in hand, and the postcondition receives [T2]; the
+      [ctx_irq_post] that [wp_instr_step_link] asks for comes from the
+      routing law's precondition after the step. *)
   Lemma instr_close_link_transfer_irq (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
       σ0 σ1 σ' i (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
     link_transfer_si P T1 T2 →
