@@ -246,6 +246,14 @@ Section regs_pure.
     intros φ S Hpc Hcopy. by rewrite update_reg_cnull (Hagree φ S Hpc Hcopy).
   Qed.
 
+  (** Conversely, a step that writes [cnull] writes no register. *)
+  Lemma regs_next_ok_cnull_jump i p lpc regs v n :
+    regs_next_ok i p lpc regs cnull v n → regs_jump_agree i p lpc regs n.
+  Proof.
+    intros (sb & _ & Hagree) φ S Hpc Hcopy.
+    by rewrite (Hagree φ S Hpc Hcopy) update_reg_cnull.
+  Qed.
+
   (** The physical registers as copies of the owned ones, with strip bits. *)
   Lemma lregs_phys_strip R (regs : LReg) (r : Reg) :
     lregs_phys R regs r → (∀ v, regs !! cnull = Some v → v = lnull) →
@@ -272,6 +280,24 @@ Section regs_pure.
   Qed.
 
 End regs_pure.
+
+(** ** The register steps in closed form
+
+    The register step of an instruction in closed form is a lemma that
+    concludes [regs_next_ok] or [regs_jump_agree] for it. [iInstr] finds
+    these lemmas in the hint database [regs_next_ok_db], indexed by the
+    instruction; each lemma is registered on the line after it. The
+    settings below are global: the database is searched in client proofs,
+    which do not import this file. *)
+Create HintDb regs_next_ok_db discriminated.
+#[global] Hint Constants Opaque : regs_next_ok_db.
+#[global] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_db.
+#[global] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_db.
+#[global] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_db.
+(* Every such lemma at [cnull] serves the instruction with no destination. The
+   converse [regs_jump_agree_next_ok] is not a hint: the two would loop. *)
+#[global] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
+  simple eapply regs_next_ok_cnull_jump : regs_next_ok_db.
 
 (** ** The generic rule *)
 
@@ -636,6 +662,93 @@ Section regs_rules.
     iIntros "!> (HPC & Hpc_a & Hmap)". rewrite linsert_reg_cnull.
     iDestruct (regs_of_map_3 with "Hmap") as "(Hr1 & Hr2 & Hr3)"; [done | done | done |].
     iApply "HΦ". iFrame.
+  Qed.
+
+  (** *** k-ary rules whose destination may be [cnull]
+
+      A write to [cnull] leaves its word unchanged: the destination holds
+      its old word if it is [cnull], the written word otherwise. *)
+
+  Lemma wp_regs_next_1_any_dst E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 v :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) {[r1 := w1]} r1 v 1 →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ (if decide (r1 = cnull) then w1 else v) }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hpc_a' Hok Φ) "(HPC & Hpc_a & Hr1) HΦ".
+    destruct (decide (r1 = cnull)) as [-> | Hr1].
+    - iApply (wp_regs_jump_1 with "[$HPC $Hpc_a $Hr1]");
+        [exact Hdec | exact Hsw | exact Hvpc
+        | exact (incrementPC_gen_add true _ _ _ _ _ _ _ _ Hpc_a')
+        | by eapply regs_next_ok_cnull_jump |].
+      iNext. iIntros "H". by iApply "HΦ".
+    - by iApply (wp_regs_next_1 with "[$HPC $Hpc_a $Hr1]").
+  Qed.
+
+  Lemma wp_regs_next_2_any_dst E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 r2 w2 v :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    (r1 ≠ r2 →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> ∅)) r1 v 1) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ (if decide (r1 = cnull) then w1 else v) ∗
+        r2 ↦ᵣ w2 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hpc_a' Hok Φ) "(HPC & Hpc_a & Hr1 & Hr2) HΦ".
+    destruct (decide (r1 = cnull)) as [-> | Hr1].
+    - iApply (wp_regs_jump_2 with "[$HPC $Hpc_a $Hr1 $Hr2]");
+        [exact Hdec | exact Hsw | exact Hvpc
+        | exact (incrementPC_gen_add true _ _ _ _ _ _ _ _ Hpc_a')
+        | intros Hne; by eapply regs_next_ok_cnull_jump, Hok |].
+      iNext. iIntros "H". by iApply "HΦ".
+    - by iApply (wp_regs_next_2 with "[$HPC $Hpc_a $Hr1 $Hr2]").
+  Qed.
+
+  Lemma wp_regs_next_3_any_dst E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 r2 w2 r3 w3 v :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    (r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) r1 v 1) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 ∗
+        ▷ r3 ↦ᵣ w3 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ (if decide (r1 = cnull) then w1 else v) ∗
+        r2 ↦ᵣ w2 ∗
+        r3 ↦ᵣ w3 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hpc_a' Hok Φ) "(HPC & Hpc_a & Hr1 & Hr2 & Hr3) HΦ".
+    destruct (decide (r1 = cnull)) as [-> | Hr1].
+    - iApply (wp_regs_jump_3 with "[$HPC $Hpc_a $Hr1 $Hr2 $Hr3]");
+        [exact Hdec | exact Hsw | exact Hvpc
+        | exact (incrementPC_gen_add true _ _ _ _ _ _ _ _ Hpc_a')
+        | intros Hne12 Hne13 Hne23; by eapply regs_next_ok_cnull_jump, Hok |].
+      iNext. iIntros "H". by iApply "HΦ".
+    - by iApply (wp_regs_next_3 with "[$HPC $Hpc_a $Hr1 $Hr2 $Hr3]").
   Qed.
 
 End regs_rules.

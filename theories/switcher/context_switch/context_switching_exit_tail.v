@@ -111,7 +111,6 @@ Section ctx_exit_tail.
       iDestruct (big_sepM_delete with "Hregs") as "[Hnull Hregs]"; first exact Hnull.
       (* Mov cnull 0. *)
       iInstr "Hcode".
-      case_decide as Hnull_eq; last done.
       iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[u t] y)%I with "[$Hnull $Hregs]") as "Hregs";
         first exact Hnull.
       iApply ("IH" $! (a_tail ^+ 1)%a with "[] [] HPC HMIE Hregs Hpost").
@@ -173,7 +172,6 @@ Section ctx_exit_tail.
       - apply withinBounds_true_iff. solve_addr. }
     (* Mov ca0 EXITED_THREAD_PERMISSIONS. *)
     iInstr "Hcode".
-    case_decide as Hca0_null; first done.
     (* Restrict csp csp ca0. *)
     iInstr "Hcode".
     { rewrite decode_encode_permPair_inv. reflexivity. }

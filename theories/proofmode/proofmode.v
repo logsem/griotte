@@ -1374,6 +1374,18 @@ Tactic Notation "iInstr_success" constr(H) "with" constr(Hlc) := instr_lc H Hlc.
 Tactic Notation "iInstr" constr(H) := iInstr_success H.
 Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_success H with Hlc.
 
+(* The register step in closed form [s] named by the client, for a fact
+   that the search in [regs_next_ok_db] does not decide: its other premises
+   are searched for, and the rest are left as side goals before the main
+   goal. *)
+Ltac instr_next_ok_using hprog hlc s :=
+  instr_using_rule ltac:(fun instr cont => dispatch_next_ok_using s instr cont)
+    instr_apply_rule hprog hlc.
+Tactic Notation "iInstr" constr(H) "using" open_constr(s) :=
+  instr_next_ok_using H "_" s.
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc) "using" open_constr(s) :=
+  instr_next_ok_using H Hlc s.
+
 (* The generic register rules alone ([dispatch_generic_next]), without the
    dedicated cases of [dispatch_instr_rule]. *)
 Tactic Notation "iInstr_generic" constr(H) :=

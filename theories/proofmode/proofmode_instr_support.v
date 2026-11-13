@@ -471,3 +471,76 @@ Ltac solve_regs_next hint :=
       | cbn; done ]
   | None => eapply regs_next_ok_untagged; [solve_regs_agree | reflexivity]
   end.
+
+(** * The register steps in closed form: premises and search
+
+    The premises of an instruction's register step in closed form
+    ([rules_regs.v], database [regs_next_ok_db]) on the literal register map
+    of a k-ary rule, solved during the search for that lemma. A case of a
+    family whose premise fails gives way to the next case. The settings are
+    global: the database is searched in client proofs, which do not import
+    this file. *)
+
+(* A premise with a constructor pattern ([Some (WCap …)]) is checked
+   syntactically against the head of the word found, so that a symbolic word
+   is neither unfolded nor matched against a constructor. *)
+Ltac lword_shape_matches v w :=
+  let a := eval cbn [lw] in v.(lw) in
+  let b := eval cbn [lw] in w.(lw) in
+  lazymatch a with
+  | WInt _ => lazymatch b with WInt _ => idtac end
+  | WSealable (SCap _ _ _ _ _ _) => lazymatch b with WSealable (SCap _ _ _ _ _ _) => idtac end
+  | WSealable (SSealRange _ _ _ _ _ _) =>
+      lazymatch b with WSealable (SSealRange _ _ _ _ _ _) => idtac end
+  | WSentry _ _ _ _ _ _ _ => lazymatch b with WSentry _ _ _ _ _ _ _ => idtac end
+  | WSealed _ _ => lazymatch b with WSealed _ _ => idtac end
+  | _ => idtac
+  end.
+
+(* The owned word of an operand, read in the literal map. *)
+Ltac regs_next_ok_lookup :=
+  lazymatch goal with
+  | |- ?regs !!ₗ ?r = Some ?v =>
+      first
+        [ apply llookup_reg_cnull
+        | let Hr := fresh "Hr" in
+          eassert (regs !!ₗ r = Some _) as Hr
+            by (rewrite ?llookup_reg_not_cnull //; regs_lookup);
+          lazymatch type of Hr with _ = Some ?w =>
+            tryif is_evar v then idtac else lword_shape_matches v w
+          end;
+          exact Hr ]
+  end.
+
+#[global] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_db.
+
+(* An address result: from the context, or by the [IncrFinZ] instances of
+   [solve_pure], which the search also uses. Otherwise the lemma does not
+   apply; [iInstr "H" using s] leaves the fact as a side goal. *)
+#[global] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
+
+(* The search, under frozen hypotheses (as [solve_pure_iinstr]). *)
+Ltac solve_regs_next_ok_frozen :=
+  ltac2:(griotte_freeze_hyps_once ());
+  typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances;
+  unfreeze_hyps.
+
+(* The distinctness premises of a k-ary rule. *)
+Ltac regs_next_ok_intros :=
+  repeat match goal with |- _ ≠ _ → _ => let Hne := fresh "Hne" in intros Hne end.
+
+(* The instruction's register step in closed form, for the premise
+   [regs_next_ok] or [regs_jump_agree] of a k-ary rule, under its
+   distinctness premises. *)
+Ltac solve_regs_next_ok :=
+  regs_next_ok_intros; solve_regs_next_ok_frozen.
+
+(* The lemma [s] named by the client: applied, directly or at [cnull],
+   then the search closes what it can; the other premises of [s] stay as
+   side goals, in their order. *)
+Ltac regs_next_ok_using s :=
+  regs_next_ok_intros;
+  first [ eapply s | eapply regs_next_ok_cnull_jump; eapply s ];
+  try solve_regs_next_ok_frozen.
