@@ -670,6 +670,37 @@ End griotte_lang_rules.
     [rules_regs.v], [solve_regs_agree] in [proofmode_instr_support.v]). *)
 Definition regs_effect (φ : ExecConf) : ExecConf := φ.
 
+(** A write to [cnull] is no write. *)
+Lemma update_reg_cnull φ w : φ .[cnull :=ᵣ w] = φ.
+Proof. destruct φ. by rewrite /update_reg /= insert_reg_cnull. Qed.
+
+(** A faulted step: the PC and the owned part [s] of the state unchanged.
+    A model whose fault writes trap state changes this definition. *)
+Definition faulted_outcome {k : kind} {A} (lpc : LWord) (s : A) (lpc' : LWord) (s' : A)
+    (retv : tval k) : Prop :=
+  retv = FaultedV ∧ lpc' = lpc ∧ s' = s.
+
+Lemma faulted_outcome_refl {k : kind} {A} lpc (s : A) :
+  faulted_outcome (k := k) lpc s lpc s FaultedV.
+Proof. done. Qed.
+
+(** The closed-form outcome of a step whose result [mv] (the new PC and
+    registers) is computed by a pure function, or a fault. *)
+Definition step_outcome {k : kind} (mv : option (LWord * LReg)) (lpc : LWord) (regs : LReg)
+    (lpc' : LWord) (regs' : LReg) (retv : tval k) : Prop :=
+  match mv with
+  | Some (l, rs) => retv = NextIV ∧ lpc' = l ∧ regs' = rs
+  | None => faulted_outcome lpc regs lpc' regs' retv
+  end.
+
+(** A fault: on every physical copy of the owned registers (each exact or
+    stripped) whose PC is the logical one, the step does not happen. *)
+Definition regs_fault (step : instr → Perm → ExecConf → option Conf)
+    (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) : Prop :=
+  ∀ φ, pcc φ = lpc.(lw) →
+    (∀ r v, regs !! r = Some v → ∃ s, reg φ !!ᵣ r = Some (and_tag s v.(lw))) →
+    step i p φ = None.
+
 Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {k : kind}.
 
@@ -907,7 +938,7 @@ Ltac instr_fail_close :=
 Ltac instr_fail Hstep :=
   first [injection Hstep as <- <- | simplify_eq]; instr_fail_close.
 
-(** Pure side conditions of the map-form rules ([wp_Get_next], …) applied to
+(** Pure side conditions of the map-form rules applied to
     register maps built by [map_of_regs_k]: a small closed set of goals
     (instruction decoding, register lookups and domains, the PC increment).
     A tactic because the goals vary with the instruction class. *)
@@ -930,7 +961,7 @@ Section instruction_outcomes.
   #[local] Lemma wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ R r sr m st td, lregs_phys R regs r →
+    (∀ R r sr m st td, lregs_phys R regs r → (∀ v, regs !! cnull = Some v → v = lnull) →
        exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
          (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
@@ -945,10 +976,35 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    rewrite Hinstr (Hfailed R r sr m st td Hregs) in Hstep. simplify_eq.
+    rewrite Hinstr (Hfailed R r sr m st td Hregs) in Hstep.
+    2: { intros v0 Hv0. eapply er_cnull; [exact Her | by eapply lookup_weaken]. }
+    simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
+  Qed.
+
+  (** The generic fault rule: the step does not happen on any copy of the
+      owned registers; all resources are returned unchanged. *)
+  Lemma wp_fault_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq i (regs : LReg) :
+    decodeInstrW w.(lw) = i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    regs_fault exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET FaultedV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    intros Hinstr Hvpc Hfault.
+    apply (wp_instr_faulted_map _ _ _ _ _ _ _ _ i); [exact Hinstr | exact Hvpc |].
+    intros R r sr m st td Hregs Hcnull. apply exec_opt_exec_none, Hfault; first done.
+    intros x v Hx. destruct (decide (x = cnull)) as [-> | Hne].
+    - rewrite (Hcnull v Hx) lookup_reg_cnull. by exists true.
+    - rewrite lookup_reg_not_cnull //. by eapply lregs_phys_lookup.
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)
@@ -966,7 +1022,7 @@ Section instruction_outcomes.
     iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td _. apply Hfailed.
+    - intros R r sr m st td _ _. apply Hfailed.
     - by rewrite big_sepM_empty.
     - iNext. iIntros "(HPC & Hmem & _)".
       iApply "Hφ". iFrame.
@@ -989,7 +1045,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
@@ -1016,7 +1072,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       by eapply Hfailed.
@@ -1054,7 +1110,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r3 w3 Hincl) as [s3 Hl3]; first by simplify_map_eq.

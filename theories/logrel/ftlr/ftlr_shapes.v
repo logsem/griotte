@@ -369,10 +369,6 @@ Section regs_pure.
       ∃ (dst : RegName) (w : Word) (n : Z),
         derivable φ w ∧ advancePC ((regs_effect φ) .[dst :=ᵣ w]) n = Some c.
 
-  (** A write to [cnull] is no write. *)
-  Lemma update_reg_cnull φ w : φ .[cnull :=ᵣ w] = φ.
-  Proof. destruct φ. by rewrite /update_reg /= insert_reg_cnull. Qed.
-
 End regs_pure.
 
 Create HintDb flows_refl.

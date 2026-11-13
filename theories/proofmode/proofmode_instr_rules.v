@@ -178,14 +178,14 @@ Ltac dispatch_generic_next instr cont :=
   | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?p ?g ?b ?e ?a @@? ?π)%I ] =>
     let Hsw := fresh "Hsw" in
     let Hok := fresh "Hregs_next" in
-    assert (∀ k, sw_of k instr = None) as Hsw
-      by (let k := fresh "k" in intros k; by apply sw_of_none);
+    assert (∀ th, regs_instr_ok th instr) as Hsw
+      by (let th := fresh "th" in intros th; rewrite /regs_instr_ok; by apply sw_of_none);
     lazymatch rest with
     | [] =>
-        eassert (regs_next_ok instr p (Cap p g b e a @@? π) {[dst := wd]} dst _) as Hok;
+        eassert (regs_next_ok instr p (Cap p g b e a @@? π) {[dst := wd]} dst _ 1) as Hok;
         [ regs_solve_next_ok instr hint
         | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with regs_next_ok _ _ _ _ _ ?v =>
+          lazymatch type of Hok with regs_next_ok _ _ _ _ _ ?v _ =>
             cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
                     @wp_regs_next_1 _ _ _ _ _ E p g b e a π pc_a'
                       (encodeInstrW instr @@? None) dq instr dst wd v
@@ -194,10 +194,10 @@ Ltac dispatch_generic_next instr cont :=
     | [(?r2, ?w2)] =>
         eassert (dst ≠ r2 →
                  regs_next_ok instr p (Cap p g b e a @@? π) (<[dst := wd]> (<[r2 := w2]> ∅))
-                   dst _) as Hok;
+                   dst _ 1) as Hok;
         [ regs_solve_next_ok instr hint
         | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with _ → regs_next_ok _ _ _ _ _ ?v =>
+          lazymatch type of Hok with _ → regs_next_ok _ _ _ _ _ ?v _ =>
             cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
                     @wp_regs_next_2 _ _ _ _ _ E p g b e a π pc_a'
                       (encodeInstrW instr @@? None) dq instr dst wd r2 w2 v
@@ -206,10 +206,10 @@ Ltac dispatch_generic_next instr cont :=
     | [(?r2, ?w2); (?r3, ?w3)] =>
         eassert (dst ≠ r2 → dst ≠ r3 → r2 ≠ r3 →
                  regs_next_ok instr p (Cap p g b e a @@? π)
-                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> ∅))) dst _) as Hok;
+                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> ∅))) dst _ 1) as Hok;
         [ regs_solve_next_ok instr hint
         | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with _ → _ → _ → regs_next_ok _ _ _ _ _ ?v =>
+          lazymatch type of Hok with _ → _ → _ → regs_next_ok _ _ _ _ _ ?v _ =>
             cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
                     @wp_regs_next_3 _ _ _ _ _ E p g b e a π pc_a'
                       (encodeInstrW instr @@? None) dq instr dst wd r2 w2 r3 w3 v

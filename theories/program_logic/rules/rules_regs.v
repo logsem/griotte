@@ -4,13 +4,17 @@ From griotte Require Import rules_base capability_monotonicity_base.
 
 (** * Register-step WP rules by shape
 
-    One WP rule for every instruction that writes one register and moves
-    the PC ([wp_regs_step]). Its premises are pure: an agreement over an
-    abstract step function ([regs_next_agree]), stated on every physical
-    copy of the owned registers (each exact or stripped), and a source
-    ([lsource_ok]) that makes the written logical word well-formed for the
-    erasure. A source is any strip-bit function with that property: the
-    sources below are lemmas, a new one is a new lemma. *)
+    One WP rule for every instruction that writes at most one register and
+    moves the PC ([wp_regs_step]). Its premises are pure: an agreement over
+    an abstract step function ([regs_next_agree_strip]), stated on every
+    physical copy of the owned registers (each exact or stripped), and a
+    source ([lsource_witness_ok]) that makes the written logical word
+    well-formed for the erasure and gives it the property
+    [written_word_ok]. A source may use the pure facts of a witness
+    resource, read from the registry and the claim map. A source is any
+    strip-bit function with that property: the sources below are lemmas, a
+    new one is a new lemma. The exact rules ([wp_regs_next] and the k-ary
+    rules) are the instance with a fixed written word and no witness. *)
 
 (** ** The pure part *)
 
@@ -36,6 +40,15 @@ Section regs_pure.
     ∀ φ (S : RegName → bool), pcc φ = lpc.(lw) → regs_copy φ S regs →
       step i p φ = advancePC ((regs_effect φ) .[dst :=ᵣ and_tag (sb S) v.(lw)]) n.
 
+  (** The agreement when the written word [vS S] depends on the strip bits.
+      [regs_next_agree … v n sb] is [regs_next_agree_strip … (λ _, v) n sb]
+      by conversion. *)
+  Definition regs_next_agree_strip (step : instr → Perm → ExecConf → option Conf)
+      (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) (dst : RegName)
+      (vS : (RegName → bool) → LWord) (n : Z) (sb : (RegName → bool) → bool) : Prop :=
+    ∀ φ (S : RegName → bool), pcc φ = lpc.(lw) → regs_copy φ S regs →
+      step i p φ = advancePC ((regs_effect φ) .[dst :=ᵣ and_tag (sb S) (vS S).(lw)]) n.
+
   (** Operands read on a copy. *)
   Lemma regs_copy_llookup φ S regs r v :
     regs_copy φ S regs → regs !!ₗ r = Some v → reg φ !!ᵣ r = Some (and_tag (S r) v.(lw)).
@@ -59,6 +72,27 @@ Section regs_pure.
       (∀ r v0, regs !! r = Some v0 → reg_word_ok R C v0 ∧ reg_phys R v0 (and_tag (S r) v0.(lw))) →
       reg_word_ok R C lpc → reg_phys R lpc lpc.(lw) →
       reg_word_ok R C v ∧ reg_phys R v (and_tag (sb S) v.(lw)).
+
+  (** A source of [vS] under the facts [written_word_witness_ok R C] that a
+      witness gives: [vS S] is well-formed, copied by [sb S], and has
+      [written_word_ok]. *)
+  Definition lsource_witness_ok (written_word_witness_ok : RegState → gmap Addr AddrClaim → Prop)
+      (regs : LReg) (lpc : LWord) (vS : (RegName → bool) → LWord) (sb : (RegName → bool) → bool)
+      (written_word_ok : LWord → Prop) : Prop :=
+    ∀ R C st (S : RegName → bool), registry_ok R C st → written_word_witness_ok R C →
+      (∀ r v0, regs !! r = Some v0 → reg_word_ok R C v0 ∧ reg_phys R v0 (and_tag (S r) v0.(lw))) →
+      reg_word_ok R C lpc → reg_phys R lpc lpc.(lw) →
+      reg_word_ok R C (vS S) ∧ reg_phys R (vS S) (and_tag (sb S) (vS S).(lw)) ∧
+      written_word_ok (vS S).
+
+  (** The exact instance: a fixed word, no witness. *)
+  Lemma lsource_ok_witness regs lpc v sb :
+    lsource_ok regs lpc v sb →
+    lsource_witness_ok (λ _ _, True) regs lpc (λ _, v) sb (λ v', v' = v).
+  Proof.
+    intros Hsrc R C st S Hreg _ Hregs Hok Hphys.
+    destruct (Hsrc R C st S Hreg Hregs Hok Hphys) as [Hvok Hvphys]. by split_and!.
+  Qed.
 
   (** The heap-root clause for an identifier-less source: no new heap
       authority base (generalises [subseg_root_free]). *)
@@ -170,32 +204,46 @@ Section regs_pure.
   Qed.
 
   (** The pure premise of the k-ary rules: a source and the agreement, the
-      PC moved by [1]. *)
+      PC moved by [n]. *)
   Definition regs_next_ok (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) (dst : RegName)
-      (v : LWord) : Prop :=
-    ∃ sb, lsource_ok regs lpc v sb ∧ regs_next_agree exec_opt i p lpc regs dst v 1 sb.
+      (v : LWord) (n : Z) : Prop :=
+    ∃ sb, lsource_ok regs lpc v sb ∧ regs_next_agree exec_opt i p lpc regs dst v n sb.
 
   (** [regs_next_ok] from a source register keeping the bounds, the
       agreement first: computing it instantiates the written word. *)
-  Lemma regs_next_ok_derive i p lpc regs dst r v0 w π :
+  Lemma regs_next_ok_derive i p lpc regs dst r v0 w π n :
     regs !!ₗ r = Some v0 → v0.(lprov) = π →
-    regs_next_agree exec_opt i p lpc regs dst (MkLWord w π) 1 (λ S, S r) →
+    regs_next_agree exec_opt i p lpc regs dst (MkLWord w π) n (λ S, S r) →
     memory_cap_bounds w = memory_cap_bounds v0.(lw) →
     (get_tag w = true → get_tag v0.(lw) = true) →
     (get_tag w = true → executable_word w = true → executable_word v0.(lw) = true) →
-    regs_next_ok i p lpc regs dst (MkLWord w π).
+    regs_next_ok i p lpc regs dst (MkLWord w π) n.
   Proof.
     intros Hr <- Hagree Hbounds Htag Hexec. exists (λ S, S r).
     split; last done. by apply lsource_derive.
   Qed.
 
   (** [regs_next_ok] for an untagged word, from nothing. *)
-  Lemma regs_next_ok_untagged i p lpc regs dst w :
-    regs_next_agree exec_opt i p lpc regs dst (MkLWord w None) 1 (λ _, true) →
+  Lemma regs_next_ok_untagged i p lpc regs dst w n :
+    regs_next_agree exec_opt i p lpc regs dst (MkLWord w None) n (λ _, true) →
     get_tag w = false →
-    regs_next_ok i p lpc regs dst (MkLWord w None).
+    regs_next_ok i p lpc regs dst (MkLWord w None) n.
   Proof.
     intros Hagree Ht. exists (λ _, true). split; last done. by apply lsource_untagged.
+  Qed.
+
+  (** The agreement of a step that writes no register and moves the PC by
+      [n] (jumps, branches). *)
+  Definition regs_jump_agree (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) (n : Z) : Prop :=
+    ∀ φ (S : RegName → bool), pcc φ = lpc.(lw) → regs_copy φ S regs →
+      exec_opt i p φ = advancePC (regs_effect φ) n.
+
+  (** A step that writes no register writes [lnull] to [cnull]. *)
+  Lemma regs_jump_agree_next_ok i p lpc regs n :
+    regs_jump_agree i p lpc regs n → regs_next_ok i p lpc regs cnull lnull n.
+  Proof.
+    intros Hagree. exists (λ _, true). split; first by apply lsource_untagged.
+    intros φ S Hpc Hcopy. by rewrite update_reg_cnull (Hagree φ S Hpc Hcopy).
   Qed.
 
   (** The physical registers as copies of the owned ones, with strip bits. *)
@@ -228,38 +276,57 @@ End regs_pure.
 (** ** The generic rule *)
 
 (** The outcome of a register step whose PC move gives [mv]: the move and
-    the write, or a fault with the state unchanged. Griotte's PC move is
-    [incrementPC_gen lpc n]; a move that never fails has no fault. *)
+    the write of a word with [written_word_ok], or a fault. Griotte's PC
+    move is [incrementPC_gen lpc n]; a move that never fails has no fault. *)
 Definition regs_outcome `{MachineParameters} {k : kind} (mv : option LWord) (lpc : LWord)
-    (regs : LReg) (dst : RegName) (v : LWord) (lpc' : LWord) (regs' : LReg) (retv : tval k) : Prop :=
+    (regs : LReg) (dst : RegName) (written_word_ok : LWord → Prop)
+    (lpc' : LWord) (regs' : LReg) (retv : tval k) : Prop :=
   match mv with
-  | Some l => retv = NextIV ∧ lpc' = l ∧ regs' = <[dst := v]ₗ> regs
-  | None => retv = FaultedV ∧ lpc' = lpc ∧ regs' = regs
+  | Some l => retv = NextIV ∧ lpc' = l ∧ ∃ v, written_word_ok v ∧ regs' = <[dst := v]ₗ> regs
+  | None => faulted_outcome lpc regs lpc' regs' retv
   end.
+
+(** The per-instruction side condition of the register rules: the
+    instruction does not switch threads. *)
+Definition regs_instr_ok (th : Thread) (i : instr) : Prop := sw_of (kind_of th) i = None.
 
 Section regs_rules.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
 
-  Lemma wp_regs_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq i (regs : LReg) dst v n sb :
-    decodeInstrW w.(lw) = i → sw_of (kind_of th) i = None →
+  (** The witness [written_word_witness] is kept; its pure facts
+      [written_word_witness_ok], read against the registry and the claim
+      map, are available to the source. *)
+  Lemma wp_regs_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq i (regs : LReg) dst vS n sb
+      (written_word_ok : LWord → Prop) (written_word_witness : iProp Σ)
+      (written_word_witness_ok : RegState → gmap Addr AddrClaim → Prop) :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    lsource_ok regs (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) v sb →
-    regs_next_agree exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst v n sb →
+    lsource_witness_ok written_word_witness_ok regs (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+      vS sb written_word_ok →
+    regs_next_agree_strip exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst vS n sb →
     dst = cnull ∨ dst ∈ dom regs →
+    (∀ R C,
+       reg_auth R -∗
+       addr_alloc_auth C -∗
+       written_word_witness -∗
+       ⌜written_word_witness_ok R C⌝) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
+        written_word_witness ∗
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ E
     {{{ lpc' regs' retv, RET retv;
         ⌜regs_outcome (incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n)
-           (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst v lpc' regs' retv⌝ ∗
+           (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst written_word_ok lpc' regs' retv⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
+        written_word_witness ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hdec Hsw Hvpc Hsrc Hagree Hdst Φ) "(>HPC & >Hpc_a & >Hmap) HΦ".
+    iIntros (Hdec Hsw Hvpc Hsrc Hagree Hdst Hwitness Φ) "(>HPC & >Hpc_a & Hwit & >Hmap) HΦ".
     iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [by rewrite Hdec | done |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
+    iDestruct (Hwitness with "HR HC Hwit") as %Hwit_ok.
     (* The strip bits of the owned registers. *)
     destruct (lregs_phys_strip R regs r Hregs) as [S HS].
     { intros v0 Hv0. eapply er_cnull; [exact Her | by eapply lookup_weaken]. }
@@ -270,22 +337,24 @@ Section regs_rules.
       as Hwords.
     { intros x v0 Hx. split; last apply (HS x v0 Hx).
       eapply er_reg_words; [exact Her | by eapply lookup_weaken]. }
-    destruct (Hsrc R C st S (er_registry _ _ _ _ _ _ _ Her) Hwords (er_pc_word _ _ _ _ _ _ _ Her) Hpc)
-      as [Hok Hphys].
+    destruct (Hsrc R C st S (er_registry _ _ _ _ _ _ _ Her) Hwit_ok Hwords
+                (er_pc_word _ _ _ _ _ _ _ Her) Hpc) as (Hok & Hphys & Hwritten).
     (* The agreement: the step writes the copy and moves the PC. *)
     rewrite Hdec /exec (Hagree (MkExecConf _ r sr m st td) S) /regs_effect in Hstep; [| done |].
     2: { intros x v0 Hx. by destruct (HS x v0 Hx) as (Hx_reg & _ & Hx_strip). }
-    iApply (instr_close_reg_update_advancePC _ _ _ _ _ _ _ _ _ _ _ _ regs dst v _ n _ _ _
+    iApply (instr_close_reg_update_advancePC _ _ _ _ _ _ _ _ _ _ _ _ regs dst (vS S) _ n _ _ _
       (λ lpc' regs' retv, regs_outcome (incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n)
-                            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst v lpc' regs' retv)
-      Her Hdst Hok Hstep Hphys with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [HΦ Hpc_a]").
-    { intros lpc' ->. done. }
-    { intros ->. done. }
+                            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst written_word_ok
+                            lpc' regs' retv)
+      Her Hdst Hok Hstep Hphys with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [HΦ Hpc_a Hwit]").
+    { intros lpc' ->. split_and!; [done | done | by exists (vS S)]. }
+    { intros ->. apply faulted_outcome_refl. }
     iIntros (lpc' regs' retv Hout) "HPC Hmap". iApply "HΦ". by iFrame.
   Qed.
 
+  (** The exact rule: a fixed written word [v]. *)
   Lemma wp_regs_next E pc_p pc_g pc_b pc_e pc_a pc_π w dq i (regs : LReg) dst v n sb lpc' :
-    decodeInstrW w.(lw) = i → sw_of (kind_of th) i = None →
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     lsource_ok regs (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) v sb →
     regs_next_agree exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst v n sb →
@@ -300,21 +369,109 @@ Section regs_rules.
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ <[dst := v]ₗ> regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hdec Hsw Hvpc Hsrc Hagree Hdst Hinc Φ) "Hpre HΦ".
-    iApply (wp_regs_step with "Hpre");
-      [exact Hdec | exact Hsw | exact Hvpc | exact Hsrc | exact Hagree | exact Hdst |].
-    iIntros "!>" (lpc0 regs' retv) "(%Hout & HPC & Hpc_a & Hmap)".
-    rewrite /regs_outcome Hinc in Hout. destruct Hout as (-> & -> & ->). iApply "HΦ". by iFrame.
+    iIntros (Hdec Hsw Hvpc Hsrc Hagree Hdst Hinc Φ) "(HPC & Hpc_a & Hmap) HΦ".
+    iApply (wp_regs_step _ _ _ _ _ _ _ _ _ _ _ dst (λ _, v) n sb (λ v', v' = v) emp%I (λ _ _, True)
+      with "[$HPC $Hpc_a $Hmap]");
+      [done | done | done | by apply lsource_ok_witness | exact Hagree | done | by iIntros |].
+    iIntros "!>" (lpc0 regs' retv) "(%Hout & HPC & Hpc_a & _ & Hmap)".
+    rewrite /regs_outcome Hinc in Hout. destruct Hout as (-> & -> & v' & -> & ->).
+    iApply "HΦ". by iFrame.
   Qed.
 
   (** *** k-ary client rules: the destination first, its new word [v] *)
 
+  Lemma wp_regs_next_gen_1 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 v n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    r1 ≠ cnull →
+    regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) {[r1 := w1]} r1 v n →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ v }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hr1 (sb & Hsrc & Hagree) Φ) "(>HPC & >Hpc_a & >Hr1) HΦ".
+    iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree | right; set_solver | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    rewrite linsert_reg_not_cnull // insert_singleton decide_True //.
+    iDestruct (regs_of_map_1 with "Hmap") as "Hr1". iApply "HΦ". iFrame.
+  Qed.
+
+  Lemma wp_regs_next_gen_2 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 r2 w2 v n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    r1 ≠ cnull →
+    (r1 ≠ r2 →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> ∅)) r1 v n) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ v ∗
+        r2 ↦ᵣ w2 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hr1 Hnext_ok Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) HΦ".
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
+    destruct (Hnext_ok Hne) as (sb & Hsrc & Hagree).
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree | right; set_solver | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    rewrite linsert_reg_not_cnull // insert_insert decide_True //.
+    iDestruct (regs_of_map_2 with "Hmap") as "[Hr1 Hr2]"; first done. iApply "HΦ". iFrame.
+  Qed.
+
+  Lemma wp_regs_next_gen_3 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 r2 w2 r3 w3 v n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    r1 ≠ cnull →
+    (r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) r1 v n) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 ∗
+        ▷ r3 ↦ᵣ w3 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ v ∗
+        r2 ↦ᵣ w2 ∗
+        r3 ↦ᵣ w3 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hr1 Hnext_ok Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hr3) HΦ".
+    iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap (%Hne12 & %Hne13 & %Hne23)]".
+    destruct (Hnext_ok Hne12 Hne13 Hne23) as (sb & Hsrc & Hagree).
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree | right; set_solver | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    rewrite linsert_reg_not_cnull // insert_insert decide_True //.
+    iDestruct (regs_of_map_3 with "Hmap") as "(Hr1 & Hr2 & Hr3)"; [done | done | done |].
+    iApply "HΦ". iFrame.
+  Qed.
+
+  (** The PC moved by [1]. *)
   Lemma wp_regs_next_1 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 v :
-    decodeInstrW w.(lw) = i → sw_of (kind_of th) i = None →
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
-    regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) {[r1 := w1]} r1 v →
+    regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) {[r1 := w1]} r1 v 1 →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 }}}
@@ -324,22 +481,19 @@ Section regs_rules.
         pc_a ↦ₐ{dq} w ∗
         r1 ↦ᵣ v }}}.
   Proof.
-    iIntros (Hdec Hsw Hvpc Hpc_a' Hr1 (sb & Hsrc & Hagree) Φ) "(>HPC & >Hpc_a & >Hr1) HΦ".
-    iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
-    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
-      | exact Hsrc | exact Hagree | right; set_solver | by rewrite /incrementPC_gen Hpc_a' |].
-    iIntros "!> (HPC & Hpc_a & Hmap)".
-    rewrite linsert_reg_not_cnull // insert_singleton decide_True //.
-    iDestruct (regs_of_map_1 with "Hmap") as "Hr1". iApply "HΦ". iFrame.
+    intros Hdec Hsw Hvpc Hpc_a' Hr1 Hok.
+    eapply wp_regs_next_gen_1; [exact Hdec | exact Hsw | exact Hvpc | | exact Hr1 | exact Hok].
+    by rewrite /incrementPC_gen Hpc_a'.
   Qed.
 
   Lemma wp_regs_next_2 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 r2 w2 v :
-    decodeInstrW w.(lw) = i → sw_of (kind_of th) i = None →
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     (r1 ≠ r2 →
-     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) (<[r1 := w1]> (<[r2 := w2]> ∅)) r1 v) →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> ∅)) r1 v 1) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 ∗
@@ -351,24 +505,19 @@ Section regs_rules.
         r1 ↦ᵣ v ∗
         r2 ↦ᵣ w2 }}}.
   Proof.
-    iIntros (Hdec Hsw Hvpc Hpc_a' Hr1 Hnext_ok Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) HΦ".
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
-    destruct (Hnext_ok Hne) as (sb & Hsrc & Hagree).
-    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
-      | exact Hsrc | exact Hagree | right; set_solver | by rewrite /incrementPC_gen Hpc_a' |].
-    iIntros "!> (HPC & Hpc_a & Hmap)".
-    rewrite linsert_reg_not_cnull // insert_insert decide_True //.
-    iDestruct (regs_of_map_2 with "Hmap") as "[Hr1 Hr2]"; first done. iApply "HΦ". iFrame.
+    intros Hdec Hsw Hvpc Hpc_a' Hr1 Hok.
+    eapply wp_regs_next_gen_2; [exact Hdec | exact Hsw | exact Hvpc | | exact Hr1 | exact Hok].
+    by rewrite /incrementPC_gen Hpc_a'.
   Qed.
 
   Lemma wp_regs_next_3 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 r2 w2 r3 w3 v :
-    decodeInstrW w.(lw) = i → sw_of (kind_of th) i = None →
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
     (r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
      regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
-       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) r1 v) →
+       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) r1 v 1) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
         ▷ r1 ↦ᵣ w1 ∗
@@ -382,13 +531,109 @@ Section regs_rules.
         r2 ↦ᵣ w2 ∗
         r3 ↦ᵣ w3 }}}.
   Proof.
-    iIntros (Hdec Hsw Hvpc Hpc_a' Hr1 Hnext_ok Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hr3) HΦ".
-    iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap (%Hne12 & %Hne13 & %Hne23)]".
-    destruct (Hnext_ok Hne12 Hne13 Hne23) as (sb & Hsrc & Hagree).
+    intros Hdec Hsw Hvpc Hpc_a' Hr1 Hok.
+    eapply wp_regs_next_gen_3; [exact Hdec | exact Hsw | exact Hvpc | | exact Hr1 | exact Hok].
+    by rewrite /incrementPC_gen Hpc_a'.
+  Qed.
+
+  (** *** k-ary rules with no destination: an operand may be [cnull] *)
+
+  Lemma wp_regs_jump_0 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    regs_jump_agree i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∅ n →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hagree Φ) "(HPC & Hpc_a) HΦ".
+    destruct (regs_jump_agree_next_ok _ _ _ _ _ Hagree) as (sb & Hsrc & Hagree_next).
+    iApply (wp_regs_next with "[$HPC $Hpc_a]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree_next | by left | exact Hinc | by rewrite big_sepM_empty |].
+    iIntros "!> (HPC & Hpc_a & _)". iApply "HΦ". iFrame.
+  Qed.
+
+  Lemma wp_regs_jump_1 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    regs_jump_agree i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) {[r1 := w1]} n →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ w1 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hagree Φ) "(>HPC & >Hpc_a & >Hr1) HΦ".
+    iDestruct (map_of_regs_1 with "Hr1") as "Hmap".
+    destruct (regs_jump_agree_next_ok _ _ _ _ _ Hagree) as (sb & Hsrc & Hagree_next).
     iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
-      | exact Hsrc | exact Hagree | right; set_solver | by rewrite /incrementPC_gen Hpc_a' |].
-    iIntros "!> (HPC & Hpc_a & Hmap)".
-    rewrite linsert_reg_not_cnull // insert_insert decide_True //.
+      | exact Hsrc | exact Hagree_next | by left | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)". rewrite linsert_reg_cnull.
+    iDestruct (regs_of_map_1 with "Hmap") as "Hr1". iApply "HΦ". iFrame.
+  Qed.
+
+  Lemma wp_regs_jump_2 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 r2 w2 n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    (r1 ≠ r2 →
+     regs_jump_agree i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> ∅)) n) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ w1 ∗
+        r2 ↦ᵣ w2 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hagree Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2) HΦ".
+    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %Hne]".
+    destruct (regs_jump_agree_next_ok _ _ _ _ _ (Hagree Hne)) as (sb & Hsrc & Hagree_next).
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree_next | by left | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)". rewrite linsert_reg_cnull.
+    iDestruct (regs_of_map_2 with "Hmap") as "[Hr1 Hr2]"; first done. iApply "HΦ". iFrame.
+  Qed.
+
+  Lemma wp_regs_jump_3 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i r1 w1 r2 w2 r3 w3 n lpc' :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    incrementPC_gen (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) n = Some lpc' →
+    (r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
+     regs_jump_agree i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) n) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 ∗
+        ▷ r3 ↦ᵣ w3 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ lpc' ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ w1 ∗
+        r2 ↦ᵣ w2 ∗
+        r3 ↦ᵣ w3 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hinc Hagree Φ) "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hr3) HΦ".
+    iDestruct (map_of_regs_3 with "Hr1 Hr2 Hr3") as "[Hmap (%Hne12 & %Hne13 & %Hne23)]".
+    destruct (regs_jump_agree_next_ok _ _ _ _ _ (Hagree Hne12 Hne13 Hne23))
+      as (sb & Hsrc & Hagree_next).
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree_next | by left | exact Hinc |].
+    iIntros "!> (HPC & Hpc_a & Hmap)". rewrite linsert_reg_cnull.
     iDestruct (regs_of_map_3 with "Hmap") as "(Hr1 & Hr2 & Hr3)"; [done | done | done |].
     iApply "HΦ". iFrame.
   Qed.

@@ -3,6 +3,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base.
+From griotte Require Import rules_regs.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
@@ -369,37 +370,6 @@ Section griotte_lang_rules.
     rewrite linsert_reg_cnull. iRegsMap "Hmap". iApply "Hφ". iFrame.
   Qed.
 
-  (** GetTag returns the tag, or 0 on a word whose tag may have been
-      cleared. *)
-  Lemma wp_gettag_lax E dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' dq :
-    decodeInstrW w.(lw) = GetTag dst src →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    src ≠ cnull →
-    dst ≠ cnull →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ src ↦ᵣ wsrc
-        ∗ ▷ dst ↦ᵣ wdst }}}
-      Instr Executable @ E
-      {{{ z, RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ src ↦ᵣ wsrc
-          ∗ dst ↦ᵣ WInt z
-          ∗ ⌜z = Z.b2z (get_tag wsrc.(lw)) ∨ (z = 0%Z ∧ tag_strippable wsrc)⌝ }}}.
-  Proof.
-    iIntros (Hdecode Hvpc Hpca' Hcnull Hcnull' φ) "(HPC & Hpc_a & >Hsrc & >Hdst) Hφ".
-    iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
-    iApply (wp_Get_next _ (GetTag dst src) dst src _ _ _ _ _ _ _ _ wsrc
-      with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
-      try (by unfold is_Get; tauto); try (destruct_word (lw wsrc); by eexists).
-    iIntros "!>" (z) "(%Hz & HPC & Hpc_a & Hmap)".
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame. iPureIntro.
-    destruct Hz as [Hz | (_ & -> & Hs)]; [left | by right].
-    cbn in Hz. by simplify_eq.
-  Qed.
-
   (** ** GetTag with a witness and an observation
 
       The result is the logical tag, or 0 on a word whose tag may be
@@ -418,6 +388,48 @@ Section griotte_lang_rules.
          | Some ι => C !! b = Some (Claimed ι)
          | None => C !! b = Some HeapRoot
          end).
+
+  (** The source of GetTag: the written integer is a copy of the logical
+      tag, with [gettag_result] under the witness facts. *)
+  Lemma gettag_source dw Φc regs lpc src wsrc :
+    regs !!ₗ src = Some wsrc →
+    lsource_witness_ok (λ R C, deref_witness_ok R dw ∧ Φc C) regs lpc
+      (λ S, WInt (Z.b2z (S src && get_tag wsrc.(lw)))) (λ _, true)
+      (λ v, ∃ z, v = WInt z ∧ gettag_result dw Φc wsrc z).
+  Proof.
+    intros Hsrc R C st S Hreg [Hdw HΦc] Hregs _ _.
+    split_and!; [apply reg_word_ok_int | rewrite and_tag_true; apply reg_phys_lword_of_word |].
+    eexists; split; first done.
+    destruct (get_tag wsrc.(lw)) eqn:Ht; last first.
+    { rewrite andb_false_r /gettag_result Ht. split_and!; [by left | done | done]. }
+    assert (src ≠ cnull) as Hne.
+    { intros ->. rewrite llookup_reg_cnull in Hsrc. by simplify_eq. }
+    rewrite llookup_reg_not_cnull // in Hsrc.
+    destruct (Hregs src wsrc Hsrc) as [Hok Hrel].
+    rewrite /gettag_result. split_and!.
+    - destruct (S src); first by left; rewrite Ht.
+      right. split; first done. apply (reg_phys_tag_strippable R); last done.
+      by rewrite and_tag_false in Hrel.
+    - intros Hπ Hcond. rewrite -Ht -get_tag_and_tag.
+      by rewrite (deref_exact _ _ _ _ Hdw Hπ Hcond Hrel).
+    - intros Hz. exists C. split; first done. intros b Hab.
+      assert (get_tag (and_tag (S src) wsrc.(lw)) = true) as Htw.
+      { rewrite get_tag_and_tag Ht. by destruct (S src). }
+      pose proof (reg_phys_observe _ _ _ _ _ _ Hreg Hok Hrel Htw Hab) as Hobs.
+      destruct (lprov wsrc); [by destruct Hobs as (? & ? & ? & ?) | done].
+  Qed.
+
+  (** The agreement of GetTag: it writes the tag of the copy. *)
+  Lemma gettag_agree p lpc regs dst src wsrc :
+    regs !!ₗ src = Some wsrc →
+    regs_next_agree_strip exec_opt (GetTag dst src) p lpc regs dst
+      (λ S, WInt (Z.b2z (S src && get_tag wsrc.(lw)))) 1 (λ _, true).
+  Proof.
+    intros Hsrc [pc r sr m st td] S _ Hcopy.
+    rewrite /regs_effect (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ _
+                            ltac:(unfold is_Get; tauto) (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
+    by rewrite and_tag_true /= get_tag_and_tag.
+  Qed.
 
   Lemma wp_GetTag_obs Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src regs dq dw
       (P : iProp Σ) (Φc : gmap Addr AddrClaim → Prop) :
@@ -443,48 +455,25 @@ Section griotte_lang_rules.
         P ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hdecode Hvpc Dregs HP φ) "(>HPC & >Hpc_a & Hdw & HPr & >Hmap) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; by apply sw_of_none|..]; eauto.
-    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
-    iDestruct (HP with "HC HPr") as %HΦc.
-    rewrite Hdecode /exec in Hstep.
-    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri. unfold regs_of, operands_of in Hri.
-    destruct (Hri src) as [v [Hv Hv'] ]; first by set_solver+.
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv) as (s & Hsrc & Hrel).
-    rewrite (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ _ ltac:(unfold is_Get; tauto)
-               Hsrc) /= in Hstep.
-    rewrite get_tag_and_tag in Hstep.
-    (* The result is a copy of the logical tag. *)
-    assert (gettag_result dw Φc v (Z.b2z (s && get_tag v.(lw)))) as Hres.
-    { split_and!.
-      - destruct s; first by left. destruct (get_tag v.(lw)) eqn:Ht; last by left.
-        right. split; first done. apply (reg_phys_tag_strippable R); last done.
-        by rewrite and_tag_false in Hrel.
-      - intros Hπ Hcond. rewrite -get_tag_and_tag.
-        by rewrite (deref_exact _ _ _ _ Hdw Hπ Hcond Hrel).
-      - intros Hz. exists C. split; first done. intros b Hab.
-        assert (get_tag (and_tag s v.(lw)) = true) as Htw.
-        { rewrite get_tag_and_tag. by destruct (s && get_tag v.(lw)). }
-        assert (get_tag v.(lw) = true) as Ht.
-        { pose proof (reg_phys_tagged _ _ _ Hrel Htw) as Heq. by rewrite -Heq. }
-        pose proof (reg_phys_observe _ _ _ _ _ _ (er_registry _ _ _ _ _ _ _ Her)
-                      (erasure_llookup_reg_word _ _ _ _ _ _ _ _ _ _ Her Hlregs Hv) Hrel Htw Hab) as Hobs.
-        destruct (lprov v); [by destruct Hobs as (? & ? & ? & ?) | done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
-      (lword_of_word (WInt (Z.b2z (s && get_tag v.(lw))))) _ _ _ _
-      (λ lpc' regs' retv,
-         (∃ (v : LWord) z, retv = NextIV ∧ regs !!ₗ src = Some v ∧ gettag_result dw Φc v z ∧
-            incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' ∧
-            regs' = <[dst := WInt z]ₗ> regs) ∨
-         (retv = FaultedV ∧ incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None ∧
-            regs' = regs ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π))
-      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hdw HPr]").
-    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
-    { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
-    { intros lpc' Hi. left. by exists v, (Z.b2z (s && get_tag v.(lw))). }
-    { intros Hi. right. by split_and!. }
-    iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
+    iIntros (Hdecode Hvpc Dregs HP φ) "(HPC & Hpc_a & Hdw & HPr & Hmap) Hφ".
+    assert (is_Some (regs !!ₗ src)) as [wsrc Hsrc].
+    { apply (llookup_reg_of_dom {[dst; src]}); last set_solver+.
+      by rewrite /regs_of /operands_of in Dregs. }
+    iApply (wp_regs_step _ _ _ _ _ _ _ _ _ _ _ dst _ 1 _ _ (deref_witness_res dw ∗ P)
+              (λ R C, deref_witness_ok R dw ∧ Φc C) with "[$HPC $Hpc_a $Hdw $HPr $Hmap]");
+      [done | rewrite /regs_instr_ok; by apply sw_of_none | done
+      | by apply gettag_source | by apply gettag_agree | | |].
+    { destruct (decide (dst = cnull)) as [Hdst | Hdst]; [by left | right].
+      rewrite /regs_of /operands_of in Dregs. set_solver. }
+    { iIntros (R C) "HR HC [Hdw HPr]".
+      iDestruct (deref_witness_lookup with "HR Hdw") as %Hdw.
+      by iDestruct (HP with "HC HPr") as %HΦc. }
+    iIntros "!>" (lpc' regs' retv) "(%Hout & HPC & Hpc_a & [Hdw HPr] & Hmap)".
+    iApply "Hφ". iFrame. iPureIntro.
+    rewrite /regs_outcome in Hout.
+    destruct (incrementPC_gen _ 1) as [lpc_next |] eqn:Hinc.
+    - destruct Hout as (-> & -> & v & (z & -> & Hres) & ->). left. by exists wsrc, z.
+    - destruct Hout as (-> & -> & ->). right. by split_and!.
   Qed.
 
   (** [wp_GetTag_obs] on two distinct registers. *)
@@ -524,6 +513,35 @@ Section griotte_lang_rules.
       iRegsMap "Hmap"; eauto.
       iApply "Hφ". iFrame. done.
     - exfalso. incrementPC_inv; simplify_map_eq; eauto; try congruence.
+  Qed.
+
+  (** GetTag returns the tag, or 0 on a word whose tag may have been
+      cleared. *)
+  Lemma wp_gettag_lax E dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' dq :
+    decodeInstrW w.(lw) = GetTag dst src →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    src ≠ cnull →
+    dst ≠ cnull →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
+        ∗ ▷ pc_a ↦ₐ{dq} w
+        ∗ ▷ src ↦ᵣ wsrc
+        ∗ ▷ dst ↦ᵣ wdst }}}
+      Instr Executable @ E
+      {{{ z, RET NextIV;
+          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
+          ∗ pc_a ↦ₐ{dq} w
+          ∗ src ↦ᵣ wsrc
+          ∗ dst ↦ᵣ WInt z
+          ∗ ⌜z = Z.b2z (get_tag wsrc.(lw)) ∨ (z = 0%Z ∧ tag_strippable wsrc)⌝ }}}.
+  Proof.
+    iIntros (Hdecode Hvpc Hpca' Hcnull Hcnull' φ) "(HPC & Hpc_a & >Hsrc & >Hdst) Hφ".
+    iDestruct (regname_neq with "Hsrc Hdst") as %Hne.
+    iApply (wp_gettag_obs _ _ _ _ _ _ _ _ _ _ _ _ _ _ DerefNoId emp%I (λ _, True)
+      with "[$HPC $Hpc_a $Hsrc $Hdst]");
+      [done | done | done | done | done | done | by iIntros | done |].
+    iIntros "!>" (z) "(HPC & Hpc_a & Hsrc & Hdst & _ & _ & %Hres)".
+    iApply "Hφ". iFrame. iPureIntro. apply Hres.
   Qed.
 
   (** GetTag returns the tag of a word under the dereference resource of its
