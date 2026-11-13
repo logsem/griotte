@@ -339,8 +339,7 @@ Section mem_access_pure.
     ∃ p g b e a ea, reg_allows_mem_access MemAccessRead regs r imm p g b e a ea ∧ retv = NextIV ∧
       mv = Some lpc' ∧
       ((∃ v v', mem !! ea = Some v ∧ post p v v' ∧ regs' = <[dst := v']ₗ> regs) ∨
-       (is_exposed_mmio_address ea = true ∧ mem !! ea = None ∧
-        ∃ w, get_tag w = false ∧ regs' = <[dst := MkLWord w None]ₗ> regs)).
+       (mem !! ea = None ∧ ∃ w, get_tag w = false ∧ regs' = <[dst := MkLWord w None]ₗ> regs)).
 
   (** A fault, or a write of a word with [Q] to a cell of [mem], or a write
       to a device. The PC moves to [mv]. *)
@@ -350,7 +349,7 @@ Section mem_access_pure.
     ∃ p g b e a ea, reg_allows_mem_access MemAccessWrite regs r imm p g b e a ea ∧ retv = NextIV ∧
       mv = Some lpc' ∧
       ((∃ v, Q v ∧ is_Some (mem !! ea) ∧ mem' = <[ea := lstore_word p v]> mem) ∨
-       (is_exposed_mmio_address ea = true ∧ mem !! ea = None ∧ mem' = mem)).
+       (mem !! ea = None ∧ mem' = mem)).
 
   (** The register authorises an access to a cell of [mem]. *)
   Definition mem_access_cell k regs r imm (mem : LMem) : Prop :=
@@ -397,8 +396,7 @@ Section mem_access_pure.
     ∃ p g b e a ea v pw, reg_allows_mem_access MemAccessRead regs r imm p g b e a ea ∧
       reg_word_ok R C v ∧ reg_phys R v pw ∧ nextPC (φ .[dst :=ᵣ pw]) = Some c ∧
       ((∃ lv, mem !! ea = Some lv ∧ post p lv v) ∨
-       (is_exposed_mmio_address ea = true ∧ mem !! ea = None ∧
-        get_tag pw = false ∧ v = MkLWord pw None)).
+       (mem !! ea = None ∧ get_tag pw = false ∧ v = MkLWord pw None)).
   Proof.
     intros Her Hincl Hr Hmem Hchoice Hok Hstep.
     pose proof (erasure_regs_incl Her Hincl) as Hphys.
@@ -417,7 +415,7 @@ Section mem_access_pure.
     - destruct (mem_access_authorised_reg_allows MemAccessRead Hphys Hr Hauth)
         as (g & b & e & a & Hacc).
       pose proof (mmio_load_untagged _ _ _ Hload) as Ht.
-      destruct (Hok _ _ _ _ _ _ Hacc) as [ [Hexp Hnone] | ([lv Hlv] & _) ].
+      destruct (Hok _ _ _ _ _ _ Hacc) as [ [_ Hnone] | ([lv Hlv] & _) ].
       2: { (* A cell is not a device. *)
            destruct (erasure_lookup_mem Her (lookup_weaken _ _ _ _ Hlv Hmem)) as (pv & Hpv & _).
            pose proof (mem_avoids_mmio_lookup _ _ _ (er_mmio Her) Hpv) as Hmmio'.
@@ -438,8 +436,7 @@ Section mem_access_pure.
       ((∃ v pw, Q v ∧ is_Some (mem !! ea) ∧ dfracs !! ea = Some (DfracOwn 1) ∧
           mem_word_ok R C (lstore_word p v) pw ∧
           nextPC ((store_effect ea φ) .[ea :=ₐ pw]) = Some c) ∨
-       (is_exposed_mmio_address ea = true ∧ mem !! ea = None ∧
-        ∃ td, nextPC (φ .[TD := td]) = Some c)).
+       (mem !! ea = None ∧ ∃ td, nextPC (φ .[TD := td]) = Some c)).
   Proof.
     intros Her Hincl Hr Hmem Hlift Hok Hstep.
     pose proof (erasure_regs_incl Her Hincl) as Hphys.
@@ -461,7 +458,7 @@ Section mem_access_pure.
            destruct (erasure_lookup_mem Her (lookup_weaken _ _ _ _ Hlv Hmem)) as (pv & Hpv & _).
            pose proof (mem_avoids_mmio_lookup _ _ _ (er_mmio Her) Hpv) as Hmmio'.
            congruence. }
-      exists p, g, b, e, a, ea. split; first done. right. split_and!; [done | done |].
+      exists p, g, b, e, a, ea. split; first done. right. split; first done.
       rewrite /mmio_store (exposed_mmio_not_shadow _ Hexp) (exposed_mmio_not_revoker _ Hexp) in Hstore.
       rewrite /is_exposed_mmio_address in Hexp. rewrite Hexp in Hstore.
       destruct (time_dev_store (timedevs φ) ea w) as [td|]; simplify_eq/=. by exists td.
@@ -961,7 +958,7 @@ Section mem_access_rules.
     { by rewrite Hnext. } { exact Hpw. }
     { intros lpc' Hinc. split; last (intros _ _ _; done).
       right. exists p, g, b, e, a, ea. split_and!; [done..|].
-      destruct Hcases as [ (lv & Hlv & Hpost) | (Hexp & Hnone & Ht & ->) ]; [left | right]; eauto 10. }
+      destruct Hcases as [ (lv & Hlv & Hpost) | (Hnone & Ht & ->) ]; [left | right]; eauto 10. }
     { intros Hinc. split; first (left; apply faulted_outcome_refl).
       intros _ _ [lpc' Hinc']. congruence. }
     iIntros (lpc' regs' retv [Hres Hprog]) "HPC Hmap". iApply "Hφ".
@@ -1035,7 +1032,7 @@ Section mem_access_rules.
     subst conf.
     destruct (store_step_inv Her Hlregs Hr Hmem_incl Hlift Hok (Hmember _ _ _ Hexec))
       as (p & g & b & e & a & ea & Hacc &
-          [ (v & pw & HQ & Hin & Hdq & Hpw & Hnext) | (Hexp & Hnone & td' & Hnext) ]).
+          [ (v & pw & HQ & Hin & Hdq & Hpw & Hnext) | (Hnone & td' & Hnext) ]).
     - (* A cell. *)
       rewrite /store_effect in Hnext.
       iApply (instr_close_mem_update
@@ -1252,7 +1249,7 @@ Section mem_access_rules.
       specialize (Hprog Hcell (ex_intro _ _ Hinc)). discriminate.
     - rewrite Hinc in Hinc1. injection Hinc1 as <-.
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & -> & -> & -> & -> & ->).
-      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & Hnone & _) ];
+      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (Hnone & _) ];
         last by simplify_map_eq.
       simplify_map_eq.
       rewrite memMap_resource_2ne_dq //. iDestruct "Hmem" as "[Hpc_a Hea]".
@@ -1302,7 +1299,7 @@ Section mem_access_rules.
       specialize (Hprog Hcell (ex_intro _ _ Hinc)). discriminate.
     - rewrite Hinc in Hinc1. injection Hinc1 as <-.
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & -> & -> & -> & -> & ->).
-      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & Hnone & _) ];
+      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (Hnone & _) ];
         last by simplify_map_eq.
       simplify_map_eq.
       rewrite -prod_merge_pointsto_1.
@@ -1356,7 +1353,7 @@ Section mem_access_rules.
       specialize (Hprog Hcell (ex_intro _ _ Hinc)). discriminate.
     - rewrite Hinc in Hinc1. injection Hinc1 as <-.
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & -> & -> & -> & -> & ->).
-      destruct Hcases as [ (v1 & Hv1 & _ & ->) | (_ & Hnone & _) ]; last by simplify_map_eq.
+      destruct Hcases as [ (v1 & Hv1 & _ & ->) | (Hnone & _) ]; last by simplify_map_eq.
       cbv beta in Hv1. subst v1.
       rewrite (insert_insert_ne _ ea pc_a) // insert_insert_eq memMap_resource_2ne_dq //.
       iDestruct "Hmem" as "[Hpc_a Hea]". iApply "HΦ". iFrame.
@@ -1403,7 +1400,7 @@ Section mem_access_rules.
       specialize (Hprog Hcell (ex_intro _ _ Hinc)). discriminate.
     - rewrite Hinc in Hinc1. injection Hinc1 as <-.
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & -> & -> & -> & -> & ->).
-      destruct Hcases as [ (v1 & Hv1 & _ & ->) | (_ & Hnone & _) ]; last by simplify_map_eq.
+      destruct Hcases as [ (v1 & Hv1 & _ & ->) | (Hnone & _) ]; last by simplify_map_eq.
       cbv beta in Hv1. subst v1.
       rewrite insert_insert_eq -prod_merge_pointsto_1.
       iApply "HΦ". iFrame.

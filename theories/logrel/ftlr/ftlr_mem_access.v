@@ -542,10 +542,10 @@ Section ftlr_mem_access.
       iNext. iFrame "Hreg". iApply ("Hclose" with "Hmem"). by iLeft.
     - (* A read of a cell or of a device. *)
       iApply (ftlr_contract_intro_post_next with "IH Hinv_interp HPC Hmap [Hclose Hmem]");
-        [destruct Hcases as [ (lv & v' & _ & _ & ->) | (_ & _ & w' & _ & ->) ]; by apply full_map_linsert
+        [destruct Hcases as [ (lv & v' & _ & _ & ->) | (_ & w' & _ & ->) ]; by apply full_map_linsert
         | done | exact Hinc |].
       iNext. iSplit; last (iApply ("Hclose" with "Hmem"); by iLeft).
-      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & _ & w' & Ht & ->) ];
+      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & w' & Ht & ->) ];
         iApply (interp_linsert with "Hreg"); iIntros (_).
       + rewrite /load_exact in Hpost. subst v'.
         iApply ("Hval" $! _ _ _ _ _ _ _ eq_refl Hacc1 Hlv).
@@ -643,7 +643,7 @@ Section ftlr_mem_access.
       iApply (ftlr_contract_intro_post_next with "IH Hinv_interp HPC Hmap [Hclose Hmem]");
         [done | done | exact Hinc |].
       iNext. iFrame "Hreg". iApply ("Hclose" with "Hmem").
-      destruct Hcases as [ (v & Hstore_source & Hin & ->) | (_ & _ & ->) ]; last by iLeft.
+      destruct Hcases as [ (v & Hstore_source & Hin & ->) | (_ & ->) ]; last by iLeft.
       iRight. iExists p1, g1, b1, e1, a1, ea1, v. do 4 (iSplit; first done).
       by iApply (lstore_source_sound with "IH Hthread Hreg").
   Qed.

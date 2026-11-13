@@ -307,7 +307,7 @@ Section griotte_lang_rules.
       rewrite llookup_reg_not_cnull // lookup_insert_eq /= in Hsrc1. simplify_eq.
       rewrite finz_add_0 in Hadd1. simplify_eq.
       rewrite /incrementPC /incrementPC_gen /= Hpc' in Hinc. simplify_eq.
-      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & Hnone & _) ];
+      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (Hnone & _) ];
         last by simplify_map_eq.
       simplify_map_eq. rewrite /load_exact in Hpost. subst v'.
       rewrite (insert_insert_ne _ dst src) // insert_insert_eq.
