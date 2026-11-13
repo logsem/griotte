@@ -3,7 +3,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
-From griotte Require Import machine_base shapes.regs capability_monotonicity_base.
+From griotte Require Import machine_base shapes.regs capability_monotonicity.
 
 (** * The jumps: Jmp, the conditional jumps and Jalr
 

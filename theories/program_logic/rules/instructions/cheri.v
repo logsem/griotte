@@ -3,7 +3,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
-From griotte Require Import machine_base shapes.regs capability_monotonicity_base.
+From griotte Require Import machine_base shapes.regs capability_monotonicity.
 
 (** * The capability instructions
 
@@ -1320,7 +1320,7 @@ Section auipcc_next_ok.
   Proof.
     intros Ha'. exists (λ _, true). split.
     - apply lsource_pc; [| done | by intros _ _; left].
-      apply capability_monotonicity_base.wle_cap; [done | reflexivity | reflexivity | solve_addr | solve_addr | by left].
+      apply capability_monotonicity.wle_cap; [done | reflexivity | reflexivity | solve_addr | solve_addr | by left].
     - intros φ S Hpc _. cbn [exec_opt]. rewrite Hpc. cbn [lw]. rewrite Ha'.
       by rewrite /regs_effect and_tag_true.
   Qed.
