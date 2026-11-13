@@ -5,6 +5,14 @@ From griotte Require Import rules shapes.regs shapes.memory_access solve_pure ma
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
+(** * Support for the dispatch of [iInstr]
+
+    The tactics that [proofmode_instr_rules.v] uses to apply a rule: the
+    owned operands and their aliases, the premises of the register and
+    memory steps in closed form and their search in [regs_next_ok_db],
+    [regs_next_ok_lax_db] and [mem_next_ok_db], and the side conditions
+    left after a rule. *)
+
 (* Operand aliases share one owned entry. [cnull] needs no register
    resource. *)
 (* Distinct full-ownership hypotheses already imply distinct registers. The
@@ -347,7 +355,7 @@ Ltac instr_auto_solve_failure :=
 (** * The register steps in closed form: premises and search
 
     The premises of an instruction's register step in closed form
-    ([rules_regs.v], database [regs_next_ok_db]) on the literal register map
+    ([shapes/regs.v], database [regs_next_ok_db]) on the literal register map
     of a k-ary rule, solved during the search for that lemma. A case of a
     family whose premise fails gives way to the next case. Client proofs
     see these hints through [proofmode], which exports this file. *)
@@ -581,7 +589,7 @@ Ltac solve_regs_next_ok_lax :=
 
 (** * The memory steps in closed form: premises and search
 
-    The membership and agreement of a memory instruction ([rules_mem_access.v],
+    The membership and agreement of a memory instruction ([shapes/memory_access.v],
     database [mem_next_ok_db]), and the word that a store writes, read in the
     literal register map of a k-ary rule. The settings are global, as for
     [regs_next_ok_db]. *)

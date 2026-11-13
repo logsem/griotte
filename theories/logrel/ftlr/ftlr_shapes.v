@@ -22,7 +22,7 @@ Section shapes_pure.
   Context `{MP : MachineParameters}.
 
   (** The memberships are stated for a step function [step], as in
-      [rules_mem_access.v]: the cases of the fundamental theorem take
+      [shapes/memory_access.v]: the cases of the fundamental theorem take
       [exec_opt]; another semantics reuses the definitions and tactics with
       its own. [exec_with step] is the total step, a failure being a fault, as
       [exec] is of [exec_opt]. *)

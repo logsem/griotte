@@ -1,6 +1,23 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import shapes.step memory_region.
 
+(** * Memory accesses lifted from their membership
+
+    A memory access (a load or a store) is described by a pure membership:
+    every successful step of the instruction is one of the steps of
+    [load_step] or [store_step], authorised by a register and an offset
+    given by the instruction. The WP rules of this file are proved once
+    from that membership, for any instruction that has it: one master rule
+    per kind of access, whose instances are the rule of the fundamental
+    theorem (faults allowed, no witness) and the rules that exclude the
+    fault on a cell (with an agreement of the step, and a witness that
+    keeps the authority live).
+
+    Memory shape layer: it also gives the loaded word as a [load_choice],
+    the k-ary load and store rules that [iInstr] uses, and the hint
+    database [mem_next_ok_db] that holds the memory steps in closed form
+    ([instructions/memory_accesses.v]). *)
+
 (** The erasure lemmas, the closers and [SI_close] take their hypotheses
     only: the other arguments are determined by them. *)
 #[local] Arguments llookup_reg_cap {regs r t p g b e a}.
@@ -21,18 +38,6 @@ From griotte Require Import shapes.step memory_region.
 #[local] Arguments instr_close_pc_update {MP Σ ceriseg k pc r sr m st td lpc lreg lsreg lmem R C
   regs n c σ' Φ} P.
 
-(** * Memory accesses lifted from their membership
-
-    A memory access (a load or a store) is described by a pure membership:
-    every successful step of the instruction is one of the steps of
-    [load_step] or [store_step], authorised by a register and an offset
-    given by the instruction. The WP rules of this file are proved once
-    from that membership, for any instruction that has it: one master rule
-    per kind of access, whose instances are the rule of the fundamental
-    theorem (faults allowed, no witness) and the rules that exclude the
-    fault on a cell (with an agreement of the step, and a witness that
-    keeps the authority live). *)
-
 Inductive mem_access_kind := MemAccessRead | MemAccessWrite.
 
 Definition mem_access_perm (k : mem_access_kind) : Perm → bool :=
@@ -52,8 +57,8 @@ Section mem_access_pure.
 
   (** The register [r] authorises an access of kind [k] at [ea]: it holds
       a capability whose address plus [imm] is [ea], within its bounds,
-      with the permission of [k]. A read is [reg_allows_load_imm] of
-      [rules_Load.v]; a write is [reg_allows_store_imm] of [rules_Store.v]. *)
+      with the permission of [k]. A read is [reg_allows_load_imm] and a
+      write is [reg_allows_store_imm] of [instructions/memory_accesses.v]. *)
   Definition reg_allows_mem_access k (regs : LReg) (r : RegName) (imm : Z)
       p g b e a (ea : Addr) : Prop :=
     lw <$> regs !!ₗ r = Some (Cap p g b e a) ∧ (a + imm)%a = Some ea ∧
@@ -557,10 +562,10 @@ Ltac solve_mem_access_member := solve_mem_access_member_with idtac.
 
 (** ** The memory steps in closed form
 
-    The memberships and agreements of the memory instructions are lemmas.
-    The fallback of [iInstr] finds them in the hint database [mem_next_ok_db],
-    indexed by the instruction; each lemma is registered on the line after
-    it, or here for those above. *)
+    The memberships and agreements of the memory instructions are lemmas,
+    in [instructions/memory_accesses.v]. The fallback of [iInstr] finds
+    them in the hint database [mem_next_ok_db], indexed by the
+    instruction. *)
 Create HintDb mem_next_ok_db discriminated.
 #[export] Hint Constants Opaque : mem_next_ok_db.
 #[export] Hint Opaque load_member mem_load_next_ok store_member mem_store_next_ok : mem_next_ok_db.

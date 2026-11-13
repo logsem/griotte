@@ -6,10 +6,19 @@ From griotte Require Import rules shapes.regs shapes.memory_access solve_pure ma
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
+(** * How [iInstr] finds the rule of an instruction
+
+    [dispatch_instr_rule] matches the instruction term. GetTag (its witness
+    rule), Jalr, the system instructions, Ecall, Fail and Halt have named
+    rules; CLoad and Store go to [dispatch_mem], the memory steps in closed
+    form; every other instruction goes to [dispatch_next_ok], the register
+    steps in closed form. A fault is stepped by [dispatch_instr_failure],
+    with the fault rules of [shapes/step.v]. *)
+
 (** * The register steps in closed form
 
     An instruction with no dedicated case is stepped with a k-ary rule of
-    [rules_regs.v]: [wp_regs_next_1] to [wp_regs_next_4] when its
+    [shapes/regs.v]: [wp_regs_next_1] to [wp_regs_next_4] when its
     destination is owned, [wp_regs_jump_0] to [wp_regs_jump_3]
     when it is [cnull] or absent. The premise of the rule ([regs_next_ok]
     or [regs_jump_agree]) is the instruction's register step in closed
@@ -250,7 +259,7 @@ Ltac dispatch_next_ok instr cont := dispatch_next_ok_using constr:(tt) instr con
 (** * The memory steps in closed form
 
     A [CLoad] or a [Store] is stepped with a k-ary rule of
-    [rules_mem_access.v]: [wp_load_next_1] when the load overwrites its
+    [shapes/memory_access.v]: [wp_load_next_1] when the load overwrites its
     source, [wp_load_next_2] otherwise, [wp_store_next_1] when the stored
     word reads no register other than the authority, [wp_store_next_2]
     otherwise; their [_pc] forms when no other cell than the instruction

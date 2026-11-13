@@ -19,7 +19,7 @@ Section trap_entry_res.
   Implicit Types w : LWord.
 
   (* Clients close faults with [wp_trap] (through [iTrap]) or with the
-     cause-aware rules of [rules_trap_cause.v]; the lemmas below are their
+     cause-aware rules of [traps/cause.v]; the lemmas below are their
      proof. *)
 
   (** The fault causes: the named causes below 8, and the CHERI cause. *)

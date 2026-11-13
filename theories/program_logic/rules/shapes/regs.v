@@ -14,7 +14,12 @@ From griotte Require Import shapes.step capability_monotonicity_base.
     resource, read from the registry and the claim map. A source is any
     strip-bit function with that property: the sources below are lemmas, a
     new one is a new lemma. The exact rules ([wp_regs_next] and the k-ary
-    rules) are the instance with a fixed written word and no witness. *)
+    rules) are the instance with a fixed written word and no witness.
+
+    Register shape layer: it also gives the jump rules ([wp_regs_jump_0] to
+    [wp_regs_jump_3]), the [_any_dst] forms, and the hint databases
+    [regs_next_ok_db] and [regs_next_ok_lax_db] that hold the register
+    steps in closed form ([instructions/]). *)
 
 (** ** The pure part *)
 

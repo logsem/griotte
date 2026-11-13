@@ -5,7 +5,21 @@ From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
 From griotte Require Import memory_region shapes.memory_access.
 
-(** ** CLoad *)
+(** * The memory accesses: CLoad and Store
+
+    Per instruction: its memory step in closed form (its membership
+    [load_member] or [store_member], and its agreement on the checked path,
+    to a cell or to a device), registered in [mem_next_ok_db]; [iInstr]
+    steps it with the k-ary rules of [shapes/memory_access.v]. Then the
+    rules that clients name: the faults, from the fault rules of
+    [shapes/step.v], and success rules, from the load and store rules of
+    [shapes/memory_access.v]. *)
+
+(** ** CLoad
+
+    Loads with a witness ([wp_load_witness_imm_one_inbounds]) or with
+    either outcome ([wp_load_preserve_or_clear]), and a few success
+    rules. *)
 
 (** [CLoad dst src imm] loads at the address that [src] authorises at
     offset [imm], into [dst], through the shadow table. *)
@@ -38,7 +52,7 @@ Qed.
 #[export] Hint Resolve CLoad_member cload_next_ok : mem_next_ok_db.
 
 
-(** ** Faults of [CLoad], on every copy of the owned registers *)
+(** *** Faults of [CLoad], on every copy of the owned registers *)
 
 (** An untagged source faults. *)
 Lemma CLoad_fault_untagged `{MachineParameters} dst src imm p lpc (regs : LReg) wa :
@@ -98,7 +112,7 @@ Section griotte_lang_rules.
     readAllowed p = true ∧ withinBounds b e a = true.
 
   (** The status witnesses ([load_witness_ok], [load_witness_lookup],
-      [load_post_choose]) are in [rules_mem_access.v]. *)
+      [load_post_choose]) are in [shapes/memory_access.v]. *)
 
   Lemma decode_load_not_heap_cap_imm (w : LWord) dst src imm :
     decodeInstrW w.(lw) = CLoad dst src imm → is_heap_cap w.(lw) = false.
@@ -623,7 +637,9 @@ Section load_witness_rules.
 
 End load_witness_rules.
 
-(** ** Store *)
+(** ** Store
+
+    A few success rules. *)
 
 (** [Store dst ρ imm] writes the word of its argument [ρ] at the address
     that [dst] authorises at offset [imm]; that word has [stored_word_ok]. *)
@@ -664,7 +680,7 @@ Qed.
 #[export] Hint Resolve Store_member_argument store_next_ok : mem_next_ok_db.
 
 
-(** ** Faults of [Store], on every copy of the owned registers *)
+(** *** Faults of [Store], on every copy of the owned registers *)
 
 (** An untagged authority faults. *)
 Lemma Store_fault_untagged `{MachineParameters} dst ρ imm p lpc (regs : LReg) wd :

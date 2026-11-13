@@ -19,7 +19,7 @@ Import CoreWPNotations.
     a store names its authorising register and offset, so the accessed
     region is opened before the step: a quarantined authority
     ([mem_access_quarantined]) or owned cells lent to the WP rules of
-    [rules_mem_access.v] ([mem_access_map]). A stored word is below a
+    [shapes/memory_access.v] ([mem_access_map]). A stored word is below a
     register ([store_source]), hence safe before the world closes. *)
 
 (** ** Stored words *)

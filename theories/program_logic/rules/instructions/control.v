@@ -5,11 +5,18 @@ From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
 From griotte Require Import machine_base shapes.regs capability_monotonicity_base.
 
+(** * The jumps: Jmp, the conditional jumps and Jalr
+
+    Jmp and the conditional jumps (Jeq, Jne, Jlt, Jle) have no WP rule of
+    their own: [iInstr] steps them with the jump rules of [shapes/regs.v]
+    ([wp_regs_jump_0] to [wp_regs_jump_3]), from their register steps in
+    closed form, lemmas concluding [regs_jump_agree] registered in
+    [regs_next_ok_db]. Jalr has its own rule: a jump may write MIE through
+    a sentry. *)
+
 (** ** Jmp
 
-    Jmp has no WP rule of its own: [iInstr] steps it with the register rules
-    of [rules_regs.v] ([wp_regs_jump_0], [wp_regs_jump_1]), from its register
-    step in closed form below. *)
+    Jmp moves the PC by its operand. *)
 
 Section jmp_jump_agree.
   Context `{MP : MachineParameters}.
@@ -49,9 +56,7 @@ Proof. rewrite /is_JCond. naive_solver. Qed.
 #[export] Hint Resolve is_JCond_Jlt : core.
 #[export] Hint Resolve is_JCond_Jle : core.
 
-(** The conditional jumps have no WP rule of their own: [iInstr] steps them
-    with the register rules of [rules_regs.v] ([wp_regs_jump_0] to
-    [wp_regs_jump_3]), from their register steps in closed form below. *)
+(** The register steps in closed form of the conditional jumps. *)
 
 Section jcond_jump_agree.
   Context `{MP : MachineParameters}.
@@ -182,6 +187,13 @@ End jcond_jump_agree.
 #[export] Hint Resolve jeqz_jump_agree_jmp | 1 : regs_next_ok_db.
 #[export] Hint Resolve jeqz_jump_agree_next | 2 : regs_next_ok_db.
 #[export] Hint Resolve jeqz_jump_agree_next : regs_next_ok_lax_db.
+
+(** ** Jalr
+
+    A system instruction: a jump may write MIE through a sentry, so its
+    rule gives up resources at the link. One rule ([wp_Jalr_link]) with its
+    outcome in closed form as a [step_outcome] ([jalr_outcome]); the rules
+    that [iInstr] uses are derived from it. *)
 
 Import core_link.
 

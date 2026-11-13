@@ -5,10 +5,17 @@ From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
 From griotte Require Import machine_base shapes.regs capability_monotonicity_base.
 
-(** ** Lea
+(** * The capability instructions
 
-    Lea has no WP rule of its own: [iInstr] steps it with the register rules
-    of [rules_regs.v], from its register steps in closed form below. *)
+    Lea, SetA, Restrict, Subseg, ClearTag, the Get instructions (GetP, GetL,
+    GetB, GetE, GetLen, GetA, GetOType, GetWType, GetTag), Seal, UnSeal and
+    Auipcc. Per instruction: its register steps in closed form, lemmas
+    concluding [regs_next_ok] or [regs_jump_agree], each registered in
+    [regs_next_ok_db] (and its case lemmas in [regs_next_ok_lax_db]) on the
+    lines after it; then its rules with a witness, if any. [iInstr] steps
+    them with the register rules of [shapes/regs.v]. *)
+
+(** ** Lea *)
 
 Section lea_next_ok.
   Context `{MP : MachineParameters}.
@@ -113,10 +120,7 @@ End lea_next_ok.
 #[export] Hint Resolve lea_next_ok | 5 : regs_next_ok_db.
 #[export] Hint Extern 0 (lea_result _ _ = Some _) => eassumption : regs_next_ok_db.
 
-(** ** SetA
-
-    SetA has no WP rule of its own: [iInstr] steps it with the register rules
-    of [rules_regs.v], from its register steps in closed form below. *)
+(** ** SetA *)
 
 Section seta_next_ok.
   Context `{MP : MachineParameters}.
@@ -228,10 +232,7 @@ End seta_next_ok.
 #[export] Hint Extern 0 (seta_result _ _ = Some _) =>
   first [eassumption | rewrite seta_result_lea_result; eassumption] : regs_next_ok_db.
 
-(** ** Restrict
-
-    Restrict has no WP rule of its own: [iInstr] steps it with the register
-    rules of [rules_regs.v], from its register steps in closed form below. *)
+(** ** Restrict *)
 
 Section restrict_next_ok.
   Context `{MP : MachineParameters}.
@@ -339,8 +340,8 @@ End restrict_next_ok.
 
 (** ** Subseg
 
-    Subseg's rule with a witness, the rebase on an identifier, is in
-    [rules_Subseg.v]. *)
+    Its rule with a witness, the rebase on an identifier
+    ([wp_subseg_rebase]), follows its register steps. *)
 
 (* Discharges [subseg_root_free] on a literal register map. *)
 Ltac solve_subseg_root_free :=
@@ -628,7 +629,7 @@ End subseg_next_ok.
 #[export] Hint Resolve subseg_next_ok_sr_untagged | 5 : regs_next_ok_db.
 #[export] Hint Resolve subseg_next_ok_other | 5 : regs_next_ok_db.
 
-(** ** The rules with a witness *)
+(** *** The rule with a witness *)
 
 Section subseg_witness_rules.
   Context `{MP: MachineParameters}.
@@ -643,7 +644,7 @@ Section subseg_witness_rules.
   (** The rebase: an identifier-less source narrowed to exactly the range of
       a non-dead identifier [ι] takes [ι]. The source is not executable,
       since an identified word never is. The allocate step
-      ([rules_registry]) gives [alloc_obj] and the status token. *)
+      ([ghost/registry.v]) gives [alloc_obj] and the status token. *)
   Lemma wp_subseg_rebase E pc_p pc_g pc_b pc_e pc_a pc_π w dst r1 r2 p g b e a w1 n1 w2 n2 a1 a2 pc_a'
       ι q s dq :
     decodeInstrW w.(lw) = Subseg dst dst (inr r1) (inr r2) →
@@ -719,10 +720,7 @@ End subseg_witness_rules.
 
 #[local] Close Scope capability_scope.
 
-(** ** ClearTag
-
-    ClearTag has no WP rule of its own: [iInstr] steps it with the register
-    rules of [rules_regs.v], from its register step in closed form below. *)
+(** ** ClearTag *)
 
 Section cleartag_next_ok.
   Context `{MP : MachineParameters}.
@@ -743,9 +741,10 @@ End cleartag_next_ok.
 
 (** ** Get
 
-    The register steps of the Get instructions in closed form; the
-    operation is [get_denote], and GetTag keeps its rules with a
-    witness in [rules_Get.v]. *)
+    The result functions of the Get instructions ([get_denote]), their
+    register steps in closed form, and the rules of GetTag with a witness:
+    GetTag observes the tag, which is exact only under a dereference
+    witness ([wp_gettag_success], the rule of [iInstr]). *)
 
 Section get_definitions.
   Context `{MP: MachineParameters}.
@@ -939,7 +938,7 @@ Section gettag_witness_rules.
   Implicit Types reg : gmap RegName LWord.
   Implicit Types ms : gmap Addr LWord.
 
-  (** ** GetTag with a witness and an observation
+  (** *** GetTag with a witness and an observation
 
       The result is the logical tag, or 0 on a word whose tag may be
       cleared. It is exact under a dereference witness for a word with
@@ -1150,10 +1149,7 @@ Section gettag_witness_rules.
 
 End gettag_witness_rules.
 
-(** ** Seal
-
-    Seal has no WP rule of its own: [iInstr] steps it with the register rules
-    of [rules_regs.v], from its register steps in closed form below. *)
+(** ** Seal *)
 
 Section seal_next_ok.
   Context `{MP : MachineParameters}.
@@ -1222,10 +1218,7 @@ End seal_next_ok.
 #[export] Hint Extern 1 (is_sealr _ && is_sealb _ = false) =>
   first [ reflexivity | eassumption ] : regs_next_ok_db.
 
-(** ** UnSeal
-
-    UnSeal has no WP rule of its own: [iInstr] steps it with the register
-    rules of [rules_regs.v], from its register steps in closed form below. *)
+(** ** UnSeal *)
 
 (** The word an UnSeal writes, on any operands: with a sealing range and a
     sealed word, the sealable unsealed, tagged if the range permits it;
@@ -1314,10 +1307,7 @@ End unseal_next_ok.
 #[export] Hint Extern 1 (is_sealr _ && is_sealed _ = false) =>
   first [ reflexivity | eassumption ] : regs_next_ok_db.
 
-(** ** Auipcc
-
-    Auipcc has no WP rule of its own: [iInstr] steps it with the register
-    rules of [rules_regs.v], from its register steps in closed form below. *)
+(** ** Auipcc *)
 
 Section auipcc_next_ok.
   Context `{MP : MachineParameters}.

@@ -1,5 +1,52 @@
-(* Program logic rules for machine instructions are split into several files,
-   with one file for each instruction, which we import below. *)
+(** * The program-logic rules of the machine instructions
+
+    The rules live in [rules/], in layers.
+
+    - [shapes/]: the shape rules, generic over the step function of the
+      instruction. [step.v]: the lifting of a step to a WP, the outcome of
+      a step in closed form ([faulted_outcome], [step_outcome]), the fault
+      rules ([wp_fault_step], [wp_instr_faulted_0] to [wp_instr_faulted_3]).
+      [regs.v]: the register shape, for an instruction that writes at most
+      one register and moves the PC: [wp_regs_step], its k-ary instances
+      ([wp_regs_next_1] to [wp_regs_next_4], the [_any_dst] forms, the jump
+      rules [wp_regs_jump_0] to [wp_regs_jump_3]), and the hint databases
+      [regs_next_ok_db] and [regs_next_ok_lax_db]. [memory_access.v]: the
+      memory shape: the master load and store rules, the loaded word as a
+      [load_choice], the k-ary load and store rules, and the hint database
+      [mem_next_ok_db].
+    - [instructions/]: one file per family of instructions. Per
+      instruction: its steps in closed form (pure lemmas, [<instr>_next_ok]
+      or [<instr>_jump_agree]), their hint lines, then its dedicated WP
+      rules, where a shape rule is not enough.
+    - [devices/]: the platform devices. [traps/]: trap entry, the cause of
+      a fault, the volatile registers and ecall. [ghost/]: the rules on the
+      ghost state of the registry and of quarantined objects.
+
+    The instructions of [machine_instructions], by file:
+    - [shapes/step.v]: Fail, Halt.
+    - [instructions/arithmetic.v]: Mov, Lt, Le, Add, Sub, Mul, LAnd, LOr,
+      LShiftL, LShiftR.
+    - [instructions/cheri.v]: Lea, SetA, Restrict, Subseg, ClearTag, GetP,
+      GetL, GetB, GetE, GetLen, GetA, GetOType, GetWType, GetTag, Seal,
+      UnSeal, Auipcc.
+    - [instructions/control.v]: Jmp, Jeq, Jne, Jlt, Jle, Jalr.
+    - [instructions/memory_accesses.v]: CLoad, Store (and [devices/] for
+      their device forms).
+    - [instructions/system.v]: Mret, SetMIE, SpecialRW.
+    - [traps/ecall.v]: Ecall.
+
+    [iInstr] finds the rule of an instruction in [proofmode_instr_rules.v]
+    ([dispatch_instr_rule]): a register instruction is stepped by
+    [dispatch_next_ok], which searches [regs_next_ok_db], then
+    [regs_next_ok_lax_db], leaving the undecided facts as side goals; CLoad
+    and Store by [dispatch_mem], which searches [mem_next_ok_db]; only
+    GetTag (its witness rule), Jalr, the system instructions, Ecall, Fail
+    and Halt have named entries.
+
+    A new register or memory instruction needs one lemma in closed form in
+    the file of its family, and one hint line: no WP rule, no dispatch
+    entry, no case of the fundamental theorem. *)
+
 From griotte Require Export
      instructions.arithmetic instructions.cheri instructions.control
      instructions.memory_accesses instructions.system
@@ -27,7 +74,7 @@ From griotte Require Export
 
      {{{ P }}} Instr Executable {{{ s. Q }}}
 
-     (see for instance [rules_Subseg.wp_subseg_rebase])
+     (see for instance [wp_subseg_rebase])
 
   - code fragment: instead of {P} ⇝ {s. Q}, we write:
 

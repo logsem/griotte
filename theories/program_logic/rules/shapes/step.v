@@ -8,6 +8,16 @@ From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
 Import core_link.
 
+(** * The step of an instruction
+
+    Shape layer, generic over the step function of the instruction: the
+    thread values of a step, the lifting of a step to a WP, the lemmas that
+    close the state interpretation after a step, the outcome of a step in
+    closed form ([faulted_outcome], [step_outcome]), the fault rules
+    ([wp_fault_step], [wp_instr_faulted_0] to [wp_instr_faulted_3]), and
+    the rules of Halt and Fail ([wp_halt], [wp_fail]). Every other rules
+    file builds on it. *)
+
 (* ------------------------- the thread languages ------------------------------ *)
 
 (** The value of a configuration flag, if it is one. *)
@@ -645,7 +655,7 @@ End griotte_lang_rules.
     system registers) enters; a model with one changes this definition
     and the closers and tactics that unfold it ([regs_case] and
     [solve_regs_member] in [ftlr_shapes.v], [wp_regs_step] in
-    [rules_regs.v], the register steps in closed form of [regs_next_ok_db]). *)
+    [shapes/regs.v], the register steps in closed form of [regs_next_ok_db]). *)
 Definition regs_effect (φ : ExecConf) : ExecConf := φ.
 
 (** A write to [cnull] is no write. *)

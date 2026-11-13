@@ -5,10 +5,16 @@ From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
 From griotte Require Import machine_base shapes.regs capability_monotonicity_base.
 
+(** * The arithmetic instructions: Mov and BinOp
+
+    Their register steps in closed form, lemmas concluding [regs_next_ok],
+    each registered in [regs_next_ok_db] on the lines after it. They have
+    no WP rule of their own: [iInstr] steps them with the register rules of
+    [shapes/regs.v]. *)
+
 (** ** Mov
 
-    Mov has no WP rule of its own: [iInstr] steps it with the register rules
-    of [rules_regs.v], from its register step in closed form below. *)
+    Mov writes its argument. *)
 
 Section mov_next_ok.
   Context `{MP : MachineParameters}.
@@ -40,8 +46,9 @@ End mov_next_ok.
 
 (** ** BinOp
 
-    The register step of a BinOp in closed form; the operation is
-    [binop_denote]. *)
+    The comparisons and the integer operations (Lt, Le, Add, Sub, Mul,
+    LAnd, LOr, LShiftL, LShiftR): one register step in closed form, the
+    operation is [binop_denote]. *)
 
 Section binop_definitions.
   Context `{MP: MachineParameters}.

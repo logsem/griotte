@@ -1,7 +1,12 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import instructions.memory_accesses shapes.memory_access.
 
-(** * The derived rules of the shadow region *)
+(** * The derived rules of the shadow region
+
+    A platform device: a load from the shadow region reads the status of a
+    heap address, and a store writes it, so they need rules of their own
+    ([wp_load_shadow], [wp_store_shadow]), proved from the lifting of
+    [shapes/step.v], and their point forms. *)
 Section mmio_shadow_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.

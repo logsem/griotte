@@ -5,6 +5,17 @@ From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
 Import core_link.
 
+(** * The system instructions: Mret, SetMIE and SpecialRW
+
+    Each writes MIE or a special register, so it has its own rule, with its
+    outcome in closed form as a [step_outcome]; the rules that [iInstr]
+    uses are derived from it. *)
+
+(** ** Mret
+
+    The return from the exception handler writes MIE and MPIE. One rule
+    ([wp_Mret_link]) with its outcome [mret_outcome]. *)
+
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
@@ -334,6 +345,11 @@ Section griotte_lang_rules_ctx.
   Qed.
 End griotte_lang_rules_ctx.
 
+(** ** SetMIE
+
+    SetMIE writes MIE. One rule ([wp_SetMIE_link]) with its outcome
+    [setmie_outcome]. *)
+
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
@@ -525,6 +541,12 @@ Section griotte_lang_rules_core.
     iNext. iIntros "(HPC & Hpc_a & Hmie & _)". iApply "Hφ". iFrame.
   Qed.
 End griotte_lang_rules_core.
+
+(** ** SpecialRW
+
+    SpecialRW reads and writes the special registers. One rule
+    ([wp_SpecialRW]) with its outcome [specialrw_outcome], and dedicated
+    forms for mtdc and its ghost state. *)
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
@@ -1091,7 +1113,7 @@ Section griotte_lang_rules.
     iApply (sregs_of_map_1 with "Hsmap").
   Qed.
 
-  (** ** mtdc
+  (** *** mtdc
 
       mtdc is a per-thread register with its own ghost state: the fragment
       [mtdc ↦ₜ m] of the thread holds a ghost value [m] that stands for the
