@@ -685,13 +685,32 @@ Lemma faulted_outcome_refl {k : kind} {A} lpc (s : A) :
 Proof. done. Qed.
 
 (** The closed-form outcome of a step whose result [mv] (the new PC and
-    registers) is computed by a pure function, or a fault. *)
-Definition step_outcome {k : kind} (mv : option (LWord * LReg)) (lpc : LWord) (regs : LReg)
-    (lpc' : LWord) (regs' : LReg) (retv : tval k) : Prop :=
+    owned part [s] of the state) is computed by a pure function, or a
+    fault. *)
+Definition step_outcome {k : kind} {A} (mv : option (LWord * A)) (lpc : LWord) (s : A)
+    (lpc' : LWord) (s' : A) (retv : tval k) : Prop :=
   match mv with
-  | Some (l, rs) => retv = NextIV ∧ lpc' = l ∧ regs' = rs
-  | None => faulted_outcome lpc regs lpc' regs' retv
+  | Some (l, s1) => retv = NextIV ∧ lpc' = l ∧ s' = s1
+  | None => faulted_outcome lpc s lpc' s' retv
   end.
+
+Lemma step_outcome_next {k : kind} {A} mv lpc (s : A) lpc' (s' : A) :
+  mv = Some (lpc', s') → step_outcome (k := k) mv lpc s lpc' s' NextIV.
+Proof. by intros ->. Qed.
+
+Lemma step_outcome_fault {k : kind} {A} mv lpc (s : A) :
+  mv = None → step_outcome (k := k) mv lpc s lpc s FaultedV.
+Proof. intros ->. apply faulted_outcome_refl. Qed.
+
+Lemma step_outcome_cases {k : kind} {A} mv lpc (s : A) lpc' (s' : A) (retv : tval k) :
+  step_outcome mv lpc s lpc' s' retv →
+  (mv = Some (lpc', s') ∧ retv = NextIV) ∨
+  (mv = None ∧ faulted_outcome lpc s lpc' s' retv).
+Proof.
+  destruct mv as [ [l s1] | ]; intros Hout.
+  - destruct Hout as (-> & -> & ->). by left.
+  - right. split; [done | exact Hout].
+Qed.
 
 (** A fault: on every physical copy of the owned registers (each exact or
     stripped) whose PC is the logical one, the step does not happen. *)
