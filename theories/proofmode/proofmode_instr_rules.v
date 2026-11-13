@@ -14,7 +14,9 @@ Set Default Proof Mode "Classic".
     when it is [cnull] or absent. The premise of the rule ([regs_next_ok]
     or [regs_jump_agree]) is the instruction's register step in closed
     form, found in the hint database [regs_next_ok_db]
-    ([solve_regs_next_ok]), or named by the client
+    ([solve_regs_next_ok]), else a case lemma of [regs_next_ok_lax_db]
+    whose undecided facts are left as side goals ([solve_regs_next_ok_lax]),
+    or named by the client
     ([iInstr "H" using s], [proofmode.v]). The operands are read from the
     instruction term. *)
 
@@ -64,13 +66,16 @@ Ltac regs_remove r regs :=
       end
   end.
 
-(* The search in [regs_next_ok_db], or the lemma [s] named by the client. *)
+(* The search in [regs_next_ok_db], else the lax search in
+   [regs_next_ok_lax_db], or the lemma [s] named by the client. *)
 Ltac regs_next_ok_solver s instr :=
   lazymatch s with
   | tt =>
-      solve_regs_next_ok ||
-      fail "No lemma in regs_next_ok_db closes" instr
-           "(name one with: iInstr ""H"" using <lemma>)"
+      first
+        [ solve_regs_next_ok
+        | solve_regs_next_ok_lax
+        | fail "No lemma in regs_next_ok_db closes" instr
+               "(name one with: iInstr ""H"" using <lemma>)" ]
   | _ => regs_next_ok_using s
   end.
 
@@ -344,11 +349,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Mret => cont (@wp_mret_success)
   (* Ecall: the exception entry, at the core link *)
   | Ecall => cont (@wp_ecall)
-  (* Auipcc: an address result that the search does not decide is left as a
-     side goal *)
-  | Auipcc _ _ =>
-    first [ dispatch_next_ok instr cont
-          | dispatch_next_ok_using constr:(@auipcc_next_ok) instr cont ]
   (* Fail *)
   | Fail => cont (@wp_fail)
   (* Halt *)

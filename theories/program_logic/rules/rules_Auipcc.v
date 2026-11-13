@@ -39,3 +39,4 @@ End auipcc_next_ok.
 
 #[export] Hint Resolve auipcc_next_ok | 0 : regs_next_ok_db.
 #[export] Hint Resolve auipcc_next_ok_overflow | 1 : regs_next_ok_db.
+#[export] Hint Resolve auipcc_next_ok : regs_next_ok_lax_db.

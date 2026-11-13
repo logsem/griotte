@@ -432,7 +432,8 @@ Ltac regs_next_ok_lookup :=
 
 (* An address result: from the context, or by the [IncrFinZ] instances of
    [solve_pure], which the search also uses. Otherwise the lemma does not
-   apply; [iInstr "H" using s] leaves the fact as a side goal. *)
+   apply; the lax search ([solve_regs_next_ok_lax]) or [iInstr "H" using s]
+   leaves the fact as a side goal. *)
 #[global] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
@@ -526,3 +527,45 @@ Ltac regs_next_ok_using s :=
   regs_next_ok_intros;
   first [ eapply s | eapply regs_next_ok_cnull_jump; eapply s ];
   try solve_regs_next_ok_frozen.
+
+(** The lax search in [regs_next_ok_lax_db]: a case lemma whose operand
+    premises hold, its other premises postponed (shelved during the search,
+    then returned as side goals in their order). *)
+
+(* An operand premise, solved as in the strict search. *)
+#[global] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_lax_db.
+#[global] Hint Extern 0 (lz_of_argument _ _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+
+(* Any other premise of a case lemma is postponed. *)
+Ltac regs_next_ok_postpone :=
+  lazymatch goal with
+  | |- regs_next_ok _ _ _ _ _ _ _ => fail
+  | |- regs_jump_agree _ _ _ _ _ => fail
+  | |- _ !!ₗ _ = Some _ => fail
+  | |- lz_of_argument _ _ = Some _ => fail
+  | |- _ => shelve
+  end.
+
+#[global] Hint Extern 100 => regs_next_ok_postpone : regs_next_ok_lax_db.
+
+(* A postponed premise: an evar of the lemma is shelved again; a fact with no
+   evar is tried once by the strict search; the rest is a side goal. A fact
+   with an evar is not searched: a hint could fix the evar to a value that the
+   client does not want ([PermFlowsTo ?p p] by reflexivity, for instance). *)
+Ltac regs_next_ok_postponed_premise :=
+  lazymatch goal with
+  | |- ?G =>
+      lazymatch type of G with
+      | Prop => tryif has_evar G then idtac else (try solve_regs_next_ok_frozen)
+      | _ => shelve
+      end
+  end.
+
+Ltac solve_regs_next_ok_lax :=
+  regs_next_ok_intros;
+  ltac2:(griotte_freeze_hyps_once ());
+  unshelve (typeclasses eauto 8 with regs_next_ok_lax_db);
+  unfreeze_hyps;
+  [ regs_next_ok_postponed_premise .. ].

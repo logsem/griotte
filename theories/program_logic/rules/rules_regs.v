@@ -294,6 +294,21 @@ Create HintDb regs_next_ok_db discriminated.
 #[global] Hint Resolve lz_of_argument_reg_int | 1 : regs_next_ok_db.
 #[global] Hint Resolve lz_of_argument_reg | 5 : regs_next_ok_db.
 
+(** When no lemma of [regs_next_ok_db] closes a step, [iInstr] applies a
+    case lemma of the hint database [regs_next_ok_lax_db], chosen by the
+    instruction and the shape of the operands. Its operand premises are
+    solved as in [regs_next_ok_db], its other premises (facts that the
+    search does not decide, an address result for instance) are left to
+    the client. A case lemma is registered there on the line after its
+    registration in [regs_next_ok_db]. *)
+Create HintDb regs_next_ok_lax_db discriminated.
+#[global] Hint Constants Opaque : regs_next_ok_lax_db.
+#[global] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_lax_db.
+#[global] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_lax_db.
+#[global] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_lax_db.
+#[global] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
+  simple eapply regs_next_ok_cnull_jump : regs_next_ok_lax_db.
+
 (** ** The generic rule *)
 
 (** The outcome of a register step whose PC move gives [mv]: the move and
