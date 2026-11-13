@@ -1,12 +1,9 @@
 (* Program logic rules for machine instructions are split into several files,
    with one file for each instruction, which we import below. *)
 From griotte Require Export
-     rules_Get rules_ClearTag rules_Load rules_Store rules_mmio_shadow rules_mmio_revoker
-     rules_mmio_timer rules_BinOp
-     rules_Lea rules_SetA rules_Mov rules_Restrict rules_Subseg
-     rules_Jmp rules_JCond rules_Jalr
-     rules_Seal rules_UnSeal
-     rules_SpecialRW rules_SetMIE rules_Mret rules_Ecall rules_Auipcc rules_registry rules_trap_entry.
+     rules_Get rules_Load rules_Store rules_mmio_shadow rules_mmio_revoker
+     rules_mmio_timer rules_BinOp rules_regs_steps rules_Subseg rules_Jalr
+     rules_SpecialRW rules_SetMIE rules_Mret rules_Ecall rules_registry rules_trap_entry.
 
 (** Program specifications
 

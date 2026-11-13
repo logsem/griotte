@@ -2,7 +2,7 @@ From Stdlib Require Import ZArith Lia ssreflect.
 From stdpp Require Import base.
 From griotte Require Import machine_base machine_parameters solve_addr.
 From griotte Require Export solve_addr_extra classes class_instances.
-From griotte Require Import rules_Get rules_BinOp rules_JCond.
+From griotte Require Import rules_Get rules_BinOp rules_regs_steps.
 From machine_utils Require Export solve_pure.
 From Ltac2 Require Import Ltac2.
 Set Default Proof Mode "Classic".

@@ -3,7 +3,6 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base.
-From griotte Require Import rules_regs.
 From griotte Require Import machine_base.
 
 Section griotte_lang_rules.
@@ -74,26 +73,3 @@ Proof. intros; unfold is_BinOp; naive_solver. Qed.
 #[export] Hint Resolve is_BinOp_LShiftR : core.
 #[export] Hint Resolve is_BinOp_Lt : core.
 #[export] Hint Resolve is_BinOp_Le : core.
-
-(** ** The register step in closed form *)
-
-Section binop_next_ok.
-  Context `{MP : MachineParameters}.
-
-  (** A BinOp writes the denotation of its operands, untagged. A register
-      operand gives the address of its word ([lz_of_argument]): an integer,
-      or the address of a capability. *)
-  Lemma binop_next_ok i p lpc regs dst ρ1 ρ2 n1 n2 :
-    is_BinOp i dst ρ1 ρ2 →
-    lz_of_argument regs ρ1 = Some n1 →
-    lz_of_argument regs ρ2 = Some n2 →
-    regs_next_ok i p lpc regs dst (WInt (denote i n1 n2) @@? None) 1.
-  Proof.
-    intros Hi Hn1 Hn2. exists (λ _, true). split; first by apply lsource_untagged.
-    intros φ S _ Hcopy. destruct_or! Hi; subst i;
-      by rewrite /= (regs_copy_z _ _ _ _ _ Hcopy Hn1) (regs_copy_z _ _ _ _ _ Hcopy Hn2)
-        /= /regs_effect.
-  Qed.
-End binop_next_ok.
-
-#[export] Hint Resolve binop_next_ok | 0 : regs_next_ok_db.
