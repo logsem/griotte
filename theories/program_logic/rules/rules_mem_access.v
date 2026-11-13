@@ -132,18 +132,19 @@ Section mem_access_pure.
       mmio_load φ ea = Some w →
       nextPC (φ .[dst :=ᵣ w]) = Some c → load_step dst r imm φ c.
 
-  (** Stores, of a word that [wok] allows. *)
-  Inductive store_step (wok : ExecConf → Word → Prop) (r : RegName) (imm : Z)
+  (** Stores, of a word that [stored_word_ok] allows. *)
+  Inductive store_step (stored_word_ok : ExecConf → Word → Prop) (r : RegName) (imm : Z)
       (φ : ExecConf) (c : Conf) : Prop :=
   (* A plain store to a cell. *)
   | ss_cell p ea w :
       mem_access_authorised writeAllowed φ r imm p ea → is_mmio_address ea = false →
-      is_Some (mem φ !! ea) → wok φ w →
-      nextPC ((store_effect ea φ) .[ea :=ₐ store_word p w]) = Some c → store_step wok r imm φ c
+      is_Some (mem φ !! ea) → stored_word_ok φ w →
+      nextPC ((store_effect ea φ) .[ea :=ₐ store_word p w]) = Some c →
+      store_step stored_word_ok r imm φ c
   (* A store answered by a device. *)
   | ss_device p ea w φ' :
       mem_access_authorised writeAllowed φ r imm p ea → is_mmio_address ea = true →
-      mmio_store φ ea w = Some φ' → nextPC φ' = Some c → store_step wok r imm φ c.
+      mmio_store φ ea w = Some φ' → nextPC φ' = Some c → store_step stored_word_ok r imm φ c.
 
   (** The membership, for a step function [step]: the WP rules take
       [exec_opt]; another semantics reuses the definitions and tactics with
@@ -152,8 +153,8 @@ Section mem_access_pure.
       (i : instr) (dst r : RegName) (imm : Z) : Prop :=
     ∀ p φ c, step i p φ = Some c → load_step dst r imm φ c.
   Definition store_member (step : instr → Perm → ExecConf → option Conf)
-      (wok : ExecConf → Word → Prop) (i : instr) (r : RegName) (imm : Z) : Prop :=
-    ∀ p φ c, step i p φ = Some c → store_step wok r imm φ c.
+      (stored_word_ok : ExecConf → Word → Prop) (i : instr) (r : RegName) (imm : Z) : Prop :=
+    ∀ p φ c, step i p φ = Some c → store_step stored_word_ok r imm φ c.
 
   (** The devices answer loads with integers. *)
   Lemma mmio_load_untagged φ ea w : mmio_load φ ea = Some w → get_tag w = false.
@@ -180,10 +181,11 @@ Section mem_access_pure.
   Qed.
   #[local] Arguments mem_access_authorised_reg_allows k {R regs φ r imm p ea}.
 
-  (** Every word that [wok] allows lifts to a logical word with [Q]. *)
-  Definition store_lift (wok : ExecConf → Word → Prop) (Q : LWord → Prop) (regs : LReg) : Prop :=
+  (** Every word that [stored_word_ok] allows lifts to a logical word with [Q]. *)
+  Definition store_lift (stored_word_ok : ExecConf → Word → Prop) (Q : LWord → Prop) (regs : LReg) :
+      Prop :=
     ∀ R C φ lpc lreg lsreg lmem w, erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg →
-      wok φ w → ∃ v, Q v ∧ reg_word_ok R C v ∧ reg_phys R v w.
+      stored_word_ok φ w → ∃ v, Q v ∧ reg_word_ok R C v ∧ reg_phys R v w.
 
   (** ** Outcomes *)
 
@@ -242,9 +244,10 @@ Section mem_access_pure.
 
   (** A store step writes the logical word of [store_lift] to a wholly
       owned cell, or writes a time device. *)
-  Lemma store_step_inv wok Q R C φ lpc lreg lsreg lmem regs r imm (mem : LMem) dfracs c :
+  Lemma store_step_inv stored_word_ok Q R C φ lpc lreg lsreg lmem regs r imm (mem : LMem) dfracs c :
     erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg → r ∈ dom regs →
-    store_lift wok Q regs → mem_access_footprint MemAccessWrite regs r imm mem dfracs → store_step wok r imm φ c →
+    store_lift stored_word_ok Q regs → mem_access_footprint MemAccessWrite regs r imm mem dfracs →
+    store_step stored_word_ok r imm φ c →
     ∃ p g b e a ea, reg_allows_mem_access MemAccessWrite regs r imm p g b e a ea ∧
       ((∃ v pw, Q v ∧ is_Some (mem !! ea) ∧ dfracs !! ea = Some (DfracOwn 1) ∧
           mem_word_ok R C (lstore_word p v) pw ∧
@@ -276,7 +279,8 @@ Section mem_access_pure.
 End mem_access_pure.
 
 #[local] Arguments load_step_inv {MP R C φ lpc lreg lsreg lmem regs dst r imm mem dfracs c}.
-#[local] Arguments store_step_inv {MP wok Q R C φ lpc lreg lsreg lmem regs r imm mem dfracs c}.
+#[local] Arguments store_step_inv
+  {MP stored_word_ok Q R C φ lpc lreg lsreg lmem regs r imm mem dfracs c}.
 
 (** Closes [mem_access_authorised perm_ok φ r imm p ea] from the lookup of [r] and the
     checks of the step, split at their conjunctions. *)
@@ -310,10 +314,10 @@ Lemma CLoad_member `{MachineParameters} dst src imm :
 Proof. solve_mem_access_member. Qed.
 
 (** [Store dst ρ imm] writes the word of its argument [ρ] at the address
-    that [dst] authorises at offset [imm]; that word has [wok]. *)
-Lemma Store_member `{MachineParameters} (wok : ExecConf → Word → Prop) dst ρ imm :
-  (∀ φ w, word_of_argument (reg φ) ρ = Some w → wok φ w) →
-  store_member exec_opt wok (Store dst ρ imm) dst imm.
+    that [dst] authorises at offset [imm]; that word has [stored_word_ok]. *)
+Lemma Store_member `{MachineParameters} (stored_word_ok : ExecConf → Word → Prop) dst ρ imm :
+  (∀ φ w, word_of_argument (reg φ) ρ = Some w → stored_word_ok φ w) →
+  store_member exec_opt stored_word_ok (Store dst ρ imm) dst imm.
 Proof.
   intros Hwok. solve_mem_access_member_with ltac:(by eapply Hwok).
 Qed.
@@ -459,17 +463,18 @@ Section mem_access_rules.
     iIntros (lpc' regs' retv Hres) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  (** A store of a membership [store_member exec_opt wok i r imm], whose
-      stored word lifts to a logical word with [Q] ([store_lift]), with the
+  (** A store of a membership [store_member exec_opt stored_word_ok i r imm],
+      whose stored word lifts to a logical word with [Q] ([store_lift]), with the
       cells [mem] that [r] may write (wholly owned, the PC's cell included):
       a fault, or the PC incremented and a cell of [mem] holding the stored
       word as [lstore_word] writes it, or a device written
       ([store_result]). *)
-  Lemma wp_store_step Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm wok (Q : LWord → Prop)
-      (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
-    decodeInstrW w.(lw) = i → store_member exec_opt wok i r imm → sw_of (kind_of th) i = None →
+  Lemma wp_store_step Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
+      (Q : LWord → Prop) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
+    decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm →
+    sw_of (kind_of th) i = None →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    r ∈ dom regs → store_lift wok Q regs →
+    r ∈ dom regs → store_lift stored_word_ok Q regs →
     mem !! pc_a = Some w → dom dfracs = dom mem → mem_access_footprint MemAccessWrite regs r imm mem dfracs →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ ([∗ map] a↦dv ∈ prod_merge dfracs mem, a ↦ₐ{dv.1} dv.2) ∗
