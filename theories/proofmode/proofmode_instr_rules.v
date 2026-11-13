@@ -6,13 +6,6 @@ From griotte Require Import rules rules_regs solve_pure machine_instructions
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
-Ltac dispatch_Get r1 r2 cont :=
-  let p := constr:((r1, r2)) in
-  lazymatch p with
-  | (?r, ?r) => cont (@wp_Get_same_success)
-  | _ => cont (@wp_Get_success)
-  end.
-
 (* A conditional jump: the rule of the taken jump, else the rule of the
    fall-through. Each commits its comparison ([instr_commit_lint]). *)
 Ltac dispatch_JCond off x1 x2 cont :=
@@ -254,18 +247,10 @@ Ltac dispatch_next_ok instr cont := dispatch_next_ok_using constr:(tt) instr con
 Ltac dispatch_instr_rule instr cont :=
   let instr := eval unfold register_file.regn, register_file.cst in instr in
   lazymatch instr with
-  (* Get *)
-  | GetL ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetP ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetB ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetE ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetLen ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetA ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetOType ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetWType ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetTag cnull cnull => cont (@wp_GetTag_cnull)
-  | GetTag cnull _ => cont (@wp_GetTag_to_cnull)
-  | GetTag _ cnull => cont (@wp_GetTag_from_cnull)
+  (* GetTag: the rule with the dereference witness; the cnull forms through
+     the register steps in closed form *)
+  | GetTag cnull _ => dispatch_next_ok instr cont
+  | GetTag _ cnull => dispatch_next_ok instr cont
   | GetTag _ _ => cont (@wp_gettag_success)
   (* ClearTag *)
   | ClearTag cnull cnull => cont (@wp_ClearTag_cnull)

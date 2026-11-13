@@ -437,6 +437,12 @@ Ltac regs_next_ok_lookup :=
 #[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
 
+(* An untagged word: a literal, or a fact of the context. *)
+#[global] Hint Extern 1 (get_tag _ = false) =>
+  first [ reflexivity
+        | match goal with H : InCtx (get_tag _ = false) |- _ => exact H end ]
+  : regs_next_ok_db.
+
 (* The search, under frozen hypotheses (as [solve_pure_iinstr]). *)
 Ltac solve_regs_next_ok_frozen :=
   ltac2:(griotte_freeze_hyps_once ());

@@ -50,25 +50,6 @@ Section griotte_lang_rules.
     i = GetTag dst src
   .
 
-  Lemma operands_of_is_Get i dst src :
-    is_Get i dst src →
-    operands_of i = {[ dst; src ]}.
-  Proof.
-    intros HH. destruct_or! HH; subst i; reflexivity.
-  Qed.
-
-  (** Every Get reads a result from any word. *)
-  Lemma denote_is_Get i dst src (w : Word) :
-    is_Get i dst src → is_Some (denote i w).
-  Proof. intros HH. destruct_or! HH; subst i; cbn; destruct w; by eexists. Qed.
-
-  Inductive Get_failure (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName) :=
-    | Get_fail_overflow_PC w z:
-        regs !!ₗ src = Some w →
-        denote i w.(lw) = Some z →
-        incrementPC lpc = None →
-        Get_failure i lpc regs dst src.
-
   (** The words whose physical tag may be cleared while the logical one is
       set: words with an identifier, and heap-based words without
       authority. *)
@@ -84,28 +65,6 @@ Section griotte_lang_rules.
     - left. by rewrite Hι.
     - by right.
   Qed.
-
-  Inductive Get_spec {k : kind} (i: instr) (lpc : LWord) (regs : LReg) (dst src: RegName)
-    (lpc' : LWord) (regs' : LReg): tval k -> Prop :=
-    | Get_spec_success w z:
-        regs !!ₗ src = Some w →
-        denote i w.(lw) = Some z →
-        incrementPC lpc = Some lpc' →
-        regs' = <[ dst := WInt z ]ₗ> regs →
-        Get_spec i lpc regs dst src lpc' regs' NextIV
-    (* GetTag returns 0 on a word whose tag may have been cleared. *)
-    | Get_spec_success_cleared w:
-        i = GetTag dst src →
-        regs !!ₗ src = Some w →
-        tag_strippable w →
-        incrementPC lpc = Some lpc' →
-        regs' = <[ dst := WInt 0 ]ₗ> regs →
-        Get_spec i lpc regs dst src lpc' regs' NextIV
-    | Get_spec_failure:
-        Get_failure i lpc regs dst src →
-        lpc' = lpc →
-        regs' = regs →
-        Get_spec i lpc regs dst src lpc' regs' FaultedV.
 
   Lemma exec_opt_Get i dst src p (pc : Word) (r : Reg) sr m st td (wsrc : Word) :
     is_Get i dst src →
@@ -131,243 +90,6 @@ Section griotte_lang_rules.
     all: try (by destruct s, w as [| [] | | ? [] ]).
     f_equal. pose proof (encodeWordType_correct (and_tag s w) w) as Heq.
     by destruct w as [| [] | | ? [] ].
-  Qed.
-
-  Lemma wp_Get Ep pc_p pc_g pc_b pc_e pc_a pc_π w get_i dst src regs dq :
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i dst src →
-
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    regs_of get_i ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
-        ⌜ Get_spec (decodeInstrW w.(lw)) (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst src lpc' regs' retv ⌝ ∗
-        PC ↦ₚ lpc' ∗
-        pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hdecode; apply sw_of_none; intros ->; destruct_or! Hinstr; discriminate|..]; eauto.
-    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    rewrite Hdecode /exec in Hstep. rewrite Hdecode.
-    specialize (indom_lregs_incl _ _ _ Dregs Hlregs) as Hri.
-    erewrite operands_of_is_Get in Hri; eauto.
-    destruct (Hri src) as [wsrc [H'src _] ]; first by set_solver+.
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs H'src) as (s & Hsrc & Hrel).
-    rewrite (exec_opt_Get _ _ _ _ _ _ _ _ _ _ _ Hinstr Hsrc) denote_and_tag in Hstep.
-    destruct (decide (get_i = GetTag dst src ∧ s = false ∧ get_tag wsrc.(lw) = true))
-      as [(-> & -> & Ht) | Hexact].
-    { (* The physical tag is cleared. *)
-      rewrite Ht /= in Hstep.
-      iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt 0)) _ _ _ _
-        (λ lpc' regs' retv, Get_spec (GetTag dst src) _ regs dst src lpc' regs' retv)
-        with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-      { exact Her. } { exact Hlregs. }
-      { eapply elem_of_lregs_dom; [exact Dregs | erewrite operands_of_is_Get; eauto; set_solver+]. }
-      { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
-      { intros. eapply Get_spec_success_cleared; eauto.
-        apply (reg_phys_tag_strippable R); last done. by rewrite and_tag_false in Hrel. }
-      { intros. apply Get_spec_failure; [|done..]. by eapply (Get_fail_overflow_PC _ _ _ _ _ wsrc (Z.b2z (get_tag wsrc.(lw)))). }
-      iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame. }
-    assert ((match get_i with
-             | GetTag _ _ => Some (Z.b2z (s && get_tag wsrc.(lw)))
-             | _ => denote get_i wsrc.(lw)
-             end) = denote get_i wsrc.(lw)) as Hden.
-    { destruct_or! Hinstr; rewrite Hinstr; cbn; try done. f_equal.
-      destruct s, (get_tag wsrc.(lw)); naive_solver. }
-    rewrite Hden in Hstep.
-    destruct (denote_is_Get _ _ _ wsrc.(lw) Hinstr) as [z Hwsrc].
-    rewrite Hwsrc in Hstep.
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst (lword_of_word (WInt z)) _ _ _ _
-      (λ lpc' regs' retv, Get_spec get_i _ regs dst src lpc' regs' retv)
-      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-    { exact Her. } { exact Hlregs. }
-    { eapply elem_of_lregs_dom; [exact Dregs | erewrite operands_of_is_Get; eauto; set_solver+]. }
-    { apply reg_word_ok_int. } { exact Hstep. } { apply reg_phys_lword_of_word. }
-    { intros. by econstructor. }
-    { intros. apply Get_spec_failure; [|done..]. by eapply Get_fail_overflow_PC. }
-    iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
-  Qed.
-
-  (* Note that other cases than WCap in the PC are irrelevant, as that will result in having an incorrect PC *)
-
-  (** The results a Get may write: the denotation of its source, or 0 for a
-      GetTag of a word whose tag may have been cleared. *)
-  Definition get_result (i : instr) (w : LWord) (z : Z) : Prop :=
-    denote i w.(lw) = Some z ∨
-    ((∃ d s, i = GetTag d s) ∧ z = 0%Z ∧ tag_strippable w).
-
-  (** The result of a Get other than GetTag is its denotation. *)
-  Lemma get_result_exact i w z z' :
-    get_result i w z → denote i w.(lw) = Some z' →
-    (∀ dst' src', i ≠ GetTag dst' src') → z = z'.
-  Proof.
-    intros [Hz | ((d & s & ->) & -> & Hs)] Hz' Hnot; first congruence.
-    by exfalso; apply (Hnot d s).
-  Qed.
-
-  (** A successful Get writes a [get_result]. *)
-  Lemma Get_spec_next {k : kind} i lpc regs dst src lpc' regs' wsrc :
-    regs !!ₗ src = Some wsrc →
-    Get_spec i lpc regs dst src lpc' regs' (@NextIV k) →
-    incrementPC lpc = Some lpc' ∧
-    ∃ z, get_result i wsrc z ∧ regs' = <[dst := WInt z]ₗ> regs.
-  Proof.
-    intros Hsrc Hspec. inversion Hspec as [w z Hw Hz Hinc | w Hi Hw Hs Hinc | ]; subst;
-      rewrite Hsrc in Hw; simplify_eq; split; try done.
-    - exists z. split; [by left | done].
-    - exists 0%Z. split; [right; eauto | done].
-  Qed.
-
-  (** A Get whose source denotes and whose PC increments does not fail. *)
-  Lemma Get_spec_not_faulted {k : kind} i lpc regs dst src lpc' regs' wsrc lpc0 :
-    regs !!ₗ src = Some wsrc →
-    is_Some (denote i wsrc.(lw)) →
-    incrementPC lpc = Some lpc0 →
-    ¬ Get_spec i lpc regs dst src lpc' regs' (@FaultedV k).
-  Proof.
-    intros Hsrc [z Hz] Hinc Hspec. inversion Hspec as [| | Hfail]; subst.
-    destruct Hfail as [w z' Hw Hd Hi]; rewrite Hsrc in Hw; simplify_eq; congruence.
-  Qed.
-
-  (** The map-form success rule, from which the register-shaped ones
-      follow. *)
-  Lemma wp_Get_next E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w regs wsrc lpc' dq :
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i dst src →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    {[dst; src]} ∖ {[ cnull ]} ⊆ dom regs →
-    regs !!ₗ src = Some wsrc →
-    is_Some (denote get_i wsrc.(lw)) →
-    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ E
-    {{{ z, RET NextIV;
-        ⌜get_result get_i wsrc z⌝ ∗
-        PC ↦ₚ lpc' ∗
-        pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ <[dst := WInt z]ₗ> regs, k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hdecode Hi Hvpc Hdom Hsrc Hden Hinc φ) "(HPC & Hpc_a & Hmap) Hφ".
-    iApply (wp_Get with "[$HPC $Hpc_a $Hmap]"); eauto.
-    { rewrite /regs_of. by erewrite operands_of_is_Get. }
-    iIntros "!>" (lpc0 regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    rewrite Hdecode in Hspec.
-    assert (retv = NextIV) as ->.
-    { inversion Hspec; subst; [done | done |]. exfalso. by eapply Get_spec_not_faulted. }
-    destruct (Get_spec_next _ _ _ _ _ _ _ _ Hsrc Hspec) as (Hinc' & z & Hz & ->).
-    rewrite Hinc in Hinc'. simplify_eq. iApply "Hφ". by iFrame.
-  Qed.
-
-  Lemma wp_Get_same_success E get_i r pc_p pc_g pc_b pc_e pc_a pc_π w wr pc_a' z dq:
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i r r →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' ->
-    (∀ dst' src', get_i ≠ GetTag dst' src') →
-    denote get_i wr.(lw) = Some z →
-    r ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ r ↦ᵣ wr }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ r ↦ᵣ WInt z }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hnot_tag Hdenote Hcnull φ) "(HPC & Hpc_a & >Hr) Hφ".
-    iDestruct (map_of_regs_1 with "Hr") as "Hmap".
-    iApply (wp_Get_next _ get_i r r _ _ _ _ _ _ _ _ wr with "[$HPC $Hpc_a $Hmap]");
-      try solve_next_side; try by eexists.
-    iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    rewrite (get_result_exact _ _ _ z Hz Hdenote Hnot_tag).
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_Get_success E get_i dst src pc_p pc_g pc_b pc_e pc_a pc_π w wsrc wdst pc_a' z dq :
-    decodeInstrW w.(lw) = get_i →
-    is_Get get_i dst src →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' ->
-    (∀ dst' src', get_i ≠ GetTag dst' src') →
-    denote get_i wsrc.(lw) = Some z →
-    src ≠ cnull ->
-    dst ≠ cnull ->
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π
-        ∗ ▷ pc_a ↦ₐ{dq} w
-        ∗ ▷ src ↦ᵣ wsrc
-        ∗ ▷ dst ↦ᵣ wdst }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π
-          ∗ pc_a ↦ₐ{dq} w
-          ∗ src ↦ᵣ wsrc
-          ∗ dst ↦ᵣ WInt z }}}.
-  Proof.
-    iIntros (Hdecode Hinstr Hvpc Hpca' Hnot_tag Hdenote Hcnull Hcnull' φ)
-      "(HPC & Hpc_a & >Hsrc & >Hdst) Hφ".
-    iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %]".
-    iApply (wp_Get_next _ get_i dst src _ _ _ _ _ _ _ _ wsrc with "[$HPC $Hpc_a $Hmap]");
-      try solve_next_side; try by eexists.
-    iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    rewrite (get_result_exact _ _ _ z Hz Hdenote Hnot_tag).
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_GetTag_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq :
-    decodeInstrW w.(lw) = GetTag cnull cnull →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w }}}
-      Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w }}}.
-  Proof.
-    iIntros (Hdecode Hvpc Hpca' φ) "(HPC & Hpc_a) Hφ".
-    iApply (wp_Get_next _ (GetTag cnull cnull) cnull cnull _ _ _ _ _ _ _ ∅ lnull
-      with "[$HPC $Hpc_a]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
-    iIntros "!>" (z') "(_ & HPC & Hpc_a & _)". iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_GetTag_from_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wd dq :
-    decodeInstrW w.(lw) = GetTag dst cnull →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' → dst ≠ cnull →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ dst ↦ᵣ wd }}}
-      Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ dst ↦ᵣ WInt 0%Z }}}.
-  Proof.
-    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hd) Hφ".
-    iDestruct (map_of_regs_1 with "Hd") as "Hmap".
-    iApply (wp_Get_next _ (GetTag dst cnull) dst cnull _ _ _ _ _ _ _ _ lnull
-      with "[$HPC $Hpc_a $Hmap]"); try solve_next_side; try (by unfold is_Get; tauto); try by eexists.
-    iIntros "!>" (z') "(%Hz & HPC & Hpc_a & Hmap)".
-    assert (z' = 0%Z) as -> by (destruct Hz as [Hz | (_ & -> & [Ht _])]; by simplify_eq/=).
-    iRegsMapWrite "Hmap". iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_GetTag_to_cnull E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w src ws dq :
-    decodeInstrW w.(lw) = GetTag cnull src →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' → src ≠ cnull →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ ▷ pc_a ↦ₐ{dq} w ∗ ▷ src ↦ᵣ ws }}}
-      Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗ src ↦ᵣ ws }}}.
-  Proof.
-    iIntros (Hdecode Hvpc Hpca' Hne φ) "(HPC & Hpc_a & >Hs) Hφ".
-    iDestruct (map_of_regs_1 with "Hs") as "Hmap".
-    iApply (wp_Get_next _ (GetTag cnull src) cnull src _ _ _ _ _ _ _ _ ws
-      with "[$HPC $Hpc_a $Hmap]"); try solve_next_side;
-      try (by unfold is_Get; tauto); try (destruct_word (lw ws); by eexists).
-    iIntros "!>" (z') "(_ & HPC & Hpc_a & Hmap)".
-    rewrite linsert_reg_cnull. iRegsMap "Hmap". iApply "Hφ". iFrame.
   Qed.
 
   (** ** GetTag with a witness and an observation
@@ -619,3 +341,58 @@ Lemma gettag_denote `{MachineParameters} dst src w :
   denote (GetTag dst src) w = Some (Z.b2z (get_tag w)).
 Proof. by destruct_word w. Qed.
 #[export] Hint Resolve is_Get_GetTag gettag_denote : core.
+
+(** ** The register steps in closed form *)
+
+Section get_next_ok.
+  Context `{MP : MachineParameters}.
+
+  (** A Get other than GetTag reads the same result on a stripped copy. *)
+  Lemma denote_and_tag_not_gettag i dst src s (w : Word) :
+    is_Get i dst src → i ≠ GetTag dst src → denote i (and_tag s w) = denote i w.
+  Proof.
+    intros Hi Hnot. rewrite denote_and_tag.
+    destruct_or! Hi; subst i; first [done | by destruct Hnot].
+  Qed.
+
+  (** A Get other than GetTag writes the denotation of its source,
+      untagged. *)
+  Lemma get_next_ok i dst src p lpc regs v z :
+    is_Get i dst src → i ≠ GetTag dst src →
+    regs !!ₗ src = Some v → denote i v.(lw) = Some z →
+    regs_next_ok i p lpc regs dst (WInt z @@? None) 1.
+  Proof.
+    intros Hi Hnot Hsrc Hz. exists (λ _, true). split; first by apply lsource_untagged.
+    intros [pc r sr m st td] S _ Hcopy.
+    rewrite /regs_effect (exec_opt_Get i dst src _ _ _ _ _ _ _ _ Hi
+                            (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
+    by rewrite (denote_and_tag_not_gettag i dst src _ _ Hi Hnot) Hz and_tag_true.
+  Qed.
+
+  (** GetTag of an untagged word writes 0. *)
+  Lemma gettag_next_ok_untagged dst src p lpc regs v :
+    regs !!ₗ src = Some v → get_tag v.(lw) = false →
+    regs_next_ok (GetTag dst src) p lpc regs dst (WInt 0 @@? None) 1.
+  Proof.
+    intros Hsrc Ht. exists (λ _, true). split; first by apply lsource_untagged.
+    intros [pc r sr m st td] S _ Hcopy.
+    rewrite /regs_effect (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ _
+                            (is_Get_GetTag dst src) (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
+    by rewrite gettag_denote get_tag_and_tag Ht andb_false_r and_tag_true.
+  Qed.
+
+  (** GetTag to [cnull] writes nothing. *)
+  Lemma gettag_jump_agree_to_cnull src p lpc regs v :
+    regs !!ₗ src = Some v → regs_jump_agree (GetTag cnull src) p lpc regs 1.
+  Proof.
+    intros Hsrc [pc r sr m st td] S _ Hcopy.
+    rewrite /regs_effect (exec_opt_Get (GetTag cnull src) cnull src _ _ _ _ _ _ _ _
+                            (is_Get_GetTag cnull src) (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
+    rewrite gettag_denote. cbv iota. by rewrite update_reg_cnull.
+  Qed.
+End get_next_ok.
+
+#[export] Hint Extern 0 (_ ≠ GetTag _ _) => discriminate : regs_next_ok_db.
+#[export] Hint Resolve gettag_next_ok_untagged | 0 : regs_next_ok_db.
+#[export] Hint Resolve gettag_jump_agree_to_cnull | 0 : regs_next_ok_db.
+#[export] Hint Resolve get_next_ok | 5 : regs_next_ok_db.
