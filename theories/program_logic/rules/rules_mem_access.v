@@ -268,6 +268,18 @@ Section mem_access_pure.
     rewrite /nextPC Hadv. by eexists.
   Qed.
 
+  (** On a copy of the owned registers ([regs_fault]'s premise), a register
+      read by the instruction has a copy. *)
+  Lemma regs_fault_llookup (regs : LReg) φ r v :
+    (∀ x v0, regs !! x = Some v0 → ∃ s, reg φ !!ᵣ x = Some (and_tag s v0.(lw))) →
+    regs !!ₗ r = Some v →
+    ∃ s, reg φ !!ᵣ r = Some (and_tag s v.(lw)).
+  Proof.
+    intros Hcopy Hr. rewrite /llookup_reg in Hr. case_decide as Hcnull; simplify_eq.
+    - exists true. simplify_eq. by rewrite lookup_reg_cnull and_tag_true.
+    - by apply Hcopy.
+  Qed.
+
   (** Every word that [stored_word_ok] allows lifts to a logical word with [Q]. *)
   Definition store_lift (stored_word_ok : ExecConf → Word → Prop) (Q : LWord → Prop) (regs : LReg) :
       Prop :=
@@ -603,6 +615,27 @@ Proof.
   cbv beta in Hw.
   cbn [exec_opt]. rewrite Hw /=. rewrite Hdst /=. rewrite Hadd /=. rewrite Hperm Hwb /=.
   rewrite Hmmio Hv /=. by rewrite /store_effect.
+Qed.
+
+(** On the checked path to a device, [CLoad dst src imm] reads the
+    device. *)
+Lemma CLoad_device_agree `{MachineParameters} dst src imm pl φ p ea :
+  mem_access_authorised readAllowed φ src imm p ea → is_mmio_address ea = true →
+  exec_opt (CLoad dst src imm) pl φ = (w ← mmio_load φ ea; nextPC (φ .[dst :=ᵣ w])).
+Proof.
+  intros (g & b & e & a & Hsrc & Hperm & Hadd & Hwb) Hmmio.
+  cbn [exec_opt]. rewrite Hsrc /=. rewrite Hadd /=. rewrite Hperm Hwb /=. by rewrite Hmmio.
+Qed.
+
+(** On the checked path to a device, [Store dst ρ imm] writes the device. *)
+Lemma Store_device_agree `{MachineParameters} dst ρ imm pl φ p ea w :
+  mem_access_authorised writeAllowed φ dst imm p ea → is_mmio_address ea = true →
+  word_of_argument (reg φ) ρ = Some w →
+  exec_opt (Store dst ρ imm) pl φ = (φ' ← mmio_store φ ea w; nextPC φ').
+Proof.
+  intros (g & b & e & a & Hdst & Hperm & Hadd & Hwb) Hmmio Hw.
+  cbn [exec_opt]. rewrite Hw /=. rewrite Hdst /=. rewrite Hadd /=. rewrite Hperm Hwb /=.
+  by rewrite Hmmio.
 Qed.
 
 (** ** The memory steps in closed form

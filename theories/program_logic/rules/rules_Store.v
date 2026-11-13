@@ -3,6 +3,35 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base.
+From griotte Require Import rules_mem_access.
+
+(** ** Faults of [Store], on every copy of the owned registers *)
+
+(** An untagged authority faults. *)
+Lemma Store_fault_untagged `{MachineParameters} dst ρ imm p lpc (regs : LReg) wd :
+  regs !!ₗ dst = Some wd → get_tag wd.(lw) = false →
+  regs_fault exec_opt (Store dst ρ imm) p lpc regs.
+Proof.
+  intros Hdst Htag φ _ Hcopy.
+  destruct (regs_fault_llookup regs φ dst wd Hcopy Hdst) as [s Hlook].
+  cbn [exec_opt]. destruct (word_of_argument (reg φ) ρ); cbn; last done.
+  rewrite Hlook /=.
+  destruct wd as [ [| [ [] p' g b e a|] | |] π]; cbn in Htag; try discriminate;
+    destruct s; done.
+Qed.
+
+(** An authority that is not a capability faults. *)
+Lemma Store_fault_not_cap `{MachineParameters} dst ρ imm p lpc (regs : LReg) wd :
+  regs !!ₗ dst = Some wd → is_cap wd.(lw) = false →
+  regs_fault exec_opt (Store dst ρ imm) p lpc regs.
+Proof.
+  intros Hdst Hcap φ _ Hcopy.
+  destruct (regs_fault_llookup regs φ dst wd Hcopy Hdst) as [s Hlook].
+  cbn [exec_opt]. destruct (word_of_argument (reg φ) ρ); cbn; last done.
+  rewrite Hlook /=.
+  destruct wd as [ [| [ [] p' g b e a|] | |] π]; cbn in Hcap; try discriminate;
+    destruct s; done.
+Qed.
 
 Section griotte_lang_rules.
   Context `{MP: MachineParameters}.
@@ -732,25 +761,18 @@ Section griotte_lang_rules.
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdecode Hvpc Dregs Hdst Hadd Hwa Hwb Hsh Harg Hinc φ)
-      "(HPC & Hi & >Ha & Hdw & Hmap) Hφ".
+      "(HPC & >Hi & >Ha & Hdw & Hmap) Hφ".
+    iDestruct (pointsto_ne with "Ha Hi") as %Hne.
     assert (lw <$> regs !!ₗ dst = Some (Cap p g b e a)) as Hdst' by by rewrite Hdst.
-    iDestruct (memMap_resource_1 with "Ha") as "Hmem".
-    iApply (wp_store_imm_fetch with "[$HPC $Hi $Hmem $Hdw $Hmap]"); eauto.
-    { by eapply mem_eq_implies_allow_store_map_imm. }
-    { intros ?????? (Hd & Ha' & _). rewrite Hdst' in Hd. simplify_eq. congruence. }
-    iIntros "!>" (lpc0 mem' retv) "(%Hspec & HPC & Hi & Hmem & Hdw & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hd & Ha' & _) Hsh0 Hl0 -> _ Hinc0
-                      | p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 (Hd & Ha' & _) Hsh0
-                      | p0 g0 b0 e0 a0 ea0 storev0 Harg0 (Hd & Ha' & _) Htdev0 _ Hnone0 _ _ _
-                      | _ _ Hfail].
-    - rewrite Hdst' in Hd. simplify_eq.
-      rewrite insert_insert_eq -memMap_resource_1. iApply "Hφ". by iFrame.
-    - by rewrite Hdst' in Hd; simplify_eq.
-    - rewrite Hdst' in Hd. simplify_eq. by simplify_map_eq.
-    - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a ea); eauto.
-      + intros v Hv. rewrite Hdst in Hv. by simplify_eq.
-      + by simplify_map_eq.
-      + congruence.
+    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst') as (Hdst_cnull & _).
+    rewrite llookup_reg_not_cnull // in Hdst.
+    iApply (wp_store_next (W := deref_witness_res dw) with "[$HPC $Hi $Ha $Hmap $Hdw]");
+      [exact Hdecode | solve_mem_instr_ok | apply Store_member_argument | apply Store_agree
+      | by apply store_lift_argument
+      | intros v1 Hv1; rewrite Hdst in Hv1; simplify_eq; by apply deref_witness_live
+      | exact Hvpc | split_and!; [exact Hdst' | exact Hadd | exact Hwa | exact Hwb]
+      | exact Hne | exact Hinc |].
+    iIntros "!> (HPC & Hi & Ha & Hmap & Hdw)". iApply "Hφ". iFrame.
   Qed.
 
   (** A store to the cell of the fetched instruction. *)
@@ -776,30 +798,17 @@ Section griotte_lang_rules.
         deref_witness_res dw ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hdecode Hvpc Dregs Hdst Hadd Hwa Hwb Hsh Harg Hinc φ) "(HPC & >Hi & Hdw & Hmap) Hφ".
+    iIntros (Hdecode Hvpc Dregs Hdst Hadd Hwa Hwb Hsh Harg Hinc φ) "(HPC & Hi & Hdw & Hmap) Hφ".
     assert (lw <$> regs !!ₗ dst = Some (Cap p g b e a)) as Hdst' by by rewrite Hdst.
-    iDestruct (memMap_resource_1 with "Hi") as "Hmem".
-    iAssert ((▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I) as "Hshadow".
-    { iNext. rewrite big_sepM_empty. done. }
-    iApply (wp_store_shadow_imm _ _ _ _ _ _ _ _ _ _ _ _ _ (∅ : ShadowTbl) ∅ dw
-      with "[$HPC $Hmem $Hshadow $Hdw $Hmap]"); eauto.
-    { by rewrite lookup_insert_eq. }
-    { apply allow_store_map_or_true_imm_no_shadow.
-      - by eapply mem_eq_implies_allow_store_map_imm.
-      - intros ?????? (Hd & Ha' & _). rewrite Hdst' in Hd. simplify_eq. congruence. }
-    iIntros "!>" (lpc0 mem' shadow' retv) "(%Hspec & HPC & Hmem & _ & _ & Hdw & Hmap)".
-    destruct Hspec as [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 (Hd & Ha' & _) Hsh0 Hl0 -> _ Hinc0
-                      | p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 (Hd & Ha' & _) Hsh0
-                      | p0 g0 b0 e0 a0 ea0 storev0 Harg0 (Hd & Ha' & _) Htdev0 _ Hnone0 _ _ _
-                      | _ _ Hfail].
-    - rewrite Hdst' in Hd. simplify_eq.
-      rewrite insert_insert_eq -memMap_resource_1. iApply "Hφ". by iFrame.
-    - by rewrite Hdst' in Hd; simplify_eq.
-    - rewrite Hdst' in Hd. simplify_eq. by simplify_map_eq.
-    - exfalso. eapply (Store_failure_impossible _ _ _ _ _ _ dw p g b e a pc_a); eauto.
-      + intros v Hv. rewrite Hdst in Hv. by simplify_eq.
-      + by simplify_map_eq.
-      + congruence.
+    destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst') as (Hdst_cnull & _).
+    rewrite llookup_reg_not_cnull // in Hdst.
+    iApply (wp_store_next_pc (W := deref_witness_res dw) with "[$HPC $Hi $Hmap $Hdw]");
+      [exact Hdecode | solve_mem_instr_ok | apply Store_member_argument | apply Store_agree
+      | by apply store_lift_argument
+      | intros v1 Hv1; rewrite Hdst in Hv1; simplify_eq; by apply deref_witness_live
+      | exact Hvpc | split_and!; [exact Hdst' | exact Hadd | exact Hwa | exact Hwb]
+      | exact Hinc |].
+    iIntros "!> (HPC & Hi & Hmap & Hdw)". iApply "Hφ". iFrame.
   Qed.
 
     Lemma wp_store_success_reg_store_word_imm E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst src w'
@@ -1218,15 +1227,9 @@ Section griotte_lang_rules.
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hdst Htag φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
-    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
-    rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) as [-> ->].
-    { destruct wa as [ [| [ [] p g b e a|] | |] ?]; cbn in Htag; try discriminate.
-      all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
-    instr_fail_close.
+    intros Hinstr Hvpc Hdst Htag.
+    eapply wp_fault_step; [exact Hinstr | exact Hvpc |].
+    by eapply Store_fault_untagged.
   Qed.
 
    Lemma wp_store_success_same E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z w'
@@ -1566,15 +1569,9 @@ Section shadow_store_res.
         pc_a ↦ₐ{dq} w ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hinstr Hvpc Hdst Hcap φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
-    iNext; iIntros (r sr m st td lreg lsreg lmem Rg Cg c σ') "@".
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hdst) as (s0 & Hdst' & _).
-    rewrite Hinstr /exec /= Hdst' /= in Hstep.
-    assert (c = Faulted ∧ σ' = (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td)) as [-> ->].
-    { destruct wa as [ [| [|] | |] ?]; cbn in Hcap; try discriminate.
-      all: destruct s0; cbn in Hstep; destruct (word_of_argument _ src); cbn in Hstep; by simplify_eq. }
-    instr_fail_close.
+    intros Hinstr Hvpc Hdst Hcap.
+    eapply wp_fault_step; [exact Hinstr | exact Hvpc |].
+    by eapply Store_fault_not_cap.
   Qed.
 
 End shadow_store_res.

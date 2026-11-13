@@ -7,17 +7,6 @@ From griotte Require Import rules_mem_access.
 
 (** ** Faults of [CLoad], on every copy of the owned registers *)
 
-(** The physical copy of a register read by the instruction. *)
-#[local] Lemma regs_fault_llookup `{MachineParameters} (regs : LReg) φ src wa :
-  (∀ r v, regs !! r = Some v → ∃ s, reg φ !!ᵣ r = Some (and_tag s v.(lw))) →
-  regs !!ₗ src = Some wa →
-  ∃ s, reg φ !!ᵣ src = Some (and_tag s wa.(lw)).
-Proof.
-  intros Hcopy Hsrc. rewrite /llookup_reg in Hsrc. case_decide as Hcnull; simplify_eq.
-  - exists true. simplify_eq. by rewrite lookup_reg_cnull and_tag_true.
-  - by apply Hcopy.
-Qed.
-
 (** An untagged source faults. *)
 Lemma CLoad_fault_untagged `{MachineParameters} dst src imm p lpc (regs : LReg) wa :
   regs !!ₗ src = Some wa → get_tag wa.(lw) = false →
