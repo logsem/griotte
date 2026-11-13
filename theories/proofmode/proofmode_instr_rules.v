@@ -9,8 +9,8 @@ Set Default Proof Mode "Classic".
 (** * The register steps in closed form
 
     An instruction with no dedicated case is stepped with a k-ary rule of
-    [rules_regs.v]: [wp_regs_next_1], [wp_regs_next_2] or [wp_regs_next_3]
-    when its destination is owned, [wp_regs_jump_0] to [wp_regs_jump_3]
+    [rules_regs.v]: [wp_regs_next_1] to [wp_regs_next_4] when its
+    destination is owned, [wp_regs_jump_0] to [wp_regs_jump_3]
     when it is [cnull] or absent. The premise of the rule ([regs_next_ok]
     or [regs_jump_agree]) is the instruction's register step in closed
     form, found in the hint database [regs_next_ok_db]
@@ -180,6 +180,19 @@ Ltac dispatch_next_ok_using s instr cont :=
                         Hdec (Hsw _) Hvpc Hpc_a' Hok)
             end
           end ]
+      | [(?r2, ?w2); (?r3, ?w3); (?r4, ?w4)] =>
+        eassert (dst ≠ r2 → dst ≠ r3 → dst ≠ r4 → r2 ≠ r3 → r2 ≠ r4 → r3 ≠ r4 →
+                 regs_next_ok instr' p (Cap p g b e a @@? π)
+                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> (<[r4 := w4]> ∅)))) dst _ 1)
+          as Hok;
+        [ regs_next_ok_solver s instr'
+        | rewrite ?MkLWord_eta in Hok;
+          lazymatch type of Hok with _ → _ → _ → _ → _ → _ → regs_next_ok _ _ _ _ _ ?v _ =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
+                    @wp_regs_next_4 _ _ _ _ _ E p g b e a π pc_a'
+                      (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 r3 w3 r4 w4 v
+                      Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
+          end ]
       end
     | None =>
       lazymatch regs with
@@ -290,14 +303,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Jalr cra _ => (cont (@wp_jalr_success_call) || cont (@wp_jalr_success_call_posture))
   | Jalr ?r ?r => cont (@wp_jalr_success_rdst)
   | Jalr _ _ => cont (@wp_jalr_success)
-  (* Subseg *)
-  | Subseg ?d ?d (inr ?r) (inr ?r) => (cont (@wp_subseg_success_same) || cont (@wp_subseg_success_same_sr)) (* TODO: improve using register values? *)
-  | Subseg ?d ?d (inr _) (inr _) =>
-    (cont (@wp_subseg_success) || cont (@wp_subseg_success_sr) || cont (@wp_subseg_success_root))
-  | Subseg ?d ?d (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
-  | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
-  | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
-  | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
   (* SpecialRW on mtdc, before the generic cases: its own ghost state. A
      write transfers the clause of the mtdc token: the ghost value comes
      back to the home value, is kept, leaves the home value, or moves
@@ -373,32 +378,5 @@ Ltac dispatch_instr_failure instr cont :=
 Ltac dispatch_instr_invalidation instr cont :=
   let instr := eval cbv [regn cst] in instr in
   lazymatch instr with
-  (* Subseg: conversion overflow has priority over representable rejection.
-     The explicit-mode caller requires overflow evidence before committing. *)
-  | Subseg ?d ?d (inr ?r) (inr ?r) =>
-      (cont (@wp_subseg_unrepresentable_same) ||
-       cont (@wp_subseg_unrepresentable_same_sr) ||
-       cont (@wp_subseg_invalidated_same) ||
-       cont (@wp_subseg_invalidated_same_sr))
-  | Subseg ?d ?d (inr _) (inr _) =>
-      (cont (@wp_subseg_unrepresentable) ||
-       cont (@wp_subseg_unrepresentable_sr) ||
-       cont (@wp_subseg_invalidated) ||
-       cont (@wp_subseg_invalidated_sr))
-  | Subseg ?d ?d (inl _) (inr _) =>
-      (cont (@wp_subseg_unrepresentable_l) ||
-       cont (@wp_subseg_unrepresentable_l_sr) ||
-       cont (@wp_subseg_invalidated_l) ||
-       cont (@wp_subseg_invalidated_l_sr))
-  | Subseg ?d ?d (inr _) (inl _) =>
-      (cont (@wp_subseg_unrepresentable_r) ||
-       cont (@wp_subseg_unrepresentable_r_sr) ||
-       cont (@wp_subseg_invalidated_r) ||
-       cont (@wp_subseg_invalidated_r_sr))
-  | Subseg ?d ?d (inl _) (inl _) =>
-      (cont (@wp_subseg_unrepresentable_lr) ||
-       cont (@wp_subseg_unrepresentable_lr_sr) ||
-       cont (@wp_subseg_invalidated_lr) ||
-       cont (@wp_subseg_invalidated_lr_sr))
   | _ => fail "No invalidation rule found for instruction" instr
   end.

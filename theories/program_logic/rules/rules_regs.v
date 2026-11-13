@@ -572,6 +572,48 @@ Section regs_rules.
     by rewrite /incrementPC_gen Hpc_a'.
   Qed.
 
+  (** Four registers, as [Subseg dst src r1 r2]. *)
+  Lemma wp_regs_next_4 E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i r1 w1 r2 w2 r3 w3 r4 w4 v :
+    decodeInstrW w.(lw) = i → regs_instr_ok th i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    (pc_a + 1)%a = Some pc_a' →
+    r1 ≠ cnull →
+    (r1 ≠ r2 → r1 ≠ r3 → r1 ≠ r4 → r2 ≠ r3 → r2 ≠ r4 → r3 ≠ r4 →
+     regs_next_ok i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)
+       (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> (<[r4 := w4]> ∅)))) r1 v 1) →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ r1 ↦ᵣ w1 ∗
+        ▷ r2 ↦ᵣ w2 ∗
+        ▷ r3 ↦ᵣ w3 ∗
+        ▷ r4 ↦ᵣ w4 }}}
+      Instr Executable @ E
+    {{{ RET NextIV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        r1 ↦ᵣ v ∗
+        r2 ↦ᵣ w2 ∗
+        r3 ↦ᵣ w3 ∗
+        r4 ↦ᵣ w4 }}}.
+  Proof.
+    iIntros (Hdec Hsw Hvpc Hpc_a' Hr1 Hnext_ok Φ)
+      "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hr3 & >Hr4) HΦ".
+    iPoseProof (regname_neq with "Hr1 Hr2") as "%Hne12".
+    iPoseProof (regname_neq with "Hr1 Hr3") as "%Hne13".
+    iPoseProof (regname_neq with "Hr1 Hr4") as "%Hne14".
+    iDestruct (map_of_regs_3 with "Hr2 Hr3 Hr4") as "[Hmap (%Hne23 & %Hne24 & %Hne34)]".
+    iDestruct (big_sepM_insert _ _ r1 w1 with "[$Hmap $Hr1]") as "Hmap".
+    { by simplify_map_eq. }
+    destruct (Hnext_ok Hne12 Hne13 Hne14 Hne23 Hne24 Hne34) as (sb & Hsrc & Hagree).
+    iApply (wp_regs_next with "[$HPC $Hpc_a $Hmap]"); [exact Hdec | exact Hsw | exact Hvpc
+      | exact Hsrc | exact Hagree | right; set_solver | by rewrite /incrementPC_gen Hpc_a' |].
+    iIntros "!> (HPC & Hpc_a & Hmap)".
+    rewrite linsert_reg_not_cnull // insert_insert decide_True //.
+    iDestruct (big_sepM_insert with "Hmap") as "[Hr1 Hmap]"; first by simplify_map_eq.
+    iDestruct (regs_of_map_3 with "Hmap") as "(Hr2 & Hr3 & Hr4)"; [done | done | done |].
+    iApply "HΦ". iFrame.
+  Qed.
+
   (** *** k-ary rules with no destination: an operand may be [cnull] *)
 
   Lemma wp_regs_jump_0 E pc_p pc_g pc_b pc_e pc_a pc_π w dq i n lpc' :

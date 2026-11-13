@@ -29,7 +29,7 @@ From griotte Require Export
 
      {{{ P }}} Instr Executable {{{ s. Q }}}
 
-     (see for instance [rules_Subseg.wp_subseg_success_lr])
+     (see for instance [rules_Subseg.wp_subseg_rebase])
 
   - code fragment: instead of {P} ⇝ {s. Q}, we write:
 

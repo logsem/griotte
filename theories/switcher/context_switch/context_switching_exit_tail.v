@@ -132,9 +132,8 @@ Section ctx_exit_tail.
   Qed.
 
   (** The bound [a2] of [Subseg], by name. *)
-  #[local] Arguments wp_subseg_success_cap_base {MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a
-    pc_π w dst r2 t p g b e a w2 n2 a2} pc_a' π dq _ _ _ _ _ _ _%_function_scope _ _ _
-    Φ%_function_scope.
+  #[local] Arguments subseg_next_ok_cap_base {MP pl lpc regs dst ρ2 t p g b e a π n2 a2}
+    _ _ _ _ _ _%_function_scope.
 
   Lemma exited_set_spec_holds : switcher_code_at CtxSwitch ⊢ exited_set_spec.
   Proof.
@@ -161,9 +160,7 @@ Section ctx_exit_tail.
     (* Add ca0 ca0 2. *)
     iInstr "Hcode".
     (* Subseg csp csp csp ca0. *)
-    iInstrStart "Hcode".
-    iInstrApply (wp_subseg_success_cap_base (a2 := (a_tail ^+ 2)%a))
-      with "[$HPC $Hcsp $Hca0]" as "(HPC & Hca0 & Hcsp)".
+    iInstr "Hcode" using (subseg_next_ok_cap_base (a2 := (a_tail ^+ 2)%a)).
     { solve_addr. }
     { rewrite /isWithin. apply andb_true_iff; split; apply Z.leb_le; solve_addr. }
     { solve_addr. }

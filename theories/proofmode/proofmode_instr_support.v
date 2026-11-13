@@ -469,6 +469,34 @@ Ltac regs_next_ok_lookup :=
 #[global] Hint Extern 1 (is_mutable_range _ = false) =>
   first [ reflexivity | eassumption ] : regs_next_ok_db.
 
+(* Subseg: the premise of its tag as a value, on a literal register map, and
+   endpoints out of range on literals. *)
+#[global] Hint Extern 1 (subseg_root_free _ _ _ _) =>
+  unfreeze_hyps; solve_subseg_root_free : regs_next_ok_db.
+#[global] Hint Extern 1 (z_to_addr _ = None ∨ z_to_addr _ = None) =>
+  first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
+#[global] Hint Extern 1 (z_to_otype _ = None ∨ z_to_otype _ = None) =>
+  first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
+(* In the lax search, as in the strict one, an endpoint of Subseg is computed
+   when its integer is an address ([solve_pure]); otherwise the fact is
+   postponed. The heap premise is searched for even with unknown endpoints: a
+   fact of the context then fixes them, and their facts are checked once they
+   are known. A search that fails leaves the premise as a side goal. *)
+#[global] Hint Extern 0 (z_to_addr _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+#[global] Hint Extern 0 (z_to_otype _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+#[global] Hint Extern 0 =>
+  lazymatch goal with
+  | |- (_ = None → _ → is_heap_address _ = false) =>
+      solve [ intros [=]
+            | match goal with H : InCtx (_ = None → _ → is_heap_address _ = false) |- _ =>
+                exact H end
+            | typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances ]
+  end : regs_next_ok_lax_db.
+
 (* The comparison of two known operands: from a hypothesis (also on the words,
    by [congruence]), or by [lia], or by [solve_addr] when addresses occur. *)
 Ltac jcond_test_arith :=
@@ -569,14 +597,17 @@ Ltac regs_next_ok_postpone :=
 #[global] Hint Extern 100 => regs_next_ok_postpone : regs_next_ok_lax_db.
 
 (* A postponed premise: an evar of the lemma is shelved again; a fact with no
-   evar is tried once by the strict search; the rest is a side goal. A fact
-   with an evar is not searched: a hint could fix the evar to a value that the
-   client does not want ([PermFlowsTo ?p p] by reflexivity, for instance). *)
+   evar is tried once, from a hypothesis or by the strict search; the rest is
+   a side goal. A fact with an evar is not searched: a hint could fix the evar
+   to a value that the client does not want ([PermFlowsTo ?p p] by
+   reflexivity, for instance). *)
 Ltac regs_next_ok_postponed_premise :=
   lazymatch goal with
   | |- ?G =>
       lazymatch type of G with
-      | Prop => tryif has_evar G then idtac else (try solve_regs_next_ok_frozen)
+      | Prop =>
+          tryif has_evar G then idtac
+          else (try solve [assumption | discriminate | solve_regs_next_ok_frozen])
       | _ => shelve
       end
   end.
