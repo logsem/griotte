@@ -33,7 +33,7 @@ Qed.
     built from the PC and takes the PC's identifier. A [cnull] destination
     drops the link. The link's kind depends on [mie]. [None] is a fault: a
     target that fails the checks, or no next address. *)
-Definition jalr_next (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc : RegName)
+Definition jalr_outcome (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc : RegName)
     (mie : InterruptStatus) : option (LWord * LReg) :=
   wsrc ← regs !!ₗ rsrc;
   if jalr_target_ok rdst rsrc wsrc.(lw)
@@ -44,34 +44,34 @@ Definition jalr_next (regs : LReg) pc_p pc_g pc_b pc_e pc_a pc_π (rdst rsrc : R
           else <[rdst := jalr_link rdst mie true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]ₗ> regs)
   else None.
 
-Lemma jalr_next_success regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie pc_a' wsrc :
+Lemma jalr_outcome_success regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie pc_a' wsrc :
   regs !!ₗ rsrc = Some wsrc →
   jalr_target_ok rdst rsrc wsrc.(lw) = true →
   (pc_a + 1)%a = Some pc_a' →
-  jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie =
+  jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie =
     Some (lupdatePcPerm wsrc,
           if decide (rdst = cnull) then regs
           else <[rdst := jalr_link rdst mie true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]ₗ> regs).
-Proof. intros Hsrc Hok Hpca'. by rewrite /jalr_next Hsrc /= Hok Hpca'. Qed.
+Proof. intros Hsrc Hok Hpca'. by rewrite /jalr_outcome Hsrc /= Hok Hpca'. Qed.
 
-Lemma jalr_next_fail_target regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie wsrc :
+Lemma jalr_outcome_fail_target regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie wsrc :
   regs !!ₗ rsrc = Some wsrc →
   jalr_target_ok rdst rsrc wsrc.(lw) = false →
-  jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = None.
-Proof. intros Hsrc Hok. by rewrite /jalr_next Hsrc /= Hok. Qed.
+  jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = None.
+Proof. intros Hsrc Hok. by rewrite /jalr_outcome Hsrc /= Hok. Qed.
 
-Lemma jalr_next_fail_pc regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie :
+Lemma jalr_outcome_fail_pc regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie :
   (pc_a + 1)%a = None →
-  jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = None.
+  jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = None.
 Proof.
-  intros Hpca'. rewrite /jalr_next.
+  intros Hpca'. rewrite /jalr_outcome.
   destruct (regs !!ₗ rsrc) as [wsrc|]; last done. simpl.
   destruct (jalr_target_ok rdst rsrc wsrc.(lw)); last done.
   by rewrite Hpca'.
 Qed.
 
-Lemma jalr_next_Some_inv regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie lpc' regs' :
-  jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = Some (lpc', regs') →
+Lemma jalr_outcome_Some_inv regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie lpc' regs' :
+  jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie = Some (lpc', regs') →
   ∃ wsrc pc_a',
     regs !!ₗ rsrc = Some wsrc ∧
     jalr_target_ok rdst rsrc wsrc.(lw) = true ∧
@@ -80,7 +80,7 @@ Lemma jalr_next_Some_inv regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie lpc' 
     regs' = (if decide (rdst = cnull) then regs
              else <[rdst := jalr_link rdst mie true pc_p pc_g pc_b pc_e pc_a' @@? pc_π]ₗ> regs).
 Proof.
-  rewrite /jalr_next. intros Hnext.
+  rewrite /jalr_outcome. intros Hnext.
   destruct (regs !!ₗ rsrc) as [wsrc|] eqn:Hsrc; simplify_eq/=.
   destruct (jalr_target_ok rdst rsrc wsrc.(lw)) eqn:Hok; simplify_eq/=.
   destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; simplify_eq/=.
@@ -119,7 +119,7 @@ Section griotte_lang_rules.
         ▷ T1 }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ step_outcome (jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b)
+        ⌜ step_outcome (jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b)
             (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -159,7 +159,7 @@ Section griotte_lang_rules.
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC Hmap". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
       - iPureIntro. apply step_outcome_fault.
-        eapply jalr_next_fail_target; [exact H'rsrc | exact Hok].
+        eapply jalr_outcome_fail_target; [exact H'rsrc | exact Hok].
       - iRight. by iFrame. }
     assert (and_tag s wsrc.(lw) = wsrc.(lw)) as Heq.
     { pose proof Hok as Hok'. apply andb_prop in Hok' as [ [Ht _]%andb_prop Hx].
@@ -170,7 +170,7 @@ Section griotte_lang_rules.
          iApply (instr_close_link_kept_irq with "Hlink"); [done|].
          iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
          iIntros "HPC Hmap". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
-         - iPureIntro. apply step_outcome_fault. by apply jalr_next_fail_pc.
+         - iPureIntro. apply step_outcome_fault. by apply jalr_outcome_fail_pc.
          - iRight. by iFrame. }
     rewrite Hast in Hstep.
     injection Hstep as <- <-.
@@ -214,7 +214,7 @@ Section griotte_lang_rules.
         * by eapply jalr_target_ok_pc_ok.
         * iIntros "HPC Hmap HT". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
           -- iPureIntro. apply step_outcome_next.
-             rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+             rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
              by rewrite decide_True.
           -- iLeft. rewrite Hjm. by iFrame.
       + iApply (instr_close_reg_set_pc (Cap pc_p pc_g pc_b pc_e pc_a) r
@@ -230,7 +230,7 @@ Section griotte_lang_rules.
         * by eapply jalr_target_ok_pc_ok.
         * iIntros "HPC Hmap HT". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
           -- iPureIntro. apply step_outcome_next.
-             rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+             rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
              by rewrite decide_False.
           -- iLeft. rewrite Hjm. by iFrame.
     - assert (jalr_mie regs rsrc (ls_mie lsreg) = ls_mie lsreg) as Hjm.
@@ -249,7 +249,7 @@ Section griotte_lang_rules.
         * by eapply jalr_target_ok_pc_ok.
         * iIntros "HPC Hmap HT". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
           -- iPureIntro. apply step_outcome_next.
-             rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+             rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
              by rewrite decide_True.
           -- iLeft. rewrite Hjm. by iFrame.
       + iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ rdst
@@ -264,7 +264,7 @@ Section griotte_lang_rules.
         * by eapply jalr_target_ok_pc_ok.
         * iIntros "HPC Hmap HT". iApply "Hφ". iFrame "HPC Hpc_a Hmap". iSplit.
           -- iPureIntro. apply step_outcome_next.
-             rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+             rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
              by rewrite decide_False.
           -- iLeft. rewrite Hjm. by iFrame.
   Qed.
@@ -283,7 +283,7 @@ Section griotte_lang_rules.
         ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ ∀ mie, step_outcome (jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie)
+        ⌜ ∀ mie, step_outcome (jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc mie)
             (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -306,13 +306,13 @@ Section griotte_lang_rules.
     destruct (jalr_target_ok rdst rsrc wsrc.(lw)) eqn:Hok; cycle 1.
     { rewrite jalr_target_ok_and_tag Hok andb_false_r in Hstep.
       instr_fail Hstep. intros mie. apply step_outcome_fault.
-      eapply jalr_next_fail_target; [exact H'rsrc | exact Hok]. }
+      eapply jalr_outcome_fail_target; [exact H'rsrc | exact Hok]. }
     assert (and_tag s wsrc.(lw) = wsrc.(lw)) as Heq.
     { pose proof Hok as Hok'. apply andb_prop in Hok' as [ [Ht _]%andb_prop Hx].
       by apply (reg_phys_executable R C). }
     rewrite Heq in Hstep Hrel. rewrite Hok Hwst /= in Hstep.
     destruct (pc_a + 1)%a as [pc_a'|] eqn:Hpca'; cbn in Hstep.
-    2: { instr_fail Hstep. intros mie. apply step_outcome_fault. by apply jalr_next_fail_pc. }
+    2: { instr_fail Hstep. intros mie. apply step_outcome_fault. by apply jalr_outcome_fail_pc. }
     injection Hstep as <- <-.
     assert (jalr_mstatus wsrc.(lw) (get_a wst) = None) as Hnone.
     { by rewrite /jalr_mstatus (jalr_target_ok_keep_mie rdst rsrc). }
@@ -338,7 +338,7 @@ Section griotte_lang_rules.
       + by eapply jalr_target_ok_pc_ok.
       + iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. intros mie.
         apply step_outcome_next.
-        rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+        rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
         by rewrite decide_True.
     - iApply (instr_close_reg_set_pc _ _ _ _ _ _ _ _ _ _ _ _ _ rdst
                 (link @@? pc_π) link (lupdatePcPerm wsrc)
@@ -352,7 +352,7 @@ Section griotte_lang_rules.
       + by eapply jalr_target_ok_pc_ok.
       + iIntros "HPC Hmap". iApply "Hφ". iFrame. iPureIntro. intros mie.
         apply step_outcome_next.
-        rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
+        rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ _ _ H'rsrc Hok Hpca').
         by rewrite decide_False // /link (Hlink_mie (mie_of (get_a wst)) mie).
   Qed.
 
@@ -387,7 +387,7 @@ Section griotte_lang_rules.
     { by intros [? _]. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     specialize (Hspec InterruptDisabled).
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     rewrite decide_False // /jalr_link decide_False //.
@@ -422,7 +422,7 @@ Section griotte_lang_rules.
     { by intros [? _]. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
     specialize (Hspec InterruptDisabled).
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wdst) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wdst) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     rewrite decide_False // /jalr_link decide_False //.
@@ -556,7 +556,7 @@ Section griotte_lang_rules.
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
       | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -603,7 +603,7 @@ Section griotte_lang_rules.
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
       | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wcra) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wcra) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -650,7 +650,7 @@ Section griotte_lang_rules.
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
       | by apply link_transfer_si_route | intros ???; by rewrite Hjm |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
@@ -692,7 +692,7 @@ Section griotte_lang_rules.
       [done | done | rewrite /regs_of /operands_of /regs_of_argument; set_solver
       | rewrite Hjm; apply link_transfer_si_kept | intros ???; by rewrite Hjm | done |].
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.
@@ -724,7 +724,7 @@ Section griotte_lang_rules_core.
         ▷ MIE ↦ₜ b }}}
       Instr Executable @ Ep
     {{{ lpc' regs' retv, RET retv;
-        ⌜ step_outcome (jalr_next regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b)
+        ⌜ step_outcome (jalr_outcome regs pc_p pc_g pc_b pc_e pc_a pc_π rdst rsrc b)
             (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs lpc' regs' retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
@@ -777,7 +777,7 @@ Section griotte_lang_rules_core.
       try (intros ???; rewrite Hjm; done).
     { set_solver. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -817,7 +817,7 @@ Section griotte_lang_rules_core.
     iApply (wp_Jalr with "[$HPC $Hmap $Hpc_a $Hmie]"); eauto; simplify_lmap_eq; eauto;
       try (intros ???; rewrite Hjm; done).
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wcra) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wcra) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cra = cnull)) as [Hc|_]; first done.
@@ -862,7 +862,7 @@ Section griotte_lang_rules_core.
       try (intros ???; rewrite Hjm; done).
     { set_solver. }
     iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap & HT)".
-    rewrite (jalr_next_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
+    rewrite (jalr_outcome_success _ _ _ _ _ _ _ _ _ _ pc_a' wsrc) in Hspec;
       [| rewrite llookup_reg_not_cnull //; by simplify_map_eq | exact Htgt | exact Hpca'].
     destruct Hspec as (-> & -> & ->).
     destruct (decide (cnull = cnull)) as [_|Hc]; last done.

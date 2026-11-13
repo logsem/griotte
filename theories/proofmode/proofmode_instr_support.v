@@ -582,16 +582,16 @@ Ltac solve_regs_next_ok_lax :=
 (** * The memory steps in closed form: premises and search
 
     The membership and agreement of a memory instruction ([rules_mem_access.v],
-    database [mem_agree_db]), and the word that a store writes, read in the
+    database [mem_next_ok_db]), and the word that a store writes, read in the
     literal register map of a k-ary rule. The settings are global, as for
     [regs_next_ok_db]. *)
 
 (* The word of a store argument: an integer, or the owned word of a
    register. *)
-#[export] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_agree_db.
-#[export] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_agree_db.
+#[export] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_next_ok_db.
+#[export] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_next_ok_db.
 #[export] Hint Extern 0 (lword_of_argument _ (inr _) = Some _) =>
-  cbn [lword_of_argument]; regs_next_ok_lookup : mem_agree_db.
+  cbn [lword_of_argument]; regs_next_ok_lookup : mem_next_ok_db.
 
 (* The permission and the bounds of an access, in the memory fallback of
    [iInstr]: tried only once their address is known, so that no hypothesis
@@ -607,5 +607,5 @@ Proof. by rewrite /lstore_word /lift_word /= store_word_untagged. Qed.
 Ltac solve_mem_agree :=
   regs_next_ok_intros;
   ltac2:(griotte_freeze_hyps_once ());
-  typeclasses eauto 8 with mem_agree_db;
+  typeclasses eauto 8 with mem_next_ok_db;
   unfreeze_hyps.

@@ -27,7 +27,7 @@ Section auipcc_next_ok.
   Qed.
 
   (** On an address overflow, the PC untagged. *)
-  Lemma auipcc_next_ok_overflow p0 regs dst imm p g b e a π :
+  Lemma auipcc_next_ok_untagged p0 regs dst imm p g b e a π :
     (a + imm)%a = None →
     regs_next_ok (Auipcc dst imm) p0 (Cap p g b e a @@? π) regs dst (Cap⁻ p g b e a @@? π) 1.
   Proof.
@@ -38,5 +38,5 @@ Section auipcc_next_ok.
 End auipcc_next_ok.
 
 #[export] Hint Resolve auipcc_next_ok | 0 : regs_next_ok_db.
-#[export] Hint Resolve auipcc_next_ok_overflow | 1 : regs_next_ok_db.
+#[export] Hint Resolve auipcc_next_ok_untagged | 1 : regs_next_ok_db.
 #[export] Hint Resolve auipcc_next_ok : regs_next_ok_lax_db.

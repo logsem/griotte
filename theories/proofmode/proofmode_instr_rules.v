@@ -256,7 +256,7 @@ Ltac dispatch_next_ok instr cont := dispatch_next_ok_using constr:(tt) instr con
     otherwise; their [_pc] forms when no other cell than the instruction
     is owned at the address. The membership and agreement of the
     instruction and the stored word are found in the hint database
-    [mem_agree_db] ([solve_mem_agree]). The witness of the authority is its
+    [mem_next_ok_db] ([solve_mem_agree]). The witness of the authority is its
     dereference resource. The permission and the bounds are marked
     [mem_access_fact]: they are tried only once the address is known. The
     facts that [solve_pure] does not decide are left as side goals, in this
@@ -298,7 +298,7 @@ Ltac dispatch_mem_load pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst src imm cont
   let Hagree := fresh "Hmem_agree" in
   eassert (load_member exec_opt _ instr dst src imm) as Hmember by solve_mem_agree;
   lazymatch type of Hmember with load_member _ ?flt _ _ _ _ =>
-  assert (load_agree exec_opt flt instr dst src imm) as Hagree by solve_mem_agree;
+  assert (mem_load_next_ok exec_opt flt instr dst src imm) as Hagree by solve_mem_agree;
   let cap := mem_authority_cap ws in
   lazymatch cap with (?p, ?g, ?b, ?e, ?a) =>
   let Haddr := fresh "Hmem_addr" in
@@ -362,7 +362,7 @@ Ltac dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst ρ imm cont
   let Hlift := fresh "Hmem_lift" in
   eassert (store_member exec_opt _ instr dst imm) as Hmember by solve_mem_agree;
   lazymatch type of Hmember with store_member _ ?swo _ _ _ =>
-  assert (store_agree exec_opt swo instr dst imm) as Hagree by solve_mem_agree;
+  assert (mem_store_next_ok exec_opt swo instr dst imm) as Hagree by solve_mem_agree;
   let cap := mem_authority_cap wd in
   lazymatch cap with (?p, ?g, ?b, ?e, ?a) =>
   let Haddr := fresh "Hmem_addr" in

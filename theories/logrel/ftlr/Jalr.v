@@ -63,7 +63,7 @@ Section fundamental.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
       iNext. iApply (ftlr_post_at_fault with "HPC Hmap Hreg Hworld_interp Hmie"); eauto. }
-    apply jalr_next_Some_inv in Hnext as (wsrc & pc_a' & Hrsrc & Htgt & Hpca' & -> & Hregs').
+    apply jalr_outcome_Some_inv in Hnext as (wsrc & pc_a' & Hrsrc & Htgt & Hpca' & -> & Hregs').
     iDestruct "HT" as "[ [_ Hmie] | [%Hc _] ]"; last done.
     iEval (rewrite /jalr_mie Hrsrc) in "Hmie".
 

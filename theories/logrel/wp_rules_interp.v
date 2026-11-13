@@ -709,7 +709,7 @@ Section wp_interp.
     iApply (wp_load_choice_next_2 (th := th) (CL := CL th) (pc_π := None)
               (W := (load_witness_res LoadPlain ∗ deref_witness_res dw)%I)
               with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit $Hdw]");
-      [exact Hdecode_wi | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hdecode_wi | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_sep_l, load_choice_witness
       | apply live_witness_sep_r, deref_witness_live; exact Hdw
       | exact Hcorrect_pc | exact Hpca' | exact Hdst_null | exact Hsrc_null | done | exact Hea
@@ -835,7 +835,7 @@ Section wp_interp.
     iApply (wp_load_choice_next_1 (th := th) (CL := CL th) (pc_π := None)
               (W := (load_witness_res LoadPlain ∗ deref_witness_res dw)%I)
               with "[$HPC $Hi $Hsrc $Ha $Hwit $Hdw]");
-      [exact Hdecode | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hdecode | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_sep_l, load_choice_witness
       | apply live_witness_sep_r, deref_witness_live; exact Hdw
       | exact Hcorrect_pc | exact Hpca' | exact Hr | done | apply addr_add_0 | exact Hra
@@ -930,7 +930,7 @@ Section wp_interp.
     iDestruct (pointsto_ne with "Ha Hi") as %Hne.
     iApply (wp_load_choice_next_2 (th := th) (CL := CL th) (pc_π := None) (W := load_witness_res LoadPlain)
               with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpc
       | exact Hdst | exact Hsrc | done | apply addr_add_0 | done | exact Hbounds | done |].
     iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & _)".

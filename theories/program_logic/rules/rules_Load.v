@@ -104,7 +104,7 @@ Section griotte_lang_rules.
     iIntros (Hshadow Hheap Hinstr Hvpc [Hra Hwb] Hadd Hpca' Hr1 Hr2 Φ)
       "(>HPC & >Hpc_a & >Hr1 & >Hr2 & >Hea & Hdw) HΦ".
     iApply (wp_load_next_2 (W := deref_res πs q) with "[$HPC $Hpc_a $Hr1 $Hr2 $Hea $Hdw]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_exact | by apply deref_res_live | exact Hvpc | exact Hpca'
       | exact Hr1 | exact Hr2 | done | exact Hadd | exact Hra | exact Hwb |].
     iIntros "!> (HPC & Hpc_a & Hr1 & Hr2 & Hea & Hdw)". iApply "HΦ". iFrame.
@@ -346,7 +346,7 @@ Section griotte_lang_rules.
     iIntros (Hread Hshadow Hinstr Hvpc Hbounds Hpc' Hdst Hsrc φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) Hφ".
     iApply (wp_load_next_2 (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc $Ha]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpc'
       | exact Hdst | exact Hsrc | done | by rewrite finz_add_0 | exact Hread | exact Hbounds |].
     iIntros "!> (HPC & Hi & Hdst & Hsrc & Ha & _)".
@@ -417,7 +417,7 @@ Section load_witness_rules.
     iDestruct (pointsto_ne with "Ha Hi") as %Hne.
     iApply (wp_load_choice_next_2 (pc_π := None) (W := load_witness_res wit)
               with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpca'
       | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds | done |].
     iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & Hwit)".
@@ -453,7 +453,7 @@ Section load_witness_rules.
     iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) HΦ".
     iApply (wp_load_next_2 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hdst $Hsrc $Ha]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
       | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds |].
     iIntros "!> (HPC & Hi & Hdst & Hsrc & Ha & _)". iApply "HΦ". iFrame.
@@ -499,7 +499,7 @@ Section load_witness_rules.
       iApply (wp_load_choice_next_2_pc (pc_π := None)
                 (W := (load_witness_res wit ∗ deref_witness_res dw)%I)
                 with "[$HPC $Hi $Hdst $Hsrc $Hwit $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
         | apply load_choice_sep_l, load_choice_witness
         | apply live_witness_sep_r, deref_witness_live; exact Hπ
         | exact Hvpc | exact Hpca' | exact Hdst | exact Hsrc | done | exact Hea | exact Hread
@@ -509,7 +509,7 @@ Section load_witness_rules.
     - iApply (wp_load_choice_next_2 (pc_π := None)
                 (W := (load_witness_res wit ∗ deref_witness_res dw)%I)
                 with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit $Hdw]");
-        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
         | apply load_choice_sep_l, load_choice_witness
         | apply live_witness_sep_r, deref_witness_live; exact Hπ
         | exact Hvpc | exact Hpca' | exact Hdst | exact Hsrc | done | exact Hea | exact Hread
@@ -549,7 +549,7 @@ Section load_witness_rules.
     iDestruct (pointsto_ne with "Ha Hi") as %Hne.
     iApply (wp_load_choice_next_1 (pc_π := None) (W := load_witness_res wit)
               with "[$HPC $Hi $Hsrc $Ha $Hwit]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpca'
       | exact Hr | done | exact Hea | exact Hread | exact Hbounds | done |].
     iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hsrc & Ha & Hwit)".
@@ -582,7 +582,7 @@ Section load_witness_rules.
     iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hr Φ)
       "(HPC & Hi & Hsrc & Ha) HΦ".
     iApply (wp_load_next_1 (pc_π := None) (W := emp%I) with "[$HPC $Hi $Hsrc $Ha]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_exact | by apply live_witness_no_id | exact Hvpc | exact Hpca'
       | exact Hr | done | exact Hea | exact Hread | exact Hbounds |].
     iIntros "!> (HPC & Hi & Hsrc & Ha & _)". iApply "HΦ". iFrame.

@@ -136,7 +136,7 @@ Section subseg_next_ok.
     by rewrite /lz_of_argument Hd.
   Qed.
 
-  Lemma subseg_next_ok_cap_unrepresentable pl lpc regs dst src ρ1 ρ2 (t : bool) p g b e a π n1 n2 :
+  Lemma subseg_next_ok_cap_untagged pl lpc regs dst src ρ1 ρ2 (t : bool) p g b e a π n1 n2 :
     regs !!ₗ src = Some (WCap t p g b e a @@? π) →
     lz_of_argument regs ρ1 = Some n1 →
     lz_of_argument regs ρ2 = Some n2 →
@@ -194,7 +194,7 @@ Section subseg_next_ok.
     by eapply subseg_next_ok_sr_valid; [exact Hsrc | exact H1 | exact H1 | exact Ho1 | exact Ho1 |].
   Qed.
 
-  Lemma subseg_next_ok_sr_unrepresentable pl lpc regs dst src ρ1 ρ2 (t : bool) p g b e a π n1 n2 :
+  Lemma subseg_next_ok_sr_untagged pl lpc regs dst src ρ1 ρ2 (t : bool) p g b e a π n1 n2 :
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
     lz_of_argument regs ρ1 = Some n1 →
     lz_of_argument regs ρ2 = Some n2 →
@@ -295,8 +295,8 @@ End subseg_next_ok.
 #[export] Hint Resolve subseg_next_ok_sr_same | 0 : regs_next_ok_lax_db.
 #[export] Hint Resolve subseg_next_ok_sr_valid | 1 : regs_next_ok_db.
 #[export] Hint Resolve subseg_next_ok_sr_valid | 1 : regs_next_ok_lax_db.
-#[export] Hint Resolve subseg_next_ok_cap_unrepresentable | 5 : regs_next_ok_db.
-#[export] Hint Resolve subseg_next_ok_sr_unrepresentable | 5 : regs_next_ok_db.
+#[export] Hint Resolve subseg_next_ok_cap_untagged | 5 : regs_next_ok_db.
+#[export] Hint Resolve subseg_next_ok_sr_untagged | 5 : regs_next_ok_db.
 #[export] Hint Resolve subseg_next_ok_other | 5 : regs_next_ok_db.
 
 (** ** The rules with a witness *)

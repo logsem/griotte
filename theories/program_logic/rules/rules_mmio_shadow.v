@@ -60,7 +60,7 @@ Section mmio_shadow_rules.
     assert (mmio_load (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) ea =
               Some (WInt (encodeAllocStatus status))) as Hload.
     { by rewrite /mmio_load Hshadow /shadow_load /= Htranslate /= Hst_heap. }
-    rewrite Hinstr /exec (CLoad_device_agree dst src imm pc_p _ p ea Hauth Hmmio) Hload /= in Hstep.
+    rewrite Hinstr /exec (cload_next_ok_device dst src imm pc_p _ p ea Hauth Hmmio) Hload /= in Hstep.
     iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst
       (lword_of_word (WInt (encodeAllocStatus status))) _ _ _ _
       (λ lpc'' regs' retv, lpc'' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
@@ -124,7 +124,7 @@ Section mmio_shadow_rules.
     destruct (store_lift_argument regs ρ v Hv R C _ _ _ _ _ Her Hlregs) as (pw & Hpw & _ & Hphys & _).
     destruct (reg_phys_and_tag _ _ _ Hphys) as [s ->].
     assert (is_mmio_address ea = true) as Hmmio by (by rewrite /is_mmio_address Hshadow).
-    rewrite Hinstr /exec (Store_device_agree dst ρ imm pc_p _ p ea _ Hauth Hmmio Hpw) in Hstep.
+    rewrite Hinstr /exec (store_next_ok_device dst ρ imm pc_p _ p ea _ Hauth Hmmio Hpw) in Hstep.
     assert (mmio_store (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) ea (and_tag s v.(lw)) =
               Some (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m
                       (<[heap_a := decodeAllocStatus (word_to_bits v.(lw))]> st) td)) as Hstore.

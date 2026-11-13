@@ -70,7 +70,7 @@ Section seta_next_ok.
     by rewrite /seta_result /= Ha'.
   Qed.
 
-  Lemma seta_next_ok_cap_invalid p0 lpc regs dst src ρ t p g b e a π n :
+  Lemma seta_next_ok_cap_untagged p0 lpc regs dst src ρ t p g b e a π n :
     regs !!ₗ src = Some (WCap t p g b e a @@? π) →
     lz_of_argument regs ρ = Some n →
     z_to_addr n = None →
@@ -90,7 +90,7 @@ Section seta_next_ok.
     by rewrite /seta_result /= Ha'.
   Qed.
 
-  Lemma seta_next_ok_sr_invalid p0 lpc regs dst src ρ t p g b e a π n :
+  Lemma seta_next_ok_sr_untagged p0 lpc regs dst src ρ t p g b e a π n :
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
     lz_of_argument regs ρ = Some n →
     z_to_otype n = None →
@@ -109,10 +109,10 @@ End seta_next_ok.
 
 #[export] Hint Resolve seta_next_ok_cap | 0 : regs_next_ok_db.
 #[export] Hint Resolve seta_next_ok_cap : regs_next_ok_lax_db.
-#[export] Hint Resolve seta_next_ok_cap_invalid | 0 : regs_next_ok_db.
+#[export] Hint Resolve seta_next_ok_cap_untagged | 0 : regs_next_ok_db.
 #[export] Hint Resolve seta_next_ok_sr | 0 : regs_next_ok_db.
 #[export] Hint Resolve seta_next_ok_sr : regs_next_ok_lax_db.
-#[export] Hint Resolve seta_next_ok_sr_invalid | 0 : regs_next_ok_db.
+#[export] Hint Resolve seta_next_ok_sr_untagged | 0 : regs_next_ok_db.
 #[export] Hint Resolve seta_next_ok_int | 0 : regs_next_ok_db.
 (* Any word, through [seta_result]: the fact from the context, directly or as
    a [lea_result]. *)

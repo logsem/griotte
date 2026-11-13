@@ -65,7 +65,7 @@ Section lea_next_ok.
     by rewrite /lea_result /= Ha'.
   Qed.
 
-  Lemma lea_next_ok_cap_overflow p0 lpc regs dst src ρ t p g b e a π z :
+  Lemma lea_next_ok_cap_untagged p0 lpc regs dst src ρ t p g b e a π z :
     regs !!ₗ src = Some (WCap t p g b e a @@? π) →
     lz_of_argument regs ρ = Some z →
     (a + z)%a = None →
@@ -85,7 +85,7 @@ Section lea_next_ok.
     by rewrite /lea_result /= Ha'.
   Qed.
 
-  Lemma lea_next_ok_sr_overflow p0 lpc regs dst src ρ t p g b e a π z :
+  Lemma lea_next_ok_sr_untagged p0 lpc regs dst src ρ t p g b e a π z :
     regs !!ₗ src = Some (WSealRange t p g b e a @@? π) →
     lz_of_argument regs ρ = Some z →
     (a + z)%ot = None →
@@ -104,10 +104,10 @@ End lea_next_ok.
 
 #[export] Hint Resolve lea_next_ok_cap | 0 : regs_next_ok_db.
 #[export] Hint Resolve lea_next_ok_cap : regs_next_ok_lax_db.
-#[export] Hint Resolve lea_next_ok_cap_overflow | 0 : regs_next_ok_db.
+#[export] Hint Resolve lea_next_ok_cap_untagged | 0 : regs_next_ok_db.
 #[export] Hint Resolve lea_next_ok_sr | 0 : regs_next_ok_db.
 #[export] Hint Resolve lea_next_ok_sr : regs_next_ok_lax_db.
-#[export] Hint Resolve lea_next_ok_sr_overflow | 0 : regs_next_ok_db.
+#[export] Hint Resolve lea_next_ok_sr_untagged | 0 : regs_next_ok_db.
 #[export] Hint Resolve lea_next_ok_int | 0 : regs_next_ok_db.
 (* Any word, through [lea_result]: the fact from the context. *)
 #[export] Hint Resolve lea_next_ok | 5 : regs_next_ok_db.

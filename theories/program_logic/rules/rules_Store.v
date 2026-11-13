@@ -92,7 +92,7 @@ Section griotte_lang_rules.
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst') as (Hdst_cnull & _).
     rewrite llookup_reg_not_cnull // in Hdst.
     iApply (wp_store_next (W := deref_witness_res dw) with "[$HPC $Hi $Ha $Hmap $Hdw]");
-      [exact Hdecode | solve_mem_instr_ok | apply Store_member_argument | apply Store_agree
+      [exact Hdecode | solve_mem_instr_ok | apply Store_member_argument | apply store_next_ok
       | by apply store_lift_argument
       | intros v1 Hv1; rewrite Hdst in Hv1; simplify_eq; by apply deref_witness_live
       | exact Hvpc | split_and!; [exact Hdst' | exact Hadd | exact Hwa | exact Hwb]

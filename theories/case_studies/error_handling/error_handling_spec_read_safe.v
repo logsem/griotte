@@ -142,7 +142,7 @@ Section Error_Handling_Read_Safe.
     iApply (wp_load_choice_next_1 (th := th) (pc_π := None)
               (W := (load_witness_res LoadPlain ∗ deref_witness_res dw)%I)
               with "[$HPC $Hi $Hsrc $Ha $Hwit $Hdw]");
-      [exact Hdecode | solve_mem_instr_ok | apply CLoad_member | apply CLoad_agree
+      [exact Hdecode | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
       | apply load_choice_sep_l, load_choice_witness
       | apply live_witness_sep_r, deref_witness_live; exact Hdw
       | exact Hcorrect_pc | exact Hpca' | exact Hr | done | apply addr_add_0 | exact Hra

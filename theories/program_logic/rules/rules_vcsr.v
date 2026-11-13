@@ -98,7 +98,7 @@ Section vcsr.
       | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+    destruct (specialrw_outcome_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
                 ltac:(eexists; apply lookup_singleton_eq)
                 ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold & Hvold & Hsr' & ->).
@@ -139,7 +139,7 @@ Section vcsr.
       | rewrite Hxsr /sregs_of dom_singleton_L; set_solver |].
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+    destruct (specialrw_outcome_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
                 ltac:(eexists; apply lookup_singleton_eq)
                 ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold' & Hvold & Hsr' & ->).

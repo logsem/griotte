@@ -139,7 +139,7 @@ Section mem_access_pure.
       nothing. This is the place where such an effect (for example on a
       watermark) enters; a model with one changes this definition and the
       closers and tactics that unfold it ([wp_store_step_gen],
-      [solve_mem_access_member_with], [Store_agree]). *)
+      [solve_mem_access_member_with], [store_next_ok]). *)
   Definition store_effect (ea : Addr) (φ : ExecConf) : ExecConf := φ.
 
   (** Loads, whose result on a cell is the loaded word through the filter
@@ -191,7 +191,7 @@ Section mem_access_pure.
 
   (** The agreement of a load: on the checked path to a cell, the step is
       the access. *)
-  Definition load_agree (step : instr → Perm → ExecConf → option Conf)
+  Definition mem_load_next_ok (step : instr → Perm → ExecConf → option Conf)
       (flt : ExecConf → Perm → Word → option Word) (i : instr) (dst r : RegName) (imm : Z) : Prop :=
     ∀ pl φ p ea pv w,
       mem_access_authorised readAllowed φ r imm p ea → is_mmio_address ea = false →
@@ -200,7 +200,7 @@ Section mem_access_pure.
 
   (** The agreement of a store: on the checked path to a cell, the step is
       the access, for any word that [stored_word_ok] allows. *)
-  Definition store_agree (step : instr → Perm → ExecConf → option Conf)
+  Definition mem_store_next_ok (step : instr → Perm → ExecConf → option Conf)
       (stored_word_ok : ExecConf → Word → Prop) (i : instr) (r : RegName) (imm : Z) : Prop :=
     ∀ pl φ p ea w,
       mem_access_authorised writeAllowed φ r imm p ea → is_mmio_address ea = false →
@@ -468,7 +468,7 @@ Section mem_access_pure.
   Lemma load_step_live_inv step flt post i R C φ lpc lreg lsreg lmem regs dst r imm (mem : LMem)
       pl p g b e a ea lv :
     erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg → mem ⊆ lmem →
-    load_agree step flt i dst r imm → load_choice_ok flt post R C →
+    mem_load_next_ok step flt i dst r imm → load_choice_ok flt post R C →
     (∀ v, regs !! r = Some v → ¬ stale_id R v) →
     reg_allows_mem_access MemAccessRead regs r imm p g b e a ea → mem !! ea = Some lv →
     ∃ pw, step i pl φ = nextPC (φ .[dst :=ᵣ pw]).
@@ -486,7 +486,7 @@ Section mem_access_pure.
   Lemma store_step_live_inv step stored_word_ok i R C φ lpc lreg lsreg lmem regs r imm (mem : LMem)
       pl p g b e a ea :
     erasure R C φ lpc lreg lsreg lmem → regs ⊆ lreg → mem ⊆ lmem →
-    store_agree step stored_word_ok i r imm → store_lift_some stored_word_ok regs →
+    mem_store_next_ok step stored_word_ok i r imm → store_lift_some stored_word_ok regs →
     (∀ v, regs !! r = Some v → ¬ stale_id R v) →
     reg_allows_mem_access MemAccessWrite regs r imm p g b e a ea → is_Some (mem !! ea) →
     ∃ w, stored_word_ok φ w ∧ step i pl φ = nextPC ((store_effect ea φ) .[ea :=ₐ store_word p w]).
@@ -576,8 +576,8 @@ Lemma Store_member_argument `{MachineParameters} dst ρ imm :
 Proof. apply Store_member. intros φ w Hw. exact Hw. Qed.
 
 (** On the checked path to a cell, [CLoad dst src imm] is the access. *)
-Lemma CLoad_agree `{MachineParameters} dst src imm :
-  load_agree exec_opt griotte_load_filter (CLoad dst src imm) dst src imm.
+Lemma cload_next_ok `{MachineParameters} dst src imm :
+  mem_load_next_ok exec_opt griotte_load_filter (CLoad dst src imm) dst src imm.
 Proof.
   intros pl φ p ea pv w (g & b & e & a & Hsrc & Hperm & Hadd & Hwb) Hmmio Hpv Hflt.
   rewrite /griotte_load_filter /load_filter in Hflt.
@@ -589,8 +589,8 @@ Qed.
 
 (** On the checked path to a cell, [Store dst ρ imm] is the access, of the
     word of [ρ]. *)
-Lemma Store_agree `{MachineParameters} dst ρ imm :
-  store_agree exec_opt (λ φ w, word_of_argument (reg φ) ρ = Some w) (Store dst ρ imm) dst imm.
+Lemma store_next_ok `{MachineParameters} dst ρ imm :
+  mem_store_next_ok exec_opt (λ φ w, word_of_argument (reg φ) ρ = Some w) (Store dst ρ imm) dst imm.
 Proof.
   intros pl φ p ea w (g & b & e & a & Hdst & Hperm & Hadd & Hwb) Hmmio [v Hv] Hw.
   cbv beta in Hw.
@@ -600,7 +600,7 @@ Qed.
 
 (** On the checked path to a device, [CLoad dst src imm] reads the
     device. *)
-Lemma CLoad_device_agree `{MachineParameters} dst src imm pl φ p ea :
+Lemma cload_next_ok_device `{MachineParameters} dst src imm pl φ p ea :
   mem_access_authorised readAllowed φ src imm p ea → is_mmio_address ea = true →
   exec_opt (CLoad dst src imm) pl φ = (w ← mmio_load φ ea; nextPC (φ .[dst :=ᵣ w])).
 Proof.
@@ -609,7 +609,7 @@ Proof.
 Qed.
 
 (** On the checked path to a device, [Store dst ρ imm] writes the device. *)
-Lemma Store_device_agree `{MachineParameters} dst ρ imm pl φ p ea w :
+Lemma store_next_ok_device `{MachineParameters} dst ρ imm pl φ p ea w :
   mem_access_authorised writeAllowed φ dst imm p ea → is_mmio_address ea = true →
   word_of_argument (reg φ) ρ = Some w →
   exec_opt (Store dst ρ imm) pl φ = (φ' ← mmio_store φ ea w; nextPC φ').
@@ -622,17 +622,17 @@ Qed.
 (** ** The memory steps in closed form
 
     The memberships and agreements of the memory instructions are lemmas.
-    The fallback of [iInstr] finds them in the hint database [mem_agree_db],
+    The fallback of [iInstr] finds them in the hint database [mem_next_ok_db],
     indexed by the instruction; each lemma is registered on the line after
     it, or here for those above. *)
-Create HintDb mem_agree_db discriminated.
-#[export] Hint Constants Opaque : mem_agree_db.
-#[export] Hint Opaque load_member load_agree store_member store_agree : mem_agree_db.
-#[export] Hint Mode load_member - - - ! - - - : mem_agree_db.
-#[export] Hint Mode load_agree - - - ! - - - : mem_agree_db.
-#[export] Hint Mode store_member - - - ! - - : mem_agree_db.
-#[export] Hint Mode store_agree - - - ! - - : mem_agree_db.
-#[export] Hint Resolve CLoad_member CLoad_agree Store_member_argument Store_agree : mem_agree_db.
+Create HintDb mem_next_ok_db discriminated.
+#[export] Hint Constants Opaque : mem_next_ok_db.
+#[export] Hint Opaque load_member mem_load_next_ok store_member mem_store_next_ok : mem_next_ok_db.
+#[export] Hint Mode load_member - - - ! - - - : mem_next_ok_db.
+#[export] Hint Mode mem_load_next_ok - - - ! - - - : mem_next_ok_db.
+#[export] Hint Mode store_member - - - ! - - : mem_next_ok_db.
+#[export] Hint Mode mem_store_next_ok - - - ! - - : mem_next_ok_db.
+#[export] Hint Resolve CLoad_member cload_next_ok Store_member_argument store_next_ok : mem_next_ok_db.
 
 (** ** The closer of a memory write *)
 
@@ -847,7 +847,7 @@ Section mem_access_witness.
 
 End mem_access_witness.
 
-#[export] Hint Resolve load_choice_exact : mem_agree_db.
+#[export] Hint Resolve load_choice_exact : mem_next_ok_db.
 
 (** ** The rules *)
 
@@ -883,13 +883,13 @@ Section mem_access_rules.
       word with [post] ([load_choice]): a fault, or the PC incremented and
       [dst] holding a word with [post] of a cell of [mem], or an untagged
       word of a device ([load_result]). When [L] holds, the step agrees
-      with the access ([load_agree]) and [W] keeps the authority live: an
+      with the access ([mem_load_next_ok]) and [W] keeps the authority live: an
       access to a cell does not fault ([mem_access_progress]). *)
   Lemma wp_load_step_gen Ep pc_p pc_g pc_b pc_e pc_a pc_π w i dst r imm flt post
       (L : Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → load_member exec_opt flt i dst r imm → load_choice flt W post →
     mem_instr_ok th i →
-    (L → load_agree exec_opt flt i dst r imm) →
+    (L → mem_load_next_ok exec_opt flt i dst r imm) →
     (L → ∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → (dst = cnull ∨ dst ∈ dom regs) →
@@ -970,13 +970,13 @@ Section mem_access_rules.
       a fault, or the PC incremented and a cell of [mem] holding the stored
       word as [lstore_word] writes it, or a device written
       ([store_result]). When [L] holds, the step agrees with the access
-      ([store_agree]), some word is stored ([store_lift_some]) and [W]
+      ([mem_store_next_ok]), some word is stored ([store_lift_some]) and [W]
       keeps the authority live: an access to a cell does not fault
       ([mem_access_progress]). *)
   Lemma wp_store_step_gen Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
       (Q : LWord → Prop) (L : Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm → mem_instr_ok th i →
-    (L → store_agree exec_opt stored_word_ok i r imm) →
+    (L → mem_store_next_ok exec_opt stored_word_ok i r imm) →
     (L → store_lift_some stored_word_ok regs) →
     (L → ∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1104,7 +1104,7 @@ Section mem_access_rules.
   Lemma wp_load_step_live Ep pc_p pc_g pc_b pc_e pc_a pc_π w i dst r imm flt post
       (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → load_member exec_opt flt i dst r imm → load_choice flt W post →
-    mem_instr_ok th i → load_agree exec_opt flt i dst r imm →
+    mem_instr_ok th i → mem_load_next_ok exec_opt flt i dst r imm →
     (∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → (dst = cnull ∨ dst ∈ dom regs) →
@@ -1164,7 +1164,7 @@ Section mem_access_rules.
   Lemma wp_store_step_live Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
       (Q : LWord → Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm → mem_instr_ok th i →
-    store_agree exec_opt stored_word_ok i r imm → store_lift_some stored_word_ok regs →
+    mem_store_next_ok exec_opt stored_word_ok i r imm → store_lift_some stored_word_ok regs →
     (∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → store_lift stored_word_ok Q regs →
@@ -1202,7 +1202,7 @@ Section mem_access_rules.
     Lemma wp_load_choice_next {E pc_p pc_g pc_b pc_e pc_a pc_π w dq i dst r imm flt post}
       {regs : LReg} {p g b e a ea v dq'} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst r imm → load_agree exec_opt flt i dst r imm →
+    load_member exec_opt flt i dst r imm → mem_load_next_ok exec_opt flt i dst r imm →
     load_choice flt W post →
     (∀ v0, regs !! r = Some v0 → live_witness W v0) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1258,7 +1258,7 @@ Section mem_access_rules.
   Lemma wp_load_choice_next_pc {E pc_p pc_g pc_b pc_e pc_a pc_π w dq i dst r imm flt post}
       {regs : LReg} {p g b e a} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst r imm → load_agree exec_opt flt i dst r imm →
+    load_member exec_opt flt i dst r imm → mem_load_next_ok exec_opt flt i dst r imm →
     load_choice flt W post →
     (∀ v0, regs !! r = Some v0 → live_witness W v0) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1308,7 +1308,7 @@ Section mem_access_rules.
     Lemma wp_store_next {E pc_p pc_g pc_b pc_e pc_a pc_π w dq i stored_word_ok r imm} {regs : LReg}
       {p g b e a ea v0 v} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i r imm → store_agree exec_opt stored_word_ok i r imm →
+    store_member exec_opt stored_word_ok i r imm → mem_store_next_ok exec_opt stored_word_ok i r imm →
     store_lift_exact stored_word_ok v regs →
     (∀ v1, regs !! r = Some v1 → live_witness W v1) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1361,7 +1361,7 @@ Section mem_access_rules.
   Lemma wp_store_next_pc {E pc_p pc_g pc_b pc_e pc_a pc_π w i stored_word_ok r imm} {regs : LReg}
       {p g b e a v} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i r imm → store_agree exec_opt stored_word_ok i r imm →
+    store_member exec_opt stored_word_ok i r imm → mem_store_next_ok exec_opt stored_word_ok i r imm →
     store_lift_exact stored_word_ok v regs →
     (∀ v1, regs !! r = Some v1 → live_witness W v1) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1415,7 +1415,7 @@ Section mem_access_rules.
   Lemma wp_load_choice_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt post}
       {r1 w1 imm p g b e a ea dq' v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i r1 r1 imm → load_agree exec_opt flt i r1 r1 imm →
+    load_member exec_opt flt i r1 r1 imm → mem_load_next_ok exec_opt flt i r1 r1 imm →
     load_choice flt W post → live_witness W w1 →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
@@ -1453,7 +1453,7 @@ Section mem_access_rules.
   Lemma wp_load_choice_next_1_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt post}
       {r1 w1 imm p g b e a} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i r1 r1 imm → load_agree exec_opt flt i r1 r1 imm →
+    load_member exec_opt flt i r1 r1 imm → mem_load_next_ok exec_opt flt i r1 r1 imm →
     load_choice flt W post → live_witness W w1 →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
@@ -1489,7 +1489,7 @@ Section mem_access_rules.
   Lemma wp_load_choice_next_2 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt post}
       {dst wd src ws imm p g b e a ea dq' v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst src imm → load_agree exec_opt flt i dst src imm →
+    load_member exec_opt flt i dst src imm → mem_load_next_ok exec_opt flt i dst src imm →
     load_choice flt W post → live_witness W ws →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
@@ -1529,7 +1529,7 @@ Section mem_access_rules.
   Lemma wp_load_choice_next_2_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt post}
       {dst wd src ws imm p g b e a} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst src imm → load_agree exec_opt flt i dst src imm →
+    load_member exec_opt flt i dst src imm → mem_load_next_ok exec_opt flt i dst src imm →
     load_choice flt W post → live_witness W ws →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
@@ -1569,7 +1569,7 @@ Section mem_access_rules.
   Lemma wp_load_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
       {r1 w1 imm p g b e a ea dq' v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i r1 r1 imm → load_agree exec_opt flt i r1 r1 imm →
+    load_member exec_opt flt i r1 r1 imm → mem_load_next_ok exec_opt flt i r1 r1 imm →
     load_choice flt W load_exact → live_witness W w1 →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
@@ -1605,7 +1605,7 @@ Section mem_access_rules.
   Lemma wp_load_next_1_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
       {r1 w1 imm p g b e a} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i r1 r1 imm → load_agree exec_opt flt i r1 r1 imm →
+    load_member exec_opt flt i r1 r1 imm → mem_load_next_ok exec_opt flt i r1 r1 imm →
     load_choice flt W load_exact → live_witness W w1 →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     r1 ≠ cnull →
@@ -1631,7 +1631,7 @@ Section mem_access_rules.
   Lemma wp_load_next_2 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
       {dst wd src ws imm p g b e a ea dq' v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst src imm → load_agree exec_opt flt i dst src imm →
+    load_member exec_opt flt i dst src imm → mem_load_next_ok exec_opt flt i dst src imm →
     load_choice flt W load_exact → live_witness W ws →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
@@ -1669,7 +1669,7 @@ Section mem_access_rules.
   Lemma wp_load_next_2_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i flt}
       {dst wd src ws imm p g b e a} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    load_member exec_opt flt i dst src imm → load_agree exec_opt flt i dst src imm →
+    load_member exec_opt flt i dst src imm → mem_load_next_ok exec_opt flt i dst src imm →
     load_choice flt W load_exact → live_witness W ws →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull → src ≠ cnull →
@@ -1701,7 +1701,7 @@ Section mem_access_rules.
   Lemma wp_store_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i stored_word_ok}
       {dst wd imm p g b e a ea v0 v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i dst imm → store_agree exec_opt stored_word_ok i dst imm →
+    store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     store_lift_exact stored_word_ok v {[dst := wd]} → live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
@@ -1738,7 +1738,7 @@ Section mem_access_rules.
   Lemma wp_store_next_1_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w i stored_word_ok}
       {dst wd imm p g b e a v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i dst imm → store_agree exec_opt stored_word_ok i dst imm →
+    store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     store_lift_exact stored_word_ok v {[dst := wd]} → live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
     dst ≠ cnull →
@@ -1773,7 +1773,7 @@ Section mem_access_rules.
   Lemma wp_store_next_2 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i stored_word_ok}
       {dst wd src ws imm p g b e a ea v0 v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i dst imm → store_agree exec_opt stored_word_ok i dst imm →
+    store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     (dst ≠ src → store_lift_exact stored_word_ok v (<[dst := wd]> (<[src := ws]> ∅))) →
     live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
@@ -1813,7 +1813,7 @@ Section mem_access_rules.
   Lemma wp_store_next_2_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w i stored_word_ok}
       {dst wd src ws imm p g b e a v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
-    store_member exec_opt stored_word_ok i dst imm → store_agree exec_opt stored_word_ok i dst imm →
+    store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     (dst ≠ src → store_lift_exact stored_word_ok v (<[dst := wd]> (<[src := ws]> ∅))) →
     live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
