@@ -298,10 +298,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
   | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
   | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
-  (* Seal *)
-  | Seal ?r _ ?r => cont (@wp_seal_r2)
-  | Seal ?r ?r _ => cont (@wp_seal_r1)
-  | Seal _ _ _ => cont (@wp_seal_success)
   (* UnSeal *)
   | UnSeal ?r _ ?r => cont (@wp_unseal_r2)
   | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
@@ -408,12 +404,6 @@ Ltac dispatch_instr_invalidation instr cont :=
        cont (@wp_subseg_unrepresentable_lr_sr) ||
        cont (@wp_subseg_invalidated_lr) ||
        cont (@wp_subseg_invalidated_lr_sr))
-  (* Seal *)
-  | Seal ?r ?r ?r => cont (@wp_seal_invalidated_all)
-  | Seal _ ?r ?r => cont (@wp_seal_invalidated_same)
-  | Seal ?r ?r _ => cont (@wp_seal_invalidated_r1)
-  | Seal ?r _ ?r => cont (@wp_seal_invalidated_r2)
-  | Seal _ _ _ => cont (@wp_seal_invalidated)
   (* UnSeal *)
   | UnSeal ?r ?r _ => cont (@wp_unseal_invalidated_r1)
   | UnSeal ?r _ ?r => cont (@wp_unseal_invalidated_r2)
