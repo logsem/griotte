@@ -1,7 +1,7 @@
 From iris.proofmode Require Import coq_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules solve_pure machine_instructions.
+From griotte Require Import rules rules_regs solve_pure machine_instructions.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
@@ -378,4 +378,96 @@ Ltac instr_guard_invalidation_premise :=
       without_evars n1; without_evars n2;
       solve [solve_pure | left; solve_pure | right; solve_pure]
   | _ => idtac
+  end.
+
+(** * The premise of the generic register rules
+
+    The pure premise [regs_next_ok] of [wp_regs_next_1], [wp_regs_next_2]
+    and [wp_regs_next_3] ([rules_regs.v]): the agreement by computation,
+    the source from a hint, for [dispatch_generic_next]. *)
+
+(* A lookup in a literal register map, by [lookup_insert_eq] and
+   [lookup_insert_ne] only: no [simplify_map_eq], slow in large contexts. *)
+Ltac regs_lookup :=
+  first [ apply lookup_insert_eq
+        | apply lookup_singleton_eq
+        | rewrite lookup_insert_ne;
+          [ regs_lookup | first [assumption | by apply not_eq_sym] ] ].
+
+(* The operands read on the copy [Hc] of the literal map [m]. *)
+Ltac regs_copy_lookups Hc m :=
+  lazymatch m with
+  | <[?r := ?v]> ?m' =>
+      let H := fresh "Hlookup" in
+      pose proof (proj1 (Hc r v ltac:(regs_lookup))) as H;
+      regs_copy_lookups Hc m'
+  | {[?r := ?v]} =>
+      let H := fresh "Hlookup" in
+      pose proof (proj1 (Hc r v ltac:(regs_lookup))) as H
+  | ∅ => idtac
+  end.
+
+(* The computed step against the expected one, then each strip bit of the
+   source. *)
+Ltac regs_agree_finish S :=
+  first [ reflexivity
+        | rewrite and_tag_true; reflexivity
+        | lazymatch goal with |- context [ S ?r ] =>
+            destruct (S r); cbn -[advancePC nextPC update_reg finz.of_z]; rewrite ?and_tag_true;
+            reflexivity
+          end ].
+
+(* A side goal of the agreement: a stuck address computation, closed from
+   the context or by the [iInstr] address automation, else left to the
+   caller, as in the dedicated rules, outside the copy [φ]. *)
+Ltac regs_agree_side φ S :=
+  try clear dependent φ; try clear S;
+  try first [eassumption | instr_auto_solve_addr_result].
+
+(* A stuck address computation, [(a + z)%a] (Lea) or [z_to_addr z]
+   (SetA), becomes a side goal. *)
+Ltac regs_agree_cut φ S :=
+  lazymatch goal with
+  | |- context [ (?a + ?z)%a ] =>
+      let a' := fresh "a'" in
+      evar (a' : Addr); cut ((a + z)%a = Some a'); subst a';
+      [ intros ->; cbn -[advancePC nextPC update_reg finz.of_z]; regs_agree_cut φ S
+      | regs_agree_side φ S ]
+  | |- context [ z_to_addr ?z ] =>
+      let a' := fresh "a'" in
+      evar (a' : Addr); cut (z_to_addr z = Some a'); subst a';
+      [ intros ->; cbn -[advancePC nextPC update_reg finz.of_z]; regs_agree_cut φ S
+      | regs_agree_side φ S ]
+  | _ => regs_agree_finish S
+  end.
+
+(* The agreement, by computation: the operands read on the copy, the step
+   computed, a stuck address computation left as a side goal, then each
+   strip bit of the source. *)
+Ltac solve_regs_agree :=
+  let φ := fresh "φ" in
+  let S := fresh "S" in
+  let Hc := fresh "Hc" in
+  intros φ S _ Hc;
+  lazymatch type of Hc with regs_copy _ _ ?m => regs_copy_lookups Hc m end;
+  rewrite /regs_effect /exec_opt; cbn -[advancePC nextPC update_reg lookup_reg finz.of_z];
+  repeat match goal with H : reg _ !!ᵣ _ = Some _ |- _ => rewrite H; clear H end;
+  cbn -[advancePC nextPC update_reg finz.of_z];
+  regs_agree_cut φ S.
+
+(* [regs_next_ok], under its distinctness premises, with the source given
+   by [hint]: [Some r], a word derived from the register [r], or [None], an
+   untagged word. Instantiates the written word. *)
+Ltac solve_regs_next hint :=
+  repeat match goal with |- _ ≠ _ → _ => let Hne := fresh "Hne" in intros Hne end;
+  lazymatch hint with
+  | Some ?r =>
+      eapply (regs_next_ok_derive _ _ _ _ _ r);
+      [ rewrite ?llookup_reg_not_cnull //; regs_lookup
+      | cbn; reflexivity
+      | solve_regs_agree
+      | cbn; reflexivity
+      | cbn; done
+      | cbn; done ]
+  | None => eapply regs_next_ok_untagged; [solve_regs_agree | reflexivity]
   end.
