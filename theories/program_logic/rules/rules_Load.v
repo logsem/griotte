@@ -27,35 +27,8 @@ Section griotte_lang_rules.
 
   (** ** Status witnesses
 
-      The loaded word's identifier decides the post. Every load gets the
-      plain post: the loaded word, or its untagged copy if it is a heap
-      capability. Without a witness the loaded word is exact (variant 1);
-      exact posts also follow for non-heap words and for identifier-less
-      words with authority (variant 4), and, given a witness, untagged posts
-      for quarantined identifiers (variant 2) and exact posts for live ones
-      (variant 3). Witnesses are preconditions, returned unchanged. *)
-  Inductive load_witness := LoadPlain | LoadQuar (ι : AId) | LoadLive (ι : AId) (q : Qp).
-
-  Definition load_witness_res (wit : load_witness) : iProp Σ :=
-    match wit with
-    | LoadPlain => emp
-    | LoadQuar ι => ι ⊒ AQuar
-    | LoadLive ι q => ι ↦st{q} ALive
-    end%I.
-
-  #[global] Instance load_witness_res_timeless wit : Timeless (load_witness_res wit).
-  Proof. destruct wit; apply _. Qed.
-
-  Definition load_post (wit : load_witness) (p : Perm) (v v' : LWord) : Prop :=
-    lload_heap (lload_word p v) v' ∧
-    (heap_cap_base v.(lw) = None → v' = lload_word p v) ∧
-    (v.(lprov) = None → load_exact_cond v → v' = lload_word p v) ∧
-    match wit with
-    | LoadPlain => v' = lload_word p v
-    | LoadQuar ι => v.(lprov) = Some ι → (get_tag v.(lw) = true → has_authority v.(lw)) →
-                    v' = lclear_tag (lload_word p v)
-    | LoadLive ι q => v.(lprov) = Some ι → load_exact_cond v → v' = lload_word p v
-    end.
+      [load_witness], [load_witness_res] and [load_post] are in
+      [instr_operands.v]. Witnesses are preconditions, returned unchanged. *)
 
   Definition load_witness_ok (R : RegState) (wit : load_witness) : Prop :=
     match wit with

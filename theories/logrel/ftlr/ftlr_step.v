@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre lifting.
 From griotte Require Export logrel ftlr_base.
-From griotte Require Import monotone wp_core_full Ecall.
+From griotte Require Import monotone wp_core_full ftlr_contract Ecall.
 Import CoreWPNotations.
 
 (** * One step of the fundamental theorem
@@ -9,9 +9,9 @@ Import CoreWPNotations.
     The step lemma [ftlr_step] runs one instruction of a thread from a safe
     PC: the head (the not-correct-PC branch, the opening of the region of
     the PC), the case of the instruction, and the handling of its value
-    (the next instruction, a fault, a halt, a yield). The environment call
-    is dispatched before the table of the other cases. The
-    world is reached through a world accessor around the core step of the
+    (the next instruction, a fault, a halt, a yield). The case of the
+    instruction, Ecall included, comes from the premise. The world is
+    reached through a world accessor around the core step of the
     instruction; the cases never see it. *)
 
 Section ftlr_step_generic.
@@ -234,18 +234,25 @@ Section ftlr_step.
     iLeft. iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
-  (** A case that does not touch the volatile registers frames the lent
-      part: back to the accessor at InterruptEnabled, in the post-state at
-      InterruptDisabled. *)
-  Lemma vol_lent_frame m :
-    vol_lent_any -∗ (if m is InterruptEnabled then vol_lent_any else True) ∗ lent_if_dis m.
-  Proof. iIntros "H". destruct m; iFrame. Qed.
-
-  (** The post-state of the step lemma: an environment call, or a case's
-      post-state with the lent volatile part at InterruptDisabled. *)
-  Definition ftlr_post_sw (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : tval (kind_of th)) : iProp Σ :=
-    ftlr_ecall_post m W C v ∨ (lent_if_dis m ∗ ftlr_post_at m W C v).
+  (** The post-state [Q] of a case is the post-state of the accessor's
+      body, for the hand-off [λ W'' m' v, ⌜related_sts_pub_world W0 W''⌝ ∗
+      Q m' W'' v], once the world [W] of the case is a public future world
+      of the world [W0] of the step. *)
+  Lemma ftlr_case_handoff (W0 W : WORLD) (C : CmptName)
+      (Q : InterruptStatus → WORLD → tval (kind_of th) → iProp Σ) :
+    related_sts_pub_world W0 W →
+    WP Instr Executable @core[th] {{ ftlr_contract_post W C Q }} -∗
+    WP Instr Executable @core[th]
+      {{ ftlr_contract_post W C (λ m' W' v, ⌜related_sts_pub_world W0 W'⌝ ∗ Q m' W' v) }}.
+  Proof.
+    iIntros (Hrel0) "Hwp".
+    iApply (wp_wand with "Hwp").
+    iIntros (v) "Hpost !>".
+    iDestruct "Hpost" as (W' m' Hrel) "(Hworld & Hmie & Hvol & Hpost)".
+    iExists W', m'. iFrame.
+    iSplit; first done.
+    iPureIntro. by eapply related_sts_pub_trans_world.
+  Qed.
 
   (** The value of an instruction: the next instruction runs from the
       next-PC witness at the post-step posture, a fault traps, a halt gives
@@ -351,12 +358,12 @@ Section ftlr_step.
 
   (** The step lemma: the head, the case of the instruction, and the value,
       around the world accessor, at the posture [m] of the thread. The
-      environment call is dispatched before the table of the other cases. *)
+      case of the instruction, Ecall included, comes from the premise. *)
   Lemma ftlr_step
     (W : WORLD) (C : CmptName) (m : InterruptStatus) (w : LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
     (∀ W C regs p p' g b e a w i ρ P m,
-        i ≠ Ecall → ftlr_instr_at m W C regs p p' g b e a w i ρ P) →
+        ftlr_contract m W C regs p p' g b e a w i ρ P) →
     frame_match Ws Cs cstk W C →
     route_pre th m →
     world_accessor -∗
@@ -443,35 +450,12 @@ Section ftlr_step.
           [set_solver|done|].
         iDestruct "Hres" as (wa) "(%HpO & Hc & HP & Hmono)".
         iNext. iExists wa. iApply (pc_open_intro with "[Hc HP Hmono]"); [done|by iFrame "∗%"]. }
-    (* 5. The case of the instruction: the environment call, which consumes
-       the lent volatile part, or a case of the table, which frames it. *)
-    destruct (decide (decodeInstrW wa.(lw) = Ecall)) as [Hecall | Hne].
-    { iApply (wp_wand with "[-]").
-      { iApply (ecall_case m W' C regs p p' g b e a wa ρ P
-                with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
-                      $Hworld $HPC $Hmap $Hmie $Hvol //]"); eauto. }
-      (* 6. The hand-off goes back to the accessor. *)
-      iIntros (v) "Hpost !>".
-      iDestruct "Hpost" as (W'' Hrel') "(Hworld & Hmie & Hpost)".
-      iExists W'', InterruptDisabled. iFrame "Hworld Hmie".
-      iSplit; first done.
-      iSplit; first (iPureIntro; by intros).
-      iSplit; first done.
-      iSplit; first (iPureIntro; by eapply related_sts_pub_trans_world).
-      by iLeft. }
-    iApply (wp_wand with "[- Hvol]").
-    { iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P m Hne
-              with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
-                    $Hworld $HPC $Hmap $Hmie //]"); eauto. }
-    (* 6. The hand-off goes back to the accessor. *)
-    iIntros (v) "Hpost !>".
-    iDestruct "Hpost" as (W'' m' Hrel') "(Hworld & Hmie & %Hpre' & Hpost)".
-    iDestruct (vol_lent_frame m' with "Hvol") as "[Hvol Hlent]".
-    iExists W'', m'. iFrame "Hworld Hmie Hvol".
-    iSplit; first done.
-    iSplit; first done.
-    iSplit; first (iPureIntro; by eapply related_sts_pub_trans_world).
-    iRight. iFrame.
+    (* 5. The case of the instruction; its post-state goes back to the
+       accessor. *)
+    iApply (ftlr_case_handoff W W' C); first done.
+    iApply (Hcases W' C regs p p' g b e a wa (decodeInstrW wa.(lw)) ρ P m
+            with "[$IH $Hthread $Hinv_interp $Hregs $Hinva $Hrcond $Hwcond $WorldRes
+                  $Hworld $HPC $Hmap $Hmie $Hvol //]"); eauto.
   Qed.
 
 End ftlr_step.

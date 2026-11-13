@@ -480,6 +480,33 @@ Section erasure.
     - by apply lword_exec_derive.
   Qed.
 
+  (* The sealed word keeps the bounds of its payload and never gains a tag. *)
+  Lemma reg_word_ok_seal R C (sb sb' : Sealable) π o :
+    (sb' = sb ∨ sb' = clear_tag_sealable sb) →
+    reg_word_ok R C (WSealable sb @@? π) →
+    reg_word_ok R C (WSealed o sb' @@? π).
+  Proof.
+    intros Hsb. apply (reg_word_ok_derive _ _ (WSealable sb @@? π)); cbn.
+    - left. destruct Hsb as [-> | ->]; by destruct sb.
+    - destruct Hsb as [-> | ->]; first done. by rewrite get_tag_clear_tag_sealable.
+    - destruct Hsb as [-> | ->]; by destruct sb.
+  Qed.
+
+  (* The unsealed word keeps the bounds and the permissions of the sealed one
+     and never gains a tag. *)
+  Lemma reg_word_ok_unseal R C (sb sb' : Sealable) π o :
+    (memory_cap_bounds (WSealable sb') = memory_cap_bounds (WSealed o sb)) →
+    (get_tag_sealable sb' = true → get_tag_sealable sb = true) →
+    executable_word (WSealable sb') = executable_word (WSealed o sb) →
+    reg_word_ok R C (WSealed o sb @@? π) →
+    reg_word_ok R C (WSealable sb' @@? π).
+  Proof.
+    intros Hb Ht Hx. apply (reg_word_ok_derive _ _ (WSealed o sb @@? π)).
+    - cbn; auto.
+    - cbn; auto.
+    - intros _ Hx'. rewrite -Hx. exact Hx'.
+  Qed.
+
   Lemma reg_word_ok_lift R C f v :
     (∀ w, memory_cap_bounds (f w) = memory_cap_bounds w ∨ memory_cap_bounds (f w) = None) →
     (∀ w, get_tag (f w) = true → get_tag w = true) →

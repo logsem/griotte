@@ -68,18 +68,6 @@ Section griotte_lang_rules.
       Seal_failure lpc regs dst src1 src2 lpc' regs' →
       Seal_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
-  (* The sealed word keeps the bounds of its payload and never gains a tag. *)
-  Lemma reg_word_ok_seal R C (sb sb' : Sealable) π o :
-    (sb' = sb ∨ sb' = clear_tag_sealable sb) →
-    reg_word_ok R C (WSealable sb @@? π) →
-    reg_word_ok R C (WSealed o sb' @@? π).
-  Proof.
-    intros Hsb. apply (reg_word_ok_derive _ _ (WSealable sb @@? π)); cbn.
-    - left. destruct Hsb as [-> | ->]; by destruct sb.
-    - destruct Hsb as [-> | ->]; first done. by rewrite get_tag_clear_tag_sealable.
-    - destruct Hsb as [-> | ->]; by destruct sb.
-  Qed.
-
   Lemma wp_Seal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :
     decodeInstrW w.(lw) = Seal dst src1 src2 ->
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →

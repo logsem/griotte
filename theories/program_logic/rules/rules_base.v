@@ -737,6 +737,57 @@ Section instruction_closing.
     iApply (gen_heap_update_inSepM with "Hr Hmap"). by apply elem_of_dom.
   Qed.
 
+  (** Closes an instruction that writes one register then moves the PC by
+      [n], as the physical [advancePC (update_reg φ dst w) n]. The spec [P]
+      holds of the new PC and owned registers on success, and of the old
+      ones on failure. *)
+  Lemma instr_close_reg_update_advancePC pc (r : Reg) sr m st td lpc (lreg : LReg) lsreg lmem R C
+      (regs : LReg) dst (v : LWord) (w : Word) n c σ' (Φ : tval k → iProp Σ)
+      (P : LWord → LReg → tval k → Prop) :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg (ls_join lsreg) lmem →
+    dst = cnull ∨ dst ∈ dom regs →
+    reg_word_ok R C v →
+    (match advancePC (update_reg (MkExecConf pc r sr m st td) dst w) n with
+     | Some conf => conf | None => (Faulted, (MkExecConf pc r sr m st td)) end) = (c, σ') →
+    reg_phys R v w →
+    (∀ lpc', incrementPC_gen lpc n = Some lpc' → P lpc' (<[dst := v]ₗ> regs) NextIV) →
+    (incrementPC_gen lpc n = None → P lpc regs FaultedV) →
+    PC_auth lpc -∗
+    gen_heap_interp lreg -∗
+    sys_interp lsreg -∗
+    gen_heap_interp lmem -∗
+    gen_heap_interp st -∗
+    reg_auth R -∗
+    addr_alloc_auth C -∗
+    PC ↦ₚ lpc -∗
+    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
+    (∀ lpc' regs' retv,
+       ⌜P lpc' regs' retv⌝ -∗
+       PC ↦ₚ lpc' -∗
+       ([∗ map] k↦y ∈ regs', k ↦ᵣ y) -∗
+       Φ retv)
+    ==∗
+    ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
+    cerise_state_interp σ' ∗
+    from_option Φ False (flag_val c).
+  Proof.
+    iIntros (Her Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
+    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
+    rewrite /update_reg /= in Hstep.
+    destruct (incrementPC_gen lpc n) as [lpc'|] eqn:Hi.
+    - destruct (erasure_incrementPC_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
+      rewrite Hu in Hstep. simplify_eq.
+      iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
+      iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+      iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
+      iSplitR "Hφ HPC Hmap".
+      + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
+      + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
+    - rewrite (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) in Hstep.
+      simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
+      iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
+  Qed.
+
   (** Closes an instruction that writes one register then increments the PC,
       as the physical [nextPC (update_reg φ dst v)]. The spec [P] holds of
       the new PC and owned registers on success, and of the old ones on
@@ -763,22 +814,9 @@ Section instruction_closing.
     ⌜sys_kept (MkExecConf pc r sr m st td) σ'⌝ ∗
     cerise_state_interp σ' ∗ from_option Φ False (flag_val c).
   Proof.
-    iIntros (Her Hlregs Hdst Hok Hstep Hw HPs HPf) "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hφ".
-    pose proof (erasure_linsert_reg _ _ _ _ _ _ _ _ _ _ _ _ dst v w Her Hok Hw) as Her1.
-    rewrite /update_reg /= in Hstep.
-    destruct (incrementPC lpc) as [lpc'|] eqn:Hi.
-    - destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & Her2).
-      rewrite Hu in Hstep. simplify_eq.
-      iMod (lreg_update _ _ dst v Hdst with "Hr Hmap") as "[Hr Hmap]".
-      iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
-      iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
-      iSplitR "Hφ HPC Hmap".
-      + iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC").
-      + iApply ("Hφ" with "[%] HPC Hmap"). by apply HPs.
-    - pose proof (erasure_incrementPC_fail _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as Hfail.
-      rewrite /nextPC Hfail in Hstep.
-      simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
-      iIntros "HPC Hmap". iApply ("Hφ" with "[%] HPC Hmap"). by apply HPf.
+    intros Her _.
+    exact (instr_close_reg_update_advancePC pc r sr m st td lpc lreg lsreg lmem R C regs dst v w 1 c σ'
+             Φ P Her).
   Qed.
 
   (** Closes an instruction that sets the PC to [lpc'] and writes one

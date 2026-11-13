@@ -77,43 +77,6 @@ Section fundamental.
     | TSwV _ => False
     end.
 
-  Definition ftlr_instr_base
-    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_part) (P : V) (Pinstr : Prop)
-    : Prop :=
-    validPCperm p g
-    → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (Cap p g b e a)
-    → (b <= a)%a ∧ (a < e)%a
-    → PermFlowsTo p p'
-    → (persistent_cond P)
-    → Pinstr
-    -> ("#IH" ∷ ftlr_IH ∗
-        "#Hthread" ∷ thread_in th C ∗
-        "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
-        "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
-        "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
-        "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
-                       then ▷ (rcond_l P C p' interp)
-                       else emp) ∗
-        "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
-                       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
-                       else emp) ∗
-        "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
-        "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
-        "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
-        "Hmap" ∷ regs[th] regs)
-    -∗ WP Instr Executable @core[th]
-       {{ v, ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C v }}.
-
-  Definition ftlr_instr
-    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (i: instr) (ρ : region_part) (P : V)
-    : Prop :=
-    ftlr_instr_base W C regs p p' g b e a w ρ P (decodeInstrW w.(lw) = i).
-
   (** The post-state of an instruction step that may change the posture:
       after [NextIV], the PC is safe to execute at the post-step posture
       [m]; otherwise as [ftlr_post]. *)
@@ -129,42 +92,6 @@ Section fundamental.
           interp_expr_at m interp interp_continuation W C pc
     | _ => ftlr_post W C v
     end.
-
-  (** A case of the fundamental theorem that sees the posture [m] of the
-      thread: the MIE fragment comes in at [m] and goes out at the
-      post-step posture [m']. *)
-  Definition ftlr_instr_at (m : InterruptStatus)
-    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (i: instr) (ρ : region_part) (P : V)
-    : Prop :=
-    validPCperm p g
-    → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (Cap p g b e a)
-    → (b <= a)%a ∧ (a < e)%a
-    → PermFlowsTo p p'
-    → (persistent_cond P)
-    → decodeInstrW w.(lw) = i
-    -> ("#IH" ∷ ftlr_IH ∗
-        "#Hthread" ∷ thread_in th C ∗
-        "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
-        "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
-        "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
-        "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
-                       then ▷ (rcond_l P C p' interp)
-                       else emp) ∗
-        "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
-                       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
-                       else emp) ∗
-        "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
-        "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
-        "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
-        "Hmap" ∷ regs[th] regs ∗
-        "Hmie" ∷ MIE ↦ₜ[th] m ∗
-        "%Hpre" ∷ ⌜route_pre th m⌝)
-    -∗ WP Instr Executable @core[th]
-       {{ v, ▷ ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
-                        MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C v }}.
 
   (** The hand-off of a case, after the next instruction. *)
   Lemma ftlr_post_next W C (regs : LReg) (pc : LWord) :

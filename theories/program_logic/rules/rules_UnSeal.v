@@ -69,21 +69,6 @@ Section griotte_lang_rules.
       UnSeal_failure lpc regs dst src1 src2 lpc' regs' →
       UnSeal_spec lpc regs dst src1 src2 lpc' regs' FaultedV.
 
-  (* The unsealed word keeps the bounds and the permissions of the sealed one
-     and never gains a tag. *)
-  Lemma reg_word_ok_unseal R C (sb sb' : Sealable) π o :
-    (memory_cap_bounds (WSealable sb') = memory_cap_bounds (WSealed o sb)) →
-    (get_tag_sealable sb' = true → get_tag_sealable sb = true) →
-    executable_word (WSealable sb') = executable_word (WSealed o sb) →
-    reg_word_ok R C (WSealed o sb @@? π) →
-    reg_word_ok R C (WSealable sb' @@? π).
-  Proof.
-    intros Hb Ht Hx. apply (reg_word_ok_derive _ _ (WSealed o sb @@? π)).
-    - cbn; auto.
-    - cbn; auto.
-    - intros _ Hx'. rewrite -Hx. exact Hx'.
-  Qed.
-
   Lemma wp_UnSeal Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst src1 src2 regs dq :
     decodeInstrW w.(lw) = UnSeal dst src1 src2 ->
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →

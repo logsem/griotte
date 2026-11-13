@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
 From griotte Require Export logrel.
-From griotte Require Import ftlr_base interp_weakening rules_Ecall.
+From griotte Require Import ftlr_base ftlr_contract interp_weakening rules_Ecall.
 Import CoreWPNotations.
 
 (** * The environment call in the fundamental theorem
@@ -38,66 +38,13 @@ Section fundamental.
   Implicit Types w : (leibnizO LWord).
   Implicit Types interp : (V).
 
-  (** The post-state of an environment call, at the post-step posture [m]
-      (InterruptDisabled): the lent volatile part pinned by the step (MEPCC
-      from the PC [pc], cause [MCAUSE_ECALL_MACHINE], value [MTVAL_NONE],
-      MPIE the pre-step posture [b]), the PC at the trap vector, the safe
-      registers, and the PC safe to execute at the resume, at [b]. *)
-  Definition ftlr_ecall_post (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : tval (kind_of th)) : iProp Σ :=
-    ∃ (b : InterruptStatus) (pc : LWord) (regs : LReg),
-      ⌜m = InterruptDisabled⌝ ∗
-      ⌜v = tval_sw (kind_of th) Ecall NextIV⌝ ∗
-      ⌜route_pre th b⌝ ∗
-      ⌜∀ r, is_Some (regs !! r)⌝ ∗
-      vol_lent (lmepcc_of_pc pc) (lword_of_word (WInt MCAUSE_ECALL_MACHINE)) MTVAL_NONE b ∗
-      PC ↦ₚ[th] lword_of_word mtcc_vec ∗
-      regs[th] regs ∗
-      (∀ (r : RegName) (w : LWord), ⌜regs !! r = Some w⌝ → interp W C w) ∗
-      interp_expr_at b interp interp_continuation W C (yield_resume_pc (lmepcc_of_pc pc)).
-
-  (** The case of the environment call: as [ftlr_instr_at], with the lent
-      volatile part, and the post-state [ftlr_ecall_post] at
-      InterruptDisabled. *)
-  Definition ftlr_ecall_at (m : InterruptStatus)
-    (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
-    (p p' : Perm) (g : Locality) (b e a : Addr)
-    (w : LWord) (ρ : region_part) (P : V)
-    : Prop :=
-    validPCperm p g
-    → (∀ x : RegName, is_Some (regs !! x))
-    → isCorrectPC (Cap p g b e a)
-    → (b <= a)%a ∧ (a < e)%a
-    → PermFlowsTo p p'
-    → (persistent_cond P)
-    → decodeInstrW w.(lw) = Ecall
-    -> ("#IH" ∷ ftlr_IH ∗
-        "#Hthread" ∷ thread_in th C ∗
-        "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
-        "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
-        "#Hinva" ∷ region_rel_part ρ W C (LNonHeap a) p' P ∗
-        "#Hrcond" ∷ □ (if decide (readAllowed_a_in_lregs regs a)
-                       then ▷ (rcond_l P C p' interp)
-                       else emp) ∗
-        "#Hwcond" ∷ □ (if decide (writeAllowed_a_in_lregs regs a)
-                       then ▷ (if isWL p then wcond_wl P C interp else wcond_nwl P C interp)
-                       else emp) ∗
-        "WorldRes" ∷ ▷ pc_open W C (LNonHeap a) p' P w ρ ∗
-        "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
-        "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
-        "Hmap" ∷ regs[th] regs ∗
-        "Hmie" ∷ MIE ↦ₜ[th] m ∗
-        "%Hpre" ∷ ⌜route_pre th m⌝ ∗
-        "Hvol" ∷ vol_lent_any)
-    -∗ WP Instr Executable @core[th]
-       {{ v, ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
-                     MIE ↦ₜ[th] InterruptDisabled ∗
-                     ftlr_ecall_post InterruptDisabled W' C v }}.
-
+  (** The case of the environment call: it consumes the lent volatile
+      part and ends at InterruptDisabled, in the post-state
+      [ftlr_ecall_post]. *)
   Lemma ecall_case (m : InterruptStatus) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_part) (P : V) :
-    ftlr_ecall_at m W C regs p p' g b e a w ρ P.
+    ftlr_contract m W C regs p p' g b e a w Ecall ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
@@ -106,8 +53,12 @@ Section fundamental.
     iIntros "!> (HPC & Ha & Hmie & Hvol)".
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
     iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-    iNext. iExists W. iFrame "Hworld_interp Hmie".
+    rewrite /ftlr_contract_post.
+    iNext. iExists W, InterruptDisabled. iFrame "Hworld_interp Hmie".
     iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iSplit; first (iPureIntro; by intros).
+    iSplit; first done.
+    iLeft.
     iExists m, (Cap p g b e a), regs. iFrame "Hvol HPC Hmap Hreg".
     iSplit; first done. iSplit; first done. iSplit; first done. iSplit; first done.
     rewrite lmepcc_of_pc_correct //.
