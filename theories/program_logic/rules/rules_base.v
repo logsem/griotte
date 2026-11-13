@@ -667,7 +667,7 @@ End griotte_lang_rules.
     system registers) enters; a model with one changes this definition
     and the closers and tactics that unfold it ([regs_case] and
     [solve_regs_member] in [ftlr_shapes.v], [wp_regs_step] in
-    [rules_regs.v], [solve_regs_agree] in [proofmode_instr_support.v]). *)
+    [rules_regs.v], the register steps in closed form of [regs_next_ok_db]). *)
 Definition regs_effect (φ : ExecConf) : ExecConf := φ.
 
 (** A write to [cnull] is no write. *)

@@ -209,29 +209,6 @@ Section regs_pure.
       (v : LWord) (n : Z) : Prop :=
     ∃ sb, lsource_ok regs lpc v sb ∧ regs_next_agree exec_opt i p lpc regs dst v n sb.
 
-  (** [regs_next_ok] from a source register keeping the bounds, the
-      agreement first: computing it instantiates the written word. *)
-  Lemma regs_next_ok_derive i p lpc regs dst r v0 w π n :
-    regs !!ₗ r = Some v0 → v0.(lprov) = π →
-    regs_next_agree exec_opt i p lpc regs dst (MkLWord w π) n (λ S, S r) →
-    memory_cap_bounds w = memory_cap_bounds v0.(lw) →
-    (get_tag w = true → get_tag v0.(lw) = true) →
-    (get_tag w = true → executable_word w = true → executable_word v0.(lw) = true) →
-    regs_next_ok i p lpc regs dst (MkLWord w π) n.
-  Proof.
-    intros Hr <- Hagree Hbounds Htag Hexec. exists (λ S, S r).
-    split; last done. by apply lsource_derive.
-  Qed.
-
-  (** [regs_next_ok] for an untagged word, from nothing. *)
-  Lemma regs_next_ok_untagged i p lpc regs dst w n :
-    regs_next_agree exec_opt i p lpc regs dst (MkLWord w None) n (λ _, true) →
-    get_tag w = false →
-    regs_next_ok i p lpc regs dst (MkLWord w None) n.
-  Proof.
-    intros Hagree Ht. exists (λ _, true). split; last done. by apply lsource_untagged.
-  Qed.
-
   (** The agreement of a step that writes no register and moves the PC by
       [n] (jumps, branches). *)
   Definition regs_jump_agree (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) (n : Z) : Prop :=

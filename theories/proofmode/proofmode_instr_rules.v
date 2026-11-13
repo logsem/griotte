@@ -65,161 +65,6 @@ Ltac dispatch_JCond off x1 x2 cont :=
       (cont (@wp_jcond_success_jmp_z_r) || cont (@wp_jcond_success_next_z_r))
   end.
 
-(** * The fallback: the generic register rules
-
-    An instruction that writes one register and moves the PC by [1] is
-    stepped with [wp_regs_next_1], [wp_regs_next_2] or [wp_regs_next_3]
-    ([rules_regs.v]), the destination first. [dispatch_instr_rule] reaches
-    it only for an instruction of the table below with no dedicated case
-    and no register step in closed form ([dispatch_next_ok] below);
-    [iInstr_generic] ([proofmode.v]) calls it directly. Not covered: jumps
-    (the PC moved otherwise), a write to [cnull], and the instructions
-    outside the table. Seal is outside it: its agreement needs that a
-    sealing range is never stripped ([strippable]), which the computation
-    of the agreement does not show. *)
-
-(* The destination and the source of the written word, by instruction: the
-   provenance of an untagged result (kept by Lea, [None] for the integer
-   results) is not computable from the step. [Some r]: derived from the
-   register [r]; [None]: an untagged word. *)
-Ltac regs_instr_shape instr :=
-  lazymatch instr with
-  | Mov ?d (inr ?r) => constr:((d, Some r))
-  | Mov ?d (inl _) => constr:((d, @None RegName))
-  | Lea ?d ?s _ => constr:((d, Some s))
-  | SetA ?d ?s _ => constr:((d, Some s))
-  | ClearTag ?d ?s => constr:((d, Some s))
-  | GetA ?d _ => constr:((d, @None RegName))
-  | GetB ?d _ => constr:((d, @None RegName))
-  | GetE ?d _ => constr:((d, @None RegName))
-  | GetLen ?d _ => constr:((d, @None RegName))
-  | GetP ?d _ => constr:((d, @None RegName))
-  | GetL ?d _ => constr:((d, @None RegName))
-  | Add ?d _ _ => constr:((d, @None RegName))
-  | Sub ?d _ _ => constr:((d, @None RegName))
-  | Mul ?d _ _ => constr:((d, @None RegName))
-  | Lt ?d _ _ => constr:((d, @None RegName))
-  | Le ?d _ _ => constr:((d, @None RegName))
-  end.
-
-(* The entry of the register [r] in a list of owned registers. *)
-Ltac regs_find r regs :=
-  lazymatch regs with
-  | (?r', ?w) :: ?tail =>
-      let eq := instr_same_register r' r in
-      lazymatch eq with true => constr:((r', w)) | false => regs_find r tail end
-  end.
-
-(* The list of owned registers without the register [r]. *)
-Ltac regs_remove r regs :=
-  lazymatch regs with
-  | nil => regs
-  | (?r', ?w) :: ?tail =>
-      let eq := instr_same_register r' r in
-      lazymatch eq with
-      | true => tail
-      | false => let tail' := regs_remove r tail in constr:((r', w) :: tail')
-      end
-  end.
-
-(* The operands of an instruction of the table. Unlike
-   [instr_failure_registers], it covers every instruction of the table by
-   its operands, without falling back to computing [regs_of], which fails
-   on symbolic registers. *)
-Ltac regs_instr_operands instr :=
-  lazymatch instr with
-  | Mov ?d ?s => instr_argument_registers s constr:([d])
-  | Lea ?d ?s ?off => instr_argument_registers off constr:([d; s])
-  | SetA ?d ?s ?addr => instr_argument_registers addr constr:([d; s])
-  | ClearTag ?d ?s => constr:([d; s])
-  | GetA ?d ?s => constr:([d; s])
-  | GetB ?d ?s => constr:([d; s])
-  | GetE ?d ?s => constr:([d; s])
-  | GetLen ?d ?s => constr:([d; s])
-  | GetP ?d ?s => constr:([d; s])
-  | GetL ?d ?s => constr:([d; s])
-  | Add ?d ?a1 ?a2 =>
-      let rs := instr_argument_registers a2 constr:([d]) in instr_argument_registers a1 rs
-  | Sub ?d ?a1 ?a2 =>
-      let rs := instr_argument_registers a2 constr:([d]) in instr_argument_registers a1 rs
-  | Mul ?d ?a1 ?a2 =>
-      let rs := instr_argument_registers a2 constr:([d]) in instr_argument_registers a1 rs
-  | Lt ?d ?a1 ?a2 =>
-      let rs := instr_argument_registers a2 constr:([d]) in instr_argument_registers a1 rs
-  | Le ?d ?a1 ?a2 =>
-      let rs := instr_argument_registers a2 constr:([d]) in instr_argument_registers a1 rs
-  end.
-
-(* The premise [regs_next_ok] of a k-ary rule, proved before the rule is
-   applied: this fixes the written word, so that [cont] finishes the step
-   on a known word. A stuck address increment is left as a side goal. *)
-Ltac regs_solve_next_ok instr hint :=
-  solve_regs_next hint || fail "The generic register rule does not apply to" instr.
-
-(* The k-ary rule for the destination and the other operands, given the
-   continuation of [dispatch_instr_rule]. Its pure premises are proved
-   first: [regs_next_ok] from the hint of the table, and that the
-   instruction is not a switch instruction. *)
-Ltac dispatch_generic_next instr cont :=
-  (* Unfolded here for the direct entry point [iInstr_generic]. *)
-  let instr' := eval unfold register_file.regn, register_file.cst in instr in
-  let shape := regs_instr_shape instr' in
-  lazymatch shape with (?d, ?hint_reg) =>
-  let regs := let rs := regs_instr_operands instr' in instr_register_words rs in
-  let rest := regs_remove d regs in
-  let dst_entry := regs_find d regs in
-  lazymatch dst_entry with (?dst, ?wd) =>
-  let hint := lazymatch hint_reg with
-    | Some ?r =>
-        let src_entry := regs_find r regs in
-        lazymatch src_entry with (?r', _) => constr:(Some r') end
-    | None => hint_reg
-    end in
-  lazymatch goal with
-  | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?p ?g ?b ?e ?a @@? ?π)%I ] =>
-    let Hsw := fresh "Hsw" in
-    let Hok := fresh "Hregs_next" in
-    assert (∀ th, regs_instr_ok th instr) as Hsw
-      by (let th := fresh "th" in intros th; rewrite /regs_instr_ok; by apply sw_of_none);
-    lazymatch rest with
-    | [] =>
-        eassert (regs_next_ok instr p (Cap p g b e a @@? π) {[dst := wd]} dst _ 1) as Hok;
-        [ regs_solve_next_ok instr hint
-        | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with regs_next_ok _ _ _ _ _ ?v _ =>
-            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
-                    @wp_regs_next_1 _ _ _ _ _ E p g b e a π pc_a'
-                      (encodeInstrW instr @@? None) dq instr dst wd v
-                      Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
-          end ]
-    | [(?r2, ?w2)] =>
-        eassert (dst ≠ r2 →
-                 regs_next_ok instr p (Cap p g b e a @@? π) (<[dst := wd]> (<[r2 := w2]> ∅))
-                   dst _ 1) as Hok;
-        [ regs_solve_next_ok instr hint
-        | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with _ → regs_next_ok _ _ _ _ _ ?v _ =>
-            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
-                    @wp_regs_next_2 _ _ _ _ _ E p g b e a π pc_a'
-                      (encodeInstrW instr @@? None) dq instr dst wd r2 w2 v
-                      Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
-          end ]
-    | [(?r2, ?w2); (?r3, ?w3)] =>
-        eassert (dst ≠ r2 → dst ≠ r3 → r2 ≠ r3 →
-                 regs_next_ok instr p (Cap p g b e a @@? π)
-                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> ∅))) dst _ 1) as Hok;
-        [ regs_solve_next_ok instr hint
-        | rewrite ?MkLWord_eta in Hok;
-          lazymatch type of Hok with _ → _ → _ → regs_next_ok _ _ _ _ _ ?v _ =>
-            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
-                    @wp_regs_next_3 _ _ _ _ _ E p g b e a π pc_a'
-                      (encodeInstrW instr @@? None) dq instr dst wd r2 w2 r3 w3 v
-                      Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
-          end ]
-    end;
-    try clear Hok; try clear Hsw
-  end end end.
-
 (** * The register steps in closed form
 
     An instruction with no dedicated case is stepped with a k-ary rule of
@@ -257,6 +102,26 @@ Ltac instr_spine_registers instr :=
   let d := constr:(@None RegName) in
   let a := constr:(@nil RegName) in
   instr_spine_operands instr d a.
+
+(* The entry of the register [r] in a list of owned registers. *)
+Ltac regs_find r regs :=
+  lazymatch regs with
+  | (?r', ?w) :: ?tail =>
+      let eq := instr_same_register r' r in
+      lazymatch eq with true => constr:((r', w)) | false => regs_find r tail end
+  end.
+
+(* The list of owned registers without the register [r]. *)
+Ltac regs_remove r regs :=
+  lazymatch regs with
+  | nil => regs
+  | (?r', ?w) :: ?tail =>
+      let eq := instr_same_register r' r in
+      lazymatch eq with
+      | true => tail
+      | false => let tail' := regs_remove r tail in constr:((r', w) :: tail')
+      end
+  end.
 
 (* The search in [regs_next_ok_db], or the lemma [s] named by the client. *)
 Ltac regs_next_ok_solver s instr :=
@@ -580,14 +445,11 @@ Ltac dispatch_instr_rule instr cont :=
   | Fail => cont (@wp_fail)
   (* Halt *)
   | Halt => cont (@wp_halt)
-  (* The register steps in closed form, then the computing path of the generic register
-     rules, else not found *)
+  (* The register steps in closed form, else not found *)
   | _ =>
     first
       [ dispatch_next_ok instr cont
-      | tryif (let _ := regs_instr_shape instr in idtac)
-        then dispatch_generic_next instr cont
-        else fail "No suitable rule found for instruction" instr ]
+      | fail "No suitable rule found for instruction" instr ]
   end.
 
 Ltac dispatch_generic_failure instr cont :=

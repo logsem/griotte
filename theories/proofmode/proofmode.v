@@ -1386,13 +1386,6 @@ Tactic Notation "iInstr" constr(H) "using" open_constr(s) :=
 Tactic Notation "iInstr" constr(H) "with" constr(Hlc) "using" open_constr(s) :=
   instr_next_ok_using H Hlc s.
 
-(* The generic register rules alone ([dispatch_generic_next]), without the
-   dedicated cases of [dispatch_instr_rule]. *)
-Tactic Notation "iInstr_generic" constr(H) :=
-  instr_using_rule dispatch_generic_next instr_apply_rule H "_".
-Tactic Notation "iInstr_generic" constr(H) "with" constr(Hlc) :=
-  instr_using_rule dispatch_generic_next instr_apply_rule H Hlc.
-
 (* Runtime failure of the current instruction: the PC and the operand
    registers are returned unchanged, and the goal is the fault
    [WP Seq (Instr Faulted) @ E {{ Φ }}], to be closed by [iTrap]. *)
