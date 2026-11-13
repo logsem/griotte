@@ -2,7 +2,7 @@ From griotte Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Import ftlr_base interp_weakening.
+From griotte Require Import ftlr_base ftlr_contract interp_weakening.
 From griotte Require Import rules_base rules_Jalr.
 From griotte Require Import map_simpl register_tactics.
 Import CoreWPNotations.
@@ -31,8 +31,9 @@ Section fundamental.
   Lemma jalr_case (m : InterruptStatus) (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p': Perm) (g : Locality) (b e a : Addr)
     (w : LWord) (ρ : region_part) (rdst rsrc : RegName) (P:V):
-    ftlr_instr_at m W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
+    ftlr_contract m W C regs p p' g b e a w (Jalr rdst rsrc) ρ P.
   Proof.
+    apply ftlr_contract_intro_at.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
     iIntros "@".
     iDestruct (thread_in_elim with "Hthread") as %Hth_in.

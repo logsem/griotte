@@ -5,7 +5,7 @@ From griotte Require Export resources erasure register_file machine_instructions
 
     The registers and system registers an instruction uses, the logical PC
     increment, the logical register lookups and their physical copies, and
-    the dereference witnesses. No WP. *)
+    the dereference and load witnesses. No WP. *)
 
 (* Splits the points-to of a register map built by inserts into one
    points-to per register; the inserted keys must be provably distinct. *)
@@ -470,6 +470,43 @@ Section deref_witness.
     - right. by rewrite /heap_cap_base memory_cap_base_bounds Hb /= Hh.
   Qed.
 End deref_witness.
+
+Section load_witness.
+  Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ}.
+
+  (** ** Status witnesses
+
+      The loaded word's identifier decides the post. Every load gets the
+      plain post: the loaded word, or its untagged copy if it is a heap
+      capability. Without a witness the loaded word is exact (variant 1);
+      exact posts also follow for non-heap words and for identifier-less
+      words with authority (variant 4), and, given a witness, untagged posts
+      for quarantined identifiers (variant 2) and exact posts for live ones
+      (variant 3). Witnesses are preconditions of the load rules
+      ([rules_Load.v]). *)
+  Inductive load_witness := LoadPlain | LoadQuar (ι : AId) | LoadLive (ι : AId) (q : Qp).
+
+  Definition load_witness_res (wit : load_witness) : iProp Σ :=
+    match wit with
+    | LoadPlain => emp
+    | LoadQuar ι => ι ⊒ AQuar
+    | LoadLive ι q => ι ↦st{q} ALive
+    end%I.
+
+  #[global] Instance load_witness_res_timeless wit : Timeless (load_witness_res wit).
+  Proof. destruct wit; apply _. Qed.
+
+  Definition load_post (wit : load_witness) (p : Perm) (v v' : LWord) : Prop :=
+    lload_heap (lload_word p v) v' ∧
+    (heap_cap_base v.(lw) = None → v' = lload_word p v) ∧
+    (v.(lprov) = None → load_exact_cond v → v' = lload_word p v) ∧
+    match wit with
+    | LoadPlain => v' = lload_word p v
+    | LoadQuar ι => v.(lprov) = Some ι → (get_tag v.(lw) = true → has_authority v.(lw)) →
+                    v' = lclear_tag (lload_word p v)
+    | LoadLive ι q => v.(lprov) = Some ι → load_exact_cond v → v' = lload_word p v
+    end.
+End load_witness.
 
 Lemma reg_phys_derive_eq `{MachineParameters} R (v : LWord) s w' w'' :
   reg_phys R v (and_tag s v.(lw)) →

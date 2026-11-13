@@ -4,8 +4,7 @@ From stdpp Require Import base.
 From griotte Require Export logrel.
 From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
-From griotte Require Import rules rules_deref_quar proofmode monotone.
-From griotte Require Import map_simpl register_tactics proofmode.
+From griotte Require Import monotone.
 
 Section wp_interp.
   Context
