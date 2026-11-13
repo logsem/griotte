@@ -662,6 +662,14 @@ Section griotte_lang_rules.
 
 End griotte_lang_rules.
 
+(** What a register step does to the rest of the machine: nothing. This
+    is the place where such an effect (for example on a counter of the
+    system registers) enters; a model with one changes this definition
+    and the closers and tactics that unfold it ([regs_case] and
+    [solve_regs_member] in [ftlr_shapes.v], [wp_regs_step] in
+    [rules_regs.v], [solve_regs_agree] in [proofmode_instr_support.v]). *)
+Definition regs_effect (φ : ExecConf) : ExecConf := φ.
+
 Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {k : kind}.
 

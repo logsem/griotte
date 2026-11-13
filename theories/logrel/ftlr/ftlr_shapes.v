@@ -360,13 +360,6 @@ End stop.
 Section regs_pure.
   Context `{MP : MachineParameters}.
 
-  (** What a register step does to the rest of the machine: nothing. This
-      is the place where such an effect (for example on a counter of the
-      system registers) enters; a model with one changes this definition
-      and the closers and tactics that unfold it ([regs_case],
-      [solve_regs_member]). *)
-  Definition regs_effect (φ : ExecConf) : ExecConf := φ.
-
   (** Register step: a register step writes at most one derivable word to
       a register and moves the PC by an offset. A register update moves it
       by [1] ([nextPC]); a jump writes no register, as a write to [cnull]
