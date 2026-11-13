@@ -298,9 +298,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
   | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
   | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
-  (* Restrict *)
-  | Restrict ?r ?r (inr _) => cont (@wp_restrict_success_reg)
-  | Restrict ?r ?r (inl _) => cont (@wp_restrict_success_z)
   (* Seal *)
   | Seal ?r _ ?r => cont (@wp_seal_r2)
   | Seal ?r ?r _ => cont (@wp_seal_r1)
@@ -384,11 +381,6 @@ Ltac dispatch_instr_failure instr cont :=
 Ltac dispatch_instr_invalidation instr cont :=
   let instr := eval cbv [regn cst] in instr in
   lazymatch instr with
-  (* Restrict *)
-  | Restrict ?r ?r (inr _) =>
-      (cont (@wp_restrict_invalidated_reg) || cont (@wp_restrict_invalidated_reg_sr))
-  | Restrict ?r ?r (inl _) =>
-      (cont (@wp_restrict_invalidated_z) || cont (@wp_restrict_invalidated_z_sr))
   (* Subseg: conversion overflow has priority over representable rejection.
      The explicit-mode caller requires overflow evidence before committing. *)
   | Subseg ?d ?d (inr ?r) (inr ?r) =>

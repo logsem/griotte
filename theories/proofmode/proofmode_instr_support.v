@@ -458,6 +458,11 @@ Ltac regs_next_ok_lookup :=
         | match goal with H : InCtx (nonZero _ = _) |- _ => exact H end ]
   : regs_next_ok_db.
 
+(* An integer, a sentry or a sealed word: a literal, or a fact of the
+   context. *)
+#[global] Hint Extern 1 (is_mutable_range _ = false) =>
+  first [ reflexivity | eassumption ] : regs_next_ok_db.
+
 (* The comparison of two known operands: from a hypothesis (also on the words,
    by [congruence]), or by [lia], or by [solve_addr] when addresses occur. *)
 Ltac jcond_test_arith :=
