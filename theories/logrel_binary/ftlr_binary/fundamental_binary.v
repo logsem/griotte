@@ -6,7 +6,7 @@ From griotte Require Export
   Jmp_binary Jnz_binary Jalr_binary Mov_binary Load_binary Store_binary BinOp_binary Restrict_binary
   Subseg_binary Get_binary ClearTag_binary Lea_binary Seal_binary UnSeal_binary ReadSR_binary WriteSR_binary
   FailHalt_binary.
-From griotte Require Import instructions.cheri rules_binary.
+From griotte Require Import rules_Get rules_binary.
 From griotte Require Import register_tactics.
 
 (** * Fundamental theorem of the binary logical relation

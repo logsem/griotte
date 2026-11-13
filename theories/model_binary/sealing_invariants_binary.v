@@ -1,6 +1,6 @@
 From iris.algebra Require Import gmap agree auth excl csum excl_auth.
 From iris.proofmode Require Import proofmode.
-From griotte Require Export stdpp_extra shapes.step.
+From griotte Require Export stdpp_extra rules_base.
 From griotte Require Export sts world_std_sts_binary world_ghost_resources_binary.
 
 (** Normalisation of pairs of words (one word per run): both words are

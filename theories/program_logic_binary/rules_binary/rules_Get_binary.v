@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
-From griotte Require Import instructions.cheri.
+From griotte Require Import rules_Get.
 
 (** * Spec rules for [Get] (spec copies of [rules_Get.v]) *)
 
@@ -55,13 +55,13 @@ Section spec_rules.
     erewrite regs_of_is_Get in Hri; eauto.
     destruct (Hri src) as [wsrc [H'src Hsrc]]; first by set_solver+.
     destruct (Hri dst) as [wdst [H'dst Hdst]]; first by set_solver+.
-    destruct (get_denote get_i wsrc) as [z | ] eqn:Hwsrc.
+    destruct (denote get_i wsrc) as [z | ] eqn:Hwsrc.
     2 : { (* Failure: src is not of the right word type *)
       assert (c = Failed ∧ σ2 = (r, sr, m)) as (-> & ->).
       { destruct_or! Hinstr; rewrite Hinstr in Hstep; cbn in Hstep.
         all: rewrite Hsrc /= in Hstep.
         all : destruct wsrc as [ | [  |  ] | | ]; try (inversion Hstep; auto);
-          rewrite /get_denote /= in Hwsrc; rewrite Hinstr in Hwsrc; congruence. }
+          rewrite /denote /= in Hwsrc; rewrite Hinstr in Hwsrc; congruence. }
       rewrite Hdecode. iFailWP "Hφ" Get_fail_src_denote. }
 
     assert (exec_opt get_i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt z))) as HH.
@@ -101,7 +101,7 @@ Section spec_rules.
     is_Get get_i dst PC →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
-    get_denote get_i (WCap true pc_p pc_g pc_b pc_e pc_a) = Some z →
+    denote get_i (WCap true pc_p pc_g pc_b pc_e pc_a) = Some z →
     dst ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -135,7 +135,7 @@ Section spec_rules.
     is_Get get_i r r →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
-    get_denote get_i wr = Some z →
+    denote get_i wr = Some z →
     r ≠ cnull ->
     spec_ctx ∗
     ⤇ Seq (Instr Executable) ∗
@@ -169,7 +169,7 @@ Section spec_rules.
     is_Get get_i dst src →
     isCorrectPC (WCap true pc_p pc_g pc_b pc_e pc_a) →
     (pc_a + 1)%a = Some pc_a' ->
-    get_denote get_i wsrc = Some z →
+    denote get_i wsrc = Some z →
     src ≠ cnull ->
     dst ≠ cnull ->
     spec_ctx ∗
@@ -227,7 +227,7 @@ Section spec_rules.
     iDestruct "H" as (retv regs') "(Hj & %Hspec & Hpc_a & Hmap)".
     destruct Hspec as [* Hsucc |].
     { (* Success (contradiction) *)
-      destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /get_denote in H2; naive_solver.
+      destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /denote in H2; naive_solver.
     }
     { (* Failure, done *) by iModIntro; iFrame. }
   Qed.
@@ -254,7 +254,7 @@ Section spec_rules.
       ⤇ Seq (of_val retv) ∗
       (⌜ retv = FailedV ⌝ ∨
        (∃ z,
-          ⌜ get_denote get_i wsrc = Some z ⌝ ∗
+          ⌜ denote get_i wsrc = Some z ⌝ ∗
           ⌜ (is_cap wsrc || is_sealr wsrc || is_sentry wsrc || is_sealed wsrc) = true ⌝ ∗
           ⌜ retv = NextIV ⌝ ∗
           PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
@@ -279,7 +279,7 @@ Section spec_rules.
       iSplit; last done.
       iPureIntro.
       destruct w0 as [| [|] | |]; cbn; try done
-      ; destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /get_denote in H2; naive_solver.
+      ; destruct_or! Hinstr; simplify_map_eq; rewrite Hinstr /denote in H2; naive_solver.
     }
     { (* Failure, done *) iModIntro. iExists FailedV. iFrame. by iLeft. }
   Qed.

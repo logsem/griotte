@@ -3,7 +3,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From griotte Require Export logrel_binary.
 From griotte Require Import ftlr_base_binary interp_weakening_binary.
-From griotte Require Import instructions.cheri rules_Get_binary.
+From griotte Require Import rules_Get rules_Get_binary.
 From griotte Require Import map_simpl register_tactics.
 
 Section fundamental.
@@ -25,7 +25,7 @@ Section fundamental.
 
   (** Related words have the same observable properties. *)
   Lemma interp_denote W C (i : instr) (w1 w2 : Word) :
-    interp W C (w1, w2) -∗ ⌜get_denote i w1 = get_denote i w2⌝.
+    interp W C (w1, w2) -∗ ⌜rules_Get.denote i w1 = rules_Get.denote i w2⌝.
   Proof.
     iIntros "Hw".
     by iDestruct (interp_eq with "Hw") as %->.

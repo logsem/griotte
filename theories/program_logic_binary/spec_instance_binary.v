@@ -3,7 +3,7 @@ From iris.algebra Require Import excl_auth.
 From iris.bi.lib Require Import fractional.
 From iris.base_logic Require Export invariants gen_heap.
 From iris.program_logic Require Import language ectx_language.
-From griotte Require Export shapes.step.
+From griotte Require Export rules_base.
 From griotte Require Import griotte_opsem.
 
 (** * Spec-side state of the binary model

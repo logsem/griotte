@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Export rules_base_binary.
-From griotte Require Import instructions.control.
+From griotte Require Import rules_Jalr.
 
 (** * Spec rules for [Jalr] (spec copies of [rules_Jalr.v]) *)
 

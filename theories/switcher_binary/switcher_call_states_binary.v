@@ -38,8 +38,8 @@ Section Switcher_Call_States.
 
   (** The checks of blocks 0 and 1 on the stack pointer [wcsp]. *)
   Definition switcher_csp_checked (wcsp : Word) : Prop :=
-    get_denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ∧
-    get_denote (GetL ct2 csp) wcsp = Some (encodeLoc Local).
+    rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ∧
+    rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local).
 
   Lemma switcher_csp_checked_stk b e a :
     switcher_csp_checked (WCap true RWL Local b e a).
