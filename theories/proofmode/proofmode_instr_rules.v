@@ -252,12 +252,6 @@ Ltac dispatch_instr_rule instr cont :=
   | GetTag cnull _ => dispatch_next_ok instr cont
   | GetTag _ cnull => dispatch_next_ok instr cont
   | GetTag _ _ => cont (@wp_gettag_success)
-  (* ClearTag *)
-  | ClearTag cnull cnull => cont (@wp_ClearTag_cnull)
-  | ClearTag cnull _ => cont (@wp_ClearTag_to_cnull)
-  | ClearTag _ cnull => cont (@wp_ClearTag_from_cnull)
-  | ClearTag ?r ?r => cont (@wp_ClearTag_same_success)
-  | ClearTag _ _ => cont (@wp_ClearTag_success)
   (* SetA *)
   | SetA ?r ?r (inr _) => (cont (@wp_seta_success_reg) || cont (@wp_seta_success_reg_int))
   | SetA ?r ?r (inl _) => (cont (@wp_seta_success_z) || cont (@wp_seta_success_z_int))
@@ -377,8 +371,11 @@ Ltac dispatch_instr_rule instr cont :=
   | Mret => cont (@wp_mret_success)
   (* Ecall: the exception entry, at the core link *)
   | Ecall => cont (@wp_ecall)
-  (* auipcc *)
-  | Auipcc _ _ => (cont (@wp_auipcc_success) || cont (@wp_auipcc_overflow))
+  (* Auipcc: an address result that the search does not decide is left as a
+     side goal *)
+  | Auipcc _ _ =>
+    first [ dispatch_next_ok instr cont
+          | dispatch_next_ok_using constr:(@auipcc_next_ok) instr cont ]
   (* Fail *)
   | Fail => cont (@wp_fail)
   (* Halt *)

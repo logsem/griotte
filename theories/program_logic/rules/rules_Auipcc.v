@@ -3,135 +3,39 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export rules_base.
+From griotte Require Import rules_regs.
 
-Section griotte_lang_rules.
-  Context `{MP: MachineParameters}.
-  Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
-  Implicit Types P Q : iProp Σ.
-  Implicit Types σ : ExecConf.
-  Implicit Types r : RegName.
-  Implicit Types w : LWord.
+(** * Auipcc
 
-  (** The PC with its address offset by [imm], as Lea on the PC: the tag is
-      cleared on an address overflow. The result keeps the PC's identifier. *)
-  Definition auipcc_word (lpc : LWord) (imm : Z) : LWord :=
-    match lpc with
-    | WCap t p g b e a @@? π =>
-        match (a + imm)%a with
-        | Some a' => WCap t p g b e a' @@? π
-        | None => Cap⁻ p g b e a @@? π
-        end
-    | _ => lpc
-    end.
+    Auipcc has no WP rule of its own: [iInstr] steps it with the register
+    rules of [rules_regs.v], from its register steps in closed form below. *)
 
-  Inductive Auipcc_spec {k : kind} (lpc : LWord) (regs : LReg) (dst : RegName) (imm : Z)
-    (lpc' : LWord) (regs' : LReg) : tval k → Prop :=
-  | Auipcc_spec_success :
-      incrementPC lpc = Some lpc' →
-      regs' = <[ dst := auipcc_word lpc imm ]ₗ> regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' NextIV
-  | Auipcc_spec_failure :
-      incrementPC lpc = None →
-      lpc' = lpc →
-      regs' = regs →
-      Auipcc_spec lpc regs dst imm lpc' regs' FaultedV.
+Section auipcc_next_ok.
+  Context `{MP : MachineParameters}.
 
-  Lemma wp_Auipcc Ep pc_p pc_g pc_b pc_e pc_a pc_π w dst imm regs dq :
-    decodeInstrW w.(lw) = Auipcc dst imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    regs_of (Auipcc dst imm) ⊆ dom regs →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ Ep
-    {{{ lpc' regs' retv, RET retv;
-        ⌜ Auipcc_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv ⌝ ∗
-        PC ↦ₚ lpc' ∗
-        pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
+  (** Auipcc writes the PC at an offset address: below the PC, with its
+      identifier. *)
+  Lemma auipcc_next_ok p0 regs dst imm p g b e a π a' :
+    (a + imm)%a = Some a' →
+    regs_next_ok (Auipcc dst imm) p0 (Cap p g b e a @@? π) regs dst (Cap p g b e a' @@? π) 1.
   Proof.
-    iIntros (Hinstr Hvpc Dregs φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
-    iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    rewrite Hinstr /exec in Hstep.
-    set (v := auipcc_word (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) imm).
-    assert (exec_opt (Auipcc dst imm) pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
-              nextPC (update_reg (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) dst v.(lw)))
-      as HH.
-    { rewrite /v /auipcc_word /exec_opt /pcc /=. by destruct (pc_a + imm)%a. }
-    rewrite HH in Hstep.
-    assert (reg_word_ok R C v) as Hok.
-    { pose proof (er_pc_word _ _ _ _ _ _ _ Her) as HokPC.
-      rewrite /v /auipcc_word.
-      destruct (pc_a + imm)%a;
-        apply (reg_word_ok_derive _ _ (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π));
-        [by left|done|done|done|by left|done|done|done]. }
-    iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst v _ _ _ _
-      (λ lpc' regs' retv,
-         Auipcc_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs dst imm lpc' regs' retv)
-      with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a]").
-    { exact Her. } { exact Hlregs. } { eapply elem_of_lregs_dom; [exact Dregs | try unfold regs_of, operands_of; set_solver+]. }
-    { exact Hok. } { exact Hstep. }
-    { apply reg_phys_no_id. rewrite /v /auipcc_word.
-      pose proof (erasure_pc_no_id _ _ _ _ _ _ _ Her Hvpc) as Hπ. cbn in Hπ. subst pc_π.
-      by destruct (pc_a + imm)%a. }
-    { intros. by econstructor. }
-    { intros. by econstructor. }
-    iIntros (lpc' regs' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
+    intros Ha'. exists (λ _, true). split.
+    - apply lsource_pc; [| done | by intros _ _; left].
+      apply capability_monotonicity_base.wle_cap; [done | reflexivity | reflexivity | solve_addr | solve_addr | by left].
+    - intros φ S Hpc _. cbn [exec_opt]. rewrite Hpc. cbn [lw]. rewrite Ha'.
+      by rewrite /regs_effect and_tag_true.
   Qed.
 
-  Lemma wp_auipcc_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' a' w dst wdst imm dq :
-    decodeInstrW w.(lw) = Auipcc dst imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    (pc_a + imm)%a = Some a' →
-    dst ≠ cnull →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ dst ↦ᵣ wdst }}}
-      Instr Executable @ E
-    {{{ RET NextIV;
-        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ{dq} w ∗
-        dst ↦ᵣ Cap pc_p pc_g pc_b pc_e a' @@? pc_π }}}.
+  (** On an address overflow, the PC untagged. *)
+  Lemma auipcc_next_ok_overflow p0 regs dst imm p g b e a π :
+    (a + imm)%a = None →
+    regs_next_ok (Auipcc dst imm) p0 (Cap p g b e a @@? π) regs dst (Cap⁻ p g b e a @@? π) 1.
   Proof.
-    iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
-    iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_Auipcc with "[$HPC $Hmap $Hpc_a]"); eauto.
-    all: try (by rewrite /regs_of /operands_of ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [Hinc -> | Hinc].
-    - iApply "Hφ". try incrementPC_inv; simplify_map_eq.
-      iFrame. iRegsMap "Hmap". iFrame.
-    - exfalso. try incrementPC_inv; simplify_map_eq; congruence.
+    intros Ha'. exists (λ _, true). split; first by apply lsource_untagged.
+    intros φ S Hpc _. cbn [exec_opt]. rewrite Hpc. cbn [lw]. rewrite Ha'.
+    by rewrite /regs_effect and_tag_true.
   Qed.
+End auipcc_next_ok.
 
-  Lemma wp_auipcc_overflow E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst imm dq :
-    decodeInstrW w.(lw) = Auipcc dst imm →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (pc_a + 1)%a = Some pc_a' →
-    (pc_a + imm)%a = None →
-    dst ≠ cnull →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ dst ↦ᵣ wdst }}}
-      Instr Executable @ E
-    {{{ RET NextIV;
-        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∗
-        pc_a ↦ₐ{dq} w ∗
-        dst ↦ᵣ Cap⁻ pc_p pc_g pc_b pc_e pc_a @@? pc_π }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Hpca' Ha' Hcnull φ) "(>HPC & >Hpc_a & >Hdst) Hφ".
-    iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_Auipcc with "[$HPC $Hmap $Hpc_a]"); eauto.
-    all: try (by rewrite /regs_of /operands_of ?dom_insert ?dom_singleton_L; set_solver+).
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [Hinc -> | Hinc].
-    - iApply "Hφ". try incrementPC_inv; simplify_map_eq.
-      iFrame. iRegsMap "Hmap". iFrame.
-    - exfalso. try incrementPC_inv; simplify_map_eq; congruence.
-  Qed.
-
-End griotte_lang_rules.
+#[export] Hint Resolve auipcc_next_ok | 0 : regs_next_ok_db.
+#[export] Hint Resolve auipcc_next_ok_overflow | 1 : regs_next_ok_db.

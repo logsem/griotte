@@ -436,6 +436,7 @@ Ltac regs_next_ok_lookup :=
 #[global] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 ((_ + _)%a = None) => eassumption : regs_next_ok_db.
 
 (* An untagged word: a literal, or a fact of the context. *)
 #[global] Hint Extern 1 (get_tag _ = false) =>
