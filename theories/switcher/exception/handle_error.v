@@ -175,8 +175,7 @@ Section Handle_Error.
       iInstr "Hcode".
       destruct (lea_result_is_Some s2 (- ErrorState_size)) as [wct0' Hlea].
       (* Lea ct0 ct0 (- ErrorState_size) *)
-      iInstrApply "Hcode" (wp_lea_success_z_any _ _ _ _ _ _ _ _ _ ct0 s2 wct0')
-        with "[$HPC $Hct0]" as "(HPC & Hct0)".
+      iInstr "Hcode".
       switcher_change_pc_label ".Lhandle_error_stack_oob".
       subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".

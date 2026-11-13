@@ -242,20 +242,6 @@ Ltac dispatch_instr_rule instr cont :=
   | GetTag cnull _ => dispatch_next_ok instr cont
   | GetTag _ cnull => dispatch_next_ok instr cont
   | GetTag _ _ => cont (@wp_gettag_success)
-  (* SetA *)
-  | SetA ?r ?r (inr _) => (cont (@wp_seta_success_reg) || cont (@wp_seta_success_reg_int))
-  | SetA ?r ?r (inl _) => (cont (@wp_seta_success_z) || cont (@wp_seta_success_z_int))
-  | SetA _ _ (inr _) =>
-    (cont (@wp_seta_success_reg_src) || cont (@wp_seta_success_reg_int_src))
-  | SetA _ _ (inl _) =>
-    (cont (@wp_seta_success_z_src) || cont (@wp_seta_success_z_int_src))
-  (* Lea *)
-  | Lea ?r ?r (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
-  | Lea ?r ?r (inl _) =>
-    (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr) || cont (@wp_lea_success_z_int))
-  | Lea ?r _ (inr ?r) => cont (@wp_lea_success_reg_dst_src)
-  | Lea _ _ (inr _) => cont (@wp_lea_success_reg_src)
-  | Lea _ _ (inl _) => (cont (@wp_lea_success_z_src) || cont (@wp_lea_success_z_int_src))
   (* CLoad *)
   | CLoad ?r ?r 0 =>
     (cont (fun MP Σ ceriseg th CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
@@ -398,14 +384,6 @@ Ltac dispatch_instr_failure instr cont :=
 Ltac dispatch_instr_invalidation instr cont :=
   let instr := eval cbv [regn cst] in instr in
   lazymatch instr with
-  (* SetA: an address out of range *)
-  | SetA ?r ?r (inr _) => cont (@wp_seta_invalid_reg)
-  | SetA ?r ?r (inl _) => cont (@wp_seta_invalid_z)
-  | SetA _ _ (inr _) => cont (@wp_seta_invalid_reg_src)
-  | SetA _ _ (inl _) => cont (@wp_seta_invalid_z_src)
-  (* Lea: reuse the existing overflow rules. *)
-  | Lea ?r ?r (inr _) => (cont (@wp_lea_overflow_reg) || cont (@wp_lea_overflow_reg_sr))
-  | Lea ?r ?r (inl _) => (cont (@wp_lea_overflow_z) || cont (@wp_lea_overflow_z_sr))
   (* Restrict *)
   | Restrict ?r ?r (inr _) =>
       (cont (@wp_restrict_invalidated_reg) || cont (@wp_restrict_invalidated_reg_sr))

@@ -334,9 +334,7 @@ Section Handle_Error_Install_Context.
       iInstr "Hcode".
       destruct (lea_result_is_Some wpcc (get_a v0.(lw) - get_a wpcc.(lw))) as [wpc Hwpc].
       (* SetA ct2 ct0 cra *)
-      iInstrApply "Hcode" (wp_seta_success_reg_any_src _ _ _ _ _ _ _ _ _ _ _ _ _ wpc)
-        with "[$HPC $Hct0 $Hcra $Hct2]" as "(HPC & Hct0 & Hcra & Hct2)".
-      { by rewrite seta_result_lea_result. }
+      iInstr "Hcode".
       assert (resumed_pc wpcc (get_a v0.(lw)) = wpc) as Hresumed
         by (by rewrite /resumed_pc Hwpc).
       (* Lea ca2 csp TrustedStack_offset_cra *)

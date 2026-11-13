@@ -336,8 +336,7 @@ Section ctx_resume.
       destruct (lea_result_is_Some (save_area_word ws TrustedStack_offset_mepcc) 1)
         as [wpc Hlea].
       (* Lea ct2 ct2 1 *)
-      iInstrApply "Hcode" wp_lea_success_z_any with "[$HPC $Hct2]" as "(HPC & Hct2)".
-      { exact Hlea. }
+      iInstr "Hcode".
       switcher_change_pc_label ".Lcommon_context_install".
       iApply ("Hend" $! wpc with "[%] HPC Hct0 Hct1 Hct2").
       rewrite (lea_result_lw _ _ _ Hlea). by apply Hecall.

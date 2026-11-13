@@ -217,7 +217,10 @@ Ltac2 instr_auto_arithmetic_context () :=
       first [instr_auto_arithmetic_fact P | clear h | idtac])
       (Ltac1.of_ident h)) (List.rev (Control.hyps ())).
 
+(* The local definitions of addresses are inlined first: [solve_addr] keeps
+   only the bounds of a local definition, not its body. *)
 Ltac instr_auto_solve_addr :=
+  repeat match goal with x := _ : finz _ |- _ => subst x end;
   first [solve [ltac2:(instr_auto_arithmetic_context ()); solve_addr]
         | solve_addr].
 
@@ -438,6 +441,10 @@ Ltac regs_next_ok_lookup :=
 #[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
 #[global] Hint Extern 0 ((_ + _)%a = None) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 ((_ + _)%ot = None) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 (z_to_addr _ = None) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 (z_to_otype _ = Some _) => eassumption : regs_next_ok_db.
+#[global] Hint Extern 0 (z_to_otype _ = None) => eassumption : regs_next_ok_db.
 
 (* An untagged word: a literal, or a fact of the context. *)
 #[global] Hint Extern 1 (get_tag _ = false) =>

@@ -173,12 +173,9 @@ Section Handle_Error_Found.
       as [wr1 Hwr1].
     destruct (lea_result_is_Some wr1 off) as [wr2 Hwr2].
     (* SetA cra cra cs1 *)
-    iInstrApply "Hcode" (wp_seta_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr1)
-      with "[$HPC $Hcra $Hcs1]" as "(HPC & Hcs1 & Hcra)".
-    { by rewrite seta_result_lea_result. }
+    iInstr "Hcode".
     (* Lea cra cra cs0 *)
-    iInstrApply "Hcode" (wp_lea_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr2)
-      with "[$HPC $Hcra $Hcs0]" as "(HPC & Hcs0 & Hcra)".
+    iInstr "Hcode".
     assert (handler_word (lload_word p wpcc) off = wr2) as Hhw.
     { by rewrite /handler_word Hwr1 /= Hwr2. }
     rewrite -Hhw.
