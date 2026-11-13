@@ -4,7 +4,7 @@ From stdpp Require Import base.
 From griotte Require Export logrel world_interp_cells.
 From griotte Require Import world_ghost_theory.
 From griotte Require Import region_open interp_weakening.
-From griotte Require Import rules rules_deref_quar proofmode monotone.
+From griotte Require Import rules rules_regs rules_deref_quar proofmode monotone.
 From griotte Require Import map_simpl register_tactics proofmode.
 
 Section wp_interp.
@@ -477,36 +477,24 @@ Section wp_interp.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
-
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
-    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-
-    destruct Hspec as [p g b e a πs o sb π Hsr Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr Hsd Hinvalid Hinc ->
-                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
-    { iApply "Hφ". iRight. iLeft.
-      rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      iExists p, g, b, e, a, πs, o, sb, π.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { iApply "Hφ". iRight. iRight.
-      rewrite !llookup_reg_not_cnull // in Hsr Hsd. simplify_map_eq.
-      iExists t, p, g, b, e, a, πs, o, sb, π.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { iApply "Hφ". iLeft.
-      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
+    iApply (wp_regs_next_2 _ _ _ _ _ _ _ _ _ _ _ r1 wsealr r2 wsealed (unseal_word wsealr wsealed)
+              with "[$HPC $Hpc_a $Hr1 $Hr2]");
+      [exact Hinstr | rewrite /regs_instr_ok; by apply sw_of_none | exact Hvpc | exact Hpc_a'
+      | exact Hr1_null | |].
+    { intros Hne. apply unseal_next_ok; rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+    iIntros "!> (HPC & Hpc_a & Hr1 & Hr2)". iApply "Hφ".
+    destruct (is_sealr wsealr.(lw) && is_sealed wsealed.(lw)) eqn:Hkind.
+    2: { iLeft. rewrite unseal_word_not_sealed //. iFrame; done. }
+    destruct wsealr as [ [| [|tsr psr gsr bsr esr asr] | | ] πsr]; cbn in Hkind; try discriminate.
+    destruct wsealed as [ [| | | ot sb] π]; cbn in Hkind; try discriminate.
+    rewrite /unseal_word /=.
+    destruct (tsr && get_tag_sealable sb && permit_unseal psr && withinBounds bsr esr ot) eqn:Hvalid.
+    - iRight; iLeft.
+      apply andb_prop in Hvalid as [ [ [-> Htag]%andb_prop Hperm]%andb_prop Hwb].
+      rewrite and_tag_sealable_true.
+      iExists psr, gsr, bsr, esr, asr, πsr, ot, sb, π. iFrame; done.
+    - iRight; iRight. rewrite and_tag_sealable_false.
+      iExists tsr, psr, gsr, bsr, esr, asr, πsr, ot, sb, π. iFrame; done.
   Qed.
 
   Lemma wp_unseal_unknown_sealed {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a' wi r1 r2 psr gsr bsr esr asr wsealed  :
@@ -551,42 +539,21 @@ Section wp_interp.
       }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr Hr1_null Hr2_null ϕ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
-
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
-    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-
-    destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->
-                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
-    { iApply "Hφ". iRight. iLeft.
-      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      iExists o, sb, π.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { iApply "Hφ". iRight. iRight.
-      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      iExists o, sb, π.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      match goal with Hinvalid : _ && withinBounds _ _ _ = false |- _ =>
-        rewrite Hpsr !andb_true_r /= in Hinvalid
-      end.
-      iFrame; done.
-    }
-    { iApply "Hφ". iLeft.
-      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
-      rewrite (insert_insert_ne _ _ r1) //.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    }
-    { exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence. }
+    iApply (wp_regs_next_2 _ _ _ _ _ _ _ _ _ _ _ r2 wsealed r1 (SealRange psr gsr bsr esr asr)
+              (unseal_word (SealRange psr gsr bsr esr asr) wsealed)
+              with "[$HPC $Hpc_a $Hr2 $Hr1]");
+      [exact Hinstr | rewrite /regs_instr_ok; by apply sw_of_none | exact Hvpc | exact Hpc_a'
+      | exact Hr2_null | |].
+    { intros Hne. apply unseal_next_ok; rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+    iIntros "!> (HPC & Hpc_a & Hr2 & Hr1)". iApply "Hφ".
+    destruct wsealed as [ [z | sb0 | k t p g b e a | ot sb] π].
+    1-3: iLeft; rewrite unseal_word_not_sealed //; iFrame; done.
+    rewrite /unseal_word /= Hpsr andb_true_r.
+    destruct (get_tag_sealable sb && withinBounds bsr esr ot) eqn:Hvalid.
+    - iRight; iLeft. apply andb_prop in Hvalid as [Htag Hwb]. rewrite and_tag_sealable_true.
+      iExists ot, sb, π. iFrame; done.
+    - iRight; iRight. rewrite and_tag_sealable_false.
+      iExists ot, sb, π. iFrame; done.
   Qed.
 
   (** [UnSeal r1 r1 r2], the key in [r1], which receives the result: the
@@ -633,34 +600,21 @@ Section wp_interp.
           ⌜get_tag_sealable sb && withinBounds bsr esr ot = false⌝ }}}.
   Proof.
     iIntros (Hinstr Hvpc Hpc_a' Hpsr Hsr Hr12 Hr1_null Hr2_null φ) "(HPC & Hpc_a & Hr1 & Hr2) Hφ".
-    iDestruct (map_of_regs_2 with "Hr1 Hr2") as "[Hmap %]".
-    iApply (wp_UnSeal with "[$HPC $Hmap $Hpc_a]"); eauto.
-    { by unfold regs_of, operands_of; rewrite !dom_insert; set_solver+. }
-    iNext. iIntros (lpc' regs' retv) "(%Hspec & HPC & Hpc_a & Hmap)".
-    destruct Hspec as [p g b e a πs o sb π Hsr' Hsd Htag Hperm Hwb Hinc ->
-                      |t p g b e a πs o sb π Hsr' Hsd Hinvalid Hinc ->
-                      | w1 w2 Hw1 Hw2 Hk Hinc -> | Hfail].
-    - iApply "Hφ". iRight. iLeft.
-      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      iExists o, sb, π.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    - iApply "Hφ". iRight. iRight.
-      rewrite !llookup_reg_not_cnull // in Hsr' Hsd. simplify_map_eq.
-      iExists o, sb, π.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      match goal with Hinvalid : _ && withinBounds _ _ _ = false |- _ =>
-        rewrite Hpsr !andb_true_r /= in Hinvalid
-      end.
-      iFrame; done.
-    - iApply "Hφ". iLeft.
-      rewrite !llookup_reg_not_cnull // in Hw1 Hw2. simplify_map_eq.
-      rewrite !insert_insert_eq.
-      iRegsMap "Hmap".
-      iFrame; done.
-    - exfalso. destruct Hfail; try incrementPC_inv; simplify_map_eq; congruence.
+    iApply (wp_regs_next_2 _ _ _ _ _ _ _ _ _ _ _ r1 (SealRange psr gsr bsr esr asr) r2 wsealed
+              (unseal_word (SealRange psr gsr bsr esr asr) wsealed)
+              with "[$HPC $Hpc_a $Hr1 $Hr2]");
+      [exact Hinstr | rewrite /regs_instr_ok; by apply sw_of_none | exact Hvpc | exact Hpc_a'
+      | exact Hr1_null | |].
+    { intros Hne. apply unseal_next_ok; rewrite llookup_reg_not_cnull //; by simplify_map_eq. }
+    iIntros "!> (HPC & Hpc_a & Hr1 & Hr2)". iApply "Hφ".
+    destruct wsealed as [ [z | sb0 | k t p g b e a | ot sb] π].
+    1-3: iLeft; rewrite unseal_word_not_sealed //; iFrame; done.
+    rewrite /unseal_word /= Hpsr andb_true_r.
+    destruct (get_tag_sealable sb && withinBounds bsr esr ot) eqn:Hvalid.
+    - iRight; iLeft. apply andb_prop in Hvalid as [Htag Hwb]. rewrite and_tag_sealable_true.
+      iExists ot, sb, π. iFrame; done.
+    - iRight; iRight. rewrite and_tag_sealable_false.
+      iExists ot, sb, π. iFrame; done.
   Qed.
   (** A load through a valid capability: the world supplies the quarantine
       witness of the loaded word, which makes the loaded word valid. *)

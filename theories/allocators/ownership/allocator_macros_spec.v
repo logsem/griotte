@@ -185,53 +185,23 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
-    iDestruct (map_of_regs_2 with "Hctp Hca0") as "[Hmap %Hctpca0]".
     (* UnSeal ctp ctp ca0. *)
-    iInstrApply "Hcode" (wp_UnSeal _ RX Global pc_b pc_e (pc_a ^+ 2) None _ ctp ctp ca0)
-      with "[$HPC $Hmap]"
-      as (lpc' regs' retv) "(%Hspec & HPC & Hmap)".
-    { rewrite /regs_of /operands_of !dom_insert_L. set_solver+. }
-    inversion Hspec as
-      [ p g b e a πs o sb π Hsrc1 Hsrc2 Htag Hperm Hwb HincrPC
-      | t p g b e a πs o sb π Hsrc1 Hsrc2 Hfalse HincrPC
-      | w1 w2 Hsrc1 Hsrc2 Hnot_sealed HincrPC
-      | Hfail ]; subst.
-    - (* A well-formed allocator capability: excluded. *)
-      exfalso. simplify_map_eq.
-      apply withinBounds_le_addr in Hwb.
-      destruct Hwsealed as [Hne|Hne]; [apply Z.eqb_neq in Hne; solve_addr|congruence].
-    - (* The unsealed word is untagged, and the load traps. *)
-      simplify_map_eq.
-      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)) as Ha3 by solve_addr.
-      rewrite Ha3 in HincrPC; simplify_eq.
-      iEval (rewrite !insert_insert_eq) in "Hmap".
-      iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.
-      wp_pure.
-      iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
-      (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & Hmap)".
-      { by simplify_map_eq. }
-      { by destruct sb. }
-      iDestruct (regs_of_map_1 with "Hmap") as "Hctp".
-      iTrap with "Hfailed".
-    - (* The word is not sealed: it loses its tag, and the load traps. *)
-      simplify_map_eq.
-      assert ((pc_a ^+ 2 + 1)%a = Some (pc_a ^+ 3)) as Ha3 by solve_addr.
-      rewrite Ha3 in HincrPC; simplify_eq.
-      iEval (rewrite !insert_insert_eq) in "Hmap".
-      iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done.
-      wp_pure.
-      iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
-      (* CLoad ctp ctp 0. *)
-      iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & Hmap)".
-      { by simplify_map_eq. }
-      { apply get_tag_clear_tag. }
-      iDestruct (regs_of_map_1 with "Hmap") as "Hctp".
-      iTrap with "Hfailed".
-    - (* UnSeal ctp ctp ca0 fails: the registers are unchanged. *)
-      inversion Hfail; subst;
-        (iDestruct (regs_of_map_2 with "Hmap") as "(Hctp & Hca0)"; first done);
-        iTrap with "Hfailed".
+    iInstr "Hcode" using unseal_next_ok.
+    (* CLoad ctp ctp 0. *)
+    iDestruct (map_of_regs_1 with "Hctp") as "Hmap".
+    iInstrApply "Hcode" wp_load_fail_tag with "[$HPC $Hmap]" as "(HPC & Hmap)".
+    { by simplify_map_eq. }
+    { (* The unsealed word is untagged: [wsealed] is not sealed with the
+         allocator's otype, or it is untagged. *)
+      destruct wsealed as [ [z | [t' p' g' b' e' a' | t' p' g' b' e' a']
+                            | k t' p' g' b' e' a' | o [t' p' g' b' e' a' | t' p' g' b' e' a'] ] π];
+        rewrite /unseal_word /=; try done.
+      all: destruct (withinBounds _ _ o) eqn:Hwb; last by rewrite !andb_false_r.
+      all: destruct Hwsealed as [Hne | Hne]; cbn in Hne;
+        [ exfalso; apply withinBounds_le_addr in Hwb; apply Z.eqb_neq in Hne; solve_addr
+        | by subst t' ]. }
+    iDestruct (regs_of_map_1 with "Hmap") as "Hctp".
+    iTrap with "Hfailed".
   Qed.
 
 End AllocatorOwnerMacro.

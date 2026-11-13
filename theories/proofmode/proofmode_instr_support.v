@@ -402,10 +402,10 @@ Ltac regs_lookup :=
 
 (* A premise with a constructor pattern ([Some (WCap …)]) is checked
    syntactically against the head of the word found, so that a symbolic word
-   is neither unfolded nor matched against a constructor. *)
-Ltac lword_shape_matches v w :=
-  let a := eval cbn [lw] in v.(lw) in
-  let b := eval cbn [lw] in w.(lw) in
+   is neither unfolded nor matched against a constructor. A word that
+   computes to a constructor ([load_word p w] on a literal [w]) is checked on
+   its head normal form. *)
+Ltac lword_head_matches a b :=
   lazymatch a with
   | WInt _ => lazymatch b with WInt _ => idtac end
   | WSealable (SCap _ _ _ _ _ _) => lazymatch b with WSealable (SCap _ _ _ _ _ _) => idtac end
@@ -415,6 +415,12 @@ Ltac lword_shape_matches v w :=
   | WSealed _ _ => lazymatch b with WSealed _ _ => idtac end
   | _ => idtac
   end.
+
+Ltac lword_shape_matches v w :=
+  let a := eval cbn [lw] in v.(lw) in
+  let b := eval cbn [lw] in w.(lw) in
+  first [ lword_head_matches a b
+        | let b' := eval hnf in b in lword_head_matches a b' ].
 
 (* The owned word of an operand, read in the literal map. *)
 Ltac regs_next_ok_lookup :=

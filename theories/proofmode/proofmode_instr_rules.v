@@ -298,10 +298,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
   | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
   | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
-  (* UnSeal *)
-  | UnSeal ?r _ ?r => cont (@wp_unseal_r2)
-  | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
-  | UnSeal _ _ _ => cont (@wp_unseal_success)
   (* SpecialRW on mtdc, before the generic cases: its own ghost state. A
      write transfers the clause of the mtdc token: the ghost value comes
      back to the home value, is kept, leaves the home value, or moves
@@ -404,9 +400,5 @@ Ltac dispatch_instr_invalidation instr cont :=
        cont (@wp_subseg_unrepresentable_lr_sr) ||
        cont (@wp_subseg_invalidated_lr) ||
        cont (@wp_subseg_invalidated_lr_sr))
-  (* UnSeal *)
-  | UnSeal ?r ?r _ => cont (@wp_unseal_invalidated_r1)
-  | UnSeal ?r _ ?r => cont (@wp_unseal_invalidated_r2)
-  | UnSeal _ _ _ => cont (@wp_unseal_invalidated)
   | _ => fail "No invalidation rule found for instruction" instr
   end.
