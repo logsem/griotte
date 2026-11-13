@@ -51,7 +51,8 @@ From griotte Require Export
      instructions.arithmetic instructions.cheri instructions.control
      instructions.memory_accesses instructions.system
      devices.shadow devices.revoker devices.timer
-     traps.ecall traps.entry ghost.registry.
+     traps.ecall traps.entry ghost.registry
+     rules_hwm.
 
 (** Program specifications
 

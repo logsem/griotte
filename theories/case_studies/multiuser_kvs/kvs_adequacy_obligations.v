@@ -423,10 +423,9 @@ Section kvs_obligations.
     iEval (rewrite (fw_entry_pc_code (kvs_firmware ot_kvs key_main key_B) img σ
                       ltac:(reflexivity) Hok)) in "HPC".
     iEval (rewrite fw_thread_cra_eq) in "Hcra".
-    iEval (rewrite fw_thread_of_0) in "Hstack".
     iEval (rewrite /fw_thread_csp; cbv zeta) in "Hcsp".
     iEval (rewrite /fw_entry_cgp; cbv zeta) in "Hcgp".
-    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk".
+    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk Hhwm".
     iDestruct (big_sepS_elem_of _ _ B with "Hlocals") as "Hlocal_B".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     iMod (fw_shared_caller_world img 0 B HB_shared with "Hinv_B Hlocal_B")
@@ -477,7 +476,7 @@ Section kvs_obligations.
                     $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $Hmain_imports $Hmain_code $Hmain_data $Hmain_static_sealed $Hstack
                     $Hkvs_logical_user_K $HK_lukvs_1
-                    $Hworld_B $Hcstk
+                    $Hworld_B $Hcstk $Hhwm
                     $Hinterp_B $Hentry_Bf $Hrevoked_stack_B
                     $HMIE $Hheld
                     ]").

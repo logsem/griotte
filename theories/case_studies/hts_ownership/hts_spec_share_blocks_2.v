@@ -49,6 +49,8 @@ Section HTS_Spec_Share.
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    cstk_hwm_base cstk = csp_b ->
+    (csp_e <= cstk_hwm_top cstk)%a ->
     thread_in th C ∗
     hts_ctx ∗
     malloc_ret ∗
@@ -57,7 +59,7 @@ Section HTS_Spec_Share.
     ⊢ safe[th].
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
-      HsubBounds Himports_contiguous) "(#Hthread & #Hctx & Hret & Hcontinue)".
+      HsubBounds Himports_contiguous Hbase Htop) "(#Hthread & #Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry & %Hshared)".
@@ -87,7 +89,7 @@ Section HTS_Spec_Share.
                "[$Hswitcher $Hswitcher_static $Hna $HPC $Hcs0 $Hcra $Hctp $Hct0 $Hct2
                  $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done]. }
     iDestruct "Hok" as (ι b) "(%Hbounds & Hframe & Hca0 & Hca1 & Hregs & Hstk
-      & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
+      & Hhwm & Hworld & #Hstack_revoked & %Hstack_revoked & HK & Howner & #Hobj
       & Hright & Hb)".
     iDestruct "Hb" as "[Hb Hb_share]".
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
@@ -132,28 +134,40 @@ Section HTS_Spec_Share.
     assert (csp_b < csp_e)%a as Hstk_nonempty
       by (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min; solve_addr+Hstk_min).
     remember (stk_start_a csp_b csp_e ^+ -1) as a_slot eqn:Ha_slot.
-    assert (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e) =
-      region_addrs_zeroes csp_b a_slot ++ [lword_of_word (WInt 0)])
-      as Hzeroes.
-    { rewrite (region_addrs_zeroes_split csp_b a_slot (stk_start_a csp_b csp_e));
-        last solve_addr+Hslot_b Hslot_start.
-      pose proof (proj1 (finz_incr_iff_dist a_slot (stk_start_a csp_b csp_e) 1)
-        ltac:(solve_addr+Hslot_start)) as [_ Hdist].
-      rewrite /region_addrs_zeroes Hdist. reflexivity. }
-    iEval (rewrite Hzeroes) in "Hstk".
-    iDestruct (region_pointsto_split_r csp_b (stk_start_a csp_b csp_e) a_slot with "Hstk")
-      as "[Hstk Hslot]".
-    { solve_addr+Hslot_b Hslot_start. }
-    { cbn. rewrite /finz.dist. solve_addr+Hslot_start. }
-    iDestruct (region_pointsto_single with "Hslot") as (w_slot) "[Hslot %Hw_slot]";
-      first solve_addr+Hslot_start.
-    injection Hw_slot as <-.
+    (* The stack below the slot, and the slot, at the integers they hold *)
+    iDestruct (stack_ints_region with "Hstk") as (stk_mem) "Hstk".
+    rewrite (stack_region_split csp_b a_slot (stk_start_a csp_b csp_e));
+      [|solve_addr+Hslot_b|solve_addr+Hslot_start].
+    iDestruct "Hstk" as "[Hstk Hslot]".
+    pose proof (proj1 (finz_incr_iff_dist a_slot (stk_start_a csp_b csp_e) 1)
+      ltac:(solve_addr+Hslot_start)) as [_ Hdist].
+    destruct (drop (finz.dist csp_b a_slot) stk_mem) as [|w_slot stk_rest] eqn:Hdrop.
+    { iDestruct (stack_region_length with "Hslot") as %Hlen_slot.
+      rewrite finz_seq_between_length Hdist in Hlen_slot. exfalso. simpl in Hlen_slot. lia. }
+    rewrite (stack_region_cons a_slot (stk_start_a csp_b csp_e) (stk_start_a csp_b csp_e));
+      [|solve_addr+Hslot_start..].
+    iDestruct "Hslot" as "[Hslot _]".
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hord) #Hts]".
+    iAssert (hwm_regs (cstk_hwm_base cstk) (stk_start_a csp_b csp_e))
+      with "[$Hmshwmb $Hmshwm]" as "Hhwm_regs".
+    iPoseProof deref_res_none as "Hderef".
     (* Lea csp csp (-1). *)
     iInstr "Hcode".
     { transitivity (Some a_slot); auto. solve_addr+Hslot_start. }
     (* Store csp ca0 0. *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" (wp_store_stack_cell_reg_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 1%Qp)
+      with "[$HPC $Hca0 $Hcsp $Hslot $Hhwm_regs $Hderef]"
+      as (mshwm_v1) "(%Hh1 & HPC & Hca0 & Hcsp & Hslot & [Hmshwmb Hmshwm] & _)".
+    { eapply disjoint_from_shadow_not_in;
+        [exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
+    { solve_addr. }
+    (* MSHWM stays at or above MSHWMB *)
+    iAssert (hwm_res cstk mshwm_v1) with "[Hmshwmb Hmshwm]" as "Hhwm".
+    { rewrite /hwm_res /hwm_res_at. iFrame "Hmshwmb Hmshwm Hts". iPureIntro.
+      destruct Hh1 as [-> | ->]; first done.
+      destruct (hwm_after_cases a_slot (cstk_hwm_base cstk) (stk_start_a csp_b csp_e))
+        as [-> | [-> ?] ]; [done | lia]. }
     (* Store ca0 0 0. *)
     iInstr "Hcode".
     { apply withinBounds_true_iff; solve_addr. }
@@ -264,14 +278,16 @@ Section HTS_Spec_Share.
       (Cap RW Global cgp_b cgp_e cgp_b)
       (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset ".Lhts_reload")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f
-      (region_addrs_zeroes csp_b (stk_start_a csp_b csp_e ^+ -1))
-      adv_arg adv_other cstk Ws Cs 1
+      (take (finz.dist csp_b (stk_start_a csp_b csp_e ^+ -1)) stk_mem)
+      adv_arg adv_other cstk Ws Cs 1 mshwm_v1
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
-        $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
+        $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk $Hhwm
         $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr. }
+    { by rewrite Hbase. }
+    { exact Htop. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie_ret; reflexivity. }
@@ -289,7 +305,7 @@ Section HTS_Spec_Share.
        & Hna & _ & Hworld & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
        & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-       & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
+       & Hrmap & Hstk & (%h2 & _ & Hhwm) & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hgp_ret & Hra_ret & Hs0_ret & _).
     apply load_heap_nonheap in Hs0_ret; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret.

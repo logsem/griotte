@@ -103,8 +103,7 @@ Qed.
 
 Section region_maps.
   Context {Σ : gFunctors} {Cname : CmptNameG}
-    {allocg : allocRegistryG Σ} {memg : gen_heapGS Addr LWord Σ}
-    {stsg : STSG Σ} {relg : relGS Σ}.
+    {ceriseb : ceriseBaseG Σ} {stsg : STSG Σ} {relg : relGS Σ}.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Implicit Types t : Thread.
@@ -156,10 +155,109 @@ Section region_maps.
   Definition PermRes C (a : LAddr) (p : Perm) (Φ : CmptName * LWord → iProp Σ) (w : LWord) : iProp Σ :=
     ⌜isO p = false⌝ ∗ a ↦ₖ w ∗ ▷ Φ (C, w).
 
-  (** The safety resources of a Temporary key: its cell, and one later away
-      its predicate at [W] and the public monotonicity of the predicate. *)
-  Definition TmpRes W C (a : LAddr) (p : Perm) (Φ : WORLD * CmptName * LWord → iProp Σ) (w : LWord) : iProp Σ :=
-    ⌜isO p = false⌝ ∗ a ↦ₖ w ∗ ▷ Φ (W, C, w) ∗ ▷ future_pub_mono C Φ w.
+  (** ** The cell of a Temporary key *)
+
+  (** The cell of a Temporary key [k] of thread [t], holding [v]: the
+      points-to of [k], or, for a non-heap key, a cell of the zone of [t],
+      which holds the integer [v]. *)
+  Definition temp_cell t (k : LAddr) (v : LWord) : iProp Σ :=
+    (k ↦ₖ v ∨ ∃ (a : Addr) (z : Z), ⌜k = LNonHeap a⌝ ∗ zone_cell_v[t] a z ∗ ⌜v = WInt z⌝)%I.
+
+  #[global] Instance temp_cell_timeless t k v : Timeless (temp_cell t k v).
+  Proof. apply _. Qed.
+
+  Lemma temp_cell_pointsto t k v : k ↦ₖ v -∗ temp_cell t k v.
+  Proof. iIntros "Hk". by iLeft. Qed.
+
+  Lemma temp_cell_zone t (a : Addr) (z : Z) :
+    zone_cell_v[t] a z -∗ temp_cell t (LNonHeap a) (WInt z).
+  Proof. iIntros "Hcell". iRight. iExists a, z. by iFrame. Qed.
+
+  (** A heap key rules out the zone cell. *)
+  Lemma temp_cell_heap t a ι v : temp_cell t (LHeap a ι) v ⊣⊢ LHeap a ι ↦ₖ v.
+  Proof.
+    iSplit; last iApply temp_cell_pointsto.
+    iIntros "[$ | (%a' & %z & %Hk & _)]". done.
+  Qed.
+
+  (** At a non-heap key, the cell is a points-to or a zone cell. *)
+  Lemma temp_cell_nonheap t (a : Addr) v :
+    temp_cell t (LNonHeap a) v ⊣⊢ a ↦ₐ v ∨ (∃ z, zone_cell_v[t] a z ∗ ⌜v = WInt z⌝).
+  Proof.
+    rewrite /temp_cell key_pointsto_nonheap. iSplit.
+    - iIntros "[$ | (%a' & %z & %Hk & Hrest)]". simplify_eq. iRight. iExists z. iFrame.
+    - iIntros "[$ | (%z & Hrest)]". iRight. iExists a, z. by iFrame.
+  Qed.
+
+  Lemma temp_cell_known t k v : temp_cell t k v -∗ heap_key_known k.
+  Proof.
+    iIntros "[Hk | (%a & %z & -> & _)]"; [by iApply key_pointsto_known|done].
+  Qed.
+
+  (** The cell of a Temporary key excludes a full points-to of its
+      address. *)
+  Lemma temp_cell_pointsto_false t k v w :
+    temp_cell t k v -∗ laddr_addr k ↦ₐ w -∗ False.
+  Proof.
+    iIntros "[Hk | (%a & %z & -> & Hcell & _)] Ha".
+    - iDestruct (key_pointsto_eq with "Hk") as "[Hk _]".
+      iDestruct (pointsto_valid_2 with "Hk Ha") as %[Hv _].
+      by rewrite dfrac_op_own dfrac_valid_own in Hv.
+    - iApply (zone_cell_v_pointsto_false with "Hcell Ha").
+  Qed.
+
+  (** The same against a key points-to. *)
+  Lemma temp_cell_key_pointsto_false t k k' v w :
+    laddr_addr k = laddr_addr k' → temp_cell t k v -∗ k' ↦ₖ w -∗ False.
+  Proof.
+    iIntros (Heq) "Hc Hk". iDestruct (key_pointsto_eq with "Hk") as "[Hk _]".
+    rewrite -Heq. iApply (temp_cell_pointsto_false with "Hc Hk").
+  Qed.
+
+  Lemma temp_cell_excl t k v1 v2 : temp_cell t k v1 -∗ temp_cell t k v2 -∗ False.
+  Proof.
+    iIntros "H1 [H2 | (%a & %z & -> & Hcell & _)]".
+    - iApply (temp_cell_key_pointsto_false with "H1 H2"). done.
+    - iDestruct "H1" as "[H1 | (%a' & %z' & %Ha & Hcell' & _)]".
+      + rewrite key_pointsto_nonheap. iApply (zone_cell_v_pointsto_false with "Hcell H1").
+      + simplify_eq. iApply (zone_cell_v_excl with "Hcell Hcell'").
+  Qed.
+
+  (** The cell gives half of the points-to of its address, enough to fetch
+      or load from it, and gets it back. *)
+  Lemma temp_cell_fetch t k v :
+    temp_cell t k v -∗
+    laddr_addr k ↦ₐ{DfracOwn (1/2)} v ∗
+    (laddr_addr k ↦ₐ{DfracOwn (1/2)} v -∗ temp_cell t k v).
+  Proof.
+    iIntros "[Hk | (%a & %z & -> & Hcell & ->)]".
+    - iDestruct (key_pointsto_eq with "Hk") as "[ [Hk1 Hk2] Hshare]".
+      iFrame "Hk1". iIntros "Hk1". iLeft.
+      iApply key_pointsto_eq. iFrame "Hshare". by iCombine "Hk1 Hk2" as "Hk".
+    - iDestruct (zone_cell_v_unfold with "Hcell") as "[Htok Hhalf]".
+      iFrame "Hhalf". iIntros "Hhalf". iRight. iExists a, z. iSplit; first done.
+      iSplit; last done. rewrite zone_cell_v_unfold. iFrame.
+  Qed.
+
+  (** A zone cell excludes the cell of a Temporary key at its address. *)
+  Lemma temp_cell_zone_cell_false t k v :
+    temp_cell t k v -∗ zone_cell[t] (laddr_addr k) -∗ False.
+  Proof.
+    iIntros "[Hk | (%a & %z & -> & Hc' & _)] [%z' Hc]".
+    - iDestruct (key_pointsto_eq with "Hk") as "[Hk _]".
+      iApply (zone_cell_v_pointsto_false with "Hc Hk").
+    - iApply (zone_cell_v_excl with "Hc Hc'").
+  Qed.
+
+  (** The safety resources of a Temporary key of the thread [t] (found by
+      typeclass search, in use the section's thread): its cell, and one
+      later away its predicate at [W] and the public monotonicity of the
+      predicate. *)
+  (* The thread is implicit, as [rel_l _] in [↪ˡ], so callers write
+     [TmpRes W C …]. *)
+  Definition TmpRes {t : Thread} W C (a : LAddr) (p : Perm)
+      (Φ : WORLD * CmptName * LWord → iProp Σ) (w : LWord) : iProp Σ :=
+    ⌜isO p = false⌝ ∗ temp_cell t a w ∗ ▷ Φ (W, C, w) ∗ ▷ future_pub_mono C Φ w.
 
   Definition body_perm C (k : LAddr) (p : Perm) (φ : CmptName * LWord → iProp Σ) : iProp Σ :=
     heap_key_resource k (∃ v, PermRes C k p φ v).
@@ -167,13 +265,13 @@ Section region_maps.
   (** Every Temporary key carries public monotonicity: the only private
       steps with Temporary keys present are revocations, which take every
       Temporary body out. *)
-  Definition temp_res W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
-    heap_key_resource k (∃ v, TmpRes W C k p φ v).
+  Definition temp_res t W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
+    heap_key_resource k (∃ v, TmpRes (t:=t) W C k p φ v).
 
   (** A local body is read off the world: no state ghost. *)
-  Definition body_l W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
+  Definition body_l t W C (k : LAddr) (p : Perm) (φ : WORLD * CmptName * LWord → iProp Σ) : iProp Σ :=
     match std W !! k with
-    | Some Temporary => temp_res W C k p φ
+    | Some Temporary => temp_res t W C k p φ
     | _ => emp
     end.
 
@@ -183,22 +281,22 @@ Section region_maps.
 
   Definition local_region_map_M t W C (M : gmap LAddr (gname * Perm)) (O : gset LAddr) : iProp Σ :=
     "%Hdom" ∷ ⌜dom (std W) = dom M⌝ ∗
-    "Hm" ∷ rmap (γrel_l t C) M (body_l W C) O ∗
+    "Hm" ∷ rmap (γrel_l t C) M (body_l t W C) O ∗
     "Hloc" ∷ sts_full_world (th:=t) W C.
   Definition local_region_map t W C (O : gset LAddr) : iProp Σ := ∃ M, local_region_map_M t W C M O.
 
   (** ** Bodies *)
 
-  Lemma temp_res_mono_pub W W' C k p φ :
-    related_sts_pub_world W W' → temp_res W C k p φ -∗ temp_res W' C k p φ.
+  Lemma temp_res_mono_pub t W W' C k p φ :
+    related_sts_pub_world W W' → temp_res t W C k p φ -∗ temp_res t W' C k p φ.
   Proof.
     iIntros (Hp). iApply heap_key_resource_mono. iIntros "(%v & %HO & Hv & Hφ & #Hm)".
     iExists v. rewrite /TmpRes. iFrame "Hv Hm %". iNext. iApply ("Hm" with "[//] Hφ").
   Qed.
 
-  Lemma body_l_mono_pub W W' C k p φ :
+  Lemma body_l_mono_pub t W W' C k p φ :
     related_sts_pub_world W W' → (std W' !! k = Some Temporary → std W !! k = Some Temporary) →
-    body_l W C k p φ -∗ body_l W' C k p φ.
+    body_l t W C k p φ -∗ body_l t W' C k p φ.
   Proof.
     iIntros (Hp Hk) "H". rewrite /body_l.
     destruct (std W !! k) as [ [] | ] eqn:HW.
@@ -247,7 +345,7 @@ Section region_maps.
     k ∉ O → std W !! k = Some Temporary →
     local_region_map t W C O -∗ rel_l t C k p φ -∗
     local_region_map t W C ({[k]} ∪ O) ∗
-    ∃ φ', ⌜∀ x, Persistent (φ' x)⌝ ∗ rel_l t C k p φ' ∗ temp_res W C k p φ' ∗
+    ∃ φ', ⌜∀ x, Persistent (φ' x)⌝ ∗ rel_l t C k p φ' ∗ temp_res t W C k p φ' ∗
       ▷ (∀ x, φ x ≡ φ' x).
   Proof.
     iIntros (Hk HT) "(%M & Hw) Hr". iNamed "Hw". rewrite rel_l_eq.
@@ -260,7 +358,7 @@ Section region_maps.
   Lemma l_open_transport t W C O k p φ :
     k ∉ O → std W !! k = Some Temporary →
     local_region_map t W C O -∗ rel_l t C k p φ -∗
-    local_region_map t W C ({[k]} ∪ O) ∗ temp_res W C k p φ.
+    local_region_map t W C ({[k]} ∪ O) ∗ temp_res t W C k p φ.
   Proof.
     iIntros (Hk HT) "Hw Hr".
     iDestruct (l_open with "Hw Hr") as "[$ (%φ' & _ & _ & Hb & #Heq)]"; [done|done|].
@@ -274,7 +372,7 @@ Section region_maps.
 
   Lemma l_close t W C O k p φ :
     k ∉ O → std W !! k = Some Temporary → (∀ x, Persistent (φ x)) →
-    local_region_map t W C ({[k]} ∪ O) -∗ rel_l t C k p φ -∗ temp_res W C k p φ -∗
+    local_region_map t W C ({[k]} ∪ O) -∗ rel_l t C k p φ -∗ temp_res t W C k p φ -∗
     local_region_map t W C O.
   Proof.
     iIntros (Hk HT Hp) "(%M & Hw) Hr Hb". iNamed "Hw". rewrite rel_l_eq.
@@ -288,10 +386,10 @@ Section region_maps.
   Lemma rmap_next t W W' C M O :
     related_sts_pub_world W W' →
     (∀ k, k ∉ O → std W' !! k = Some Temporary → std W !! k = Some Temporary) →
-    rmap (γrel_l t C) M (body_l W C) O -∗ rmap (γrel_l t C) M (body_l W' C) O.
+    rmap (γrel_l t C) M (body_l t W C) O -∗ rmap (γrel_l t C) M (body_l t W' C) O.
   Proof.
     iIntros (Hp HT) "Hm".
-    iDestruct (rmap_transform _ M _ (body_l W' C) O O (λ _, emp)%I (λ _, emp)%I
+    iDestruct (rmap_transform _ M _ (body_l t W' C) O O (λ _, emp)%I (λ _, emp)%I
       with "[] [] Hm") as "[$ _]".
     { iApply big_sepM_intro. by iIntros "!>" (???). }
     iIntros "!>" (k γp Hk) "_ _ Hb". iSplitL; [|done].
@@ -325,7 +423,7 @@ Section region_maps.
     iIntros (Hrc) "(%M & Hw) Hf". iNamed "Hw".
     iMod (sts_update_loc with "Hloc Hf") as "[Hloc $]". iModIntro.
     iExists M. rewrite /local_region_map_M /=. iFrame "Hloc". iSplit; [done|].
-    iDestruct (rmap_transform _ M _ (body_l (<l[i := d']l> W) C) O O
+    iDestruct (rmap_transform _ M _ (body_l t (<l[i := d']l> W) C) O O
       (λ _, emp)%I (λ _, emp)%I with "[] [] Hm") as "[$ _]".
     { iApply big_sepM_intro. by iIntros "!>" (???). }
     iIntros "!>" (k γp Hk) "_ _ Hb". iSplitL; [|done]. case_decide; [done|].
@@ -336,7 +434,7 @@ Section region_maps.
   (** ** Revocation and restoration, with keys open *)
 
   Definition RevokedRes1 t W C (k : LAddr) : iProp Σ :=
-    ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ rel_l t C k p φ ∗ temp_res W C k p φ.
+    ∃ p φ, ⌜∀ x, Persistent (φ x)⌝ ∗ rel_l t C k p φ ∗ temp_res t W C k p φ.
   Definition RevokedRes t W C (S : gset LAddr) : iProp Σ :=
     [∗ set] k ∈ S, RevokedRes1 t W C k.
 
@@ -358,7 +456,7 @@ Section region_maps.
     iIntros (HS) "(%M & Hw)". iNamed "Hw".
     assert (S ⊆ dom M) as HSM.
     { intros k [HT _]%HS. rewrite -Hdom. by apply elem_of_dom_std_2 in HT. }
-    iDestruct (rmap_transform _ M _ (body_l (revoke W) C) O O (λ _, emp)%I
+    iDestruct (rmap_transform _ M _ (body_l t (revoke W) C) O O (λ _, emp)%I
       (λ k, if decide (k ∈ S) then RevokedRes1 t W C k else emp)%I with "[] [] Hm")
       as "[Hm HX]".
     { iApply big_sepM_intro. by iIntros "!>" (???). }
@@ -390,7 +488,7 @@ Section region_maps.
     iIntros (HS) "(%M & Hw)". iNamed "Hw".
     rewrite /RevokedRes -(sepM_to_sepS' M); [|rewrite -Hdom; set_solver].
     iIntros "HR".
-    iDestruct (rmap_transform _ M _ (body_l (close_set S W) C) O O
+    iDestruct (rmap_transform _ M _ (body_l t (close_set S W) C) O O
       (λ k, if decide (k ∈ S ∖ O) then RevokedRes1 t (close_set S W) C k else emp)%I
       (λ _, emp)%I with "HR [] Hm") as "[Hm _]".
     { iIntros "!>" (k [γ1 p1] Hk) "#Hel HY Hb". iSplitL; [|done].
@@ -428,7 +526,7 @@ Section region_maps.
       Temporary. *)
   Lemma l_excl_not_T t W C O k p φ (X : iProp Σ) :
     k ∉ O → std W !! k = Some Temporary →
-    □ (∀ v, k ↦ₖ v -∗ X -∗ False) -∗
+    □ (∀ v, temp_cell t k v -∗ X -∗ False) -∗
     □ (∀ a ι, ⌜k = LHeap a ι⌝ → ι ⊒ AQuar -∗ X -∗ False) -∗
     local_region_map t W C O -∗ rel_l t C k p φ -∗ X -∗ False.
   Proof.

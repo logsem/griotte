@@ -141,13 +141,15 @@ Section fundamental.
     destruct (has_sreg_access p) eqn:HpXSR; auto.
     replace (has_sreg_access p')
       with false by (symmetry; eapply nothas_sreg_access_flowsfrom; eauto).
-    iDestruct "HA" as "[ [#A [%Hconditions #Hheap] ] | %Hexp]"; cycle 1.
+    iDestruct "HA" as "[ [#A [%Hconditions [#Hheap #Hwl] ] ] | %Hexp]"; cycle 1.
     { iRight. iPureIntro.
       eapply (exposed_mmio_cap_weaken p p' b b e e π); [solve_addr | solve_addr | exact Hp | exact Hexp]. }
     iLeft.
     destruct Hconditions as [Hpwl_cond Hshadow].
     iSplit; cycle 1.
-    { iSplit; last by iApply (heap_cap_ok_perm with "Hheap").
+    { iSplit.
+      2: { iSplit; first by iApply (heap_cap_ok_perm with "Hheap").
+           iApply (wl_in_stack_weaken with "Hwl"); [done|solve_addr|solve_addr]. }
       iPureIntro. split; last done.
       case_eq (isWL p'); intros Hpwl'; auto.
       pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.
@@ -588,14 +590,16 @@ Section fundamental.
     iDestruct "HA" as "[HA | %Hexp]"; cycle 1.
     { iRight. iPureIntro. by eapply exposed_mmio_cap_weaken. }
     iLeft.
-    iDestruct "HA" as "[A [%Hconditions #Hok] ]".
+    iDestruct "HA" as "[A [%Hconditions [#Hok #Hwl] ] ]".
     destruct Hconditions as [Hpwl_cond Hshadow].
     assert (Hshadow' : disjoint_from_mmio b' e').
     { eapply (disjoint_from_mmio_weaken b e); [solve_addr | solve_addr | exact Hshadow]. }
     iSplitL "A"; cycle 1.
     { iSplit.
-      2: { iApply (heap_cap_ok_perm with "[]"); first exact Hp.
-           by iApply (heap_cap_ok_subseg with "Hok"). }
+      2: { iSplit.
+           - iApply (heap_cap_ok_perm with "[]"); first exact Hp.
+             by iApply (heap_cap_ok_subseg with "Hok").
+           - iApply (wl_in_stack_weaken with "Hwl"); [done|solve_addr|solve_addr]. }
       iPureIntro. split; last exact Hshadow'.
       case_eq (isWL p'); intros Hpwl'; auto.
       pose proof (isWL_flowsto p' p Hp Hpwl') as Hpwl.

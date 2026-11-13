@@ -11,7 +11,7 @@ Section Switcher_Restore.
   (** Restore one saved register, at the offset [off] from the stack
       pointer, under a load witness. The load does not fail, and its result
       satisfies [load_post] for that witness. *)
-  Lemma switcher_load_stack_restore_witness {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore_witness {dq dq' : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (off : Z) (ea : Addr) (raw : LWord) wit :
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
@@ -21,13 +21,13 @@ Section Switcher_Restore.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_post wit RWL raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗ load_witness_res wit }}}.
+        ea ↦ₐ{dq'} raw ∗ load_witness_res wit }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ) "Hpre HΦ".
     iApply (wp_load_witness_imm_one_inbounds with "Hpre"); [done.. |].
@@ -37,7 +37,7 @@ Section Switcher_Restore.
   (** Restore one saved register without a witness. Success exposes
       [load_heap], so subsequent loads need not observe the same tag, even
       for an aliased base. *)
-  Lemma switcher_load_stack_restore {dq : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
+  Lemma switcher_load_stack_restore {dq dq' : dfrac} E pc_p pc_g pc_b pc_e pc_a pc_a'
     dst src (wi wd : LWord) b e a (off : Z) (ea : Addr) (raw : LWord) :
     (a + off)%a = Some ea ->
     is_shadow_address ea = false ->
@@ -47,12 +47,12 @@ Section Switcher_Restore.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ raw }}}
+        dst ↦ᵣ wd ∗ src ↦ᵣ Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw }}}
       Instr Executable @ E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗ src ↦ᵣ Cap RWL Local b e a ∗
-        ea ↦ₐ raw }}}.
+        ea ↦ₐ{dq'} raw }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha) HΦ".
@@ -71,7 +71,7 @@ Section Switcher_Restore_Interp.
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP : MachineParameters} {swlayout : switcherLayout}.
 
-  Lemma switcher_load_stack_restore_interp {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_interp {dq dq' : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -82,13 +82,13 @@ Section Switcher_Restore_Interp.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         world_interp_open Wworld C opened ∗ interp_in_mem RWL Wval C raw }}}
       Instr Executable @[th] E
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
+        ea ↦ₐ{dq'} raw ∗ world_interp_open Wworld C opened ∗ interp Wval C actual }}}.
   Proof.
     iIntros (Hea Hshadow Hinstr Hvpc Hbounds Hpc Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hworld & #Hnormal) HΦ".
@@ -104,7 +104,7 @@ Section Switcher_Restore_Interp.
   (** Restore one saved register beside the local map of [Wworld] and the
       part of the world premise that holds the map of Permanent regions,
       both unchanged. *)
-  Lemma switcher_load_stack_restore_local {dq : dfrac} E Wworld C opened
+  Lemma switcher_load_stack_restore_local {dq dq' : dfrac} E Wworld C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -115,7 +115,7 @@ Section Switcher_Restore_Interp.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
         perm_resources C }}}
       Instr Executable @[th] E
@@ -123,7 +123,7 @@ Section Switcher_Restore_Interp.
         ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗
+        ea ↦ₐ{dq'} raw ∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
         perm_resources C }}}.
   Proof.
@@ -139,7 +139,7 @@ Section Switcher_Restore_Interp.
 
   (** [switcher_load_stack_restore_interp] over the local map of
       [Wworld]. *)
-  Lemma switcher_load_stack_restore_local_interp {dq : dfrac} E Wworld Wval C opened
+  Lemma switcher_load_stack_restore_local_interp {dq dq' : dfrac} E Wworld Wval C opened
     pc_p pc_g pc_b pc_e pc_a pc_a' dst src (wi wd : LWord) b e a (off : Z) (ea : Addr)
     (raw : LWord) :
     (a + off)%a = Some ea ->
@@ -150,7 +150,7 @@ Section Switcher_Restore_Interp.
     (pc_a + 1)%a = Some pc_a' ->
     dst ≠ cnull -> src ≠ cnull ->
     {{{ PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a ∗ pc_a ↦ₐ{dq} wi ∗
-        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ raw ∗
+        dst ↦ᵣ[th] wd ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗ ea ↦ₐ{dq'} raw ∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
         perm_resources C ∗
         interp_in_mem RWL Wval C raw }}}
@@ -158,7 +158,7 @@ Section Switcher_Restore_Interp.
     {{{ actual, RET NextIV; ⌜load_heap raw actual⌝ ∗
         PC ↦ₚ[th] Cap pc_p pc_g pc_b pc_e pc_a' ∗ pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ[th] actual ∗ src ↦ᵣ[th] Cap RWL Local b e a ∗
-        ea ↦ₐ raw ∗
+        ea ↦ₐ{dq'} raw ∗
         local_region_map th Wworld C (open_l Wworld opened) ∗
         perm_resources C ∗
         interp Wval C actual }}}.

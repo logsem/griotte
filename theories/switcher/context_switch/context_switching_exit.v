@@ -74,10 +74,10 @@ Section ctx_exit.
 
   (** The save area of an exited thread after the rejoin: the stack
       pointer word holds mtdc's 0, MEPCC the exited thread's PCC, mstatus
-      MPIE [b], the cause the exit cause. *)
-  Definition exit_area (ws : list LWord) (b : InterruptStatus) : list LWord :=
+      MPIE [b], the cause the exit cause, MSHWMB and MSHWM [mshwmb_v] and [mshwm_v]. *)
+  Definition exit_area (ws : list LWord) (b : InterruptStatus) (mshwmb_v mshwm_v : Z) : list LWord :=
     rejoin_spill (exit_zero ws) (lword_of_word (WInt 0)) (lword_of_word exited_thread_pcc) b
-      MCAUSE_THREAD_EXIT.
+      MCAUSE_THREAD_EXIT mshwmb_v mshwm_v.
 
   (** The registers of an exited thread: all 0. *)
   Definition exited_regs : LReg := list_to_map ((λ r, (r, lnull)) <$> all_registers).
@@ -88,20 +88,22 @@ Section ctx_exit.
     f_equal.
   Qed.
 
-  (** The values an exited thread resumes with. *)
-  Definition exited_vals (b : InterruptStatus) : resume_vals :=
-    ResumeVals exited_regs (lword_of_word exited_thread_pcc) b.
+  (** The values an exited thread resumes with: the high-water mark and the
+      zone of [v]. *)
+  Definition exited_vals (v : resume_vals) (b : InterruptStatus) : resume_vals :=
+    ResumeVals exited_regs (lword_of_word exited_thread_pcc) b v.(rv_hwmb) v.(rv_hwm) v.(rv_zone).
 
-  Lemma exit_area_resume_ok (ws : list LWord) (b : InterruptStatus) :
+  Lemma exit_area_resume_ok (ws : list LWord) (v : resume_vals) (b : InterruptStatus) :
     length ws = 21%nat →
-    resume_ok_full (exit_area ws b) (exited_vals b) ∧ saved_mie_ok (exit_area ws b).
+    resume_ok_full (exit_area ws b v.(rv_hwmb) v.(rv_hwm)) (exited_vals v b) ∧
+    saved_mie_ok (exit_area ws b v.(rv_hwmb) v.(rv_hwm)).
   Proof.
     intros Hlen.
     destruct ws as
       [|w0 [|w1 [|w2 [|w3 [|w4 [|w5 [|w6 [|w7 [|w8 [|w9 [|w10
       [|w11 [|w12 [|w13 [|w14 [|w15 [|w16 [|w17 [|w18 [|w19 [|w20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
       try done.
-    rewrite /resume_ok_full /exited_vals. cbn [rv_regs rv_mie rv_pc].
+    rewrite /resume_ok_full /exited_vals. cbn [rv_regs rv_mie rv_pc rv_hwmb rv_hwm].
     split_and!.
     - (* Every register word of the area is 0. *)
       rewrite /exited_regs /resume_regs_of. f_equal.
@@ -109,6 +111,8 @@ Section ctx_exit.
     - split; last done.
       rewrite /resume_pc_word /save_area_word /exit_area /rejoin_spill /=.
       by rewrite exited_thread_pcc_legal.
+    - by rewrite /save_area_word /exit_area /rejoin_spill /=.
+    - by rewrite /save_area_word /exit_area /rejoin_spill /=.
     - intros w Hw. rewrite /exit_area /rejoin_spill /= in Hw. simplify_eq.
       by rewrite /= mie_of_mstatus_enc.
   Qed.
@@ -404,8 +408,9 @@ Section ctx_exit.
     cur_frag (Some (UserThread t, Saving ParkExit v)) -∗
     save_area_holed (UserThread t)
       (rejoin_spill (exit_zero ws) (lword_of_word (WInt 0)) (lword_of_word exited_thread_pcc) b
-         MCAUSE_THREAD_EXIT) -∗
+         MCAUSE_THREAD_EXIT v.(rv_hwmb) v.(rv_hwm)) -∗
     mtdc_lent_at (th := UserThread t) -∗
+    hwm_base[u t] v.(rv_hwmb) -∗
     MIE ↦ₜ[u t] InterruptDisabled -∗
     PC ↦ₚ[u t] v.(rv_pc) -∗
     regs[u t] v.(rv_regs) -∗
@@ -415,23 +420,32 @@ Section ctx_exit.
     na_own (tpool CtxSwitch) ⊤.
   Proof.
     iIntros (Hnd Hlen Hmie Hpc Hdom)
-      "Hsafe #Hpool Hcur Hsa Hlent HMIE_t HPC_t Hregs_t Hna Hclose".
-    destruct (exit_area_resume_ok ws b Hlen) as [Hok Hmie_ok].
+      "Hsafe #Hpool Hcur Hsa Hlent #Hbase HMIE_t HPC_t Hregs_t Hna Hclose".
+    destruct (exit_area_resume_ok ws v b Hlen) as [Hok Hmie_ok].
+    assert (length (exit_zero ws) = 21%nat) as Hlen_zero by by rewrite /exit_zero length_imap.
     iMod (pool_park ts t ParkExit v ⊤ Hnd with "Hpool Hcur [Hsafe Hsa Hlent HMIE_t HPC_t Hregs_t]")
       as "Hcur"; [solve_ndisj| |].
     { iIntros "Hauths _".
       rewrite /auths_at /thread_auths.
-      iDestruct "Hauths" as "(HPC_a & Hregs_a & Hmtdc_a & HMIE_a)".
+      iDestruct "Hauths" as
+        "( (HPC_a & Hregs_a & Hmtdc_a & HMIE_a & Hhwmb_a & Hhwm_a & Hzone_a & Hrest_a) &
+           %Hcov & #Hbase_a)".
       iMod (PC_update _ _ (lword_of_word exited_thread_pcc) with "HPC_a HPC_t") as "[HPC_a HPC_t]".
       iMod (MIE_update _ _ b with "HMIE_a HMIE_t") as "[HMIE_a HMIE_t]".
       iMod (regs_copy v.(rv_regs) exited_regs with "Hregs_a Hregs_t") as "[Hregs_a Hregs_t]".
       { by rewrite Hdom exited_regs_dom. }
       iModIntro.
-      iExists (exit_area ws b), (exited_vals b).
+      iExists (exit_area ws b v.(rv_hwmb) v.(rv_hwm)), (exited_vals v b).
       iFrame "Hlent". iSplit.
       - iPureIntro. by apply resume_ok_full_eq.
-      - iSplitL "Hsa"; first (rewrite save_area_at_full; by iFrame).
-        iSplitL "HPC_a Hregs_a Hmtdc_a HMIE_a"; first (rewrite /auths_at /thread_auths /=; iFrame).
+      - iSplitL "Hsa".
+        { rewrite save_area_at_full. iFrame "Hsa". iSplit; first done.
+          iExists v.(rv_hwmb). iFrame "Hbase". iPureIntro.
+          exact (rejoin_spill_word_mshwmb (exit_zero ws) _ _ b MCAUSE_THREAD_EXIT v.(rv_hwmb)
+                   v.(rv_hwm) Hlen_zero). }
+        iSplitL "HPC_a Hregs_a Hmtdc_a HMIE_a Hhwmb_a Hhwm_a Hzone_a Hrest_a".
+        { rewrite /auths_at /thread_auths /=. iFrame "∗ #". by iPureIntro. }
+        iSplitR; first by rewrite decide_True.
         iNext. iIntros "Hpost _".
         iApply ("Hsafe" $! b exited_regs with "[] HPC_t HMIE_t Hregs_t Hpost").
         by rewrite exited_regs_dom. }
@@ -449,6 +463,7 @@ Section ctx_exit.
   Proof.
     iIntros "Henv #Hresume Hpre".
     iNamed "Hpre".
+    iRename "Hlent" into "Hlent_z".
     iDestruct "Hsched" as (P) "[HP_own HP]".
     iNamed "Henv".
     iNamed "Hparked".
@@ -475,7 +490,7 @@ Section ctx_exit.
                with "Hposture") as "[Hho Hpart]".
     iDestruct "Hho" as (wm wc vt b) "(_ & _ & %Hwc & _ & Hho)".
     cbn in Hwc. subst wc.
-    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & Hsave) Hlent_t]".
+    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & _ & Hsave) Hlent_t]".
     iDestruct (handover_at_thread_indep (UserThread t) CtxSwitch with "Hho") as "Hho".
     pose proof (trusted_stack_frames_fit (tlayout := tlayout_of (UserThread t))) as [n Hfit].
     iDestruct (big_sepL2_length with "Hsave") as %Hlen.
@@ -496,12 +511,12 @@ Section ctx_exit.
       as "#Hswitcher".
     iApply (ctx_rejoin_spec t g_tstk lreg' (exit_zero ws) (lword_of_word (WInt 0))
               (lword_of_word exited_thread_pcc) b MCAUSE_THREAD_EXIT MCAUSE_THREAD_EXIT
-              Hhome_ctx Hdom' Hcsp'
-             with "[$HPC $Hswitcher $Hregs $Hmtdc $Hsave $HMIE $Hho Hlent HMIE_t Hregs_t Hconc Hcur
-                    HPC_t Hlent_t Hna Hclose]").
+              v.(rv_hwmb) v.(rv_hwm) Hhome_ctx Hdom' Hcsp'
+             with "[$HPC $Hswitcher $Hregs $Hmtdc $Hsave $HMIE $Hhwmb $Hhwm $Hho Hlent HMIE_t
+                    Hregs_t Hconc Hcur HPC_t Hlent_t Hpend Hlent_z Hlast_owner Hna Hclose]").
     rewrite decide_True; last by rewrite Hhome_ctx.
     iFrame "Hlent".
-    iNext. iIntros "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hho)".
+    iNext. iIntros "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hhwmb & Hhwm & Hho)".
 
     (* The dispatch *)
     assert (falls_to_scheduler_call MCAUSE_THREAD_EXIT) as Hfalls.
@@ -523,15 +538,17 @@ Section ctx_exit.
 
     (* The park: [cur] becomes [None], and [Nact] closes *)
     iMod (ctx_park_exit_spec ts t v ws b Hnd Hlen21 Hmie Hpc Hdom
-           with "[] Hpool Hcur Hsave Hlent_t HMIE_t HPC_t Hregs_t Hna Hclose") as "Hna".
+           with "[] Hpool Hcur Hsave Hlent_t Hbase HMIE_t HPC_t Hregs_t Hna Hclose") as "Hna".
     { iApply (exited_safe_holds t with "Hswitcher_code"). }
 
     (* The scheduler call *)
     iDestruct (big_sepL_elem_of with "Hstatic") as "#Hstatic_t"; first exact Ht_in.
+    iAssert (hwm_res_ctx (th := CtxSwitch)) with "[Hhwmb Hhwm Hpend Hlent_z Hlast_owner]" as "Hhwm_res".
+    { iExists v.(rv_hwmb), v.(rv_hwm), (Some (t, v.(rv_zone))). iFrame. }
     iApply (ctx_scheduler_call_spec C_sched w_pcc w_cgp w_csp t g_tstk _
               (lword_of_word exited_thread_pcc) b MCAUSE_THREAD_EXIT MCAUSE_THREAD_EXIT Ht Hsched_in
-             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hmtdc $Hlent
-                    $Hho $Hna $Hconc]").
+             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hhwm_res
+                    $Hmtdc $Hlent $Hho $Hna $Hconc]").
     - rewrite !dom_insert_L dom_delete_L !dom_insert_L Hdom'.
       pose proof (all_registers_s_correct ct1). pose proof (all_registers_s_correct ca0).
       pose proof (all_registers_s_correct ct0).

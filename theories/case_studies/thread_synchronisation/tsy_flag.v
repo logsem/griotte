@@ -112,22 +112,22 @@ Section tsy_flag.
     iIntros "[Hmap (%φ & %Hpers & #Hrel & #Hint)]".
     (* The accessors are stated at a thread; any thread's memory and
        registry are the base's *)
-    iDestruct (open_perm_region_map (ceriseg := ceriseG_of (UserThread 0))
+    iDestruct (open_perm_region_map (th := UserThread 0)
                  C ∅ (LNonHeap b) RW φ with "Hmap Hrel")
       as "[Hmap Hres]"; first set_solver+.
     rewrite union_empty_r_L.
     iDestruct "Hres" as (w) "Hres".
     (* The old value's [▷ φ] is dropped *)
-    iDestruct (PermRes_acc (ceriseg := ceriseG_of (UserThread 0)) with "Hres")
+    iDestruct (PermRes_acc (th := UserThread 0) with "Hres")
       as "[(Hb & _) _]".
     iEval (rewrite key_pointsto_nonheap) in "Hb".
     iSplitL "Hb"; first by iExists w.
     iIntros (z) "Hb".
     rewrite -(union_empty_r_L {[ LNonHeap b ]}).
-    iApply (close_perm_region_map (ceriseg := ceriseG_of (UserThread 0))
+    iApply (close_perm_region_map
               C ∅ (LNonHeap b) RW φ (WInt z) with "Hmap Hrel");
       first set_solver+.
-    iApply (init_PermRes (ceriseg := ceriseG_of (UserThread 0))
+    iApply (init_PermRes (th := UserThread 0)
               C (LNonHeap b) RW φ (WInt z) with "[Hb] []").
     { done. }
     { by iEval (rewrite key_pointsto_nonheap). }

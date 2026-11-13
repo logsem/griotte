@@ -113,7 +113,7 @@ Section CMDC_shared.
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a cmdc_main_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> cmdc_main_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
+      ∗ stack_region csp_b csp_e csp_content
 
       ∗ world_interp W_init_B B
       (* the world of [C] in its regime, and its carried credit *)
@@ -123,6 +123,7 @@ Section CMDC_shared.
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
       ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ hwm_res (main_entry_cstack csp_b csp_e w_main_tbl) csp_e
 
       ∗ interp W_init_B B (WSealed ot_switcher B_f)
       ∗ interp W_init_C C (WSealed ot_switcher C_g)
@@ -170,6 +171,7 @@ Section CMDC_shared.
       & Hworld_C & Hcred_C
       & HK
       & Hcstk_frag
+      & Hhwm
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C & Hmie & Hheld)".
@@ -212,7 +214,7 @@ Section CMDC_shared.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
-    iDestruct (stk_start_region_split with "Hcsp_stk")
+    iDestruct (stk_start_stack_region_split with "Hcsp_stk")
       as (stk_mem_free stk_res) "[Hcsp_stk Hstk_res]";
       first exact Hstk_res_size.
     iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked_B".
@@ -224,11 +226,13 @@ Section CMDC_shared.
     iApply (switcher_cc_specification with
              "[- $Hthread_B $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
+              $Hcsp_stk $Hhwm $Hworld_interp_B $Hstack_revoked_B $Hcstk_frag
               $Hinterp_B_f $HentryB_f $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct b; reflexivity. }
@@ -249,7 +253,7 @@ Section CMDC_shared.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hcsp_stk & HK & %Hrestored & %Hroute_B & Hmie & Hheld)".
+      & Hrmap & Hcsp_stk & (%mshwm_v1 & %Hh1 & Hhwm) & HK & %Hrestored & %Hroute_B & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
@@ -288,7 +292,7 @@ Section CMDC_shared.
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main & Hmie & Hheld)".
 
-    iDestruct (stk_start_region_join with "Hcsp_stk Hstk_res") as "Hcsp_stk";
+    iDestruct (stk_start_stack_region_join with "Hcsp_stk Hstk_res") as "Hcsp_stk";
       first exact Hstk_res_size.
 
     (* Share c in the world of C, opened with the token lent out of the
@@ -309,7 +313,7 @@ Section CMDC_shared.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
 
     (* The free part of the stack, below the space reserved at its top *)
-    iDestruct (stk_start_region_split with "Hcsp_stk")
+    iDestruct (stk_start_stack_region_split with "Hcsp_stk")
       as (stk_mem_free' stk_res') "[Hcsp_stk _]";
       first exact Hstk_res_size.
     iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked_C".
@@ -321,11 +325,13 @@ Section CMDC_shared.
               C_g stk_mem_free' arg_rmap rmap' _ Ws Cs cmdc_C_g_args with
              "[- $Hthread_C $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $Hworld_C $Hstack_revoked_C $Hcstk_frag
+              $Hcsp_stk $Hhwm $Hworld_C $Hstack_revoked_C $Hcstk_frag
               $Hinterp_C_g $HentryC_g $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { by rewrite /= ?jalr_target_ok_ret_kind. }
@@ -342,7 +348,7 @@ Section CMDC_shared.
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
       & Hna & _ & _ & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%warg0_ret [Hca0 _] ] & [%warg1_ret [Hca1 _] ]
-      & Hrmap & _ & _ & %Hrestored & %Hroute_C & Hmie & Hheld)".
+      & Hrmap & _ & _ & _ & %Hrestored & %Hroute_C & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].

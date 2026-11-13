@@ -43,8 +43,8 @@ Section switcher_helper.
         (Cap RWL Local b_stk
            (if is_untrusted_caller ccrel then e_stk else a_stk) cur) -∗
       local_region_map th Wcur C ∅ -∗
-      [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ b_stk , a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+      stack_region a_stk a_stk4 (region_addrs_zeroes a_stk a_stk4) -∗
+      stack_ints b_stk a_stk -∗
 
       CloseRes Wfixed C a_stk l ccrel -∗
 
@@ -53,7 +53,7 @@ Section switcher_helper.
             local_region_map th Wfixed C ∅
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[ a_stk , a_stk4 ]] ↦ₐ [[ 0…0 ]]
+               else stack_region a_stk a_stk4 (region_addrs_zeroes a_stk a_stk4)
               )
     .
     Proof.
@@ -81,19 +81,28 @@ Section switcher_helper.
         iDestruct (write_allowed_inv_full_cap with "Hvalid") as "-#H";
           auto using disjoint_from_mmio_exposed.
         iClear "#"; clear -Hrelated_pub_W0_Wfixed Hkeys.
-        rewrite /region_pointsto /RevokedResources big_sepL_fmap.
-        rewrite big_sepL2_replicate_r; last by rewrite finz_seq_between_length.
+        (* Each cell holds some integer *)
+        iDestruct "Hstk" as (ws) "[%Hws Hstk]".
+        rewrite /stack_region.
+        iDestruct (big_sepL2_impl _
+                     (λ _ a _, ∃ z : Z, stack_cell a (lword_of_word (WInt z)))%I
+                    with "Hstk []") as "Hstk".
+        { iIntros "!>" (k a w _ Hw) "Ha".
+          destruct (Forall_lookup_1 _ _ _ _ Hws Hw) as [z ->].
+          by iExists z. }
+        iDestruct (big_sepL2_const_sepL_l with "Hstk") as "[_ Hstk]".
+        rewrite /RevokedResources big_sepL_fmap.
         iDestruct (big_sepL_sep with "[$Hstk $H]") as "H".
         iNext.
         iApply (big_sepL_impl with "H").
-        iIntros "!> %k %x %Hx [Hv (%p' & %P & %Hflows & %Hpers & Hrel & #Hzcond & #Hrcond & #Hwcond)]".
+        iIntros "!> %k %x %Hx [ (%z & Hv) (%p' & %P & %Hflows & %Hpers & Hrel & #Hzcond & #Hrcond & #Hwcond)]".
         rewrite (Forall_lookup_1 _ _ _ _ Hkeys Hx).
         rewrite /region_rel /=.
         iDestruct "Hrel" as "(#Hrel & _ & #Hmono)".
         iExists p', (safeC P). iFrame "Hrel".
         iSplit; first (iPureIntro; intros [ [W C'] w]; apply Hpers).
         rewrite /temp_res /heap_key_resource /TmpRes /=.
-        iExists (WInt 0). iFrame "Hv".
+        iExists (WInt z). rewrite -stack_cell_temp_cell. iFrame "Hv".
         iSplit; first (iPureIntro; eapply notisO_flowsfrom; eauto).
         iSplitR; [|iNext; iApply "Hmono"].
         iNext. iApply "Hwcond"; iApply interp_int.
@@ -123,29 +132,21 @@ Section switcher_helper.
              rewrite finz_dist_0; last (solve_addr+Ha_stk4).
              done.
         }
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk0 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 1) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk1 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 2) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk2 Hstk']"
-        ; [ transitivity ( Some (a_stk ^+ 3) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
-        iDestruct (region_pointsto_cons with "Hstk'") as "[Ha_stk3 _]"
-        ; [ transitivity ( Some (a_stk ^+ 4) ); solve_addr+Ha_stk4
-          | solve_addr+Ha_stk4 He_a1
-          |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 1) with "Hstk'") as "[Ha_stk0 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 2) with "Hstk'") as "[Ha_stk1 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 3) with "Hstk'") as "[Ha_stk2 Hstk']";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
+        iDestruct (stack_region_cons _ (a_stk ^+ 4) with "Hstk'") as "[Ha_stk3 _]";
+          [solve_addr+Ha_stk4 | solve_addr+Ha_stk4 He_a1 |].
         rewrite /RevokedResources /=.
         iSplitL "Hdata0 Ha_stk0".
         { iExists p0, P0. iFrame "Hrel0". iSplit; first done.
           iDestruct "Hdata0" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           rewrite /temp_res /heap_key_resource /TmpRes /=.
-          iExists (WInt 0). iFrame "Ha_stk0 Hmono %".
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk0 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata1 Ha_stk1".
@@ -153,7 +154,7 @@ Section switcher_helper.
           iDestruct "Hdata1" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           rewrite /temp_res /heap_key_resource /TmpRes /=.
-          iExists (WInt 0). iFrame "Ha_stk1 Hmono %".
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk1 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata2 Ha_stk2".
@@ -161,7 +162,7 @@ Section switcher_helper.
           iDestruct "Hdata2" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           rewrite /temp_res /heap_key_resource /TmpRes /=.
-          iExists (WInt 0). iFrame "Ha_stk2 Hmono %".
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk2 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         iSplitL "Hdata3 Ha_stk3".
@@ -169,7 +170,7 @@ Section switcher_helper.
           iDestruct "Hdata3" as "(%Hp & #Hmono & Hsrc)".
           iDestruct "Hsrc" as (Wsrc Hrelated) "Hφ".
           rewrite /temp_res /heap_key_resource /TmpRes /=.
-          iExists (WInt 0). iFrame "Ha_stk3 Hmono %".
+          iExists (WInt 0). rewrite -stack_cell_temp_cell. iFrame "Ha_stk3 Hmono %".
           iNext. iApply ("Hmono" with "[] Hφ"). iPureIntro; exact Hrelated.
         }
         done.
@@ -190,7 +191,9 @@ Section switcher_helper.
 
     (** At the return, fix the local map on the callee's stack and on the spill
         area of the topmost frame, whose caller's cursor is [a_stk], once
-        both are zeroed. *)
+        the spill area is zeroed and the callee's stack holds integers. The
+        spill area must hold zeros: [CloseRes] gives the conditions of its
+        cells at [WInt 0] only. *)
     Lemma local_stack_fixing
       (Wcur W0 : WORLD) (C : CmptName)
       (b_stk e_stk a_stk : Addr) (l : list LAddr)
@@ -207,8 +210,8 @@ Section switcher_helper.
            (if is_untrusted_caller ccrel then e_stk else stk_callee_e e_stk a_stk)
            a_stk) -∗
       local_region_map th Wcur C ∅ -∗
-      [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] -∗
-      [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]] -∗
+      stack_region s (s ^+ SpillSlot_size) (region_addrs_zeroes s (s ^+ SpillSlot_size)) -∗
+      stack_ints (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) -∗
 
       CloseRes Wfixed C s l ccrel -∗
 
@@ -217,7 +220,7 @@ Section switcher_helper.
             local_region_map th Wfixed C ∅
             ∗ (if (is_untrusted_caller ccrel)
                then True
-               else [[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]
+               else stack_region s (s ^+ SpillSlot_size) (region_addrs_zeroes s (s ^+ SpillSlot_size))
               )
     .
     Proof.
@@ -271,10 +274,11 @@ Section switcher_helper.
         registers [cgp], [cs0], [cs1], [csp], safe return values [ca0],
         [ca1], and cleared registers, from the posture [m]: the caller
         resumes at the posture [wret] restores. *)
-    Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma switcher_jump_to_caller_spec (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 : LWord) (m : InterruptStatus) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+      th ≠ CtxSwitch ->
       frame_match Ws Cs cstk W C ->
       route_pre th (default m (jalr_target_mie wret.(lw))) ->
 
@@ -298,6 +302,7 @@ Section switcher_helper.
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
       world_resources W C -∗
+      hwm_res_untrusted W cstk -∗
       interp_continuation cstk Ws Cs -∗
       ◯(CSTK)[th] cstk -∗
       na_own (tpool th) ⊤ -∗
@@ -307,9 +312,10 @@ Section switcher_helper.
       £ 1 -∗
       safe[th].
     Proof.
-      iIntros (Hdom Hframe Hpre) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
-        #Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_res HK Hcstk Hna Hmie Hheld
-        Hlc Hlc'".
+      iIntros (Hdom Huser Hframe Hpre) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0 #Hwca1
+        #Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hworld_res Hhwm HK Hcstk Hna Hmie
+        Hheld Hlc Hlc'".
+      iEval (rewrite -(hwm_res_kind_user _ _ Huser)) in "Hhwm".
       iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
       iDestruct (shared_credit_refill with "Hlc'") as "Hcred".
       iDestruct (jmp_or_fail_spec with "Hwret") as "Hcont".
@@ -343,7 +349,7 @@ Section switcher_helper.
         iApply "Hcont"; iFrame "HPC".
         iApply (interp_trap_safe_untrusted with "Htrap Hthread Hregs_interp Htop [-]");
           [done | done |].
-        iModIntro. iFrame "Hrmap Hworld_res HK Hna Hcstk".
+        iModIntro. iFrame "Hrmap Hworld_res Hhwm HK Hna Hcstk".
         iExists _. by iFrame "Hmie Hheld". }
 
       iDestruct "Hcont" as "(%&%&%&%&%&%&Hcont)".
@@ -363,10 +369,11 @@ Section switcher_helper.
         not a valid target of [Jalr cnull cra]: the fault unwinds the frame
         of the caller. The world, the token and the call stack are only
         needed after the jump or the exception entry. *)
-    Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+    Lemma switcher_jump_to_caller_cases_spec (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
       (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
       (rmap : LReg) (wret wcgp wcs0 wcs1 wcsp wca0 wca1 w : LWord) (m : InterruptStatus) :
       dom rmap = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ->
+      th ≠ CtxSwitch ->
       frame_match Ws Cs cstk W C ->
       route_pre th m ->
       route_pre th (default m (jalr_target_mie wret.(lw))) ->
@@ -389,6 +396,7 @@ Section switcher_helper.
       ca0 ↦ᵣ[th] wca0 -∗
       ca1 ↦ᵣ[th] wca1 -∗
       regs₀[th] rmap -∗
+      hwm_res_untrusted W cstk -∗
       interp_continuation cstk Ws Cs -∗
       £ 1 -∗
       (|={⊤}=>
@@ -405,15 +413,16 @@ Section switcher_helper.
         held (th := th) m -∗
         trap_safe w ⊤ (HO th) ).
     Proof.
-      iIntros (Hdom Hframe Hpre Hpre_ret) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0
-        #Hwca1 #Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap HK Hlc' Hres".
+      iIntros (Hdom Huser Hframe Hpre Hpre_ret) "#Htrap #Hthread #Hwret #Hwcgp #Hwcs0 #Hwcs1 #Hwcsp #Hwca0
+        #Hwca1 #Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1 Hrmap Hhwm HK Hlc' Hres".
       iSplit.
       - iIntros "(HPC & Hmie & Hheld & Hlc)".
         iMod "Hres" as "(Hworld_res & Hna & Hcstk)".
         iApply (switcher_jump_to_caller_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ m with
                  "Htrap Hthread Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1 Htop HPC Hcra Hcgp Hcs0 Hcs1 Hcsp
-                  Hca0 Hca1 Hrmap Hworld_res HK Hcstk Hna Hmie Hheld Hlc Hlc'"); done.
+                  Hca0 Hca1 Hrmap Hworld_res Hhwm HK Hcstk Hna Hmie Hheld Hlc Hlc'"); done.
       - iIntros "_ Hmie Hheld".
+        iEval (rewrite -(hwm_res_kind_user _ _ Huser)) in "Hhwm".
         iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap %Hrmap_zeroes]".
         iDestruct (big_sepM_insert with "[$Hrmap $Hca0]") as "Hrmap".
         { apply not_elem_of_dom; rewrite Hdom; set_solver+. }
@@ -436,10 +445,10 @@ Section switcher_helper.
         iPoseProof (switcher_caller_regs_interp with "Hwret Hwcgp Hwcs0 Hwcs1 Hwcsp Hwca0 Hwca1")
           as "#Hregs_interp"; [exact Hfull_regs | exact Hrmap_zeroes |].
         iApply (interp_trap_safe_untrusted _ _ _ cstk Ws Cs regs with
-                 "Htrap Hthread Hregs_interp Htop [Hrmap HK Hres Hmie Hheld]");
+                 "Htrap Hthread Hregs_interp Htop [Hrmap Hhwm HK Hres Hmie Hheld]");
           [done | done |].
         iMod "Hres" as "(Hworld_res & Hna & Hcstk)".
-        iFrame "Hrmap HK Hna Hcstk Hworld_res".
+        iFrame "Hrmap Hhwm HK Hna Hcstk Hworld_res".
         iExists m. by iFrame "Hmie Hheld".
     Qed.
 

@@ -144,10 +144,9 @@ Section ist_obligations.
     iEval (rewrite Hposture0) in "HMIE Hheld".
     iEval (rewrite (fw_entry_pc_code ist_firmware img σ ltac:(reflexivity) Hok)) in "HPC".
     iEval (rewrite fw_thread_cra_eq) in "Hcra".
-    iEval (rewrite fw_thread_of_0) in "Hstack".
     iEval (rewrite /fw_thread_csp; cbv zeta) in "Hcsp".
     iEval (rewrite /fw_entry_cgp; cbv zeta) in "Hcgp".
-    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk".
+    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk Hhwm".
     iDestruct (big_sepS_elem_of _ _ B with "Hlocals") as "Hlocal_B".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     iMod (fw_shared_caller_world img 0 B HB_shared with "Hinv_B Hlocal_B")
@@ -198,7 +197,7 @@ Section ist_obligations.
                     $Hworld_B
                     $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $HK_imports $HK_code $HK_data $Hstack
-                    $Hinterp_B $Hcstk $Hrevoked_stack_B
+                    $Hinterp_B $Hcstk $Hhwm $Hrevoked_stack_B
                     $Hentry_Bf
                     $HMIE $Hheld
                     ]"); eauto using fw_cleared_regs_dom.

@@ -116,7 +116,7 @@ End open_keys.
 Section standard_world_interp.
 
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -160,6 +160,40 @@ Section standard_world_interp.
   Proof.
     intros Hs. rewrite !world_interp_open_eq.
     by rewrite (open_l_permutation _ _ _ Hs) (open_perm_permutation _ _ _ Hs).
+  Qed.
+
+  (** ** The cell of a region, by its part
+
+      A key of the local world holds a [temp_cell], a key of the map of
+      Permanent regions its points-to. *)
+  Definition region_cell (ρ : region_part) (k : LAddr) (v : LWord) : iProp Σ :=
+    match ρ with
+    | InLocal => temp_cell th k v
+    | InPerm => k ↦ₖ v
+    end.
+
+  #[global] Instance region_cell_timeless ρ k v : Timeless (region_cell ρ k v).
+  Proof. destruct ρ; apply _. Qed.
+
+  Lemma region_cell_pointsto ρ k v : k ↦ₖ v -∗ region_cell ρ k v.
+  Proof. destruct ρ; [auto|iApply temp_cell_pointsto]. Qed.
+
+  (** At a heap key, the cell of a region is its points-to. *)
+  Lemma region_cell_heap ρ a ι v : region_cell ρ (LHeap a ι) v ⊣⊢ LHeap a ι ↦ₖ v.
+  Proof. destruct ρ; [done|apply temp_cell_heap]. Qed.
+
+  (** The cell of a region gives half of the points-to of its address,
+      enough to fetch or load from it, and gets it back. *)
+  Lemma region_cell_fetch ρ k v :
+    region_cell ρ k v -∗
+    laddr_addr k ↦ₐ{DfracOwn (1/2)} v ∗
+    (laddr_addr k ↦ₐ{DfracOwn (1/2)} v -∗ region_cell ρ k v).
+  Proof.
+    destruct ρ; cbn [region_cell]; last iApply temp_cell_fetch.
+    iIntros "Hk".
+    iDestruct (key_pointsto_eq with "Hk") as "[ [Hk1 Hk2] Hshare]".
+    iFrame "Hk1"; iIntros "Hk1".
+    iApply key_pointsto_eq; iFrame "Hshare"; by iCombine "Hk1 Hk2" as "Hk".
   Qed.
 
 End standard_world_interp.

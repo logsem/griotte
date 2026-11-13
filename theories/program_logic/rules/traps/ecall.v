@@ -56,7 +56,7 @@ Section ecall_rules.
     iDestruct "Hvol" as (p0 c0 v0 b0) "(HU & Hvcsr)".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0");
-      first done.
+      [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr /exec in Hstep. cbn in Hstep. injection Hstep as <- <-.
     rewrite Hinstr.

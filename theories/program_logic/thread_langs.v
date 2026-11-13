@@ -51,6 +51,9 @@ Definition kind_of (th : Thread) : kind :=
   | CtxSwitch => CtxK
   end.
 
+Lemma kind_of_user th : th ≠ CtxSwitch → kind_of th = UserK.
+Proof. intros Hth. destruct th as [t|]; [done | contradiction]. Qed.
+
 (** * Switch values *)
 
 (** The ways a thread's turn ends: a yield ([ecall] by a user thread), a

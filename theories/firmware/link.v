@@ -98,8 +98,8 @@ Section link.
         let est := (ets + Z.of_nat (ft_stack_size ft))%Z in
         let ehz := (est + 2)%Z in
         let '(ts, a') := place_threads ehz fts in
-        (MkImgThread (mk_addr ets) (mk_addr est) (mk_addr a) (mk_addr ets) (mk_addr est)
-           (mk_addr ehz) :: ts, a')
+        (MkImgThread (mk_addr ets) (mk_addr est) (replicate (ft_stack_size ft) (WInt 0))
+           (mk_addr a) (mk_addr ets) (mk_addr est) (mk_addr ehz) :: ts, a')
     end.
 
   (** The image with the addresses only, and the end of the image. *)

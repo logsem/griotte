@@ -150,10 +150,16 @@ Section VAE.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
-      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
+      & Hhwm & %Hzone & Hworld_interp_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
+      & %Hroute & Hmie & Hheld)".
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+    (* The stack ends in the stack of the thread *)
+    iAssert (thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk)) as "#Htstk".
+    { iDestruct "Hhwm" as "[_ $]". }
+    iDestruct (wl_in_stack_base RWL with "Htstk [Hinterp_W0_csp]") as %[_ Hstk_top];
+      [done | by iApply (interp_wl_in_stack with "Hinterp_W0_csp") |].
     rewrite /registers_pointsto.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
@@ -208,7 +214,7 @@ Section VAE.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by solve_addr+Hstk_min.
-    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk Hstk_res]";
+    iDestruct (stk_start_stack_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk Hstk_res]";
       first exact Hstk_res_size.
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W0")
       as "[Hstack_revoked_W0_free _]".
@@ -229,14 +235,17 @@ Section VAE.
       rewrite !lookup_delete_ne; [apply Hzero; set_solver+Hr|set_solver+Hr..]. }
 
     (* First call to [g] *)
+    rewrite -Hstk_base.
     iApply (switcher_cc_specification_alt with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
+              $Hstk $Hhwm $Hworld_interp_C $Hstack_revoked_W2q $Hcstk
               $Hinterp_W2q_wca0 $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { exact Hstk_base. }
+    { exact Hstk_top. }
     { exact Hrmap1_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
     { by rewrite /= ?jalr_target_ok_ret_kind. }
@@ -258,7 +267,7 @@ Section VAE.
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
+      & Hrmap & Hstk & (%mshwm_v1 & %Hh1 & Hhwm) & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hcallback1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
@@ -318,11 +327,13 @@ Section VAE.
     iApply (switcher_cc_specification_alt with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
+              $Hstk $Hhwm $Hworld_interp_C $Hstack_revoked_W5q $Hcstk
               $Hinterp_W5q_wca0 $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; solve_addr+Hstk_min. }
+    { exact Hstk_base. }
+    { exact Hstk_top. }
     { exact Hrmap5_dom. }
     { apply vae_call_adv_arg_rmap_is_arg. }
     { by rewrite /= ?jalr_target_ok_ret_kind. }
@@ -343,7 +354,7 @@ Section VAE.
       & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0' [Hca0 _] ] & [%warg1' [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
+      & Hrmap & Hstk & (%h2 & %Hh2 & Hhwm) & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].
@@ -366,8 +377,8 @@ Section VAE.
       eapply related_sts_priv_pub_trans_world; last exact Hpub_W5q_W6.
       eapply related_sts_priv_trans_world; last exact Hpriv_W3_W5q.
       eapply related_sts_priv_pub_trans_world; [exact Hpriv_W0_W2q|exact Hpub_W2q_W3]. }
-    iMod (world_interp_revoked_by_separation_many (revoke W6) C
-           (finz.seq_between (stk_start_a csp_b csp_e) csp_e) stk_res
+    iMod (world_interp_revoked_by_separation_stack (revoke W6) C
+           (stk_start_a csp_b csp_e) csp_e stk_res
            with "[$Hworld_interp_C $Hstk_res]")
       as "(Hworld_interp_C & Hstk_res & %Hstk_res_W7)".
     { apply Forall_forall; intros x Hx.
@@ -411,10 +422,15 @@ Section VAE.
     iInsertRegs "Hrmap" ["Hca2";"Hct2";"Hct1";"Hct0";"Hcs0";"Hcs1";"Hcgp";"Hcra"].
 
     (* Return to the caller of [awkward] *)
-    iDestruct (stk_start_region_join with "Hstk Hstk_res") as "Hstk";
+    iDestruct (stk_start_stack_region_join with "Hstk Hstk_res") as "Hstk";
       first exact Hstk_res_size.
+    (* MSHWM is at most the cursor of the calls, in the stack *)
+    assert (h2 <= csp_e)%Z as Hh2_e.
+    { assert (stk_start_a csp_b csp_e <= csp_e)%Z
+        by (rewrite /stk_start_a; unfold StackEntry_reserved_space in *; solve_addr).
+      lia. }
     iApply (switcher_ret_specification W0 (revoke W6) with
-             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hhwm $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp $Hmie]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap6_dom; set_solver+. }
     { iSplit; iApply interp_int. }

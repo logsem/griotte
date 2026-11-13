@@ -26,7 +26,7 @@ Section SO_World_Return.
   Lemma stack_object_revoked_pointsto_disjoint
       (W : WORLD) (C : CmptName) (l : list LAddr)
       (a : Addr) (v : LWord) :
-    a ↦ₐ v -∗ RevokedResources W C l -∗ ⌜LNonHeap a ∉ l⌝.
+    stack_cell a v -∗ RevokedResources W C l -∗ ⌜LNonHeap a ∉ l⌝.
   Proof.
     iIntros "Ha Hl".
     destruct (decide (LNonHeap a ∈ l)) as [Hin|Hnotin]; last by iPureIntro.
@@ -34,14 +34,15 @@ Section SO_World_Return.
     iDestruct "Haddr" as (p φ) "(_ & _ & Haddr)".
     iEval (cbn [heap_key_resource]) in "Haddr".
     iDestruct "Haddr" as (w) "(_ & Hw & _)".
-    iDestruct (pointsto_valid_2 with "Ha Hw") as %[Hbad _]. done.
+    iEval (rewrite -stack_cell_temp_cell) in "Hw".
+    iDestruct (stack_cell_excl with "Hw Ha") as "[]".
   Qed.
 
   Lemma stack_object_revoked_pointsto_disjoint_frame
       (W : WORLD) (C : CmptName) (l : list LAddr)
       (a : Addr) (v : LWord) :
-    a ↦ₐ v ∗ RevokedResources W C l -∗
-    a ↦ₐ v ∗ RevokedResources W C l ∗ ⌜LNonHeap a ∉ l⌝.
+    stack_cell a v ∗ RevokedResources W C l -∗
+    stack_cell a v ∗ RevokedResources W C l ∗ ⌜LNonHeap a ∉ l⌝.
   Proof.
     iIntros "[Ha Hl]".
     iDestruct (stack_object_revoked_pointsto_disjoint W C l a v
@@ -52,8 +53,8 @@ Section SO_World_Return.
   Lemma stack_object_revoked_region_disjoint_frame
       (W : WORLD) (C : CmptName)
       (la : list Addr) (l : list LAddr) (lv : list LWord) :
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l -∗
-    ([∗ list] a;v ∈ la;lv, a ↦ₐ v) ∗ RevokedResources W C l ∗
+    ([∗ list] a;v ∈ la;lv, stack_cell a v) ∗ RevokedResources W C l -∗
+    ([∗ list] a;v ∈ la;lv, stack_cell a v) ∗ RevokedResources W C l ∗
       ⌜(LNonHeap <$> la) ## l⌝.
   Proof.
     iIntros "[Hregion Hl]".
@@ -111,8 +112,8 @@ Section SO_World_Return.
     ∗ RevokedResources W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ a_stk1 ↦ₐ stk_head0
-    ∗ [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]]
-    ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
+    ∗ stack_region (stk_start_a csp_b csp_e) csp_e stk_res
+    ∗ stack_region (stk_free_b csp_b a_stk2) (stk_free_e csp_e a_stk2) stk_tail
     ==∗
       ∃ stk_head1,
         world_interp W5 C
@@ -121,8 +122,8 @@ Section SO_World_Return.
         ∗ ⌜forall a,
              std W0 !! a = Some Temporary -> a ∈ closing⌝
         ∗ RevokedResources (close_list closing W5) C closing_revoked
-        ∗ [[csp_b, csp_e]] ↦ₐ
-            [[stk_tail ++ [stk_head1; stk_head0] ++ stk_res]].
+        ∗ stack_region csp_b csp_e
+            (stk_tail ++ [stk_head1; stk_head0] ++ stk_res).
   Proof.
     intros W5 object_temps l0_rest l4_no_fresh l4_object l4_rest
       l4_unique
@@ -468,6 +469,9 @@ Section SO_World_Return.
     iDestruct "Hfresh_resource" as "[Hfresh_resource _]".
     iDestruct "Hfresh_resource" as (pa Pa) "(_ & _ & Hfresh_resource)".
     iDestruct "Hfresh_resource" as (va) "(_ & Hfresh_pointsto & _)".
+    iEval (rewrite -stack_cell_temp_cell) in "Hfresh_pointsto".
+    iDestruct (stack_cell_of_pointsto with "Hhead0") as "Hhead0".
+    iEval (rewrite /stack_region) in "Htail Hres".
     iDestruct (stack_object_revoked_pointsto_disjoint_frame
       with "[$Hhead0 $Hl4]") as "(Hhead0 & Hl4 & %Hhead_not_l4)".
     iDestruct (stack_object_revoked_pointsto_disjoint_frame
@@ -551,18 +555,20 @@ Section SO_World_Return.
 
     (* Join the returned tail, the fresh address, the secret and the space
        reserved on top. *)
-    iDestruct (big_sepL2_length with "Hres") as %Hres_len.
-    iDestruct (region_pointsto_cons a_stk1 (a_stk1 ^+ 1) csp_e
-      with "[$Hhead0 $Hres]") as "Hstack";
-      [solve_addr+Hfresh|solve_addr+Hfresh|].
-    iDestruct (region_pointsto_cons a_stk2 a_stk1 csp_e
-      with "[$Hfresh_pointsto $Hstack]") as "Hstack";
-      [exact Hnext|solve_addr+Hfresh|].
-    iDestruct (region_pointsto_split_r csp_b csp_e a_stk2 stk_tail (va :: stk_head0 :: stk_res)
-      with "[$Htail $Hstack]") as "Hstack".
-    { solve_addr+Hfresh Hnext Hnext_end. }
-    { cbn [length]. rewrite -Hres_len finz_seq_between_length /finz.dist.
-      solve_addr+Hfresh Hnext. }
+    iAssert (stack_region a_stk1 csp_e (stk_head0 :: stk_res))%I
+      with "[Hhead0 Hres]" as "Hstack".
+    { rewrite (stack_region_cons a_stk1 (a_stk1 ^+ 1) csp_e);
+        [|solve_addr+Hfresh|solve_addr+Hfresh].
+      iFrame. }
+    iAssert (stack_region a_stk2 csp_e (va :: stk_head0 :: stk_res))%I
+      with "[Hfresh_pointsto Hstack]" as "Hstack".
+    { rewrite (stack_region_cons a_stk2 a_stk1 csp_e); [|exact Hnext|solve_addr+Hfresh Hnext].
+      iFrame. }
+    iAssert (stack_region csp_b csp_e (stk_tail ++ va :: stk_head0 :: stk_res))%I
+      with "[Htail Hstack]" as "Hstack".
+    { rewrite /stack_region (finz_seq_between_split csp_b a_stk2 csp_e);
+        last solve_addr+Hfresh Hnext Hnext_end.
+      iApply (big_sepL2_app with "Htail Hstack"). }
 
     iModIntro. iExists va. iFrame "Hworld".
     iSplit; first (iPureIntro; exact Hpub0).
@@ -586,17 +592,23 @@ Section SO_World_Return.
     apply Forall_cons in Hdom as [Hk_dom Hdom].
     iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & HΦ & Hmono) Hl]".
     iMod ("IH" with "[//] Hworld Hl") as "(Hworld & Hl & %Hl_rev)".
-    iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
-               (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I
-      with "[Hk]" as (q) "(Hshare & Hk & Hk_back)".
-    { destruct k as [a|a ι]; cbn.
-      - iExists 1%Qp. iFrame "Hk". by iIntros "_ $".
-      - iDestruct "Hk" as "[Ha (%b & %e & %Hin & #Hobj & Hst)]".
-        iExists _. iFrame "Hst Ha". iIntros "Hst Ha". iFrame "Ha".
-        iExists b, e. by iFrame "Hobj Hst". }
-    iMod (world_interp_revoked_by_separation with "[$Hshare $Hworld $Hk]")
-      as "(Hshare & Hworld & Hk & %Hk_rev)"; first done.
-    iDestruct ("Hk_back" with "Hshare Hk") as "Hk".
+    iAssert (|==> world_interp W' C ∗ temp_cell th k wa ∗ ⌜std W' !! k = Some Revoked⌝)%I
+      with "[Hworld Hk]" as ">(Hworld & Hk & %Hk_rev)".
+    { iDestruct "Hk" as "[Hk | (%a' & %z & -> & Hcell & ->)]".
+      - iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
+                   (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I
+          with "[Hk]" as (q) "(Hshare & Hk & Hk_back)".
+        { destruct k as [a|a ι]; cbn.
+          - iExists 1%Qp. iFrame "Hk". by iIntros "_ $".
+          - iDestruct "Hk" as "[Ha (%b & %e & %Hin & #Hobj & Hst)]".
+            iExists _. iFrame "Hst Ha". iIntros "Hst Ha". iFrame "Ha".
+            iExists b, e. by iFrame "Hobj Hst". }
+        iMod (world_interp_revoked_by_separation with "[$Hshare $Hworld $Hk]")
+          as "(Hshare & $ & Hk & $)"; first done.
+        iModIntro. iLeft. iApply ("Hk_back" with "Hshare Hk").
+      - iMod (world_interp_revoked_by_zone_cell with "[$Hworld $Hcell]")
+          as "($ & Hcell & $)"; first done.
+        iModIntro. by iApply temp_cell_zone. }
     iModIntro. iFrame "Hworld". iSplitL; [|iPureIntro; by constructor].
     iFrame "Hl". iExists pa, Φa. iFrame "Hrel". iSplit; first done.
     iExists wa. iFrame.
@@ -649,8 +661,8 @@ Section SO_World_Return.
     ∗ RevokedCells W0 C l0_live
     ∗ RevokedResources W4 C l4
     ∗ a_stk1 ↦ₐ stk_head0
-    ∗ [[stk_start_a csp_b csp_e, csp_e]] ↦ₐ [[stk_res]]
-    ∗ [[stk_free_b csp_b a_stk2, stk_free_e csp_e a_stk2]] ↦ₐ [[stk_tail]]
+    ∗ stack_region (stk_start_a csp_b csp_e) csp_e stk_res
+    ∗ stack_region (stk_free_b csp_b a_stk2) (stk_free_e csp_e a_stk2) stk_tail
     ={⊤}=∗
       ∃ stk_head1,
         world_interp W5 C
@@ -659,8 +671,8 @@ Section SO_World_Return.
         ∗ ⌜forall a,
              std W0 !! a = Some Temporary -> a ∈ closing⌝
         ∗ RevokedResources (close_list closing W5) C closing_revoked
-        ∗ [[csp_b, csp_e]] ↦ₐ
-            [[stk_tail ++ [stk_head1; stk_head0] ++ stk_res]].
+        ∗ stack_region csp_b csp_e
+            (stk_tail ++ [stk_head1; stk_head0] ++ stk_res).
   Proof.
     intros W3 W5 l0_rest l4_no_fresh l4_unique closing_revoked closing.
     intros Hextract0 Hextract4 Hfresh_W3 Hpriv Hrevoked_W3 Hpub_ext
@@ -717,8 +729,8 @@ Section SO_World_Return.
       }
       rewrite elem_of_dom; done.
     }
-    iMod (world_interp_revoked_by_separation_many W5 C
-           (finz.seq_between (stk_start_a csp_b csp_e) csp_e) stk_res
+    iMod (world_interp_revoked_by_separation_stack W5 C
+           (stk_start_a csp_b csp_e) csp_e stk_res
            with "[$Hworld $Hres]")
       as "(Hworld & Hres & %Hres_W5)".
     { apply Forall_forall; intros x Hx.

@@ -26,7 +26,7 @@ Section world_ghost_theory.
 
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -128,11 +128,33 @@ Section world_ghost_theory.
   Proof.
     rewrite !world_interp_open_eq.
     iIntros (Ha HWa) "Hr #Hrel Hres". iFrame "Hrel".
-    iAssert (temp_res W C a p Φ) with "[Hres]" as "Hb".
+    iAssert (temp_res th W C a p Φ) with "[Hres]" as "Hb".
     { iApply heap_key_resource_intro. by iExists w. }
     rewrite open_l_add_T // open_perm_add_T //.
     iDestruct "Hr" as "[$ Hl]".
     iApply (l_close with "Hl Hrel Hb"); [by apply not_elem_of_open_l|done..].
+  Qed.
+
+  (** A Temporary key outside the heap can be closed with a zone cell,
+      which holds the integer [z]. *)
+  Lemma close_world_interp_temporary_zone
+    (W : WORLD) (C : CmptName) (s : list LAddr) (a : Addr) (z : Z) (p : Perm) Φ
+    `{forall WCv, Persistent (Φ WCv)}:
+    LNonHeap a ∉ s ->
+    (std W) !! LNonHeap a = Some Temporary ->
+    isO p = false ->
+    world_interp_open W C ({[ LNonHeap a ]} ∪ s) -∗
+    LNonHeap a ↪ˡ[C]{p} Φ -∗
+    zone_cell_v[th] a z -∗
+    future_pub_mono C Φ (WInt z) -∗
+    ▷ Φ (W, C, lword_of_word (WInt z))
+    -∗
+    world_interp_open W C s ∗ LNonHeap a ↪ˡ[C]{p} Φ.
+  Proof.
+    iIntros (Ha HWa HpO) "Hr #Hrel Hcell Hmono HΦ".
+    iApply (close_world_interp_temporary _ _ _ _ _ _ (lword_of_word (WInt z))
+              with "Hr Hrel"); [done..|].
+    rewrite /TmpRes. iFrame "Hmono HΦ %". by iApply temp_cell_zone.
   Qed.
 
   Lemma open_world_interp_permanent (W : WORLD) (C : CmptName) (s : list LAddr) (a : LAddr) (p : Perm) Φ :
@@ -209,7 +231,7 @@ Section world_ghost_theory.
   Proof.
     rewrite !world_interp_open_eq.
     iIntros (Hnin Hstd) "#Hq Hr Hrel".
-    iAssert (temp_res W C (LHeap a ι) p φ) with "[]" as "Hb".
+    iAssert (temp_res th W C (LHeap a ι) p φ) with "[]" as "Hb".
     { rewrite /temp_res /=. by iRight. }
     rewrite open_l_add_T // open_perm_add_T //.
     iDestruct "Hr" as "[$ Hl]".
@@ -271,7 +293,7 @@ Section world_ghost_theory.
     iDestruct "Hb" as (v) "(_ & Hv & _)".
     iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a ↦ₖ v) with "[] [] Hl' Hl Hv");
       [set_solver|done| |].
-    - iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+    - iIntros "!>" (v') "Hb Hv". iApply (temp_cell_key_pointsto_false with "Hb Hv"). done.
     - iIntros "!>" (a' ι Heq). done.
   Qed.
 
@@ -306,13 +328,13 @@ Section world_ghost_theory.
     - iDestruct "Hb" as (v) "(_ & Hv & _)". iExFalso.
       iApply (l_excl_not_T _ _ _ _ _ _ _ (LNonHeap a0 ↦ₖ v) with "[] [] Hl Hrl Hv");
         [done|done| |].
-      + iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+      + iIntros "!>" (v') "Hb Hv". iApply (temp_cell_key_pointsto_false with "Hb Hv"). done.
       + iIntros "!>" (a' ι Heq). done.
     - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
       + iExFalso.
         iApply (l_excl_not_T _ _ _ _ _ _ _ (LHeap a0 ι ↦ₖ v) with "[] [] Hl Hrl Hv");
           [done|done| |].
-        * iIntros "!>" (v') "Hb Hv". iApply (heap_pointsto_valid_2 with "Hb Hv"). done.
+        * iIntros "!>" (v') "Hb Hv". iApply (temp_cell_key_pointsto_false with "Hb Hv"). done.
         * iIntros "!>" (a' ι' [= -> ->]) "Hq Hv". iApply (heap_pointsto_quar_false with "Hv Hq").
       + iSplitL; [|iExists a0, ι; by iFrame "Hq"]. iFrame "Hl".
         iApply (perm_close with "Hg Hr' []"); [done|]. rewrite /body_perm /=. by iRight.
@@ -320,16 +342,18 @@ Section world_ghost_theory.
 
   (** A Permanent region outside the heap whose key is Temporary in the local
       world owns its cell, even with keys open. *)
-  Lemma world_interp_open_rel_perm_temporary_cell W C s a p φ w :
+  Lemma world_interp_open_rel_perm_temporary_cell {dq : dfrac} W C s a p φ w :
     std W !! LNonHeap a = Some Temporary →
-    world_interp_open W C s -∗ LNonHeap a ↪ᵖ[C]{p} φ -∗ a ↦ₐ w -∗ False.
+    world_interp_open W C s -∗ LNonHeap a ↪ᵖ[C]{p} φ -∗ a ↦ₐ{dq} w -∗ False.
   Proof.
     rewrite !world_interp_open_eq.
     iIntros (HT) "[Hg _] #Hr Hw".
     iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
     { rewrite elem_of_open_perm. naive_solver. }
     iDestruct "Hb" as (v) "(_ & Hv & _)".
-    iApply (heap_pointsto_valid_2 (LNonHeap a) (LNonHeap a) with "Hv Hw"). done.
+    rewrite key_pointsto_nonheap.
+    iDestruct (pointsto_valid_2 with "Hv Hw") as %[Hv _].
+    apply dfrac_valid_own_l in Hv. by apply (irreflexivity (<)%Qp) in Hv.
   Qed.
 
   (** A Permanent region whose cell is held is not open: the world owns its
@@ -347,6 +371,23 @@ Section world_ghost_theory.
     - iDestruct "Hb" as "[(%v & _ & Hv & _)|#Hq]".
       + iApply (heap_pointsto_valid_2 (LHeap a ι) (LHeap a ι) with "Hv Hw"). done.
       + iApply (heap_pointsto_quar_false with "Hw Hq").
+  Qed.
+
+  (** A Permanent region whose cell is held as the cell of a Temporary key
+      is not open: the world owns its body. *)
+  Lemma world_interp_open_rel_perm_temp_cell_false W C s k p φ w :
+    k ∉ s → world_interp_open W C s -∗ k ↪ᵖ[C]{p} φ -∗ temp_cell th k w -∗ False.
+  Proof.
+    iIntros (Hks) "Hw #Hr [Hk | (%a & %z & -> & Hcell & _)]".
+    { iApply (world_interp_open_rel_perm_cell_false with "Hw Hr Hk"). done. }
+    rewrite !world_interp_open_eq.
+    iDestruct "Hw" as "[Hg _]".
+    iDestruct (perm_open with "Hg Hr") as "[_ (%φ' & _ & _ & Hb & _)]".
+    { by apply not_elem_of_open_perm. }
+    rewrite /body_perm. cbn [heap_key_resource].
+    iDestruct "Hb" as (v) "(_ & Hv & _)".
+    rewrite key_pointsto_nonheap.
+    iApply (zone_cell_v_pointsto_false with "Hcell Hv").
   Qed.
 
   (** ** Lemma for world Revocation and Restoration. *)
@@ -485,8 +526,40 @@ Section world_ghost_theory.
     iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HM|].
     iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l Hρ /temp_res.
     iDestruct (heap_key_resource_live_share with "Hshare Hb") as "[(%v & _ & Hv & _) _]".
-    rewrite key_pointsto_eq. iDestruct "Hv" as "[Hv _]".
-    iApply (addr_dupl_false with "Ha Hv").
+    iApply (temp_cell_pointsto_false with "Hv Ha").
+  Qed.
+
+  (** Owning the zone cell of [a] forces its key Revoked, if it is in the
+      world, for callers that hold the local map alone: a Temporary key
+      would own a cell at [a]. *)
+  Lemma local_revoked_by_zone_cell (W : WORLD) (C : CmptName) (a : Addr) (z : Z) :
+    LNonHeap a ∈ dom (std W) →
+    local_region_map th W C ∅ ∗ zone_cell_v[th] a z
+    ==∗
+    local_region_map th W C ∅ ∗ zone_cell_v[th] a z ∗ ⌜std W !! LNonHeap a = Some Revoked⌝.
+  Proof.
+    iIntros ([ρ Hρ]%elem_of_dom_std) "(Hw & Hc)".
+    destruct ρ; [|by iFrame].
+    iExFalso.
+    iDestruct "Hw" as "(%M & Hw)". iNamed "Hw".
+    assert (is_Some (M !! LNonHeap a)) as [ [γp p] HM].
+    { apply elem_of_dom. rewrite -Hdom elem_of_dom_std. eauto. }
+    iDestruct "Hm" as "(_ & _ & Hb)".
+    iDestruct (big_sepM_lookup with "Hb") as "Hb"; [exact HM|].
+    iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l Hρ /temp_res /=.
+    iDestruct "Hb" as (v) "(_ & Hv & _)".
+    iApply (temp_cell_zone_cell_false with "Hv [Hc]"). by iExists z.
+  Qed.
+
+  Lemma world_interp_revoked_by_zone_cell (W : WORLD) (C : CmptName) (a : Addr) (z : Z) :
+    LNonHeap a ∈ dom (std W) →
+    world_interp W C ∗ zone_cell_v[th] a z
+    ==∗
+    world_interp W C ∗ zone_cell_v[th] a z ∗ ⌜std W !! LNonHeap a = Some Revoked⌝.
+  Proof.
+    rewrite !world_interp_eq.
+    iIntros (Hin) "([$ Hl] & Hc)".
+    by iApply (local_revoked_by_zone_cell with "[$Hl $Hc]").
   Qed.
 
   Lemma world_interp_revoked_by_separation
@@ -584,7 +657,7 @@ Section world_ghost_theory.
   Proof.
     rewrite !world_interp_eq.
     iIntros (Hfresh) "[$ Hl] (%HpO & Ha & Hφ & #Hmono)".
-    iDestruct (key_pointsto_known with "Ha") as "#Hkn".
+    iDestruct (temp_cell_known with "Ha") as "#Hkn".
     iMod (l_extend th W C ∅ a Temporary p φ with "Hl Hkn [Ha Hφ]") as "[Hl Hr]"; [done|set_solver| |by iFrame].
     rewrite /body_l /std_update /= lookup_insert_eq.
     iApply heap_key_resource_intro. iExists v. rewrite /TmpRes. iFrame "∗#%".
@@ -723,14 +796,15 @@ Section world_ghost_theory.
   (** Two cells of a list at the same address are impossible. *)
   Lemma sepL2_TmpRes_not_elem_of W C (a : Addr) v p φ (la : list Addr) (lw : list LWord) :
     a ∈ la →
-    a ↦ₐ v -∗ ([∗ list] a';v' ∈ la;lw, TmpRes W C (LNonHeap a') p φ v') -∗ False.
+    temp_cell th (LNonHeap a) v -∗
+    ([∗ list] a';v' ∈ la;lw, TmpRes W C (LNonHeap a') p φ v') -∗ False.
   Proof.
     iIntros ([i Hi]%list_elem_of_lookup) "Ha Hl".
     iDestruct (big_sepL2_length with "Hl") as %Hlen.
     destruct (lw !! i) as [v'|] eqn:Hv'.
     2:{ apply lookup_lt_Some in Hi. apply lookup_ge_None in Hv'. lia. }
     iDestruct (big_sepL2_lookup with "Hl") as "(_ & Ha' & _)"; [done..|].
-    iApply (addr_dupl_false with "Ha Ha'").
+    iApply (temp_cell_excl with "Ha Ha'").
   Qed.
 
   Lemma world_interp_extend_temp_sepL2
@@ -805,7 +879,7 @@ Section world_ghost_theory.
     a ↪ˡ[C]{p} φ.
   Proof.
     iIntros (Hfresh) "Hl (%HpO & Ha & Hφ & #Hmono)".
-    iDestruct (key_pointsto_known with "Ha") as "#Hkn".
+    iDestruct (temp_cell_known with "Ha") as "#Hkn".
     iMod (l_extend th W C ∅ a Temporary p φ with "Hl Hkn [Ha Hφ]") as "[Hl Hr]";
       [done|set_solver| |by iFrame "Hl Hr"].
     rewrite /body_l /std_update /= lookup_insert_eq.
@@ -1026,7 +1100,10 @@ Section world_ghost_theory.
     Φ (W,C,w)
     -∗
     TmpRes W C a p Φ w.
-  Proof. iIntros (HpO) "Hmono Ha HΦ"; iFrame; done. Qed.
+  Proof.
+    iIntros (HpO) "Hmono Ha HΦ".
+    iDestruct (temp_cell_pointsto th with "Ha") as "Ha". iFrame; done.
+  Qed.
 
   (** ** Fresh allocation identifiers
 
@@ -1047,22 +1124,6 @@ Section world_ghost_theory.
   Proof. intros Hι Hin. by apply Hι, (heap_ids_spec _ a). Qed.
 
 End world_ghost_theory.
-
-(** ** The shared resources at two threads
-
-    The registry of the instance of a thread is that of the base, so the
-    map of Permanent regions is the same at any two threads. *)
-Section thread_indep.
-  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG} {relg : relGS Σ}.
-
-  Lemma perm_region_map_thread_indep (t t' : Thread) C s :
-    perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
-      (memg := @mem_gen_memG Σ (ceriseG_of t)) C s ⊣⊢
-    perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t'))
-      (memg := @mem_gen_memG Σ (ceriseG_of t')) C s.
-  Proof. rewrite /ceriseG_of. reflexivity. Qed.
-
-End thread_indep.
 
 (** ** The invariant of a shared compartment
 

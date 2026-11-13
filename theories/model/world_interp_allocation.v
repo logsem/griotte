@@ -4,7 +4,7 @@ From griotte Require Export
 
 Section region_alloc.
   Context {Σ:gFunctors}
-    {ceriseg:ceriseG Σ}
+    {ceriseb : ceriseBaseG Σ}
     {Cname : CmptNameG}
     {stsg : STSG Σ}
     {relg : relGS Σ}
@@ -20,7 +20,8 @@ Section region_alloc.
     body_perm C k p φ -∗ k ↦ₖ v -∗ False.
   Proof.
     iIntros "Hb Hv". rewrite /body_perm. destruct k as [a|a ι]; simpl.
-    - iDestruct "Hb" as (v') "(_ & Hv' & _)". iApply (addr_dupl_false with "Hv Hv'").
+    - iDestruct "Hb" as (v') "(_ & Hv' & _)".
+      iApply (key_pointsto_dupl_false (LNonHeap a) with "Hv Hv'").
     - iDestruct "Hb" as "[(%v' & _ & Hv' & _)|Hq]".
       + iApply (key_pointsto_dupl_false (LHeap a ι) with "Hv Hv'").
       + iApply (heap_pointsto_quar_false with "Hv Hq").
@@ -54,7 +55,7 @@ Section region_alloc.
       the new world; the other bodies move along the public step. *)
   Lemma l_extend t W C O k ρ p φ :
     k ∉ dom (std W) → k ∉ O → (∀ x, Persistent (φ x)) →
-    local_region_map t W C O -∗ heap_key_known k -∗ body_l (<s[k := ρ]s> W) C k p φ ==∗
+    local_region_map t W C O -∗ heap_key_known k -∗ body_l t (<s[k := ρ]s> W) C k p φ ==∗
     local_region_map t (<s[k := ρ]s> W) C O ∗ rel_l t C k p φ.
   Proof.
     iIntros (Hk HkO Hpers) "(%M & Hw) #Hkn Hb". iNamed "Hw".
@@ -62,7 +63,7 @@ Section region_alloc.
     { apply not_elem_of_dom. by rewrite -Hdom. }
     assert (related_sts_pub_world W (<s[k := ρ]s> W)) as Hpub.
     { by apply related_sts_pub_world_fresh. }
-    iDestruct (rmap_transform _ M _ (body_l (<s[k := ρ]s> W) C) O O (λ _, emp)%I (λ _, emp)%I
+    iDestruct (rmap_transform _ M _ (body_l t (<s[k := ρ]s> W) C) O O (λ _, emp)%I (λ _, emp)%I
       with "[] [] Hm") as "[Hm _]".
     { iApply big_sepM_intro. by iIntros "!>" (???). }
     { iIntros "!>" (k' γp Hk') "_ _ Hb'". iSplitL; [|done].

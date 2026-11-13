@@ -24,17 +24,33 @@ Section Switch_Entry_First_Spill.
     eapply disjoint_from_shadow_not_in;
     [exact (disjoint_from_mmio_shadow _ _ H) | rewrite /withinBounds; solve_addr].
 
+  (** A store of the spill to a stack cell at [x], in [s, u): the logical
+      MSHWM stays at its value [mshwm_v] before the spill, or is lowered between
+      MSHWMB and [mshwm_v], to one of the cells of [s, u). *)
+  #[local] Lemma hwm_spill_bound_step (s u mshwmb_v mshwm_v mshwm_v0 mshwm_v1 : Z) (x : Addr) :
+    (s <= x < u)%Z →
+    (mshwm_v0 = mshwm_v ∨ (mshwmb_v <= mshwm_v0 < mshwm_v ∧ s <= mshwm_v0 < u))%Z →
+    mshwm_v1 = mshwm_v0 ∨ mshwm_v1 = hwm_after x mshwmb_v mshwm_v0 →
+    (mshwm_v1 = mshwm_v ∨ (mshwmb_v <= mshwm_v1 < mshwm_v ∧ s <= mshwm_v1 < u))%Z.
+  Proof.
+    intros Hx Hb [-> | ->]; first done.
+    destruct (hwm_after_cases x mshwmb_v mshwm_v0) as [-> | [-> Hx'] ]; first done.
+    lia.
+  Qed.
+
   (** Close the fault of a store of the spill after [k] stores, in the
       context of [switch_entry_first_spill_above_spec]: the faulting PC is
       not resumed. *)
-  #[local] Ltac spill_fault_trap k :=
+  #[local] Ltac spill_fault_trap k vh :=
     switcher_merge_pc;
     lazymatch goal with
     | |- context [ environments.Esnoc _ _
                      (PC ↦ₚ (WCap _ _ _ _ _ (a_switcher_call ^+ ?o)) @@? _)%I ] =>
-      iSpecialize ("Hfailed" $! k o with "[] []");
+      iSpecialize ("Hfailed" $! k o vh with "[] [] []");
       [ iPureIntro; split; [solve_addr | lia]
       | iPureIntro; apply trap_no_resume_switcher_pc; by vm_compute
+      | iPureIntro;
+        repeat (eapply hwm_spill_bound_step; last eassumption; first solve_addr); by left
       | iTrap with "Hfailed" ]
     end.
 
@@ -44,7 +60,8 @@ Section Switch_Entry_First_Spill.
       stack: only the first store can fault, when the spill does not fit,
       and nothing is written. *)
   Lemma switch_entry_first_spill_spec
-    (b_stk e_stk a_stk : Addr) (wcs0 wcs1 wcra wcgp : LWord) (stk_mem : list LWord) :
+    (b_stk e_stk a_stk : Addr) (wcs0 wcs1 wcra wcgp : LWord) (stk_mem : list LWord)
+    (mshwmb_v mshwm_v : Z) :
     disjoint_from_mmio b_stk e_stk ->
     stk_cursor_ok b_stk e_stk a_stk ->
 
@@ -54,17 +71,25 @@ Section Switch_Entry_First_Spill.
     cra ↦ᵣ[th] wcra ∗
     cgp ↦ᵣ[th] wcgp ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
-    [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] ∗
+    stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem ∗
+    hwm_regs mshwmb_v mshwm_v ∗
+    hwm_closed (kind_of th) ∗
     switcher_code ∗
-    ( ▷ ( PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
+    ( ▷ ( ∀ mshwm_v' : Z,
+          (* MSHWM is unchanged, or lowered to one of the spilled cells *)
+          ⌜(mshwm_v' = mshwm_v ∨
+            (mshwmb_v <= mshwm_v' < mshwm_v ∧ stk_spill_a a_stk <= mshwm_v' < a_stk))%Z⌝ -∗
+          PC ↦ₚ[th] switcher_label_pc ".Lswitch_trusted_stack_load" ∗
           cs0 ↦ᵣ[th] wcs0 ∗
           cs1 ↦ᵣ[th] wcs1 ∗
           cra ↦ᵣ[th] wcra ∗
           cgp ↦ᵣ[th] wcgp ∗
           csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (stk_saved_a a_stk) ∗
           switcher_stk_cells (stk_spill_a a_stk) wcs0 wcs1 wcgp wcra ∗
-          [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ
-            [[ stk_mem_callee stk_mem ]] ∗
+          stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
+            (stk_mem_callee stk_mem) ∗
+          hwm_regs mshwmb_v mshwm_v' ∗
+          hwm_closed (kind_of th) ∗
           ⌜ switcher_stk_bounds b_stk e_stk a_stk ⌝ -∗
           safe[th] ) ∧
       ( ⌜ ¬ stk_spill_fits b_stk e_stk a_stk ⌝ -∗
@@ -73,13 +98,15 @@ Section Switch_Entry_First_Spill.
         cra ↦ᵣ[th] wcra ∗
         cgp ↦ᵣ[th] wcgp ∗
         csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
-        [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]] -∗
+        stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem ∗
+        hwm_regs mshwmb_v mshwm_v -∗
+        hwm_closed (kind_of th) -∗
         trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
           (HO th) ) )
     ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hcursor)
-      "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & #Hswitcher & Hpost)".
+      "(HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & Hstk & Hhwm & Hclosed & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode".
     (* The first store faults: nothing is written *)
     destruct (decide (b_stk + SpillSlot_size <= a_stk)%Z) as [Hfits | Hnfits]; cycle 1.
@@ -105,17 +132,25 @@ Section Switch_Entry_First_Spill.
     { rewrite /switcher_stk_bounds; revert Hfits Hcursor; stk_unfold; intros Hfits Hcursor.
       split_and!; solve_addr. }
     iDestruct (big_sepL2_length with "Hstk") as %Hstklen.
-    rewrite (stk_free_split _ _ _ stk_mem Hbounds (eq_sym Hstklen)).
+    rewrite (stk_free_split_cells _ _ _ stk_mem Hbounds (eq_sym Hstklen)).
     iDestruct "Hstk" as "[Hspill Hstk]".
     iDestruct (big_sepL2_length with "Hspill") as %Hspill_len.
     pose proof Hbounds as (Hb & Hb3 & Ha4).
     revert Hb Hb3 Ha4 Hspill_len; stk_unfold; intros Hb Hb3 Ha4 Hspill_len.
     destruct (drop (length stk_mem - 4) stk_mem) as [|w0 [|w1 [|w2 [|w3 [|w4 ws] ] ] ] ];
       try (exfalso; rewrite finz_seq_between_length /finz.dist /= in Hspill_len; solve_addr).
-    iRegionSplit "Hspill" as "(Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3)".
+    rewrite (stack_region_cons _ ((a_stk ^+ - (4)) ^+ 1)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons _ ((a_stk ^+ - (4)) ^+ 2)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons _ ((a_stk ^+ - (4)) ^+ 3)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons _ ((a_stk ^+ - (4)) ^+ 4)); [|solve_addr|solve_addr].
+    iDestruct "Hspill" as "(Hc0 & Hc1 & Hc2 & Hc3 & _)".
+    iPoseProof deref_res_none as "Hderef".
 
     (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcs0 $Hcsp $Hc0 $Hhwm $Hderef]"
+      as (mshwm_v1) "(%Hh1 & HPC & Hcs0 & Hcsp & Ha_stk & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Lea csp csp (- SpillSlot_size) *)
     iInstr "Hcode".
@@ -123,21 +158,35 @@ Section Switch_Entry_First_Spill.
     assert (((a_stk ^+ - (4)) + 2)%a = Some ((a_stk ^+ - (4)) ^+ 2)) as Ha2 by solve_addr.
     assert (((a_stk ^+ - (4)) + 3)%a = Some ((a_stk ^+ - (4)) ^+ 3)) as Ha3 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcs1 $Hcsp $Hc1 $Hhwm $Hderef]"
+      as (h2) "(%Hh2 & HPC & Hcs1 & Hcsp & Ha_stk1 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Store csp cgp SpillSlot_cgp *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcgp $Hcsp $Hc2 $Hhwm $Hderef]"
+      as (h3) "(%Hh3 & HPC & Hcgp & Hcsp & Ha_stk2 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Store csp cra SpillSlot_pcc *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcra $Hcsp $Hc3 $Hhwm $Hderef]"
+      as (h4) "(%Hh4 & HPC & Hcra & Hcsp & Ha_stk3 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
-    repeat rewrite lstore_word_isWL; try reflexivity.
     switcher_change_pc_label ".Lswitch_trusted_stack_load".
     subst hpost.
     iDestruct "Hpost" as "[Hpost _]".
-    iApply "Hpost".
-    iFrame "HPC Hcs0 Hcs1 Hcra Hcgp Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk".
+    iApply ("Hpost" $! h4 with "[%]").
+    { eapply hwm_spill_bound_step; last exact Hh4; first solve_addr.
+      eapply hwm_spill_bound_step; last exact Hh3; first solve_addr.
+      eapply hwm_spill_bound_step; last exact Hh2; first solve_addr.
+      eapply hwm_spill_bound_step; last exact Hh1; first solve_addr.
+      by left. }
+    iFrame "HPC Hcs0 Hcs1 Hcra Hcgp Hcsp Ha_stk Ha_stk1 Ha_stk2 Ha_stk3 Hstk Hhwm Hclosed".
     iPureIntro; exact Hbounds.
+    Unshelve. all: exact 1%Qp.
   Qed.
 
   (** From [.Lswitch_entry_first_spill]: the first store faults when the
@@ -152,14 +201,16 @@ Section Switch_Entry_First_Spill.
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_entry_first_spill" ∗
     csp ↦ᵣ[th] wcsp ∗
     cs0 ↦ᵣ[th] wcs0 ∗
+    hwm_closed (kind_of th) ∗
     switcher_code ∗
     ( csp ↦ᵣ[th] wcsp ∗
       cs0 ↦ᵣ[th] wcs0 -∗
+      hwm_closed (kind_of th) -∗
       trap_safe (switcher_label_pc ".Lswitch_entry_first_spill") ⊤
         (HO th) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & #Hswitcher & Hfailed)".
+    iIntros (Hchecked Hnot_stk) "(HPC & Hcsp & Hcs0 & Hclosed & #Hswitcher & Hfailed)".
     switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode" a_spill Ha_spill.
     (* The faults are at the start of the block. The label would be unfolded by
        the simplifications of [iInstr_fail] *)
@@ -195,7 +246,7 @@ Section Switch_Entry_First_Spill.
       the first [k] ones, are written, the cursor is moved down, and the
       store of the cell at [e] faults, at a PC that is not resumed. *)
   Lemma switch_entry_first_spill_above_spec (b e a : Addr) (ws : list LWord)
-    (wcs0 wcs1 wcgp wcra : LWord) :
+    (wcs0 wcs1 wcgp wcra : LWord) (mshwmb_v mshwm_v : Z) :
     disjoint_from_mmio b e ->
     (e < a)%a ->
     stk_spill_a a ∈ₐ [b, e) ->
@@ -207,33 +258,45 @@ Section Switch_Entry_First_Spill.
     cs1 ↦ᵣ[th] wcs1 ∗
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗
-    [[ stk_spill_a a , e ]] ↦ₐ [[ ws ]] ∗
+    stack_region (stk_spill_a a) e ws ∗
+    hwm_regs mshwmb_v mshwm_v ∗
+    hwm_closed (kind_of th) ∗
     switcher_code ∗
-    ( ∀ (k : nat) (off : Z),
+    ( ∀ (k : nat) (off : Z) (mshwm_v' : Z),
       ⌜ (stk_spill_a a + k)%a = Some e ∧ (1 <= k <= 3)%nat ⌝ -∗
       ⌜ trap_no_resume (switcher_pc off) ⌝ -∗
+      (* MSHWM is unchanged, or lowered to one of the spilled cells below [e] *)
+      ⌜(mshwm_v' = mshwm_v ∨
+        (mshwmb_v <= mshwm_v' < mshwm_v ∧ stk_spill_a a <= mshwm_v' < e))%Z⌝ -∗
       csp ↦ᵣ[th] Cap RWL Local b e (stk_saved_a a) ∗
       cs0 ↦ᵣ[th] wcs0 ∗
       cs1 ↦ᵣ[th] wcs1 ∗
       cgp ↦ᵣ[th] wcgp ∗
       cra ↦ᵣ[th] wcra ∗
-      [[ stk_spill_a a , e ]] ↦ₐ [[ take k [wcs0; wcs1; wcgp] ]] -∗
+      [[ stk_spill_a a , e ]] ↦ₐ [[ take k [wcs0; wcs1; wcgp] ]] ∗
+      hwm_regs mshwmb_v mshwm_v' -∗
+      hwm_closed (kind_of th) -∗
       trap_safe (switcher_pc off) ⊤ (HO th) )
     ⊢ safe[th].
   Proof.
     iIntros (Hstk_mmio Hea Hspill Ha4)
-      "(HPC & Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk & #Hswitcher & Hfailed)".
+      "(HPC & Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & Hstk & Hhwm & Hclosed & #Hswitcher & Hfailed)".
     revert Hspill Ha4; stk_unfold; intros Hspill Ha4.
     switcher_open_label ".Lswitch_entry_first_spill" "Hswitcher" as "Hcode".
+    iPoseProof deref_res_none as "Hderef".
     iDestruct (big_sepL2_length with "Hstk") as %Hlen.
     rewrite finz_seq_between_length /finz.dist in Hlen.
+    iAssert ([[ e , e ]] ↦ₐ [[ [] ]])%I as "Hnil".
+    { rewrite /region_pointsto finz_seq_between_empty; last solve_addr. done. }
     destruct ws as [|w0 ws]; first (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 1) with "Hstk") as "[Ha0 Hstk]";
-      [solve_addr..|].
+    rewrite (stack_region_cons _ ((a ^+ - (4)) ^+ 1)); [|solve_addr|solve_addr].
+    iDestruct "Hstk" as "[Hc0 Hstk]".
     (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcs0 $Hcsp $Hc0 $Hhwm $Hderef]"
+      as (mshwm_v1) "(%Hh1 & HPC & Hcs0 & Hcsp & Ha0 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
-    rewrite lstore_word_isWL; last reflexivity.
     (* Lea csp csp (- SpillSlot_size) *)
     iInstr "Hcode".
     destruct (decide (e = (a ^+ - (4)) ^+ 1)%a) as [He1 | He1].
@@ -243,16 +306,18 @@ Section Switch_Entry_First_Spill.
         as "(HPC & Hcs1 & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
       destruct ws; last (exfalso; cbn in Hlen; solve_addr).
-      iDestruct (region_pointsto_cons with "[$Ha0 $Hstk]") as "Hstk"; [solve_addr..|].
-      spill_fault_trap 1%nat. }
+      iDestruct (region_pointsto_cons with "[$Ha0 $Hnil]") as "Hstk'"; [solve_addr..|].
+      spill_fault_trap 1%nat mshwm_v1. }
     destruct ws as [|w1 ws]; first (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 2) with "Hstk") as "[Ha1 Hstk]";
-      [solve_addr..|].
+    rewrite (stack_region_cons _ ((a ^+ - (4)) ^+ 2)); [|solve_addr|solve_addr].
+    iDestruct "Hstk" as "[Hc1 Hstk]".
     assert (((a ^+ - (4)) + 1)%a = Some ((a ^+ - (4)) ^+ 1)) as Ha1 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcs1 $Hcsp $Hc1 $Hhwm $Hderef]"
+      as (h2) "(%Hh2 & HPC & Hcs1 & Hcsp & Ha1 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
-    rewrite lstore_word_isWL; last reflexivity.
     destruct (decide (e = (a ^+ - (4)) ^+ 2)%a) as [He2 | He2].
     { assert (((a ^+ - (4)) + 2)%a = Some e) as Ha_e by solve_addr.
       (* Store csp cgp SpillSlot_cgp *)
@@ -260,27 +325,30 @@ Section Switch_Entry_First_Spill.
         as "(HPC & Hcgp & Hcsp)".
       { rewrite /withinBounds; solve_addr. }
       destruct ws; last (exfalso; cbn in Hlen; solve_addr).
-      iDestruct (region_pointsto_cons with "[$Ha1 $Hstk]") as "Hstk"; [solve_addr..|].
-      iDestruct (region_pointsto_cons with "[$Ha0 $Hstk]") as "Hstk"; [solve_addr..|].
-      spill_fault_trap 2%nat. }
+      iDestruct (region_pointsto_cons with "[$Ha1 $Hnil]") as "Hstk'"; [solve_addr..|].
+      iDestruct (region_pointsto_cons with "[$Ha0 $Hstk']") as "Hstk'"; [solve_addr..|].
+      spill_fault_trap 2%nat h2. }
     destruct ws as [|w2 ws]; first (exfalso; cbn in Hlen; solve_addr).
     destruct ws; last (exfalso; cbn in Hlen; solve_addr).
-    iDestruct (region_pointsto_cons _ ((a ^+ - (4)) ^+ 3) with "Hstk") as "[Ha2 Hstk]";
-      [solve_addr..|].
+    rewrite (stack_region_cons _ ((a ^+ - (4)) ^+ 3)); [|solve_addr|solve_addr].
+    iDestruct "Hstk" as "[Hc2 Hstk]".
     assert (((a ^+ - (4)) + 2)%a = Some ((a ^+ - (4)) ^+ 2)) as Ha2 by solve_addr.
     assert (((a ^+ - (4)) + 3)%a = Some e) as Ha_e by solve_addr.
     (* Store csp cgp SpillSlot_cgp *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcgp $Hcsp $Hc2 $Hhwm $Hderef]"
+      as (h3) "(%Hh3 & HPC & Hcgp & Hcsp & Ha2 & Hhwm & _)".
+    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
-    rewrite lstore_word_isWL; last reflexivity.
     (* Store csp cra SpillSlot_pcc *)
     iInstrApply "Hcode" wp_store_fail_reg_imm with "[$HPC $Hcra $Hcsp]"
       as "(HPC & Hcra & Hcsp)".
     { rewrite /withinBounds; solve_addr. }
-    iDestruct (region_pointsto_cons with "[$Ha2 $Hstk]") as "Hstk"; [solve_addr..|].
-    iDestruct (region_pointsto_cons with "[$Ha1 $Hstk]") as "Hstk"; [solve_addr..|].
-    iDestruct (region_pointsto_cons with "[$Ha0 $Hstk]") as "Hstk"; [solve_addr..|].
-    spill_fault_trap 3%nat.
+    iDestruct (region_pointsto_cons with "[$Ha2 $Hnil]") as "Hstk'"; [solve_addr..|].
+    iDestruct (region_pointsto_cons with "[$Ha1 $Hstk']") as "Hstk'"; [solve_addr..|].
+    iDestruct (region_pointsto_cons with "[$Ha0 $Hstk']") as "Hstk'"; [solve_addr..|].
+    spill_fault_trap 3%nat h3.
+    Unshelve. all: exact 1%Qp.
   Qed.
 
 End Switch_Entry_First_Spill.

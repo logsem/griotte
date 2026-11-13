@@ -6,7 +6,8 @@ From griotte Require Import lse_spec_states.
 
     Block 4 restricts [cgp] to the capability of [a] (at [cgp_b]), stores
     it in the top cell of the stack frame, below the cursor, loads [a] in
-    [ct0] and [2] in [ct1]. The stack frame holds the pushed capability. *)
+    [ct0] and [2] in [ct1]. The stack frame holds the pushed capability.
+    The store keeps MSHWM at or below its value. *)
 
 Section LSE_F_Blocks_1.
   Context
@@ -22,7 +23,7 @@ Section LSE_F_Blocks_1.
   Lemma lse_f_blocks_1_spec
     (pc_b pc_e pc_a : Addr) (C_f : Sealable)
     (cgp_b cgp_e : Addr) (csp_b csp_e : Addr) (stk_mem : list LWord)
-    (wct0 wct1 wcs0 wcs1 : LWord) :
+    (wct0 wct1 wcs0 wcs1 : LWord) (cstk : CSTK) (mshwm_v : Z) :
     lse_code_bounds pc_b pc_e pc_a C_f ->
     (cgp_b < cgp_e)%a ->
     is_shadow_address cgp_b = false ->
@@ -39,9 +40,10 @@ Section LSE_F_Blocks_1.
     cs0 ↦ᵣ[th] wcs0 ∗
     cs1 ↦ᵣ[th] wcs1 ∗
     cgp_b ↦ₐ WInt 2 ∗
-    [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
+    stack_region csp_b csp_e stk_mem ∗
+    hwm_res cstk mshwm_v ∗
     codefrag_pers pc_a lse_main_code ∗
-    ▷ (∀ stk_mem' wcs0' wcs1',
+    ▷ (∀ stk_mem' wcs0' wcs1' (mshwm_v' : Z),
         PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ lse_label_offset ".Llse_f_assert")%a ∗
         cgp ↦ᵣ[th] lse_a_cap cgp_b ∗
         csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
@@ -50,14 +52,16 @@ Section LSE_F_Blocks_1.
         cs0 ↦ᵣ[th] wcs0' ∗
         cs1 ↦ᵣ[th] wcs1' ∗
         cgp_b ↦ₐ WInt 2 ∗
-        [[csp_b, csp_e]] ↦ₐ [[stk_mem']] ∗
+        stack_region csp_b csp_e stk_mem' ∗
+        hwm_res cstk mshwm_v' ∗
+        ⌜(mshwm_v' <= mshwm_v)%Z⌝ ∗
         codefrag_pers pc_a lse_main_code
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow Hcgp_nonheap Hstk_mmio Hcsp_size)
       "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1
-      & Hcgp_b & Hstk & Hcode_main & Hpost)".
+      & Hcgp_b & Hstk & Hhwm & Hcode_main & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     lse_unfold_code.
     rewrite /lse_a_cap.
@@ -79,18 +83,24 @@ Section LSE_F_Blocks_1.
       by (unfold stk_start_a, StackEntry_reserved_space; solve_addr+Hcsp_size).
     remember (stk_start_a csp_b csp_e) as a_start eqn:Ha_start.
     assert (csp_b < a_start)%a as Hcsp_lt by solve_addr+Hcsp_size Hstart.
-    (* The two cells reserved at the top of the stack *)
-    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem1 w_res1 ->) "[Hstk Hres1]";
-      first solve_addr+Hcsp_size Hstart.
-    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem2 w_res2 ->) "[Hstk Hres2]";
-      first solve_addr+Hcsp_size Hstart.
-    replace ((csp_e ^+ -1) ^+ -1) with a_start by solve_addr+Hcsp_size Hstart.
-    iDestruct (region_pointsto_split_top with "Hstk") as (stk_mem' w_top ->) "[Hstk Ha_stk]";
-      first exact Hcsp_lt.
+    (* The cell below the cursor *)
+    rewrite (stack_region_split csp_b (a_start ^+ -1) csp_e); [|solve_addr+Hcsp_lt Hstart..].
+    iDestruct "Hstk" as "[Hstk Htop]".
+    destruct (drop (finz.dist csp_b (a_start ^+ -1)) stk_mem) as [|w_top ws_top].
+    { iDestruct (stack_region_length with "Htop") as %Hlen.
+      exfalso. rewrite finz_seq_between_length /finz.dist /= in Hlen. solve_addr. }
+    rewrite (stack_region_cons (a_start ^+ -1) a_start csp_e); [|solve_addr+Hcsp_lt Hstart..].
+    iDestruct "Htop" as "[Ha_stk Htop]".
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hord) #Hts]".
+    iAssert (hwm_regs (cstk_hwm_base cstk) mshwm_v) with "[$Hmshwmb $Hmshwm]" as "Hregs".
+    iPoseProof deref_res_none as "Hderef".
     assert ((a_start + -1)%a = Some (a_start ^+ -1)) as Hcsp_top
       by solve_addr+Hcsp_lt.
     (* Store csp cgp (-1) *)
-    iInstr "Hcode".
+    iInstrApply "Hcode" wp_store_stack_cell_reg_imm
+      with "[$HPC $Hcgp $Hcsp $Ha_stk $Hregs $Hderef]"
+      as (mshwm_v1) "(%Hh1 & HPC & Hcgp & Hcsp & Ha_stk & [Hmshwmb Hmshwm] & _)".
+    { solve_not_shadow Hstk_mmio. }
     { rewrite /withinBounds; solve_addr+Hcsp_size Hstart. }
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
@@ -98,28 +108,25 @@ Section LSE_F_Blocks_1.
     (* Mov ct1 2 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
-    iAssert ([[csp_e, csp_e]] ↦ₐ [[ [] ]])%I as "Hstk_nil".
-    { rewrite /region_pointsto finz_seq_between_empty; [done|solve_addr]. }
-    iDestruct (region_pointsto_cons (csp_e ^+ -1) csp_e csp_e
-      with "[$Hres1 $Hstk_nil]") as "Hres_top".
-    { solve_addr+Hcsp_size Hstart. }
-    { solve_addr. }
-    iDestruct (region_pointsto_cons a_start (csp_e ^+ -1) csp_e
-      with "[$Hres2 $Hres_top]") as "Hres".
-    { solve_addr+Hcsp_size Hstart. }
-    { solve_addr+Hcsp_size Hstart. }
-    iDestruct (region_pointsto_cons (a_start ^+ -1) a_start csp_e
-      with "[$Ha_stk $Hres]") as "Ha_stk".
-    { solve_addr+Hcsp_size Hstart. }
-    { solve_addr+Hcsp_size Hstart. }
-    iDestruct (region_pointsto_split_r csp_b csp_e (a_start ^+ -1)
-      with "[$Hstk $Ha_stk]") as "Hstk".
-    { solve_addr+Hcsp_size Hstart. }
-    { rewrite /finz.dist. cbn. solve_addr+Hcsp_size Hstart. }
+    (* The stack, with the pushed capability *)
+    iDestruct (stack_cell_of_pointsto with "Ha_stk") as "Ha_stk".
+    iDestruct (stack_region_join_cell with "Hstk Ha_stk Htop") as "Hstk";
+      [solve_addr+Hcsp_lt Hstart..|].
+    (* MSHWM does not grow, and stays at or above MSHWMB *)
+    assert (mshwm_v1 <= mshwm_v)%Z as Hh1_le.
+    { destruct Hh1 as [-> | ->]; first lia.
+      destruct (hwm_after_cases (a_start ^+ -1) (cstk_hwm_base cstk) mshwm_v)
+        as [-> | [-> ?] ]; lia. }
+    assert (cstk_hwm_base cstk <= mshwm_v1)%Z as Hbh1.
+    { destruct Hh1 as [-> | ->]; first done.
+      destruct (hwm_after_cases (a_start ^+ -1) (cstk_hwm_base cstk) mshwm_v)
+        as [-> | [-> ?] ]; lia. }
+    iAssert (hwm_res cstk mshwm_v1) with "[Hmshwmb Hmshwm]" as "Hhwm".
+    { rewrite /hwm_res /hwm_res_at. iFrame "Hmshwmb Hmshwm Hts". done. }
     assert (a_f ^+ 6 = (pc_a ^+ lse_label_offset ".Llse_f_assert")%a) as ->
       by (offsets_compute; solve_addr).
     subst a_start.
-    iApply "Hpost"; iFrame "∗ Hcode_main".
+    iApply "Hpost"; iFrame "∗ Hcode_main". by iPureIntro.
   Qed.
 
 End LSE_F_Blocks_1.

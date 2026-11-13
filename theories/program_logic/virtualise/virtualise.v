@@ -58,13 +58,20 @@ Section ctx_switch_entry.
   (** The precondition of the context-switch thread's entry after user
       thread [t] is parked with kind [k] and values [v]: its fragments (the
       PC at the trap vector, or at the exit PC; MIE disabled; mtdc at [t]'s
-      home; [t]'s registers, copied), the Saving token, the scheduler's
-      state, its open pool token with the closer, and [t]'s parked
-      resources. *)
+      home; MSHWMB and MSHWM at [t]'s pair, MSHWMB being [t]'s stack base;
+      its window closed; [t]'s halves lent, [t] the last owner; [t]'s
+      registers, copied), the Saving token, the scheduler's state, its open
+      pool token with the closer, and [t]'s parked resources. *)
   Definition ctx_switch_entry_pre (t : nat) (k : park_kind) (v : resume_vals) : iProp Σ :=
     "HPC" ∷ PC ↦ₚ[CtxSwitch] (if k is ParkExit then v.(rv_pc) else lword_of_word mtcc_vec) ∗
     "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
     "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
+    "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] v.(rv_hwmb) ∗
+    "#Hbase" ∷ hwm_base[u t] v.(rv_hwmb) ∗
+    "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] v.(rv_hwm) ∗
+    "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+    "Hlent" ∷ lent_frag[CtxSwitch] v.(rv_zone) ∗
+    "Hlast_owner" ∷ ctx_last_owner_frag (Some (t, v.(rv_zone))) ∗
     "%Hdom" ∷ ⌜dom v.(rv_regs) = all_registers_s⌝ ∗
     "Hregs" ∷ regs[CtxSwitch] v.(rv_regs) ∗
     "Hcur" ∷ cur_frag (Some (UserThread t, Saving k v)) ∗
@@ -206,17 +213,20 @@ Section virtualise.
         iDestruct (SI_hw_running (UserThread t) σ with "Hσ Hrf")
           as "(Hrun & Hwin & Hsi & Hidle & Hrf)".
         apply irq_enabled_mie_st in Hen.
-        iMod (irq_hand_in t σ c Hen with "Hsi Hidle") as (lpc lreg) "H". iNamed "H".
+        iMod (irq_hand_in t σ c Hen with "Hsi Hidle") as (lpc lreg mshwmb_v mshwm_v zn) "H". iNamed "H".
         iDestruct (thread_si_mie_st CtxSwitch _ InterruptDisabled with "Hsi HMIE") as %Hdis.
-        iMod (pool_save ts t ParkIrq (ResumeVals lreg lpc InterruptEnabled) ⊤ Hnd
-                with "Hinv Htr [Hauths Hwp]") as "Hcur"; first solve_ndisj.
+        iMod (pool_save ts t ParkIrq (ResumeVals lreg lpc InterruptEnabled mshwmb_v mshwm_v zn) ⊤ Hnd
+                with "Hinv Htr [Hauths Hwp] Hlast_owner") as "[Hcur Hlast_owner]"; first solve_ndisj.
         { rewrite /slot /park_cont. iFrame "Hauths". iApply bi.later_intro. iExact "Hwp". }
         iMod (switch_ghosts (UserThread t) CtxSwitch σ (enter_irq c σ) w (λ _, Hdis)
                 with "Hrun Hrf Hwin Hwf") as "(Hrun & Hrf & Hwin & Hwf)".
-        iDestruct ("Hspec" $! t ParkIrq (ResumeVals lreg lpc InterruptEnabled)
-          with "[HPC Hregs HMIE Hmtdc Hposture Hsched Hna Hclose Hcur]") as "Hctx".
-        { rewrite /ctx_switch_entry_pre /parked_thread_res. cbn [rv_pc rv_regs rv_mie].
-          iFrame "HPC HMIE Hmtdc Hregs Hcur Hsched Hna Hclose". iSplit; first done.
+        iDestruct ("Hspec" $! t ParkIrq (ResumeVals lreg lpc InterruptEnabled mshwmb_v mshwm_v zn)
+          with "[HPC Hregs HMIE Hmtdc Hhwmb Hhwm Hpend Hlent Hlast_owner Hposture Hsched Hna Hclose
+                 Hcur]") as "Hctx".
+        { rewrite /ctx_switch_entry_pre /parked_thread_res.
+          cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+          iFrame "HPC HMIE Hmtdc Hhwmb Hbase Hhwm Hpend Hlent Hlast_owner Hregs Hcur Hsched Hna Hclose".
+          iSplit; first done.
           iExists c. iFrame "Hposture". done. }
         iModIntro. iSplitR "IH Hrf Hwf Hctx".
         { iExists CtxSwitch. iFrame "Hrun Hwin Hsi". }
@@ -261,19 +271,22 @@ Section virtualise.
     destruct th as [t|]; destruct s.
     - (* YieldV: t is parked as Saving (ParkYield b p). *)
       rewrite HO_yield. iDestruct "HO" as "[_ Hyield]".
-      iMod (yield_hand_in t σ with "Hsi Hyield Hidle") as (b p lreg) "H". iNamed "H".
+      iMod (yield_hand_in t σ with "Hsi Hyield Hidle") as (b p lreg mshwmb_v mshwm_v zn) "H". iNamed "H".
       iDestruct (thread_si_mie_st CtxSwitch _ InterruptDisabled with "Hsi HMIE") as %Hdis.
       iMod (pool_save ts t (ParkYield b p)
-              (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled) ⊤ Hnd
-              with "Hinv Htr [Hauths Hcont]") as "Hcur"; first solve_ndisj.
+              (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled mshwmb_v mshwm_v zn) ⊤ Hnd
+              with "Hinv Htr [Hauths Hcont] Hlast_owner") as "[Hcur Hlast_owner]"; first solve_ndisj.
       { rewrite /slot. iFrame "Hauths Hcont". }
       iMod (switch_ghosts (UserThread t) CtxSwitch σ σ w (λ _, Hdis)
               with "Hrun Hrf Hwin Hwf") as "(Hrun & Hrf & Hwin & Hwf)".
       iDestruct ("Hspec" $! t (ParkYield b p)
-                   (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled)
-        with "[HPC Hregs HMIE Hmtdc Hposture HMIE_t HPC_t Hsched Hna Hclose Hcur]") as "Hctx".
-      { rewrite /ctx_switch_entry_pre /parked_thread_res. cbn [rv_pc rv_regs rv_mie].
-        iFrame "HPC HMIE Hmtdc Hregs Hcur Hsched Hna Hclose Hposture HMIE_t HPC_t".
+                   (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled mshwmb_v mshwm_v zn)
+        with "[HPC Hregs HMIE Hmtdc Hhwmb Hhwm Hpend Hlent Hlast_owner Hposture HMIE_t HPC_t Hsched Hna
+               Hclose Hcur]") as "Hctx".
+      { rewrite /ctx_switch_entry_pre /parked_thread_res.
+        cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+        iFrame "HPC HMIE Hmtdc Hhwmb Hbase Hhwm Hpend Hlent Hlast_owner Hregs Hcur Hsched Hna Hclose".
+        iFrame "Hposture HMIE_t HPC_t".
         iSplit; done. }
       iApply (virt_step ts CtxSwitch Exec 0%nat σ Hnd Hhomes with
                 "IH Hinv Hspec [Hrf Hwf] Hctx [Hrun Hwin Hsi]").
@@ -285,18 +298,21 @@ Section virtualise.
     - (* ExitV: t is parked as Saving ParkExit; its WP is over, and no pool
          token of t is needed. *)
       rewrite HO_exit. iDestruct "HO" as "[_ Hexit_b]".
-      iMod (exit_hand_in t σ with "Hsi Hexit_b Hidle") as (lpc lreg) "H". iNamed "H".
+      iMod (exit_hand_in t σ with "Hsi Hexit_b Hidle") as (lpc lreg mshwmb_v mshwm_v zn) "H". iNamed "H".
       iDestruct (thread_si_mie_st CtxSwitch _ InterruptDisabled with "Hsi HMIE") as %Hdis.
-      iMod (pool_save ts t ParkExit (ResumeVals lreg lpc InterruptDisabled) ⊤ Hnd
-              with "Hinv Htr [Hauths]") as "Hcur"; first solve_ndisj.
+      iMod (pool_save ts t ParkExit (ResumeVals lreg lpc InterruptDisabled mshwmb_v mshwm_v zn) ⊤ Hnd
+              with "Hinv Htr [Hauths] Hlast_owner") as "[Hcur Hlast_owner]"; first solve_ndisj.
       { rewrite /slot /park_cont. iFrame "Hauths". }
       iMod (switch_ghosts (UserThread t) CtxSwitch σ σ w (λ _, Hdis)
               with "Hrun Hrf Hwin Hwf") as "(Hrun & Hrf & Hwin & Hwf)".
-      iDestruct ("Hspec" $! t ParkExit (ResumeVals lreg lpc InterruptDisabled)
-        with "[HPC Hregs HMIE Hmtdc Hposture HMIE_t Hregs_t Hexit Hsched Hna Hclose Hcur]")
+      iDestruct ("Hspec" $! t ParkExit (ResumeVals lreg lpc InterruptDisabled mshwmb_v mshwm_v zn)
+        with "[HPC Hregs HMIE Hmtdc Hhwmb Hhwm Hpend Hlent Hlast_owner Hposture HMIE_t Hregs_t Hexit
+               Hsched Hna Hclose Hcur]")
         as "Hctx".
-      { rewrite /ctx_switch_entry_pre /parked_thread_res. cbn [rv_pc rv_regs rv_mie].
-        iFrame "HPC HMIE Hmtdc Hregs Hcur Hsched Hna Hclose Hposture HMIE_t Hregs_t Hexit".
+      { rewrite /ctx_switch_entry_pre /parked_thread_res.
+        cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+        iFrame "HPC HMIE Hmtdc Hhwmb Hbase Hhwm Hpend Hlent Hlast_owner Hregs Hcur Hsched Hna Hclose".
+        iFrame "Hposture HMIE_t Hregs_t Hexit".
         iSplit; done. }
       iApply (virt_step ts CtxSwitch Exec 0%nat σ Hnd Hhomes with
                 "IH Hinv Hspec [Hrf Hwf] Hctx [Hrun Hwin Hsi]").
@@ -313,10 +329,12 @@ Section virtualise.
     - (* ResumedV: B is resumed, and runs after its stored later. *)
       rewrite HO_resumed. iDestruct "HO" as "[_ Hres]".
       iDestruct "Hres" as (B v) "Hres". iNamed "Hres".
-      iMod (pool_run ts B v ⊤ Hnd with "Hinv Hcur") as "[Hcur Hauths]"; first solve_ndisj.
+      iMod (pool_run ts B v ⊤ Hnd with "Hinv Hcur Hlast_owner") as "(Hcur & Hauths & Hlast_owner)";
+        first solve_ndisj.
       iClear "Hidle Htr".
       iMod (resumed_hand_back B v σ (Hhomes B) with
-              "Hsi [//] Hregs HPC HMIE Hmtdc Hpart Hsched Hna Hclose Hauths") as "[Hsi Hidle]".
+              "Hsi [//] Hregs HPC HMIE Hmtdc Hhwmb Hhwm Hpend Hlent Hlast_owner Hpart Hsched Hna Hclose
+               Hauths") as "[Hsi Hidle]".
       iMod (switch_ghosts CtxSwitch (UserThread B) σ σ w (λ H, ltac:(discriminate H))
               with "Hrun Hrf Hwin Hwf") as "(Hrun & Hrf & Hwin & Hwf)".
       iEval (rewrite safe_unfold) in "Hsafe".

@@ -45,8 +45,11 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (Hpc_b Hshared)
       "(#Hservice & #Hstatic & #Hreg & #Hspred & #Hswitcher & #Hswitcher_static & #Hno_handler)".
     iIntros (cstk Ws Cs regs b_stk e_stk)
-      "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hworld & Hcred
-        & %Hsync & _ & Hcstk & Hna & %_ & Hmie & Hposture)".
+      "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hhwm & %Hzone
+        & Hworld & Hcred & %Hsync & %Hstk_base & %Hstk_min & Hcstk & Hna & %_ & Hmie & Hposture)".
+    (* MSHWM at the callee's stack pointer, in its stack *)
+    assert (stk_start_a b_stk e_stk <= e_stk)%Z as Hh_e.
+    { rewrite /stk_start_a. unfold StackEntry_reserved_space in *. solve_addr. }
     iDestruct "Hregister" as
       "(%Hfull_rmap & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & Hregs)".
     iDestruct "Hregs" as "[#Hargs #Hzeros]".
@@ -149,7 +152,7 @@ Section Heap_Temporal_Safety_Interp.
       iApply (switcher_ret_specification W (revoke W) C _
         e_stk b_stk l stk_mem cstk Ws Cs
         (WInt ALLOC_INVALID) (WInt 0)
-        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk $Hcont
+        with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hhwm $Hcstk $Hcont
           $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
       { exact Hrelated_pub. }
@@ -160,7 +163,8 @@ Section Heap_Temporal_Safety_Interp.
       { exact Hframe. }
       { exact Hsync. }
       { exact Hnodup. }
-      { intros a Ha. apply Htemps in Ha. exact Ha. } }
+      { intros a Ha. apply Htemps in Ha. exact Ha. }
+      { exact Hh_e. } }
     - (* For a valid size, run the allocation blocks or the out-of-memory block. *)
       destruct wca1 as [wa1 π1].
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
@@ -205,7 +209,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W (revoke W) C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (WInt ALLOC_NO_MEMORY) (WInt 0)
-          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hcstk
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp0 $Hinterp_status $Hstk $Hhwm $Hcstk
             $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
         { exact Hrelated_pub. }
@@ -217,6 +221,7 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
+        { exact Hh_e. }
       + (* Allocate the fresh heap object and install its zeroed payload. *)
         iDestruct "Hsuccess" as (ι b e)
           "(%Hbounds_size & %Hι_new & %Hι_Ω & Hca0 & Hca1 & #Hobj & Hright & Hid & Hcells)".
@@ -270,8 +275,9 @@ Section Heap_Temporal_Safety_Interp.
           with "[]" as "#Hinterp_result".
         { iEval (rewrite interp_unfold interp1_eq /=). iLeft.
           iSplit; last (iSplit; [iPureIntro; split; [exact I|assumption] |
-            iIntros (_); iSplit; [iPureIntro; done |
-              iExists b, e; iFrame "Hobj"; iPureIntro; solve_addr] ]).
+            iSplit; [iIntros (_); iSplit; [iPureIntro; done |
+              iExists b, e; iFrame "Hobj"; iPureIntro; solve_addr] |
+              done] ]).
           iApply big_sepL_intro.
           iIntros (k a Ha).
           assert (a ∈ finz.seq_between b e) as Ha_in
@@ -322,7 +328,7 @@ Section Heap_Temporal_Safety_Interp.
         iApply (switcher_ret_specification W Wshare C _
           e_stk b_stk l stk_mem cstk Ws Cs
           (Cap RW Global b e b @@ ι) (WInt 0)
-          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hcstk
+          with "[$Hthread $Hswitcher $Hswitcher_static $Hinterp_fixed $Hinterp_status $Hstk $Hhwm $Hcstk
             $Hcont $Hworld $Hna $HPCr $Hrevoked $Hrmap $Hca0 $Hca1 $Hcspr
                 $Hmie $Hposture]").
         { exact Hrelated_pub. }
@@ -334,6 +340,7 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hsync. }
         { exact Hnodup. }
         { intros a Ha. apply Htemps in Ha. exact Ha. }
+        { exact Hh_e. }
   Qed.
 
 End Heap_Temporal_Safety_Interp.

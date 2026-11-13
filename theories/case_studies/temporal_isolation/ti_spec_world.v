@@ -83,6 +83,7 @@ Section TI_World.
           as [Hsub_shadow Hsub_heap];
           [solve_addr + Hcgp_contiguous | solve_addr + Hcgp_contiguous | split; auto |].
         iSplit; first (iPureIntro; done).
+        iSplit; last done.
         iApply heap_cap_ok_disjoint; done.
       }
       rewrite /interp_cap_body.
@@ -125,8 +126,8 @@ Section TI_World.
 
       The callee returned a public future [W2] of the world of the call.
       The address [cgp_b], Temporary in it, is among the revoked addresses
-      [l] that the switcher returns, which gives back a points-to of
-      [cgp_b]. *)
+      [l] that the switcher returns, which gives back the cell of the
+      Temporary key of [cgp_b]. *)
   Lemma ti_world_return W W2 C (cgp_b csp_b csp_e : Addr) (l : list LAddr) :
     let W1 := ti_Wshare W cgp_b in
     let stk' := callee_stk_region csp_b csp_e (stk_start_a csp_b csp_e) in
@@ -135,7 +136,7 @@ Section TI_World.
     extract_temporaries_condition W2 (l ++ (LNonHeap <$> stk')) ->
     related_sts_pub_world (std_update_multiple W1 stk' Temporary) W2 ->
     RevokedResources W2 C l -∗
-    ◇ ∃ w, cgp_b ↦ₐ w.
+    ◇ ∃ w, temp_cell th (LNonHeap cgp_b) w.
   Proof.
     intros W1 stk'.
     iIntros (Hcsp_bounds Hstack_revoked_W1 Hl_unk Hrelated_pub) "Hrevoked_l".
@@ -154,7 +155,7 @@ Section TI_World.
 
     (* Extract [cgp_b] out of the revoked addresses *)
     iDestruct (big_sepL_elem_of_extract _
-      (fun k => (∀ a', ⌜k = LNonHeap a'⌝ -∗ ▷ ∃ v, a' ↦ₐ v)%I) (LNonHeap cgp_b)
+      (fun k => (∀ a', ⌜k = LNonHeap a'⌝ -∗ ▷ ∃ v, temp_cell th (LNonHeap a') v)%I) (LNonHeap cgp_b)
       with "[] [$Hrevoked_l]")
       as (l'') "(_ & _ & Hcgp_b_nonheap)".
     { assert (std W2 !! LNonHeap cgp_b = Some Temporary) as HW2.

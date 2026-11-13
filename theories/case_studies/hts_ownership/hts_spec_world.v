@@ -130,6 +130,7 @@ Section HTS_World.
           apply not_true_iff_false in Hmtimecmp_heap.
           apply Hmtimecmp_heap, withinBounds_true_iff.
           solve_addr. }
+      iSplit; last by rewrite wl_in_stack_nonWL.
       iIntros (_). iSplit; first (iPureIntro; done).
       iExists b, (b ^+ 1). iFrame "Hobj". iPureIntro. solve_addr. }
     assert (related_sts_priv_world W_init_C (hts_Wshare W_init_C))

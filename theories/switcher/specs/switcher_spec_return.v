@@ -60,6 +60,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 wcsp : LWord)
     (b : InterruptStatus)
+    (mshwm_v : Z)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -69,6 +70,8 @@ Section Switcher.
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (* MSHWM is in the callee's stack, or below *)
+    (mshwm_v <= csp_e)%Z ->
 
     (* The thread runs in the callee's compartment *)
     thread_in th C
@@ -77,7 +80,8 @@ Section Switcher.
     ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
-    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
+    ∗ stack_region csp_b csp_e stk_mem
+    ∗ hwm_res cstk mshwm_v
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_interp Wcur C
@@ -93,13 +97,13 @@ Section Switcher.
     ⊢ safe[th].
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hcstk & Hcont & Hworld_interp
-        & Hres)".
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked Hh)
+      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hhwm & Hcstk & Hcont
+        & Hworld_interp & Hres)".
     iMod (world_resources_init (th := th) with "Hworld_interp") as "Hworld".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     by iApply (switcher_ret_specification_gen with
-                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hcstk $Hcont $Hworld $Hres]").
+                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hhwm $Hcstk $Hcont $Hworld $Hres]").
   Qed.
 
   (** [switcher_ret_specification] for a callee that holds its world as the
@@ -114,6 +118,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 wcsp : LWord)
     (b : InterruptStatus)
+    (mshwm_v : Z)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -123,6 +128,8 @@ Section Switcher.
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (* MSHWM is in the callee's stack, or below *)
+    (mshwm_v <= csp_e)%Z ->
 
     (* The thread runs in the callee's compartment *)
     thread_in th C
@@ -131,7 +138,8 @@ Section Switcher.
     ∗ switcher_static
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
-    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
+    ∗ stack_region csp_b csp_e stk_mem
+    ∗ hwm_res cstk mshwm_v
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_resources Wcur C
@@ -147,12 +155,12 @@ Section Switcher.
     ⊢ safe[th].
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hcstk & Hcont & Hworld
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked Hh)
+      "(#Hthread & #Hswitcher & #Hstatic & Hwca0 & Hwca1 & Hstk & Hhwm & Hcstk & Hcont & Hworld
         & Hres)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     by iApply (switcher_ret_specification_gen with
-                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hcstk $Hcont $Hworld $Hres]").
+                "[$Hthread $Hsafety $Hwca0 $Hwca1 $Hstk $Hhwm $Hcstk $Hcont $Hworld $Hres]").
   Qed.
 
   (** A return through the switcher's return entry at the thread's entry call
@@ -224,7 +232,7 @@ Section Switcher.
     (l : list LAddr)
     (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (w : LWord)
+    (w : LWord) (mshwm_v : Z)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -233,6 +241,7 @@ Section Switcher.
     csp_sync cstk csp_b csp_e ->
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (mshwm_v <= csp_e)%Z ->
     trap_no_resume w ->
 
     thread_in th C -∗
@@ -241,7 +250,8 @@ Section Switcher.
     no_handler (top_export_tbl cstk) ∗
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
     (|={⊤}=>
-       [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
+       stack_region csp_b csp_e stk_mem ∗
+       hwm_res cstk mshwm_v ∗
        ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs ∗
        world_interp Wcur C ∗
@@ -255,33 +265,35 @@ Section Switcher.
     trap_safe w ⊤ (HO th).
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked Hh
                Hno_resume)
       "#Hthread #Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
     iApply (trap_safe_exception_entry mcause_ok (λ _ : Z, True%type) ⊤
               with "Hswitcher Hstatic");
       [done | set_solver |].
-    iMod "Hres" as "(Hstk & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
+    iMod "Hres" as "(Hstk & Hhwm & Hcstk & HK & Hworld_interp & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp] & (%b & Hmie & Hheld & %Hpre))".
     iModIntro.
     iInsertList "Hrmap" [csp;ca0;ca1].
-    iExists _, cstk, b. iFrame "Hna Hrmap Hcstk Hmie Hheld %".
+    iExists _, cstk, b, mshwm_v. iFrame "Hna Hrmap Hcstk Hhwm Hmie Hheld %".
     iSplit.
     { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap.
       pose proof (all_registers_s_correct r). set_solver. }
     iApply (trap_handler_ok_no_handler with "Hno_handler"); [done | done |].
-    iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna Hmie Hheld".
+    iIntros (mshwm_v' Hh' n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk Hhwm _ Hna Hmie Hheld".
     rewrite /registers_pointsto.
     getRegValList [csp].
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
+    iEval (rewrite -(hwm_res_set_top_count cstk n mshwm_v')) in "Hhwm".
     iApply (switcher_ret_specification _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n)
-              _ _ _ _ _ InterruptDisabled with
-             "[$Hthread $Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld_interp $Hna $HPC
+              _ _ _ _ _ InterruptDisabled mshwm_v' with
+             "[$Hthread $Hswitcher $Hstatic $Hstk $Hhwm $Hcstk $HK $Hworld_interp $Hna $HPC
                $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp $Hmie $Hheld]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }
     { by apply frame_match_set_top_count. }
     { by apply csp_sync_set_top_count. }
+    { lia. }
     iSplit; iApply interp_int.
   Qed.
 
@@ -295,7 +307,7 @@ Section Switcher.
     (l : list LAddr)
     (stk_mem : list LWord)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
-    (w : LWord)
+    (w : LWord) (mshwm_v : Z)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -304,6 +316,7 @@ Section Switcher.
     csp_sync cstk csp_b csp_e ->
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (mshwm_v <= csp_e)%Z ->
     trap_no_resume w ->
 
     thread_in th C -∗
@@ -312,7 +325,8 @@ Section Switcher.
     no_handler (top_export_tbl cstk) ∗
     ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝ -∗
     (|={⊤}=>
-       [[csp_b,csp_e]]↦ₐ[[stk_mem]] ∗
+       stack_region csp_b csp_e stk_mem ∗
+       hwm_res cstk mshwm_v ∗
        ◯(CSTK)[th] cstk ∗
        interp_continuation cstk Ws Cs ∗
        world_resources Wcur C ∗
@@ -326,33 +340,35 @@ Section Switcher.
     trap_safe w ⊤ (HO th).
   Proof.
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked Hh
                Hno_resume)
       "#Hthread #Hswitcher #Hstatic [#Hno_handler %Htbl_set] Hres".
     iApply (trap_safe_exception_entry mcause_ok (λ _ : Z, True%type) ⊤
               with "Hswitcher Hstatic");
       [done | set_solver |].
-    iMod "Hres" as "(Hstk & Hcstk & HK & Hworld & Hna & Hclose_list_res & Hrmap
+    iMod "Hres" as "(Hstk & Hhwm & Hcstk & HK & Hworld & Hna & Hclose_list_res & Hrmap
                      & [%wca0 Hca0] & [%wca1 Hca1] & [%wcsp Hcsp] & (%b & Hmie & Hheld & %Hpre))".
     iModIntro.
     iInsertList "Hrmap" [csp;ca0;ca1].
-    iExists _, cstk, b. iFrame "Hna Hrmap Hcstk Hmie Hheld %".
+    iExists _, cstk, b, mshwm_v. iFrame "Hna Hrmap Hcstk Hhwm Hmie Hheld %".
     iSplit.
     { iPureIntro. intros r. apply elem_of_dom. rewrite !dom_insert_L Hrmap.
       pose proof (all_registers_s_correct r). set_solver. }
     iApply (trap_handler_ok_no_handler with "Hno_handler"); [done | done |].
-    iIntros (n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk _ Hna Hmie Hheld".
+    iIntros (mshwm_v' Hh' n rmap' Hfull_rmap' Hca0' Hca1') "HPC Hrmap' Hcstk Hhwm _ Hna Hmie Hheld".
     rewrite /registers_pointsto.
     getRegValList [csp].
     iExtractList "Hrmap'" [csp;ca0;ca1] as ["Hcsp";"Hca0";"Hca1"].
     iEval (rewrite -(interp_cont_set_top_count cstk Ws Cs n)) in "HK".
+    iEval (rewrite -(hwm_res_set_top_count cstk n mshwm_v')) in "Hhwm".
     iApply (switcher_ret_specification_shared _ _ _ _ _ _ _ _ (cstack_set_top_count cstk n)
-              _ _ _ _ _ InterruptDisabled with
-             "[$Hthread $Hswitcher $Hstatic $Hstk $Hcstk $HK $Hworld $Hna $HPC
+              _ _ _ _ _ InterruptDisabled mshwm_v' with
+             "[$Hthread $Hswitcher $Hstatic $Hstk $Hhwm $Hcstk $HK $Hworld $Hna $HPC
                $Hclose_list_res $Hrmap' $Hca0 $Hca1 $Hcsp $Hmie $Hheld]"); try done.
     { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap'). set_solver. }
     { by apply frame_match_set_top_count. }
     { by apply csp_sync_set_top_count. }
+    { lia. }
     iSplit; iApply interp_int.
   Qed.
 

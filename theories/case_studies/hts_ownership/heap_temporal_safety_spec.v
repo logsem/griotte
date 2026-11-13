@@ -119,6 +119,8 @@ Section Heap_Temporal_Safety_Main.
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
       ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
+      (* MSHWM at the top of the stack *)
+      ∗ hwm_res (main_entry_cstack csp_b csp_e w_main_tbl) csp_e
 
       ∗ interp W_init_C C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
@@ -149,7 +151,7 @@ Section Heap_Temporal_Safety_Main.
       "(#Hassert & #Hservice & #Hservice_static & #Hthread & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free & Hna
        & HPC & Hcgp & Hcsp & Hcra & Hrmap & Himports & Hcode & Hdata
-       & Howner & Howner_word & Hworld & HK & Hcstk & #Hadv & #Hentry
+       & Howner & Howner_word & Hworld & HK & Hcstk & Hhwm & #Hadv & #Hentry
        & #Hinterp_csp & Hmie & Hheld)".
     iDestruct (interp_cap_disjoint_wl with "Hinterp_csp")
       as %[Hstk_shadow Hstk_heap]; first done.
@@ -163,9 +165,9 @@ Section Heap_Temporal_Safety_Main.
     { iFrame "# %". }
     (* (a) *)
     iApply (hts_spec_malloc C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
-      C_f owner_a W_init_C Ws Cs cstk0 rmap mie
+      C_f owner_a W_init_C Ws Cs cstk0 rmap mie csp_e
       with "[$Hctx $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap $Howner $Hworld $Hmie $Hheld
-        $Hinterp_csp $HK $Hcstk $Himport_switcher $Himport_assert
+        $Hinterp_csp $HK $Hhwm $Hcstk $Himport_switcher $Himport_assert
         $Himport_adv $Himport_malloc $Himport_free $Himport_alloc_cap
         $Hcode $Hp $Howner_word]"); try done.
     iIntros "Hmalloc_ret".
@@ -173,6 +175,7 @@ Section Heap_Temporal_Safety_Main.
     iApply (hts_spec_share C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs cstk0
       with "[$Hthread $Hctx $Hmalloc_ret]"); try done.
+    all: try (rewrite /cstk0 /cstk_hwm_top /=; solve_addr).
     iIntros "Hadv1_ret".
     (* (c) *)
     iApply (hts_spec_free C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
@@ -183,6 +186,7 @@ Section Heap_Temporal_Safety_Main.
     iApply (hts_spec_dangling C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e
       C_f owner_a W_init_C Ws Cs cstk0
       with "[$Hthread $Hctx $Hfree_ret]"); try done.
+    all: try (rewrite /cstk0 /cstk_hwm_top /=; solve_addr).
     iIntros "Hadv2_ret".
     (* (e) *)
     iApply (hts_spec_assert C pc_b pc_e pc_a cgp_b cgp_e csp_b csp_e

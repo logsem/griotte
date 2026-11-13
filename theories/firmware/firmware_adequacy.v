@@ -49,10 +49,79 @@ Section stages.
      names its thread. *)
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
-  (** The slot of the user thread [i], Suspended at its entry: its
-      trusted-stack invariant from its memory, allocated first, then its
-      save area and its run by the obligations of the firmware, which
-      receive the later credit of the slot. *)
+  (** The stack [b, e) of user thread [i], of integers, with the tokens of
+      its zone: its cells, as cells of the zone, and the halves of the
+      zone. *)
+  #[local] Lemma stack_zone_cells (i : nat) (b e : Addr) (ws : list Word) :
+    Forall is_int ws →
+    region_pointsto (ceriseg := ceriseG_of (UserThread i)) b e (lword_of_word <$> ws) -∗
+    ([∗ set] a ∈ list_to_set (finz.seq_between b e),
+       @zone_token _ (@cerise_hwmG _ (ceriseG_of (UserThread i))) a) -∗
+    stack_region (ceriseg := ceriseG_of (UserThread i)) b e (lword_of_word <$> ws) ∗
+    zone_halves[CtxSwitch] (list_to_set (finz.seq_between b e)).
+  Proof.
+    iIntros (Hints) "Hreg Htoks".
+    rewrite /zone_halves !big_sepS_list_to_set; [|apply finz_seq_between_NoDup..].
+    rewrite /region_pointsto.
+    iDestruct (big_sepL2_length with "Hreg") as %Hlen.
+    iAssert ([∗ list] a;_ ∈ finz.seq_between b e; lword_of_word <$> ws,
+               @zone_token _ (@cerise_hwmG _ (ceriseG_of (UserThread i))) a)%I
+      with "[Htoks]" as "Htoks".
+    { rewrite big_sepL2_const_sepL_l. by iFrame. }
+    iCombine "Hreg Htoks" as "H". rewrite -big_sepL2_sep.
+    (* Each cell, an integer: half and token a cell of the zone, half kept *)
+    iAssert ([∗ list] a;w ∈ finz.seq_between b e; lword_of_word <$> ws,
+               stack_cell (ceriseg := ceriseG_of (UserThread i)) a w ∗
+               ∃ z, a ↦ₐ{DfracOwn (1/2)} lword_of_word (WInt z))%I
+      with "[H]" as "H".
+    { iApply (big_sepL2_impl with "H"). iIntros "!>" (k a w _ Hw) "[Ha Htok]".
+      rewrite list_lookup_fmap in Hw.
+      destruct (ws !! k) as [w'|] eqn:Hw'; last done. injection Hw as <-.
+      destruct (is_int_inv _ (proj1 (Forall_lookup _ _) Hints k w' Hw')) as [z ->].
+      iDestruct "Ha" as "[Ha1 Ha2]". iSplitL "Ha1 Htok".
+      - iApply stack_cell_of_zone.
+        rewrite zone_cell_v_unfold. iFrame.
+      - by iExists z. }
+    iDestruct (big_sepL2_sep with "H") as "[$ H]".
+    iDestruct (big_sepL2_const_sepL_l with "H") as "[_ $]".
+  Qed.
+
+  (** The initial memory, with the boot stack as the zone of the
+      context-switch thread: the memory but the boot stack, and the cells
+      of the boot stack. *)
+  #[local] Lemma fw_mem_zone_split fw img σ :
+    let bs := img_boot img in
+    firmware_ok fw img σ →
+    ([∗ map] a↦w ∈ mem σ,
+       if decide (a ∈ init_zone (sreg σ)) then zone_cell[CtxSwitch] a
+       else a ↦ₐ lword_of_word w) ⊢
+    ([∗ map] a↦w ∈ mem_but_boot fw img, a ↦ₐ lword_of_word w) ∗
+    [∗ list] a ∈ finz.seq_between (img_b_boot_stack bs) (img_e_boot_stack bs),
+      zone_cell[CtxSwitch] a.
+  Proof.
+    intros bs Hok.
+    destruct (firmware_ok_mem_boot _ _ _ Hok) as [Hmem Hdisj].
+    pose proof Hok as (Hcmpts_ok & _ & Hstart & Hwf).
+    apply big_and_fw_map in Hcmpts_ok.
+    destruct (boot_mem_band _ _ Hwf Hcmpts_ok) as (_ & Hdom & _).
+    rewrite /start_ok /note in Hstart.
+    destruct Hstart as (_ & _ & _ & _ & _ & _ & _ & _ & _ & Hhwmb & Hhwm & _).
+    rewrite (init_zone_eq _ _ _ Hhwmb Hhwm) Hmem.
+    iIntros "Hmem". iDestruct (big_sepM_union with "Hmem") as "[Hrest Hboot]"; first done.
+    rewrite -Hdom. iSplitL "Hrest".
+    - iApply (big_sepM_mono with "Hrest"). intros a w Ha. rewrite decide_False //.
+      intros [w' Hw']%elem_of_dom. exact (proj1 (map_disjoint_spec _ _) Hdisj a w w' Ha Hw').
+    - iDestruct (big_sepM_mono _ (λ a _, zone_cell[CtxSwitch] a)%I with "Hboot") as "Hboot".
+      { intros a w Ha. cbv beta. rewrite decide_True //. by eapply elem_of_dom_2. }
+      rewrite big_sepM_dom Hdom big_sepS_list_to_set; last apply finz_seq_between_NoDup.
+      iExact "Hboot".
+  Qed.
+
+  (** The slot of the user thread [i], Suspended at its entry, with no last
+      owner: its trusted-stack invariant from its memory, allocated first,
+      then its save area, the halves of its zone and its run by the
+      obligations of the firmware, which receive the later credit of the
+      slot. *)
   #[local] Lemma thread_slot fw img σ i ft :
     let swl := fw_switcher_layout img in
     firmware_ok fw img σ →
@@ -62,9 +131,8 @@ Section stages.
     ●(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
     ◯(CSTK)[u i] (entry_cstack (fw_entry_frame fw img i)) -∗
     ([∗ set] C ∈ CNames,
-       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread i)))
-         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread i)))
-         (UserThread i) fw_world0 C ∅) -∗
+       local_region_map (UserThread i) fw_world0 C ∅) -∗
+    thread_stack_bounds (th := UserThread i) (b_stack (thread_of img i)) (e_stack (thread_of img i)) -∗
     suspended_res i (fw_start_vals fw img i) -∗
     let _ : switcherLayout := swl in
     |={⊤}=>
@@ -74,7 +142,7 @@ Section stages.
         £ 1
         ={⊤}=∗
         let _ : switcherLayout := swl in safe[u i]) -∗
-       |={⊤}=> slot i None).
+       |={⊤}=> slot None i None).
   Proof.
     intros swl Hok Hi Hhome.
     pose proof Hok as (_ & _ & _ & Hwf).
@@ -94,16 +162,23 @@ Section stages.
     { intros r Hr. apply not_elem_of_dom. rewrite fw_cleared_regs_dom.
       intros [_ Hn]%elem_of_difference. apply Hn.
       rewrite !elem_of_union !elem_of_singleton. tauto. }
-    iIntros "Hmem Hcstk_full Hcstk Hlocals Hres".
+    (* The stack of the thread *)
+    pose proof Hwf as (_ & _ & _ & Hthreads_wf & _).
+    destruct (thread_wf_inv _ _ _ _ (big_and_fw_imap_lookup _ _ _ _ Hthreads_wf Hi))
+      as (_ & _ & Hstack_size & _ & _ & _ & _ & _ & Hstack_ints).
+    iIntros "Hmem Hcstk_full Hcstk Hlocals #Htstk Hres".
     iNamed "Hres".
     iEval (rewrite Hhome Htst) in "Hmtdc".
     iMod (fw_thread_trusted_stack_inv_alloc fw img i ft ⊤ Hwf H0 Hi Hhome'
            with "Hmem Hcstk_full Hmtdc") as "(#Hinv & Hstack & Hsa)".
+    iDestruct (stack_zone_cells with "Hstack Hztok") as "[Hstack Hhalves]".
+    { exact Hstack_ints. }
     rewrite (fw_tstack_content_save_area fw img i ft Hwf Hi).
     destruct (fw_save_area_resume_ok fw img i) as [Hmie Hrok].
     iModIntro. iFrame "Hinv". iIntros "Hobl".
     iModIntro.
-    iApply (slot_suspended_intro i _ _ Hmie Hrok with "Hsa Hlent Hauths").
+    iApply (slot_suspended_intro i _ _ Hmie Hrok (fw_save_area_mshwmb fw img i)
+             with "Hsa Hlent Hauths Hhalves").
     (* The run passes the slot's credit to the obligations *)
     iIntros "!> Hheld Hcred".
     iApply ("Hobl" with "[-Hcred] Hcred").
@@ -115,6 +190,8 @@ Section stages.
     iDestruct (big_sepM_insert with "Hregs") as "[Hcgp Hregs]".
     { auto. }
     iFrame "Hinv HPC Hcgp Hcsp Hcra Hregs Hstack Hcstk Hna HMIE Hheld Hlocals".
+    (* MSHWMB at the base of the stack, MSHWM at its top *)
+    rewrite /hwm_res /hwm_res_at. iFrame "Hhwmb Hhwm Htstk". iPureIntro. cbn. solve_addr.
   Qed.
 
   (** The save area of the idle thread, from its memory. *)
@@ -139,7 +216,7 @@ Section stages.
     set (save := compartment_layout.save_area_content
                    (@context_switching_exit_tail.exited_thread_pcc swl) (WInt 0) (WInt 0) (WInt 0)
                    (Cap WO Global (img_b_idle_hazard d) (img_e_idle_hazard d) (img_b_idle_hazard d))
-                   (WInt (mstatus_enc InterruptDisabled InterruptEnabled))).
+                   (WInt (mstatus_enc InterruptDisabled InterruptEnabled)) (WInt 0) (WInt 0)).
     (* The loop of the idle thread is the one of an exited thread *)
     assert (idle_mem img =
               mem_region b (compartment_layout.initial_trusted_stack_content save
@@ -256,13 +333,14 @@ Section stages.
       of the scheduler's compartment [fc] and its call stack, its export
       table, the validity of its PCC, globals and stack, the switcher's
       static facts at every user thread, the scheduler's words in the
-      switcher and its state between two activations. *)
+      switcher and its state between two activations, its high-water-mark
+      resources and the bounds of its stack, the boot stack. *)
   #[local] Definition sched_start_res (fw : firmware) (img : fw_image) (C_sched : CmptName)
       (fc : fw_cmpt) : iProp Σ :=
     let swl := fw_switcher_layout img in
     let s := cmpt_of img (fc_name fc) in
     let W := sched_world0 img in
-    "Hworld" ∷ world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch) W C_sched ∗
+    "Hworld" ∷ world_interp (th := CtxSwitch) W C_sched ∗
     "Hcstk" ∷ ◯(CSTK)[CtxSwitch] (entry_cstack (sched_entry_frame img s)) ∗
     "#Htop" ∷
       top_cmpt_untrusted (th := CtxSwitch)
@@ -289,7 +367,11 @@ Section stages.
         (lword_of_word (sched_cgp_word fw img)) (lword_of_word (sched_csp_word img)) ∗
     "#Hsched" ∷
       saved_prop_own γ_scheduler DfracDiscarded
-        (scheduler_concrete (swlayout := swl) C_sched (lword_of_word (sched_csp_word img))).
+        (scheduler_concrete (swlayout := swl) C_sched (lword_of_word (sched_csp_word img))) ∗
+    "Hhwm" ∷ hwm_res_ctx (th := CtxSwitch) ∗
+    "#Htstk" ∷
+      thread_stack_bounds (th := CtxSwitch) (img_b_boot_stack (img_boot img))
+        (img_e_boot_stack (img_boot img)).
 
   (** The first stage: the initial resources split by part; the assert
       library, the switcher, the compartments initialised; the switcher's
@@ -318,7 +400,9 @@ Section stages.
           £ 1
           ={⊤}=∗
           let _ : switcherLayout := swl in safe[u i])) →
-    ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) -∗
+    ([∗ map] a↦w ∈ mem σ,
+       if decide (a ∈ init_zone (sreg σ)) then zone_cell[CtxSwitch] a
+       else a ↦ₐ lword_of_word w) -∗
     ([∗ map] a↦s ∈ shadowtbl σ, a ↦ₛ s) -∗
     ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) -∗
     ([∗ list] t ↦ v ∈ vs, suspended_res t v) -∗
@@ -328,17 +412,21 @@ Section stages.
     saved_prop_own γ_scheduler (DfracOwn 1) True -∗
     ([∗ set] o ∈ ots, can_alloc_pred o) -∗
     ◯(CSTK)[CtxSwitch] (entry_cstack (sched_entry_frame img (cmpt_of img (fc_name fc)))) -∗
+    thread_stack_bounds (th := CtxSwitch)
+      (cstk_hwm_base (entry_cstack (sched_entry_frame img (cmpt_of img (fc_name fc)))))
+      (cstk_hwm_top (entry_cstack (sched_entry_frame img (cmpt_of img (fc_name fc))))) -∗
     ([∗ list] k ↦ ef ∈ efs, ●(CSTK)[u k] (entry_cstack ef) ∗ ◯(CSTK)[u k] (entry_cstack ef)) -∗
-    world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch) fw_world0 C_sched -∗
+    ([∗ list] k ↦ ef ∈ efs,
+       thread_stack_bounds (th := UserThread k) (cstk_hwm_base (entry_cstack ef))
+         (cstk_hwm_top (entry_cstack ef))) -∗
+    world_interp (th := CtxSwitch) fw_world0 C_sched -∗
     ([∗ set] C ∈ CNames ∖ {[C_sched]},
-       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) -∗
+       perm_region_map C ∅) -∗
     ([∗ list] k ↦ _ ∈ efs, [∗ set] C ∈ CNames,
-       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
-         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
-         (UserThread k) fw_world0 C ∅)
+       local_region_map (UserThread k) fw_world0 C ∅) -∗
+    hwm_res_ctx (th := CtxSwitch)
     ={⊤}=∗
-    (let _ : switcherLayout := swl in [∗ list] t ↦ _ ∈ vs, slot t None) ∗
+    (let _ : switcherLayout := swl in [∗ list] t ↦ _ ∈ vs, slot None t None) ∗
     inv Nassert_flag (flag_assert (img_asrt img) ↦ₐ WInt 0) ∗
     sched_start_res fw img C_sched fc.
   Proof.
@@ -354,16 +442,30 @@ Section stages.
     apply NoDup_cons in Hot_nodup as [Hot_notin' Hot_nodup].
     destruct (fw_sched_of_in _ _ _ Hsched) as [Hfc_in Hbody].
     pose proof (img_wf_cmpt_layout _ _ _ Hwf Hfc_in) as Hc.
-    destruct (img_wf_idle_boot _ _ Hwf) as [_ (Hboot_size & _ & Hboot_range)].
+    destruct (img_wf_idle_boot _ _ Hwf) as [_ (_ & _ & Hboot_range)].
     assert (length vs = S n) as Hlen_vs by rewrite /vs length_app length_imap /= Nat.add_1_r //.
-    iIntros "Hmem Hshadow Hclaims Hsusp #Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds
-      Hlocals".
+    iIntros "Hmem Hshadow Hclaims Hsusp #Hexits Hsched Hots Hcstk_ctx #Htstk_ctx Hcstks
+      #Htstks Hworld_ctx Hworlds Hlocals Hhwm_ctx".
+    (* The stack bases of the user threads, from their authorities *)
+    iDestruct (big_sepL_impl _ (λ t v, suspended_res t v ∗ hwm_base[u t] v.(rv_hwmb))%I
+                 with "Hsusp []") as "Hsusp".
+    { iIntros "!>" (t v _) "Hs".
+      iAssert (hwm_base[u t] v.(rv_hwmb))%I as "#Hb".
+      { iNamed "Hs". iDestruct "Hauths" as "(_ & _ & $)". }
+      iFrame "Hs Hb". }
+    iDestruct (big_sepL_sep with "Hsusp") as "[Hsusp #Hbases]".
     rewrite /note in Hsh. rewrite Hsh.
-    (* The memory, by part *)
-    iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0)) fw img σ Hok
+    (* The memory, by part; the boot stack, the zone of the context-switch
+       thread *)
+    iDestruct (fw_mem_zone_split fw img σ Hok with "Hmem") as "[Hmem Hboot]".
+    iDestruct (firmware_ok_mem_but_boot_split (ceriseg := ceriseG_of (UserThread 0)) fw img σ Hok
                 with "Hmem")
-      as "(Hheap & Hsw_code & Hasrt & Hlocks_mem & Hcmpts & Hthreads_mem & Hidle_mem &
-           Hboot_mem)".
+      as "(Hheap & Hsw_code & Hasrt & Hlocks_mem & Hcmpts & Hthreads_mem & Hidle_mem)".
+    (* The bounds of the boot stack, the stack of the context-switch thread *)
+    iAssert (thread_stack_bounds (th := CtxSwitch) (img_b_boot_stack (img_boot img))
+               (img_e_boot_stack (img_boot img)))%I as "#Htstk_boot".
+    { iExact "Htstk_ctx". }
+    iClear "Htstk_ctx".
     (* The code of the lock library, persistent *)
     iAssert (|==> [∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w)%I
       with "[Hlocks_mem]" as ">#Hlocks".
@@ -388,12 +490,19 @@ Section stages.
     iDestruct (big_sepL_lookup _ _ 0 with "Hexits") as "Hexit0".
     { rewrite /vs lookup_app_l; last (rewrite length_imap; by eapply lookup_lt_Some).
       rewrite list_lookup_imap H0 //. }
+    iDestruct (big_sepL_lookup _ _ 0 with "Hbases") as "Hbase0".
+    { rewrite /vs lookup_app_l; last (rewrite length_imap; by eapply lookup_lt_Some).
+      rewrite list_lookup_imap H0 //. }
+    iDestruct (big_sepL_lookup _ _ 0 with "Htstks") as "Htstk0".
+    { rewrite /efs lookup_app_l; last (rewrite length_imap; by eapply lookup_lt_Some).
+      rewrite list_lookup_imap H0 //. }
     iMod (initialise_switcher_shared (th := UserThread 0) (swlayout := swl)
             (sched_pcc_word fw img) (sched_cgp_word fw img) (sched_csp_word img)
-           with "Hsw_code Hot_sw Hot_ts Hexit0")
+            (b_stack (thread_of img 0)) (e_stack (thread_of img 0))
+           with "Hsw_code Hot_sw Hot_ts Hexit0 Hbase0 Htstk0")
       as "(_ & _ & #Hstatic0 & #Hw_pcc & #Hw_cgp & #Hw_csp)".
     { rewrite Htv //. }
-    iClear "Hexit0".
+    iClear "Hexit0 Hbase0 Htstk0".
     iAssert (scheduler_words (swlayout := swl) (lword_of_word (sched_pcc_word fw img))
                (lword_of_word (sched_cgp_word fw img)) (lword_of_word (sched_csp_word img)))%I
       as "#Hwords".
@@ -407,8 +516,34 @@ Section stages.
       as "#Hst".
     { iIntros "!>" (t Ht).
       destruct (lookup_lt_is_Some_2 vs t) as [v Hv]; first lia.
+      destruct (lookup_lt_is_Some_2 efs t) as [ef Hef].
+      { rewrite /efs length_app length_imap /=. lia. }
       iDestruct (big_sepL_lookup _ _ t v with "Hexits") as "He"; first done.
-      iApply (switcher_static_thread (UserThread 0) (UserThread t) with "Hstatic0 He"). }
+      iDestruct (big_sepL_lookup _ _ t v with "Hbases") as "Hb"; first done.
+      iDestruct (big_sepL_lookup _ _ t ef with "Htstks") as "Hts"; first done.
+      (* The stack base of thread [t] is the base of its entry stack; the
+         idle thread's is zero, as its entry stack's *)
+      assert (rv_hwmb v = cstk_hwm_base (entry_cstack ef)) as Hhb.
+      { rewrite /vs in Hv. rewrite /efs in Hef.
+        destruct (decide (t < n)) as [Hlt|Hge].
+        - rewrite lookup_app_l in Hv; last by rewrite length_imap.
+          rewrite lookup_app_l in Hef; last by rewrite length_imap.
+          rewrite list_lookup_imap in Hv. rewrite list_lookup_imap in Hef.
+          destruct (fw_threads fw !! t); simplify_eq.
+          injection Hv as <-. injection Hef as <-. done.
+        - assert (t = n) as -> by lia.
+          rewrite lookup_app_r in Hv; last by rewrite length_imap.
+          rewrite lookup_app_r in Hef; last by rewrite length_imap.
+          rewrite length_imap Nat.sub_diag in Hv. rewrite length_imap Nat.sub_diag in Hef.
+          injection Hv as <-. injection Hef as <-.
+          change (cstk_hwm_base (entry_cstack (fw_entry_frame fw img n)))
+            with (b_stack (thread_of img n)).
+          rewrite /thread_of fw_nth_ge; first done.
+          rewrite (img_wf_threads_length _ _ Hwf). lia. }
+      iEval (rewrite Hhb) in "Hb".
+      iApply (switcher_static_thread (UserThread 0) (UserThread t) with "Hstatic0 He").
+      iExists (cstk_hwm_base (entry_cstack ef)), (cstk_hwm_top (entry_cstack ef)).
+      iFrame "Hb Hts". }
     iAssert ([∗ list] t ∈ seq 0 (S n), switcher_static (th := UserThread t) (swlayout := swl))%I
       as "#Hstatics".
     { iApply big_sepL_intro. iIntros "!>" (k t Hk%lookup_seq). iApply "Hst". iPureIntro. lia. }
@@ -424,13 +559,9 @@ Section stages.
     iPoseProof (ctx_trap_vector_safe_holds (swlayout := swl) Hmtcc_vec with "Hcode0")
       as "#Htrap".
     (* The scheduler's world at the context-switch thread *)
-    iMod (@mkregion_helpers.mkregion_prepare Σ (ceriseG_of CtxSwitch) with "[Hboot_mem]")
-      as "Hboot";
-      [exact Hboot_size | rewrite /boot_mem /note (mem_region_mkregion _ _ _ Hboot_size) // |].
     iMod (fw_close_sched_world (E := ⊤) fw img σ fc sb C_sched Hok Hsched Hin
-           with "Hcode0 Htrap Hstatics Hsched_mem [Hboot] Hworld_ctx")
+           with "Hcode0 Htrap Hstatics Hsched_mem Hboot Htstk_boot Hworld_ctx")
       as "(Hworld_ctx & #Hpcc & #Hcgp & #Hcsp)".
-    { rewrite /region_pointsto big_sepL2_fmap_r. iExact "Hboot". }
     iPoseProof (sched_top_cmpt fw img σ fc sb C_sched (sched_world0 img) Hok Hsched
                  with "Hsched_pers Hpcc Hcgp Hcsp") as "#Htop".
     (* The scheduler's state between two activations *)
@@ -443,6 +574,8 @@ Section stages.
     iDestruct "Hsusp" as "[Hsusp Hsusp_idle]".
     iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Hcstks".
     iDestruct "Hcstks" as "[Hcstks _]".
+    iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Htstks".
+    iDestruct "Htstks" as "[Htstks_u _]".
     (* The local maps of the idle thread are dropped *)
     iEval (rewrite /efs big_sepL_app big_sepL_imap_index) in "Hlocals".
     iDestruct "Hlocals" as "[Hlocals _]".
@@ -455,15 +588,16 @@ Section stages.
                  £ 1
                  ={⊤}=∗
                  let _ : switcherLayout := swl in safe[u k]) -∗
-                |={⊤}=> let _ : switcherLayout := swl in slot k None))%I
+                |={⊤}=> let _ : switcherLayout := swl in slot None k None))%I
       with "[Hsusp Hcstks Hlocals Hthreads_mem]" as ">Hallocs".
     { iApply big_sepL_fupd.
       iDestruct (big_sepL_sep_2 with "Hlocals Hcstks") as "H".
+      iDestruct (big_sepL_sep_2 with "Htstks_u H") as "H".
       iDestruct (big_sepL_sep_2 with "Hsusp H") as "H".
       iDestruct (big_sepL_sep_2 with "Hthreads_mem H") as "H".
       iApply (big_sepL_impl with "H").
-      iIntros "!>" (k ft Hk) "(Hm & Hs & Hl & [Hf Hfr])".
-      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hl Hs").
+      iIntros "!>" (k ft Hk) "(Hm & Hs & Hts & Hl & [Hf Hfr])".
+      iApply (thread_slot fw img σ k ft Hok Hk with "Hm Hf Hfr Hl Hts Hs").
       apply Hhomes. rewrite Hlen_vs. apply lookup_lt_Some in Hk. rewrite /n. lia. }
     iDestruct (big_sepL_sep with "Hallocs") as "[#Htstacks Hslot_runs]".
     (* The obligations of the firmware *)
@@ -474,7 +608,7 @@ Section stages.
       iPureIntro. rewrite /n. lia. }
     (* The slots of the user threads *)
     iAssert (|={⊤}=> [∗ list] k ↦ ft ∈ fw_threads fw,
-               let _ : switcherLayout := swl in slot k None)%I
+               let _ : switcherLayout := swl in slot None k None)%I
       with "[Hslot_runs Hruns]" as ">Hslots".
     { iApply big_sepL_fupd.
       iDestruct (big_sepL_sep_2 with "Hslot_runs Hruns") as "H".
@@ -493,7 +627,7 @@ Section stages.
                Nat.add_0_r).
       iFrame. }
     rewrite /sched_start_res.
-    iFrame "Hworld_ctx Hcstk_ctx Htop Hpcc Hcgp Hcsp Hstatics Hwords Hsched".
+    iFrame "Hworld_ctx Hcstk_ctx Htop Hpcc Hcgp Hcsp Hstatics Hwords Hsched Hhwm_ctx Htstk_boot".
   Qed.
 
   (** The second stage: the context-switch thread runs the scheduler's
@@ -614,7 +748,7 @@ Section stages.
                   ltac:(by rewrite /lreg lookup_fmap Hcra) ltac:(by rewrite /lreg lookup_fmap Hcsp)
                   ltac:(by rewrite /lreg lookup_fmap Hcgp) Hclear ltac:(done)
                  with "[$HPC $Hswitcher_code $Htrap $Hresume $Hargs $Hreg $HMIE $Hmtdc $Hlent $Hho
-                        $Hna $Hworld $Hcred $Hcstk $Htop $Hcsp]") as "Hwp".
+                        $Hna $Hworld $Hcred $Hcstk $Htop $Hcsp $Hhwm]") as "Hwp".
     { rewrite /scheduler_entry_valid. iModIntro. iExact "Hentry". }
     (* The virtualisation of the switcher *)
     assert (wellshaped (Exec : thread_langs.expr CtxK)) as Hws by (left; by eexists).
@@ -667,7 +801,7 @@ Proof.
   destruct (firmware_ok_ghost_init_cond _ _ _ _ _ _ _ _ Hok) as [Hinit Hnull].
   rewrite /start_ok /note in Hstart.
   destruct Hstart as (_ & Hcra & Hcgp & Hcsp & Hca0 & (z1 & z2 & z3 & Hca1 & Hca2 & Hca3) &
-                      Hzero & Hmtdc & _ & (mpie & Hmstatus) & _).
+                      Hzero & Hmtdc & _ & _ & _ & (mpie & Hmstatus) & _).
   cbn [pcc reg sreg] in *.
   set (swl := fw_switcher_layout img).
   set (n := length (fw_threads fw)).
@@ -677,7 +811,7 @@ Proof.
   apply (cerise_flag_adequacy Σ (TV := fw_trap_vector img) (swlayout := swl)
            Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw))
            (MkExecConf w_pc regs sregs m sh td) σ' vs es);
-    [exact Hinit | exact Hnull | | exact Hmtdc | | by destruct (fw_threads fw) | | exact Hstep].
+    [exact Hinit | exact Hnull | | exact Hmtdc | | by destruct (fw_threads fw) | | | exact Hstep].
   - (* Every register has a value *)
     apply set_eq. intros r. split; intros _; last (apply elem_of_dom; cbn [reg]).
     + apply all_registers_s_correct.
@@ -686,8 +820,14 @@ Proof.
       rewrite !elem_of_union !elem_of_singleton in Hr.
       destruct Hr as [ [ [ [ [ [-> | ->] | ->] | ->] | ->] | ->] | ->]; eauto.
   - by rewrite /mie_st /= Hmstatus /= mie_of_mstatus_enc.
+  - (* The zone of each thread covers its stack, the idle thread's is empty *)
+    rewrite /vs Forall_app Forall_singleton. split.
+    + apply Forall_lookup. intros k v Hk. rewrite list_lookup_imap in Hk.
+      destruct (fw_threads fw !! k); simplify_eq. injection Hk as <-.
+      intros a Ha. rewrite elem_of_list_to_set elem_of_finz_seq_between. solve_addr.
+    + intros a Ha. cbn in Ha. lia.
   - intros ceriseb Htv Hhome_ctx Hus Hhomes.
-    iIntros "HPC Hreg Hmtdc HMIE Hho Hlent Hna Hmem Hshadow Hclaims Hsusp Hexits Hsched".
+    iIntros "HPC Hreg Hmtdc HMIE Hho Hlent Hhwm_ctx Hna Hmem Hshadow Hclaims Hsusp Hexits Hsched".
     (* The seal store, the call stacks and the worlds *)
     iMod (initialise_world C_sched
             ({[ot_switcher (img_sw img); (ot_switcher (img_sw img) ^+ 1)%ot]} ∪
@@ -695,12 +835,12 @@ Proof.
             (sched_entry_frame img (cmpt_of img (fc_name fc)))
             (imap (λ i _, fw_entry_frame fw img i) (fw_threads fw) ++ [fw_entry_frame fw img n]))
       as (sealsg relg stsg cstackg)
-        "(Hots & _ & Hcstk_ctx & Hcstks & Hworld_ctx & Hworlds & Hlocals)".
+        "(Hots & _ & Hcstk_ctx & #Htstk_ctx & Hcstks & #Htstks & Hworld_ctx & Hworlds & Hlocals)".
     { intros [_ Hnil]%app_eq_nil. done. }
     iMod (template_stage1 (cthreads := cthreads) fw img _ fc sb C_sched Hok Hsched Hin Htv Hhomes
             (Hobl img _ ceriseb sealsg stsg relg cstackg Hok)
-           with "Hmem Hshadow Hclaims Hsusp Hexits Hsched Hots Hcstk_ctx Hcstks Hworld_ctx Hworlds
-                 Hlocals")
+           with "Hmem Hshadow Hclaims Hsusp Hexits Hsched Hots Hcstk_ctx Htstk_ctx Hcstks
+                 Htstks Hworld_ctx Hworlds Hlocals Hhwm_ctx")
       as "(Hslots & Hflag & Hres)".
     iModIntro. iFrame "Hslots Hflag".
     iIntros "Hpool Hact Htr".
@@ -792,8 +932,7 @@ Proof.
     + rewrite fw_app_eq elem_of_app in Hw.
       destruct Hw as [Hw | Hw];
         [by eapply no_enabling_sentry_handle | by eapply no_enabling_sentry_time_dev].
-  - eapply Forall_impl; first exact Hboot.
-    intros w [Hz | Hw]; [by apply no_enabling_sentry_int | by eapply no_enabling_sentry_handle].
+  - eapply Forall_impl; first exact Hboot. intros w. apply no_enabling_sentry_int.
   - repeat apply Forall_cons_2; try apply Forall_nil_2; intros sk p g b e a.
     + rewrite /sched_pcc_word Hsched /note. intros Heq. injection Heq as <-. done.
     + rewrite /sched_cgp_word Hsched /note. done.

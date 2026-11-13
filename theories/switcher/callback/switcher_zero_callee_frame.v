@@ -111,20 +111,54 @@ Section Switcher_Zero_Callee_Frame.
       by iApply ("Hfailed" with "[//] Hmie Hheld").
   Qed.
 
+  (** From [.Lswitch_callee_dead_zeros], in [switcher_zero_callee_frame_spec]:
+      clear the registers, and go to the continuation. *)
+  #[local] Ltac zero_frame_dead_zeros mie Hdom :=
+    iDestruct (big_sepM_insert_2 with "[Hct2] Hrmap") as "Hrmap"; [iFrame "Hct2"|];
+    iDestruct (big_sepM_insert_2 with "[Hct1] Hrmap") as "Hrmap"; [iFrame "Hct1"|];
+    iDestruct (big_sepM_insert_2 with "[Hct0] Hrmap") as "Hrmap"; [iFrame "Hct0"|];
+    iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap"; [iFrame "Hca2"|];
+    iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap"; [iFrame "Hctp"|];
+    switcher_change_pc_label ".Lswitch_callee_dead_zeros";
+    iApply (switch_callee_dead_zeros_spec _ _ mie
+              with "[- $HPC $Hcra $Hrmap $Hswitcher_dz $Hmie $Hheld]");
+    [ rewrite !dom_insert_L Hdom; clear; set_solver | assumption | assumption | ];
+    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)";
+    iDestruct "Hpost" as "[Hpost _]".
+
+  (** In [switcher_zero_callee_frame_spec], when MSHWM is at or above the
+      cursor: the zeroing stores nothing, and the cells are unchanged. *)
+  #[local] Ltac zero_frame_skip mie v a mshwmb_v Hdom :=
+    (* Jle 4 ct1 ct2 *)
+    iInstr "Hcode_zero";
+    iAssert ([[ a , a ]] ↦ₐ [[ 0…0 ]])%I as "Hnil";
+    [ rewrite /region_pointsto /region_addrs_zeroes finz_seq_between_empty; [|solve_addr];
+      rewrite finz_dist_0; [done | solve_addr] | ];
+    iAssert (hwm_regs mshwmb_v v) with "[$Hmshwmb $Hmshwm]" as "Hhwm";
+    (* SpecialRW cnull MSHWM (inr csp) *)
+    iInstrApply "Hcode_csrw" (wp_csrw_mshwm_zeroed _ _ _ _ _ _ _ _ _ _ _ mshwmb_v v a a)
+      with "[$HPC $Hcsp $Hhwm $Hnil]" as "Hres";
+    [ done | solve_addr | right; split; [done | lia] | lia | ];
+    iDestruct "Hres" as "(HPC & Hcsp & Hhwm & _)";
+    zero_frame_dead_zeros mie Hdom.
+
   (** From [.Lswitch_callee_stack_zero]: clear the caller's free part, the
-      spill area and the callee's stack, from the base of the stack to the
-      cursor [a], clear the registers and jump back to the caller [wcra']. *)
+      spill area and the callee's stack, from the value [mshwm_v] of MSHWM to the
+      cursor [a], write [a] to MSHWM, clear the registers and jump back to
+      the caller [wcra']. The cells below [mshwm_v] are left. When [mshwm_v] is below
+      the base of the stack, the first store of the zeroing faults. *)
   Lemma switcher_zero_callee_frame_spec
     (b e a : Addr) (stk_mem : list LWord)
     (wcs0 wcs1 wcra wcgp : LWord)
     (wcgp' wcra' wcs1' wcs0' wca2 wctp wct0 wct1 wct2 : LWord)
-    (rmap : LReg) (mie : InterruptStatus) :
+    (rmap : LReg) (mie : InterruptStatus) (mshwmb_v mshwm_v : Z) :
     switcher_stk_bounds b e a ->
     disjoint_from_mmio b e ->
     dom rmap = all_registers_s ∖
                  {[ csp ; ca0 ; ca1 ; cra ; cgp ; ctp ; ca2 ; cs1 ; cs0 ; ct0 ; ct1 ; ct2 ]} ->
     th ≠ CtxSwitch ->
     route_pre th mie ->
+    (0 <= mshwmb_v <= mshwm_v)%Z ->
 
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_callee_stack_zero" ∗
     cgp ↦ᵣ[th] wcgp' ∗
@@ -137,82 +171,164 @@ Section Switcher_Zero_Callee_Frame.
     ca2 ↦ᵣ[th] wca2 ∗
     ctp ↦ᵣ[th] wctp ∗
     csp ↦ᵣ[th] Cap RWL Local b e a ∗
-    switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
-    [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ stk_mem ]] ∗
+    stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size) [wcs0; wcs1; wcgp; wcra] ∗
+    stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
+    hwm_regs mshwmb_v mshwm_v ∗
     regs[th] rmap ∗
     switcher_code ∗
     MIE ↦ₜ[th] mie ∗
     held (th := th) mie ∗
-    ▷ ( ∀ (rmap' : LReg),
-        ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
-        cra ↦ᵣ[th] wcra' ∗
-        cgp ↦ᵣ[th] wcgp' ∗
-        cs0 ↦ᵣ[th] wcs0' ∗
-        cs1 ↦ᵣ[th] wcs1' ∗
-        csp ↦ᵣ[th] Cap RWL Local b e a ∗
-        [[ stk_spill_a a , stk_spill_a a ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]] ∗
-        [[ stk_callee_b b a , stk_callee_e e a ]] ↦ₐ [[ 0…0 ]] ∗
-        regs₀[th] rmap' -∗
-        ( PC ↦ₚ[th] lupdatePcPerm wcra' ∗
-          MIE ↦ₜ[th] default mie (jalr_target_mie wcra'.(lw)) ∗
-          held (th := th) (default mie (jalr_target_mie wcra'.(lw))) ∗
-          £ 1 -∗
-          safe[th] ) ∧
-        ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
-          MIE ↦ₜ[th] mie -∗
+    ( ▷ ( ∀ rmap' : LReg,
+          (* the zeroing, from the value [mshwm_v] read from MSHWM, did not fault *)
+          ⌜(b <= mshwm_v)%Z⌝ -∗
+          ⌜ dom rmap' = all_registers_s ∖ {[ cra ; cgp ; csp ; cs0 ; cs1 ; ca0 ; ca1 ]} ⌝ ∗
+          cra ↦ᵣ[th] wcra' ∗
+          cgp ↦ᵣ[th] wcgp' ∗
+          cs0 ↦ᵣ[th] wcs0' ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          csp ↦ᵣ[th] Cap RWL Local b e a ∗
+          stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size)
+            (stack_zeroed_from (stk_spill_a a) mshwm_v [wcs0; wcs1; wcgp; wcra]) ∗
+          stack_region (stk_callee_b b a) (stk_callee_e e a)
+            (stack_zeroed_from (stk_callee_b b a) mshwm_v stk_mem) ∗
+          hwm_regs mshwmb_v a ∗
+          regs₀[th] rmap' -∗
+          ( PC ↦ₚ[th] lupdatePcPerm wcra' ∗
+            MIE ↦ₜ[th] default mie (jalr_target_mie wcra'.(lw)) ∗
+            held (th := th) (default mie (jalr_target_mie wcra'.(lw))) ∗
+            £ 1 -∗
+            safe[th] ) ∧
+          ( ⌜ jalr_target_ok cnull cra wcra'.(lw) = false ⌝ -∗
+            MIE ↦ₜ[th] mie -∗
+            held (th := th) mie -∗
+            trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
+              (HO th) ) ) ∧
+      (* the first store of the zeroing faults: [mshwm_v] is below the base *)
+      ( ∀ off : Z,
+          ⌜(mshwm_v < b)%Z⌝ -∗
+          ⌜ trap_no_resume (switcher_pc off) ⌝ -∗
+          cgp ↦ᵣ[th] wcgp' ∗
+          cra ↦ᵣ[th] wcra' ∗
+          cs1 ↦ᵣ[th] wcs1' ∗
+          cs0 ↦ᵣ[th] wcs0' ∗
+          ct0 ↦ᵣ[th] wct0 ∗
+          ct1 ↦ᵣ[th] WInt a ∗
+          (∃ wct2', ct2 ↦ᵣ[th] wct2') ∗
+          ca2 ↦ᵣ[th] wca2 ∗
+          ctp ↦ᵣ[th] WInt mshwm_v ∗
+          csp ↦ᵣ[th] Cap RWL Local b e a ∗
+          stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size) [wcs0; wcs1; wcgp; wcra] ∗
+          stack_region (stk_callee_b b a) (stk_callee_e e a) stk_mem ∗
+          hwm_regs mshwmb_v mshwm_v ∗
+          regs[th] rmap ∗
+          MIE ↦ₜ[th] mie ∗
           held (th := th) mie -∗
-          trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
-            (HO th) ) )
+          trap_safe (switcher_pc off) ⊤ (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hbounds Hstk_mmio Hdom Hth Hpre)
+    iIntros (Hbounds Hstk_mmio Hdom Hth Hpre Hhwm_ok)
       "(HPC & Hcgp & Hcra & Hcs1 & Hcs0 & Hct0 & Hct1 & Hct2 & Hca2 & Hctp & Hcsp
-      & Hcells & Hstk & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
+      & Hcells & Hstk & [Hmshwmb Hmshwm] & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
     iAssert switcher_code as "Hswitcher_dz"; first iFrame "Hswitcher".
+    pose proof Hbounds as (Hba & Hba3 & Ha4).
+    revert Hba Hba3 Ha4; stk_unfold; intros Hba Hba3 Ha4.
+    pose proof (disjoint_from_mmio_shadow _ _ Hstk_mmio) as Hstk_shadow.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_block Heq_block.
     switcher_pc_in_block "switcher_after_compartment_call" ".Lswitch_callee_stack_zero" "HPC".
-    (* GetB ctp csp *)
-    iInstr "Hcode".
+    (* SpecialRW ctp MSHWM (inr cnull) *)
+    iInstrApply "Hcode" wp_csrr_mshwm with "[$HPC $Hctp $Hmshwm]"
+      as "(HPC & Hctp & Hmshwm)".
     (* GetA ct1 csp *)
     iInstr "Hcode".
+    iAssert (codefrag_pers (a_block ^+ 19%nat) (clear_stack_instrs ct2 ct1)) as "Hcode_zero".
+    { iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
+      iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode']".
+      rewrite length_take_le; last (cbn; lia).
+      iEval (rewrite -(take_drop 4 (drop 19 _))) in "Hcode'".
+      iDestruct (codefrag_app_pers with "Hcode'") as "[Hcode'' _]".
+      iExact "Hcode''". }
+    iAssert (codefrag_pers (a_block ^+ 23%nat)
+               (encodeInstrsW [SpecialRW cnull mshwm (inr csp)])) as "Hcode_csrw".
+    { iEval (rewrite -(take_drop 23 (encodeInstrsW _))) in "Hcode".
+      iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode']".
+      rewrite length_take_le; last (cbn; lia).
+      iExact "Hcode'". }
+    assert (0 <= mshwm_v)%Z as Hv0 by lia.
+    iDestruct (big_sepL2_length with "Hstk") as %Hlen_stk.
+    rewrite finz_seq_between_length in Hlen_stk.
+    destruct (decide (a <= mshwm_v)%Z) as [Hav | Hva].
+    { (* MSHWM is at or above the cursor: nothing is stored *)
+      destruct (finz_of_z_spec MemNum mshwm_v) as [ (va & Hva_some & Hvaeq) | [Hnone _] ].
+      - (* SetA ct2 csp ctp *)
+        iInstr "Hcode".
+        zero_frame_skip mie mshwm_v a mshwmb_v Hdom.
+        iApply ("Hpost" $! rmap' with "[%] [-]"); [solve_addr |].
+        rewrite (stack_zeroed_from_above (a ^- 4)); last (cbn; solve_addr).
+        rewrite (stack_zeroed_from_above b); last (rewrite -Hlen_stk /finz.dist; solve_addr).
+        iFrame "∗ %".
+      - (* SetA ct2 csp ctp *)
+        iInstr "Hcode".
+        zero_frame_skip mie mshwm_v a mshwmb_v Hdom.
+        iApply ("Hpost" $! rmap' with "[%] [-]"); [solve_addr |].
+        rewrite (stack_zeroed_from_above (a ^- 4)); last (cbn; solve_addr).
+        rewrite (stack_zeroed_from_above b); last (rewrite -Hlen_stk /finz.dist; solve_addr).
+        iFrame "∗ %". }
+    destruct (finz_of_z_spec MemNum mshwm_v) as [ (va & Hva_some & Hvaeq) | [_ Hnone] ];
+      last (exfalso; solve_addr).
+    subst mshwm_v.
     (* SetA ct2 csp ctp *)
     iInstr "Hcode".
-    iEval (rewrite -(take_drop 19 (encodeInstrsW _))) in "Hcode".
-    iDestruct (codefrag_app_pers with "Hcode") as "[_ Hcode_zero]".
-    rewrite length_take_le; last (cbn; lia).
-    iEval (rewrite (_ : a_block ^+ 19 = a_block ^+ 19%nat); last done) in "HPC".
-    assert (SubBounds b_switcher e_switcher (a_block ^+ 19%nat)
-              ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1))) as Hsub_zero.
-    { cbn [length clear_stack_instrs]. clear -H0. solve_addr. }
-    iDestruct (switcher_stk_cells_region with "Hcells Hstk") as "Hstk"; first done.
-    iApply (clear_stack_spec with "[ - $HPC $Hct2 $Hct1 $Hcode_zero $Hstk]");
-      [done|exact Hsub_zero| | | | |done|done|].
-    1-3: clear -Hbounds; revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold;
-      intros (Hba & Hba3 & Ha4); solve_addr.
-    { by apply disjoint_from_mmio_shadow. }
-    iNext; iIntros "(HPC & Hct2 & Hct1 & _ & Hstk)".
-
-    iDestruct (big_sepM_insert_2 with "[Hct2] Hrmap") as "Hrmap"; [iFrame "Hct2"|].
-    iDestruct (big_sepM_insert_2 with "[Hct1] Hrmap") as "Hrmap"; [iFrame "Hct1"|].
-    iDestruct (big_sepM_insert_2 with "[Hct0] Hrmap") as "Hrmap"; [iFrame "Hct0"|].
-    iDestruct (big_sepM_insert_2 with "[Hca2] Hrmap") as "Hrmap"; [iFrame "Hca2"|].
-    iDestruct (big_sepM_insert_2 with "[Hctp] Hrmap") as "Hrmap"; [iFrame "Hctp"|].
-    switcher_change_pc_label ".Lswitch_callee_dead_zeros".
-    iApply (switch_callee_dead_zeros_spec _ _ mie
-              with "[- $HPC $Hcra $Hrmap $Hswitcher_dz $Hmie $Hheld]").
-    { rewrite !dom_insert_L Hdom. clear. set_solver. }
+    destruct (decide (b <= va)%a) as [Hbva | Hvab]; cycle 1.
+    { (* The first store of the zeroing faults *)
+      iPoseProof (hwm_closed_user th Hth) as "Hclosed".
+      iApply (clear_stack_below_base_spec with "[- $HPC $Hcode_zero $Hct2 $Hct1 $Hclosed]");
+        try solve_pure.
+      { cbn [length clear_stack_instrs]; solve_addr. }
+      all: try solve_addr.
+      iIntros "[Hct2 Hct1] _".
+      iDestruct "Hpost" as "[_ Hfailed]".
+      rewrite (_ : (a_block ^+ 19%nat) ^+ 1
+                   = a_switcher_call
+                      ^+ (switcher_label_offset "switcher_after_compartment_call" + 20));
+        last (subst a_block; switcher_addr_eq).
+      iApply ("Hfailed" with "[%] [%] [$Hcgp $Hcra $Hcs1 $Hcs0 $Hct0 $Hct1 $Hct2 $Hca2
+                $Hctp $Hcsp $Hcells $Hstk $Hmshwmb $Hmshwm $Hrmap $Hmie $Hheld]").
+      { solve_addr. }
+      { apply trap_no_resume_switcher_pc; by vm_compute. } }
+    (* The free part, from [va] to the cursor, is zeroed *)
+    iEval (rewrite (_ : (a ^- 4) ^+ SpillSlot_size = a);
+           last (rewrite /SpillSlot_size; solve_addr)) in "Hcells".
+    iAssert (stack_region b a (stk_mem ++ [wcs0; wcs1; wcgp; wcra])) with "[Hstk Hcells]"
+      as "Hfree".
+    { erewrite <- (stack_region_app b _ a); [iFrame | solve_addr | solve_addr | by rewrite Hlen_stk]. }
+    iDestruct (stack_region_split b va with "Hfree") as "[Hlo Hhi]"; [solve_addr | solve_addr |].
+    iApply (clear_stack_spec _ _ _ _ _ _ b e va a ct2 ct1 _ mshwmb_v va
+             with "[- $HPC $Hct2 $Hct1 $Hcode_zero $Hhi $Hmshwmb $Hmshwm]");
+      try solve_pure.
+    { cbn [length clear_stack_instrs]; solve_addr. }
+    { solve_addr. }
+    { cbn. lia. }
+    iIntros "!> (HPC & Hct2 & Hct1 & Hhwm & _ & Hzero)".
+    assert ((a_block ^+ 19%nat) ^+ length (clear_stack_instrs ct2 ct1)
+            = a_block ^+ 23%nat) as Hpc_csrw by (cbn; solve_addr).
+    iEval (rewrite Hpc_csrw) in "HPC".
+    (* SpecialRW cnull MSHWM (inr csp) *)
+    iInstrApply "Hcode_csrw" (wp_csrw_mshwm_zeroed _ _ _ _ _ _ _ _ _ _ _ mshwmb_v va va a)
+      with "[$HPC $Hcsp $Hhwm $Hzero]" as "Hres".
     { done. }
-    { done. }
-    iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
-    iAssert ([[ stk_free_b b a , stk_free_e e a ]] ↦ₐ [[ 0…0 ]])%I
-      with "[Hstk]" as "Hstk"; first done.
-    iEval (rewrite (stk_free_split_zeroes _ _ _ Hbounds)) in "Hstk".
-    iDestruct (stk_free_split_join with "Hstk") as "[Hstk' Hstk]"; first done.
-    { rewrite /region_addrs_zeroes length_replicate.
-      clear -Hbounds; revert Hbounds; rewrite /switcher_stk_bounds; stk_unfold;
-        intros (Hba & Hba3 & Ha4).
-      rewrite /finz.dist. solve_addr. }
-    iApply ("Hpost" $! rmap' with "[$Hcra $Hcgp $Hcs0 $Hcs1 $Hcsp $Hstk' $Hstk $Hrmap //]").
+    { solve_addr. }
+    { by left. }
+    { lia. }
+    iDestruct "Hres" as "(HPC & Hcsp & Hhwm & Hzero)".
+    zero_frame_dead_zeros mie Hdom.
+    iDestruct (stack_region_zeroed_from_cells b va a with "[$Hlo $Hzero]") as "Hfree";
+      [solve_addr | solve_addr | rewrite length_app /= -Hlen_stk /finz.dist; solve_addr |].
+    rewrite (stack_zeroed_from_app b (a ^- 4)); last (rewrite -Hlen_stk /finz.dist; solve_addr).
+    iDestruct (stack_region_app_inv b (a ^- 4) a with "Hfree") as "[Hstk Hcells]";
+      [solve_addr | solve_addr | by rewrite stack_zeroed_from_length -Hlen_stk |].
+    iApply ("Hpost" $! rmap' with "[%] [-]"); [solve_addr |].
+    rewrite (_ : (a ^- 4) ^+ 4 = a); last solve_addr.
+    iFrame "∗ %".
   Qed.
 
 End Switcher_Zero_Callee_Frame.

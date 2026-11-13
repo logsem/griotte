@@ -180,8 +180,9 @@ Section tsy_obligations.
       change (fw_entry_cmpt tsy_firmware img 1) with (cmpt_of img "K") in *.
       fw_fold_cmpt K_cmpt.
       change (fw_entry_posture tsy_firmware img 1) with InterruptEnabled.
-      (* The thread 1 uses neither its stack nor its local maps *)
-      iClear "Hstack Hlocals".
+      (* The thread 1 uses neither its stack, its high-water-mark resources nor its
+         local maps *)
+      iClear "Hstack Hhwm Hlocals".
       iModIntro.
       iApply (tsy_run2_spec (th := UserThread 1) (swlayout := swl) (assertlayout := asl) (B := B)
                 (cmpt_b_pcc K_cmpt) (cmpt_e_pcc K_cmpt) (cmpt_a_code K_cmpt)
@@ -203,10 +204,9 @@ Section tsy_obligations.
     iIntros "Hthread _". iNamed "Hthread".
     iEval (rewrite (fw_entry_pc_code tsy_firmware img σ ltac:(reflexivity) Hok)) in "HPC".
     iEval (rewrite fw_thread_cra_eq) in "Hcra".
-    iEval (rewrite fw_thread_of_0) in "Hstack".
     iEval (rewrite /fw_thread_csp; cbv zeta) in "Hcsp".
     iEval (rewrite /fw_entry_cgp; cbv zeta) in "Hcgp".
-    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk".
+    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk Hhwm".
     change (fw_entry_posture tsy_firmware img 0) with InterruptEnabled.
     (* The world of B at the thread 0: its map of Permanent regions and the
        thread's local map *)
@@ -215,7 +215,7 @@ Section tsy_obligations.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
     iDestruct (big_sepS_delete _ _ B with "Hlocals") as "[Hlocal_B _]".
     { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
-    iAssert (world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 B)
+    iAssert (world_interp (th := UserThread 0) fw_world0 B)
       with "[Hperm_B Hlocal_B]" as "Hworld_B".
     { rewrite world_interp_eq. iFrame. }
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B Hin_B) as "#Hthread_B".
@@ -261,7 +261,7 @@ Section tsy_obligations.
              with "[ $Hthread_B $Hswitcher $Hswitcher_static $Hna
                     $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $HK_imports $HK_code $Hb $Hstack
-                    $Hworld_B $Hcstk $Hinterp_B $Hentry_Bf $Hrevoked_stack_B
+                    $Hworld_B $Hcstk $Hhwm $Hinterp_B $Hentry_Bf $Hrevoked_stack_B
                     $Hflag_inv $HMIE $Hheld ]").
     - exact fw_cleared_regs_dom.
     - intros r Hr. by rewrite fw_cleared_regs_lookup.

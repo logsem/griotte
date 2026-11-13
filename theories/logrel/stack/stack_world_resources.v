@@ -39,9 +39,9 @@ Section Stack_World_Resources.
   Qed.
 
   (* Zeroing *)
-  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) :
+  Lemma StackWorldResource_zero (W : WORLD) (C : CmptName) (a : Addr) (v : LWord) (z : Z) :
     StackWorldResource interp W C a v -∗
-    StackWorldResource interp W C a (WInt 0).
+    StackWorldResource interp W C a (WInt z).
   Proof.
     iIntros "(%Pa & %pa & HPa & Hmono & $ & ($&#Hzcond&#Hrcond&#Hwcond&%) & $)"; iFrame "#%".
     specialize (H (W,C,v)).
@@ -52,7 +52,7 @@ Section Stack_World_Resources.
 
   Lemma StackWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : LWord, y = WInt 0) lv' ->
+    Forall lword_int lv' ->
     StackWorldResources interp W C la lv -∗
     StackWorldResources interp W C la lv'.
   Proof.
@@ -64,7 +64,7 @@ Section Stack_World_Resources.
     ; destruct lv as [|v lv]; auto
     ; destruct lv' as [|v' lv']; try done.
     simplify_eq.
-    apply Forall_cons in Hzeros as [-> Hzeros].
+    apply Forall_cons in Hzeros as [ [z ->] Hzeros].
     iDestruct "H" as "[Ha H]".
     iSplitL "Ha"; first by iApply StackWorldResource_zero.
     iApply (IHla lv lv'); eauto.
@@ -72,7 +72,7 @@ Section Stack_World_Resources.
 
   Lemma StackOpenWorldResources_zeros (W : WORLD) (C : CmptName) (la : list Addr) (lv lv': list LWord) :
     length lv' = length la ->
-    Forall (λ y : LWord, y = WInt 0) lv' ->
+    Forall lword_int lv' ->
     StackOpenWorldResources interp W C la lv -∗
     StackOpenWorldResources interp W C la lv'.
   Proof.

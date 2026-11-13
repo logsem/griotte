@@ -146,11 +146,17 @@ Section so_obligations.
        stack temporary, because main shares it with C; the exported entry
        [f] of main and the own export [g] of C are safe to import; the
        exports of C are safe to share. *)
+    (* The bounds of the stack of the thread, from its MSHWMB and MSHWM. *)
+    iAssert (thread_stack_bounds (th := UserThread 0)
+               (image.b_stack (thread_of img 0)) (image.e_stack (thread_of img 0)))
+      as "#Htstk".
+    { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts so_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack Htstk [] Hthread_C
+             Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts so_firmware].
       iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
@@ -193,7 +199,7 @@ Section so_obligations.
                          $Hna
                          $Hworld_C
                          $HPC $Hcgp $Hcsp $Hcra $Hregs
-                         $Hcstk $Hinterp_stack_C
+                         $Hcstk $Hhwm $Hinterp_stack_C
                          $Hinterp_C $Hentry_Cf
                          $HMIE $Hheld
                         ]") as "Hspec";
