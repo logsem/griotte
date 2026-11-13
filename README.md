@@ -330,12 +330,19 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
   - `world_interp_stack.v`: World manipulation in presence of
     safe-to-share stacks.
 
-- `fundamental.v`: Contains *Fundamental Theorem of Logical
-  Relations*. Each case (one for each instruction) is proved in a separate file
-  (located in the `ftlr/` folder), which are all imported and applied in this
-  file.
-  The `ftlr/` folder also contains `ftlr_base.v`, the shape of the cases,
-  and `ftlr_step.v`, one step of the theorem from a safe PC.
+- `fundamental.v`: Contains the *Fundamental Theorem of Logical
+  Relations*. Its cases are proved once per shape of instruction, not once
+  per instruction, in the `ftlr/` folder:
+  - `ftlr_shapes.v`: the stop and register-step shapes, each with its case
+    and the pure membership an instruction needs (a property of `exec_opt`);
+    `ftlr_mem_access.v`: the memory shape.
+  - `ftlr_dispatch.v`: the classification, which gives every instruction a
+    shape; only `Jalr.v` and `Ecall.v` are dedicated cases.
+  - `capability_monotonicity.v`: the words an instruction may write (`⊑`,
+    `derivable`), on logical words too.
+  - `ftlr_contract.v`: the contract a case proves; `ftlr_base.v`: the WP at
+    the core link where the cases run; `ftlr_step.v`: one step of the theorem
+    from a safe PC.
 
 
 ## Switcher `switcher/`
