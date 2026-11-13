@@ -289,22 +289,17 @@ Section Exception_Entry.
       iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Hmie Hmpie Hmepcc Hmcause". }
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].
     - (* Jeq .Lhandle_error ca0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hca0 $Hct1]"
-        as "(HPC & Hca0 & Hct1)".
-      { reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
           by switcher_addr_eq. }
       iApply ("Hpost" with "HPC Hca0 Hct1").
     - (* Jeq .Lhandle_error ca0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hca0 $Hct1]"
-        as "(HPC & Hca0 & Hct1)".
-      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
+      iInstr "Hcode".
       (* Mov ca0 8 *)
       iInstr "Hcode".
       destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
       (* Jlt .Lhandle_error ct1 ca0 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct1 $Hca0]"
-        as "(HPC & Hct1 & Hca0)".
+      iInstr "Hcode" using jcond_jump_agree_jmp.
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; destruct Hcause; lia. }
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
           by switcher_addr_eq. }

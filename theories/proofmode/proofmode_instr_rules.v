@@ -6,21 +6,6 @@ From griotte Require Import rules rules_regs solve_pure machine_instructions
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
-(* A conditional jump: the rule of the taken jump, else the rule of the
-   fall-through. Each commits its comparison ([instr_commit_lint]). *)
-Ltac dispatch_JCond off x1 x2 cont :=
-  let p := constr:((off, x1, x2)) in
-  lazymatch p with
-  | (inl _, inr ?r, inr ?r) =>
-      (cont (@wp_jcond_success_jmp_r_r_same) || cont (@wp_jcond_success_next_r_r_same))
-  | (inl _, inr _, inr _) =>
-      (cont (@wp_jcond_success_jmp_r_r) || cont (@wp_jcond_success_next_r_r))
-  | (inl _, inr _, inl _) =>
-      (cont (@wp_jcond_success_jmp_r_z) || cont (@wp_jcond_success_next_r_z))
-  | (inl _, inl _, inr _) =>
-      (cont (@wp_jcond_success_jmp_z_r) || cont (@wp_jcond_success_next_z_r))
-  end.
-
 (** * The register steps in closed form
 
     An instruction with no dedicated case is stepped with a k-ary rule of
@@ -304,18 +289,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Store _ (inr _) _ =>
     (cont (@wp_store_success_reg_same_a_store_word_imm) ||
      cont (@wp_store_success_reg_store_word_imm))
-  (* Conditional jumps; [Jne off r 0] and [Jeq off r 0] first *)
-  | Jne (inl _) (inr _) (inl 0%Z) =>
-    (cont (@wp_jnez_success_next_z) || cont (@wp_jnez_success_jmp_z))
-  | Jeq (inl _) (inr _) (inl 0%Z) =>
-    (cont (@wp_jeqz_success_jmp_z) || cont (@wp_jeqz_success_next_z))
-  | Jeq ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jne ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jlt ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jle ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  (* Jmp *)
-  | Jmp (inl _) => cont (@wp_jmp_success_z)
-  | Jmp (inr _) => cont (@wp_jmp_success_reg)
   (* Jalr *)
   (* Jalr: the rules at the core link, else the posture forms at a link with
      a routing law (the posture moves with the MIE fragment and [held]). *)

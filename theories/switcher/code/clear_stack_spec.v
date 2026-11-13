@@ -41,17 +41,13 @@ Section ClearStackMacro.
     codefrag_facts "Hcode".
     destruct (decide (a_lo = a_hi)) as [<- | Hne].
     { (* Jle 4 rtop rbase *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hrtop $Hrbase]"
-        as "(HPC & Hrtop & Hrbase)".
-      { cbn; lia. }
+      iInstr "Hcode".
       iApply "Hφ". iFrame "∗ #".
       rewrite /region_pointsto finz_seq_between_empty; last solve_addr+.
       rewrite /region_addrs_zeroes finz_dist_0; last solve_addr+.
       done. }
     (* Jle 4 rtop rbase *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hrtop $Hrbase]"
-      as "(HPC & Hrtop & Hrbase)".
-    { cbn; apply Z.leb_gt; solve_addr. }
+    iInstr "Hcode".
     iAssert (⌜(b <= a_lo)%a ⌝)%I as "-#Hb"; first done.
     iAssert (⌜(a_lo < a_hi)%a ⌝)%I as "-#Hlo"; first (iPureIntro; solve_addr).
     clear Hb Hlo Hne.
@@ -73,9 +69,7 @@ Section ClearStackMacro.
     { instantiate (1 := a_lo ^+ 1); solve_addr. }
     destruct (decide (a_lo ^+ 1 = a_hi)) as [Hend | Hne].
     - (* Jlt -2 rbase rtop *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hrbase $Hrtop]"
-        as "(HPC & Hrbase & Hrtop)".
-      { cbn; apply Z.ltb_ge; solve_addr. }
+      iInstr "Hcode".
       rewrite Hend finz_seq_between_empty in Hlen_stk; last solve_addr.
       destruct ws; last done.
       iApply "Hφ".
@@ -86,9 +80,7 @@ Section ClearStackMacro.
       rewrite -Hend finz_dist_0; last solve_addr.
       done.
     - (* Jlt -2 rbase rtop *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hrbase $Hrtop]"
-        as "(HPC & Hrbase & Hrtop)".
-      { cbn; apply Z.ltb_lt; solve_addr. }
+      iInstr "Hcode".
       { instantiate (1 := pc_a ^+ 1). solve_addr. }
       iApply ("IH" $! (a_lo ^+ 1) ws with
                "[$Hstack] [Ha Hφ] [$HPC] [$Hrtop] [$Hrbase] [] []").

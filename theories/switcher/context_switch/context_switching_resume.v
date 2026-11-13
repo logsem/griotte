@@ -332,9 +332,7 @@ Section ctx_resume.
                       MCAUSE_ECALL_MACHINE)) as [Hc | Hc].
     - (* After an ecall, the PC to resume is one word further *)
       (* Jne 2 ct0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct0 $Hct1]"
-        as "(HPC & Hct0 & Hct1)".
-      { cbn [jcond_test]. rewrite Hc. reflexivity. }
+      iInstr "Hcode".
       destruct (lea_result_is_Some (save_area_word ws TrustedStack_offset_mepcc) 1)
         as [wpc Hlea].
       (* Lea ct2 ct2 1 *)
@@ -344,9 +342,7 @@ Section ctx_resume.
       iApply ("Hend" $! wpc with "[%] HPC Hct0 Hct1 Hct2").
       rewrite (lea_result_lw _ _ _ Hlea). by apply Hecall.
     - (* Jne 2 ct0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hct1]"
-        as "(HPC & Hct0 & Hct1)".
-      { cbn [jcond_test]. apply negb_true_iff, Z.eqb_neq. exact Hc. }
+      iInstr "Hcode".
       switcher_change_pc_label ".Lcommon_context_install".
       iApply ("Hend" with "[%] HPC Hct0 Hct1 Hct2").
       by apply Hother.

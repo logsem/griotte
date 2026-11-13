@@ -117,9 +117,7 @@ Section Switcher_After_Compartment_Call.
     assert (23 < tstack_frame_offset (S d))%Z as Hnonempty by (tstack_unfold; lia).
     destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
     (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct2 $Hct0]"
-      as "(HPC & Hct2 & Hct0)".
-    { cbn; apply Z.leb_gt; lia. }
+    iInstr "Hcode".
     (* Lea ct1 ctp ct2 *)
     iInstr "Hcode".
     (* CLoad csp ct1 TrustedStackFrame_offset_csp *)
@@ -213,9 +211,7 @@ Section Switcher_After_Compartment_Call.
     assert (tstack_frame_offset 0 <= 23)%Z as Hempty by (tstack_unfold; lia).
     destruct (decide (ct0 = cnull)) as [Hct0_null|_]; first done.
     (* Jle .Lcommon_defer_irqs_and_thread_exit ct2 ct0 *)
-    iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hct0]"
-      as "(HPC & Hct2 & Hct0)".
-    { cbn; apply Z.leb_le; lia. }
+    iInstr "Hcode".
     { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_defer_irqs_and_thread_exit")%a
         by switcher_addr_eq. }
     subst hpost.

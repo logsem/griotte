@@ -1267,24 +1267,6 @@ Ltac instr_finish hprog hlc hlc' :=
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
 
-(* The comparison of a conditional jump, by computation, from a hypothesis,
-   or by [lia] on the comparison of the operands. *)
-Ltac solve_jcond_test :=
-  cbn [jcond_test];
-  first
-    [ reflexivity
-    | assumption
-    | lazymatch goal with
-      | |- Z.eqb _ _ = true => apply Z.eqb_eq; lia
-      | |- Z.eqb _ _ = false => apply Z.eqb_neq; lia
-      | |- negb (Z.eqb _ _) = true => apply negb_true_iff, Z.eqb_neq; lia
-      | |- negb (Z.eqb _ _) = false => apply negb_false_iff, Z.eqb_eq; lia
-      | |- Z.ltb _ _ = true => apply Z.ltb_lt; lia
-      | |- Z.ltb _ _ = false => apply Z.ltb_ge; lia
-      | |- Z.leb _ _ = true => apply Z.leb_le; lia
-      | |- Z.leb _ _ = false => apply Z.leb_gt; lia
-      end ].
-
 (* The premise [route_pre th b → route_pre th b'] of an MIE writer: the
    new MIE is disabled, is the old one, or the thread is not the
    context switch. Fails otherwise. The premise of a jump is guarded by
@@ -1304,8 +1286,7 @@ Ltac instr_route_imp :=
 
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
-   proved. Likewise, a conditional jump's rule (taken or not) only applies if
-   its comparison is proved. An mtdc write commits to a transfer of the clause
+   proved. An mtdc write commits to a transfer of the clause
    of the mtdc token only if the word it writes stands for a known ghost value
    (the home value, to return the token), its ghost value is known not to be
    the home value when it leaves another value, and is known to be the home
@@ -1319,7 +1300,6 @@ Ltac instr_route_imp :=
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
-  | |- jcond_test _ _ _ = _ => solve [solve_jcond_test]
   | |- mtdc_match ?m _ =>
       tryif has_evar m then idtac else solve [assumption | done | hnf; eexists; reflexivity]
   | |- _ = mtdc_home => solve [assumption | done]

@@ -162,14 +162,13 @@ Section Handle_Error_Handler_Invoke.
       with "[$HPC $Hmie]" as "(HPC & Hmie & Hheld)"; [done..|].
     destruct (nonZero wca0.(lw)) eqn:Hnz.
     - (* Jne .Lcommon_force_unwind ca0 0 *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
           by switcher_addr_eq. }
       iDestruct "Hpost" as "[Hpost _]".
       iApply ("Hpost" with "[//]"). iFrame "HPC Hca0 Hmie Hheld".
     - (* Jne .Lcommon_force_unwind ca0 0 *)
-      iInstrApply "Hcode" with "Hlc1" wp_jnez_success_next_any with "[$HPC $Hca0]"
-        as "(HPC & Hca0)".
+      iInstr "Hcode" with "Hlc1".
       switcher_change_pc_label ".Lhandle_error_install_context".
       iDestruct "Hpost" as "[_ Hpost]".
       iApply ("Hpost" with "[//]"). iFrame "HPC Hca0 Hmie Hheld".

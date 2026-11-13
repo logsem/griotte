@@ -444,6 +444,65 @@ Ltac regs_next_ok_lookup :=
         | match goal with H : InCtx (get_tag _ = false) |- _ => exact H end ]
   : regs_next_ok_db.
 
+(* Whether a word is zero: by computation, or a fact of the context. *)
+#[global] Hint Extern 1 (nonZero _ = _) =>
+  first [ reflexivity
+        | match goal with H : InCtx (nonZero _ = _) |- _ => exact H end ]
+  : regs_next_ok_db.
+
+(* The comparison of two known operands: from a hypothesis (also on the words,
+   by [congruence]), or by [lia], or by [solve_addr] when addresses occur. *)
+Ltac jcond_test_arith :=
+  lazymatch goal with
+  | |- Z.eqb _ _ = true => apply Z.eqb_eq
+  | |- Z.eqb _ _ = false => apply Z.eqb_neq
+  | |- Datatypes.negb (Z.eqb _ _) = true => apply negb_true_iff, Z.eqb_neq
+  | |- Datatypes.negb (Z.eqb _ _) = false => apply negb_false_iff, Z.eqb_eq
+  | |- Z.ltb _ _ = true => apply Z.ltb_lt
+  | |- Z.ltb _ _ = false => apply Z.ltb_ge
+  | |- Z.leb _ _ = true => apply Z.leb_le
+  | |- Z.leb _ _ = false => apply Z.leb_gt
+  end;
+  first
+    [ assumption
+    | symmetry; assumption
+    | apply not_eq_sym; assumption
+    | congruence
+    | lia
+    | lazymatch goal with |- context [finz.to_z _] => solve_addr end ].
+
+(* The test of a conditional jump on known operands: by computation, from a
+   hypothesis (up to conversion), also as [nonZero w], or on the comparison
+   once the addresses of literal words are computed. An integer word is read
+   as its integer ([lz_of_argument_reg_int]): its address form is the same
+   test, rejected at once. *)
+Ltac solve_jcond_test :=
+  lazymatch goal with
+  | |- ?g => tryif has_evar g then fail "jcond_test: unknown operands" else idtac
+  end;
+  tryif (match goal with
+         | |- context [get_a (lw ?v)] =>
+             let w := eval cbn [lw] in (lw v) in lazymatch w with WInt _ => idtac end
+         end)
+  then fail "jcond_test: an integer word is read as an integer"
+  else idtac;
+  cbn [jcond_test];
+  first
+    [ reflexivity
+    | assumption
+    | lazymatch goal with
+      | |- Datatypes.negb (Z.eqb (get_a ?w) 0) = ?b => change (nonZero w = b); assumption
+      | |- Z.eqb (get_a ?w) 0 = true =>
+          apply negb_false_iff; change (nonZero w = false); assumption
+      | |- Z.eqb (get_a ?w) 0 = false =>
+          apply negb_true_iff; change (nonZero w = true); assumption
+      end
+    | cbn [get_a get_a_sealable lw]; first [reflexivity | jcond_test_arith] ].
+
+(* The test of a conditional jump, with the hypotheses of the client. *)
+#[global] Hint Extern 0 (jcond_test _ _ _ = _) =>
+  unfreeze_hyps; solve_jcond_test : regs_next_ok_db.
+
 (* The search, under frozen hypotheses (as [solve_pure_iinstr]). *)
 Ltac solve_regs_next_ok_frozen :=
   ltac2:(griotte_freeze_hyps_once ());

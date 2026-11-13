@@ -146,18 +146,14 @@ Section Switcher_Trusted_Stack_Push.
     destruct (decide (tstack_frameoffset d < e_trusted_stack - b_trusted_stack)%Z) as [Hroom|Hroom];
       cycle 1.
     { (* Jle .Lswitch_trusted_stack_exhausted cs0 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs0 $Hctp]"
-        as "(HPC & Hcs0 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.leb_le; lia. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_trusted_stack_exhausted")%a
           by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hframeoffset Htstk". }
     (* Jle .Lswitch_trusted_stack_exhausted cs0 ctp *)
-    iInstrApply "Hcode" with "Hlc" wp_jcond_success_next_r_r with "[$HPC $Hcs0 $Hctp]"
-      as "(HPC & Hcs0 & Hctp)".
-    { cbn [jcond_test get_a lw]; apply Z.leb_gt; lia. }
+    iInstr "Hcode" with "Hlc".
     (* Lea ctp ct2 ctp *)
     iInstr "Hcode" with "Hlc'".
     { instantiate (1 := a_tstk ^+ TrustedStackFrame_size). tstack_unfold; solve_addr. }

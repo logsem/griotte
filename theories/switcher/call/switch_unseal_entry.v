@@ -219,9 +219,7 @@ Section Switch_Unseal_Entry.
     destruct (decide (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z)
       as [Hsmall|Hsmall].
     { (* Jlt .Lswitch_stack_too_small ct2 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hctp]"
-        as "(HPC & Hct2 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.ltb_lt; lia. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_stack_too_small")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -229,9 +227,7 @@ Section Switch_Unseal_Entry.
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
       done. }
     (* Jlt .Lswitch_stack_too_small ct2 ctp *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct2 $Hctp]"
-      as "(HPC & Hct2 & Hctp)".
-    { cbn [jcond_test get_a lw]; apply Z.ltb_ge; lia. }
+    iInstr "Hcode".
     (* Lea csp csp (- StackEntry_reserved_space) *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))); last reflexivity.

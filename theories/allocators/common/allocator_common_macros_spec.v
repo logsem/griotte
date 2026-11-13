@@ -150,7 +150,7 @@ Section AllocatorMacros.
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jne .allocator_zero rtmp 0 repeats the loop. *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
+      iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       iApply ("IH" $! (b ^+ 1) with
@@ -311,7 +311,7 @@ Section AllocatorMacros.
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jne .allocator_paint rcount 0 repeats the loop. *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
+      iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       replace (e - b - 1)%Z with (e - (b ^+ 1))%Z by solve_addr.
