@@ -20,27 +20,11 @@ Section griotte_lang_rules.
   Definition setmie_mstatus (mie : InterruptStatus) (vst : LWord) : LWord :=
     WInt (mstatus_enc mie (mpie_of (get_a vst.(lw)))).
 
-  Inductive SetMIE_failure (lpc : LWord) : Prop :=
-  | SetMIE_fail_nonxsr p g b e a π :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = false →
-      SetMIE_failure lpc
-  | SetMIE_fail_incrPC :
-      incrementPC lpc = None →
-      SetMIE_failure lpc.
-
-  (** mstatus is held by the state interpretation: the rule does not expose
-      it. *)
-  Inductive SetMIE_spec {k : kind} (lpc : LWord) (lpc' : LWord) : tval k → Prop :=
-  | SetMIE_spec_success p g b e a π :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = true →
-      incrementPC lpc = Some lpc' →
-      SetMIE_spec lpc lpc' NextIV
-  | SetMIE_spec_failure :
-      lpc' = lpc →
-      SetMIE_failure lpc →
-      SetMIE_spec lpc lpc' FaultedV.
+  (** The PC after [SetMIE]: the next one, given the permission to access
+      the system registers. mstatus is held by the state interpretation: the
+      summary does not expose it. *)
+  Definition setmie_next pc_p pc_g pc_b pc_e pc_a pc_π : option LWord :=
+    if has_sreg_access pc_p then incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) else None.
 
   (** [SetMIE mie] writes MIE, from [b] to [mie]: the premise
       [link_transfer_si (mie_move b mie) T1 T2] gives [T1] up for [T2] with
@@ -58,7 +42,8 @@ Section griotte_lang_rules.
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ SetMIE_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
+        ⌜ step_outcome ((., tt) <$> setmie_next pc_p pc_g pc_b pc_e pc_a pc_π)
+            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         (⌜retv = NextIV⌝ ∗ MIE ↦ₜ mie ∗ T2 ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b ∗ T1)
@@ -77,7 +62,7 @@ Section griotte_lang_rules.
       iApply (instr_close_link_kept_irq with "Hlink"); [done|].
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
-      - iPureIntro. apply SetMIE_spec_failure; first done. by eapply SetMIE_fail_nonxsr.
+      - iPureIntro. apply step_outcome_fault. by rewrite /setmie_next Hxsr.
       - iRight. by iFrame. }
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvst') as (wst & Hwst & Hrelst).
     apply reg_phys_no_bounds in Hrelst; last done. cbn in Hrelst. subst wst.
@@ -92,7 +77,7 @@ Section griotte_lang_rules.
       iApply (instr_close_link_kept_irq with "Hlink"); [done|].
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
-      - iPureIntro. apply SetMIE_spec_failure; first done. by apply SetMIE_fail_incrPC.
+      - iPureIntro. apply step_outcome_fault. by rewrite /setmie_next Hxsr Hi.
       - iRight. by iFrame. }
     (* The new mstatus *)
     pose proof (erasure_insert_sreg _ _ _ _ _ _ _ _ _ _ _ _ mstatus
@@ -120,8 +105,7 @@ Section griotte_lang_rules.
       rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc. apply Hroute.
       rewrite -Hmie_st. by apply ctx_irq_off_route. }
     iApply ("Hφ" $! _ NextIV). iFrame "HPC Hpc_a". iSplit.
-    - iPureIntro. rewrite /incrementPC /incrementPC_gen /= Hpca' in Hi. simplify_eq.
-      eapply SetMIE_spec_success; [done | done | by apply incrementPC_add].
+    - iPureIntro. apply step_outcome_next. by rewrite /setmie_next Hxsr Hi.
     - iLeft. by iFrame.
   Qed.
 
@@ -150,13 +134,10 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Htr Hroute φ) "(>HPC & >Hpc_a & >Hmie & HT) Hφ".
     iApply (wp_SetMIE_link with "[$HPC $Hpc_a $Hmie $HT]"); eauto.
     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & HT)".
-    destruct Hspec as [p g b' e a π Hpc Hx Hi | -> [p g b' e a π Hpc Hx | Hi] ];
-      simplify_eq.
-    - rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi. simplify_eq.
-      iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.
-      iApply "Hφ". iFrame.
-    - by rewrite Hxsr in Hx.
-    - by rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi.
+    rewrite /setmie_next Hxsr (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hspec.
+    destruct Hspec as (-> & -> & _).
+    iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.
+    iApply "Hφ". iFrame.
   Qed.
 
   (** [SetMIE mie] moves the posture of the thread: what it holds at [b]
@@ -225,7 +206,8 @@ Section griotte_lang_rules_core.
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET retv;
-        ⌜ SetMIE_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lpc' retv ⌝ ∗
+        ⌜ step_outcome ((., tt) <$> setmie_next pc_p pc_g pc_b pc_e pc_a pc_π)
+            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         (⌜retv = NextIV⌝ ∗ MIE ↦ₜ mie ∨ ⌜retv = FaultedV⌝ ∗ MIE ↦ₜ b)

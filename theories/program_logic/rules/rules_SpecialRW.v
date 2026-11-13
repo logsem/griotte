@@ -40,33 +40,36 @@ Section griotte_lang_rules.
     dst ≠ cnull → specialrw_regs regs dst vold = <[dst := vold]> regs.
   Proof. rewrite /specialrw_regs. by case_decide. Qed.
 
-  Inductive SpecialRW_failure (lpc : LWord) : Prop :=
-  | SpecialRW_fail_nonxsr p g b e a π :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = false →
-      SpecialRW_failure lpc
-  | SpecialRW_fail_incrPC :
-      incrementPC lpc = None →
-      SpecialRW_failure lpc.
+  (** The PC, registers and system registers after [SpecialRW dst sr src],
+      given the permission to access the system registers: the old value of
+      [sr] goes to [dst], [sr] receives the source, and the PC is the next
+      one. *)
+  Definition specialrw_next (regs : LReg) (sregs : LSReg) pc_p pc_g pc_b pc_e pc_a pc_π
+      (dst : RegName) (sr : SRegName) (src : Z + RegName) : option (LWord * (LReg * LSReg)) :=
+    if has_sreg_access pc_p
+    then
+      vold ← sregs !! sr;
+      sregs' ← specialrw_sregs regs sregs sr src;
+      lpc' ← incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π);
+      Some (lpc', (specialrw_regs regs dst vold, sregs'))
+    else None.
 
-  Inductive SpecialRW_spec {k : kind}
-    (lpc : LWord) (regs : LReg) (sregs : LSReg) (dst : RegName) (sr : SRegName)
-    (src : Z + RegName) (lpc' : LWord) (regs' : LReg) (sregs' : LSReg)
-    : tval k → Prop :=
-  | SpecialRW_spec_success p g b e a π vold :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = true →
-      sregs !! sr = Some vold →
-      specialrw_sregs regs sregs sr src = Some sregs' →
-      incrementPC lpc = Some lpc' →
-      regs' = specialrw_regs regs dst vold →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' NextIV
-  | SpecialRW_spec_failure :
-      regs' = regs →
-      sregs' = sregs →
-      SpecialRW_failure lpc →
-      lpc' = lpc →
-      SpecialRW_spec lpc regs sregs dst sr src lpc' regs' sregs' FaultedV.
+  Lemma specialrw_next_some regs sregs pc_p pc_g pc_b pc_e pc_a pc_π lpc' dst sr src vold sregs' :
+    has_sreg_access pc_p = true →
+    sregs !! sr = Some vold →
+    specialrw_sregs regs sregs sr src = Some sregs' →
+    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src =
+      Some (lpc', (specialrw_regs regs dst vold, sregs')).
+  Proof. intros Hxsr Hvold Hsregs' Hi. by rewrite /specialrw_next Hxsr Hvold Hsregs' Hi. Qed.
+
+  Lemma specialrw_next_fail_pc regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src :
+    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = None →
+    specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src = None.
+  Proof.
+    intros Hi. rewrite /specialrw_next Hi.
+    by destruct (has_sreg_access pc_p), (sregs !! sr), (specialrw_sregs regs sregs sr src).
+  Qed.
 
   (** The physical system registers after the write, and the erasure of the
       new logical ones. *)
@@ -146,8 +149,8 @@ Section griotte_lang_rules.
     }}}
       Instr Executable @ Ep
     {{{ lpc' regs' sregs' retv, RET tval_sw (kind_of th) (SpecialRW dst sr src) retv;
-        ⌜ SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
-            lpc' regs' sregs' retv ⌝ ∗
+        ⌜ step_outcome (specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src)
+            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) (regs, sregs) lpc' (regs', sregs') retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
@@ -161,7 +164,7 @@ Section griotte_lang_rules.
     rewrite Hinstr /exec in Hstep. rewrite Hinstr.
     destruct (has_sreg_access pc_p) eqn:Hxsr; cycle 1.
     { cbn in Hstep. rewrite Hxsr in Hstep. instr_fail Hstep.
-      apply SpecialRW_spec_failure; [done|done| |done]. by eapply SpecialRW_fail_nonxsr. }
+      apply step_outcome_fault. by rewrite /specialrw_next Hxsr. }
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs sr) as (vold & Hvold & Hvold');
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
@@ -181,7 +184,7 @@ Section griotte_lang_rules.
       { intros φ' Hpc. by rewrite /nextPC /advancePC Hpc Hpca'. }
       rewrite Hfail' in Hstep; last by case_decide.
       instr_fail Hstep.
-      apply SpecialRW_spec_failure; [done|done| |done]. by apply SpecialRW_fail_incrPC. }
+      apply step_outcome_fault. by apply specialrw_next_fail_pc. }
     (* The ghost system registers *)
     iAssert (|==> ∃ ls', ⌜ls_join ls' = lsreg'⌝ ∗ sys_interp ls' ∗
                          [∗ map] k↦y ∈ sregs', k ↦ₓ y)%I
@@ -198,13 +201,13 @@ Section griotte_lang_rules.
       destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hi) as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
       iApply (instr_close_pc_update _ _ _ _ _ _ _ _ _ _ _ _ _ 1 _ _ _
-        (λ lpc' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs
-           dst sr src lpc' regs sregs' retv)
+        (λ lpc' retv, step_outcome (specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src)
+           (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) (regs, sregs) lpc' (regs, sregs') retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
       { exact Her1. } { rewrite /nextPC in Hu Hstep. by rewrite Hu in Hstep |- *. }
-      { intros lpc'' Hi'. rewrite /incrementPC in Hi. simplify_eq.
-        eapply SpecialRW_spec_success; eauto.
-        all: by rewrite specialrw_regs_cnull. }
+      { intros lpc'' Hi'. apply step_outcome_next.
+        rewrite (specialrw_next_some _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hvold Hsregs' Hi').
+        by rewrite /specialrw_regs decide_True. }
       { intros Hi'. rewrite /incrementPC in Hi. congruence. }
       iIntros (lpc'' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
     - (* [dst] receives the old value. *)
@@ -213,41 +216,49 @@ Section griotte_lang_rules.
         as (pc' & Hu & _).
       iApply (instr_close_kept_trans _ _ _ _ Hkept).
       iApply (instr_close_reg_update _ _ _ _ _ _ _ _ _ _ _ _ _ dst vold wold _ _ _
-        (λ lpc' regs' retv, SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs
-           sregs dst sr src lpc' regs' sregs' retv)
+        (λ lpc' regs' retv,
+           step_outcome (specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src)
+             (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) (regs, sregs) lpc' (regs', sregs') retv)
         with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap [Hφ Hpc_a Hsmap]").
       { exact Her1. } { exact Hlregs. }
       { right. apply Dregs. rewrite /regs_of /operands_of. set_solver. }
       { exact Hokold. }
       { rewrite /update_reg /= in Hu Hstep |- *. by rewrite Hu in Hstep |- *. }
       { exact Hrelold. }
-      { intros lpc'' Hi'. rewrite Hi in Hi'. simplify_eq.
-        eapply SpecialRW_spec_success; eauto.
-        all: by rewrite specialrw_regs_ne // linsert_reg_not_cnull. }
+      { intros lpc'' Hi'. apply step_outcome_next.
+        rewrite (specialrw_next_some _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hvold Hsregs' Hi').
+        by rewrite specialrw_regs_ne // linsert_reg_not_cnull. }
       { intros Hi'. congruence. }
       iIntros (lpc'' regs'' retv Hspec) "HPC Hmap". iApply "Hφ". by iFrame.
   Qed.
 
-  (** Inverts a [SpecialRW_spec] whose PC increment succeeds and whose PC has
-      the system-register permission: the failure case is absurd. *)
-  Lemma SpecialRW_spec_success_inv {k : kind} pc_p pc_g pc_b pc_e pc_a pc_π pc_a' regs sregs dst sr src
-      lpc' regs' sregs' (retv : tval k) :
+  (** The outcome of [SpecialRW] whose PC increment succeeds, whose PC has
+      the system-register permission and whose operands are owned: the
+      fault is absurd. *)
+  Lemma specialrw_next_success_inv {k : kind} pc_p pc_g pc_b pc_e pc_a pc_π pc_a' regs sregs dst sr
+      src lpc' regs' sregs' (retv : tval k) :
     has_sreg_access pc_p = true →
     (pc_a + 1)%a = Some pc_a' →
-    SpecialRW_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs sregs dst sr src
-      lpc' regs' sregs' retv →
+    step_outcome (specialrw_next regs sregs pc_p pc_g pc_b pc_e pc_a pc_π dst sr src)
+      (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) (regs, sregs) lpc' (regs', sregs') retv →
+    is_Some (sregs !! sr) →
+    regs_of_argument src ∖ {[ cnull ]} ⊆ dom regs →
     retv = NextIV ∧ lpc' = Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π ∧
     ∃ vold, sregs !! sr = Some vold ∧
       specialrw_sregs regs sregs sr src = Some sregs' ∧
       regs' = specialrw_regs regs dst vold.
   Proof.
-    intros Hxsr Hpca' Hspec.
-    destruct Hspec as [p g b e a π vold Hpc Hx Hvold Hsr' Hi -> | -> -> Hfail].
-    - simplify_eq. rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi. simplify_eq.
-      split_and!; try done. by eexists.
-    - exfalso. destruct Hfail as [p g b e a π Hpc Hx | Hi].
-      + simplify_eq. by rewrite Hxsr in Hx.
-      + by rewrite (incrementPC_add _ _ _ _ _ _ _ _ Hpca') in Hi.
+    intros Hxsr Hpca' Hspec [vold Hvold] Dsrc.
+    assert (is_Some (specialrw_sregs regs sregs sr src)) as [sregs1 Hsregs1].
+    { destruct src as [z|rs]; rewrite /specialrw_sregs /=; first by eexists.
+      case_decide as Hrs; first by eexists.
+      assert (is_Some (regs !!ₗ rs)) as [v Hv].
+      { apply elem_of_dom_lreg, Dsrc. rewrite /regs_of_argument. set_solver. }
+      rewrite Hv. by eexists. }
+    rewrite (specialrw_next_some _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hvold Hsregs1
+               (incrementPC_add _ _ _ _ _ _ _ _ Hpca')) in Hspec.
+    destruct Hspec as (-> & -> & Hstate). injection Hstate as -> ->.
+    split_and!; [done | done |]. exists vold. by split_and!.
   Qed.
 
   Lemma wp_readsr_success E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dst wdst src (wsrc : Word) dq :
@@ -276,7 +287,9 @@ Section griotte_lang_rules.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs /= in Hsr'. case_decide as Hc; last done. simplify_map_eq.
     rewrite specialrw_regs_ne // insert_singleton_eq.
@@ -311,7 +324,9 @@ Section griotte_lang_rules.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs /= in Hsr'. case_decide as Hc; first done.
     rewrite llookup_reg_not_cnull // in Hsr'.
@@ -425,7 +440,9 @@ Section griotte_lang_rules.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold' & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs /= in Hsr'. case_decide as Hc; first done.
     rewrite llookup_reg_not_cnull // in Hsr'.
@@ -467,7 +484,9 @@ Section griotte_lang_rules.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold' & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs /= in Hsr'. case_decide as Hc; first done.
     rewrite llookup_reg_not_cnull // in Hsr'.
@@ -501,7 +520,9 @@ Section griotte_lang_rules.
     { rewrite Hxsr /sregs_of dom_singleton_L. set_solver. }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & Hmap & Hsmap)".
     rewrite tval_sw_none; last by apply sw_of_none.
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold' & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs in Hsr'. simplify_map_eq. rewrite insert_singleton_eq.
     iApply "Hφ". iFrame.
@@ -536,7 +557,9 @@ Section griotte_lang_rules.
     { iFrame "HPC Hpc_a". iSplitR; first by rewrite big_sepM_empty.
       iNext. iApply (map_of_sregs_1 with "Hsr"). }
     iNext. iIntros (lpc' regs' sregs' retv) "(%Hspec & HPC & Hpc_a & _ & Hsmap)".
-    destruct (SpecialRW_spec_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec)
+    destruct (specialrw_next_success_inv _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hxsr Hpca' Hspec
+                ltac:(eexists; apply lookup_singleton_eq)
+                ltac:(rewrite /regs_of_argument ?dom_insert_L ?dom_singleton_L; set_solver))
       as (-> & -> & vold' & Hvold & Hsr' & ->).
     rewrite /specialrw_sregs in Hsr'. simplify_map_eq. rewrite insert_singleton_eq.
     assert (sw_of (kind_of th) (SpecialRW cnull mcause (inl MCAUSE_THREAD_EXIT)) = Some ExitS)

@@ -20,25 +20,11 @@ Section griotte_lang_rules.
   Definition mret_mstatus (vst : LWord) : LWord :=
     WInt (mstatus_enc (mpie_of (get_a vst.(lw))) InterruptEnabled).
 
-  Inductive Mret_failure (lpc : LWord) : Prop :=
-  | Mret_fail_nonxsr p g b e a π :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = false →
-      Mret_failure lpc.
-
-  (** On success, the new PC is the value of MEPCC. mstatus is held by the
-      state interpretation: the rule does not expose it. *)
-  Inductive Mret_spec {k : kind} (lpc : LWord) (sregs : LSReg) (lpc' : LWord)
-    : tval k → Prop :=
-  | Mret_spec_success p g b e a π :
-      lpc = Cap p g b e a @@? π →
-      has_sreg_access p = true →
-      sregs !! mepcc = Some lpc' →
-      Mret_spec lpc sregs lpc' NextIV
-  | Mret_spec_failure :
-      lpc' = lpc →
-      Mret_failure lpc →
-      Mret_spec lpc sregs lpc' FaultedV.
+  (** The PC after [mret]: the value of MEPCC in [sregs], given the
+      permission to access the system registers. mstatus is held by the
+      state interpretation: the summary does not expose it. *)
+  Definition mret_next (pc_p : Perm) (sregs : LSReg) : option LWord :=
+    if has_sreg_access pc_p then sregs !! mepcc else None.
 
   (** [mret] writes MIE (it receives MPIE [p]) and MPIE (it becomes
       enabled): the premise [link_transfer_si (mie_move b p) (S ∗ T1) T2]
@@ -63,7 +49,8 @@ Section griotte_lang_rules.
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET tval_sw (kind_of th) Mret retv;
-        ⌜ Mret_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
+        ⌜ step_outcome ((., tt) <$> mret_next pc_p sregs)
+            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         (⌜retv = NextIV⌝ ∗ MIE ↦ₜ p ∗ T2 ∨
@@ -85,7 +72,7 @@ Section griotte_lang_rules.
       iApply (instr_close_link_kept_irq with "Hlink"); [done|].
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); [done|].
       iIntros "HPC _". iApply "Hφ". iFrame "HPC Hpc_a". iSplit.
-      - iPureIntro. apply Mret_spec_failure; first done. by eapply Mret_fail_nonxsr.
+      - iPureIntro. apply step_outcome_fault. by rewrite /mret_next Hxsr.
       - iRight. by iFrame. }
     destruct (indom_sregs_incl _ _ _ Dsregs Hlsregs mepcc) as (vepcc & Hvepcc & Hvepcc');
       first (rewrite /sregs_of; set_solver).
@@ -121,7 +108,7 @@ Section griotte_lang_rules.
       rewrite /mie_st /= lookup_insert_eq /= mie_of_mstatus_enc. apply Hroute.
       rewrite -Hmie_st. by apply ctx_irq_off_route. }
     iApply ("Hφ" $! _ NextIV). iFrame "HPC Hpc_a". iSplit.
-    - iPureIntro. by eapply Mret_spec_success.
+    - iPureIntro. apply step_outcome_next. by rewrite /mret_next Hxsr Hvepcc.
     - iLeft. by iFrame.
   Qed.
 
@@ -156,9 +143,8 @@ Section griotte_lang_rules.
     { eapply link_transfer_si_weaken; last exact Htr; last done.
       iIntros "(Hsmap & $ & $)". iApply (sregs_of_map_1 with "Hsmap"). }
     iNext. iIntros (lpc' retv) "(%Hspec & HPC & Hpc_a & HT)".
-    destruct Hspec as [p' g b' e a π Hpc Hx Hvepcc | -> [p' g b' e a π Hpc Hx] ];
-      simplify_eq; last by rewrite Hxsr in Hx.
-    simplify_map_eq.
+    rewrite /mret_next Hxsr lookup_singleton_eq in Hspec.
+    destruct Hspec as (-> & -> & _).
     iDestruct "HT" as "[ [_ HT] | [%Hc _] ]"; last done.
     iApply "Hφ". iFrame.
   Qed.
@@ -245,7 +231,8 @@ Section griotte_lang_rules_core.
     }}}
       Instr Executable @ Ep
     {{{ lpc' retv, RET tval_sw (kind_of th) Mret retv;
-        ⌜ Mret_spec (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) sregs lpc' retv ⌝ ∗
+        ⌜ step_outcome ((., tt) <$> mret_next pc_p sregs)
+            (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) tt lpc' tt retv ⌝ ∗
         PC ↦ₚ lpc' ∗
         pc_a ↦ₐ{dq} w ∗
         ([∗ map] k↦y ∈ sregs, k ↦ₓ y) ∗
