@@ -65,6 +65,19 @@ Section regs_pure.
     by rewrite (regs_copy_llookup _ _ _ _ _ Hcopy Hr) get_a_and_tag.
   Qed.
 
+  (** Integer operands: an immediate, a register holding an integer, or the
+      address of any word. *)
+  Lemma lz_of_argument_z (regs : LReg) z : lz_of_argument regs (inl z) = Some z.
+  Proof. done. Qed.
+
+  Lemma lz_of_argument_reg_int (regs : LReg) r v z :
+    regs !!ₗ r = Some v → IsLInt v z → lz_of_argument regs (inr r) = Some z.
+  Proof. intros Hr [Hz]. by rewrite /lz_of_argument Hr Hz. Qed.
+
+  Lemma lz_of_argument_reg (regs : LReg) r v :
+    regs !!ₗ r = Some v → lz_of_argument regs (inr r) = Some (get_a v.(lw)).
+  Proof. intros Hr. by rewrite /lz_of_argument Hr. Qed.
+
   (** A source of [v]: on well-formed registers and PC, each copied with its
       strip bit, [v] is well-formed and its copy is given by [sb S]. *)
   Definition lsource_ok (regs : LReg) (lpc v : LWord) (sb : (RegName → bool) → bool) : Prop :=
@@ -275,6 +288,11 @@ Create HintDb regs_next_ok_db discriminated.
    converse [regs_jump_agree_next_ok] is not a hint: the two would loop. *)
 #[global] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
   simple eapply regs_next_ok_cnull_jump : regs_next_ok_db.
+(* Integer operands: an immediate first, then a register known to hold an
+   integer ([IsLInt]), then the address of any word. *)
+#[global] Hint Resolve lz_of_argument_z | 0 : regs_next_ok_db.
+#[global] Hint Resolve lz_of_argument_reg_int | 1 : regs_next_ok_db.
+#[global] Hint Resolve lz_of_argument_reg | 5 : regs_next_ok_db.
 
 (** ** The generic rule *)
 

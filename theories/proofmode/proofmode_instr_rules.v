@@ -13,43 +13,6 @@ Ltac dispatch_Get r1 r2 cont :=
   | _ => cont (@wp_Get_success)
   end.
 
-Ltac dispatch_BinOp r1 x1 x2 cont :=
-  let p := constr:((r1, x1, x2)) in
-  lazymatch p with
-  | (?r, (inr ?r), (inr ?r)) => cont (@wp_binop_success_dst_dst)
-  | (?dst, (inr ?r), (inr ?dst)) => cont (@wp_binop_success_r_dst)
-  | (?dst, (inr ?dst), (inr ?r)) => cont (@wp_binop_success_dst_r)
-  | (?dst, (inl _), (inr ?dst)) => cont (@wp_binop_success_z_dst)
-  | (?dst, (inr ?dst), (inl _)) => cont (@wp_binop_success_dst_z)
-  | (?dst, (inr ?r), (inr ?r)) => cont (@wp_binop_success_r_r_same)
-  | (?dst, (inr ?r), (inl _)) => cont (@wp_binop_success_r_z)
-  | (?dst, (inl _), (inr _)) => cont (@wp_binop_success_z_r)
-  | (?dst, (inr _), (inr _)) => cont (@wp_binop_success_r_r)
-  | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
-  end.
-
-(* Succeeds when the spatial context holds [r ↦ᵣ WCap …]. *)
-Ltac reg_holds_cap r :=
-  lazymatch goal with
-  | |- context [ Esnoc _ _ (r ↦ᵣ ?w)%I ] =>
-      let w' := eval cbn in (lw w) in
-      lazymatch w' with WCap _ _ _ _ _ _ => idtac end
-  end.
-
-(* [Sub dst r dst]: the rule on integers, else, when [r] holds a
-   capability, the rule on any words. An integer [Sub] whose rule fails
-   still fails. *)
-Ltac dispatch_Sub r1 x1 x2 cont :=
-  let p := constr:((r1, x1, x2)) in
-  lazymatch p with
-  | (?r, (inr ?r), (inr ?r)) => dispatch_BinOp r1 x1 x2 cont
-  | (?dst, (inr ?r), (inr ?dst)) =>
-      tryif reg_holds_cap r
-      then (dispatch_BinOp r1 x1 x2 cont || cont (@wp_sub_r_dst_any))
-      else dispatch_BinOp r1 x1 x2 cont
-  | _ => dispatch_BinOp r1 x1 x2 cont
-  end.
-
 (* A conditional jump: the rule of the taken jump, else the rule of the
    fall-through. Each commits its comparison ([instr_commit_lint]). *)
 Ltac dispatch_JCond off x1 x2 cont :=
@@ -310,16 +273,6 @@ Ltac dispatch_instr_rule instr cont :=
   | ClearTag _ cnull => cont (@wp_ClearTag_from_cnull)
   | ClearTag ?r ?r => cont (@wp_ClearTag_same_success)
   | ClearTag _ _ => cont (@wp_ClearTag_success)
-  (* BinOp *)
-  | Add ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Sub ?x1 ?x2 ?x3 => dispatch_Sub x1 x2 x3 cont
-  | Mul ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LAnd ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LOr ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LShiftL ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LShiftR ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Le ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
   (* SetA *)
   | SetA ?r ?r (inr _) => (cont (@wp_seta_success_reg) || cont (@wp_seta_success_reg_int))
   | SetA ?r ?r (inl _) => (cont (@wp_seta_success_z) || cont (@wp_seta_success_z_int))
