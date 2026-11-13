@@ -624,16 +624,15 @@ Qed.
     The memberships and agreements of the memory instructions are lemmas.
     The fallback of [iInstr] finds them in the hint database [mem_agree_db],
     indexed by the instruction; each lemma is registered on the line after
-    it, or here for those above. The settings are global: the database is
-    searched in client proofs, which do not import this file. *)
+    it, or here for those above. *)
 Create HintDb mem_agree_db discriminated.
-#[global] Hint Constants Opaque : mem_agree_db.
-#[global] Hint Opaque load_member load_agree store_member store_agree : mem_agree_db.
-#[global] Hint Mode load_member - - - ! - - - : mem_agree_db.
-#[global] Hint Mode load_agree - - - ! - - - : mem_agree_db.
-#[global] Hint Mode store_member - - - ! - - : mem_agree_db.
-#[global] Hint Mode store_agree - - - ! - - : mem_agree_db.
-#[global] Hint Resolve CLoad_member CLoad_agree Store_member_argument Store_agree : mem_agree_db.
+#[export] Hint Constants Opaque : mem_agree_db.
+#[export] Hint Opaque load_member load_agree store_member store_agree : mem_agree_db.
+#[export] Hint Mode load_member - - - ! - - - : mem_agree_db.
+#[export] Hint Mode load_agree - - - ! - - - : mem_agree_db.
+#[export] Hint Mode store_member - - - ! - - : mem_agree_db.
+#[export] Hint Mode store_agree - - - ! - - : mem_agree_db.
+#[export] Hint Resolve CLoad_member CLoad_agree Store_member_argument Store_agree : mem_agree_db.
 
 (** ** The closer of a memory write *)
 
@@ -848,7 +847,7 @@ Section mem_access_witness.
 
 End mem_access_witness.
 
-#[global] Hint Resolve load_choice_exact : mem_agree_db.
+#[export] Hint Resolve load_choice_exact : mem_agree_db.
 
 (** ** The rules *)
 

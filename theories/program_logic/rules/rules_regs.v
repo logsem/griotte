@@ -276,23 +276,23 @@ End regs_pure.
     The register step of an instruction in closed form is a lemma that
     concludes [regs_next_ok] or [regs_jump_agree] for it. [iInstr] finds
     these lemmas in the hint database [regs_next_ok_db], indexed by the
-    instruction; each lemma is registered on the line after it. The
-    settings below are global: the database is searched in client proofs,
-    which do not import this file. *)
+    instruction; each lemma is registered on the line after it. Client
+    proofs see the database through [proofmode], which exports this
+    file. *)
 Create HintDb regs_next_ok_db discriminated.
-#[global] Hint Constants Opaque : regs_next_ok_db.
-#[global] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_db.
-#[global] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_db.
-#[global] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_db.
+#[export] Hint Constants Opaque : regs_next_ok_db.
+#[export] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_db.
+#[export] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_db.
+#[export] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_db.
 (* Every such lemma at [cnull] serves the instruction with no destination. The
    converse [regs_jump_agree_next_ok] is not a hint: the two would loop. *)
-#[global] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
+#[export] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
   simple eapply regs_next_ok_cnull_jump : regs_next_ok_db.
 (* Integer operands: an immediate first, then a register known to hold an
    integer ([IsLInt]), then the address of any word. *)
-#[global] Hint Resolve lz_of_argument_z | 0 : regs_next_ok_db.
-#[global] Hint Resolve lz_of_argument_reg_int | 1 : regs_next_ok_db.
-#[global] Hint Resolve lz_of_argument_reg | 5 : regs_next_ok_db.
+#[export] Hint Resolve lz_of_argument_z | 0 : regs_next_ok_db.
+#[export] Hint Resolve lz_of_argument_reg_int | 1 : regs_next_ok_db.
+#[export] Hint Resolve lz_of_argument_reg | 5 : regs_next_ok_db.
 
 (** When no lemma of [regs_next_ok_db] closes a step, [iInstr] applies a
     case lemma of the hint database [regs_next_ok_lax_db], chosen by the
@@ -302,11 +302,11 @@ Create HintDb regs_next_ok_db discriminated.
     the client. A case lemma is registered there on the line after its
     registration in [regs_next_ok_db]. *)
 Create HintDb regs_next_ok_lax_db discriminated.
-#[global] Hint Constants Opaque : regs_next_ok_lax_db.
-#[global] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_lax_db.
-#[global] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_lax_db.
-#[global] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_lax_db.
-#[global] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
+#[export] Hint Constants Opaque : regs_next_ok_lax_db.
+#[export] Hint Opaque regs_next_ok regs_jump_agree llookup_reg lz_of_argument : regs_next_ok_lax_db.
+#[export] Hint Mode regs_next_ok - ! - - - - - - : regs_next_ok_lax_db.
+#[export] Hint Mode regs_jump_agree - ! - - - - : regs_next_ok_lax_db.
+#[export] Hint Extern 10 (regs_jump_agree _ _ _ _ _) =>
   simple eapply regs_next_ok_cnull_jump : regs_next_ok_lax_db.
 
 (** ** The generic rule *)

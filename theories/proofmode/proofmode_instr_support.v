@@ -349,9 +349,8 @@ Ltac instr_auto_solve_failure :=
     The premises of an instruction's register step in closed form
     ([rules_regs.v], database [regs_next_ok_db]) on the literal register map
     of a k-ary rule, solved during the search for that lemma. A case of a
-    family whose premise fails gives way to the next case. The settings are
-    global: the database is searched in client proofs, which do not import
-    this file. *)
+    family whose premise fails gives way to the next case. Client proofs
+    see these hints through [proofmode], which exports this file. *)
 
 (* A lookup in a literal register map, by [lookup_insert_eq] and
    [lookup_insert_ne] only: no [simplify_map_eq], slow in large contexts. *)
@@ -398,58 +397,58 @@ Ltac regs_next_ok_lookup :=
           exact Hr ]
   end.
 
-#[global] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_db.
+#[export] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_db.
 
 (* An address result: from the context, or by the [IncrFinZ] instances of
    [solve_pure], which the search also uses. Otherwise the lemma does not
    apply; the lax search ([solve_regs_next_ok_lax]) or [iInstr "H" using s]
    leaves the fact as a side goal. *)
-#[global] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 ((_ + _)%a = None) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 ((_ + _)%ot = None) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 (z_to_addr _ = None) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 (z_to_otype _ = Some _) => eassumption : regs_next_ok_db.
-#[global] Hint Extern 0 (z_to_otype _ = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%a = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%ot = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_addr _ = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_otype _ = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_otype _ = None) => eassumption : regs_next_ok_db.
 
 (* An untagged word: a literal, or a fact of the context. *)
-#[global] Hint Extern 1 (get_tag _ = false) =>
+#[export] Hint Extern 1 (get_tag _ = false) =>
   first [ reflexivity
         | match goal with H : InCtx (get_tag _ = false) |- _ => exact H end ]
   : regs_next_ok_db.
 
 (* Whether a word is zero: by computation, or a fact of the context. *)
-#[global] Hint Extern 1 (nonZero _ = _) =>
+#[export] Hint Extern 1 (nonZero _ = _) =>
   first [ reflexivity
         | match goal with H : InCtx (nonZero _ = _) |- _ => exact H end ]
   : regs_next_ok_db.
 
 (* An integer, a sentry or a sealed word: a literal, or a fact of the
    context. *)
-#[global] Hint Extern 1 (is_mutable_range _ = false) =>
+#[export] Hint Extern 1 (is_mutable_range _ = false) =>
   first [ reflexivity | eassumption ] : regs_next_ok_db.
 
 (* Subseg: the premise of its tag as a value, on a literal register map, and
    endpoints out of range on literals. *)
-#[global] Hint Extern 1 (subseg_root_free _ _ _ _) =>
+#[export] Hint Extern 1 (subseg_root_free _ _ _ _) =>
   unfreeze_hyps; solve_subseg_root_free : regs_next_ok_db.
-#[global] Hint Extern 1 (z_to_addr _ = None ∨ z_to_addr _ = None) =>
+#[export] Hint Extern 1 (z_to_addr _ = None ∨ z_to_addr _ = None) =>
   first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
-#[global] Hint Extern 1 (z_to_otype _ = None ∨ z_to_otype _ = None) =>
+#[export] Hint Extern 1 (z_to_otype _ = None ∨ z_to_otype _ = None) =>
   first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
 (* In the lax search, as in the strict one, an endpoint of Subseg is computed
    when its integer is an address ([solve_pure]); otherwise the fact is
    postponed. The heap premise is searched for even with unknown endpoints: a
    fact of the context then fixes them, and their facts are checked once they
    are known. A search that fails leaves the premise as a side goal. *)
-#[global] Hint Extern 0 (z_to_addr _ = Some _) =>
+#[export] Hint Extern 0 (z_to_addr _ = Some _) =>
   solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
   : regs_next_ok_lax_db.
-#[global] Hint Extern 0 (z_to_otype _ = Some _) =>
+#[export] Hint Extern 0 (z_to_otype _ = Some _) =>
   solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
   : regs_next_ok_lax_db.
-#[global] Hint Extern 0 =>
+#[export] Hint Extern 0 =>
   lazymatch goal with
   | |- (_ = None → _ → is_heap_address _ = false) =>
       solve [ intros [=]
@@ -508,7 +507,7 @@ Ltac solve_jcond_test :=
     | cbn [get_a get_a_sealable lw]; first [reflexivity | jcond_test_arith] ].
 
 (* The test of a conditional jump, with the hypotheses of the client. *)
-#[global] Hint Extern 0 (jcond_test _ _ _ = _) =>
+#[export] Hint Extern 0 (jcond_test _ _ _ = _) =>
   unfreeze_hyps; solve_jcond_test : regs_next_ok_db.
 
 (* The search, under frozen hypotheses (as [solve_pure_iinstr]). *)
@@ -540,8 +539,8 @@ Ltac regs_next_ok_using s :=
     then returned as side goals in their order). *)
 
 (* An operand premise, solved as in the strict search. *)
-#[global] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_lax_db.
-#[global] Hint Extern 0 (lz_of_argument _ _ = Some _) =>
+#[export] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_lax_db.
+#[export] Hint Extern 0 (lz_of_argument _ _ = Some _) =>
   solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
   : regs_next_ok_lax_db.
 
@@ -555,7 +554,7 @@ Ltac regs_next_ok_postpone :=
   | |- _ => shelve
   end.
 
-#[global] Hint Extern 100 => regs_next_ok_postpone : regs_next_ok_lax_db.
+#[export] Hint Extern 100 => regs_next_ok_postpone : regs_next_ok_lax_db.
 
 (* A postponed premise: an evar of the lemma is shelved again; a fact with no
    evar is tried once, from a hypothesis or by the strict search; the rest is
@@ -589,9 +588,9 @@ Ltac solve_regs_next_ok_lax :=
 
 (* The word of a store argument: an integer, or the owned word of a
    register. *)
-#[global] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_agree_db.
-#[global] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_agree_db.
-#[global] Hint Extern 0 (lword_of_argument _ (inr _) = Some _) =>
+#[export] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_agree_db.
+#[export] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_agree_db.
+#[export] Hint Extern 0 (lword_of_argument _ (inr _) = Some _) =>
   cbn [lword_of_argument]; regs_next_ok_lookup : mem_agree_db.
 
 (* The permission and the bounds of an access, in the memory fallback of
