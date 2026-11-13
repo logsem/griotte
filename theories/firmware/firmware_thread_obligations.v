@@ -8,8 +8,8 @@ From griotte Require Import compartment_layout switcher_adequacy adequacy_helper
 From griotte Require Import allocator_resources heap_region.
 From griotte Require Import context_switch_layout_instance context_switching_support.
 From griotte Require Import context_switching_hyps context_switching_scheduler_valid.
-From griotte Require Import switcher_spec_return mkregion_helpers locks_spec.
-From griotte Require Import firmware_ok firmware_adequacy_obligations firmware_obligations.
+From griotte Require Import switcher_spec_return mkregion_helpers lib_static locks_spec.
+From griotte Require Import libraries firmware_ok firmware_adequacy_obligations firmware_obligations.
 (* Imported last: the fields of the image records shadow the fields of the
    layout records of [compartment_layout] and of [switcherLayout]. *)
 From griotte Require Import image firmware.
@@ -528,13 +528,13 @@ Section resources_pt.
 
   (** The resources shared by the threads of a firmware whose scheduler runs
       in [C_sched]: the switcher's static facts and the trusted-stack
-      invariant of every thread, the assert library, the code of the lock
-      library, when imported, the compartments but the scheduler's,
-      initialised, the sealing types, the maps of Permanent regions of the
-      compartments but [C_sched], and the heap. Each thread's local maps are
-      in its [fw_thread_res]. *)
+      invariant of every thread, the libraries (their import tables and
+      code, persistent), the shared objects but the assert flag (which the
+      template keeps), the compartments but the scheduler's, initialised,
+      the sealing types, the maps of Permanent regions of the compartments
+      but [C_sched], and the heap. Each thread's local maps are in its
+      [fw_thread_res]. *)
   Definition fw_shared_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
-    let asrt := img_asrt img in
     "Hswitcher_static" ∷
       ([∗ list] i ↦ _ ∈ fw_threads fw,
          switcher_static (th := UserThread i) (swlayout := fw_switcher_layout img)) ∗
@@ -542,11 +542,12 @@ Section resources_pt.
       ([∗ list] i ↦ _ ∈ fw_threads fw,
          na_inv (tpool (UserThread i)) Ntstack
            (trusted_stack_inv (th := UserThread i) (swlayout := fw_switcher_layout img))) ∗
-    "Hassert" ∷
-      assert_static (ceriseg := ceriseG_of (UserThread 0))
-        (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
-    "Hlocks" ∷
-      ([∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w) ∗
+    "Hlibs" ∷
+      ([∗ list] l ∈ fw_libs fw, [∗ map] a↦w ∈ lib_mem fw img l, a ↦ₐ□ lword_of_word w) ∗
+    "Hshared" ∷
+      ([∗ list] o ∈ fw_shared fw,
+         if String.eqb (so_name o) "assert_flag" then emp
+         else [∗ map] a↦w ∈ shared_mem img o, a ↦ₐ lword_of_word w) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res_user (th := UserThread 0) img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷
@@ -583,26 +584,68 @@ Definition fw_obligations (Σ : gFunctors) {Cname : CmptNameG} `{MP : MachinePar
          ={⊤}=∗
          let _ : switcherLayout := fw_switcher_layout img in safe[u i]).
 
-(** The code of the lock library, from ["Hlocks"], when a compartment
-    imports it, at any thread. *)
+(** The static part of a library of a firmware, from its memory, at any
+    thread. *)
+Lemma fw_lib_static {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ : ExecConf) (th : Thread) (l : fw_lib) :
+  firmware_ok fw img σ →
+  l ∈ fw_libs fw →
+  ([∗ map] a↦w ∈ lib_mem fw img l, a ↦ₐ□ lword_of_word w) -∗
+  lib_static (ceriseg := ceriseG_of th)
+    (lib_b (lib_of img (fl_name l))) (lib_e (lib_of img (fl_name l)))
+    (fw_map (fw_word_of fw img [] default_img_cmpt) (fl_imports l)) (fl_code l).
+Proof.
+  iIntros (Hok Hin) "Hl".
+  pose proof Hok as (_ & _ & _ & Hwf).
+  destruct (img_wf_lib_inv _ _ _ Hwf Hin) as (Hsize & _ & Hheap & _).
+  rewrite -(length_fmap (fw_word_of fw img [] default_img_cmpt)) -fw_map_eq in Hsize.
+  assert ((lib_b (lib_of img (fl_name l)) +
+             length (fw_app (fw_word_of fw img [] default_img_cmpt ISwitcherCall ::
+                             fw_map (fw_word_of fw img [] default_img_cmpt) (fl_imports l))
+                       (fl_code l)))%a = Some (lib_e (lib_of img (fl_name l)))) as Hsize'.
+  { rewrite fw_app_eq length_app /=. solve_addr+Hsize. }
+  rewrite /lib_mem /lib_words /note (mem_region_mkregion _ _ _ Hsize').
+  iDestruct (mkregion_sepM_to_sepL2 with "Hl") as "Hl"; first exact Hsize'.
+  iApply (lib_static_of_region _ _ (fw_word_of fw img [] default_img_cmpt ISwitcherCall)
+            with "[Hl]"); [done | done |].
+  rewrite /region_pointsto_pers big_sepL2_fmap_r fw_app_eq. iExact "Hl".
+Qed.
+
+(** The static part of the assert library, from the libraries of a firmware
+    that has it, at any thread. *)
+Lemma fw_assert_static {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
+    (fw : firmware) (img : fw_image) (σ : ExecConf) (th : Thread) :
+  firmware_ok fw img σ →
+  assert_lib ∈ fw_libs fw →
+  ([∗ list] l ∈ fw_libs fw, [∗ map] a↦w ∈ lib_mem fw img l, a ↦ₐ□ lword_of_word w) -∗
+  assert_static (ceriseg := ceriseG_of th)
+    (lib_b (lib_of img "assert")) (lib_e (lib_of img "assert")) (img_flag img).
+Proof.
+  iIntros (Hok Hin) "Hlibs".
+  pose proof Hok as (_ & _ & _ & Hwf).
+  destruct (img_wf_flag_layout _ _ Hwf) as [Hflag _].
+  iDestruct (big_sepL_elem_of with "Hlibs") as "Hl"; first exact Hin.
+  iDestruct (fw_lib_static _ _ _ th _ Hok Hin with "Hl") as "Hl".
+  assert (sh_e (shared_of img "assert_flag") = (img_flag img ^+ 1)%a) as Hflag_e
+    by solve_addr+Hflag.
+  rewrite /assert_static /fw_map /fw_word_of /note /= Hflag_e.
+  iSplit; first (iPureIntro; by eexists).
+  iExact "Hl".
+Qed.
+
+(** The static part of the lock library, from the libraries of a firmware
+    that has it, at any thread. *)
 Lemma fw_lock_static {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     (fw : firmware) (img : fw_image) (σ : ExecConf) (th : Thread) :
   firmware_ok fw img σ →
-  fw_uses_try_lock fw ≠ [] →
-  ([∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w) -∗
+  try_lock_lib ∈ fw_libs fw →
+  ([∗ list] l ∈ fw_libs fw, [∗ map] a↦w ∈ lib_mem fw img l, a ↦ₐ□ lword_of_word w) -∗
   lock_static (th := th) (LK := fw_locks_layout img).
 Proof.
-  iIntros (Hok Huse) "Hlocks".
-  pose proof Hok as (_ & _ & _ & Hwf).
-  pose proof (ill_code_size _ (img_wf_locks_layout _ _ Hwf Huse)) as Hsize.
-  rewrite /locks_code_mems.
-  destruct (fw_uses_try_lock_cases fw) as [Hu | Hu]; rewrite Hu; first by rewrite Hu in Huse.
-  cbn [fw_map big_union].
-  rewrite (mem_region_mkregion _ _ _ Hsize).
-  iDestruct (mkregion_sepM_to_sepL2 with "Hlocks") as "Hlocks"; first exact Hsize.
-  iSplit; first (iPureIntro; exact Hsize).
-  iApply (codefrag_pers_of_region _ _ _ Hsize).
-  rewrite /region_pointsto_pers big_sepL2_fmap_r. iExact "Hlocks".
+  iIntros (Hok Hin) "Hlibs".
+  iDestruct (big_sepL_elem_of with "Hlibs") as "Hl"; first exact Hin.
+  iDestruct (fw_lib_static _ _ _ th _ Hok Hin with "Hl") as "Hl".
+  rewrite /lock_static. iExact "Hl".
 Qed.
 
 (** A compartment whose threads are threads of the firmware has the
@@ -645,13 +688,13 @@ Section prepared_pt.
       [C_sched], and the first thread at the code of its compartment, at
       the posture of its entry. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
-    let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "#Hassert" ∷
+      assert_static (lib_b (lib_of img "assert")) (lib_e (lib_of img "assert")) (img_flag img) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res_user img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷ ([∗ set] C ∈ CNames ∖ {[C_sched]}, world_interp fw_world0 C) ∗
@@ -691,12 +734,12 @@ Section prepared_pt.
       ([fw_obligations_of_untrusted]). The stack is there: the case study
       closes it in the world of the entry compartment. *)
   Definition fw_setup_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
-    let asrt := img_asrt img in
     let t := thread_of img 0 in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
-    "#Hassert" ∷ assert_static (b_assert asrt) (e_assert asrt) (flag_assert asrt) ∗
+    "#Hassert" ∷
+      assert_static (lib_b (lib_of img "assert")) (lib_e (lib_of img "assert")) (img_flag img) ∗
     "Hcmpts" ∷ ([∗ list] fc ∈ fw_cmpts fw, fw_cmpt_res_user img fc) ∗
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷ ([∗ set] C ∈ CNames ∖ {[C_sched]}, world_interp fw_world0 C) ∗
@@ -757,6 +800,7 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThr
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_at_code fw →
   fw_threads fw = [fw_thread0 fw] →
+  assert_lib ∈ fw_libs fw →
   CtxSwitch ∈ cmpt_threads C_sched →
   cmpt_shared C_sched = false →
   (∀ (img : fw_image) (σ : ExecConf)
@@ -769,10 +813,13 @@ Lemma fw_obligations_of (Σ : gFunctors) {Cname : CmptNameG} {cthreads : CmptThr
        let _ : switcherLayout := fw_switcher_layout img in safe[u 0]) →
   fw_obligations Σ fw.
 Proof.
-  intros Hentry Hthreads Hin Hexcl Hprep. exists cthreads, C_sched.
+  intros Hentry Hthreads Hassert_in Hin Hexcl Hprep.
+  exists cthreads, C_sched.
   split; first exact Hin. split; first exact Hexcl.
   intros img σ ceriseb sealsg stsg relg cstackg Hok.
   iIntros "Hshared". iNamed "Hshared". iModIntro.
+  iDestruct (fw_assert_static fw img σ (UserThread 0) Hok Hassert_in with "Hlibs")
+    as "#Hassert".
   rewrite Hthreads !big_sepL_singleton.
   iIntros "Hthread _". iNamed "Hthread".
   (* The worlds of the user thread 0 *)
@@ -805,6 +852,7 @@ Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_at_code fw →
   fw_threads fw = [fw_thread0 fw] →
+  assert_lib ∈ fw_libs fw →
   (∀ (cthreads : CmptThreads),
      (∀ C, C ≠ C_sched → cmpt_threads C ⊆ {[UserThread 0]}) →
      (∀ C, C ≠ C_sched → UserThread 0 ∈ cmpt_threads C) →
@@ -820,8 +868,9 @@ Lemma fw_obligations_of_pinned (Σ : gFunctors) {Cname : CmptNameG}
          let _ : switcherLayout := fw_switcher_layout img in safe[u 0]) →
   fw_obligations Σ fw.
 Proof.
-  intros Hentry Hthreads Hprep.
-  apply (fw_obligations_of Σ (cthreads := fw_cthreads_pinned C_sched) fw C_sched Hentry Hthreads).
+  intros Hentry Hthreads Hassert_in Hprep.
+  apply (fw_obligations_of Σ (cthreads := fw_cthreads_pinned C_sched) fw C_sched Hentry Hthreads
+           Hassert_in).
   - cbn. rewrite decide_True; last done. set_solver.
   - reflexivity.
   - apply Hprep.
@@ -843,6 +892,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
     `{MP : MachineParameters} (fw : firmware) (C_sched : CmptName) :
   fw_entry_untrusted fw →
   fw_threads fw = [fw_thread0 fw] →
+  assert_lib ∈ fw_libs fw →
   CtxSwitch ∈ cmpt_threads C_sched →
   (∀ C, C ≠ C_sched → cmpt_threads C = {[UserThread 0]}) →
   (∀ C, cmpt_shared C = false) →
@@ -870,7 +920,8 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
            W C (fw_thread_csp img 0)) →
   fw_obligations Σ fw.
 Proof.
-  intros Huntrusted Hthreads Hin Hpin Hshared Hsetup. exists cthreads, C_sched.
+  intros Huntrusted Hthreads Hassert_in Hin Hpin Hshared Hsetup.
+  exists cthreads, C_sched.
   split; first exact Hin. split; first exact (Hshared C_sched).
   intros img σ ceriseb sealsg stsg relg cstackg Hok.
   pose proof Hok as (_ & _ & _ & Hwf).
@@ -897,7 +948,8 @@ Proof.
   iDestruct (fw_worlds_join (UserThread 0) with "Hworlds Hlocals") as "Hworlds".
   iDestruct "Hswitcher" as "#Hswitcher".
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
-  iDestruct "Hassert" as "#Hassert".
+  iDestruct (fw_assert_static fw img σ (UserThread 0) Hok Hassert_in with "Hlibs")
+    as "#Hassert".
   (* The export table of the entry compartment *)
   iDestruct (fw_cmpts_res_user_pers with "Hcmpts") as "[Hcmpts #Hpers]";
     [exact Hin_fc | by rewrite Hbody |].

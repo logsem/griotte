@@ -73,7 +73,7 @@ the `.txt` renames and hoists (`rename_offsets`) are left as ordinary
 printer matches them:
 
 - `{"kind": "field", "field": "cmpt_imports", "of": "main"}`: a record
-  projection applied to a variable (`cmpt_*`, `b_*`/`e_*`, `flag_assert`, …).
+  projection applied to a variable (`cmpt_*`, `b_*`/`e_*`, `lib_b`, `sh_b`, …).
 - `{"kind": "reg", "bank": "gpr", "name": "cgp"}`: `reg σ !! r`;
   `"bank": "sreg"` for `sreg σ !! r`; `{"kind": "reg", "bank": "pc"}` for
   `pcc σ`.
@@ -98,6 +98,12 @@ printer matches them:
 {"region": true, "base": Addr, "content": [Piece], "comment": "main, PCC range"}
 {"region": false, "text": "initial_heap_memory", "comment": "heap, zeroed"}
 ```
+
+The viewer reads the owners of the regions off these notes and those of
+`ranges_disjoint`: `"<cmpt>, PCC range"` and so on for a compartment,
+`"<lib>, import table and code"` for a library (an `img_lib` binder, named
+after the library) and `"shared object <name>"` (memory: `"shared object
+<name>, zeroed"`) for a shared object (an `img_shared_object` binder).
 
 `region: true` for `mem_region b ws`. `content` is the word list split on
 `++` and `::`:

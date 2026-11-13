@@ -10,7 +10,9 @@ offset, and each region's constraints. Filters highlight capabilities by
 kind, locality, sealing otype or permission; incoming arrows on hovering a
 region are a setting, off by default. The scheduler's band is hatched like an
 untrusted compartment's (its code and data are arbitrary); the idle thread,
-the boot stack and the time devices (MMIO) have their own bands. The
+the boot stack and the time devices (MMIO) have their own bands. Each
+library (its import table and code) and each shared object is its own
+owner, named after it, with its bands right after the compartments. The
 capabilities a `Forall` statement allows in an arbitrary list (the thread
 handles and time-device capabilities of the scheduler's globals and boot
 stack) show as dotted "may hold" chips, with arrows only on hover or when

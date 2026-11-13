@@ -39,7 +39,8 @@ Section vae_untrusted_entry_obligations.
     { intros C' HC'. rewrite Hthreads; set_solver. }
     apply (fw_obligations_of_untrusted Σ (cthreads := cthreads)
              vae_untrusted_entry_firmware Sched);
-      [exact I | reflexivity | | exact Hthreads | intros C'; reflexivity |].
+      [exact I | reflexivity | apply list_elem_of_here |
+       | exact Hthreads | intros C'; reflexivity |].
     { rewrite /cthreads /fw_cthreads_pinned /=. rewrite decide_True; set_solver. }
     intros img σ ceriseb seal_storeg stsg relg cstackg Hok.
 
@@ -51,7 +52,10 @@ Section vae_untrusted_entry_obligations.
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts
       vae_untrusted_entry_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset]
       in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _ & main_exp_tbl).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.

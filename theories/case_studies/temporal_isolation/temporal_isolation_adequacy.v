@@ -42,9 +42,9 @@ Theorem ti_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (ti_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
+    as (sw & assert & assert_flag & t0 & t1 & idle & boot & K & B & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_ti_CmptNameG) #[]
-            ti_firmware (ti_img sw asrt t0 t1 idle boot K B sched));
+            ti_firmware (ti_img sw assert assert_flag t0 t1 idle boot K B sched));
     [| exact Hfw | exact Hstep].
   apply (ti_fw_obligations (B := ti_adv_B) (Sched := ti_sched)); done.
 Qed.

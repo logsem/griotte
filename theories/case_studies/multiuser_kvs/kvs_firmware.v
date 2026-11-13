@@ -3,7 +3,7 @@ From griotte Require Import
   machine_base griotte_opsem switcher assert allocator_resources compartment_layout.
 (* Exported, so that the code of the case study prints unqualified (tools/prints/). *)
 From griotte Require Export kvs kvs_main.
-From griotte Require Import image firmware firmware_ok initial_state.
+From griotte Require Import image firmware libraries firmware_ok initial_state.
 
 #[local] Open Scope string_scope.
 
@@ -22,7 +22,7 @@ Definition kvs_firmware `{MP : MachineParameters}
     {| fc_name          := "main";
        fc_imports       := [
          ISwitcherCall;
-         IAssert;
+         ILibCall "assert" "assert";
          IExport "B" "f";
          IExport "kvs" "addOrUpdate";
          IExport "kvs" "read";
@@ -47,7 +47,7 @@ Definition kvs_firmware `{MP : MachineParameters}
        fc_imports       := [
          ISwitcherCall;
          FW (SealRange (false, true) Global ot_kvs (ot_kvs ^+ 1) ot_kvs);  (* unseal-only key of [ot_kvs] *)
-         ITryLock
+         ILibCall "locks" "try_lock"
        ];
        fc_static_sealed := [];
        fc_body          := TrustedBody {|
@@ -91,6 +91,13 @@ Definition kvs_firmware `{MP : MachineParameters}
          sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
+  fw_libs       := [
+    assert_lib;
+    try_lock_lib
+  ];
+  fw_shared     := [
+    assert_flag_object
+  ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |};
     {| ft_cmpt := "B";    ft_entry := "adv";   ft_stack_size := 100; ft_tstack_frames := 24 |}
@@ -102,22 +109,25 @@ Definition kvs_firmware `{MP : MachineParameters}
 |}.
 
 (** The image of the KVS firmware, from the records of its sections. *)
-Definition kvs_img (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread)
+Definition kvs_img (sw : img_switcher) (assert locks : img_lib) (assert_flag : img_shared_object)
+    (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack) (main kvs B sched : img_cmpt) : fw_image :=
-  MkFwImage sw asrt lck [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)]
+  MkFwImage sw [("assert", assert); ("locks", locks)] [("assert_flag", assert_flag)]
+    [("main", main); ("kvs", kvs); ("B", B); ("sched", sched)]
     [t0; t1] idle boot.
 
-(** The start of the firmware: some layout and parameters, with the flag of the
-    assert library at [flag] and the lock library at [lck], such that [σ] is
-    the state the loader builds. Two threads: the thread 0 starts in [main],
-    the thread 1 in [B], which both threads may run. *)
+(** The start of the firmware: some layout and parameters, with the assert
+    flag at [flag], such that [σ] is the state the loader builds. Two
+    threads: the thread 0 starts in [main], the thread 1 in [B], which both
+    threads may run. *)
 Definition kvs_start `{MP : MachineParameters} (flag : Addr) (σ : ExecConf) : Prop :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread)
+  ∃ (sw : img_switcher) (assert locks : img_lib) (assert_flag : img_shared_object)
+    (t0 t1 : img_thread)
     (idle : img_idle_thread) (boot : img_boot_stack)
     (main kvs B sched : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
     fw_start [key_main ≠ key_B]
       (kvs_firmware ot_kvs key_main key_B)
-      (kvs_img sw asrt lck t0 t1 idle boot main kvs B sched) flag σ.
+      (kvs_img sw assert locks assert_flag t0 t1 idle boot main kvs B sched) flag σ.
 
 (** The predicate, computed from [kvs_start], with its comments. *)
 Definition kvs_initial_state_ok_annot `{MP : MachineParameters} :

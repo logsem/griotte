@@ -1,6 +1,6 @@
 From stdpp Require Import gmap strings proof_irrel.
 From griotte Require Import machine_base griotte_opsem.
-From griotte Require Import switcher assert allocator_resources compartment_layout.
+From griotte Require Import switcher allocator_resources compartment_layout.
 From griotte Require Import image firmware firmware_ok.
 
 #[local] Open Scope string_scope.
@@ -47,13 +47,15 @@ Section img_state.
                (<[mcause := WInt 0]> (<[mtval := WInt 0]> ∅))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
-      memory of every thread, of the idle thread and of the boot stack. *)
+      memory of every thread, of the idle thread and of the boot stack, the
+      libraries and the shared objects. *)
   Definition img_mem (fw : firmware) (img : fw_image) : Mem :=
     boot_mem img ∪ idle_mem img ∪
     foldr (λ '(i, ft) acc, thread_mem fw img i ft ∪ acc) ∅
       (zip (seq 0 (length (fw_threads fw))) (fw_threads fw)) ∪
     foldr (λ fc acc, cmpt_mem img fc ∪ acc) ∅ (fw_cmpts fw) ∪
-    assert_flag_mem img ∪ assert_code_mem img ∪ big_union (locks_code_mems fw img) ∪
+    foldr (λ l acc, lib_mem fw img l ∪ acc) ∅ (fw_libs fw) ∪
+    foldr (λ o acc, shared_mem img o ∪ acc) ∅ (fw_shared fw) ∪
     switcher_mem fw img ∪
     initial_heap_memory.
 

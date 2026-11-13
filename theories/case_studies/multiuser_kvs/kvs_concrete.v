@@ -67,10 +67,11 @@ Definition kvs_B_adv_word : Z :=
   encode_entry_point InterruptEnabled 0 0 (Z.of_nat kvs_B_adv_entry).
 
 Lemma kvs_demo_ok :
-  kvs_initial_state_ok (flag_assert (img_asrt kvs_demo_image)) kvs_demo_state.
+  kvs_initial_state_ok (img_flag kvs_demo_image) kvs_demo_state.
 Proof.
   rewrite /kvs_initial_state_ok.
-  exists (img_sw kvs_demo_image), (img_asrt kvs_demo_image), (img_lck kvs_demo_image),
+  exists (img_sw kvs_demo_image), (lib_of kvs_demo_image "assert"),
+    (lib_of kvs_demo_image "locks"), (shared_of kvs_demo_image "assert_flag"),
     (thread_of kvs_demo_image 0), (thread_of kvs_demo_image 1),
     (img_idle kvs_demo_image), (img_boot kvs_demo_image),
     (cmpt_of kvs_demo_image "main"), (cmpt_of kvs_demo_image "kvs"), (cmpt_of kvs_demo_image "B"),
@@ -141,7 +142,7 @@ Theorem kvs_runs_and_gracefully_halts :
   ∧ ∃ σ',
       rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], kvs_demo_state)
         ([Instr Halted], σ')
-      ∧ mem σ' !! flag_assert (img_asrt kvs_demo_image) = Some (WInt 0%Z).
+      ∧ mem σ' !! img_flag kvs_demo_image = Some (WInt 0%Z).
 Proof.
   assert (machine_run_irq (pc_at (kvs_irq_addr kvs_demo_image)) (N.to_nat 1000%N)
             kvs_irq_cause (N.to_nat 12000%N) kvs_demo_state = Some Halted)
@@ -333,7 +334,7 @@ Remark kvs_demo_t0_exits :
     ∧ mem σ4 !! kvs_demo_lock_addr = Some (WInt 0%Z)
     ∧ kvs_demo_slot 15 σ4 = [Some (WInt 1%Z); Some (WInt 65537%Z); Some (WInt 12%Z)]
     ∧ kvs_demo_slot 14 σ4 = [Some (WInt 1%Z); Some (WInt 131073%Z); Some (WInt 13%Z)]
-    ∧ mem σ4 !! flag_assert (img_asrt kvs_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ4 !! img_flag kvs_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof kvs_irq_cause_in as Hcause.
   pose proof (machine_run_irq_until_hw_correct
@@ -353,7 +354,7 @@ Proof.
                            = [Some (WInt 1%Z); Some (WInt 65537%Z); Some (WInt 12%Z)]) = true ∧
               bool_decide (kvs_demo_slot 14 σ4
                            = [Some (WInt 1%Z); Some (WInt 131073%Z); Some (WInt 13%Z)]) = true ∧
-              bool_decide (mem σ4 !! flag_assert (img_asrt kvs_demo_image)
+              bool_decide (mem σ4 !! img_flag kvs_demo_image
                            = Some (WInt 0%Z)) = true
           | None => False
           end) as Hσ4 by (vm_compute; split_and!; reflexivity).
@@ -392,7 +393,7 @@ Remark kvs_demo_retry_takes :
        ∧ mem σ6 !! kvs_demo_lock_addr = Some (WInt 0%Z)
        ∧ kvs_demo_slot 15 σ6 = [Some (WInt 1%Z); Some (WInt 65537%Z); Some (WInt 12%Z)]
        ∧ kvs_demo_slot 14 σ6 = [Some (WInt 1%Z); Some (WInt 131073%Z); Some (WInt 13%Z)]
-       ∧ mem σ6 !! flag_assert (img_asrt kvs_demo_image) = Some (WInt 0%Z)).
+       ∧ mem σ6 !! img_flag kvs_demo_image = Some (WInt 0%Z)).
 Proof.
   pose proof kvs_irq_cause_in as Hcause.
   split.
@@ -440,7 +441,7 @@ Proof.
                              = [Some (WInt 1%Z); Some (WInt 65537%Z); Some (WInt 12%Z)]) = true ∧
                 bool_decide (kvs_demo_slot 14 σ6
                              = [Some (WInt 1%Z); Some (WInt 131073%Z); Some (WInt 13%Z)]) = true ∧
-                bool_decide (mem σ6 !! flag_assert (img_asrt kvs_demo_image)
+                bool_decide (mem σ6 !! img_flag kvs_demo_image
                              = Some (WInt 0%Z)) = true
             | None => False
             end) as Hσ6 by (vm_compute; split_and!; reflexivity).

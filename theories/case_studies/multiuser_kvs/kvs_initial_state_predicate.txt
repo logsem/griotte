@@ -1,14 +1,16 @@
 kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
-  ∃ (sw : img_switcher) (asrt : img_assert) (lck : img_locks) (t0 t1 : img_thread) (idle : img_idle_thread)
-      (boot : img_boot_stack) (main kvs B sched : img_cmpt) (ot_kvs : OType) (key_main key_B : Z),
+  ∃ (sw : img_switcher) (assert locks : img_lib) (assert_flag : img_shared_object) (t0 t1 : img_thread)
+      (idle : img_idle_thread) (boot : img_boot_stack) (main kvs B sched : img_cmpt) (ot_kvs : OType)
+      (key_main key_B : Z),
   -- also, in section B (untrusted, B): ∃ (eh_B ehs_B : Z) (off_B_f min_B_f off_B_1 min_B_1 : nat)
-  flag_assert asrt = flag  -- the flag of the assert library
+  sh_b assert_flag = flag  -- the assert flag
 ── Parameters ──────────────────────────────────────────────────────────────
   key_main ≠ key_B
 ── main (trusted) ──────────────────────────────────────────────────────────
   cmpt_imports main =
       [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
-      [1]  (E-Inherit RX, Global, b_assert asrt, e_assert asrt, b_assert asrt)            -- assert
+      [1]  (E-Inherit RX, Global, lib_b assert, lib_e assert, lib_b assert ^+ 2)
+          -- assert, libcall assert
       [2]  { ot_switcher sw,                                                              -- B, export f
              (RO, Global, cmpt_exp_tbl_pcc B, cmpt_exp_tbl_entries_end B, cmpt_exp_tbl_pcc B ^+ ExportTable_offset_entry 0) }
       [3]  { ot_switcher sw,
@@ -32,7 +34,8 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   cmpt_imports kvs =
       [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
       [1]  [U, Global, ot_kvs, ot_kvs ^+ 1, ot_kvs]
-      [2]  (E-FwdDisable RX, Global, b_locks lck, e_locks lck, b_locks lck)               -- try_lock
+      [2]  (E-FwdDisable RX, Global, lib_b locks, lib_e locks, lib_b locks ^+ 1)
+          -- locks, libcall try_lock
   cmpt_static_sealed kvs             = []
   cmpt_code kvs                      = kvs_service_instrs
   cmpt_data kvs                      = kvs_data
@@ -118,12 +121,10 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
              (RWL, Local, img_b_boot_stack boot, img_e_boot_stack boot, img_e_boot_stack boot) ++
                                                                                  -- the boot stack, at its top
            switcher_instrs)
-      ∪ mem_region (b_assert asrt)
-          -- assert, code and flag capability
-          (assert_subroutine_instrs ++
-           [(RW, Global, flag_assert asrt, flag_assert asrt ^+ 1, flag_assert asrt)])
-      ∪ mem_region (flag_assert asrt) [WInt 0]                                 -- assert, flag
-      ∪ mem_region (b_locks lck) locks_try_lock_instrs                         -- locks, code
+      ∪ mem_region (sh_b assert_flag) (replicate 1 (WInt 0))
+          -- shared object assert_flag, zeroed
+      ∪ mem_region (lib_b assert) (lib_words assert)                           -- assert, import table and code
+      ∪ mem_region (lib_b locks) (lib_words locks)                             -- locks, import table and code
       ∪ mem_region (cmpt_b_pcc main) (cmpt_imports main ++ cmpt_code main)     -- main, PCC range
       ∪ mem_region (cmpt_b_cgp main) (cmpt_data main)                          -- main, CGP range
       ∪ mem_region (cmpt_b_static_sealed main) (cmpt_static_sealed main)       -- main, static sealed
@@ -258,21 +259,47 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   mtime_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
   mtimecmp_addr ∉ finz.seq_between (b_switcher sw) (e_switcher sw)
   is_heap_address (e_switcher sw) = false  -- closed bounds outside the heap
+── shared object assert_flag, layout ───────────────────────────────────────
+  sh_b assert_flag + 1%nat = Some (sh_e assert_flag)
+  not_heap_range (sh_b assert_flag) (sh_e assert_flag)
+  disjoint_from_shadow (sh_b assert_flag) (sh_e assert_flag)
+  revoker_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+  mtime_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+  mtimecmp_addr ∉ finz.seq_between (sh_b assert_flag) (sh_e assert_flag)
+── assert (library) ────────────────────────────────────────────────────────
+  lib_words assert =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      [1]  (RW, Global, sh_b assert_flag, sh_e assert_flag, sh_b assert_flag)
+          -- shared object assert_flag
+      ++ assert_subroutine_instrs
 ── assert, layout ──────────────────────────────────────────────────────────
-  b_assert asrt + length assert_subroutine_instrs = Some (cap_assert asrt)
-  cap_assert asrt + 1                             = Some (e_assert asrt)
-  is_Some (flag_assert asrt + 1)                             -- the flag is not the last address
-  not_heap_range (b_assert asrt) (e_assert asrt)
-  disjoint_from_shadow (b_assert asrt) (e_assert asrt)
-  revoker_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  mtime_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  mtimecmp_addr ∉ finz.seq_between (b_assert asrt) (e_assert asrt)
-  is_heap_address (e_assert asrt) = false                    -- closed bounds outside the heap
-  not_heap_range (flag_assert asrt) (flag_assert asrt ^+ 1)  -- flag
-  disjoint_from_shadow (flag_assert asrt) (flag_assert asrt ^+ 1)
-  revoker_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
-  mtime_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
-  mtimecmp_addr ∉ finz.seq_between (flag_assert asrt) (flag_assert asrt ^+ 1)
+  lib_b assert + (2 + length assert_subroutine_instrs)%nat = Some (lib_e assert)
+  not_heap_range (lib_b assert) (lib_e assert)
+  disjoint_from_shadow (lib_b assert) (lib_e assert)
+  revoker_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  mtime_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  mtimecmp_addr ∉ finz.seq_between (lib_b assert) (lib_e assert)
+  is_heap_address (lib_e assert) = false     -- closed bounds outside the heap
+  2 ≤ 2                                      -- export assert in the code
+  (2 < 2 + length assert_subroutine_instrs)%nat
+  Forall (word_rooted ∅) (lib_words assert)  -- no heap capability (no heap root)
+  Forall word_exec_ok (lib_words assert)     -- executable words outside the heap
+── locks (library) ─────────────────────────────────────────────────────────
+  lib_words locks =
+      [0]  (E-FwdDisable XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw)  -- switcher call
+      ++ locks_try_lock_instrs
+── locks, layout ───────────────────────────────────────────────────────────
+  lib_b locks + (1 + length locks_try_lock_instrs)%nat = Some (lib_e locks)
+  not_heap_range (lib_b locks) (lib_e locks)
+  disjoint_from_shadow (lib_b locks) (lib_e locks)
+  revoker_addr ∉ finz.seq_between (lib_b locks) (lib_e locks)
+  mtime_addr ∉ finz.seq_between (lib_b locks) (lib_e locks)
+  mtimecmp_addr ∉ finz.seq_between (lib_b locks) (lib_e locks)
+  is_heap_address (lib_e locks) = false     -- closed bounds outside the heap
+  1 ≤ 1                                     -- export try_lock in the code
+  (1 < 1 + length locks_try_lock_instrs)%nat
+  Forall (word_rooted ∅) (lib_words locks)  -- no heap capability (no heap root)
+  Forall word_exec_ok (lib_words locks)     -- executable words outside the heap
 ── main, layout ────────────────────────────────────────────────────────────
   cmpt_b_pcc main + length (cmpt_imports main)                         = Some (cmpt_a_code main)
   cmpt_a_code main + length (cmpt_code main)                           = Some (cmpt_e_pcc main)
@@ -493,36 +520,38 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
 ── image, layout ───────────────────────────────────────────────────────────
   ranges_disjoint                                                           -- pairwise disjoint
       [00]  [b_switcher sw, e_switcher sw)                                  -- switcher
-      [01]  [b_assert asrt, e_assert asrt)                                  -- assert
-      [02]  [flag_assert asrt, flag_assert asrt ^+ 1)                       -- assert flag
-      [03]  [cmpt_b_pcc main, cmpt_e_pcc main)                              -- main, PCC range
-      [04]  [cmpt_b_cgp main, cmpt_e_cgp main)                              -- main, CGP range
-      [05]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)          -- main, static sealed
-      [06]  [cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main)          -- main, export table
-      [07]  [cmpt_b_pcc kvs, cmpt_e_pcc kvs)                                -- kvs, PCC range
-      [08]  [cmpt_b_cgp kvs, cmpt_e_cgp kvs)                                -- kvs, CGP range
-      [09]  [cmpt_b_static_sealed kvs, cmpt_e_static_sealed kvs)            -- kvs, static sealed
-      [10]  [cmpt_exp_tbl_pcc kvs, cmpt_exp_tbl_entries_end kvs)            -- kvs, export table
-      [11]  [cmpt_b_pcc B, cmpt_e_pcc B)                                    -- B, PCC range
-      [12]  [cmpt_b_cgp B, cmpt_e_cgp B)                                    -- B, CGP range
-      [13]  [cmpt_b_static_sealed B, cmpt_e_static_sealed B)                -- B, static sealed
-      [14]  [cmpt_exp_tbl_pcc B, cmpt_exp_tbl_entries_end B)                -- B, export table
-      [15]  [cmpt_b_pcc sched, cmpt_e_pcc sched)                            -- sched, PCC range
-      [16]  [cmpt_b_cgp sched, cmpt_e_cgp sched)                            -- sched, CGP range
-      [17]  [cmpt_b_static_sealed sched, cmpt_e_static_sealed sched)        -- sched, static sealed
-      [18]  [cmpt_exp_tbl_pcc sched, cmpt_exp_tbl_entries_end sched)        -- sched, export table
-      [19]  [b_trusted_stack t0, e_trusted_stack t0)                        -- thread 0, trusted stack
-      [20]  [b_stack t0, e_stack t0)                                        -- thread 0, stack
-      [21]  [b_hazard t0, e_hazard t0)                                      -- thread 0, hazard slots
-      [22]  [b_trusted_stack t1, e_trusted_stack t1)                        -- thread 1, trusted stack
-      [23]  [b_stack t1, e_stack t1)                                        -- thread 1, stack
-      [24]  [b_hazard t1, e_hazard t1)                                      -- thread 1, hazard slots
-      [25]  [img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle)  -- idle thread, trusted stack
-      [26]  [img_b_idle_hazard idle, img_e_idle_hazard idle)                -- idle thread, hazard slots
-      [27]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
-      [28]  [b_locks lck, e_locks lck)                                      -- locks
+      [01]  [sh_b assert_flag, sh_e assert_flag)                            -- shared object assert_flag
+      [02]  [lib_b assert, lib_e assert)                                    -- assert, import table and code
+      [03]  [lib_b locks, lib_e locks)                                      -- locks, import table and code
+      [04]  [cmpt_b_pcc main, cmpt_e_pcc main)                              -- main, PCC range
+      [05]  [cmpt_b_cgp main, cmpt_e_cgp main)                              -- main, CGP range
+      [06]  [cmpt_b_static_sealed main, cmpt_e_static_sealed main)          -- main, static sealed
+      [07]  [cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main)          -- main, export table
+      [08]  [cmpt_b_pcc kvs, cmpt_e_pcc kvs)                                -- kvs, PCC range
+      [09]  [cmpt_b_cgp kvs, cmpt_e_cgp kvs)                                -- kvs, CGP range
+      [10]  [cmpt_b_static_sealed kvs, cmpt_e_static_sealed kvs)            -- kvs, static sealed
+      [11]  [cmpt_exp_tbl_pcc kvs, cmpt_exp_tbl_entries_end kvs)            -- kvs, export table
+      [12]  [cmpt_b_pcc B, cmpt_e_pcc B)                                    -- B, PCC range
+      [13]  [cmpt_b_cgp B, cmpt_e_cgp B)                                    -- B, CGP range
+      [14]  [cmpt_b_static_sealed B, cmpt_e_static_sealed B)                -- B, static sealed
+      [15]  [cmpt_exp_tbl_pcc B, cmpt_exp_tbl_entries_end B)                -- B, export table
+      [16]  [cmpt_b_pcc sched, cmpt_e_pcc sched)                            -- sched, PCC range
+      [17]  [cmpt_b_cgp sched, cmpt_e_cgp sched)                            -- sched, CGP range
+      [18]  [cmpt_b_static_sealed sched, cmpt_e_static_sealed sched)        -- sched, static sealed
+      [19]  [cmpt_exp_tbl_pcc sched, cmpt_exp_tbl_entries_end sched)        -- sched, export table
+      [20]  [b_trusted_stack t0, e_trusted_stack t0)                        -- thread 0, trusted stack
+      [21]  [b_stack t0, e_stack t0)                                        -- thread 0, stack
+      [22]  [b_hazard t0, e_hazard t0)                                      -- thread 0, hazard slots
+      [23]  [b_trusted_stack t1, e_trusted_stack t1)                        -- thread 1, trusted stack
+      [24]  [b_stack t1, e_stack t1)                                        -- thread 1, stack
+      [25]  [b_hazard t1, e_hazard t1)                                      -- thread 1, hazard slots
+      [26]  [img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle)  -- idle thread, trusted stack
+      [27]  [img_b_idle_hazard idle, img_e_idle_hazard idle)                -- idle thread, hazard slots
+      [28]  [img_b_boot_stack boot, img_e_boot_stack boot)                  -- boot stack
   NoDup [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]                       -- sealing types distinct
   Forall otype_valid [ot_switcher sw; ot_switcher sw ^+ 1; ot_kvs]          -- sealing types valid
+  NoDup ["assert"; "locks"]                                                 -- library names distinct
+  NoDup ["assert_flag"]                                                     -- shared object names distinct
 ── idle thread, layout ─────────────────────────────────────────────────────
   img_b_idle_trusted_stack idle + tstack_frame_offset 1 = Some (img_e_idle_trusted_stack idle)
   not_heap_range (img_b_idle_trusted_stack idle) (img_e_idle_trusted_stack idle)  -- trusted stack
@@ -546,11 +575,3 @@ kvs_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   revoker_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
   mtime_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
   mtimecmp_addr ∉ finz.seq_between (img_b_boot_stack boot) (img_e_boot_stack boot)
-── locks, layout ───────────────────────────────────────────────────────────
-  b_locks lck + length locks_try_lock_instrs = Some (e_locks lck)
-  not_heap_range (b_locks lck) (e_locks lck)
-  disjoint_from_shadow (b_locks lck) (e_locks lck)
-  revoker_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
-  mtime_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
-  mtimecmp_addr ∉ finz.seq_between (b_locks lck) (e_locks lck)
-  is_heap_address (e_locks lck) = false  -- closed bounds outside the heap

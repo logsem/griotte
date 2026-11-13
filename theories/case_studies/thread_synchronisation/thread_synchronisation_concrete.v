@@ -64,10 +64,11 @@ Proof. vm_compute; reflexivity. Qed.
 Definition tsy_demo_state : ExecConf := img_state tsy_firmware tsy_demo_image.
 
 Lemma tsy_demo_ok :
-  tsy_initial_state_ok (flag_assert (img_asrt tsy_demo_image)) tsy_demo_state.
+  tsy_initial_state_ok (img_flag tsy_demo_image) tsy_demo_state.
 Proof.
   rewrite /tsy_initial_state_ok.
-  exists (img_sw tsy_demo_image), (img_asrt tsy_demo_image),
+  exists (img_sw tsy_demo_image), (lib_of tsy_demo_image "assert"),
+    (shared_of tsy_demo_image "assert_flag"),
     (thread_of tsy_demo_image 0), (thread_of tsy_demo_image 1),
     (img_idle tsy_demo_image), (img_boot tsy_demo_image),
     (cmpt_of tsy_demo_image "K"), (cmpt_of tsy_demo_image "B"),
@@ -103,7 +104,7 @@ Qed.
 Theorem tsy_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], tsy_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt tsy_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag tsy_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 20000%N) tsy_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

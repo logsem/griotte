@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants na_invariants.
 From griotte Require Import proofmode rules.
-From griotte Require Import locks.
+From griotte Require Import locks lib_static.
 
 (** * The specifications of the lock library
 
@@ -56,12 +56,24 @@ Section locks_spec.
     {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
     {LK : locksLayout}.
 
-  (** The code of the library, persistent and thread-free. *)
+  (** The static part of the library: its import table, the switcher slot
+      only, and its code; persistent and thread-free. *)
   Definition lock_static : iProp Σ :=
-    ⌜ (b_locks + length locks_try_lock_instrs)%a = Some e_locks ⌝ ∗
-    codefrag_pers b_locks locks_try_lock_instrs.
+    lib_static b_locks e_locks [] locks_try_lock_instrs.
   #[global] Instance lock_static_persistent : Persistent lock_static.
   Proof. apply _. Qed.
+
+  (** The persistent region of the library, its switcher slot holding
+      [w_sw], is its static part. *)
+  Lemma lock_static_of_region (w_sw : Word) :
+    is_heap_address b_locks = false →
+    (b_locks + Z.of_nat (1 + length locks_try_lock_instrs))%a = Some e_locks →
+    [[ b_locks , e_locks ]] ↦ₐ□ [[ lword_of_word <$> (w_sw :: locks_try_lock_instrs) ]] -∗
+    lock_static.
+  Proof.
+    iIntros (Hheap He) "Hreg".
+    by iApply (lib_static_of_region _ _ w_sw [] with "Hreg").
+  Qed.
 
   (** [try_lock] on a lock of the pool, entered at InterruptDisabled from a
       call through its sentry. *)
@@ -75,7 +87,7 @@ Section locks_spec.
     th ≠ CtxSwitch →
     lock_static ∗
     lock_inv N ℓ R ∗
-    PC ↦ₚ[th] Cap RX Global b_locks e_locks b_locks ∗
+    PC ↦ₚ[th] Cap RX Global b_locks e_locks (b_locks ^+ 1)%a ∗
     ct0 ↦ᵣ[th] Cap p g b e ℓ ∗
     ct1 ↦ᵣ[th] wct1 ∗
     cra ↦ᵣ[th] wret ∗
@@ -93,14 +105,16 @@ Section locks_spec.
   Proof.
     iIntros (Hra Hwa Hbounds Hshadow Htgt Hth)
       "(#Hstatic & #Hinv & HPC & Hct0 & Hct1 & Hcra & HMIE & Hheld & Hpost)".
-    iDestruct "Hstatic" as "[%Hsize Hcode]".
+    iDestruct "Hstatic" as "(_ & %Hsize & _ & _ & Hcode)".
+    change (Z.of_nat (S (length (@nil Word)))) with 1%Z.
     (* The critical-section token, out of the posture; the lock's cell *)
     rewrite held_disabled. iDestruct "Hheld" as "[Hho Hpart]".
     iDestruct (handover_res_crit with "Hho") as "[Hcrit Hho]".
     iMod (na_inv_acc with "Hinv Hcrit") as "(Hlock & Hcrit & Hclose)"; [done | done |].
     iDestruct "Hlock" as (z) "[>Hl HR]".
     rewrite /locks_try_lock_instrs. codefrag_facts "Hcode".
-    assert (SubBounds b_locks e_locks b_locks (b_locks ^+ length (encodeInstrsW locks_try_lock)))
+    assert (SubBounds b_locks e_locks (b_locks ^+ 1)
+              (b_locks ^+ 1 ^+ length (encodeInstrsW locks_try_lock)))
       as Hsub by (rewrite /locks_try_lock_instrs in Hsize; solve_addr).
     (* CLoad ct1 ct0. *)
     iInstr "Hcode".
@@ -143,3 +157,13 @@ Section locks_spec.
       iApply "Hpost". iFrame "HPC Hct1 Hcra HMIE Hheld". iRight. iFrame "Hct0".
   Qed.
 End locks_spec.
+
+Section lock_static_thread_indep.
+  Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
+    {LK : locksLayout}.
+
+  (** The static part of the lock library is the same at any two threads. *)
+  Lemma lock_static_thread_indep (t t' : Thread) :
+    lock_static (th := t) ⊣⊢ lock_static (th := t').
+  Proof. by rewrite /lock_static (lib_static_thread_indep t t'). Qed.
+End lock_static_thread_indep.

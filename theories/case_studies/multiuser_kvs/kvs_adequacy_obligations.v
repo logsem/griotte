@@ -24,6 +24,10 @@ Section kvs_obligations.
   Context {cname : CmptNameG} {B Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] or [lock_static] must not unfold them: their
+     library code would be computed. *)
+  #[local] Typeclasses Opaque assert_static lock_static.
+
   (** The threads of the compartments: the context-switch thread in the
       scheduler's [Sched]; both user threads in [B], in shared mode. *)
   Definition kvs_cthreads : CmptThreads := {|
@@ -71,7 +75,11 @@ Section kvs_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts kvs_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb] in Hok_main, Hok_kvs, Hok_B.
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib libraries.try_lock_lib assert_entry_offset try_lock_entry_offset]
+      in Hok_main, Hok_kvs, Hok_B.
     destruct Hok_main as (main_imports & main_static_sealed & main_code & main_data & _).
     destruct Hok_kvs as (kvs_imports & _ & kvs_code & kvs_data & _ & kvs_exp_tbl).
     destruct Hok_B as (B_imports & B_static_sealed & _).
@@ -91,11 +99,11 @@ Section kvs_obligations.
     (* 2 - The layout of the lock library, imported by the KVS: outside
        the heap *)
     set (lkl := fw_locks_layout img).
-    assert (fw_uses_try_lock (kvs_firmware ot_kvs key_main key_B) ≠ []) as Huse_lock
-      by (rewrite /fw_uses_try_lock /=; done).
+    assert (libraries.try_lock_lib ∈ fw_libs (kvs_firmware ot_kvs key_main key_B)) as Hlock_in
+      by (apply list_elem_of_further, list_elem_of_here).
     assert (is_heap_address (@b_locks lkl) = false) as Hlocks_heap.
     { pose proof Hok as (_ & _ & _ & Hwf_img).
-      exact (proj1 (ill_not_heap _ (img_wf_locks_layout _ _ Hwf_img Huse_lock))). }
+      by destruct (img_wf_lib_inv _ _ _ Hwf_img Hlock_in) as (_ & _ & Hheap & _). }
 
     (* 3 - The layout of the KVS *)
     pose (kvsl := @mkKvsLayout ot_kvs
@@ -166,7 +174,7 @@ Section kvs_obligations.
               kvs_main_imports (cmpt_b_static_sealed main_cmpt)
                 switcher.b_switcher switcher.e_switcher switcher.a_switcher_call
                 switcher.ot_switcher
-                (image.b_assert (img_asrt img)) (image.e_assert (img_asrt img)) B_f)
+                (lib_b (lib_of img "assert")) (lib_e (lib_of img "assert")) B_f)
       as main_imports'.
     { rewrite main_imports /kvs_main_imports /KVS_addOrUpdate /KVS_read /KVS_erase
         /kvs_user_seal_key /kvs_user_seal_key_scap.
@@ -185,6 +193,9 @@ Section kvs_obligations.
 
     (* 6 - The shared resources *)
     iIntros "Hshared". iNamed "Hshared".
+    iDestruct "Hlibs" as "#Hlibs".
+    iDestruct (fw_assert_static (kvs_firmware ot_kvs key_main key_B) img σ (UserThread 0) Hok
+                 ltac:(apply list_elem_of_here) with "Hlibs") as "#Hassert".
     iDestruct "Hswitcher_static" as "#Hswitcher_static".
     iDestruct (fw_switcher_threads (cthreads := cthreads) (kvs_firmware ot_kvs key_main key_B) img B
                 with "Hswitcher_static Hswitcher_tstacks")
@@ -197,7 +208,7 @@ Section kvs_obligations.
     iDestruct "Hswitcher_static" as "[#Hswitcher_static #Hstatic1]".
     iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
     iDestruct (fw_lock_static (kvs_firmware ot_kvs key_main key_B) img σ (UserThread 0)
-                 Hok Huse_lock with "Hlocks") as "#Hlock_static".
+                 Hok Hlock_in with "Hlibs") as "#Hlock_static".
     iEval (cbv [kvs_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;
            cbv [fw_cmpt_res_user fc_body]) in "Hcmpts".
     iDestruct "Hcmpts"

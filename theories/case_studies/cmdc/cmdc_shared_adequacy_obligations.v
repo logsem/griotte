@@ -21,6 +21,10 @@ Section cmdc_shared_obligations.
   Context {cname : CmptNameG} {B C Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] must not unfold it: its library code would be
+     computed. *)
+  #[local] Typeclasses Opaque assert_static.
+
   (** The threads of the compartments: the context-switch thread in the
       scheduler's [Sched]; both user threads in [C], in shared mode; the
       user thread 0 in the others. *)
@@ -77,7 +81,10 @@ Section cmdc_shared_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts cmdc_shared_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset]
       in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
@@ -112,6 +119,11 @@ Section cmdc_shared_obligations.
     (* 3 - The outer update: C opened on its map of Permanent regions, which
        goes into its invariant *)
     iIntros "Hshared". iNamed "Hshared".
+    iDestruct (fw_assert_static cmdc_shared_firmware img σ (UserThread 0) Hok ltac:(apply list_elem_of_here)
+                with "Hlibs") as "#Hassert_lib".
+    iAssert (assert_static (ceriseg := ceriseG_of (UserThread 0))
+               (@b_assert asl) (@e_assert asl) (@a_flag asl)) as "#Hassert";
+      first iExact "Hassert_lib".
     iDestruct "Hswitcher_static" as "#Hswitcher_static".
     iDestruct (fw_switcher_threads (cthreads := cthreads) cmdc_shared_firmware img C
                 with "Hswitcher_static Hswitcher_tstacks")
