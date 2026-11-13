@@ -172,6 +172,9 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
 - `erasure.v`: The erasure invariant relating the logical registers and memory
   to the physical machine state.
 
+- `capability_monotonicity.v`: The words an instruction may write (`⊑`,
+  `derivable`), on logical words too, and their lifting through the erasure.
+
 - `resources.v`: The ghost state of the machine (PC, system registers) and the
   points-to notations.
 
@@ -338,8 +341,6 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
     `ftlr_mem_access.v`: the memory shape.
   - `ftlr_dispatch.v`: the classification, which gives every instruction a
     shape; only `Jalr.v` and `Ecall.v` are dedicated cases.
-  - `capability_monotonicity.v`: the words an instruction may write (`⊑`,
-    `derivable`), on logical words too.
   - `ftlr_contract.v`: the contract a case proves; `ftlr_base.v`: the WP at
     the core link where the cases run; `ftlr_step.v`: one step of the theorem
     from a safe PC.
