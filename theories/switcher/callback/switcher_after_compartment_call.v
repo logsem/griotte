@@ -104,9 +104,7 @@ Section Switcher_After_Compartment_Call.
     rewrite (_ : (a_block ^+ 1) ^+ 3%nat = a_block ^+ 4); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    { rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Mov ct0 TrustedStack_offset_frames *)
     iInstr "Hcode".
@@ -122,12 +120,10 @@ Section Switcher_After_Compartment_Call.
     iInstr "Hcode".
     (* CLoad csp ct1 TrustedStackFrame_offset_csp *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    { rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Store ctp ct2 TrustedStack_offset_frameoffset *)
     iInstr "Hcode" with "Hlc".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     assert (tstack_frame_offset (S d) = tstack_frameoffset d) as Hpopped
@@ -198,9 +194,7 @@ Section Switcher_After_Compartment_Call.
     rewrite (_ : (a_block ^+ 1) ^+ 3%nat = a_block ^+ 4); last solve_addr.
     (* CLoad ct2 ctp TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    { rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Mov ct0 TrustedStack_offset_frames *)
     iInstr "Hcode".

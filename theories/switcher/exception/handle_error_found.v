@@ -111,8 +111,6 @@ Section Handle_Error_Found.
     switcher_hide "Hpost" as hpost.
     (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
     iInstr "Hcode".
-    { done. }
-    { done. }
     rewrite lload_word_RWL.
     (* Add cs1 cs1 1 *)
     iInstr "Hcode".

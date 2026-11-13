@@ -116,9 +116,6 @@ Section ctx_resume.
     { instantiate (1 := b_switcher). switcher_addr_eq. }
     (* CLoad csp csp 0 *)
     iInstr "Hcode".
-    { pose proof (switcher_data_not_shadow 0 ltac:(lia)) as Hs.
-      by rewrite finz_add_0_default in Hs. }
-    { done. }
     assert (∀ w : LWord, lload_word XSRW_ w = w) as Hload.
     { intros [w π]. rewrite /lload_word /lift_word /= load_word_no_dl_dro //. }
     iEval (rewrite Hload) in "Hcsp".

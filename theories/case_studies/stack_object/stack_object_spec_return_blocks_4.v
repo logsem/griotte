@@ -79,10 +79,7 @@ Section SO_Return_Blocks_4.
     iHide "Hcont" as hcont.
     (* CLoad ct0 csp 1 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
-      rewrite /withinBounds; solve_addr+Hastk2 Hastk1 Hcsp_b. }
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr+Hastk2 Hastk1 Hcsp_b. }
+    { rewrite /withinBounds. solve_addr+Hastk2 Hastk1 Hcsp_b. }
     (* Lea csp csp 2 *)
     iInstr "Hcode".
     { transitivity (Some (stk_start_a csp_b csp_e)); auto.

@@ -122,15 +122,9 @@ Section AllocatorFreeCheckBlocks2.
     (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfold lword_of_word.
-    iPoseProof deref_res_none as "-#Hderef".
     (* CLoad ct0 cgp. *)
-    iInstrApply "Hcode" wp_load_success_exact
-      with "[$HPC $Hct0 $Hcgp $Hslot $Hderef]"
-      as "(HPC & Hct0 & Hcgp & Hslot & _)".
-    { apply allocator_cgp_not_shadow. }
-    { intros _. left. apply allocator_heap_root_authority. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetB ct1 ca1. *)
@@ -308,15 +302,9 @@ Section AllocatorFreeCheckBlocks2.
     (* Jne .free_invalid ca3 0. *)
     iInstr "Hcode".
     unfold lword_of_word.
-    iPoseProof deref_res_none as "-#Hderef".
     (* CLoad ct0 cgp. *)
-    iInstrApply "Hcode" wp_load_success_exact
-      with "[$HPC $Hct0 $Hcgp $Hslot $Hderef]"
-      as "(HPC & Hct0 & Hcgp & Hslot & _)".
-    { apply allocator_cgp_not_shadow. }
-    { intros _. left. apply allocator_heap_root_authority. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetB ct1 ca1. *)

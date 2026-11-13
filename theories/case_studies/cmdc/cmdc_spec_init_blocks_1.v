@@ -62,7 +62,6 @@ Section CMDC_Init_Blocks_1.
     iInstr "Hcode".
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
-    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".
@@ -71,7 +70,6 @@ Section CMDC_Init_Blocks_1.
     { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
-    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* GetA ct0 ca0 *)
     iInstr "Hcode".

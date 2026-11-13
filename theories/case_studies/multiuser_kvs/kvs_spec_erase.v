@@ -286,8 +286,6 @@ Section KVS_spec_erase.
       { apply nonZero_WInt; injection; intros; lia. }
       (* store cgp ASM_NONE; *)
       iInstr "Hcode".
-      { eapply disjoint_from_shadow_not_in; first exact Htable_shadow.
-        clear -Hcgp_idx Hlock_addr. rewrite /withinBounds in Hcgp_idx |- *. solve_addr. }
       { clear -Hcgp_idx Hlock_addr. rewrite /withinBounds in Hcgp_idx |- *. solve_addr. }
       iDestruct (is_physical_kvs_open_wf with "HPKVS") as "[%_ %Hnodup_pkvs_keys]".
       iDestruct (kvs_physical_map_close_delete with "[$HPKVS] [Hcgp_opt Hcgp_key Hcgp_val]")

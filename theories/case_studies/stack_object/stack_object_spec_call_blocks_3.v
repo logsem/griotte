@@ -114,8 +114,6 @@ Section SO_Call_Blocks_3.
     iInstr "Hcode".
     (* Store csp so_secret 0 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
-      rewrite /withinBounds; solve_addr+Hstk_size Hstart Hastk1. }
     { rewrite /withinBounds; solve_addr+Hstk_size Hstart Hastk1. }
     (* Lea csp csp (-1) *)
     iInstr "Hcode".
@@ -132,8 +130,6 @@ Section SO_Call_Blocks_3.
     { solve_addr+Hastk2. }
     (* Store ca1 0 0 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hstk_shadow|].
-      rewrite /withinBounds; solve_addr+Hstk_size Hstart Hastk1 Hastk2. }
     { solve_addr+Hstk_size Hstart Hastk1 Hastk2. }
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".
 

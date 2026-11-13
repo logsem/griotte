@@ -116,7 +116,6 @@ Section Switch_Entry_First_Spill.
 
     (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Lea csp csp (- SpillSlot_size) *)
     iInstr "Hcode".
@@ -125,15 +124,12 @@ Section Switch_Entry_First_Spill.
     assert (((a_stk ^+ - (4)) + 3)%a = Some ((a_stk ^+ - (4)) ^+ 3)) as Ha3 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Store csp cgp SpillSlot_cgp *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     (* Store csp cra SpillSlot_pcc *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     repeat rewrite lstore_word_isWL; try reflexivity.
     switcher_change_pc_label ".Lswitch_trusted_stack_load".
@@ -236,7 +232,6 @@ Section Switch_Entry_First_Spill.
       [solve_addr..|].
     (* Store csp cs0 (SpillSlot_cs0 - SpillSlot_size) *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     (* Lea csp csp (- SpillSlot_size) *)
@@ -256,7 +251,6 @@ Section Switch_Entry_First_Spill.
     assert (((a ^+ - (4)) + 1)%a = Some ((a ^+ - (4)) ^+ 1)) as Ha1 by solve_addr.
     (* Store csp cs1 SpillSlot_cs1 *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     destruct (decide (e = (a ^+ - (4)) ^+ 2)%a) as [He2 | He2].
@@ -277,7 +271,6 @@ Section Switch_Entry_First_Spill.
     assert (((a ^+ - (4)) + 3)%a = Some e) as Ha_e by solve_addr.
     (* Store csp cgp SpillSlot_cgp *)
     iInstr "Hcode".
-    { stk_not_shadow Hstk_mmio. }
     { rewrite /withinBounds. solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     (* Store csp cra SpillSlot_pcc *)

@@ -203,9 +203,7 @@ Section Handle_Error_Install_Context.
       by (subst a_frameoffset; tstack_unfold; solve_addr).
     (* CLoad ctp ct1 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { subst a_frameoffset; tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
+    { subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Add ctp ctp (- TrustedStackFrame_size) *)
     iInstr "Hcode".
@@ -408,15 +406,12 @@ Section Handle_Error_Install_Context.
           as Ha_cnt by (subst a_cnt_cell; tstack_unfold; solve_addr).
         (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
         iInstr "Hcode".
-        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
-        { done. }
-        { split; auto. subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
+        { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
         rewrite lload_word_RWL.
         (* Add cs1 cs1 1 *)
         iInstr "Hcode".
         (* Store ctp cs1 TrustedStackFrame_offset_errorHandlerCount *)
         iInstr "Hcode".
-        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
         { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
         iEval (rewrite lstore_word_isWL //) in "Hcnt".
         (* Mov csp ct1 *)

@@ -196,16 +196,10 @@ Section Handle_Error_Stack_Oob.
       iInstr "Hcode".
       (* SetA ct1 ct1 cs0 *)
       iInstr "Hcode".
+      assert ((b_tbl + off_eh)%a = Some (b_tbl ^+ off_eh)) as Heh_addr by solve_addr.
       (* CLoad cs0 ct1 off_eh *)
-      iInstrApply "Hcode"
-        (wp_load_success_notinstr_imm _ cs0 ct1 _ _ _ _ _ _ _ _ _ _ _ _ _ _
-           (b_tbl ^+ off_eh) _ _ _ _ _ 1%Qp)
-        with "[$HPC $Hcs0 $Hct1 $Heh]" as "(HPC & Hcs0 & Hct1 & _)".
-      { eapply disjoint_from_shadow_not_in; [exact Hshadow | rewrite /withinBounds; solve_addr]. }
-      { done. }
-      { split; first done. rewrite /withinBounds; solve_addr. }
-      { solve_addr. }
-      { iApply deref_res_none. }
+      iInstr "Hcode".
+      { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[_ Hpost]".
       iEval (rewrite /lload_word /lift_word /= load_word_int) in "Hcs0".
       iApply ("Hpost" $! p g e a). iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcell". done.

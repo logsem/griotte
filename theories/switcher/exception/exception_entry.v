@@ -177,26 +177,26 @@ Section Exception_Entry.
     switcher_set_pc (a_rejoin ^+ 2%nat)%a.
     pose proof (Hts_k 2 ltac:(lia)) as Hts_2.
     (* Store csp ct1 2 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     iEval (rewrite -!(vcsr_frag_pointsto (ceriseg := ceriseG_of th))) in "Hmepcc Hmcause".
     (* SpecialRW ct0 mepcc cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hct0 $Hmepcc]" as "(HPC & Hct0 & Hmepcc)".
     assert ((@b_trusted_stack (tlayout_of o) + 0)%a = Some (@b_trusted_stack (tlayout_of o)))
       as Hts_0 by solve_addr.
     (* Store csp ct0 0 *)
-    iInstr "Hcode"; [tstk_not_shadow Hts_shadow | rewrite /withinBounds; tstack_unfold; solve_addr |].
+    iInstr "Hcode"; [rewrite /withinBounds; tstack_unfold; solve_addr |].
     (* SpecialRW ct1 mstatus cnull *)
     iInstrApply "Hcode" (wp_csrr_mstatus_frag _ _ _ _ _ _ _ _ _ _ _ InterruptDisabled b)
       with "[$HPC $Hct1 $Hmie $Hmpie]" as "(HPC & Hct1 & Hmie & Hmpie)".
     pose proof (Hts_k 17 ltac:(lia)) as Hts_17.
     (* Store csp ct1 17 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     (* SpecialRW ct1 mcause cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hct1 $Hmcause]" as "(HPC & Hct1 & Hmcause)".
     iEval (rewrite !vcsr_frag_pointsto) in "Hmepcc Hmcause".
     pose proof (Hts_k 18 ltac:(lia)) as Hts_18.
     (* Store csp ct1 18 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     repeat rewrite lstore_word_isWL; try reflexivity.
     switcher_change_pc_label ".Lexception_might_handle".
     subst hpost; iApply "Hpost".

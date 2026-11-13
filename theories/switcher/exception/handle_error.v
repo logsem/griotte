@@ -153,9 +153,7 @@ Section Handle_Error.
         by (subst a_frameoffset; tstack_unfold; solve_addr).
       (* CLoad ctp csp TrustedStack_offset_frameoffset *)
       iInstr "Hcode".
-      { subst a_frameoffset; tstk_not_shadow Hts_shadow. }
-      { done. }
-      { split; auto. subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
+      { subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
       rewrite lload_word_RWL.
       (* Mov ct1 TrustedStack_offset_frames *)
       iInstr "Hcode".
@@ -259,11 +257,9 @@ Section Handle_Error.
         by (rewrite /TrustedStack_offset_ca1; tstack_unfold; solve_addr).
       (* Store csp ca0 TrustedStack_offset_ca0 *)
       iInstr "Hcode".
-      { rewrite /TrustedStack_offset_ca0; tstk_not_shadow Hts_shadow. }
       { rewrite /withinBounds /TrustedStack_offset_ca0; tstack_unfold; solve_addr. }
       (* Store csp ca1 TrustedStack_offset_ca1 *)
       iInstr "Hcode".
-      { rewrite /TrustedStack_offset_ca1; tstk_not_shadow Hts_shadow. }
       { rewrite /withinBounds /TrustedStack_offset_ca1; tstack_unfold; solve_addr. }
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".

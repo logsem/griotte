@@ -75,14 +75,12 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
-    { done. }
     { rewrite /UNSEALING_USER_KEY_OFFSET in Hoff |- *; solve_addr. }
     (* UnSeal rdst rdst rsealkey. *)
     iInstr "Hcode"; try done.
     { rewrite /withinBounds; pose proof KVS_OTYPE_size; solve_addr. }
     (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
-    { done. }
     (* LShiftL rdst rdst 16. *)
     iInstr "Hcode".
     (* LOr rdst rdst rkey. *)
@@ -135,7 +133,6 @@ Section KVS_getFullKey.
     iInstr "Hcode".
     (* CLoad rdst rdst 0. *)
     iInstr "Hcode".
-    { done. }
     { rewrite /UNSEALING_USER_KEY_OFFSET in Hoff |- *; solve_addr. }
     (* UnSeal rdst rdst rsealkey. *)
     iInstr_lookup "Hcode" as "Hi" "Hcode".

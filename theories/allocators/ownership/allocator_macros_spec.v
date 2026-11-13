@@ -131,7 +131,6 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
-    { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     (* UnSeal ctp ctp ca0. *)
     iInstr "Hcode".
@@ -139,7 +138,6 @@ Section AllocatorOwnerMacro.
     { apply withinBounds_true_iff; solve_addr. }
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
-    { done. }
     { apply withinBounds_true_iff; solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     iApply "Hφ". iFrame "∗ Hkey Hcode".
@@ -183,7 +181,6 @@ Section AllocatorOwnerMacro.
     iInstr "Hcode".
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
-    { done. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     (* UnSeal ctp ctp ca0. *)
     iInstr "Hcode" using unseal_next_ok.

@@ -149,12 +149,8 @@ Section CopyContextMacro.
     { lia. }
     { done. }
     - (* Store dst scratch 0 *)
-      iInstrApply "Hcode"
-        (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-        with "[$HPC $Hscratch $Hdst $Hcell $Hderef]"
-        as "(HPC & Hscratch & Hdst & Hcell & Hderef)".
+      iInstr "Hcode".
       { rewrite /withinBounds; solve_addr. }
-      { solve_addr. }
       rewrite -(list_lookup_total_correct _ _ _ Hwi).
       iMod ("Hclose" with "Hcell Hderef") as "HD".
       rewrite (list_lookup_total_correct _ _ _ Hwi).
@@ -344,15 +340,9 @@ Section CopyContextMacro.
     { iIntros (v') "HPC Hscratch Hsrc HL".
       destruct (lookup_lt_is_Some_2 wd i) as [wi Hwi]; first lia.
       iDestruct (big_sepL_insert_acc _ _ i with "Hwd") as "[Hwi Hwd]"; first exact Hwi.
-      iPoseProof deref_res_none as "Hderef".
       (* Store dst scratch 0 *)
-      iInstrApply "Hcode"
-        (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-        with "[$HPC $Hscratch $Hdst $Hwi $Hderef]"
-        as "(HPC & Hscratch & Hdst & Hwi & _)".
-      { eapply disjoint_from_shadow_not_in; [exact Hshadow_d | rewrite /withinBounds; solve_addr]. }
+      iInstr "Hcode".
       { rewrite /withinBounds; solve_addr. }
-      { solve_addr. }
       iDestruct ("Hwd" with "Hwi") as "Hwd".
       (* Add counter counter (-1) *)
       iInstr "Hcode".

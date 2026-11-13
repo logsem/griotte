@@ -191,20 +191,17 @@ Section Switch_Unseal_Entry.
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LShiftR cs0 cs0 ExportEntry_functionStart_shift *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.
     (* Store ctp ct1 TrustedStackFrame_offset_calleeExportTable *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LShiftR ctp ctp ExportEntry_minimumStackSize_shift *)
     iInstr "Hcode".
     (* LAnd ctp ctp ExportEntry_byte_mask *)
@@ -234,8 +231,7 @@ Section Switch_Unseal_Entry.
       clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_flags.
@@ -254,10 +250,10 @@ Section Switch_Unseal_Entry.
     assert ((b_tbl + ExportTable_offset_pcc)%a = Some b_tbl) as Htbl_pcc_addr by solve_addr.
     (* CLoad cgp ct1 ExportTable_offset_cgp *)
     iInstr "Hcode_load".
-    { split; auto. rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
     (* CLoad cra ct1 ExportTable_offset_pcc *)
     iInstr "Hcode_load".
-    { split; auto. rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
     destruct Hentry as [a_entry Hentry].
     (* Lea cra cra cs0 *)
     iInstr "Hcode_load".

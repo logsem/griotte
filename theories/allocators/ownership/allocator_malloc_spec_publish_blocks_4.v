@@ -68,7 +68,6 @@ Section AllocatorMallocPublishBlocks4.
     iInstr "Hcode".
     (* Store cgp ct0. *)
     iInstr "Hcode".
-    { apply allocator_cgp_not_shadow. }
     { apply withinBounds_true_iff. solve_addr. }
     (* Mov ca0 ca4. *)
     iInstr "Hcode".

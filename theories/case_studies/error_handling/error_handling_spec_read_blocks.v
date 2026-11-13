@@ -58,8 +58,7 @@ Section Error_Handling_Read_Blocks.
     iHide "Hcont" as hcont.
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
-    { reflexivity. }
-    { split; first done. apply withinBounds_true_iff; solve_addr. }
+    { apply withinBounds_true_iff; solve_addr. }
     iEval (rewrite /lload_word /lift_word /load_word /=) in "Hct0".
     (* Jne .Lread_busy ct0 0 *)
     iInstr "Hcode".

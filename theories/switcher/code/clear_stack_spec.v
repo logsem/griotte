@@ -61,8 +61,6 @@ Section ClearStackMacro.
     iDestruct "Hstack" as "[Ha Hstack]".
     (* Store rbase 0 0 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hdisjoint.
-      apply withinBounds_true_iff; solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     (* Lea rbase rbase 1 *)
     iInstr "Hcode".

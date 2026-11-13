@@ -104,8 +104,6 @@ Section locks_spec.
       as Hsub by (rewrite /locks_try_lock_instrs in Hsize; solve_addr).
     (* CLoad ct1 ct0. *)
     iInstr "Hcode".
-    { done. }
-    { by split. }
     iEval (rewrite /lload_word /lift_word /= load_word_int) in "Hct1".
     destruct (decide (z = 0)) as [->|Hz].
     - (* Jne try_lock_busy ct1 0. *)

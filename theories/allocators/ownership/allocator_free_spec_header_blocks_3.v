@@ -110,8 +110,6 @@ Section AllocatorFreeHeaderBlocks3.
       rewrite /allocator_shadow_import_off. offsets_compute; solve_addr. }
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hpc_shadow.
-      apply withinBounds_true_iff. offsets_compute; solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     iEval (cbn [load_word]) in "Hctp".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -200,16 +198,9 @@ Section AllocatorFreeHeaderBlocks3.
     (* Lea ca4 ca4 ca3. *)
     iInstr "Hcode".
     { transitivity (Some (b ^+ -3)); solve_addr. }
-    iPoseProof deref_res_none as "-#Hdw".
     (* CLoad ca2 ca4: the recorded end. *)
-    iInstrApply "Hcode" (wp_load_success_notinstr _ ca2 ca4)
-      with "[$HPC $Hca2 $Hct4 $Hhdr $Hdw]"
-      as "(HPC & Hca2 & Hct4 & Hhdr & _)".
-    { eapply (disjoint_from_shadow_not_in heap_b heap_e (b ^+ -3));
-        first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff. solve_addr. }
-    { reflexivity. }
-    { split; first done. apply withinBounds_true_iff. solve_addr. }
+    iInstr "Hcode".
+    { apply withinBounds_true_iff. solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hca2".
     (* Sub ca3 ca2 ct2. *)
     iInstr "Hcode".
@@ -217,17 +208,10 @@ Section AllocatorFreeHeaderBlocks3.
     - rewrite Z.sub_diag.
       (* Jne .free_invalid ca3 0. *)
       iInstr "Hcode".
-      iPoseProof deref_res_none as "-#Hdw".
+      assert ((b ^+ -3 + 1)%a = Some ((b ^+ -3) ^+ 1)) as Hown_addr by solve_addr.
       (* CLoad ca3 ca4 1: the recorded owner. *)
-      iInstrApply "Hcode" (wp_load_success_notinstr_imm _ ca3 ca4)
-        with "[$HPC $Hct3 $Hct4 $Hown $Hdw]"
-        as "(HPC & Hct3 & Hct4 & Hown & _)".
-      { eapply (disjoint_from_shadow_not_in heap_b heap_e ((b ^+ -3) ^+ 1));
-          first exact heap_shadow_disjoint.
-        apply withinBounds_true_iff. solve_addr. }
-      { reflexivity. }
-      { split; first done. apply withinBounds_true_iff. solve_addr. }
-      { solve_addr. }
+      iInstr "Hcode".
+      { apply withinBounds_true_iff. solve_addr. }
       iEval (rewrite /lload_word /lift_word /=) in "Hct3".
       (* Sub ca3 ca3 ca0. *)
       iInstr "Hcode".
@@ -243,9 +227,6 @@ Section AllocatorFreeHeaderBlocks3.
           rewrite /allocator_revoker_import_off. offsets_compute; solve_addr. }
         (* CLoad ca3 ca3 0. *)
         iInstr "Hcode".
-        { eapply disjoint_from_shadow_not_in; first exact Hpc_shadow.
-          apply withinBounds_true_iff. rewrite /allocator_revoker_import_off.
-          offsets_compute; solve_addr. }
         { apply withinBounds_true_iff. rewrite /allocator_revoker_import_off.
           offsets_compute; solve_addr. }
         iEval (rewrite /lload_word /lift_word /=) in "Hct3".

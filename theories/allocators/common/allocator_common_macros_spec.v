@@ -126,12 +126,8 @@ Section AllocatorMacros.
     iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
     (* Store rptr 0: the status witness of the capability's identifier
        keeps its copy exact. *)
-    iInstrApply "Hcode" wp_store_success_z_imm with "[$HPC $Hptr $Ha $Hdw]"
-      as "(HPC & Hptr & Ha & Hdw)".
-    { eapply disjoint_from_shadow_not_in; first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff; solve_addr. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff; solve_addr. }
-    { solve_addr. }
     iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
 
     (* Lea rptr rptr 1 advances the heap cursor. *)

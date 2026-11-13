@@ -82,9 +82,10 @@ Section VAE_Awkward_Blocks_2.
     iAssert (cgp_b ↦ₐ (if b then WInt 1 else WInt 0))%I with "[Hflag]" as "Hflag".
     { destruct b; iFrame. }
     iPoseProof deref_res_none as "-#Hdw".
-    iInstrApply wp_store_success_z with "[$HPC $Hcgp $Hflag $Hdw]"
+    iInstrApply wp_store_success_z_imm with "[$HPC $Hcgp $Hflag $Hdw]"
       as "(HPC & Hcgp & Hflag & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
+    { apply finz_add_0. }
     iMod (world_interp_update_loc _ _ _ _ true with "Hworld Hst")
       as "[Hworld Hst]"; [done|done|].
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".

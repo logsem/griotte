@@ -312,12 +312,8 @@ Section Handle_Error_Stack_Setup.
     { solve_addr. }
     - rewrite (_ : a16 ^+ 0%nat = a16) in Hsh |- *; last solve_addr.
       (* Store ct0 cs1 TrustedStack_offset_mepcc *)
-      iInstrApply "Hcode"
-        (wp_store_success_reg_store_word_imm _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0)
-        with "[$HPC $Hcs1 $Hct0 $Hcell $Hderef]"
-        as "(HPC & Hcs1 & Hct0 & Hcell & Hderef)".
+      iInstr "Hcode".
       { rewrite /withinBounds; solve_addr. }
-      { solve_addr. }
       rewrite (list_lookup_total_correct _ _ _ Hw0).
       iMod ("Hclose" with "Hcell Hderef") as "HES".
       iDestruct "Hnext" as "[_ Hnext]".

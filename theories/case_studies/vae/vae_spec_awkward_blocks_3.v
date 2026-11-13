@@ -87,10 +87,11 @@ Section VAE_Awkward_Blocks_3.
     iDestruct (world_interp_loc_valid with "Hworld Hst") as %Hloc'.
     rewrite Hloc in Hloc'; simplify_eq.
     iPoseProof deref_res_none as "-#Hdw".
-    iInstrApply wp_load_success_alt with "[$HPC $Hct0 $Hcgp $Hflag $Hdw]"
+    iInstrApply wp_load_success_notinstr_imm with "[$HPC $Hct0 $Hcgp $Hflag $Hdw]"
       as "(HPC & Hct0 & Hcgp & Hflag & _)".
     { done. }
     { split; last apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
+    { apply finz_add_0. }
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iInstrEnd.
     iEval (cbn) in "Hct0".
