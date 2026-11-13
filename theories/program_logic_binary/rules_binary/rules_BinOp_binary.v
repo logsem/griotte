@@ -83,12 +83,12 @@ Section spec_rules.
       iFail "Hφ" BinOp_fail_nonconst2. }
     apply (z_of_arg_mono _ r) in Hn2; auto.
 
-    assert (exec_opt i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt (denote i n1 n2)))) as HH.
+    assert (exec_opt i pc_p (r, sr, m) = updatePC (update_reg (r, sr, m) dst (WInt (binop_denote i n1 n2)))) as HH.
     { all: destruct_or! Hinstr; rewrite Hinstr /= /update_reg /= in Hstep |- *; auto.
       all: by rewrite Hn1 Hn2; cbn. }
     rewrite HH in Hstep. rewrite /update_reg /= in Hstep.
 
-    destruct (incrementPC (<[ dst := WInt (denote i n1 n2) ]ᵣ> regs))
+    destruct (incrementPC (<[ dst := WInt (binop_denote i n1 n2) ]ᵣ> regs))
       as [regs'|] eqn:Hregs'; pose proof Hregs' as H'regs'; cycle 1.
     (* Failure: Cannot increment PC *)
     { apply incrementPC_fail_updatePC with (sregs:=sr) (m:=m) in Hregs'.
@@ -129,7 +129,7 @@ Section spec_rules.
     ⤇ Seq (Instr NextI) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
@@ -165,7 +165,7 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hr1 & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hr1 Hdst") as "[Hmap (%&%&%)]".
@@ -202,7 +202,7 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hr2 & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
@@ -242,7 +242,7 @@ Section spec_rules.
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
     r2 ↣ᵣ WInt n2 ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hncull' Hncull'') "(#Hctx & Hj & HPC & Hpc_a & Hr1 & Hr2 & Hdst)".
     iDestruct (spec_map_of_regs_4 with "HPC Hr1 Hr2 Hdst") as "[Hmap (%&%&%&%&%&%)]".
@@ -279,7 +279,7 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r ↣ᵣ WInt n ∗
-    dst ↣ᵣ WInt (denote ins n n).
+    dst ↣ᵣ WInt (binop_denote ins n n).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hncull') "(#Hctx & Hj & HPC & Hpc_a & Hr & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hr Hdst") as "[Hmap (%&%&%)]".
@@ -313,7 +313,7 @@ Section spec_rules.
     ⤇ Seq (Instr NextI) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
@@ -346,7 +346,7 @@ Section spec_rules.
     ⤇ Seq (Instr NextI) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hdst") as "[Hmap %]".
@@ -382,7 +382,7 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r2 ↣ᵣ WInt n2 ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hr2 & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
@@ -419,7 +419,7 @@ Section spec_rules.
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
     r1 ↣ᵣ WInt n1 ∗
-    dst ↣ᵣ WInt (denote ins n1 n2).
+    dst ↣ᵣ WInt (binop_denote ins n1 n2).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull Hcnull') "(#Hctx & Hj & HPC & Hpc_a & Hr2 & Hdst)".
     iDestruct (spec_map_of_regs_3 with "HPC Hr2 Hdst") as "[Hmap (%&%&%)]".
@@ -453,7 +453,7 @@ Section spec_rules.
     ⤇ Seq (Instr NextI) ∗
     PC ↣ᵣ WCap true pc_p pc_g pc_b pc_e pc_a' ∗
     pc_a ↣ₐ w ∗
-    dst ↣ᵣ WInt (denote ins n n).
+    dst ↣ᵣ WInt (binop_denote ins n n).
   Proof.
     iIntros (HE Hdecode Hinstr Hpc_a Hvpc Hcnull) "(#Hctx & Hj & HPC & Hpc_a & Hdst)".
     iDestruct (spec_map_of_regs_2 with "HPC Hdst") as "[Hmap %]".

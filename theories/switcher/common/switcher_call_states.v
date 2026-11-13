@@ -37,8 +37,8 @@ Section Switcher_Call_States.
 
   (** The checks of [.Lswitch_csp_check] on the stack pointer [wcsp]. *)
   Definition switcher_csp_checked (wcsp : LWord) : Prop :=
-    rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_PERMISSIONS ∧
-    rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_LOCALITY.
+    get_denote (GetP ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_PERMISSIONS ∧
+    get_denote (GetL ct2 csp) wcsp.(lw) = Some COMPARTMENT_STACK_LOCALITY.
 
   Lemma switcher_csp_checked_stk b e a :
     switcher_csp_checked (Cap RWL Local b e a).

@@ -50,12 +50,12 @@ End mov_next_ok.
 (** ** BinOp
 
     The register step of a BinOp in closed form; the operation is
-    [denote]. *)
+    [binop_denote]. *)
 
 Section binop_definitions.
   Context `{MP: MachineParameters}.
 
-  Definition denote (i: instr) (n1 n2: Z): Z :=
+  Definition binop_denote (i: instr) (n1 n2: Z): Z :=
     match i with
     | machine_instructions.Add _ _ _ => (n1 + n2)%Z
     | Sub _ _ _ => (n1 - n2)%Z
@@ -131,7 +131,7 @@ Section binop_next_ok.
     is_BinOp i dst ρ1 ρ2 →
     lz_of_argument regs ρ1 = Some n1 →
     lz_of_argument regs ρ2 = Some n2 →
-    regs_next_ok i p lpc regs dst (WInt (denote i n1 n2) @@? None) 1.
+    regs_next_ok i p lpc regs dst (WInt (binop_denote i n1 n2) @@? None) 1.
   Proof.
     intros Hi Hn1 Hn2. exists (λ _, true). split; first by apply lsource_untagged.
     intros φ S _ Hcopy. destruct_or! Hi; subst i;
@@ -145,17 +145,17 @@ End binop_next_ok.
 (** ** Get
 
     The register steps of the Get instructions in closed form; the
-    operation is [rules_Get.denote], and GetTag keeps its rules with a
+    operation is [get_denote], and GetTag keeps its rules with a
     witness in [rules_Get.v]. *)
 
 Section get_next_ok.
   Context `{MP : MachineParameters}.
 
   (** A Get other than GetTag reads the same result on a stripped copy. *)
-  Lemma denote_and_tag_not_gettag i dst src s (w : Word) :
-    is_Get i dst src → i ≠ GetTag dst src → rules_Get.denote i (and_tag s w) = rules_Get.denote i w.
+  Lemma get_denote_and_tag_not_gettag i dst src s (w : Word) :
+    is_Get i dst src → i ≠ GetTag dst src → get_denote i (and_tag s w) = get_denote i w.
   Proof.
-    intros Hi Hnot. rewrite denote_and_tag.
+    intros Hi Hnot. rewrite get_denote_and_tag.
     destruct_or! Hi; subst i; first [done | by destruct Hnot].
   Qed.
 
@@ -163,14 +163,14 @@ Section get_next_ok.
       untagged. *)
   Lemma get_next_ok i dst src p lpc regs v z :
     is_Get i dst src → i ≠ GetTag dst src →
-    regs !!ₗ src = Some v → rules_Get.denote i v.(lw) = Some z →
+    regs !!ₗ src = Some v → get_denote i v.(lw) = Some z →
     regs_next_ok i p lpc regs dst (WInt z @@? None) 1.
   Proof.
     intros Hi Hnot Hsrc Hz. exists (λ _, true). split; first by apply lsource_untagged.
     intros [pc r sr m st td] S _ Hcopy.
     rewrite /regs_effect (exec_opt_Get i dst src _ _ _ _ _ _ _ _ Hi
                             (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
-    by rewrite (denote_and_tag_not_gettag i dst src _ _ Hi Hnot) Hz and_tag_true.
+    by rewrite (get_denote_and_tag_not_gettag i dst src _ _ Hi Hnot) Hz and_tag_true.
   Qed.
 
   (** GetTag of an untagged word writes 0. *)
@@ -182,7 +182,7 @@ Section get_next_ok.
     intros [pc r sr m st td] S _ Hcopy.
     rewrite /regs_effect (exec_opt_Get (GetTag dst src) dst src _ _ _ _ _ _ _ _
                             (is_Get_GetTag dst src) (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
-    by rewrite gettag_denote get_tag_and_tag Ht andb_false_r and_tag_true.
+    by rewrite gettag_get_denote get_tag_and_tag Ht andb_false_r and_tag_true.
   Qed.
 
   (** GetTag to [cnull] writes nothing. *)
@@ -192,7 +192,7 @@ Section get_next_ok.
     intros Hsrc [pc r sr m st td] S _ Hcopy.
     rewrite /regs_effect (exec_opt_Get (GetTag cnull src) cnull src _ _ _ _ _ _ _ _
                             (is_Get_GetTag cnull src) (regs_copy_llookup _ _ _ _ _ Hcopy Hsrc)).
-    rewrite gettag_denote. cbv iota. by rewrite update_reg_cnull.
+    rewrite gettag_get_denote. cbv iota. by rewrite update_reg_cnull.
   Qed.
 End get_next_ok.
 

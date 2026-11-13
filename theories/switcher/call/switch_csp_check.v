@@ -52,7 +52,7 @@ Section Switch_Csp_Check.
     (* GetP ct2 csp *)
     iInstr "Hcode".
     set (p0 := encodePermSum (get_p wcsp.(lw))).
-    assert (rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some p0) as Hp0 by done.
+    assert (get_denote (GetP ct2 csp) wcsp.(lw) = Some p0) as Hp0 by done.
     (* Mov ctp COMPARTMENT_STACK_PERMISSIONS *)
     iInstr "Hcode".
     destruct (decide (p0 = COMPARTMENT_STACK_PERMISSIONS)) as [Hp0'|Hp0']; cycle 1.
@@ -70,7 +70,7 @@ Section Switch_Csp_Check.
     (* GetL ct2 csp *)
     iInstr "Hcode".
     set (g0 := encodeLoc (get_l wcsp.(lw))).
-    assert (rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
+    assert (get_denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
     (* Mov ctp COMPARTMENT_STACK_LOCALITY *)
     iInstr "Hcode".
     destruct (decide (g0 = COMPARTMENT_STACK_LOCALITY)) as [Hg0'|Hg0']; cycle 1.

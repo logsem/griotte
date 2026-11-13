@@ -988,7 +988,7 @@ Ltac simplify_cap_word :=
 
 (* TODO: make this extensible. Remove updatePcPerm? unfolding sometimes causes issues. *)
 Ltac2 iApplyCapAuto_cleanup () :=
-  cbn [rules_Get.denote rules_regs_steps.denote updatePcPerm deref_res
+  cbn [get_denote binop_denote updatePcPerm deref_res
        get_a get_b get_e get_p get_l
        get_a_sealable get_b_sealable get_e_sealable get_p_sealable get_l_sealable
        encodePermSum

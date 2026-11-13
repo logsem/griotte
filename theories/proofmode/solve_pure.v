@@ -214,11 +214,11 @@ Proof. intros Hb _. right. by rewrite /heap_cap_base /= Hb. Qed.
   (assert_fails (has_evar v); eapply load_exact_cond_nonheap_cap) : solve_pure.
 
 (* denote - required for Get *)
-#[export] Hint Extern 1 (rules_Get.denote (GetTag _ _) _ = Some _) =>
-  apply gettag_denote : solve_pure.
-#[export] Hint Extern 1 (denote (GetWType _ _) ?w = Some _) =>
-  (eapply getwtype_denote ; reflexivity) : solve_pure.
-#[export] Hint Extern 1 (rules_Get.denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
+#[export] Hint Extern 1 (get_denote (GetTag _ _) _ = Some _) =>
+  apply gettag_get_denote : solve_pure.
+#[export] Hint Extern 1 (get_denote (GetWType _ _) ?w = Some _) =>
+  (eapply getwtype_get_denote ; reflexivity) : solve_pure.
+#[export] Hint Extern 1 (get_denote _ _ = Some _) => reflexivity : solve_pure. (* unification fails if lhs has evars *)
 
 (* The Subseg premise ruling out a fresh heap root (case 3): it is vacuous
    when the source has an identifier, and otherwise needs the new base to be

@@ -25,7 +25,7 @@ Section fundamental.
 
   (** Related words have the same observable properties. *)
   Lemma interp_denote W C (i : instr) (w1 w2 : Word) :
-    interp W C (w1, w2) -∗ ⌜rules_Get.denote i w1 = rules_Get.denote i w2⌝.
+    interp W C (w1, w2) -∗ ⌜get_denote i w1 = get_denote i w2⌝.
   Proof.
     iIntros "Hw".
     by iDestruct (interp_eq with "Hw") as %->.

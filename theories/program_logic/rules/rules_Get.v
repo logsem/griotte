@@ -18,7 +18,7 @@ Section griotte_lang_rules.
   Implicit Types ms : gmap Addr LWord.
 
   (* Generalized denote function, since multiple cases result in similar success *)
-  Definition denote (i: instr) (w : Word): option Z :=
+  Definition get_denote (i: instr) (w : Word): option Z :=
     match i with
     | GetP _ _ => Some (encodePermSum (get_p w))
     | GetL _ _ => Some (encodeLoc (get_l w))
@@ -36,7 +36,7 @@ Section griotte_lang_rules.
     | _ => None
     end.
 
-  #[global] Arguments denote : simpl nomatch.
+  #[global] Arguments get_denote : simpl nomatch.
 
   Definition is_Get (i: instr) (dst src: RegName) :=
     i = GetP dst src ∨
@@ -70,7 +70,7 @@ Section griotte_lang_rules.
     is_Get i dst src →
     lookup_reg src r = Some wsrc →
     exec_opt i p (MkExecConf pc r sr m st td) =
-      match denote i wsrc with
+      match get_denote i wsrc with
       | Some z => nextPC (update_reg (MkExecConf pc r sr m st td) dst (WInt z))
       | None => None
       end.
@@ -79,11 +79,11 @@ Section griotte_lang_rules.
     all: destruct wsrc as [| [] | | ? [] ]; cbn; done.
   Qed.
 
-  Lemma denote_and_tag i s (w : Word) :
-    denote i (and_tag s w) =
+  Lemma get_denote_and_tag i s (w : Word) :
+    get_denote i (and_tag s w) =
       match i with
       | GetTag _ _ => Some (Z.b2z (s && get_tag w))
-      | _ => denote i w
+      | _ => get_denote i w
       end.
   Proof.
     destruct i; cbn; try done.
@@ -321,7 +321,7 @@ Lemma is_Get_GetOType dst src : is_Get (GetOType dst src) dst src.
 Proof. intros; unfold is_Get; eauto; firstorder. Qed.
 Lemma is_Get_GetWType dst src : is_Get (GetWType dst src) dst src.
 Proof. intros; unfold is_Get; eauto; firstorder. Qed.
-Lemma getwtype_denote `{MachineParameters} r1 r2 w : denote (GetWType r1 r2) w = Some (encodeWordType w).
+Lemma getwtype_get_denote `{MachineParameters} r1 r2 w : get_denote (GetWType r1 r2) w = Some (encodeWordType w).
 Proof. by destruct_word w ; cbn. Qed.
 
 #[export] Hint Resolve is_Get_GetP : core.
@@ -332,12 +332,12 @@ Proof. by destruct_word w ; cbn. Qed.
 #[export] Hint Resolve is_Get_GetA : core.
 #[export] Hint Resolve is_Get_GetOType : core.
 #[export] Hint Resolve is_Get_GetWType : core.
-#[export] Hint Resolve getwtype_denote : core.
+#[export] Hint Resolve getwtype_get_denote : core.
 
 Lemma is_Get_GetTag dst src : is_Get (GetTag dst src) dst src.
 Proof. unfold is_Get; tauto. Qed.
 
-Lemma gettag_denote `{MachineParameters} dst src w :
-  denote (GetTag dst src) w = Some (Z.b2z (get_tag w)).
+Lemma gettag_get_denote `{MachineParameters} dst src w :
+  get_denote (GetTag dst src) w = Some (Z.b2z (get_tag w)).
 Proof. by destruct_word w. Qed.
-#[export] Hint Resolve is_Get_GetTag gettag_denote : core.
+#[export] Hint Resolve is_Get_GetTag gettag_get_denote : core.

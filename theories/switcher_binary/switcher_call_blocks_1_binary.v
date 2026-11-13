@@ -40,7 +40,7 @@ Section Switcher_Call_Blocks_1.
     ctp ↣ᵣ swctp ∗
     codefrag pc_a switcher_instrs_0 ∗
     spec_codefrag pc_a switcher_instrs_0 ∗
-    ▷ ( ( ⌜ rules_Get.denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ⌝ ∗
+    ▷ ( ( ⌜ get_denote (GetP ct2 csp) wcsp = Some (encodePerm RWL) ⌝ ∗
           ⤇ Seq (Instr Executable) ∗
           PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ length switcher_instrs_0)%a ∗
           PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ length switcher_instrs_0)%a ∗
@@ -53,7 +53,7 @@ Section Switcher_Call_Blocks_1.
           codefrag pc_a switcher_instrs_0 ∗
           spec_codefrag pc_a switcher_instrs_0 )
         ∨
-        ( ⌜ rules_Get.denote (GetP ct2 csp) wcsp ≠ Some (encodePerm RWL) ⌝ ∗
+        ( ⌜ get_denote (GetP ct2 csp) wcsp ≠ Some (encodePerm RWL) ⌝ ∗
           ∃ zct2,
           ⤇ Seq (Instr Executable) ∗
           PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_tgt ∗
@@ -128,7 +128,7 @@ Section Switcher_Call_Blocks_1.
     ctp ↣ᵣ swctp ∗
     codefrag pc_a switcher_instrs_1 ∗
     spec_codefrag pc_a switcher_instrs_1 ∗
-    ▷ ( ( ⌜ rules_Get.denote (GetL ct2 csp) wcsp = Some (encodeLoc Local) ⌝ ∗
+    ▷ ( ( ⌜ get_denote (GetL ct2 csp) wcsp = Some (encodeLoc Local) ⌝ ∗
           ⤇ Seq (Instr Executable) ∗
           PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ length switcher_instrs_1)%a ∗
           PC ↣ᵣ WCap true XSRW_ Local b_switcher e_switcher (pc_a ^+ length switcher_instrs_1)%a ∗
@@ -141,7 +141,7 @@ Section Switcher_Call_Blocks_1.
           codefrag pc_a switcher_instrs_1 ∗
           spec_codefrag pc_a switcher_instrs_1 )
         ∨
-        ( ⌜ rules_Get.denote (GetL ct2 csp) wcsp ≠ Some (encodeLoc Local) ⌝ ∗
+        ( ⌜ get_denote (GetL ct2 csp) wcsp ≠ Some (encodeLoc Local) ⌝ ∗
           ∃ zct2,
           ⤇ Seq (Instr Executable) ∗
           PC ↦ᵣ WCap true XSRW_ Local b_switcher e_switcher a_tgt ∗
