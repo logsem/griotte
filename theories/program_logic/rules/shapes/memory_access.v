@@ -32,7 +32,7 @@ From griotte Require Import shapes.step memory_region.
 #[local] Arguments er_pc {MP R C σ lpc lreg lsreg lmem}.
 #[local] Arguments erasure_set_timedevs {MP R C σ lpc lreg lsreg lmem} td.
 #[local] Arguments SI_close {MP Σ pcG0 gen_heapGS0 gen_heapGS1 gen_heapGS2 gen_heapGS3
-  allocRegistryG0 addrAllocG0 H mtdcG0 mieG0 mpieG0 postureG0 mtdcLentG0 σ lpc lreg ls lmem R C}.
+  allocRegistryG0 addrAllocG0 H mtdcG0 mieG0 mpieG0 postureG0 mtdcLentG0 hwmG0 σ lpc lreg ls lmem R C}.
 #[local] Arguments instr_close_reg_update {MP Σ ceriseg k pc r sr m st td lpc lreg lsreg lmem R C
   regs dst v w c σ' Φ} P.
 #[local] Arguments instr_close_pc_update {MP Σ ceriseg k pc r sr m st td lpc lreg lsreg lmem R C
@@ -140,12 +140,11 @@ Section mem_access_pure.
     rewrite Hr1 in Hr2. by simplify_eq.
   Qed.
 
-  (** What a write to memory at [ea] does to the rest of the machine:
-      nothing. This is the place where such an effect (for example on a
-      watermark) enters; a model with one changes this definition and the
-      closers and tactics that unfold it ([wp_store_step_gen],
-      [solve_mem_access_member_with], [store_next_ok]). *)
-  Definition store_effect (ea : Addr) (φ : ExecConf) : ExecConf := φ.
+  (** What a write to memory at [ea] does to the rest of the machine: the
+      stack high-water-mark update ([hwm_store]). The closers and tactics
+      that unfold it are [wp_store_step_gen], the zone store rules of
+      [rules_hwm.v], [solve_mem_access_member_with] and [store_next_ok]. *)
+  Definition store_effect (ea : Addr) (φ : ExecConf) : ExecConf := hwm_store ea φ.
 
   (** Loads, whose result on a cell is the loaded word through the filter
       [flt]. The authorising register and offset come from the
@@ -188,6 +187,34 @@ Section mem_access_pure.
   Definition store_member (step : instr → Perm → ExecConf → option Conf)
       (stored_word_ok : ExecConf → Word → Prop) (i : instr) (r : RegName) (imm : Z) : Prop :=
     ∀ p φ c, step i p φ = Some c → store_step stored_word_ok r imm φ c.
+
+  (** A load does not write MSHWMB: such a write succeeds in a
+      configuration whose registers hold no capability, where no register
+      authorises a load. *)
+  Lemma load_member_not_writes_mshwmb {flt i dst r imm} :
+    load_member exec_opt flt i dst r imm → writes_mshwmb i = false.
+  Proof.
+    intros Hmember. destruct (writes_mshwmb i) eqn:Hw; last done. exfalso.
+    assert (∃ dst' sr src, i = SpecialRW dst' sr src) as (dst' & sr & src & ->)
+      by (destruct i; try discriminate Hw; eauto).
+    cbn in Hw.
+    set (rf := match src with inr rs => {[rs := WInt 0]} | inl _ => ∅ end : Reg).
+    set (φ := MkExecConf (Cap XSR_ Global 0%a 0%a 0%a) rf {[mshwmb := WInt 0]} ∅ ∅ inhabitant).
+    assert (∀ r' w', reg φ !!ᵣ r' = Some w' → w' = WInt 0) as Hints.
+    { intros r' w'. rewrite /lookup_reg.
+      destruct (decide (r' = cnull)) as [_ | _]; first by intros; simplify_eq.
+      subst φ rf. destruct src; cbn; first by rewrite lookup_empty.
+      by intros [-> ->]%lookup_singleton_Some. }
+    assert (∃ c, exec_opt (SpecialRW dst' sr src) XSR_ φ = Some c) as [c Hc].
+    { subst φ rf. destruct src as [z|rs]; cbn in Hw; repeat case_bool_decide; simplify_eq/=.
+      - rewrite lookup_singleton_eq /=. case_decide; eexists; reflexivity.
+      - rewrite lookup_singleton_eq /= decide_False // /lookup_reg decide_False //
+          lookup_singleton_eq /=.
+        case_decide; eexists; reflexivity. }
+    destruct (Hmember _ _ _ Hc)
+      as [p ea v w0 (g & b & e & a & Hr & _) _ _ _ _ | p ea w0 (g & b & e & a & Hr & _) _ _ _];
+      apply Hints in Hr; discriminate.
+  Qed.
 
   (** The filter of Griotte's CLoad: the shadow table of the
       configuration. *)
@@ -829,6 +856,7 @@ Section mem_access_rules.
       (L : Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → load_member exec_opt flt i dst r imm → load_choice flt W post →
     mem_instr_ok th i →
+    (has_sreg_access pc_p = true → writes_mshwmb i = false) →
     (L → mem_load_next_ok exec_opt flt i dst r imm) →
     (L → ∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -849,13 +877,13 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hmember Hchoice Hsw Hagree Hlive Hvpc Hr Hdst Hmem_pc Hdom Hok Φ).
+    iIntros (Hi Hmember Hchoice Hsw Hwr Hagree Hlive Hvpc Hr Hdst Hmem_pc Hdom Hok Φ).
     iIntros "(>HPC & >Hmem & >Hmap & Hwit) Hφ".
     rewrite /load_choice in Hchoice.
     destruct (prod_merge_lookup_dom Hmem_pc Hdom) as [dq_pc Hmerge_pc].
     iDestruct (big_sepM_delete _ _ pc_a with "Hmem") as "[Hpc_a Hmem]"; first exact Hmerge_pc.
     iSimpl in "Hpc_a".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hi; exact Hsw | done |].
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hi; exact Hsw | done | by rewrite Hi |].
     iNext. iIntros (rf sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (big_sepM_delete _ _ pc_a (dq_pc, w) with "[Hpc_a $Hmem]") as "Hmem";
       [exact Hmerge_pc | iExact "Hpc_a" |].
@@ -916,6 +944,7 @@ Section mem_access_rules.
   Lemma wp_store_step_gen Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
       (Q : LWord → Prop) (L : Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     (L → mem_store_next_ok exec_opt stored_word_ok i r imm) →
     (L → store_lift_some stored_word_ok regs) →
     (L → ∀ v, regs !! r = Some v → live_witness W v) →
@@ -937,12 +966,13 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hmember Hsw Hagree Hsome Hlive Hvpc Hr Hlift Hmem_pc Hdom Hok Φ).
+    iIntros (Hi Hmember Hsw Hnwin Hagree Hsome Hlive Hvpc Hr Hlift Hmem_pc Hdom Hok Φ).
     iIntros "(>HPC & >Hmem & >Hmap & Hwit) Hφ".
     destruct (prod_merge_lookup_dom Hmem_pc Hdom) as [dq_pc Hmerge_pc].
     iDestruct (big_sepM_delete _ _ pc_a with "Hmem") as "[Hpc_a Hmem]"; first exact Hmerge_pc.
     iSimpl in "Hpc_a".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hi; exact Hsw | done |].
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hi; exact Hsw | done | |].
+    { intros _. rewrite Hi. apply not_true_is_false. intros Hwr. apply Hnwin. by right. }
     iNext. iIntros (rf sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (big_sepM_delete _ _ pc_a (dq_pc, w) with "[Hpc_a $Hmem]") as "Hmem";
       [exact Hmerge_pc | iExact "Hpc_a" |].
@@ -972,15 +1002,30 @@ Section mem_access_rules.
     destruct (store_step_inv Her Hlregs Hr Hmem_incl Hlift Hok (Hmember _ _ _ Hexec))
       as (p & g & b & e & a & ea & Hacc &
           [ (v & pw & HQ & Hin & Hdq & Hpw & Hnext) | (Hnone & td' & Hnext) ]).
-    - (* A cell. *)
-      rewrite /store_effect in Hnext.
+    - (* A cell, wholly owned: outside [MSHWMB, MSHWM), with the window
+         closed, so that the store leaves MSHWM unchanged. *)
+      assert (ls_pend lsreg = None) as Hpend.
+      { destruct Hwin as [? | Hw]; first done. rewrite Hi in Hw. by apply Hnwin in Hw. }
+      pose proof Hin as [v0 Hv0].
+      assert (prod_merge dfracs mem !! ea = Some (DfracOwn 1, v0)) as Hmerge.
+      { by rewrite lookup_merge Hv0 Hdq. }
+      iAssert (⌜¬ (ls_hwmb lsreg ≤ ea < ls_hwm lsreg)%Z⌝)%I as %Hea_out.
+      { iDestruct (big_sepM_lookup_acc with "Hmem") as "[Hea _]"; first exact Hmerge.
+        iDestruct (sys_interp_pointsto_outside with "Hsr Hea") as %Hout.
+        by rewrite Hpend in Hout. }
+      pose proof (erasure_hwm_update _ _ _ _ _ _ _ _ _ _ _ _ ea _ _ Her
+                    (ls_join_mshwmb _) (ls_join_mshwm _) Hea_out) as Her0.
+      rewrite /store_effect /hwm_store /= in Hnext.
+      iApply (instr_close_kept_trans _ (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) rf
+                                         (hwm_update ea sr) m st td)).
+      { rewrite /sys_kept /mie_st /= !lookup_hwm_update_ne //. }
       iApply (instr_close_mem_update
         (λ lpc' mem' retv,
            store_result Q (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π))
              (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs r imm mem lpc' mem' retv ∧
            (L → mem_access_progress MemAccessWrite regs r imm mem
                   (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π)) retv))
-        Her Hin Hdq Hpw with "HPCa Hr Hsr Hm Hst HR HC HPC Hmem Hmap [Hφ Hwit]").
+        Her0 Hin Hdq Hpw with "HPCa Hr Hsr Hm Hst HR HC HPC Hmem Hmap [Hφ Hwit]").
       { by rewrite Hnext. }
       { intros lpc' Hinc. split; last (intros _ _ _; done).
         right. exists p, g, b, e, a, ea. split_and!; [done..|]. left. eauto. }
@@ -1017,6 +1062,7 @@ Section mem_access_rules.
       (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → load_member exec_opt flt i dst r imm → load_choice flt emp post →
     mem_instr_ok th i →
+    (has_sreg_access pc_p = true → writes_mshwmb i = false) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → (dst = cnull ∨ dst ∈ dom regs) →
     mem !! pc_a = Some w → dom dfracs = dom mem → mem_access_footprint MemAccessRead regs r imm mem dfracs →
@@ -1031,9 +1077,9 @@ Section mem_access_rules.
         ([∗ map] a↦dv ∈ prod_merge dfracs mem, a ↦ₐ{dv.1} dv.2) ∗
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hi Hmember Hchoice Hsw Hvpc Hr Hdst Hmem_pc Hdom Hok Φ) "(HPC & Hmem & Hmap) Hφ".
+    iIntros (Hi Hmember Hchoice Hsw Hwr Hvpc Hr Hdst Hmem_pc Hdom Hok Φ) "(HPC & Hmem & Hmap) Hφ".
     iApply (wp_load_step_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ False emp%I with "[$HPC $Hmem $Hmap]");
-      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | intros [] | intros []
+      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | exact Hwr | intros [] | intros []
       | exact Hvpc | exact Hr | exact Hdst | exact Hmem_pc | exact Hdom | exact Hok |].
     iIntros "!>" (lpc' regs' retv) "(%Hres & _ & HPC & Hmem & Hmap & _)".
     iApply "Hφ". iFrame "HPC Hmem Hmap". by iPureIntro.
@@ -1044,7 +1090,9 @@ Section mem_access_rules.
   Lemma wp_load_step_live Ep pc_p pc_g pc_b pc_e pc_a pc_π w i dst r imm flt post
       (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → load_member exec_opt flt i dst r imm → load_choice flt W post →
-    mem_instr_ok th i → mem_load_next_ok exec_opt flt i dst r imm →
+    mem_instr_ok th i →
+    (has_sreg_access pc_p = true → writes_mshwmb i = false) →
+    mem_load_next_ok exec_opt flt i dst r imm →
     (∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → (dst = cnull ∨ dst ∈ dom regs) →
@@ -1064,9 +1112,9 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs', k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hmember Hchoice Hsw Hagree Hlive Hvpc Hr Hdst Hmem_pc Hdom Hok Φ) "Hpre Hφ".
+    iIntros (Hi Hmember Hchoice Hsw Hwr Hagree Hlive Hvpc Hr Hdst Hmem_pc Hdom Hok Φ) "Hpre Hφ".
     iApply (wp_load_step_gen _ _ _ _ _ _ _ _ _ _ _ _ _ _ True with "Hpre");
-      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | intros _; exact Hagree
+      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | exact Hwr | intros _; exact Hagree
       | intros _; exact Hlive | exact Hvpc | exact Hr | exact Hdst | exact Hmem_pc | exact Hdom
       | exact Hok |].
     iIntros "!>" (lpc' regs' retv) "(%Hres & %Hprog & HPC & Hmem & Hmap & Hwit)".
@@ -1077,6 +1125,7 @@ Section mem_access_rules.
   Lemma wp_store_step Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
       (Q : LWord → Prop) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     r ∈ dom regs → store_lift stored_word_ok Q regs →
     mem !! pc_a = Some w → dom dfracs = dom mem → mem_access_footprint MemAccessWrite regs r imm mem dfracs →
@@ -1091,9 +1140,9 @@ Section mem_access_rules.
         ([∗ map] a↦dv ∈ prod_merge dfracs mem', a ↦ₐ{dv.1} dv.2) ∗
         [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
   Proof.
-    iIntros (Hi Hmember Hsw Hvpc Hr Hlift Hmem_pc Hdom Hok Φ) "(HPC & Hmem & Hmap) Hφ".
+    iIntros (Hi Hmember Hsw Hnwin Hvpc Hr Hlift Hmem_pc Hdom Hok Φ) "(HPC & Hmem & Hmap) Hφ".
     iApply (wp_store_step_gen _ _ _ _ _ _ _ _ _ _ _ _ _ False emp%I with "[$HPC $Hmem $Hmap]");
-      [exact Hi | exact Hmember | exact Hsw | intros [] | intros [] | intros []
+      [exact Hi | exact Hmember | exact Hsw | exact Hnwin | intros [] | intros [] | intros []
       | exact Hvpc | exact Hr | exact Hlift | exact Hmem_pc | exact Hdom | exact Hok |].
     iIntros "!>" (lpc' mem' retv) "(%Hres & _ & HPC & Hmem & Hmap & _)".
     iApply "Hφ". iFrame "HPC Hmem Hmap". by iPureIntro.
@@ -1104,6 +1153,7 @@ Section mem_access_rules.
   Lemma wp_store_step_live Ep pc_p pc_g pc_b pc_e pc_a pc_π w i r imm stored_word_ok
       (Q : LWord → Prop) (W : iProp Σ) (mem : LMem) (dfracs : gmap Addr dfrac) (regs : LReg) :
     decodeInstrW w.(lw) = i → store_member exec_opt stored_word_ok i r imm → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     mem_store_next_ok exec_opt stored_word_ok i r imm → store_lift_some stored_word_ok regs →
     (∀ v, regs !! r = Some v → live_witness W v) →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
@@ -1124,9 +1174,9 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hmember Hsw Hagree Hsome Hlive Hvpc Hr Hlift Hmem_pc Hdom Hok Φ) "Hpre Hφ".
+    iIntros (Hi Hmember Hsw Hnwin Hagree Hsome Hlive Hvpc Hr Hlift Hmem_pc Hdom Hok Φ) "Hpre Hφ".
     iApply (wp_store_step_gen _ _ _ _ _ _ _ _ _ _ _ _ _ True with "Hpre");
-      [exact Hi | exact Hmember | exact Hsw | intros _; exact Hagree | intros _; exact Hsome
+      [exact Hi | exact Hmember | exact Hsw | exact Hnwin | intros _; exact Hagree | intros _; exact Hsome
       | intros _; exact Hlive | exact Hvpc | exact Hr | exact Hlift | exact Hmem_pc | exact Hdom
       | exact Hok |].
     iIntros "!>" (lpc' mem' retv) "(%Hres & %Hprog & HPC & Hmem & Hmap & Hwit)".
@@ -1174,7 +1224,8 @@ Section mem_access_rules.
     iApply (wp_load_step_live _ _ _ _ _ _ _ w i dst r imm flt post W
               (<[pc_a := w]> (<[ea := v]> ∅)) (<[pc_a := dq]> (<[ea := dq']> ∅)) regs
               with "[$HPC $Hmem $Hmap $Hwit]");
-      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | exact Hagree | exact Hlive
+      [exact Hi | exact Hmember | exact Hchoice | exact Hsw
+      | intros _; exact (load_member_not_writes_mshwmb Hmember) | exact Hagree | exact Hlive
       | exact Hvpc | by eapply elem_of_dom_2 | exact Hdst | by simplify_map_eq
       | by rewrite !dom_insert_L | |].
     { intros p0 g0 b0 e0 a0 ea0 Hacc0.
@@ -1224,7 +1275,8 @@ Section mem_access_rules.
     iApply (wp_load_step_live _ _ _ _ _ _ _ w i dst r imm flt post W
               (<[pc_a := w]> ∅) (<[pc_a := dq]> ∅) regs
               with "[$HPC $Hpc_a $Hmap $Hwit]");
-      [exact Hi | exact Hmember | exact Hchoice | exact Hsw | exact Hagree | exact Hlive
+      [exact Hi | exact Hmember | exact Hchoice | exact Hsw
+      | intros _; exact (load_member_not_writes_mshwmb Hmember) | exact Hagree | exact Hlive
       | exact Hvpc | by eapply elem_of_dom_2 | exact Hdst | by simplify_map_eq
       | by rewrite !dom_insert_L | |].
     { intros p0 g0 b0 e0 a0 ea0 Hacc0.
@@ -1248,6 +1300,7 @@ Section mem_access_rules.
     Lemma wp_store_next {E pc_p pc_g pc_b pc_e pc_a pc_π w dq i stored_word_ok r imm} {regs : LReg}
       {p g b e a ea v0 v} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i r imm → mem_store_next_ok exec_opt stored_word_ok i r imm →
     store_lift_exact stored_word_ok v regs →
     (∀ v1, regs !! r = Some v1 → live_witness W v1) →
@@ -1267,7 +1320,7 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hacc Hne Hinc Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hacc Hne Hinc Φ)
       "(>HPC & >Hpc_a & >Hea & >Hmap & Hwit) HΦ".
     assert (pc_a ≠ ea) as Hne' by done.
     pose proof Hacc as (Hsrc & _). destruct (llookup_reg_cap Hsrc) as (_ & π & Hr).
@@ -1278,7 +1331,7 @@ Section mem_access_rules.
     iApply (wp_store_step_live _ _ _ _ _ _ _ w i r imm stored_word_ok (λ v', v' = v) W
               (<[pc_a := w]> (<[ea := v0]> ∅)) (<[pc_a := dq]> (<[ea := DfracOwn 1]> ∅)) regs
               with "[$HPC $Hmem $Hmap $Hwit]");
-      [exact Hi | exact Hmember | exact Hsw | exact Hagree | by eapply store_lift_exact_some
+      [exact Hi | exact Hmember | exact Hsw | exact Hnwin | exact Hagree | by eapply store_lift_exact_some
       | exact Hlive | exact Hvpc | by eapply elem_of_dom_2 | by apply store_lift_exact_lift
       | by simplify_map_eq | by rewrite !dom_insert_L | |].
     { intros p0 g0 b0 e0 a0 ea0 Hacc0.
@@ -1301,6 +1354,7 @@ Section mem_access_rules.
   Lemma wp_store_next_pc {E pc_p pc_g pc_b pc_e pc_a pc_π w i stored_word_ok r imm} {regs : LReg}
       {p g b e a v} {W : iProp Σ} {lpc'} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i r imm → mem_store_next_ok exec_opt stored_word_ok i r imm →
     store_lift_exact stored_word_ok v regs →
     (∀ v1, regs !! r = Some v1 → live_witness W v1) →
@@ -1318,14 +1372,14 @@ Section mem_access_rules.
         ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hacc Hinc Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hacc Hinc Φ)
       "(>HPC & >Hpc_a & >Hmap & Hwit) HΦ".
     pose proof Hacc as (Hsrc & _). destruct (llookup_reg_cap Hsrc) as (_ & π & Hr).
     iEval (rewrite prod_merge_pointsto_1) in "Hpc_a".
     iApply (wp_store_step_live _ _ _ _ _ _ _ w i r imm stored_word_ok (λ v', v' = v) W
               (<[pc_a := w]> ∅) (<[pc_a := DfracOwn 1]> ∅) regs
               with "[$HPC $Hpc_a $Hmap $Hwit]");
-      [exact Hi | exact Hmember | exact Hsw | exact Hagree | by eapply store_lift_exact_some
+      [exact Hi | exact Hmember | exact Hsw | exact Hnwin | exact Hagree | by eapply store_lift_exact_some
       | exact Hlive | exact Hvpc | by eapply elem_of_dom_2 | by apply store_lift_exact_lift
       | by simplify_map_eq | by rewrite !dom_insert_L | |].
     { intros p0 g0 b0 e0 a0 ea0 Hacc0.
@@ -1641,6 +1695,7 @@ Section mem_access_rules.
   Lemma wp_store_next_1 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i stored_word_ok}
       {dst wd imm p g b e a ea v0 v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     store_lift_exact stored_word_ok v {[dst := wd]} → live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
@@ -1660,12 +1715,12 @@ Section mem_access_rules.
         ea ↦ₐ lstore_word p v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hea & Hwit) HΦ".
     iDestruct (pointsto_ne with "Hea Hpc_a") as %Hne.
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_store_next with "[$HPC $Hpc_a $Hea $Hmap Hwit]");
-      [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact Hexact
+      [exact Hi | exact Hsw | exact Hnwin | exact Hmember | exact Hagree | exact Hexact
       | intros v1 Hv1; simplify_map_eq; exact Hlive
       | exact Hvpc | | exact Hne | by apply incrementPC_add | iExact "Hwit" |].
     { split_and!; [| exact Hadd | exact Hperm | exact Hwb].
@@ -1678,6 +1733,7 @@ Section mem_access_rules.
   Lemma wp_store_next_1_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w i stored_word_ok}
       {dst wd imm p g b e a v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     store_lift_exact stored_word_ok v {[dst := wd]} → live_witness W wd →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) → (pc_a + 1)%a = Some pc_a' →
@@ -1695,11 +1751,11 @@ Section mem_access_rules.
         dst ↦ᵣ wd ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & Hwit) HΦ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
     iApply (wp_store_next_pc with "[$HPC $Hpc_a $Hmap Hwit]");
-      [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact Hexact
+      [exact Hi | exact Hsw | exact Hnwin | exact Hmember | exact Hagree | exact Hexact
       | intros v1 Hv1; simplify_map_eq; exact Hlive
       | exact Hvpc | | by apply incrementPC_add | iExact "Hwit" |].
     { split_and!; [| exact Hadd | exact Hperm | exact Hwb].
@@ -1713,6 +1769,7 @@ Section mem_access_rules.
   Lemma wp_store_next_2 {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq i stored_word_ok}
       {dst wd src ws imm p g b e a ea v0 v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     (dst ≠ src → store_lift_exact stored_word_ok v (<[dst := wd]> (<[src := ws]> ∅))) →
     live_witness W wd →
@@ -1735,12 +1792,12 @@ Section mem_access_rules.
         ea ↦ₐ lstore_word p v ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hea & Hwit) HΦ".
     iDestruct (pointsto_ne with "Hea Hpc_a") as %Hne.
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hdst_src]".
     iApply (wp_store_next with "[$HPC $Hpc_a $Hea $Hmap Hwit]");
-      [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact (Hexact Hdst_src)
+      [exact Hi | exact Hsw | exact Hnwin | exact Hmember | exact Hagree | exact (Hexact Hdst_src)
       | intros v1 Hv1; simplify_map_eq; exact Hlive
       | exact Hvpc | | exact Hne | by apply incrementPC_add | iExact "Hwit" |].
     { split_and!; [| exact Hadd | exact Hperm | exact Hwb].
@@ -1753,6 +1810,7 @@ Section mem_access_rules.
   Lemma wp_store_next_2_pc {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w i stored_word_ok}
       {dst wd src ws imm p g b e a v} {W : iProp Σ} :
     decodeInstrW w.(lw) = i → mem_instr_ok th i →
+    ¬ hwm_window_instr i →
     store_member exec_opt stored_word_ok i dst imm → mem_store_next_ok exec_opt stored_word_ok i dst imm →
     (dst ≠ src → store_lift_exact stored_word_ok v (<[dst := wd]> (<[src := ws]> ∅))) →
     live_witness W wd →
@@ -1773,11 +1831,11 @@ Section mem_access_rules.
         src ↦ᵣ ws ∗
         W }}}.
   Proof.
-    iIntros (Hi Hsw Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
+    iIntros (Hi Hsw Hnwin Hmember Hagree Hexact Hlive Hvpc Hpc_a' Hdst Hwd Hadd Hperm Hwb Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hsrc & Hwit) HΦ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hdst_src]".
     iApply (wp_store_next_pc with "[$HPC $Hpc_a $Hmap Hwit]");
-      [exact Hi | exact Hsw | exact Hmember | exact Hagree | exact (Hexact Hdst_src)
+      [exact Hi | exact Hsw | exact Hnwin | exact Hmember | exact Hagree | exact (Hexact Hdst_src)
       | intros v1 Hv1; simplify_map_eq; exact Hlive
       | exact Hvpc | | by apply incrementPC_add | iExact "Hwit" |].
     { split_and!; [| exact Hadd | exact Hperm | exact Hwb].

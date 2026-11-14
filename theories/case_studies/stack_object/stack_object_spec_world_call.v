@@ -86,7 +86,8 @@ Section SO_World_Call.
       iExists (WInt 0). rewrite /TmpRes.
       iSplit; first iPureIntro.
       { by apply isWL_nonO. }
-      iFrame "Ha_stk1".
+      (* The cell of the Temporary key: the points-to of [a_stk1] *)
+      iSplitL "Ha_stk1"; first (rewrite -stack_cell_temp_cell; by iLeft).
       iSplitR; [|iNext; iApply "Hmono_Pastk1"].
       iNext. rewrite /=.
       iApply "Hwcond_Pastk1".
@@ -122,7 +123,7 @@ Section SO_World_Call.
       iDestruct (interp_cap_disjoint_wl with "Hinterp_stack") as %[Hshadow Hheap]; first done.
       iSplit; last first.
       { rewrite /disjoint_from_heap elem_of_disjoint in Hheap.
-        iSplit.
+        iSplit; [|iSplit].
         - iPureIntro. split; first done.
           eapply disjoint_from_mmio_weaken; last exact Hshadow; solve_addr.
         - iApply heap_cap_ok_disjoint.
@@ -131,6 +132,10 @@ Section SO_World_Call.
           eapply Hheap; [|exact Hregion].
           apply elem_of_finz_seq_between.
           apply elem_of_finz_seq_between in Hx. solve_addr.
+        - (* The fresh object lies in the stack of the thread *)
+          iDestruct (interp_wl_in_stack with "Hinterp_stack") as "Hwl"; first done.
+          iApply (wl_in_stack_weaken RWL RWL stack_b stack_e with "Hwl");
+            [done|solve_addr|solve_addr].
       }
       rewrite (finz_seq_between_singleton a_stk1 a_stk2);
         last solve_addr+Ha_stk2 Hastk1_stk2.
@@ -413,7 +418,7 @@ Section SO_World_Call.
       interp (revoke W0) C (WSealed ot_switcher C_f) ∗
       ▷ StackRevokedResources (revoke W0) C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e)⌝ ∗
-      [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
+      stack_region csp_b csp_e stk_mem.
   Proof.
     iIntros "#Hseal #Hinterp_csp #Hinterp_C_f Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")

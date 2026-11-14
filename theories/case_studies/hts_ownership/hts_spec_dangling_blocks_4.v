@@ -48,6 +48,8 @@ Section HTS_Spec_Dangling.
     (csp_b + 1 + SpillSlot_size + 2 * StackEntry_reserved_space <= csp_e)%Z ->
     SubBounds pc_b pc_e pc_a (pc_a ^+ length hts_main_code) ->
     (pc_b + hts_label ".Lhts_main")%a = Some pc_a ->
+    cstk_hwm_base cstk = csp_b ->
+    (csp_e <= cstk_hwm_top cstk)%a ->
     thread_in th C ∗
     hts_ctx ∗
     free_ret ∗
@@ -56,7 +58,7 @@ Section HTS_Spec_Dangling.
     ⊢ safe[th].
   Proof.
     iIntros (Hpc_shadow Hpc_nonheap Hadv_nonheap Hcgp_heap Hstk_shadow Hstk_heap Hstk_min
-      HsubBounds Himports_contiguous) "(#Hthread & #Hctx & Hret & Hcontinue)".
+      HsubBounds Himports_contiguous Hbase Htop) "(#Hthread & #Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry & %Hshared)".
@@ -87,7 +89,7 @@ Section HTS_Spec_Dangling.
                  $Hrmap $Hcstk $Hcode_main $Hmie $Hheld]"); [done | done | done | done]. }
     iDestruct "Hok" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & _ & #Hrel_b & Hframe & Hca0 & Hca1 & Hregs
-      & [%stk Hstk] & Hworld_open & Hstack_revoked_ret
+      & [%stk Hstk] & [%mshwm_v Hhwm] & Hworld_open & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & #Hquar)".
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
       & Hcs0
@@ -219,13 +221,15 @@ Section HTS_Spec_Dangling.
       (Sentry (ret_kind mie_ret) RX Global pc_b pc_e (pc_a ^+ hts_label_offset
         ".Lhts_prep_assert")%a)
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e ^+ -1) C_f stk
-      adv_arg adv_other cstk Ws Cs 1
+      adv_arg adv_other cstk Ws Cs 1 mshwm_v
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
-        $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk
+        $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk $Hhwm
         $Hworld $Hstack_revoked_free $Hcstk $HK $Hinterp_adv_free $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr. }
+    { by rewrite Hbase. }
+    { exact Htop. }
     { exact Hdom_other. }
     { exact Hargs_rmap. }
     { destruct mie_ret; reflexivity. }
@@ -241,7 +245,7 @@ Section HTS_Spec_Dangling.
       "(_ & _ & _ & _ & _ & %Hdom_rmap_after2 & _ & _
        & Hna & _ & _ & Hcstk
        & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
-       & [%wca0 [Hca0 _] ] & [%wca1 [Hca1 _] ] & Hrmap & _ & _ & %Hrestored & _ & Hmie & Hheld)".
+       & [%wca0 [Hca0 _] ] & [%wca1 [Hca1 _] ] & Hrmap & _ & _ & _ & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hgp_ret2 & Hra_ret2 & Hs0_ret2 & _).
     apply load_heap_nonheap in Hs0_ret2; [|exact thread_return_sentry_not_heap].
     apply load_heap_nonheap in Hgp_ret2.

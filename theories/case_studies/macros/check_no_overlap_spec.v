@@ -21,6 +21,7 @@ Section Check_No_Overlap_spec.
     let check_no_overlap := (check_no_overlap_instrs rsrc1 rsrc2 r1 r2) in
     let a_last := (pc_a ^+ length check_no_overlap) in
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a a_last →
     rsrc1 ≠ cnull ->
     rsrc2 ≠ cnull ->
@@ -51,7 +52,7 @@ Section Check_No_Overlap_spec.
     ⊢ WP Exec {{ φ }}.
   Proof.
     intros check_no_overlap a_last ; subst check_no_overlap a_last.
-    iIntros (Hvpc Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)
+    iIntros (Hvpc Hnsr Hcont Hrsrc1_cnull Hrsrc2_cnull Hr1_cnull Hr2_cnull)
       "(>HPC & >Hrsrc1 & >Hrsrc2 & >Hr1 & >Hr2 & >#Hprog & Hk)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.

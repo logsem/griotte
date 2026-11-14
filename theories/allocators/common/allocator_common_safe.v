@@ -10,7 +10,7 @@ From griotte.allocators.common Require Import allocator_common_preamble.
 Section AllocatorCommonSafe.
   Context
     {Σ:gFunctors}
-    {ceriseg:ceriseG Σ} {th : Thread} {Cname : CmptNameG}
+    {ceriseb : ceriseBaseG Σ} {th : Thread} {Cname : CmptNameG}
     {sealsg: sealStoreG Σ}
     {stsg : STSG Σ} {cstackg : CSTACKG Σ} {relg : relGS Σ}
     `{MP: MachineParameters}

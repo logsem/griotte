@@ -703,7 +703,7 @@ Section subseg_witness_rules.
               (λ v, v = Cap p g a1 a2 a @@ ι) (alloc_obj ι a1 a2 ∗ ι ↦st{q} s)
               (λ R _, ∃ γ, R !! ι = Some (a1, a2, γ, s))
               with "[$HPC $Hpc_a $Hobj $Htok $Hmap]");
-      [done | rewrite /regs_instr_ok; by apply sw_of_none | done
+      [done | rewrite /regs_instr_ok; split; [by apply sw_of_none | solve_writes_mshwmb] | done
       | by eapply subseg_rebase_source | exact Hagree
       | right; rewrite /regs; set_solver+ | |].
     { iIntros (R C) "HR _ [#Hobj' Htok']".
@@ -1029,7 +1029,7 @@ Section gettag_witness_rules.
       by rewrite /regs_of /operands_of in Dregs. }
     iApply (wp_regs_step _ _ _ _ _ _ _ _ _ _ _ dst _ 1 _ _ (deref_witness_res dw ∗ P)
               (λ R C, deref_witness_ok R dw ∧ Φc C) with "[$HPC $Hpc_a $Hdw $HPr $Hmap]");
-      [done | rewrite /regs_instr_ok; by apply sw_of_none | done
+      [done | rewrite /regs_instr_ok; split; [by apply sw_of_none | solve_writes_mshwmb] | done
       | by apply gettag_source | by apply gettag_agree | | |].
     { destruct (decide (dst = cnull)) as [Hdst | Hdst]; [by left | right].
       rewrite /regs_of /operands_of in Dregs. set_solver. }

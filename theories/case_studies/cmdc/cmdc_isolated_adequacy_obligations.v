@@ -142,10 +142,9 @@ Section cmdc_isolated_obligations.
     iIntros "Hthread _". iNamed "Hthread".
     iEval (rewrite (fw_entry_pc_code cmdc_isolated_firmware img σ ltac:(reflexivity) Hok)) in "HPC".
     iEval (rewrite fw_thread_cra_eq) in "Hcra".
-    iEval (rewrite fw_thread_of_0) in "Hstack".
     iEval (rewrite /fw_thread_csp; cbv zeta) in "Hcsp".
     iEval (rewrite /fw_entry_cgp; cbv zeta) in "Hcgp".
-    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk".
+    iEval (rewrite /fw_entry_frame /fw_thread_csp /fw_entry_tbl; cbv zeta) in "Hcstk Hhwm".
     (* The worlds of B and C at the thread 0: their maps of Permanent regions
        and the thread's local maps *)
     iDestruct (big_sepS_delete _ _ B with "Hworlds") as "[Hperm_B Hworlds]".
@@ -162,10 +161,10 @@ Section cmdc_isolated_obligations.
     iDestruct (big_sepS_delete _ _ C with "Hlocals") as "[Hlocal_C _]".
     { apply elem_of_difference. split; last set_solver+HBC.
       rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
-    iAssert (world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 B)
+    iAssert (world_interp (th := UserThread 0) fw_world0 B)
       with "[Hperm_B Hlocal_B]" as "Hworld_B".
     { rewrite world_interp_eq. iFrame. }
-    iAssert (world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) fw_world0 C)
+    iAssert (world_interp (th := UserThread 0) fw_world0 C)
       with "[Hperm_C Hlocal_C]" as "Hworld_C".
     { rewrite world_interp_eq. iFrame. }
     iPoseProof (thread_in_intro (Σ := Σ) (UserThread 0) B Hin_B) as "#Hthread_B".
@@ -248,7 +247,7 @@ Section cmdc_isolated_obligations.
                     $Hworld_B $Hworld_C
                     $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $Hmain_imports $Hmain_code $Hmain_data $Hstack
-                    $Hinterp_B $Hinterp_C $Hcstk $Hrevoked_stack_B $Hrevoked_stack_C
+                    $Hinterp_B $Hinterp_C $Hcstk $Hhwm $Hrevoked_stack_B $Hrevoked_stack_C
                     $Hentry_Bf $Hentry_Cg
                     $HMIE $Hheld
                     ]"); eauto using fw_cleared_regs_dom.

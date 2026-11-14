@@ -58,6 +58,14 @@ Section si_upd_laws.
     iMod ("HP" with "Hσ") as "[$ HP]". by iFrame.
   Qed.
 
+  Lemma si_upd_bind E P Q : (|~{E}~> P) -∗ (P -∗ |~{E}~> Q) -∗ |~{E}~> Q.
+  Proof.
+    iIntros "HP HPQ". iApply si_upd_trans.
+    assert (P ∗ (P -∗ |~{E}~> Q) ⊢ |~{E}~> Q) as HPQ'.
+    { iIntros "[HP HPQ]". iApply ("HPQ" with "HP"). }
+    iApply (si_upd_mono _ _ _ HPQ'). iApply si_upd_frame_r. iFrame.
+  Qed.
+
   Lemma fupd_si_upd E P : (|={E}=> P) ⊢ |~{E}~> P.
   Proof. rewrite si_upd_unseal. iIntros "HP %σ Hσ". by iMod "HP" as "$". Qed.
 

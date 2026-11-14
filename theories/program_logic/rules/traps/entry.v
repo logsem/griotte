@@ -129,6 +129,46 @@ Section griotte_lang_traps.
   Implicit Types r : RegName.
   Implicit Types w : LWord.
 
+  (** The window clause across trap entry, with the window closed: trap
+      entry keeps MSHWMB, and at [CtxK] the code's quarter at [None] closes
+      the clause. *)
+  #[local] Lemma hwm_win_si_enter_exc k cv σ :
+    hwm_closed k ∗ hwm_win_si k σ ⊢ hwm_closed k ∗ hwm_win_si k (enter_exc cv σ).
+  Proof.
+    destruct k; cbn.
+    - iIntros "(_ & $ & $ & Hbase)". by rewrite phys_mshwmb_enter_exc.
+    - iIntros "(Hfrag & %o & Hcl & _)".
+      iDestruct (pend_cl_frag_agree with "Hcl Hfrag") as %->.
+      iFrame.
+  Qed.
+
+  (** The same from an incorrect PC: the window, which holds a correct PC,
+      is closed. *)
+  #[local] Lemma hwm_win_si_enter_exc_not_correct k cv σ :
+    ¬ isCorrectPC (pcc σ) →
+    True ∗ hwm_win_si k σ ⊢ True ∗ hwm_win_si k (enter_exc cv σ).
+  Proof.
+    intros Hnpc. destruct k; cbn.
+    - iIntros "(_ & $ & $ & Hbase)". by rewrite phys_mshwmb_enter_exc.
+    - iIntros "(_ & %o & Hcl & Hwin)". destruct o as [hbT|]; last by iFrame.
+      iNamed "Hwin".
+      destruct Hpc_win as (p & g & b & e & a & a4 & Hpc & _ & _ & Ha & Hc2 & Hc3 & _).
+      exfalso. apply Hnpc. rewrite Hpc. by destruct Ha as [-> | ->].
+  Qed.
+
+  (** The same from a PC without the system-register permission: the
+      window, whose PC has that permission, is closed. *)
+  #[local] Lemma hwm_win_si_enter_exc_nosr k cv σ :
+    pc_nosr (pcc σ) = true →
+    True ∗ hwm_win_si k σ ⊢ True ∗ hwm_win_si k (enter_exc cv σ).
+  Proof.
+    intros Hnsr. destruct k.
+    - cbn. iIntros "(_ & $ & $ & Hbase)". by rewrite phys_mshwmb_enter_exc.
+    - iIntros "(_ & Hwin)".
+      iDestruct (hwm_win_si_ctx_nosr σ Hnsr with "Hwin") as "Hcl".
+      iSplit; first done. rewrite /hwm_win_si /=. iExists None. by iFrame.
+  Qed.
+
   (* The obligation of a fault from the PC [w]: under an update at the time
      of the fault, a posture [b], the resources of trap entry at [b] and the
      continuation from the trap vector [mtcc_vec]. Sealed: clients consume
@@ -293,23 +333,27 @@ Section griotte_lang_traps.
      of [lm]. Each cell of [lm] is held at its own fraction. The register and
      memory points-to are given back before the obligation
      [trap_safe_cause P_mcause P_mtval w E Φ]. *)
-  Lemma wp_trap_gen_frac E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
-    (lm : gmap Addr (dfrac * LWord)) :
+  #[local] Lemma wp_trap_gen_frac_core E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
+    (lm : gmap Addr (dfrac * LWord)) (X : iProp Σ) :
     (∀ R C σ lreg lsreg lmem,
        erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → (snd <$> lm) ⊆ lmem →
        P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
+    (∀ σ cv, pcc σ = w.(lw) →
+       X ∗ hwm_win_si (kind_of th) σ ⊢ X ∗ hwm_win_si (kind_of th) (enter_exc cv σ)) →
     PC ↦ₚ w -∗
+    X -∗
     ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
     (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
      ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     X -∗
      trap_safe_cause P_mcause P_mtval w E Φ) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
     rewrite trap_safe_unseal /trap_safe_def trap_entry_res_unseal trap_entry_out_unseal.
-    iIntros (HP_mcause) "HPC Hregs Hmem Hsafe".
+    iIntros (HP_mcause HX) "HPC Hclosed Hregs Hmem Hsafe".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq & Hwin) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     (* The whole PC fragment refutes the parked half: the clause is
        dropped, and re-established after the entry, at MIE disabled. *)
@@ -324,7 +368,9 @@ Section griotte_lang_traps.
       iDestruct (big_sepM_lookup_acc with "Hmem") as "[Ha _]"; first exact Hlm.
       iApply (gen_heap_valid with "Hm Ha"). }
     pose proof (HP_mcause _ _ _ _ _ _ Her Hregs Hmem) as [Hcause Htval].
-    iMod ("Hsafe" with "Hregs Hmem") as (ib) "[(%Hpre & Hmie_f & Hho) HΦ]".
+    iDestruct (HX σ1 (trap_cause σ1, trap_tval σ1) with "[$Hclosed $Hwin]")
+      as "[Hclosed Hwin]"; first exact (erasure_pc_exact _ _ _ _ _ _ _ Her).
+    iMod ("Hsafe" with "Hregs Hmem Hclosed") as (ib) "[(%Hpre & Hmie_f & Hho) HΦ]".
     (* The posture before the fault. *)
     iDestruct (sys_interp_mie_agree with "Hsr Hmie_f") as %<-.
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
@@ -377,13 +423,56 @@ Section griotte_lang_traps.
     iMod ("Hrestore" with "HSI [//] []") as "(HSI & Hlink & Hpart)".
     { iPureIntro. destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
       rewrite /enter_exc /=. by rewrite !lookup_insert_ne. }
-    iModIntro. iSplitL "HSI Hlink".
-    { iFrame "HSI Hlink". iSplitR; first (iPureIntro; exact Hrdom).
+    iModIntro. iSplitL "HSI Hlink Hwin".
+    { iFrame "HSI Hlink Hwin". iSplitR; first (iPureIntro; exact Hrdom).
       iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
     iApply ("HΦ" with "[$Hmie_f $Hcrit $HU $Hmepcc Hmcause Hmtval Hmpie_f Hpart] HPC").
     iFrame "Hmpie_f Hpart".
     iSplitL "Hmcause"; [iExists (trap_cause σ1) | iExists (trap_tval σ1)]; by iFrame.
+  Qed.
+
+  Lemma wp_trap_gen_frac E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
+    (lm : gmap Addr (dfrac * LWord)) :
+    (∀ R C σ lreg lsreg lmem,
+       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → (snd <$> lm) ⊆ lmem →
+       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
+    PC ↦ₚ w -∗
+    hwm_closed (kind_of th) -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     hwm_closed (kind_of th) -∗
+     trap_safe_cause P_mcause P_mtval w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    intros HP. iApply wp_trap_gen_frac_core; first exact HP.
+    intros σ cv _. apply hwm_win_si_enter_exc.
+  Qed.
+
+  (** [wp_trap_gen_frac] from a PC without the system-register permission:
+      no window to close. *)
+  Lemma wp_trap_gen_frac_nosr E Φ w (P_mcause P_mtval : Z → Prop) (lregs : LReg)
+    (lm : gmap Addr (dfrac * LWord)) :
+    pc_nosr w.(lw) = true →
+    (∀ R C σ lreg lsreg lmem,
+       erasure R C σ w lreg lsreg lmem → lregs ⊆ lreg → (snd <$> lm) ⊆ lmem →
+       P_mcause (trap_cause σ) ∧ P_mtval (trap_tval σ)) →
+    PC ↦ₚ w -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     trap_safe_cause P_mcause P_mtval w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Hnsr HP) "HPC Hregs Hmem Hsafe".
+    iApply (wp_trap_gen_frac_core _ _ _ _ _ _ _ True with "HPC [] Hregs Hmem [Hsafe]").
+    - exact HP.
+    - intros σ cv Hpc. apply hwm_win_si_enter_exc_nosr. by rewrite Hpc.
+    - done.
+    - iIntros "Hregs Hmem _". iApply ("Hsafe" with "Hregs Hmem").
   Qed.
 
   (* A fault, from the configuration a faulting instruction returns: trap
@@ -393,12 +482,29 @@ Section griotte_lang_traps.
      identifier ([lmepcc_of_pc]), and the PC receives the trap vector. *)
   Lemma wp_trap E Φ w :
     PC ↦ₚ w -∗
+    hwm_closed (kind_of th) -∗
+    (hwm_closed (kind_of th) -∗ trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros "HPC Hclosed Hsafe".
+    iApply (wp_trap_gen_frac _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅
+             with "HPC Hclosed [] [] [Hsafe]").
+    - intros R C σ lreg lsreg lmem _ _ _. split; [apply trap_cause_ok | done].
+    - by rewrite big_sepM_empty.
+    - by rewrite big_sepM_empty.
+    - iIntros "_ _". iExact "Hsafe".
+  Qed.
+
+  (** [wp_trap] from a PC without the system-register permission. *)
+  Lemma wp_trap_nosr E Φ w :
+    pc_nosr w.(lw) = true →
+    PC ↦ₚ w -∗
     trap_safe_cause mcause_ok (λ _ : Z, True%type) w E Φ -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    iIntros "HPC Hsafe".
-    iApply (wp_trap_gen_frac _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅
-             with "HPC [] [] [Hsafe]").
+    iIntros (Hnsr) "HPC Hsafe".
+    iApply (wp_trap_gen_frac_nosr _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅
+             with "HPC [] [] [Hsafe]"); first exact Hnsr.
     - intros R C σ lreg lsreg lmem _ _ _. split; [apply trap_cause_ok | done].
     - by rewrite big_sepM_empty.
     - by rewrite big_sepM_empty.
@@ -416,7 +522,14 @@ Section griotte_lang_traps.
     iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
     iApply (wp_notCorrectPC with "HPC"); first done.
     iIntros "!> HPC /=".
-    iApply (wp_trap with "HPC Htrap").
+    iApply (wp_trap_gen_frac_core _ _ _ mcause_ok (λ _ : Z, True%type) ∅ ∅ True
+             with "HPC [] [] [] [Htrap]").
+    - intros R C σ lreg lsreg lmem _ _ _. split; [apply trap_cause_ok | done].
+    - intros σ cv Hpc. apply hwm_win_si_enter_exc_not_correct. by rewrite Hpc.
+    - done.
+    - by rewrite big_sepM_empty.
+    - by rewrite big_sepM_empty.
+    - iIntros "_ _ _". iExact "Htrap".
   Qed.
 
   (** ** Faults once mtcc is wedged *)
@@ -428,20 +541,22 @@ Section griotte_lang_traps.
     get_tag w.(lw) = true →
     mtcc_wedged -∗
     PC ↦ₚ w -∗
+    hwm_closed (kind_of th) -∗
     MIE_frag InterruptDisabled -∗
     volatile_csr_at p c v b -∗
     ▷ (∀ wv : LWord,
          ⌜get_tag wv.(lw) = false⌝ -∗
          PC ↦ₚ wv -∗
+         hwm_closed (kind_of th) -∗
          MIE_frag InterruptDisabled -∗
          (∃ c' v' : Z,
             volatile_csr_at (lmepcc_of_pc w) (lword_of_word (WInt c')) v' InterruptDisabled) -∗
          WP Exec @ E {{ Φ }}) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    iIntros (Htag) "#Hwedged HPC Hmie_f Hvcsr Hcont".
+    iIntros (Htag) "#Hwedged HPC Hclosed Hmie_f Hvcsr Hcont".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq & Hwin) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (ctx_irq_si_held with "Hirq HPC") as "[_ HPC]".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -460,16 +575,18 @@ Section griotte_lang_traps.
     iMod (enter_exc_update_wedged σ1 (trap_cause σ1, trap_tval σ1) _ _ _ _ _ _ _ _ _ _ _ wv
             Her Hwv with "HPCa Hr Hsr Hm Hst HR HC HPC Hmie_f Hvcsr")
       as "(_ & %Hoff' & HSI & HPC & Hmie_f & Hvcsr)".
+    iDestruct (hwm_win_si_enter_exc _ (trap_cause σ1, trap_tval σ1) with "[$Hclosed $Hwin]")
+      as "[Hclosed Hwin]".
     (* MIE stays disabled and mtdc is unchanged: the link is kept. *)
-    iModIntro. iSplitL "HSI Hlink".
-    { iFrame "HSI". iSplitR; first (iPureIntro; exact Hrdom).
+    iModIntro. iSplitL "HSI Hlink Hwin".
+    { iFrame "HSI Hwin". iSplitR; first (iPureIntro; exact Hrdom).
       iSplitL "Hlink".
       - iApply (crit_link_stable with "Hlink"); first congruence.
         destruct σ1 as [pc1 r1 sr1 m1 st1 td1].
         rewrite /enter_exc /=. by rewrite !lookup_insert_ne.
       - iApply (ctx_irq_si_kept _ _ _ (λ _, Hoff')). apply sys_kept_refl. }
     iSplitL; last done.
-    iApply ("Hcont" with "[//] HPC Hmie_f").
+    iApply ("Hcont" with "[//] HPC Hclosed Hmie_f").
     iExists (trap_cause σ1), (trap_tval σ1). iExact "Hvcsr".
   Qed.
 
@@ -484,7 +601,7 @@ Section griotte_lang_traps.
   Proof.
     iIntros (Htag) "#Hwedged HPC Hcont".
     iApply wp_lift_base_step; first done.
-    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq) /=".
+    iIntros (σ1 ns κ κs nt) "(Hσ & %Hrdom & Hlink & Hirq & Hwin) /=".
     iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
     iDestruct (ctx_irq_si_held with "Hirq HPC") as "[%Hoff HPC]".
     iDestruct (PC_agree with "HPCa HPC") as %->.
@@ -502,7 +619,7 @@ Section griotte_lang_traps.
     inversion Hstep as [| | | σ' Hnot_halts | σ' Hhalts |]; subst; first congruence.
     iMod "Hclose" as "_".
     iModIntro. iSplitR "HPC Hcont".
-    { iFrame "Hlink". iSplitL.
+    { iFrame "Hlink Hwin". iSplitL.
       - iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
       - iSplitR; first (iPureIntro; exact Hrdom).
         iApply (ctx_irq_si_kept _ _ _ Hoff). apply sys_kept_refl. }
@@ -525,7 +642,8 @@ Notation trap_safe := (trap_safe_cause mcause_ok (λ _ : Z, True%type)).
    of the form [∀ a, ⌜range⌝ -∗ R -∗ trap_safe (WCap … a) E Φ] (or
    [R -∗ trap_safe w E Φ]): the range side condition is solved with
    [solve_addr], or left to the caller as a pure goal, and the resources
-   [R] are framed from the context. *)
+   [R] are framed from the context. A premise of the form
+   [R -∗ hwm_closed _ -∗ trap_safe w E Φ] receives the closed window. *)
 Ltac instr_trap_pc :=
   lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
     lazymatch Γs with
@@ -534,14 +652,57 @@ Ltac instr_trap_pc :=
     end
   end.
 
+(* The spec pattern of the closed window: a goal that receives the
+   hypothesis [hwm_closed _] or [pend_frag None] of the context, if any;
+   [instr_trap_start] closes it, also at [UserK], where [hwm_closed] is
+   [True]. *)
+Ltac instr_trap_closed :=
+  lazymatch goal with |- envs_entails (Envs _ ?Γs _) _ =>
+    lazymatch Γs with
+    | context [ Esnoc _ ?h (hwm_closed _)%I ] =>
+        constr:(SGoal (SpecGoal GSpatial false nil (cons h nil) false))
+    | context [ Esnoc _ ?h (pend_frag None)%I ] =>
+        constr:(SGoal (SpecGoal GSpatial false nil (cons h nil) false))
+    | _ => constr:(SGoal (SpecGoal GSpatial false nil nil false))
+    end
+  end.
+
+(* Solves the closed window [hwm_closed k]: at a concrete [UserK], from a
+   hypothesis of the context, or at a thread [t] with [t ≠ CtxSwitch]. *)
+Ltac solve_hwm_closed :=
+  rewrite /hwm_closed /=;
+  first
+    [ done
+    | iAssumption
+    | match goal with H : ?t ≠ CtxSwitch |- _ =>
+        destruct t; [simpl; done | by exfalso; apply H] end ].
+
+(* Solves [pc_nosr w = true]: by computation, or from a hypothesis
+   [has_sreg_access p = false]. *)
+Ltac solve_pc_nosr :=
+  first
+    [ done
+    | rewrite /pc_nosr /=;
+      first
+        [ done
+        | match goal with H : has_sreg_access _ = false |- _ => by rewrite H end ] ].
+
+(* Starts a fault with [wp_trap] if the window is closed (a hypothesis
+   [hwm_closed _] or [pend_frag None], or a concrete [UserK]), else with
+   [wp_trap_nosr] if the PC has no system-register permission. *)
 Ltac instr_trap_start :=
   lazymatch goal with
   | |- envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
   | _ => fail "iTrap: the goal is not a fault WP Seq (Instr Faulted)"
   end;
   let hpc := instr_trap_pc in
-  let pat := constr:(cons (SIdent hpc nil) nil) in
-  iApply (wp_trap with pat).
+  first
+    [ let hcl := instr_trap_closed in
+      let pat := constr:(cons (SIdent hpc nil) (cons hcl nil)) in
+      iApply (wp_trap with pat);
+      [ solve_hwm_closed | iIntros "Htrap_closed" ]
+    | iApply (wp_trap_nosr with [SIdent hpc nil]); [solve_pc_nosr | ]
+    | fail "iTrap: no closed window and the PC may have the system-register permission" ].
 
 Tactic Notation "iTrap" :=
   instr_trap_start;
@@ -549,7 +710,9 @@ Tactic Notation "iTrap" :=
         | fail "iTrap: no hypothesis trap_safe w E Φ in the context; use iTrap with" ].
 Tactic Notation "iTrap" "with" constr(H) :=
   instr_trap_start;
-  iApply H;
+  first
+    [ iRevert "Htrap_closed"; iApply H
+    | iApply H ];
   [ try (iPureIntro; try solve_addr) .. ];
   try iFrame.
 

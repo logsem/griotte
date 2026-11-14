@@ -33,10 +33,12 @@ Record img_cmpt : Type := MkImgCmpt {
   cmpt_exp_tbl_entries : list Word;
 }.
 
-(** A thread: its stack, its trusted stack and its two hazard slots. *)
+(** A thread: its stack and the words it holds, its trusted stack and its
+    two hazard slots. *)
 Record img_thread : Type := MkImgThread {
   b_stack : Addr;
   e_stack : Addr;
+  stack_words : list Word;
   b_trusted_stack : Addr;
   e_trusted_stack : Addr;
   b_hazard : Addr;
@@ -105,7 +107,7 @@ Definition default_img_cmpt : img_cmpt :=
 
 Definition default_img_locks : img_locks := MkImgLocks za0 za0.
 
-Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0 za0 za0.
+Definition default_img_thread : img_thread := MkImgThread za0 za0 [] za0 za0 za0 za0.
 
 Fixpoint assoc {A} (n : string) (l : list (string * A)) (d : A) : A :=
   match l with

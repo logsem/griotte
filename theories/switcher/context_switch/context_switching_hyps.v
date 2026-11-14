@@ -34,7 +34,7 @@ Section ctx_switch.
 
   (** The trap vector is safe for any fault of the context-switch thread. *)
   Definition ctx_trap_vector_safe : iProp Σ :=
-    trap_vector_safe (th := CtxSwitch) (λ _ _ _, True%I) (lword_of_word mtcc_vec).
+    trap_vector_safe (th := CtxSwitch) (λ _ _ _ _, True%I) (lword_of_word mtcc_vec).
 
   (** The scheduler's state between two activations: its world, its call
       stack, its continuation, and its stack valid in that world. *)

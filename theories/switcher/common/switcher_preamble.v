@@ -250,6 +250,43 @@ Section Switcher_preamble.
     (a ^+ SpillSlot_cgp) ↦ₐ w2 ∗
     (a ^+ SpillSlot_pcc) ↦ₐ w3.
 
+  (** [switcher_stk_cells] at the fraction [dq], which suffices to load from
+      the spill area. *)
+  Definition switcher_stk_cells_dq (dq : dfrac) (a : Addr) (w0 w1 w2 w3 : LWord) : iProp Σ :=
+    a ↦ₐ{dq} w0 ∗
+    (a ^+ SpillSlot_cs1) ↦ₐ{dq} w1 ∗
+    (a ^+ SpillSlot_cgp) ↦ₐ{dq} w2 ∗
+    (a ^+ SpillSlot_pcc) ↦ₐ{dq} w3.
+
+  (** The cells of a spill area give half of their points-to, enough to load
+      from them, and get them back. *)
+  Lemma stack_region_spill_half (s : Addr) (w0 w1 w2 w3 : LWord) :
+    (s + SpillSlot_size)%a = Some (s ^+ SpillSlot_size) ->
+    stack_region s (s ^+ SpillSlot_size) [w0; w1; w2; w3] -∗
+    switcher_stk_cells_dq (DfracOwn (1/2)) s w0 w1 w2 w3 ∗
+    (switcher_stk_cells_dq (DfracOwn (1/2)) s w0 w1 w2 w3 -∗
+     stack_region s (s ^+ SpillSlot_size) [w0; w1; w2; w3]).
+  Proof.
+    rewrite /SpillSlot_size /SpillSlot_cs1 /SpillSlot_cgp /SpillSlot_pcc /switcher_stk_cells_dq.
+    iIntros (Hs4) "Hcells".
+    rewrite (stack_region_cons s (s ^+ 1)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 1) (s ^+ 2)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 2) (s ^+ 3)); [|solve_addr|solve_addr].
+    rewrite (stack_region_cons (s ^+ 3) (s ^+ 4)); [|solve_addr|solve_addr].
+    iDestruct "Hcells" as "(H0 & H1 & H2 & H3 & Hnil)".
+    iDestruct (stack_cell_half with "H0") as "[H0 Hc0]".
+    iDestruct (stack_cell_half with "H1") as "[H1 Hc1]".
+    iDestruct (stack_cell_half with "H2") as "[H2 Hc2]".
+    iDestruct (stack_cell_half with "H3") as "[H3 Hc3]".
+    iFrame "H0 H1 H2 H3".
+    iIntros "(H0 & H1 & H2 & H3)".
+    iDestruct ("Hc0" with "H0") as "$".
+    iDestruct ("Hc1" with "H1") as "$".
+    iDestruct ("Hc2" with "H2") as "$".
+    iDestruct ("Hc3" with "H3") as "$".
+    iFrame.
+  Qed.
+
   (** [cframe_stk_own s saved ccrel] holds the spill area
       $[s, s + SpillSlot_size)$ where the switcher spilled the callee-saved
       registers [saved] of the caller. We have 2 situations to take into account:
@@ -265,6 +302,11 @@ Section Switcher_preamble.
     then True
     else
       switcher_stk_cells a_stk saved.(cs_cs0) saved.(cs_cs1) saved.(cs_cgp) saved.(cs_cra))%I.
+
+  #[global] Instance cframe_stk_own_timeless (a : Addr) (saved : callee_saved_registers)
+    (ccrel : caller_callee_relation) :
+    Timeless (cframe_stk_own a saved ccrel).
+  Proof. rewrite /cframe_stk_own. destruct (is_untrusted_caller ccrel); apply _. Qed.
 
   (** The spill area of a caller whose cursor is [a] lies in its stack
       $[b, e)$, and does not wrap around. *)
@@ -511,8 +553,9 @@ Section Switcher_preamble.
   (** [switcher_static] holds the read-only memory of the switcher: its code,
       and the unsealing capability of the switcher's otype; the fact that
       the trap vector is the exception entry of the switcher; the global
-      part of the switcher's invariant; the key of the trusted stacks; and
-      the exit part of the thread. *)
+      part of the switcher's invariant; the key of the trusted stacks; the
+      exit part of the thread; and the base of MSHWMB of the thread, which is
+      the base of its stack. *)
   Definition switcher_static : iProp Σ :=
     "#Hswitcher_code" ∷ codefrag_pers a_switcher_call switcher_instrs ∗
     "#Hswitcher_key" ∷ (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher^+1) ot_switcher ∗
@@ -522,7 +565,8 @@ Section Switcher_preamble.
     "#Hswitcher_sealing" ∷ switcher_sealing_inv ∗
     "#Htstacks_key" ∷ b_switcher ↦ₐ□ SealRange (true,true) Global ot_trusted_stacks (ot_trusted_stacks ^+ 1)
                      ot_trusted_stacks ∗
-    "#Hexit_prop" ∷ saved_prop_own (γ_exit th) DfracDiscarded exit_concrete.
+    "#Hexit_prop" ∷ saved_prop_own (γ_exit th) DfracDiscarded exit_concrete ∗
+    "#Hhwm_base" ∷ ∃ (mshwmb_v es : Addr), hwm_base[th] mshwmb_v ∗ thread_stack_bounds mshwmb_v es.
 
   #[global] Instance switcher_static_persistent : Persistent switcher_static.
   Proof. apply _. Qed.
@@ -576,13 +620,14 @@ Section switcher_static_thread.
   Qed.
 
   (** The switcher's static facts at the thread [t'], from those at the
-      thread [t] and the exit part of [t']. *)
+      thread [t], the exit part of [t'] and the base of MSHWMB of [t']. *)
   Lemma switcher_static_thread (t t' : Thread) :
     switcher_static (th := t) -∗
     saved_prop_own (γ_exit t') DfracDiscarded (exit_concrete (th := t')) -∗
+    (∃ mshwmb_v es : Addr, hwm_base[t'] mshwmb_v ∗ thread_stack_bounds (th := t') mshwmb_v es) -∗
     switcher_static (th := t').
   Proof.
-    iIntros "Hstatic #Hexit_prop'". rewrite /switcher_static. iNamed "Hstatic".
+    iIntros "Hstatic #Hexit_prop' #Hhwm_base'". rewrite /switcher_static. iNamed "Hstatic".
     rewrite -(codefrag_pers_thread_indep t t' a_switcher_call switcher_instrs)
       -(switcher_sealing_inv_thread_indep t t').
     iSplitR; [iExact "Hswitcher_code"|].
@@ -590,7 +635,8 @@ Section switcher_static_thread.
     iSplitR; [iPureIntro; exact Hmtcc_vec|].
     iSplitR; [iExact "Hswitcher_sealing"|].
     iSplitR; [iExact "Htstacks_key"|].
-    iExact "Hexit_prop'".
+    iSplitR; [iExact "Hexit_prop'"|].
+    iExact "Hhwm_base'".
   Qed.
 End switcher_static_thread.
 
@@ -692,6 +738,71 @@ Section Switcher_Stack_Traps.
   (** The spill area ends at the cursor. *)
   Lemma stk_spill_a_end a : stk_spill_ok a → (stk_spill_a a ^+ SpillSlot_size) = a.
   Proof. stk_unfold; solve_addr. Qed.
+
+  (** The cells of the free part of a caller's stack split into those of
+      its spill area and those of the callee's stack. *)
+  Lemma stk_free_split_cells b e a (l : list LWord) :
+    switcher_stk_bounds b e a →
+    length l = length (stk_free b e a) →
+    stack_region (stk_free_b b a) (stk_free_e e a) l ⊣⊢
+    stack_region (stk_spill_a a) (stk_spill_a a ^+ SpillSlot_size) (stk_mem_spill l) ∗
+    stack_region (stk_callee_b b a) (stk_callee_e e a) (stk_mem_callee l).
+  Proof.
+    intros Hbounds Hl.
+    pose proof Hbounds as (Hb & Hb3 & Ha4).
+    rewrite /stk_free finz_seq_between_length in Hl.
+    rewrite stk_spill_a_end //.
+    revert Hb Hb3 Ha4 Hl; stk_unfold; intros Hb Hb3 Ha4 Hl.
+    rewrite (stack_region_split b (a ^+ - (4)) a); [|solve_addr|solve_addr].
+    rewrite bi.sep_comm.
+    rewrite (_ : finz.dist b (a ^+ - (4)) = (length l - Z.to_nat 4)%nat);
+      last (rewrite Hl /finz.dist; solve_addr).
+    done.
+  Qed.
+
+  (** The spill area and the callee's stack make the free part, as stack
+      cells. *)
+  Lemma switcher_stk_cells_stack_region b e a w0 w1 w2 w3 lc :
+    switcher_stk_bounds b e a →
+    switcher_stk_cells (stk_spill_a a) w0 w1 w2 w3 -∗
+    stack_region (stk_callee_b b a) (stk_callee_e e a) lc -∗
+    stack_region (stk_free_b b a) (stk_free_e e a) (stk_mem_join [w0; w1; w2; w3] lc).
+  Proof.
+    iIntros ((Hb & Hb3 & Ha4)) "Hcells Hstk".
+    iDestruct (switcher_stk_cells_region_4 with "Hcells") as "Hcells".
+    { revert Ha4; stk_unfold; intros Ha4; solve_addr. }
+    iDestruct (stack_region_of_pointsto with "Hcells") as "Hcells".
+    rewrite (stk_spill_a_end a Ha4) /stk_mem_join.
+    iApply (stack_region_join with "[$Hstk $Hcells]");
+      revert Hb Hb3 Ha4; stk_unfold; intros Hb Hb3 Ha4; solve_addr.
+  Qed.
+
+  (** When the cells of the free part of the caller's stack below MSHWM [mshwm_v]
+      hold integers, the call path leaves integers in the callee's stack: it
+      zeroes it from [mshwm_v'], which is [mshwm_v] or a cell of the spill
+      area. *)
+  Lemma callee_stk_ints (b e a : Addr) (mshwm_v mshwm_v' : Z) (stk_mem : list LWord) :
+    switcher_stk_bounds b e a →
+    length (stk_free b e a) = length stk_mem →
+    Forall lword_int (take (Z.to_nat (mshwm_v - stk_free_b b a)) stk_mem) →
+    (mshwm_v' = mshwm_v ∨ (stk_spill_a a <= mshwm_v' < mshwm_v)%Z) →
+    Forall lword_int (stack_zeroed_from (stk_callee_b b a) mshwm_v' (stk_mem_callee stk_mem)).
+  Proof.
+    intros Hbounds Hlen Hz Hh'.
+    pose proof Hbounds as (Hb & Hb3 & Ha4).
+    assert (length stk_mem = Z.to_nat (a - b)) as Hlen'.
+    { rewrite -Hlen /stk_free finz_seq_between_length /finz.dist.
+      revert Hb Hb3 Ha4; stk_unfold; intros Hb Hb3 Ha4; solve_addr. }
+    rewrite /stk_mem_callee /stk_callee_b.
+    rewrite (stack_zeroed_from_take b mshwm_v mshwm_v'); [| lia |].
+    2: { destruct Hh' as [-> | Hh']; [by left | right].
+         revert Hb Hb3 Ha4 Hh'; stk_unfold; intros Hb Hb3 Ha4 Hh'.
+         rewrite Hlen'; solve_addr. }
+    apply Forall_take.
+    rewrite /stk_free_b in Hz. rewrite /stack_zeroed_from.
+    apply Forall_app; split; first done.
+    apply Forall_replicate. by exists 0%Z.
+  Qed.
 
   Lemma stk_free_split_zeroes b e a :
     switcher_stk_bounds b e a →
@@ -837,7 +948,7 @@ Section Switcher_Stack_Traps.
     apply Z.leb_le in H0. apply Z.ltb_lt in Hlt. apply negb_true_iff, Z.eqb_neq in Hne.
     apply trap_no_resume_addr. cbn.
     pose proof switcher_size as Hsize. pose proof switcher_call_entry_point as Hcall.
-    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 6%Z) as Hfirst
+    assert (switcher_label_offset ".Lswitch_entry_first_spill" = 9%Z) as Hfirst
       by reflexivity.
     rewrite Hfirst in Hne |- *.
     remember (length switcher_instrs) as len.

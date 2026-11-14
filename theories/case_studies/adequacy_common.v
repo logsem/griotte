@@ -59,15 +59,12 @@ Section world_interp_init_ctx.
       threads [k < nthreads]. *)
   #[local] Lemma world_interp_init_ctx (oset : gset OType) (nthreads : nat) (C_sched : CmptName) :
     ⊢ |==> ∃ (relg : relGS Σ) (stsg : STSG Σ) (sstoreg : sealStoreG Σ),
-        world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+        world_interp (th := CtxSwitch)
           (MkWorld ∅ (∅,∅)) C_sched ∗
         ([∗ set] C ∈ CNames ∖ {[C_sched]},
-           perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-             (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
+           perm_region_map C ∅) ∗
         ([∗ list] k ∈ seq 0 nthreads, [∗ set] C ∈ CNames,
-           local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
-             (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
-             (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
+           local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅) ∗
         ([∗ set] o ∈ oset, can_alloc_pred o).
   Proof.
     assert (C_sched ∈ CNames) as Hin.
@@ -109,37 +106,46 @@ Section suspended.
 
   (** The ghost state of user thread [t], Suspended with the values [v]:
       its authorities and its fragments at [v], with its mtdc at home, its
-      mtdc token and the token of its pool. *)
+      mtdc token, the token of its pool, and the tokens of its zone. *)
   Definition suspended_res (t : nat) (v : resume_vals) : iProp Σ :=
     "Hauths" ∷ auths_at t v ∗
     "HPC" ∷ PC ↦ₚ[u t] v.(rv_pc) ∗
     "Hregs" ∷ regs[u t] v.(rv_regs) ∗
     "Hmtdc" ∷ mtdc ↦ₜ[u t] mtdc_home_at (th := UserThread t) ∗
     "HMIE" ∷ MIE ↦ₜ[u t] v.(rv_mie) ∗
+    "Hhwmb" ∷ mshwmb ↦ₜ[u t] v.(rv_hwmb) ∗
+    "Hhwm" ∷ mshwm ↦ₜ[u t] v.(rv_hwm) ∗
+    "Hztok" ∷ ([∗ set] a ∈ v.(rv_zone), zone_token[u t] a) ∗
     "Hlent" ∷ mtdc_lent_at (th := UserThread t) ∗
     "Hna" ∷ na_own (tpool (UserThread t)) ⊤.
 
-  (** A Suspended slot for user thread [t]: its save area, its mtdc token,
-      its authorities at the values [v] it resumes with, and its run, which
-      receives what it holds at its MIE and a later credit. *)
+  (** A Suspended slot for user thread [t], with no last owner: its save
+      area, whose word [mshwmb] is the stack base [v.(rv_hwmb)], its mtdc
+      token, its authorities at the values [v] it resumes with, the halves
+      of its zone, and its run, which receives what it holds at its MIE and
+      a later credit. *)
   Lemma slot_suspended_intro (t : nat) (ws : list LWord) (v : resume_vals) :
     saved_mie_ok ws →
     resume_ok_full ws v →
+    ws !! 20%nat = Some (lword_of_word (WInt v.(rv_hwmb))) →
     save_area_holed (UserThread t) ws -∗
     mtdc_lent_at (th := UserThread t) -∗
     auths_at t v -∗
+    zone_halves[CtxSwitch] v.(rv_zone) -∗
     ▷ (held (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
          (CL := crit_link_full (UserThread t)) (CR := crit_route_full (UserThread t))
          v.(rv_mie) -∗
        £ 1
        ={⊤}=∗
        safe[u t]) -∗
-    slot t None.
+    slot None t None.
   Proof.
-    iIntros (Hmie Hok) "Hsa Hlent Hauths Hrun".
-    rewrite /slot. iExists ws, v. iFrame "Hsa Hlent Hauths".
+    iIntros (Hmie Hok Hhb) "Hsa Hlent Hauths Hhalves Hrun".
+    iAssert (hwm_base[u t] v.(rv_hwmb))%I as "#Hbase".
+    { iDestruct "Hauths" as "(_ & _ & $)". }
+    rewrite /slot. iExists ws, v. iFrame "Hsa Hlent Hauths Hhalves".
     iSplit; first done.
-    iSplit; first done.
+    iSplitR; first (iSplit; first done; iExists v.(rv_hwmb); by iFrame "Hbase").
     iIntros "!> Hpost Hlc".
     iApply fupd_wp. iApply ("Hrun" with "[Hpost] Hlc").
     destruct (rv_mie v); first done.
@@ -182,6 +188,30 @@ Section suspended_ghost.
       iModIntro. iExists ((pg, rg, mtg, mieg, mlg) :: gs).
       rewrite big_sepL2_cons /suspended_ghost /=. by iFrame.
   Qed.
+
+  (** The high-water-mark ghost state of a Suspended user thread, at the
+      name [g]: MSHWMB, MSHWM and its zone at the values [v], authority and
+      fragment of each, the tokens of its zone, its rest and its stack
+      base. *)
+  Definition suspended_hwm_ghost (g : hwmG Σ) (v : resume_vals) : iProp Σ :=
+    @mshwmb_auth Σ g v.(rv_hwmb) ∗ @mshwmb_frag Σ g v.(rv_hwmb) ∗
+    @mshwm_auth Σ g v.(rv_hwm) ∗ @mshwm_frag Σ g v.(rv_hwm) ∗
+    @zone_auth Σ g v.(rv_zone) ∗ ([∗ set] a ∈ v.(rv_zone), @zone_token Σ g a) ∗
+    @hwm_rest Σ g ∗ @hwm_base Σ g v.(rv_hwmb).
+
+  (** The high-water-mark ghost state of a list of Suspended user threads,
+      each at its values. *)
+  Lemma suspended_hwm_ghost_init {cerise_preg : ceriseGpreS Σ} (vs : list resume_vals) :
+    ⊢ |==> ∃ hs, [∗ list] g; v ∈ hs; vs, suspended_hwm_ghost g v.
+  Proof.
+    iInduction vs as [|v vs] "IH".
+    - iModIntro. by iExists [].
+    - iMod (hwm_init_zone v.(rv_hwmb) v.(rv_hwm) v.(rv_zone))
+        as (hg) "(Hba & Hbf & Hha & Hhf & Hza & Hzt & Hrest & _ & _ & Hbase)".
+      iMod "IH" as (hs) "Hhs".
+      iModIntro. iExists (hg :: hs).
+      rewrite big_sepL2_cons /suspended_hwm_ghost. by iFrame.
+  Qed.
 End suspended_ghost.
 
 (** ** The idle thread *)
@@ -190,12 +220,13 @@ End suspended_ghost.
 Definition idle_save_area (swl : switcherLayout) (b_hz e_hz : Addr) : list LWord :=
   lword_of_word <$>
     save_area_content (@exited_thread_pcc swl) (WInt 0) (WInt 0) (WInt 0)
-      (Cap WO Global b_hz e_hz b_hz) (WInt (mstatus_enc InterruptDisabled InterruptEnabled)).
+      (Cap WO Global b_hz e_hz b_hz) (WInt (mstatus_enc InterruptDisabled InterruptEnabled))
+      (WInt 0) (WInt 0).
 
 (** A save area with zero in [cra], [csp] and [cgp] resumes with every
     register null. *)
-#[local] Lemma resume_regs_of_zero a h m :
-  resume_regs_of (lword_of_word <$> save_area_content a (WInt 0) (WInt 0) (WInt 0) h m) =
+#[local] Lemma resume_regs_of_zero a mshwm_v m x y :
+  resume_regs_of (lword_of_word <$> save_area_content a (WInt 0) (WInt 0) (WInt 0) mshwm_v m x y) =
   gset_to_gmap lnull all_registers_s.
 Proof.
   apply map_eq. intros r. rewrite resume_regs_of_lookup.
@@ -210,9 +241,12 @@ Lemma idle_save_area_resume_ok (swl : switcherLayout) b_hz e_hz :
   resume_ok_full (idle_save_area swl b_hz e_hz)
     {| rv_regs := gset_to_gmap lnull all_registers_s;
        rv_pc := lword_of_word (@exited_thread_pcc swl);
-       rv_mie := InterruptEnabled |}.
+       rv_mie := InterruptEnabled;
+       rv_hwmb := 0;
+       rv_hwm := 0;
+       rv_zone := ∅ |}.
 Proof.
-  rewrite /idle_save_area. split; [|split; [|split] ].
+  rewrite /idle_save_area. split; [|split; [|split; [|split; [|split] ] ] ].
   - intros w Hw. rewrite save_area_lookup_mstatus in Hw. injection Hw as <-.
     exact (mie_of_mstatus_enc InterruptDisabled InterruptEnabled).
   - cbn [rv_regs]. by rewrite resume_regs_of_zero.
@@ -224,6 +258,8 @@ Proof.
       cbv beta iota zeta. symmetry. apply legalise_pc_ok_id.
       rewrite /exited_thread_pcc. done.
     + intros _. reflexivity.
+  - cbn [rv_hwmb]. by rewrite save_area_word_mshwmb.
+  - cbn [rv_hwm]. by rewrite save_area_word_mshwm.
 Qed.
 
 Section idle.
@@ -236,19 +272,26 @@ Section idle.
   Definition idle_start_vals : resume_vals :=
     {| rv_regs := gset_to_gmap lnull all_registers_s;
        rv_pc := lword_of_word exited_thread_pcc;
-       rv_mie := InterruptEnabled |}.
+       rv_mie := InterruptEnabled;
+       rv_hwmb := 0;
+       rv_hwm := 0;
+       rv_zone := ∅ |}.
 
   (** The idle thread [n] is Suspended at the loop of an exited thread: its
-      save area as the loader writes it, its hazard slots at [b_hz, e_hz). *)
+      save area as the loader writes it, its hazard slots at [b_hz, e_hz),
+      its zone empty. *)
   Lemma idle_slot (n : nat) (b_hz e_hz : Addr) :
     codefrag_pers (ceriseg := ceriseG_of (UserThread n)) a_switcher_call switcher_instrs -∗
     save_area_holed (UserThread n) (idle_save_area swlayout b_hz e_hz) -∗
     suspended_res n idle_start_vals -∗
-    slot n None.
+    slot None n None.
   Proof.
     iIntros "#Hcode Hsa Hres". iNamed "Hres".
     destruct (idle_save_area_resume_ok swlayout b_hz e_hz) as [Hmie Hok].
-    iApply (slot_suspended_intro n _ idle_start_vals Hmie Hok with "Hsa Hlent Hauths").
+    iAssert (zone_halves[CtxSwitch] ∅)%I as "Hhalves".
+    { by rewrite /zone_halves big_sepS_empty. }
+    iApply (slot_suspended_intro n _ idle_start_vals Hmie Hok eq_refl
+             with "Hsa Hlent Hauths Hhalves").
     iIntros "!> _ _ !>".
     iApply (exited_tail_safe n with "Hcode [] [] HPC HMIE Hregs []").
     - by iLeft.
@@ -281,7 +324,8 @@ Section world_init.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
   (** The call stack of the context-switch thread starts with the entry
-      frame [ef_c] only, that of the user thread [k] with [efs !! k] only.
+      frame [ef_c] only, that of the user thread [k] with [efs !! k] only;
+      the stack of each thread is the one of its entry frame.
       The world of the scheduler's compartment [C_sched] is the
       context-switch thread's; the maps of Permanent regions of the other
       compartments are given once; each user thread [k] with a frame in
@@ -294,30 +338,32 @@ Section world_init.
       ([∗ set] o ∈ ots, can_alloc_pred o) ∗
       ●(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
       ◯(CSTK)[CtxSwitch] (entry_cstack ef_c) ∗
+      thread_stack_bounds (th := CtxSwitch) (cstk_hwm_base (entry_cstack ef_c))
+        (cstk_hwm_top (entry_cstack ef_c)) ∗
       ([∗ list] k ↦ ef ∈ efs,
          ●(CSTK)[u k] (entry_cstack ef) ∗ ◯(CSTK)[u k] (entry_cstack ef)) ∗
-      world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch)
+      ([∗ list] k ↦ ef ∈ efs,
+         thread_stack_bounds (th := UserThread k) (cstk_hwm_base (entry_cstack ef))
+           (cstk_hwm_top (entry_cstack ef))) ∗
+      world_interp (th := CtxSwitch)
         (MkWorld ∅ (∅,∅)) C_sched ∗
       ([∗ set] C ∈ CNames ∖ {[C_sched]},
-         perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-           (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
+         perm_region_map C ∅) ∗
       [∗ list] k ↦ _ ∈ efs, [∗ set] C ∈ CNames,
-        local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
-          (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
-          (UserThread k) (MkWorld ∅ (∅,∅)) C ∅.
+        local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅.
   Proof.
     intros _.
     iMod (gen_cstack_init_ctx (entry_cstack ef_c) ((λ ef, entry_cstack ef) <$> efs))
-      as (cstackg) "(Hcstk_full & Hcstk_frag & Hcstks)".
+      as (cstackg) "(Hcstk_full & Hcstk_frag & #Htstk_ctx & Hcstks)".
     iEval (rewrite big_sepL_fmap) in "Hcstks".
+    iEval (setoid_rewrite bi.sep_assoc) in "Hcstks".
+    iDestruct (big_sepL_sep with "Hcstks") as "[Hcstks #Htstks]".
     iMod (world_interp_init_ctx ots (length efs) C_sched) as (relg stsg seal_storeg)
       "(Hctx & Hworlds & Hlocals & Hseal_store)".
     iEval (rewrite (big_sepL_seq_index
              (λ k, [∗ set] C ∈ CNames,
-                local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
-                  (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k)))
-                  (UserThread k) (MkWorld ∅ (∅,∅)) C ∅)%I efs)) in "Hlocals".
-    iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame.
+                local_region_map (UserThread k) (MkWorld ∅ (∅,∅)) C ∅)%I efs)) in "Hlocals".
+    iModIntro; iExists seal_storeg, relg, stsg, cstackg; iFrame "∗ #".
   Qed.
 End world_init.
 
@@ -337,17 +383,20 @@ Section flag_adequacy_helpers.
     {swlayout : switcherLayout}.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
-  (** The pool of the user threads [vs], all Suspended. *)
+  (** The pool of the user threads [vs], all Suspended, with no last
+      owner. *)
   #[local] Lemma pool_inv_alloc (vs : list resume_vals) :
     cur_auth None -∗
-    ([∗ list] t ↦ _ ∈ vs, slot t None)
+    ctx_last_owner_auth None -∗
+    ([∗ list] t ↦ _ ∈ vs, slot None t None)
     ={⊤}=∗
     inv Npool (Pool (seq 0 (length vs))).
   Proof.
-    iIntros "Hcur Hslots". iApply inv_alloc. iApply bi.later_intro.
-    rewrite /Pool. iExists None. iFrame "Hcur".
+    iIntros "Hcur Hlast_owner Hslots". iApply inv_alloc. iApply bi.later_intro.
+    rewrite /Pool. iExists None, None. iFrame "Hcur Hlast_owner".
     iSplit; first (iPureIntro; by intros ? ? ?).
-    iApply (big_sepL_seq_index (λ t, slot t None) vs with "Hslots").
+    iSplit; first (iPureIntro; split_and!; done).
+    iApply (big_sepL_seq_index (λ t, slot None t None) vs with "Hslots").
   Qed.
 
   (** The open pool token of the context-switch thread. *)
@@ -393,11 +442,14 @@ Section flag_adequacy.
 
 (** Iris adequacy for the assert flag, over the hardware. The machine starts
     at the context-switch thread with interrupts disabled and mtdc zero,
-    every user thread Suspended with the values [vs]. The premise receives
-    the resources of the initial state (the context-switch thread's
-    fragments, posture, mtdc token and pool; the memory, the shadow table
-    and the address claims; each user thread's ghost state at its values;
-    each user thread's exit part; the scheduler's state name, to be set),
+    every user thread Suspended with the values [vs], whose zones cover
+    their high-water marks. The premise receives the resources of the
+    initial state (the context-switch thread's fragments, posture, mtdc
+    token, high-water-mark resources and pool; the memory, with the cells of
+    the zone [init_zone] of the context-switch thread, the shadow table and
+    the address claims; each user thread's ghost state at its values,
+    with its stack base; each user thread's exit part; the scheduler's
+    state name, to be set),
     and returns the slots of the user threads and the flag's invariant;
     then, from the pool, the context-switch thread's open pool token and
     its thread resources, the hardware's WP. *)
@@ -418,6 +470,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   sreg σ !! mtdc = Some (WInt 0) →
   mie_st σ = InterruptDisabled →
   vs ≠ [] →
+  Forall (λ v, zone_covers v.(rv_hwmb) v.(rv_hwm) v.(rv_zone)) vs →
   (∀ (ceriseb : ceriseBaseG Σ),
      (* the trap vector of [ceriseb] is the one of the initial state *)
      @mtcc_vec (@cb_trapVector Σ ceriseb) = @mtcc_vec TV →
@@ -432,11 +485,14 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      MIE ↦ₜ[CtxSwitch] InterruptDisabled -∗
      handover_res (ceriseg := ceriseG_of CtxSwitch) -∗
      mtdc_lent_at (th := CtxSwitch) -∗
+     hwm_res_ctx (th := CtxSwitch) -∗
      (* the pool of the context-switch thread in [ceriseb], not the [na_invg]
         parameter *)
      @na_own Σ (@cb_na_invG Σ ceriseb) (tpool CtxSwitch) ⊤ -∗
      (* the shared resources *)
-     ([∗ map] a↦w ∈ mem σ, a ↦ₐ lword_of_word w) -∗
+     ([∗ map] a↦w ∈ mem σ,
+        if decide (a ∈ init_zone (sreg σ)) then zone_cell[CtxSwitch] a
+        else a ↦ₐ lword_of_word w) -∗
      ([∗ map] a↦s ∈ shadowtbl σ, a ↦ₛ s) -∗
      ([∗ map] a↦c ∈ init_claims H, addr_alloc a c) -∗
      (* the user threads *)
@@ -448,7 +504,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
      (* the scheduler's state between two activations, to be set *)
      @saved_prop_own Σ (@cb_saved_prop Σ ceriseb) γ_scheduler (DfracOwn 1) True%I
      ={⊤}=∗
-     ([∗ list] t ↦ _ ∈ vs, slot t None) ∗
+     ([∗ list] t ↦ _ ∈ vs, slot None t None) ∗
      inv flagN (flag ↦ₐ WInt 0) ∗
      (inv Npool (Pool (seq 0 (length vs))) -∗
       inv_CtxSwitch -∗
@@ -458,7 +514,7 @@ Lemma cerise_flag_adequacy (Σ : gFunctors)
   rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
   mem σ' !! flag = Some (WInt 0).
 Proof.
-  intros Hinit Hnull Hdom Hmtdc Hmie Hvs Hwp Hstep.
+  intros Hinit Hnull Hdom Hmtdc Hmie Hvs Hcov Hwp Hstep.
   apply (wp_invariance_hw Σ griotte_hw_lang NotStuck griotte_lang.Exec σ es σ'
            (mem σ' !! flag = Some (WInt 0))); last exact Hstep.
   intros Hinv κs.
@@ -466,7 +522,8 @@ Proof.
      in its trusted stack; one default for the threads past [vs], at home
      in the trusted stack of the first of them. *)
   iMod (suspended_ghost_init (imap (λ t v, (v, tstack_home t)) vs)) as (gs) "Hgs".
-  iMod (suspended_ghost_init [(ResumeVals ∅ lnull InterruptDisabled, tstack_home (length vs))])
+  iMod (suspended_ghost_init [(ResumeVals ∅ lnull InterruptDisabled 0 0 ∅,
+                               tstack_home (length vs))])
     as (gds) "Hgd".
   iDestruct (big_sepL2_cons_inv_r with "Hgd") as (gd gds' ->) "[Hgd _]".
   iDestruct "Hgd" as (Hhome_d) "_".
@@ -477,6 +534,10 @@ Proof.
   iDestruct (big_sepL_sep with "Hgs") as "[Hhomes Hgs]".
   iDestruct (big_sepL_pure_1 with "Hhomes") as %Hhomes_g.
   iClear "Hhomes".
+  (* Their high-water-mark ghost state, at [vs]; one default. *)
+  iMod (suspended_hwm_ghost_init vs) as (hs) "Hhs".
+  iMod (hwm_init 0 0) as (hd) "_".
+  iDestruct (big_sepL2_nth_l _ _ _ hd with "Hhs") as "Hhs".
   (* Their pools, one default. *)
   iMod (na_pools_alloc vs) as (ps) "Hps".
   iMod (@na_alloc Σ na_invg) as (pool_d) "_".
@@ -499,15 +560,19 @@ Proof.
   (* The heaps, its PC, mtdc and MIE, MPIE: [cerise_state_interp σ]. *)
   iMod (cerise_ghost_init σ H (ExceptionScratch (lword_of_word (WInt 0))) (WInt 0)
           Hinit Hmtdc eq_refl Hhome with "Hpending")
-    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg)
-       "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims & Hmst & Hmepcc & Hmcause & Hmtval)".
+    as (mem_heapg shadow_heapg pc_g reg_heapg sreg_heapg registryg addr_allocg mtdcg mieg mpieg
+        hwmg)
+       "(Hσ & HPC & Hreg & Hmtdc & Hmem & Hshadow & Hclaims & Hmst & Hmepcc & Hmcause & Hmtval &
+         Hhwm_ctx)".
+  iDestruct "Hhwm_ctx" as
+    "(%zb & %zh & [%Hzb %Hzh] & Hmshwmb & Hmshwm & Hpend_cl & Hpend_f & Hlent_f & Hlast_owner_a & Hlast_owner_f & _)".
   iDestruct "Hmst" as (mie0 mpie0 Hmst) "[HMIE HMPIE]".
   iDestruct "Hmepcc" as (vepcc) "Hmepcc".
   iDestruct "Hmcause" as (vcause) "Hmcause".
   iDestruct "Hmtval" as (ztval) "Hmtval".
   assert (mie_st σ = mie0) as Hmie0.
   { rewrite /mie_st /= in Hmst |- *. by rewrite Hmst /= mie_of_mstatus_enc. }
-  iEval (rewrite init_lmem_pointsto) in "Hmem".
+  iEval (rewrite init_lmem_pointsto_cond) in "Hmem".
   rewrite (init_lregs_cnull (reg σ) Hnull).
   (* [cur], the running thread and the switch window. *)
   iMod (cur_alloc None) as (γcur) "[Hcur_a Hcur_f]".
@@ -530,6 +595,7 @@ Proof.
     cb_mtdc_of th := match th with CtxSwitch => mtdcg | UserThread t => (nth t gs gd).1.1.2 end;
     cb_mie_of th := match th with CtxSwitch => mieg | UserThread t => (nth t gs gd).1.2 end;
     cb_mtdc_lent_of th := match th with CtxSwitch => mlg | UserThread t => (nth t gs gd).2 end;
+    cb_hwm_of th := match th with CtxSwitch => hwmg | UserThread t => nth t hs hd end;
     tpool th := match th with CtxSwitch => pool_c | UserThread t => nth t ps pool_d end;
     cb_cur_inG := cur_preg;
     cb_cur_name := γcur;
@@ -571,40 +637,41 @@ Proof.
     iApply (saved_prop_persist with "Hexit"). }
   (* The user threads' ghost state, at the base. *)
   iAssert ([∗ list] t ↦ v ∈ vs, suspended_res (ceriseb := ceriseb) t v)%I
-    with "[Hgs Hps]" as "Hsusp".
-  { iCombine "Hgs Hps" as "Hgs". rewrite -big_sepL_sep.
-    iApply (big_sepL_impl with "Hgs"). iIntros "!>" (t v Hv) "[Hg Hp]".
+    with "[Hgs Hhs Hps]" as "Hsusp".
+  { iCombine "Hgs Hhs" as "Hgs". rewrite -big_sepL_sep.
+    iCombine "Hgs Hps" as "Hgs". rewrite -big_sepL_sep.
+    iApply (big_sepL_impl with "Hgs"). iIntros "!>" (t v Hv) "[ [Hg Hh] Hp]".
     iDestruct "Hg" as "(HPCa & HPCf & Hra & Hrf & Hma & Hmf & HMa & HMf & Hl)".
+    iDestruct "Hh" as "(Hba & Hbf & Hha & Hhf & Hza & Hzt & Hrest & #Hbase)".
     assert (t < length vs) as Ht by (by eapply lookup_lt_Some).
+    pose proof (Forall_lookup_1 _ _ _ _ Hcov Hv) as Hcov_t.
     rewrite /suspended_res /auths_at /thread_auths (Hhomes t Ht).
-    iSplitL "HPCa Hra Hma HMa".
-    { iSplitL "HPCa"; first iExact "HPCa". iSplitL "Hra"; first iExact "Hra".
-      iSplitL "Hma"; first iExact "Hma". iExact "HMa". }
-    iSplitL "HPCf"; first iExact "HPCf".
-    iSplitL "Hrf"; first iExact "Hrf".
-    iSplitL "Hmf"; first iExact "Hmf".
-    iSplitL "HMf"; first iExact "HMf".
-    iSplitL "Hl"; first iExact "Hl".
-    iExact "Hp". }
+    iFrame "HPCa Hra Hma HMa Hba Hha Hza Hrest HPCf Hrf Hmf HMf Hbf Hhf Hzt Hl Hp Hbase".
+    by iPureIntro. }
   (* The hardware's state interpretation, at the context-switch thread. *)
   subst mie0. iEval (rewrite Hmie) in "HMIE".
-  iAssert (SI_hw (ceriseb := ceriseb) σ)%I with "[Hσ Hrun_a Hwin_a]" as "HSI".
+  iAssert (SI_hw (ceriseb := ceriseb) σ)%I with "[Hσ Hrun_a Hwin_a Hpend_cl]" as "HSI".
   { rewrite /SI_hw. iExists CtxSwitch. iFrame "Hrun_a". iSplitL "Hwin_a".
     { iExists false. iFrame "Hwin_a". by iPureIntro. }
     iSplitL; last done.
     rewrite /thread_si. iFrame "Hσ".
     iSplitR; first done.
     iSplitR; first by iApply csl_full_link_disabled.
-    by iLeft. }
+    iSplitR; first by iLeft.
+    iExists None. by iFrame "Hpend_cl". }
+  (* The high-water-mark resources of the context-switch thread. *)
+  iAssert (hwm_res_ctx (ceriseb := ceriseb) (th := CtxSwitch))%I
+    with "[Hmshwmb Hmshwm Hpend_f Hlent_f Hlast_owner_f]" as "Hhwm_ctx".
+  { iExists zb, zh, None. iFrame "Hmshwmb Hmshwm Hpend_f Hlent_f Hlast_owner_f". }
   (* The first stage: the slots and the flag's invariant. *)
   iMod (Hwp ceriseb eq_refl Hhome Htstack Hhomes
-          with "HPC Hreg Hmtdc HMIE [Hcrit Hunw Hmepcc Hmcause Hmtval HMPIE] Hlent Hna
+          with "HPC Hreg Hmtdc HMIE [Hcrit Hunw Hmepcc Hmcause Hmtval HMPIE] Hlent Hhwm_ctx Hna
                 Hmem Hshadow Hclaims Hsusp Hexits Hsched")
     as "(Hslots & #Hflag & Hwp)".
   { iApply (handover_res_intro vepcc vcause ztval mpie0). iFrame. }
   (* The second stage: the pool, the context-switch thread's open pool
      token and its thread resources give the hardware's WP. *)
-  iMod (pool_inv_alloc (ceriseb := ceriseb) vs with "Hcur_a Hslots") as "#Hpool".
+  iMod (pool_inv_alloc (ceriseb := ceriseb) vs with "Hcur_a Hlast_owner_a Hslots") as "#Hpool".
   iMod (inv_CtxSwitch_alloc (ceriseb := ceriseb) with "Hcur_f") as "#Hact".
   iMod ("Hwp" with "Hpool Hact [Hrun_f Hwin_f]") as "Hwp".
   { iApply (thread_res_ctx_intro (ceriseb := ceriseb) with "Hrun_f Hwin_f"). }

@@ -66,11 +66,12 @@ Section ctx_wedge.
     PC ↦ₚ[CtxSwitch] switcher_label_pc ".Lexception_reentered" ∗
     csp ↦ᵣ[CtxSwitch] wcsp ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
+    pend_frag[CtxSwitch] None ∗
     handover_res (ceriseg := ceriseG_of CtxSwitch) ∗
     switcher_code_at CtxSwitch
     ⊢ safe[CtxSwitch].
   Proof.
-    iIntros "(HPC & Hcsp & HMIE & Hho & #Hswitcher)".
+    iIntros "(HPC & Hcsp & HMIE & Hclosed & Hho & #Hswitcher)".
     pin_thread_instances CtxSwitch.
     iDestruct (handover_res_unfold with "Hho") as (p c v b) "(_ & HU & Hvol)".
     switcher_open_label ".Lexception_reentered" "Hswitcher" as "Hcode" a_re Ha_re.
@@ -92,8 +93,8 @@ Section ctx_wedge.
     { done. }
     { done. }
     (* The PC of the switcher is tagged: trap entry installs the wedged mtcc *)
-    iApply (wp_trap_wedged with "Hwedged HPC HMIE Hvol"); first done.
-    iIntros "!>" (wv Hwv) "HPC _ _".
+    iApply (wp_trap_wedged with "Hwedged HPC Hclosed HMIE Hvol"); first done.
+    iIntros "!>" (wv Hwv) "HPC _ _ _".
     (* The fetch at the untagged mtcc faults, and the machine stops *)
     iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
     iApply (wp_notCorrectPC_tag with "HPC"); first done.
@@ -111,8 +112,10 @@ Section ctx_wedge.
     switcher_code_at CtxSwitch ⊢ ctx_trap_vector_safe.
   Proof.
     intros Hvec. rewrite /ctx_trap_vector_safe /trap_vector_safe /trap_vector_safe_pre.
-    iIntros "#Hcode !>" (cstk regs w Hfull) "_ HPC HMIE Hpost Hregs _ _".
+    iIntros "#Hcode !>" (cstk regs w mshwm_v Hfull) "_ HPC HMIE Hpost Hregs Hhwm _ _".
     pin_thread_instances CtxSwitch.
+    iEval (rewrite hwm_res_trap_ctx) in "Hhwm".
+    iDestruct "Hhwm" as (mshwmb_v mshwm_v' o) "(_ & _ & Hclosed & _ & _)".
     iDestruct "Hpost" as (b c v) "(_ & _ & Hpost)".
     iDestruct (posture_res_gen_unfold with "Hpost")
       as "[(%p & %c' & %v' & %b' & _ & _ & _ & _ & Hho) Hpart]".
@@ -124,9 +127,9 @@ Section ctx_wedge.
       as "[Hcsp _]"; first exact Hwcsp.
     rewrite Hvec.
     iApply (ctx_fault_swap wcsp
-             with "[$HPC $Hcode $Hcsp $Hmtdc $Hlent $HU HMIE Hcrit Hvol]").
+             with "[$HPC $Hcode $Hcsp $Hmtdc $Hlent $HU HMIE Hcrit Hvol Hclosed]").
     iIntros "!> (HPC & Hcsp & _ & HU)".
-    iApply (ctx_wedge_spec with "[$HPC $Hcsp $HMIE $Hcode Hcrit HU Hvol]").
+    iApply (ctx_wedge_spec with "[$HPC $Hcsp $HMIE $Hclosed $Hcode Hcrit HU Hvol]").
     iApply (handover_res_intro p c' v' b'). iFrame.
   Qed.
 End ctx_wedge.

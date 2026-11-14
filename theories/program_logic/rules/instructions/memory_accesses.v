@@ -336,7 +336,7 @@ Section griotte_lang_rules.
               griotte_load_filter load_exact (<[pc_a := wi]> (<[a := raw]> ∅))
               (<[pc_a := dq]> (<[a := DfracOwn 1]> ∅)) with "[$HPC $Hmem $Hmap]");
       [exact Hinstr | apply CLoad_member | apply load_choice_exact | solve_mem_instr_ok
-      | exact Hvpc | rewrite !dom_insert_L; set_solver
+      | solve_writes_mshwmb | exact Hvpc | rewrite !dom_insert_L; set_solver
       | right; rewrite !dom_insert_L; set_solver | by simplify_map_eq
       | by rewrite !dom_insert_L | |].
     { intros p0 g0 b0 e0 a0 ea0 (Hsrc0 & Hadd0 & _).
@@ -433,7 +433,7 @@ Section load_witness_rules.
   (** A load with a status witness, through a readable source capability
       in bounds, without identifier: the load cannot fault. *)
   Lemma wp_load_witness_imm_one_inbounds E pc_p pc_g pc_b pc_e pc_a pc_a' dst src
-      (imm : Z) (wi wd : LWord) dq p g b e a_src a (raw : LWord) wit :
+      (imm : Z) (wi wd : LWord) dq dq' p g b e a_src a (raw : LWord) wit :
     decodeInstrW wi.(lw) = CLoad dst src imm →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
     (a_src + imm)%a = Some a →
@@ -447,7 +447,7 @@ Section load_witness_rules.
         pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ wd ∗
         src ↦ᵣ Cap p g b e a_src ∗
-        a ↦ₐ raw ∗
+        a ↦ₐ{dq'} raw ∗
         load_witness_res wit }}}
       Instr Executable @ E
     {{{ actual, RET NextIV;
@@ -456,23 +456,29 @@ Section load_witness_rules.
         pc_a ↦ₐ{dq} wi ∗
         dst ↦ᵣ actual ∗
         src ↦ᵣ Cap p g b e a_src ∗
-        a ↦ₐ raw ∗
+        a ↦ₐ{dq'} raw ∗
         load_witness_res wit }}}.
   Proof.
     iIntros (Hinstr Hvpc Hea Hnot_shadow Hread Hbounds Hpca' Hdst Hsrc Φ)
       "(HPC & Hi & Hdst & Hsrc & Ha & Hwit) HΦ".
-    iDestruct (pointsto_ne with "Ha Hi") as %Hne.
-    iApply (wp_load_choice_next_2 (pc_π := None) (W := load_witness_res wit)
-              with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]");
-      [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
-      | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpca'
-      | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds | done |].
-    iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & Hwit)".
-    iApply ("HΦ" $! actual). iSplitR; first (iPureIntro; exact Hpost). iFrame.
+    destruct (decide (a = pc_a)) as [-> | Hne].
+    - iDestruct (pointsto_agree with "Ha Hi") as %->.
+      iApply (wp_load_choice_next_2_pc (pc_π := None) (W := load_witness_res wit)
+                with "[$HPC $Hi $Hdst $Hsrc $Hwit]");
+        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
+        | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpca'
+        | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds |].
+      iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Hwit)".
+      iApply ("HΦ" $! actual). iSplitR; first (iPureIntro; exact Hpost). iFrame.
+    - iApply (wp_load_choice_next_2 (pc_π := None) (W := load_witness_res wit)
+                with "[$HPC $Hi $Hdst $Hsrc $Ha $Hwit]");
+        [exact Hinstr | solve_mem_instr_ok | apply CLoad_member | apply cload_next_ok
+        | apply load_choice_witness | by apply live_witness_no_id | exact Hvpc | exact Hpca'
+        | exact Hdst | exact Hsrc | done | exact Hea | exact Hread | exact Hbounds | exact Hne |].
+      iIntros "!>" (actual) "(%Hpost & HPC & Hi & Hdst & Hsrc & Ha & Hwit)".
+      iApply ("HΦ" $! actual). iSplitR; first (iPureIntro; exact Hpost). iFrame.
   Qed.
 
-  (** [wp_load_witness_imm_one_inbounds] for a cell of any fraction: the
-      loaded word is exact. *)
   Lemma wp_load_witness_imm_one_inbounds_dq E pc_p pc_g pc_b pc_e pc_a pc_a' dst src
       (imm : Z) (wi wd : LWord) dq dq' p g b e a_src a (raw : LWord) :
     decodeInstrW wi.(lw) = CLoad dst src imm →
@@ -767,7 +773,8 @@ Section griotte_lang_rules.
     destruct (llookup_reg_cap _ _ _ _ _ _ _ _ Hdst') as (Hdst_cnull & _).
     rewrite llookup_reg_not_cnull // in Hdst.
     iApply (wp_store_next (W := deref_witness_res dw) with "[$HPC $Hi $Ha $Hmap $Hdw]");
-      [exact Hdecode | solve_mem_instr_ok | apply Store_member_argument | apply store_next_ok
+      [exact Hdecode | solve_mem_instr_ok | by intros [ (? & ? & ? & ?) | ? ]
+      | apply Store_member_argument | apply store_next_ok
       | by apply store_lift_argument
       | intros v1 Hv1; rewrite Hdst in Hv1; simplify_eq; by apply deref_witness_live
       | exact Hvpc | split_and!; [exact Hdst' | exact Hadd | exact Hwa | exact Hwb]

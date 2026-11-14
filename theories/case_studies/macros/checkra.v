@@ -129,6 +129,7 @@ Section Checkra_spec.
     let checkra_ := (checkra_instrs rsrc r1 r2) in
     let a_last := (pc_a ^+ length checkra_) in
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a a_last →
     rsrc ≠ cnull ->
     r1 ≠ cnull ->
@@ -156,7 +157,7 @@ Section Checkra_spec.
     ⊢ WP Exec {{ φ }}.
   Proof.
     intros checkra a_last ; subst checkra a_last.
-    iIntros (Hra Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hk)".
+    iIntros (Hra Hnsr Hbounds Hsrc_cnull Hr1_cnull Hr2_cnull) "(>HPC & >Hsrc & >Hr1 & >Hr2 & >#Hcode & Hk)".
     codefrag_facts "Hcode".
     rename H into HcontRegion; clear H0.
     destruct wsrc as [wsrc πsrc].

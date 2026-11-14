@@ -118,7 +118,7 @@ Section KVS_main_spec.
       codefrag_pers pc_a kvs_main_code ∗
       [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_data ]] ∗
       [[ static_sealed_b , static_sealed_e ]] ↦ₐ [[ lword_of_word <$> kvs_main_static_sealed KVS_USER_KEY_MAIN ]] ∗
-      [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]] ∗
+      stack_region csp_b csp_e csp_content ∗
 
       user_kvs_inv KVS_USER_KEY_MAIN ∗
       (KVS_USER_KEY_MAIN, 1) ↦(KVS) ⊥ ∗
@@ -128,6 +128,8 @@ Section KVS_main_spec.
       world_resources W0 B ∗
       interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs ∗
       ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl) ∗
+      (* MSHWM at the top of the stack *)
+      hwm_res (main_entry_cstack csp_b csp_e w_main_tbl) csp_e ∗
 
       interp W0 B (WSealed ot_switcher B_f) ∗
       B_f ↦ₑ□{nargs} 0 ∗
@@ -154,7 +156,7 @@ Section KVS_main_spec.
       & #Himports_main & #Hcode_main & Hcgp_main & Hstatic_sealed_main & Hstk
       & HLUKVS & Hkvs_1
       & Hworld_B
-      & HK & Hcstk_frag
+      & HK & Hcstk_frag & Hhwm
       & #Hinterp_W0_B_f
       & #HentryB_f
       & Hstack_revoked
@@ -175,7 +177,7 @@ Section KVS_main_spec.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min).
-    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
+    iDestruct (stk_start_stack_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
       first exact Hstk_res_size.
 
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
@@ -189,13 +191,13 @@ Section KVS_main_spec.
        $Hna $HPC $Hcgp $Hcsp $Hcra $Hrmap
        $Himport_switcher $Himport_kvs_addOrUpdate
        $Himport_sealed_user_key $Hcode_main
-       $Hstatic_sealed_b $HLUKVS $Hkvs_1 $Hstk $Hcstk_frag $Hmie $Hheld]");
+       $Hstatic_sealed_b $HLUKVS $Hkvs_1 $Hstk $Hhwm $Hcstk_frag $Hmie $Hheld]");
       eauto.
     iNext.
     iIntros (rmap_ret)
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & [%wcra Hcra]
        & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
-       & Hstk & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
+       & Hstk & Hhwm & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & _ & _ & _ & _ & Hmie & Hheld)".
     iEval (cbn [kvs_main_add_phase_instrs]) in "HPC".
     iEval (rewrite /kvs_main_code) in "Hcode_main".
@@ -249,22 +251,27 @@ Section KVS_main_spec.
       <[ctp := lword_of_word switcher_entry_call]>
         (delete ca5 (delete ca4 (delete ca3
           (delete ca2 (delete ct1 (delete ct0 rmap_ret))))))).
-    set (stk_mem_B := region_addrs_zeroes csp_b (stk_start_a csp_b csp_e)).
+    iDestruct (stack_ints_region with "Hstk") as (stk_mem_B) "Hstk".
 
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked")
       as "[Hstack_revoked_free _]".
     pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_stack)
       as Hstack_revoked_free.
 
+    (* The adversary call: MSHWM comes back at most at its value at the
+       call, for the read phase *)
     iApply (kvs_main_adversary_phase_spec W0 B
              (Cap RW Global cgp_b cgp_e cgp_b)
              (Sentry (ret_kind mie) RX Global pc_b pc_e (a_call ^+ 1))
              thread_return_sentry (kvs_user_seal_key Global static_sealed_b)
              csp_b csp_e (stk_start_a csp_b csp_e) B_f stk_mem_B rmap_B Ws Cs cstk0
+             (stk_start_a csp_b csp_e)
              ).
     all: [> exact Hstk_shadow | exact Hstk_heap
          | apply stk_start_cursor_ok;
            unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
+         | reflexivity
+         | rewrite /cstk0 /cstk_hwm_top /=; solve_addr
          | apply stk_start_spill_fits;
            unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min
          | destruct mie; reflexivity
@@ -274,7 +281,7 @@ Section KVS_main_spec.
            rewrite Hdom_rmap_ret; set_solver+
          | ].
     iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
-      Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hworld_B Hcstk
+      Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hhwm Hworld_B Hcstk
       Hstack_revoked_free Hinterp_W0_B_f HentryB_f HK Hmie Hheld".
     iFrame "%".
     clear dependent rmap.
@@ -288,7 +295,7 @@ Section KVS_main_spec.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
+      & Hrmap & Hstk & (%mshwm_v1 & %Hh1 & Hhwm) & HK & %Hrestored & _ & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
@@ -321,7 +328,7 @@ Section KVS_main_spec.
       "[- $Hassert $Hswitcher $Hswitcher_static $Hkvs_static $Hlock
        $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
        $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hca0 $Hca1
-       $Hrmap $Hstk $Hcstk_frag $Hstatic_sealed_b $HLUKVS $Hkvs_1
+       $Hrmap $Hstk $Hhwm $Hcstk_frag $Hstatic_sealed_b $HLUKVS $Hkvs_1
       $Himport_switcher $Himport_kvs_read $Himport_assert $Hcode_main $Hmie $Hheld]");
       eauto.
   Qed.

@@ -199,33 +199,35 @@ Section logrel_threads.
            iIntros "!>" (k x _) "H %Hh". iDestruct ("H" with "[//]") as "[H|[] ]".
            by iLeft. }
       (* The other permissions, one goal each, with explicit arguments. *)
-      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+      (* The conjunct [wl_in_stack] is [True] for these non-write-local
+         permissions. *)
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok & _) | %Hexp]"; last by iRight.
            iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm Orx permissions.W dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
       1: iDestruct "Hw" as "[]".
-      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok & _) | %Hexp]"; last by iRight.
            iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm R Ow dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
-      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok & _) | %Hexp]"; last by iRight.
            iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm R permissions.W dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
       1: iDestruct "Hw" as "[]".
-      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok & _) | %Hexp]"; last by iRight.
            iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm X Ow dl dro) b e π eq_refl with "[] Hbody").
            iNext. iIntros "!>" (W0 w0 Hl0) "Hw0".
            iApply ("IH" $! t' t W0 W0 w0 Hl0 with "Hw0"). }
-      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok) | %Hexp]"; last by iRight.
+      1: { iDestruct "Hw" as "[ (Hbody & Hmmio & Hok & _) | %Hexp]"; last by iRight.
            iLeft. iFrame "Hmmio Hok".
            iApply (interp_cap_body_global_thread (λ t0, interp (th := t0)) t t' W W' C
                      (BPerm X permissions.W dl dro) b e π eq_refl with "[] Hbody").
@@ -370,32 +372,34 @@ Section logrel_trap.
       is untrusted, the faulting registers are safe, and the logical
       relation's resources go to the trap vector, which may resume the
       faulting context or run an untrusted error handler through the FTLR. *)
-  Definition untrusted_fault (cstk : CSTK) (regs : LReg) : iProp Σ :=
-    untrusted_fault_pre interp interp_continuation cstk regs.
+  Definition untrusted_fault (cstk : CSTK) (regs : LReg) (mshwm_v : Z) : iProp Σ :=
+    untrusted_fault_pre interp interp_continuation cstk regs mshwm_v.
 
   Lemma untrusted_fault_intro (W : WORLD) (C : CmptName) (cstk : CSTK)
-    (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) :
+    (Ws : list WORLD) (Cs : list CmptName) (regs : LReg) (mshwm_v : Z) :
     frame_match Ws Cs cstk W C →
+    zone_temporary W (cstk_hwm_base cstk) mshwm_v →
     thread_in th C -∗
     interp_reg interp W C regs -∗
     top_cmpt_untrusted interp W C cstk -∗
     world_resources W C -∗
     interp_continuation cstk Ws Cs -∗
-    untrusted_fault cstk regs.
+    untrusted_fault cstk regs mshwm_v.
   Proof.
-    iIntros (Hframe) "Hth Hreg Htop Hworld Hcont". iExists W, C, Ws, Cs. by iFrame.
+    iIntros (Hframe Hzone) "Hth Hreg Htop Hworld Hcont". iExists W, C, Ws, Cs.
+    by iFrame.
   Qed.
 
   (** The trap vector [wvec] is safe: after trap entry from any PC [w], with
-      any call stack [cstk] and registers [regs], execution from [wvec] is
-      safe, for a fault in an untrusted compartment ([untrusted_fault]) or
+      any call stack [cstk], registers [regs] and MSHWM [mshwm_v], execution from
+      [wvec] is safe, for a fault in an untrusted compartment ([untrusted_fault]) or
       a fault that the switcher handles ([trusted_fault], instantiated by
       the switcher with [trap_handler_ok ⊤]). Only a fault in an untrusted
       compartment carries the worlds and the continuation. The trap vector
       runs with MIE disabled and receives the whole posture of the thread
       ([trap_vector_safe_pre]). *)
   Definition trap_vector_safe
-      (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
+      (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ) (wvec : LWord) : iProp Σ :=
     trap_vector_safe_pre interp interp_continuation trusted_fault wvec.
 
   #[global] Instance trap_vector_safe_persistent trusted_fault wvec :
@@ -404,7 +408,7 @@ Section logrel_trap.
 
   (** A safe trap vector [mtcc_vec] is safe for a fault in an untrusted
       compartment. *)
-  Lemma trap_vector_safe_untrusted (trusted_fault : CSTK → LWord → LReg → iProp Σ) :
+  Lemma trap_vector_safe_untrusted (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ) :
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
     untrusted_trap_safe interp interp_continuation.
   Proof. apply trap_vector_safe_pre_untrusted. Qed.
@@ -412,12 +416,13 @@ Section logrel_trap.
   (** A fault closes through a safe trap vector: after exception entry, the
       PC holds the trap vector and execution is safe, for a fault in an
       untrusted compartment or one that [trusted_fault] accepts. *)
-  Lemma interp_trap (trusted_fault : CSTK → LWord → LReg → iProp Σ)
-    (cstk : CSTK) (regs : LReg) (wvec w : LWord) :
+  Lemma interp_trap (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
+    (cstk : CSTK) (regs : LReg) (wvec w : LWord) (mshwm_v : Z) :
     (∀ r, is_Some (regs !! r)) ->
     trap_vector_safe trusted_fault wvec -∗
-    (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) -∗
+    (untrusted_fault cstk regs mshwm_v ∨ trusted_fault cstk w regs mshwm_v) -∗
     registers_pointsto regs -∗
+    hwm_res_trap cstk mshwm_v -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] cstk -∗
     MIE ↦ₜ[th] InterruptDisabled -∗
@@ -428,8 +433,8 @@ Section logrel_trap.
          (Some (lword_of_word (WInt c))) (Some v)) -∗
     (PC ↦ₚ[th] wvec -∗ safe[th]).
   Proof.
-    iIntros (Hfull) "#Hsafe Hfault Hregs Hna Hcstk Hmie Hpost HPC".
-    iApply ("Hsafe" with "[//] Hfault HPC Hmie Hpost Hregs Hna Hcstk").
+    iIntros (Hfull) "#Hsafe Hfault Hregs Hhwm Hna Hcstk Hmie Hpost HPC".
+    iApply ("Hsafe" with "[//] Hfault HPC Hmie Hpost Hregs Hhwm Hna Hcstk").
   Qed.
 
   (** The fault obligation from a safe trap vector [mtcc_vec]: trap entry
@@ -437,7 +442,7 @@ Section logrel_trap.
       the fault's justification come under an update at the time of the fault (for instance,
       to close an invariant), with the MIE fragment and what the thread
       holds at its posture; the trap vector receives the whole posture. *)
-  Lemma interp_trap_safe (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+  Lemma interp_trap_safe (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
     (cstk : CSTK) (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
     trap_vector_safe trusted_fault (lword_of_word mtcc_vec) -∗
@@ -445,13 +450,14 @@ Section logrel_trap.
        registers_pointsto regs ∗
        na_own (tpool th) ⊤ ∗
        ◯(CSTK)[th] cstk ∗
-       (untrusted_fault cstk regs ∨ trusted_fault cstk w regs) ∗
+       (∃ mshwm_v : Z, hwm_res_trap cstk mshwm_v ∗
+         (untrusted_fault cstk regs mshwm_v ∨ trusted_fault cstk w regs mshwm_v)) ∗
        (∃ b, MIE ↦ₜ[th] b ∗ held (th := th) b ∗ ⌜route_pre th b⌝)) -∗
     trap_safe w ⊤ (HO th).
   Proof.
     iIntros (Hfull) "#Hsafe Hres".
     iApply trap_safe_entry_intro.
-    iMod "Hres" as "(Hregs & Hna & Hcstk & Hfault & (%b & Hmie & Hheld & %Hpre))".
+    iMod "Hres" as "(Hregs & Hna & Hcstk & (%mshwm_v & Hhwm & Hfault) & (%b & Hmie & Hheld & %Hpre))".
     iModIntro. iExists b. rewrite /held /held_of.
     iAssert ((if b is InterruptDisabled then handover_res else True) ∗
              (if b is InterruptDisabled then posture_part (th := th) else True))%I
@@ -461,12 +467,12 @@ Section logrel_trap.
     { iApply trap_entry_res_unfold. by iFrame. }
     iIntros "!> Hout HPC".
     iDestruct (trap_entry_out_posture with "Hout Hpart") as "[Hmie Hpost]"; first done.
-    by iApply (interp_trap with "Hsafe Hfault Hregs Hna Hcstk Hmie Hpost HPC").
+    by iApply (interp_trap with "Hsafe Hfault Hregs Hhwm Hna Hcstk Hmie Hpost HPC").
   Qed.
 
   (** A fault in an untrusted compartment, from the logical relation: the
       registers are safe and the topmost compartment is untrusted. *)
-  Lemma interp_trap_safe_untrusted (trusted_fault : CSTK → LWord → LReg → iProp Σ)
+  Lemma interp_trap_safe_untrusted (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ)
     (W : WORLD) (C : CmptName) (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (regs : LReg) (w : LWord) :
     (∀ r, is_Some (regs !! r)) ->
@@ -477,6 +483,7 @@ Section logrel_trap.
     top_cmpt_untrusted interp W C cstk -∗
     (|={⊤}=>
        registers_pointsto regs ∗
+       hwm_res_kind W cstk ∗
        world_resources W C ∗
        interp_continuation cstk Ws Cs ∗
        na_own (tpool th) ⊤ ∗
@@ -486,9 +493,9 @@ Section logrel_trap.
   Proof.
     iIntros (Hfull Hframe) "Hsafe Hth Hreg Htop Hres".
     iApply (interp_trap_safe with "Hsafe"); first done.
-    iMod "Hres" as "(Hregs & Hworld & Hcont & Hna & Hcstk & Hposture)".
-    iModIntro. iFrame "Hregs Hna Hcstk Hposture". iLeft.
-    iApply (untrusted_fault_intro with "Hth Hreg Htop Hworld Hcont"); done.
+    iMod "Hres" as "(Hregs & (%mshwm_v & Hhwm & %Hzone) & Hworld & Hcont & Hna & Hcstk & Hposture)".
+    iModIntro. iFrame "Hregs Hna Hcstk Hposture". iExists mshwm_v. iFrame "Hhwm". iLeft.
+    iExists W, C, Ws, Cs. by iFrame.
   Qed.
 
 End logrel_trap.

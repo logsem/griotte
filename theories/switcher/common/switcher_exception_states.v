@@ -53,16 +53,17 @@ Section Switcher_Exception_States.
 
   (** The register save area after the spill of the exception entry, from
       the save area [save]: the PC [wmepcc] at word 0, the registers x1 to
-      x15 [wregs] at words 1 to 15, mstatus [wst] at word 17 and the cause
-      [wcause] at word 18. The other words are kept. *)
+      x15 [wregs] at words 1 to 15, mstatus [wst] at word 17, the cause
+      [wcause] at word 18, MSHWM [whwm] at word 19 and MSHWMB [whwmb] at
+      word 20. The other words are kept. *)
   Definition exception_spill (save : list LWord) (wmepcc : LWord) (wregs : list LWord)
-    (wst wcause : LWord) : list LWord :=
-    wmepcc :: wregs ++ take 1 (drop 16 save) ++ [wst; wcause] ++ drop 19 save.
+    (wst wcause whwm whwmb : LWord) : list LWord :=
+    wmepcc :: wregs ++ take 1 (drop 16 save) ++ [wst; wcause; whwm; whwmb] ++ drop 21 save.
 
-  Lemma exception_spill_length save wmepcc wregs wst wcause :
+  Lemma exception_spill_length save wmepcc wregs wst wcause whwm whwmb :
     length save = 21%nat →
     length wregs = 15%nat →
-    length (exception_spill save wmepcc wregs wst wcause) = 21%nat.
+    length (exception_spill save wmepcc wregs wst wcause whwm whwmb) = 21%nat.
   Proof.
     intros Hsave Hregs.
     rewrite /exception_spill /= !length_app length_take !length_drop /=.
@@ -70,10 +71,10 @@ Section Switcher_Exception_States.
   Qed.
 
   (** The spill keeps the word [hazardPointers] of the register save area. *)
-  Lemma exception_spill_hazard save wmepcc wregs wst wcause :
+  Lemma exception_spill_hazard save wmepcc wregs wst wcause whwm whwmb :
     length save = 21%nat →
     length wregs = 15%nat →
-    exception_spill save wmepcc wregs wst wcause !! Z.to_nat TrustedStack_offset_hazardPointers =
+    exception_spill save wmepcc wregs wst wcause whwm whwmb !! Z.to_nat TrustedStack_offset_hazardPointers =
     save !! Z.to_nat TrustedStack_offset_hazardPointers.
   Proof.
     intros Hsave Hregs.
@@ -85,11 +86,11 @@ Section Switcher_Exception_States.
 
   (** The spill writes the word [mstatus] of the register save area: its
       saved MIE is that of [wst]. *)
-  Lemma exception_spill_saved_mie_ok save wmepcc wregs wst wcause :
+  Lemma exception_spill_saved_mie_ok save wmepcc wregs wst wcause whwm whwmb :
     length save = 21%nat →
     length wregs = 15%nat →
     mie_of (get_a wst.(lw)) = InterruptDisabled →
-    saved_mie_ok (exception_spill save wmepcc wregs wst wcause).
+    saved_mie_ok (exception_spill save wmepcc wregs wst wcause whwm whwmb).
   Proof.
     intros Hsave Hregs Hmie w.
     rewrite /exception_spill /TrustedStack_offset_mstatus /=.
@@ -164,6 +165,39 @@ Section Switcher_Exception_States.
 
 End Switcher_Exception_States.
 
+Section tstack_save_area_insert.
+  Context
+    {Σ:gFunctors}
+    {ceriseb : ceriseBaseG Σ} {th : Thread}
+    `{MP: MachineParameters}
+    {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf}
+  .
+
+  (** The word [k] of the register save area, to overwrite. *)
+  Lemma tstack_save_area_insert_acc (save : list LWord) (k : nat) (wk : LWord) :
+    save !! k = Some wk →
+    [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
+    (b_trusted_stack ^+ k) ↦ₐ wk ∗
+    (∀ w, (b_trusted_stack ^+ k) ↦ₐ w -∗
+          [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ <[k := w]> save ]]).
+  Proof.
+    iIntros (Hk) "Hsave".
+    iDestruct (tstack_save_area_length with "Hsave") as %Hlen.
+    pose proof trusted_stack_frames_fit as [n Hfit].
+    rewrite /region_pointsto.
+    assert (finz.seq_between b_trusted_stack tstack_save_end !! k = Some (b_trusted_stack ^+ k))
+      as Hak.
+    { eapply finz_seq_between_lookup with (n := 21%nat).
+      - apply lookup_lt_Some in Hk. lia.
+      - rewrite /tstack_save_end. tstack_unfold. solve_addr. }
+    iDestruct (big_sepL2_insert_acc _ _ _ k with "Hsave") as "[Hw Hcont]"; [exact Hak|exact Hk|].
+    iFrame "Hw". iIntros (w) "Hw".
+    iSpecialize ("Hcont" with "Hw").
+    by rewrite list_insert_id.
+  Qed.
+
+End tstack_save_area_insert.
+
 Section Switcher_Exception_Release.
   Context
     {Σ:gFunctors}
@@ -180,12 +214,13 @@ Section Switcher_Exception_Release.
     th ≠ CtxSwitch →
     save !! Z.to_nat TrustedStack_offset_hazardPointers = Some (lword_of_word hazard_slots_cap) →
     saved_mie_ok save →
+    (∃ mshwmb_v : Z, ⌜save !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[th] mshwmb_v) -∗
     [[ b_trusted_stack, tstack_save_end ]] ↦ₐ [[ save ]] -∗
     handover_res -∗
     mtdc_lent -∗
     held (th := th) InterruptDisabled ∗ tstack_hazard_cell ↦ₐ hazard_slots_cap.
   Proof.
-    iIntros (Hth Hhz Hok) "Hsave Hho Hlent".
+    iIntros (Hth Hhz Hok) "Hhb Hsave Hho Hlent".
     rewrite /tstack_save_end.
     iDestruct (save_area_split with "Hsave") as "[Hholed $]"; first exact Hhz.
     rewrite held_disabled posture_part_user //. iFrame "Hho Hlent". iExists save. by iFrame.

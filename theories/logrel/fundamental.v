@@ -25,11 +25,11 @@ Section fundamental_threads.
     iLöb as "IH".
     iIntros (t W C w) "#Hw".
     iIntros (m cstk Ws Cs regs)
-      "(#Hthread & #Htrap & #Hreg & #Htop & HPC & Hregs & Hwres & Hcred & Hcont & Hown & Hcstk
-        & %Hframe & %Hpre & Hmie & Hheld)".
+      "(#Hthread & #Htrap & #Hreg & #Htop & HPC & Hregs & Hhwm & Hwres & Hcred & Hcont & Hown
+        & Hcstk & %Hframe & %Hpre & Hmie & Hheld)".
     iApply (ftlr_step (th := t) W C m w cstk Ws Cs regs ftlr_case Hframe Hpre
-              with "[] Hthread Htrap [] Hw Hreg Htop HPC Hregs [$Hwres $Hcred] Hcont Hown Hcstk
-                    Hheld Hmie").
+              with "[] Hthread Htrap [] Hw Hreg Htop HPC Hregs Hhwm [$Hwres $Hcred] Hcont Hown
+                    Hcstk Hheld Hmie").
     - iApply world_accessor_full.
     - by iModIntro.
   Qed.

@@ -34,9 +34,10 @@ Section ftlr_contract.
       (InterruptDisabled): the lent volatile part pinned by the step (MEPCC
       from the PC [pc], cause [MCAUSE_ECALL_MACHINE], value [MTVAL_NONE],
       MPIE the pre-step posture [b]), the PC at the trap vector, the safe
-      registers, and the PC safe to execute at the resume, at [b]. *)
+      registers, the two high-water-mark registers (MSHWMB at [mshwmb_v], MSHWM
+      at most [mshwm_v]), and the PC safe to execute at the resume, at [b]. *)
   Definition ftlr_ecall_post (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : tval (kind_of th)) : iProp Σ :=
+      (mshwmb_v mshwm_v : Z) (v : tval (kind_of th)) : iProp Σ :=
     ∃ (b : InterruptStatus) (pc : LWord) (regs : LReg),
       ⌜m = InterruptDisabled⌝ ∗
       ⌜v = tval_sw (kind_of th) Ecall NextIV⌝ ∗
@@ -45,14 +46,16 @@ Section ftlr_contract.
       vol_lent (lmepcc_of_pc pc) (lword_of_word (WInt MCAUSE_ECALL_MACHINE)) MTVAL_NONE b ∗
       PC ↦ₚ[th] lword_of_word mtcc_vec ∗
       regs[th] regs ∗
+      (∃ mshwm_v', hwm_res_ftlr mshwmb_v mshwm_v' ∗ ⌜(mshwm_v' <= mshwm_v)%Z⌝) ∗
       (∀ (r : RegName) (w : LWord), ⌜regs !! r = Some w⌝ → interp W C w) ∗
       interp_expr_at b interp interp_continuation W C (yield_resume_pc (lmepcc_of_pc pc)).
 
   (** The post-state of the step lemma: an environment call, or a case's
       post-state with the lent volatile part at InterruptDisabled. *)
   Definition ftlr_post_sw (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : tval (kind_of th)) : iProp Σ :=
-    ftlr_ecall_post m W C v ∨ (lent_if_dis m ∗ ftlr_post_at m W C v).
+      (mshwmb_v mshwm_v : Z) (v : tval (kind_of th)) : iProp Σ :=
+    ftlr_ecall_post m W C mshwmb_v mshwm_v v ∨
+    (lent_if_dis m ∗ ftlr_post_at m W C mshwmb_v mshwm_v v).
 
   (** The post-state of a case as the step lemma consumes it, for a
       post-state [Q] of the accessor's body: a public future world, its
@@ -70,11 +73,12 @@ Section ftlr_contract.
 
   (** The contract of a case of the fundamental theorem, for the
       instruction [i] at the posture [m]: the safe PC and registers, the
-      opened region of the PC, the MIE fragment and the lent volatile part,
-      which goes back to the world accessor at InterruptEnabled. The
-      post-state is the one of the accessor's body, [ftlr_post_sw]: an
-      environment call, or a case's post-state with the lent part at
-      InterruptDisabled. *)
+      opened region of the PC, the two high-water-mark registers (MSHWMB at
+      [mshwmb_v], MSHWM at [mshwm_v]), the MIE fragment and the lent
+      volatile part, which goes back to the world accessor at
+      InterruptEnabled. The post-state is the one of the accessor's body,
+      [ftlr_post_sw]: an environment call, or a case's post-state with the
+      lent part at InterruptDisabled. *)
   Definition ftlr_contract (m : InterruptStatus)
     (W : WORLD) (C : CmptName) (regs : leibnizO LReg)
     (p p' : Perm) (g : Locality) (b e a : Addr)
@@ -87,7 +91,7 @@ Section ftlr_contract.
     → PermFlowsTo p p'
     → (persistent_cond P)
     → decodeInstrW w.(lw) = i
-    -> ("#IH" ∷ ftlr_IH ∗
+    -> ∀ (mshwmb_v mshwm_v : Z), ("#IH" ∷ ftlr_IH ∗
         "#Hthread" ∷ thread_in th C ∗
         "#Hinv_interp" ∷ interp W C (Cap p g b e a) ∗
         "#Hreg" ∷ (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗
@@ -102,11 +106,12 @@ Section ftlr_contract.
         "Hworld_interp" ∷ world_interp_open W C [LNonHeap a] ∗
         "HPC" ∷ PC ↦ₚ[th] (Cap p g b e a) ∗
         "Hmap" ∷ regs[th] regs ∗
+        "Hhwm" ∷ hwm_res_ftlr mshwmb_v mshwm_v ∗
         "Hmie" ∷ MIE ↦ₜ[th] m ∗
         "%Hpre" ∷ ⌜route_pre th m⌝ ∗
         "Hvol" ∷ vol_lent_any)
     -∗ WP Instr Executable @core[th]
-       {{ ftlr_contract_post W C (λ m' W', ftlr_post_sw m' W' C) }}.
+       {{ ftlr_contract_post W C (λ m' W', ftlr_post_sw m' W' C mshwmb_v mshwm_v) }}.
 
   (** The precondition of [ftlr_contract] up to a tail [X], for the
       premises of [ftlr_contract_intro] and [ftlr_contract_intro_at]. *)
@@ -139,8 +144,9 @@ Section ftlr_contract.
 
   (** The post-state of a case that sees neither the posture nor the lent
       volatile part, at a value. *)
-  Definition ftlr_contract_intro_post W C (v : tval (kind_of th)) : iProp Σ :=
-    ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C v.
+  Definition ftlr_contract_intro_post W C (mshwmb_v mshwm_v : Z)
+      (v : tval (kind_of th)) : iProp Σ :=
+    ▷ ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C mshwmb_v mshwm_v v.
 
   (** A case that does not touch the volatile registers frames the lent
       part: back to the accessor at InterruptEnabled, in the post-state at
@@ -159,20 +165,25 @@ Section ftlr_contract.
      PermFlowsTo p p' →
      persistent_cond P →
      decodeInstrW w.(lw) = i →
+     ∀ (mshwmb_v mshwm_v : Z),
      ftlr_contract_pre W C regs p p' g b e a w ρ P
        ("Hmap" ∷ regs[th] regs ∗
+        "Hhwm" ∷ hwm_res_ftlr mshwmb_v mshwm_v ∗
         "Hmie" ∷ MIE ↦ₜ[th] m ∗
         "%Hpre" ∷ ⌜route_pre th m⌝) -∗
      WP Instr Executable @core[th]
        {{ v, ▷ ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
-                        MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C v }}) →
+                        MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗
+                        ftlr_post_at m' W' C mshwmb_v mshwm_v v }}) →
     ftlr_contract m W C regs p p' g b e a w i ρ P.
   Proof.
-    intros Hcase Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
+    intros Hcase Hp Hsome HcorrectPC Hbae Hfp Hpers Hi mshwmb_v mshwm_v.
     iIntros "Hpre".
-    iDestruct (ftlr_contract_pre_frame _ ("Hmap" ∷ regs[th] regs ∗ "Hmie" ∷ MIE ↦ₜ[th] m ∗
+    iDestruct (ftlr_contract_pre_frame _ ("Hmap" ∷ regs[th] regs ∗
+                                 "Hhwm" ∷ hwm_res_ftlr mshwmb_v mshwm_v ∗
+                                 "Hmie" ∷ MIE ↦ₜ[th] m ∗
                                  "%Hpre" ∷ ⌜route_pre th m⌝) vol_lent_any
-                with "Hpre") as "[Hpre Hvol]"; first by iIntros "($ & $ & $ & $)".
+                with "Hpre") as "[Hpre Hvol]"; first by iIntros "($ & $ & $ & $ & $)".
     iApply (wp_wand with "[Hpre]"); first by iApply (Hcase with "Hpre").
     iIntros (v) "Hpost !>".
     iDestruct "Hpost" as (W' m' Hrel) "(Hworld & Hmie & %Hroute' & Hpost)".
@@ -193,22 +204,27 @@ Section ftlr_contract.
      PermFlowsTo p p' →
      persistent_cond P →
      decodeInstrW w.(lw) = i →
-     ftlr_contract_pre W C regs p p' g b e a w ρ P ("Hmap" ∷ regs[th] regs) -∗
-     WP Instr Executable @core[th] {{ ftlr_contract_intro_post W C }}) →
+     ∀ (mshwmb_v mshwm_v : Z),
+     ftlr_contract_pre W C regs p p' g b e a w ρ P
+       ("Hmap" ∷ regs[th] regs ∗
+        "Hhwm" ∷ hwm_res_ftlr mshwmb_v mshwm_v) -∗
+     WP Instr Executable @core[th] {{ ftlr_contract_intro_post W C mshwmb_v mshwm_v }}) →
     ftlr_contract m W C regs p p' g b e a w i ρ P.
   Proof.
     intros Hcase. apply ftlr_contract_intro_at.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi mshwmb_v mshwm_v.
     iIntros "Hpre".
-    iDestruct (ftlr_contract_pre_frame _ ("Hmap" ∷ regs[th] regs) (MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝)
-                with "Hpre") as "[Hpre [Hmie %Hroute] ]"; first by iIntros "[$ $]".
+    iDestruct (ftlr_contract_pre_frame _ ("Hmap" ∷ regs[th] regs ∗
+                                          "Hhwm" ∷ hwm_res_ftlr mshwmb_v mshwm_v)
+                (MIE ↦ₜ[th] m ∗ ⌜route_pre th m⌝)
+                with "Hpre") as "[Hpre [Hmie %Hroute] ]"; first by iIntros "($ & $ & $ & $)".
     iApply (wp_wand with "[Hpre]"); first by iApply (Hcase with "Hpre").
     iIntros (v) "Hpost". iNext.
     iDestruct "Hpost" as (W') "(%Hrel & Hworld & Hpost)".
     iExists W', m. iFrame "Hworld Hmie". iSplit; first done. iSplit; first done.
     destruct v; try (rewrite ftlr_post_at_eq //; iExact "Hpost").
     rewrite /ftlr_post_at /ftlr_post.
-    iDestruct "Hpost" as (regs' pc) "(Hfull & HPC & Hregs & Hreg' & Hpc)".
+    iDestruct "Hpost" as (regs' pc) "(Hfull & HPC & Hregs & Hhwm & Hreg' & Hpc)".
     iExists regs', pc. iFrame. by iApply interp_expression_at.
   Qed.
 

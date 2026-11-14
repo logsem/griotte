@@ -144,12 +144,14 @@ Section Handle_Error_Stack_Oob.
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → (b_tbl ^+ off_eh) ↦ₐ□ WInt eh) ∗
     codefrag_pers pc_a instrs ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ ∗
         ctp ↦ᵣ[th] Cap RWL g_tstk b_trusted_stack e_trusted_stack a_tstk ∗
         ct1 ↦ᵣ[th] - ∗
         ct2 ↦ᵣ[th] - ∗
         cs0 ↦ᵣ[th] - ∗
-        a_tbl_cell ↦ₐ{dq} wcell -∗
+        a_tbl_cell ↦ₐ{dq} wcell ∗
+        hwm_closed (kind_of th) -∗
         trap_safe (Cap XSRW_ Local b_switcher e_switcher (pc_a ^+ 3)) ⊤ φ ) ∧
       ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
         ⌜wcell = lword_of_word (Cap p g b_tbl e a)⌝ ∗
@@ -158,13 +160,14 @@ Section Handle_Error_Stack_Oob.
         ct1 ↦ᵣ[th] Cap p g b_tbl e b_tbl ∗
         ct2 ↦ᵣ[th] wct2' ∗
         cs0 ↦ᵣ[th] WInt eh ∗
-        a_tbl_cell ↦ₐ{dq} wcell -∗
+        a_tbl_cell ↦ₐ{dq} wcell ∗
+        hwm_closed (kind_of th) -∗
         WP Exec @[th] {{ φ }} ) )
     ⊢ WP Exec @[th] {{ φ }}.
   Proof.
     intros a_tbl_cell.
     iIntros (Hoff Hinstrs Hsub Hlen Ha_cell Hcell_bounds Hwcell)
-      "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & #Hheader & #Hcode_all & Hpost)".
+      "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & #Hheader & #Hcode_all & Hclosed & Hpost)".
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     iAssert (codefrag_pers pc_a (take 4 instrs)) as "Hcode".
     { rewrite -{1}(take_drop 4 instrs).
@@ -202,7 +205,7 @@ Section Handle_Error_Stack_Oob.
       { rewrite /withinBounds; solve_addr. }
       iDestruct "Hpost" as "[_ Hpost]".
       iEval (rewrite /lload_word /lift_word /= load_word_int) in "Hcs0".
-      iApply ("Hpost" $! p g e a). iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcell". done.
+      iApply ("Hpost" $! p g e a). iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcell Hclosed". done.
   Qed.
 
   (** [.Lhandle_error_try_stackful]: the stackful handler. *)
@@ -222,6 +225,7 @@ Section Handle_Error_Stack_Oob.
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₑ□{stackful} eh) ∗
     switcher_code ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
@@ -230,7 +234,8 @@ Section Handle_Error_Stack_Oob.
           ct2 ↦ᵣ[th] - ∗
           cs0 ↦ᵣ[th] - ∗
           cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
-          a_tbl_cell ↦ₐ{dq} wcell -∗
+          a_tbl_cell ↦ₐ{dq} wcell ∗
+          hwm_closed (kind_of th) -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' : LWord),
           ⌜wcell = lword_of_word (Cap p g b_tbl e a)⌝ -∗
@@ -252,29 +257,30 @@ Section Handle_Error_Stack_Oob.
           ct2 ↦ᵣ[th] wct2' ∗
           cs0 ↦ᵣ[th] WInt eh ∗
           cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
-          a_tbl_cell ↦ₐ{dq} wcell -∗
+          a_tbl_cell ↦ₐ{dq} wcell ∗
+          hwm_closed (kind_of th) -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
     intros a_tbl_cell.
     iIntros (Ha_cell Hcell_bounds Hwcell)
-      "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell & #Hheader & #Hswitcher & Hpost)".
+      "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell & #Hheader & #Hswitcher & Hclosed & Hpost)".
     switcher_open_label ".Lhandle_error_try_stackful" "Hswitcher" as "Hcode".
     iApply (export_table_header_load_spec _ _ _ b_tbl _ ExportTable_offset_errorHandler eh
-             with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode Hpost Hcs1]");
+             with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode $Hclosed Hpost Hcs1]");
       [rewrite /ExportTable_offset_errorHandler /ExportTable_offset_errorHandlerStackless; lia
       | reflexivity | done | cbn; lia | done | done | done |].
     iSplitR.
     { iIntros "%Hexp". iDestruct ("Hheader" with "[//]") as "Heh".
       by iApply handler_stackful_elim. }
     iNext. iSplit.
-    - iIntros "(%Hz & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+    - iIntros "(%Hz & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & Hclosed)".
       iDestruct "Hpost" as "[Hfailed _]".
       switcher_merge_pc.
       iApply ("Hfailed" with "[//] []").
       { iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
-      iFrame "Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell".
-    - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+      iFrame "Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell Hclosed".
+    - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & Hclosed)".
       switcher_hide "Hpost" as hpost.
       destruct (decide (eh = ExportTable_no_handler)) as [-> | Hhandler].
       + (* Jne .Lhandle_error_found cs0 cs1 *)
@@ -283,7 +289,7 @@ Section Handle_Error_Stack_Oob.
         subst hpost.
         iDestruct "Hpost" as "(_ & _ & Hpost)".
         iApply ("Hpost" with "[//] [//]").
-        iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell".
+        iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcell Hclosed".
       + (* Jne .Lhandle_error_found cs0 cs1 *)
         iInstr "Hcode".
         { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_found")%a
@@ -319,6 +325,7 @@ Section Handle_Error_Stack_Oob.
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₑ□{stackless} ehs) ∗
     switcher_code ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
@@ -330,7 +337,8 @@ Section Handle_Error_Stack_Oob.
           cs0 ↦ᵣ[th] - ∗
           cs1 ↦ᵣ[th] WInt ExportTable_no_handler ∗
           a_csp_cell ↦ₐ wfcsp ∗
-          a_tbl_cell ↦ₐ{dq} wcell -∗
+          a_tbl_cell ↦ₐ{dq} wcell ∗
+          hwm_closed (kind_of th) -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ∀ (p : Perm) (g : Locality) (e a : Addr) (wct2' wcs1' : LWord),
           ⌜wcell = lword_of_word (Cap p g b_tbl e a)⌝ -∗
@@ -381,7 +389,7 @@ Section Handle_Error_Stack_Oob.
     intros a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hwcell)
       "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcsp_cell & Hcell
-       & #Hheader & #Hswitcher & Hpost)".
+       & #Hheader & #Hswitcher & Hclosed & Hpost)".
     pose proof trusted_stack_frames_fit as [n Hfit].
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((a_tstk + TrustedStackFrame_offset_calleeExportTable)%a = Some a_tbl_cell)
@@ -391,20 +399,21 @@ Section Handle_Error_Stack_Oob.
     switcher_open_label ".Lhandle_error_try_stackless" "Hswitcher" as "Hcode".
     iApply (export_table_header_load_spec _ _ _ b_tbl _
               ExportTable_offset_errorHandlerStackless ehs
-             with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode Hpost Hcs1 Hcsp Hct0 Hcsp_cell]");
+             with "[$HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcell $Hcode $Hclosed Hpost Hcs1 Hcsp Hct0
+                    Hcsp_cell]");
       [rewrite /ExportTable_offset_errorHandlerStackless; lia
       | reflexivity | done | cbn; lia | done | done | done |].
     iSplitR.
     { iIntros "%Hexp". iDestruct ("Hheader" with "[//]") as "Hehs".
       by iApply handler_stackless_elim. }
     iNext. iSplit.
-    - iIntros "(%Hz & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+    - iIntros "(%Hz & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & Hclosed)".
       iDestruct "Hpost" as "[Hfailed _]".
       switcher_merge_pc.
       iApply ("Hfailed" with "[//] []").
       { iPureIntro. apply trap_no_resume_switcher_pc. by vm_compute. }
-      iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell".
-    - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell)".
+      iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hcsp_cell Hcell Hclosed".
+    - iIntros (p g e a wct2') "(%Hw & HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcell & Hclosed)".
       switcher_hide "Hpost" as hpost.
       destruct (decide (ehs = ExportTable_no_handler)) as [-> | Hhandler].
       { (* Jeq .Lcommon_force_unwind cs0 cs1 *)
@@ -540,6 +549,7 @@ Section Handle_Error_Stack_Oob.
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₑ□{stackful} eh ∗ b_tbl ↦ₑ□{stackless} ehs) ∗
     switcher_code ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
@@ -554,7 +564,8 @@ Section Handle_Error_Stack_Oob.
           ca1 ↦ᵣ[th] wca1 ∗
           ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
-          a_tbl_cell ↦ₐ{dq} wcell -∗
+          a_tbl_cell ↦ₐ{dq} wcell ∗
+          hwm_closed (kind_of th) -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜ehs = ExportTable_no_handler ∧
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
@@ -600,19 +611,19 @@ Section Handle_Error_Stack_Oob.
     intros tf a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hframe_csp Hwcell Hcond)
       "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
-       & Hcsp_cell & Hcell & #Hheader & #Hswitcher & Hpost)".
+       & Hcsp_cell & Hcell & #Hheader & #Hswitcher & Hclosed & Hpost)".
     iApply (handle_error_try_stackless_block_spec _ _ _ (length cstk.(cstk_frames)) ehs
              with "[- $HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcsp_cell $Hcell
-                     $Hswitcher]");
+                     $Hswitcher $Hclosed]");
       [done | done | done |].
     iSplitR.
     { iIntros "%Hexp". by iDestruct ("Hheader" with "[//]") as "[_ $]". }
     iNext; iSplit; [|iSplit; [|iSplit] ].
     - iIntros (Hz off Hoff)
-        "(Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcsp_cell & Hcell)".
+        "(Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcsp_cell & Hcell & Hclosed)".
       iDestruct "Hpost" as "[Hfailed _]".
       iApply ("Hfailed" with "[//] [//]").
-      iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hcsp_cell Hcell".
+      iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hcsp_cell Hcell Hclosed".
     - (* No stackless handler *)
       iIntros (p g e a wct2' wcs1' Hw Hehs)
         "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcsp_cell & Hcell)".
@@ -698,6 +709,7 @@ Section Handle_Error_Stack_Oob.
     a_tbl_cell ↦ₐ{dq} wcell ∗
     (⌜exp_tbl_cap b_tbl wcell.(lw)⌝ → b_tbl ↦ₑ□{stackful} eh ∗ b_tbl ↦ₑ□{stackless} ehs) ∗
     switcher_code ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜wcell = lword_of_word (WInt 0)⌝ -∗
           ∀ off : Z,
           ⌜trap_no_resume (switcher_pc off)⌝ -∗
@@ -712,7 +724,8 @@ Section Handle_Error_Stack_Oob.
           ca1 ↦ᵣ[th] wca1 ∗
           ca2 ↦ᵣ[th] wca2 ∗
           a_csp_cell ↦ₐ tf.(tf_csp) ∗
-          a_tbl_cell ↦ₐ{dq} wcell -∗
+          a_tbl_cell ↦ₐ{dq} wcell ∗
+          hwm_closed (kind_of th) -∗
           trap_safe (switcher_pc off) ⊤ (HO th) ) ∧
         ( ⌜ehs = ExportTable_no_handler ∧
            (error_state_fits wcsp → eh = ExportTable_no_handler ∨ tag_strippable wcsp)⌝ -∗
@@ -758,7 +771,7 @@ Section Handle_Error_Stack_Oob.
     intros tf a_csp_cell a_tbl_cell.
     iIntros (Ha_tstk Ha_tstk_end Hframe_csp Hwcell Hlea)
       "(HPC & Hcsp & Hctp & Hct0 & Hct1 & Hct2 & Hcs0 & Hcs1 & Hca0 & Hca1 & Hca2
-       & Hcsp_cell & Hcell & #Hheader & #Hswitcher & Hpost)".
+       & Hcsp_cell & Hcell & #Hheader & #Hswitcher & Hclosed & Hpost)".
     pose proof trusted_stack_frames_fit as [nfit Hfit].
     iApply (handle_error_stack_oob_block_spec with "[- $HPC $Hct0 $Hct1 $Hct2 $Hcs1 $Hswitcher]");
       first exact Hlea.
@@ -770,15 +783,15 @@ Section Handle_Error_Stack_Oob.
       assert (withinBounds b_trusted_stack e_trusted_stack a_tbl_cell = true) as Hcell_bounds
         by (subst a_tbl_cell; rewrite /withinBounds; tstack_unfold; solve_addr).
       iApply (handle_error_try_stackful_spec _ _ b_tbl eh
-               with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcell $Hswitcher]");
+               with "[- $HPC $Hctp $Hct1 $Hct2 $Hcs0 $Hcs1 $Hcell $Hswitcher $Hclosed]");
         [done | done | done |].
       iSplitR.
       { iIntros "%Hexp". by iDestruct ("Hheader" with "[//]") as "[$ _]". }
       iNext; iSplit; [|iSplit].
-      + iIntros (Hz off Hoff) "(Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell)".
+      + iIntros (Hz off Hoff) "(Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell & Hclosed)".
         iDestruct "Hpost" as "[Hfailed _]".
         iApply ("Hfailed" with "[//] [//]").
-        iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hcsp_cell Hcell".
+        iFrame "Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hcsp_cell Hcell Hclosed".
       + (* The stackful handler *)
         iIntros (p g e a wct2'' Hw Heh)
           "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell)".
@@ -788,16 +801,16 @@ Section Handle_Error_Stack_Oob.
         iFrame "HPC Hcsp Hctp Hct0 Hct1 Hct2 Hcs0 Hcs1 Hca0 Hca1 Hca2 Hcsp_cell Hcell".
       + (* No stackful handler *)
         iIntros (p g e a wct2'' Hw Heh)
-          "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell)".
+          "(HPC & Hctp & Hct1 & Hct2 & Hcs0 & Hcs1 & Hcell & Hclosed)".
         iApply (handle_error_try_stackless_spec with
                  "[$HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
-                   $Hcsp_cell $Hcell $Hheader $Hswitcher $Hpost]"); try done.
+                   $Hcsp_cell $Hcell $Hheader $Hswitcher $Hclosed $Hpost]"); try done.
         intros _. by left.
     - (* No room for the [ErrorState] *)
       iIntros (Hno_room wct1' wct2') "(HPC & Hct0 & Hct1 & Hct2 & Hcs1)".
       iApply (handle_error_try_stackless_spec with
                "[$HPC $Hcsp $Hctp $Hct0 $Hct1 $Hct2 $Hcs0 $Hcs1 $Hca0 $Hca1 $Hca2
-                 $Hcsp_cell $Hcell $Hheader $Hswitcher $Hpost]"); try done.
+                 $Hcsp_cell $Hcell $Hheader $Hswitcher $Hclosed $Hpost]"); try done.
       intros Hfits. right. destruct Hno_room as [Hno_room | Hstrip]; [done | done].
   Qed.
 

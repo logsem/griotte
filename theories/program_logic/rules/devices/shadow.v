@@ -47,7 +47,8 @@ Section mmio_shadow_rules.
     iIntros (Hinstr Hvpc Hpc_a' Hdst Hsrc Hws Hadd Hra Hwb Hlive Hshadow Htranslate Φ)
       "(>HPC & >Hpc_a & >Hdst & >Hsrc & >Hsh & Hwit) HΦ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hdst_src]".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none | done |].
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap");
+      [rewrite Hinstr; by apply sw_of_none | done | solve_writes_mshwmb |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (Hlive R with "HR Hwit") as %Hns.
     iDestruct (gen_heap_valid with "Hst Hsh") as %Hst_heap.
@@ -119,7 +120,8 @@ Section mmio_shadow_rules.
   Proof.
     iIntros (Hinstr Hvpc Hacc Hlive Hv Hshadow Htranslate Hperm_ok Hinc Φ)
       "(>HPC & >Hpc_a & >Hmap & >Hsh & HPr & Hwit) HΦ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none | done |].
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap");
+      [rewrite Hinstr; by apply sw_of_none | done | solve_writes_mshwmb |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (live_witness_cond True W regs dst R (λ _, Hlive) with "HR Hwit") as %Hlive_ok.
     iDestruct (Hperm_ok R C with "HR HC HPr") as %Hallowed.

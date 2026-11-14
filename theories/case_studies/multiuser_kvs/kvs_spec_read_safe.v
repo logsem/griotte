@@ -226,7 +226,8 @@ Section KVS_spec_read_safe.
       "(#Hspred & #Hkvs_static & #Hlock & #Hinv_switcher & #Hswitcher_static & [#Hkvs_exp_eh #Hkvs_exp_ehs])".
     iIntros (cstk Ws Cs rmap csp_b csp_e).
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
-      & Hworld_C & _ & %Hsync_csp & _ & Hcstk & Hna & %Hroute & Hmie & Hheld)".
+      & Hhwm & %Hzone & Hworld_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
+      & %Hroute & Hmie & Hheld)".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
     { destruct Htop_tbl as (_ & -> & _ & Htbl_ok). iFrame "Hkvs_exp_eh Hkvs_exp_ehs".
@@ -287,7 +288,7 @@ Section KVS_spec_read_safe.
               Hrelated_priv_W0_W1
              with "[$Hspred $Hkvs_static $Hlock $Hna $HPC $Hcgp $Hcra
                $Hmie $Hheld $Hca0 $Hinterp_wca0 $Hca1 $Hcs0 $Hcs1 $Hct0
-               $Hctp $Hct1 $Hct2 $Hworld_C Hrmap Hcsp Hstk Hcstk HK Hrevoked_l]");
+               $Hctp $Hct1 $Hct2 $Hworld_C Hrmap Hcsp Hstk Hhwm Hcstk HK Hrevoked_l]");
       [ apply jalr_target_ok_switcher_return_sentry
       | intros ->; by specialize (Hroute eq_refl) | exact Hroute |].
     iSplit.
@@ -321,7 +322,7 @@ Section KVS_spec_read_safe.
       map_simpl "Hrmap".
       iApply (switcher_ret_specification_shared W (revoke W)
                with
-               "[ $Hthread $Hinv_switcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
+               "[ $Hthread $Hinv_switcher $Hswitcher_static $Hstk $Hhwm $Hcstk $HK $Hworld_C $Hna $HPC $Hrevoked_l
                $Hrmap $Hca0 $Hca1 $Hcsp $Hmie]"
              ); last iFrame "∗#".
       { exact Hrelated_pub_W0_Wfixed. }
@@ -333,6 +334,7 @@ Section KVS_spec_read_safe.
       { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { unfold StackEntry_reserved_space in *; solve_addr. }
     - (* The invalid user key faults: return ECOMPARTMENTFAIL to the caller *)
       iNext; iIntros (a_fault) "(Hna & Hcgp & Hcra & Hmie & Hheld & Hca0 & Hca1 & Hcs0 & Hcs1
         & Hct0 & Hctp & Hct1 & Hct2 & Hworld_C)".
@@ -353,7 +355,7 @@ Section KVS_spec_read_safe.
       iDestruct "Hcgp" as "[% Hcgp]"; iDestruct (big_sepM_insert _ _ cgp with "[$Hrmap $Hcgp]") as "Hrmap".
       { repeat (rewrite lookup_insert_ne; auto); apply not_elem_of_dom_1; set_solver+. }
       map_simpl "Hrmap".
-      iApply (trap_safe_return_shared W (revoke W) C _ csp_e csp_b l stk_mem cstk Ws Cs _
+      iApply (trap_safe_return_shared W (revoke W) C _ csp_e csp_b l stk_mem cstk Ws Cs _ _
                with "Hthread Hinv_switcher Hswitcher_static Hno_handler [-]");
         last (iModIntro; iFrame "∗ %").
       { exact Hrelated_pub_W0_Wfixed. }
@@ -365,6 +367,7 @@ Section KVS_spec_read_safe.
       { exact Hsync_csp. }
       { exact Hnodup. }
       { intros a Ha; apply Htemps; done. }
+      { unfold StackEntry_reserved_space in *; solve_addr. }
       { by apply trap_no_resume_cap. }
   Qed.
 

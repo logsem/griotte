@@ -37,6 +37,7 @@ Section img_state.
 
   Definition img_sregs (img : fw_image) : SReg :=
     let sw := img_sw img in
+    let bs := img_boot img in
     <[mtdc := WInt 0]>
       (<[mstatus := WInt (mstatus_enc InterruptDisabled InterruptEnabled)]>
          (<[mtcc := Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
@@ -44,7 +45,10 @@ Section img_state.
                          assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                            ".Lswitch_csp_check" "exception_entry_asm")%a]>
             (<[mepcc := WInt 0]>
-               (<[mcause := WInt 0]> (<[mtval := WInt 0]> ∅))))).
+               (<[mcause := WInt 0]>
+                  (<[mtval := WInt 0]>
+                     (<[mshwmb := WInt (img_b_boot_stack bs)]>
+                        (<[mshwm := WInt (img_e_boot_stack bs)]> ∅))))))).
 
   (** The memory, built in another order than in [firmware_ok], with the
       memory of every thread, of the idle thread and of the boot stack. *)
@@ -271,19 +275,6 @@ Section checks.
     - left. left. by rewrite Hz.
     - right. by apply bool_decide_eq_true in Hw.
   Qed.
-
-  (** A word of the boot stack that is an integer or a thread handle: the
-      same test as [sched_data_wordb], for another predicate of the image. *)
-  Definition boot_stack_wordb (hs : list Word) (w : Word) : bool :=
-    is_z w || bool_decide (w ∈ hs).
-
-  Lemma boot_stack_wordb_sound hs w :
-    boot_stack_wordb hs w = true → boot_stack_word hs w.
-  Proof.
-    intros [Hz|Hw]%orb_true_iff.
-    - left. by rewrite /is_int Hz.
-    - right. by apply bool_decide_eq_true in Hw.
-  Qed.
 End checks.
 
 Fixpoint ranges_apart (rs : list (Addr * Addr)) : bool :=
@@ -324,9 +315,6 @@ Ltac solve_concrete_condition :=
   | |- Forall (sched_data_word _ _ ?hs) _ =>
       apply (Forall_check (sched_data_wordb hs));
       [intros ?; apply sched_data_wordb_sound | vm_compute; reflexivity]
-  | |- Forall (boot_stack_word ?hs) _ =>
-      apply (Forall_check (boot_stack_wordb hs));
-      [apply boot_stack_wordb_sound | vm_compute; reflexivity]
   | |- Forall (word_rooted ?H) _ =>
       apply (Forall_check (word_rootedb H)); [apply word_rootedb_sound | vm_compute; reflexivity]
   | |- Forall word_exec_ok _ =>

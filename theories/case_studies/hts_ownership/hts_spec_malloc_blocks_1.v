@@ -40,8 +40,9 @@ Section HTS_Spec_Malloc.
   #[local] Notation malloc_ret := (hts_malloc_ret C pc_b pc_e pc_a cgp_b cgp_e
     csp_b csp_e C_f owner_a W_init_C Ws Cs cstk).
 
-  Lemma hts_spec_malloc (rmap : LReg) (mie : InterruptStatus) :
+  Lemma hts_spec_malloc (rmap : LReg) (mie : InterruptStatus) (mshwm_v : Z) :
     cstk.(cstk_frames) = [] ->
+    cstk_hwm_base cstk = csp_b ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
     is_heap_address owner_a = false ->
@@ -69,6 +70,7 @@ Section HTS_Spec_Malloc.
     world_interp W_init_C C ∗
     interp W_init_C C (Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e)) ∗
     interp_continuation cstk Ws Cs ∗
+    hwm_res cstk mshwm_v ∗
     ◯(CSTK)[th] cstk ∗
     MIE ↦ₜ[th] mie ∗
     held (th := th) mie ∗
@@ -76,11 +78,11 @@ Section HTS_Spec_Malloc.
      safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
+    iIntros (Hframes Hbase Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap
       Hcgp_shadow Hcgp_heap Hcgp_contiguous Hstk_shadow Hstk_heap Hstk_min Hrmap_dom HsubBounds
       Himports_contiguous Hroute)
       "(#Hctx & Hna & HPC & Hcgp & Hcsp & Hcra & Hrmap & Hstatic & Howner & Hworld
-       & #Hinterp_csp & HK & Hcstk & Hmie & Hheld & Hcontinue)".
+       & #Hinterp_csp & HK & Hhwm & Hcstk & Hmie & Hheld & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry & %Hshared)".
@@ -224,7 +226,7 @@ Section HTS_Spec_Malloc.
     pose proof allocator_size_exports as Hsize.
     rewrite /allocator_export_table_entries in Hsize.
     (* The free part of the stack, below the space reserved at its top *)
-    iDestruct (stk_start_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
+    iDestruct (stk_start_stack_region_split with "Hstk") as (stk_mem_free stk_res) "[Hstk _]";
       first (unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *;
              solve_addr+Hstk_min).
     iApply (switcher_cc_specification_known_to_known_end_to_end
@@ -239,11 +241,12 @@ Section HTS_Spec_Malloc.
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-         $Hstk $Hcstk $Hmalloc_fun $Hmie $Hheld]").
+         $Hstk $Hhwm $Hcstk $Hmalloc_fun $Hmie $Hheld]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { apply stk_start_cursor_ok.
       unfold SpillSlot_size, StackEntry_reserved_space in Hstk_min |- *; solve_addr+Hstk_min. }
+    { by rewrite Hbase. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_malloc_exp_tbl_off /allocator_entry_malloc. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }

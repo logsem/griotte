@@ -24,14 +24,14 @@ Section machine_facts.
 
   (** The logical system registers after interrupt entry, from the joined
       ones at InterruptEnabled. *)
-  Lemma lsregs_enter_irq_join c σ lpc lsh vm mpie :
+  Lemma lsregs_enter_irq_join c σ lpc lsh vm mshwmb_v mshwm_v mpie :
     mie_st σ = InterruptEnabled →
-    lsregs_enter_irq c σ lpc (lsregs_join lsh vm InterruptEnabled mpie) =
+    lsregs_enter_irq c σ lpc (lsregs_join lsh vm mshwmb_v mshwm_v InterruptEnabled mpie) =
     lsregs_join
       (<[mtval := lword_of_word (WInt MTVAL_NONE)]>
          (<[mcause := lword_of_word (WInt c)]>
             (<[mepcc := lword_of_word lpc.(lw)]> lsh)))
-      vm InterruptDisabled InterruptEnabled.
+      vm mshwmb_v mshwm_v InterruptDisabled InterruptEnabled.
   Proof.
     intros Hen. apply map_eq. intros i.
     rewrite /lsregs_enter_irq /lsregs_join mie_old_st Hen.
@@ -92,6 +92,104 @@ Section regs_copy.
   Qed.
 End regs_copy.
 
+(** * The high-water-mark ghosts across a switch
+
+    At a hand-in, the parked user thread's pair and zone authority go to
+    its slot at rest, and the halves of its zone to the context-switch
+    thread's lent set; at the hand-back, the reverse. Generic in one
+    instance of the ghosts. *)
+Section hwm_moves.
+  Context `{!gen_heapGS Addr LWord Σ, !hwmG Σ}.
+
+  (** A user thread's part, out of its state interpretation and its window
+      clause: its authorities at rest, its zone with the cover. *)
+  #[local] Lemma hwm_user_out mshwmb_v mshwm_v o L :
+    mshwmb_auth mshwmb_v -∗ mshwm_auth mshwm_v -∗ pend_si o -∗ lent_auth L -∗
+    hwm_zone (hc_of mshwmb_v o) mshwm_v L -∗
+    pend_half None -∗ lent_frag ∅ -∗
+    ∃ zn,
+      ⌜zone_covers mshwmb_v mshwm_v zn⌝ ∗
+      (mshwmb_auth mshwmb_v ∗ mshwm_auth mshwm_v ∗ zone_auth zn ∗ hwm_rest) ∗
+      zone_halves zn.
+  Proof.
+    iIntros "Hb Hh Hpsi Hla Hzone Hph Hlf".
+    iDestruct (pend_si_half_agree with "Hpsi Hph") as %->.
+    iDestruct (lent_agree with "Hla Hlf") as %->.
+    iNamed "Hzone". iExists zone. iFrame "Hb Hh Hzone_auth Hzone_cells Hla Hlf".
+    iSplit.
+    { iPureIntro. intros a Ha. specialize (Hzone_cover a Ha). set_solver. }
+    rewrite pend_full_split. iFrame "Hpsi". iApply (pend_half_split with "Hph").
+  Qed.
+
+  (** The context-switch thread's part at a hand-in: its pair at the
+      parked thread's, the parked thread's halves lent, the window closed.
+      [zc] is its own zone. *)
+  #[local] Lemma hwm_ctx_in mshwmb_v mshwm_v zc zn :
+    zone_covers mshwmb_v mshwm_v zn →
+    mshwmb_auth mshwmb_v -∗ mshwm_auth mshwm_v -∗ zone_auth zc -∗ hwm_rest -∗
+    zone_halves zc -∗ zone_halves zn
+    ==∗
+    (mshwmb_auth mshwmb_v ∗ mshwm_auth mshwm_v ∗ pend_si None ∗ lent_auth zn ∗
+     hwm_zone (hc_of mshwmb_v None) mshwm_v zn) ∗
+    pend_cl None ∗ pend_frag None ∗ lent_frag zn.
+  Proof.
+    iIntros (Hcov) "Hb Hh Hza (Hla & Hlf & Hp) Hzc Hzn".
+    iMod (lent_update _ _ zn with "Hla Hlf") as "[Hla Hlf]".
+    iDestruct (pend_full_split with "Hp") as "(Hpsi & Hpcl & Hpf)".
+    iModIntro. iFrame "Hb Hh Hpsi Hla Hpcl Hpf Hlf". iExists zc. iFrame "Hza Hzc Hzn".
+    iPureIntro. intros a Ha. apply Hcov in Ha. set_solver.
+  Qed.
+
+  (** The context-switch thread's part at the hand-back: the window is
+      closed and its lent set is the resumed thread's zone [L']; its
+      authorities at rest, its own zone, and the lent halves come out. *)
+  #[local] Lemma hwm_ctx_out mshwmb_v mshwm_v o L o' L' :
+    pend_si o -∗ lent_auth L -∗ hwm_zone (hc_of mshwmb_v o) mshwm_v L -∗
+    pend_cl o' -∗ pend_frag None -∗ lent_frag L'
+    ==∗
+    ⌜L = L'⌝ ∗ hwm_rest ∗
+    ∃ zc, zone_auth zc ∗ zone_halves zc ∗ zone_halves L.
+  Proof.
+    iIntros "Hpsi Hla Hzone Hpcl Hpf Hlf".
+    iDestruct (pend_si_frag_agree with "Hpsi Hpf") as %->.
+    iDestruct (pend_cl_frag_agree with "Hpcl Hpf") as %->.
+    iDestruct (lent_agree with "Hla Hlf") as %->.
+    iMod (lent_update _ _ ∅ with "Hla Hlf") as "[Hla Hlf]".
+    iNamed "Hzone". iModIntro. iSplit; first done.
+    iSplitL "Hla Hlf Hpsi Hpcl Hpf".
+    { iFrame "Hla Hlf". rewrite pend_full_split. iFrame. }
+    iExists zone. iFrame.
+  Qed.
+
+  (** A user thread's part at the hand-back: its authorities at rest and
+      its zone [zn] with its halves give its state interpretation's part
+      and its window clause's. *)
+  #[local] Lemma hwm_user_in mshwmb_v mshwm_v zn :
+    zone_covers mshwmb_v mshwm_v zn →
+    zone_auth zn -∗ hwm_rest -∗ zone_halves zn -∗
+    pend_si None ∗ lent_auth ∅ ∗ hwm_zone (hc_of mshwmb_v None) mshwm_v ∅ ∗
+    pend_half None ∗ lent_frag ∅.
+  Proof.
+    iIntros (Hcov) "Hza (Hla & Hlf & Hp) Hzn".
+    iDestruct (pend_full_split with "Hp") as "(Hpsi & Hpcl & Hpf)".
+    iFrame "Hpsi Hla Hlf". iSplitL "Hza Hzn".
+    { iExists zn. iFrame "Hza Hzn". rewrite /zone_halves big_sepS_empty. iSplit; last done.
+      iPureIntro. intros a Ha. apply Hcov in Ha. set_solver. }
+    iApply pend_half_split. iFrame.
+  Qed.
+End hwm_moves.
+
+(** The window clause is kept by a tick, which changes only the time
+    devices. *)
+Lemma hwm_win_si_tick `{MP : MachineParameters} {Σ} {ceriseg : ceriseG Σ} k σ :
+  hwm_win_si k σ ⊢ hwm_win_si k (tick σ).
+Proof.
+  destruct k; cbn [hwm_win_si].
+  - by rewrite /phys_mshwmb tick_sreg.
+  - iIntros "(%o & Hpcl & Hw)". iExists o. iFrame "Hpcl". destruct o; last done.
+    iNamed "Hw". iExists a2, a3, off, w2, w3. by iFrame "∗ # %".
+Qed.
+
 Section hw_switches.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} `{MP : MachineParameters}
     {CL : ∀ t, CritLink Σ t} {CR : ∀ t, CritRoute Σ t (CL t)}
@@ -101,6 +199,8 @@ Section hw_switches.
     (posture_res_gen (ceriseg := ceriseG_of x) (th := x) (CL := CL x) (CR := CR x)).
   #[local] Notation part_of x :=
     (@posture_part Σ MP (ceriseG_of x) x (CL x) (CR x)).
+  #[local] Notation hwmG_of x := (@cerise_hwmG Σ (ceriseG_of x)).
+  #[local] Notation memG_of x := (@mem_gen_memG Σ (ceriseG_of x)).
   (* The shared part of the state interpretation, at the base; the part of
      thread [x], at its instance. *)
   #[local] Notation SI_sh R C σ :=
@@ -109,8 +209,9 @@ Section hw_switches.
        (@cb_mpie Σ ceriseb) (@cb_posture Σ ceriseb) R C σ).
   #[local] Notation SI_th_of x R C σ :=
     (@SI_th MP Σ (@cerise_pcG Σ (ceriseG_of x)) (@reg_gen_regG Σ (ceriseG_of x))
+       (@mem_gen_memG Σ (ceriseG_of x))
        (@cerise_mtdcG Σ (ceriseG_of x)) (@cerise_mieG Σ (ceriseG_of x))
-       (@cerise_mtdc_lentG Σ (ceriseG_of x)) R C σ).
+       (@cerise_mtdc_lentG Σ (ceriseG_of x)) (@cerise_hwmG Σ (ceriseG_of x)) R C σ).
 
   (** * Helpers *)
 
@@ -119,7 +220,8 @@ Section hw_switches.
     (∃ R C, SI_sh R C σ ∗ SI_th_of th R C σ) ∗
     ⌜dom (reg σ) = all_registers_s⌝ ∗
     @crit_link Σ th (CL th) σ ∗
-    ctx_irq_si (ceriseg := ceriseG_of th) (kind_of th) σ.
+    ctx_irq_si (ceriseg := ceriseG_of th) (kind_of th) σ ∗
+    hwm_win_si (ceriseg := ceriseG_of th) (kind_of th) σ.
   Proof. done. Qed.
 
   (** The MIE fragment of a thread agrees with its state interpretation. *)
@@ -138,29 +240,37 @@ Section hw_switches.
   Proof. intros Hs (p & b & e & a & HB). rewrite HB Hs. discriminate. Qed.
 
   (** The context-switch thread's resources, its authorities and fragments
-      set to [lpc'], [lreg'], [m'] and InterruptDisabled. *)
-  Lemma idle_load lpc' lreg' m' :
+      set to [lpc'], [lreg'], [m'], InterruptDisabled, and the pair [mshwmb_v']
+      [mshwm_v']; its own zone [zc] stays. *)
+  Lemma idle_load lpc' lreg' m' mshwmb_v' mshwm_v' :
     dom lreg' = all_registers_s →
     idle_CtxSwitch
     ==∗
-    thread_auths (th := CtxSwitch) lpc' lreg' m' InterruptDisabled ∗
+    ∃ zc,
+    thread_auths (th := CtxSwitch) lpc' lreg' m' InterruptDisabled mshwmb_v' mshwm_v' zc ∗
     PC ↦ₚ[CtxSwitch] lpc' ∗
     regs[CtxSwitch] lreg' ∗
     mtdc ↦ₜ[CtxSwitch] m' ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
+    mshwmb ↦ₜ[CtxSwitch] mshwmb_v' ∗
+    mshwm ↦ₜ[CtxSwitch] mshwm_v' ∗
+    zone_halves[CtxSwitch] zc ∗
+    ctx_last_owner_frag None ∗
     mtdc_lent_at (th := CtxSwitch) ∗
     scheduler_state ∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
     close_Nact.
   Proof.
     iIntros (Hdom') "Hidle". iNamed "Hidle".
-    iDestruct "Hauths" as "(HPCa & Hr & Hmtdc_a & HMIE_a)".
+    iDestruct "Hauths" as "(HPCa & Hr & Hmtdc_a & HMIE_a & Hhwmb_a & Hhwm_a & Hzone_a & Hrest)".
     iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
     iMod (regs_copy lreg lreg' with "Hr Hregs") as "[Hr Hregs]".
     { by rewrite Hdom Hdom'. }
     iMod (mtdc_update _ _ m' with "Hmtdc_a Hmtdc") as "[Hmtdc_a Hmtdc]".
     iMod (MIE_update _ _ InterruptDisabled with "HMIE_a HMIE") as "[HMIE_a HMIE]".
-    iModIntro. rewrite /thread_auths. iFrame.
+    iMod (mshwmb_update _ _ mshwmb_v' with "Hhwmb_a Hhwmb") as "[Hhwmb_a Hhwmb]".
+    iMod (mshwm_update _ _ mshwm_v' with "Hhwm_a Hhwm") as "[Hhwm_a Hhwm]".
+    iModIntro. iExists zc. rewrite /thread_auths. iFrame.
   Qed.
 
   (** The running thread [th] out of the hardware's state interpretation. *)
@@ -203,22 +313,29 @@ Section hw_switches.
       enabled: the context-switch thread's state interpretation at the
       interrupt entry, [t]'s authorities for its slot (a tagged PC of [t]
       has no identifier), the context-switch thread's fragments at the trap
-      vector with a copy of [t]'s registers, and [t]'s posture pinned to the
-      values the entry wrote. *)
+      vector with a copy of [t]'s registers, its MSHWMB and MSHWM at [t]'s
+      pair (MSHWMB is [t]'s stack base), its window closed and [t]'s halves
+      lent, and [t]'s posture pinned to the values the entry wrote. *)
   Lemma irq_hand_in t σ (c : Z) :
     mie_st σ = InterruptEnabled →
     thread_si (UserThread t) σ -∗
     idle_CtxSwitch
     ==∗
-    ∃ (lpc : LWord) (lreg : LReg),
+    ∃ (lpc : LWord) (lreg : LReg) (mshwmb_v mshwm_v : Z) (zn : gset Addr),
       "Hsi" ∷ thread_si CtxSwitch (enter_irq c σ) ∗
-      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptEnabled) ∗
+      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptEnabled mshwmb_v mshwm_v zn) ∗
       "%Hdom" ∷ ⌜dom lreg = all_registers_s⌝ ∗
       "%Hpc" ∷ ⌜get_tag lpc.(lw) = true → lpc.(lprov) = None⌝ ∗
       "HPC" ∷ PC ↦ₚ[CtxSwitch] lword_of_word mtcc_vec ∗
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] mshwmb_v ∗
+      "#Hbase" ∷ hwm_base[u t] mshwmb_v ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] mshwm_v ∗
+      "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+      "Hlent" ∷ lent_frag[CtxSwitch] zn ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hposture" ∷ posture_of (UserThread t) (Some InterruptEnabled)
         (Some (lword_of_word lpc.(lw))) (Some (lword_of_word (WInt c))) (Some MTVAL_NONE) ∗
       "Hsched" ∷ scheduler_state ∗
@@ -226,7 +343,8 @@ Section hw_switches.
       "Hclose" ∷ close_Nact.
   Proof.
     iIntros (Hen) "Hsi Hidle".
-    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & Hlink & _)".
+    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & Hlink & _ & Hhwm_win)".
+    cbn [hwm_win_si kind_of]. iDestruct "Hhwm_win" as "(Hph & Hlf & #Hbase)".
     iDestruct "HSI" as (R C) "[Hsh Hth]". iNamed "Hsh". iNamed "Hth".
     (* t's link at InterruptEnabled: what it hands over and its posture
        part; its mtdc token pins its mtdc to its home. *)
@@ -238,12 +356,20 @@ Section hw_switches.
       as (p0 c0 v0 b0) "(Hcrit & HU & Hmepcc & Hmcause & Hmtval & Hmpie_f)".
     iDestruct "Hmtcc" as "[ [Hmtcc Hpend] | (%wt & _ & _ & HU' & _)]"; last first.
     { iDestruct (unwedged_excl with "HU HU'") as %[]. }
+    (* t's pair, zone and stack base. *)
+    assert (phys_mshwmb σ = mshwmb_v) as Hphys.
+    { by rewrite /phys_mshwmb (et_hwmb _ _ _ _ _ _ _ _ _ Herth). }
+    rewrite Hphys.
+    iDestruct (@hwm_user_out Σ (memG_of (UserThread t)) (hwmG_of (UserThread t))
+                with "Hmshwmb_a Hmshwm_a Hpend_si Hlent_a Hzone Hph Hlf")
+      as (zn) "(%Hcov & (Hb_t & Hh_t & Hza_t & Hrest_t) & Hzn)".
+    iEval (rewrite (zone_halves_thread_indep (UserThread t) CtxSwitch)) in "Hzn".
     (* The erasure at the interrupt entry. *)
     iDestruct (gen_heap_valid with "Hsr Hmtcc") as %Htcc0.
-    pose proof (erasure_join R C σ lpc lreg lsh vm mie mpie lmem Hersh Herth) as Her.
+    pose proof (erasure_join R C σ lpc lreg lsh vm mie mpie mshwmb_v mshwm_v lmem Hersh Herth) as Her.
     assert (mie = InterruptEnabled) as ->.
     { rewrite -Hen. symmetry. by eapply erasure_th_mie_st. }
-    assert (lsregs_join lsh vm InterruptEnabled mpie !! mtcc = Some (lword_of_word mtcc_vec))
+    assert (lsregs_join lsh vm mshwmb_v mshwm_v InterruptEnabled mpie !! mtcc = Some (lword_of_word mtcc_vec))
       as Htcc by rewrite lsregs_join_ne //.
     pose proof (erasure_enter_irq R C σ lpc lreg _ lmem c _ Her Htcc) as Her'.
     rewrite lsregs_enter_irq_join // in Her'.
@@ -251,39 +377,50 @@ Section hw_switches.
                    (<[mcause := lword_of_word (WInt c)]>
                       (<[mepcc := lword_of_word lpc.(lw)]> lsh))).
     destruct (erasure_split R C (enter_irq c σ) (lword_of_word mtcc_vec) lreg lsh' vm
-                InterruptDisabled InterruptEnabled lmem) as [Hsh' Hth']; [ | | exact Her' | ].
+                InterruptDisabled InterruptEnabled mshwmb_v mshwm_v lmem) as [Hsh' Hth'];
+      [ | | | | exact Her' | ].
     { rewrite /lsh' !lookup_insert_ne //. apply (es_no_mtdc _ _ _ _ _ _ Hersh). }
     { rewrite /lsh' !lookup_insert_ne //. apply (es_no_mstatus _ _ _ _ _ _ Hersh). }
+    { rewrite /lsh' !lookup_insert_ne //. apply (es_no_mshwm _ _ _ _ _ _ Hersh). }
+    { rewrite /lsh' !lookup_insert_ne //. apply (es_no_mshwmb _ _ _ _ _ _ Hersh). }
     (* The volatile registers and MPIE take the values the entry wrote. *)
     iMod (gen_heap_update _ _ _ (lword_of_word lpc.(lw)) with "Hsr Hmepcc") as "[Hsr Hmepcc]".
     iMod (gen_heap_update _ _ _ (lword_of_word (WInt c)) with "Hsr Hmcause") as "[Hsr Hmcause]".
     iMod (gen_heap_update _ _ _ (lword_of_word (WInt MTVAL_NONE)) with "Hsr Hmtval")
       as "[Hsr Hmtval]".
     iMod (MPIE_update _ _ InterruptEnabled with "Hmpie Hmpie_f") as "[Hmpie Hmpie_f]".
-    iMod (idle_load (lword_of_word mtcc_vec) lreg m with "Hidle")
-      as "(Hauths_s & HPC_s & Hregs_s & Hmtdc_s & HMIE_s & Hlent_s & Hsched & Hna & Hclose)".
-    { rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ Herth). }
+    iMod (idle_load (lword_of_word mtcc_vec) lreg m mshwmb_v mshwm_v with "Hidle")
+      as (zc) "(Hauths_s & HPC_s & Hregs_s & Hmtdc_s & HMIE_s & Hhwmb_s & Hhwm_s & Hzc & Hlast_owner &
+                Hlent_s & Hsched & Hna & Hclose)".
+    { rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ _ _ Herth). }
+    iDestruct "Hauths_s" as "(HPCa_s & Hr_s & Hmtdc_a & HMIE_a & Hb_s & Hh_s & Hza_s & Hrest_s)".
+    iMod (@hwm_ctx_in Σ (memG_of CtxSwitch) (hwmG_of CtxSwitch) mshwmb_v mshwm_v zc zn Hcov
+           with "Hb_s Hh_s Hza_s Hrest_s Hzc Hzn")
+      as "((Hb_s & Hh_s & Hpsi_s & Hla_s & Hzone_s) & Hpcl_s & Hpf_s & Hlf_s)".
     subst m.
-    iModIntro. iExists lpc, lreg.
-    iSplitL "Hmtcc Hpend Hm Hst HR HC Hsr Hmpie Hauths_s Hlent_s".
-    { iApply thread_si_unfold. iSplitL.
+    iModIntro. iExists lpc, lreg, mshwmb_v, mshwm_v, zn.
+    iSplitL "Hmtcc Hpend Hm Hst HR HC Hsr Hmpie HPCa_s Hr_s Hmtdc_a HMIE_a Hlent_s
+             Hb_s Hh_s Hpsi_s Hla_s Hzone_s Hpcl_s".
+    { iApply thread_si_unfold. iSplitL "Hmtcc Hpend Hm Hst HR HC Hsr Hmpie HPCa_s Hr_s
+                                        Hmtdc_a HMIE_a Hlent_s Hb_s Hh_s Hpsi_s Hla_s Hzone_s".
       - iExists R, C. iSplitL "Hmtcc Hpend Hm Hst HR HC Hsr Hmpie".
         + iExists lsh', lmem, InterruptEnabled. rewrite shadowtbl_enter_irq.
           iFrame "Hsr Hm Hst HR HC Hmpie". iSplitL; [iLeft; iFrame | done].
         + (* The context-switch thread's clause holds its token. *)
-          iDestruct "Hauths_s" as "(HPCa_s & Hr_s & Hmtdc_a & HMIE_a)".
-          iExists (lword_of_word mtcc_vec), lreg, _, vm, InterruptDisabled.
+          iExists (lword_of_word mtcc_vec), lreg, _, vm, InterruptDisabled, mshwmb_v, mshwm_v, None, zn.
           iFrame. iSplit; done.
-      - iSplit; first by rewrite reg_enter_irq. iSplitR.
+      - iSplit; first by rewrite reg_enter_irq. iSplitR; [|iSplitR].
         + iApply csl_link_disabled. by eapply erasure_th_mie_st.
-        + cbn [ctx_irq_si kind_of]. iLeft. iPureIntro. by eapply erasure_th_mie_st. }
-    iSplitL "HPCa Hr Hmtdc Hmie".
-    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie]. iFrame. }
+        + cbn [ctx_irq_si kind_of]. iLeft. iPureIntro. by eapply erasure_th_mie_st.
+        + cbn [hwm_win_si kind_of]. iExists None. iFrame "Hpcl_s". }
+    iSplitL "HPCa Hr Hmtdc Hmie Hb_t Hh_t Hza_t Hrest_t".
+    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+      iFrame "∗ #". done. }
     iSplitR.
-    { iPureIntro. rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ Herth). }
+    { iPureIntro. rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ _ _ Herth). }
     iSplitR.
     { iPureIntro. apply (erasure_pc_tagged_no_id _ _ _ _ _ _ _ Her). }
-    iFrame "HPC_s Hregs_s HMIE_s Hmtdc_s Hsched Hna Hclose".
+    iFrame "HPC_s Hregs_s HMIE_s Hmtdc_s Hsched Hna Hclose Hhwmb_s Hhwm_s Hpf_s Hlf_s Hlast_owner Hbase".
     iApply (posture_res_gen_intro (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
               (CL := CL (UserThread t)) (CR := CR (UserThread t))
               (lword_of_word lpc.(lw)) (lword_of_word (WInt c)) MTVAL_NONE InterruptEnabled
@@ -295,53 +432,76 @@ Section hw_switches.
 
   (** The hand-in at a state where the user thread runs with interrupts
       disabled: its authorities to its slot, a copy of its registers to the
-      context-switch thread. *)
+      context-switch thread, with its pair, its stack base, and the halves
+      of its zone lent. *)
   Lemma hand_in_disabled t σ :
     mie_st σ = InterruptDisabled →
     thread_si (UserThread t) σ -∗
     part_of (UserThread t) -∗
     idle_CtxSwitch
     ==∗
-    ∃ (lpc : LWord) (lreg : LReg),
+    ∃ (lpc : LWord) (lreg : LReg) (mshwmb_v mshwm_v : Z) (zn : gset Addr),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
-      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled) ∗
+      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled mshwmb_v mshwm_v zn) ∗
       "%Hdom" ∷ ⌜dom lreg = all_registers_s⌝ ∗
       "Hpart" ∷ part_of (UserThread t) ∗
       "HPC" ∷ PC ↦ₚ[CtxSwitch] lpc ∗
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] mshwmb_v ∗
+      "#Hbase" ∷ hwm_base[u t] mshwmb_v ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] mshwm_v ∗
+      "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+      "Hlent" ∷ lent_frag[CtxSwitch] zn ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
   Proof.
     iIntros (Hdis) "Hsi Hpart Hidle".
-    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & _ & _)".
+    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & _ & _ & Hhwm_win)".
+    cbn [hwm_win_si kind_of]. iDestruct "Hhwm_win" as "(Hph & Hlf & #Hbase)".
     iDestruct "HSI" as (R C) "[Hsh Hth]". iNamed "Hth".
     iDestruct (csl_posture_part t with "Hpart") as "[Hsa Hlent_t]".
     iDestruct (mtdc_clause_lent with "Hlent Hlent_t") as %Hhome.
     iDestruct (csl_posture_part t with "[$Hsa $Hlent_t]") as "Hpart".
     assert (mie = InterruptDisabled) as ->.
     { rewrite -Hdis. symmetry. by eapply erasure_th_mie_st. }
-    iMod (idle_load lpc lreg m with "Hidle")
-      as "(Hauths_s & HPC_s & Hregs_s & Hmtdc_s & HMIE_s & Hlent_s & Hsched & Hna & Hclose)".
-    { rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ Herth). }
+    (* t's pair, zone and stack base. *)
+    assert (phys_mshwmb σ = mshwmb_v) as Hphys.
+    { by rewrite /phys_mshwmb (et_hwmb _ _ _ _ _ _ _ _ _ Herth). }
+    rewrite Hphys.
+    iDestruct (@hwm_user_out Σ (memG_of (UserThread t)) (hwmG_of (UserThread t))
+                with "Hmshwmb_a Hmshwm_a Hpend_si Hlent_a Hzone Hph Hlf")
+      as (zn) "(%Hcov & (Hb_t & Hh_t & Hza_t & Hrest_t) & Hzn)".
+    iEval (rewrite (zone_halves_thread_indep (UserThread t) CtxSwitch)) in "Hzn".
+    iMod (idle_load lpc lreg m mshwmb_v mshwm_v with "Hidle")
+      as (zc) "(Hauths_s & HPC_s & Hregs_s & Hmtdc_s & HMIE_s & Hhwmb_s & Hhwm_s & Hzc & Hlast_owner &
+                Hlent_s & Hsched & Hna & Hclose)".
+    { rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ _ _ Herth). }
+    iDestruct "Hauths_s" as "(HPCa_s & Hr_s & Hmtdc_a & HMIE_a & Hb_s & Hh_s & Hza_s & Hrest_s)".
+    iMod (@hwm_ctx_in Σ (memG_of CtxSwitch) (hwmG_of CtxSwitch) mshwmb_v mshwm_v zc zn Hcov
+           with "Hb_s Hh_s Hza_s Hrest_s Hzc Hzn")
+      as "((Hb_s & Hh_s & Hpsi_s & Hla_s & Hzone_s) & Hpcl_s & Hpf_s & Hlf_s)".
     subst m.
-    iModIntro. iExists lpc, lreg.
-    iSplitL "Hsh Hauths_s Hlent_s".
-    { iApply thread_si_unfold. iSplitL.
+    iModIntro. iExists lpc, lreg, mshwmb_v, mshwm_v, zn.
+    iSplitL "Hsh HPCa_s Hr_s Hmtdc_a HMIE_a Hlent_s Hb_s Hh_s Hpsi_s Hla_s Hzone_s Hpcl_s".
+    { iApply thread_si_unfold.
+      iSplitL "Hsh HPCa_s Hr_s Hmtdc_a HMIE_a Hlent_s Hb_s Hh_s Hpsi_s Hla_s Hzone_s".
       - iExists R, C. iFrame "Hsh".
-        iDestruct "Hauths_s" as "(HPCa_s & Hr_s & Hmtdc_a & HMIE_a)".
-        iExists lpc, lreg, _, vm, InterruptDisabled.
+        iExists lpc, lreg, _, vm, InterruptDisabled, mshwmb_v, mshwm_v, None, zn.
         iFrame. iSplit; done.
-      - iSplit; first done. iSplitR.
+      - iSplit; first done. iSplitR; [|iSplitR].
         + by iApply csl_link_disabled.
-        + cbn [ctx_irq_si kind_of]. by iLeft. }
-    iSplitL "HPCa Hr Hmtdc Hmie".
-    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie]. iFrame. }
+        + cbn [ctx_irq_si kind_of]. by iLeft.
+        + cbn [hwm_win_si kind_of]. iExists None. iFrame "Hpcl_s". }
+    iSplitL "HPCa Hr Hmtdc Hmie Hb_t Hh_t Hza_t Hrest_t".
+    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+      iFrame "∗ #". done. }
     iSplitR.
-    { iPureIntro. rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ Herth). }
-    iFrame.
+    { iPureIntro. rewrite -Hdom_σ. symmetry. apply (et_regs _ _ _ _ _ _ _ _ _ Herth). }
+    iFrame "∗ #".
   Qed.
 
   (** The yield hand-in: [yield_body]'s continuation is the yield's
@@ -352,9 +512,9 @@ Section hw_switches.
     yield_body safe (UserThread t) -∗
     idle_CtxSwitch
     ==∗
-    ∃ (b : InterruptStatus) (p : LWord) (lreg : LReg),
+    ∃ (b : InterruptStatus) (p : LWord) (lreg : LReg) (mshwmb_v mshwm_v : Z) (zn : gset Addr),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
-      "Hauths" ∷ auths_at t (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled) ∗
+      "Hauths" ∷ auths_at t (ResumeVals lreg (lword_of_word mtcc_vec) InterruptDisabled mshwmb_v mshwm_v zn) ∗
       "Hcont" ∷ park_cont t (ParkYield b p) ∗
       "%Hdom" ∷ ⌜dom lreg = all_registers_s⌝ ∗
       "Hposture" ∷ posture_of (UserThread t) (Some b) (Some p)
@@ -365,6 +525,12 @@ Section hw_switches.
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] mshwmb_v ∗
+      "#Hbase" ∷ hwm_base[u t] mshwmb_v ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] mshwm_v ∗
+      "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+      "Hlent" ∷ lent_frag[CtxSwitch] zn ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
@@ -375,18 +541,20 @@ Section hw_switches.
     iDestruct (posture_res_gen_unfold (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
                  (CL := CL (UserThread t)) (CR := CR (UserThread t)) with "Hposture")
       as "[Hho Hpart]".
-    iMod (hand_in_disabled t σ Hdis with "Hsi Hpart Hidle") as (lpc lreg) "H".
+    iMod (hand_in_disabled t σ Hdis with "Hsi Hpart Hidle") as (lpc lreg mshwmb_v mshwm_v zn) "H".
     iNamed "H".
-    iDestruct "Hauths" as "(HPCa_t & Hr_t & Hmtdc_t & HMIE_a_t)".
+    iDestruct "Hauths" as "((HPCa_t & Hauths_t) & %Hcov_t & _)".
     iDestruct (PC_agree with "HPCa_t HPC_t") as %Hpc.
     cbn in Hpc. subst lpc.
     iDestruct (posture_res_gen_unfold (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
                  (CL := CL (UserThread t)) (CR := CR (UserThread t)) with "[$Hho $Hpart]")
       as "Hposture".
-    iModIntro. iExists b, p, lreg.
+    iModIntro. iExists b, p, lreg, mshwmb_v, mshwm_v, zn.
     iFrame "Hsi HPC Hregs HMIE Hmtdc Hsched Hna Hclose HMIE_t HPC_t Hposture".
-    iSplitL "HPCa_t Hr_t Hmtdc_t HMIE_a_t".
-    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie]. iFrame. }
+    iFrame "Hhwmb Hbase Hhwm Hpend Hlent Hlast_owner".
+    iSplitL "HPCa_t Hauths_t".
+    { rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+      iFrame "∗ # %". }
     iSplit; last done. rewrite /park_cont. iExact "Hcont".
   Qed.
 
@@ -396,9 +564,9 @@ Section hw_switches.
     exit_body (UserThread t) -∗
     idle_CtxSwitch
     ==∗
-    ∃ (lpc : LWord) (lreg : LReg),
+    ∃ (lpc : LWord) (lreg : LReg) (mshwmb_v mshwm_v : Z) (zn : gset Addr),
       "Hsi" ∷ thread_si CtxSwitch σ ∗
-      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled) ∗
+      "Hauths" ∷ auths_at t (ResumeVals lreg lpc InterruptDisabled mshwmb_v mshwm_v zn) ∗
       "%Hdom" ∷ ⌜dom lreg = all_registers_s⌝ ∗
       "HMIE_t" ∷ MIE ↦ₜ[u t] InterruptDisabled ∗
       "Hposture" ∷ posture_of (UserThread t) None None
@@ -409,6 +577,12 @@ Section hw_switches.
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread t)) ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] mshwmb_v ∗
+      "#Hbase" ∷ hwm_base[u t] mshwmb_v ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] mshwm_v ∗
+      "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+      "Hlent" ∷ lent_frag[CtxSwitch] zn ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
       "Hclose" ∷ close_Nact.
@@ -419,18 +593,20 @@ Section hw_switches.
     iDestruct (posture_res_gen_unfold (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
                  (CL := CL (UserThread t)) (CR := CR (UserThread t)) with "Hposture")
       as "[Hho Hpart]".
-    iMod (hand_in_disabled t σ Hdis with "Hsi Hpart Hidle") as (lpc lreg) "H".
+    iMod (hand_in_disabled t σ Hdis with "Hsi Hpart Hidle") as (lpc lreg mshwmb_v mshwm_v zn) "H".
     iNamed "H".
-    iDestruct "Hauths" as "(HPCa_t & Hr_t & Hmtdc_t & HMIE_a_t)".
+    iDestruct "Hauths" as "((HPCa_t & Hr_t & Hauths_t) & %Hcov_t & _)".
     iDestruct (gen_heap_valid_inclSepM with "Hr_t Hregs_t") as %Hsub.
     cbn in Hsub. apply regs_total_eq in Hsub as ->; last done.
     iDestruct (posture_res_gen_unfold (ceriseg := ceriseG_of (UserThread t)) (th := UserThread t)
                  (CL := CL (UserThread t)) (CR := CR (UserThread t)) with "[$Hho $Hpart]")
       as "Hposture".
-    iModIntro. iExists lpc, lreg.
+    iModIntro. iExists lpc, lreg, mshwmb_v, mshwm_v, zn.
     iFrame "Hsi HPC Hregs HMIE Hmtdc Hsched Hna Hclose HMIE_t Hposture Hregs_t Hexit".
+    iFrame "Hhwmb Hbase Hhwm Hpend Hlent Hlast_owner".
     iSplitL; last done.
-    rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie]. iFrame.
+    rewrite /auths_at /thread_auths. cbn [rv_pc rv_regs rv_mie rv_hwmb rv_hwm rv_zone].
+    iFrame "∗ # %".
   Qed.
 
   (** * The hand-back at [ResumedV] *)
@@ -440,7 +616,9 @@ Section hw_switches.
       interpretation at the same state, with its authorities, and the
       context-switch thread's resources while [B] runs. B's home is not the
       context-switch thread's, so the latter's mtdc token leaves its
-      clause. *)
+      clause. B's halves leave the context-switch thread's lent set for
+      B's zone, and the context-switch thread's window and lending ghosts
+      return to rest. *)
   Lemma resumed_hand_back B (v : resume_vals) σ :
     mtdc_home_at (th := UserThread B) ≠ mtdc_home_at (th := CtxSwitch) →
     thread_si CtxSwitch σ -∗
@@ -449,6 +627,11 @@ Section hw_switches.
     @PC_fragq Σ (@cerise_pcG Σ (ceriseG_of CtxSwitch)) (pc_dq v.(rv_mie)) v.(rv_pc) -∗
     MIE ↦ₜ[CtxSwitch] v.(rv_mie) -∗
     mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread B)) -∗
+    mshwmb ↦ₜ[CtxSwitch] v.(rv_hwmb) -∗
+    mshwm ↦ₜ[CtxSwitch] v.(rv_hwm) -∗
+    pend_frag[CtxSwitch] None -∗
+    lent_frag[CtxSwitch] v.(rv_zone) -∗
+    ctx_last_owner_frag None -∗
     (if v.(rv_mie) is InterruptEnabled then part_of (UserThread B) else True) -∗
     scheduler_state -∗
     na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) -∗
@@ -458,11 +641,26 @@ Section hw_switches.
     thread_si (UserThread B) σ ∗
     idle_CtxSwitch.
   Proof.
-    destruct v as [lreg_r lpc_r b]. cbn [rv_regs rv_pc rv_mie].
-    iIntros (Hne) "Hsi %Hdom Hregs HPC HMIE Hmtdc_f Hpart Hsched Hna Hclose Hauths".
-    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & Hlink & Hirq)".
+    destruct v as [lreg_r lpc_r b hbB hB zB]. cbn [rv_regs rv_pc rv_mie rv_hwmb rv_hwm rv_zone].
+    iIntros (Hne) "Hsi %Hdom Hregs HPC HMIE Hmtdc_f Hhwmb_f Hhwm_f Hpf Hlf Hlast_owner Hpart Hsched Hna
+      Hclose Hauths".
+    iDestruct (thread_si_unfold with "Hsi") as "(HSI & %Hdom_σ & Hlink & Hirq & Hhwm_win)".
+    cbn [hwm_win_si kind_of]. iDestruct "Hhwm_win" as (o') "[Hpcl _]".
     iDestruct "HSI" as (R C) "[Hsh Hth]". iNamed "Hth".
-    pose proof (erasure_th_mie_st _ _ _ _ _ _ _ Herth) as Hmie_st.
+    (* The pair is B's; B's halves leave the lent set. *)
+    iDestruct (mshwmb_agree with "Hmshwmb_a Hhwmb_f") as %->.
+    iDestruct (mshwm_agree with "Hmshwm_a Hhwm_f") as %->.
+    iMod (@hwm_ctx_out Σ (memG_of CtxSwitch) (hwmG_of CtxSwitch)
+           with "Hpend_si Hlent_a Hzone Hpcl Hpf Hlf")
+      as "(-> & Hrest_c & %zc & Hza_c & Hzc & HzB)".
+    iDestruct "Hauths" as "((HPCa_B & Hr_B & Hmtdc_B & HMIE_B & Hb_B & Hh_B & Hza_B & Hrest_B) &
+                            %Hcov & #Hbase)".
+    iEval (rewrite (zone_halves_thread_indep CtxSwitch (UserThread B))) in "HzB".
+    iDestruct (@hwm_user_in Σ (memG_of (UserThread B)) (hwmG_of (UserThread B)) hbB hB zB Hcov
+                with "Hza_B Hrest_B HzB") as "(Hpsi_B & Hla_B & Hzone_B & Hph_B & Hlf_B)".
+    assert (phys_mshwmb σ = hbB) as Hphys.
+    { by rewrite /phys_mshwmb (et_hwmb _ _ _ _ _ _ _ _ _ Herth). }
+    pose proof (erasure_th_mie_st _ _ _ _ _ _ _ _ _ Herth) as Hmie_st.
     iDestruct (MIE_agree with "Hmie HMIE") as %<-.
     (* The whole PC fragment: at InterruptEnabled, its other half is in the
        interrupt clause. *)
@@ -486,33 +684,36 @@ Section hw_switches.
         iDestruct (handover_res_thread_indep CtxSwitch (UserThread B) with "Hho") as "Hho".
         iApply (csl_link_user_enabled B σ Hmie_st). iFrame.
       - iApply (csl_link_disabled (UserThread B) σ Hmie_st). }
-    iModIntro. iSplitL "Hsh Hauths Hlink_B".
+    iModIntro.
+    iSplitL "Hsh HPCa_B Hr_B Hmtdc_B HMIE_B Hb_B Hh_B Hpsi_B Hla_B Hzone_B Hph_B Hlf_B Hlink_B".
     { iApply thread_si_unfold.
-      iDestruct "Hauths" as "(HPCa_B & Hr_B & Hmtdc_B & HMIE_B)".
-      iSplitL "Hsh HPCa_B Hr_B Hmtdc_B HMIE_B".
-      - iExists R, C. iFrame "Hsh". iExists lpc, lreg, _, vm, mie. iFrame.
+      iSplitL "Hsh HPCa_B Hr_B Hmtdc_B HMIE_B Hb_B Hh_B Hpsi_B Hla_B Hzone_B".
+      - iExists R, C. iFrame "Hsh". iExists lpc, lreg, _, vm, mie, hbB, hB, None, ∅. iFrame.
         iSplit; [done | ]. iSplit; [by iLeft | done].
-      - iSplit; first done. iFrame "Hlink_B". }
-    rewrite /idle_CtxSwitch /thread_auths. iExists lpc, lreg, _, mie. iFrame. done.
+      - iSplit; first done. iFrame "Hlink_B". iSplitR; first done.
+        cbn [hwm_win_si kind_of]. rewrite Hphys. iFrame "Hph_B Hlf_B Hbase". }
+    rewrite /idle_CtxSwitch /thread_auths. iExists lpc, lreg, _, mie, hbB, hB, zc. iFrame. done.
   Qed.
 
   (** * The tick *)
 
   Lemma thread_si_tick th σ : thread_si th σ ⊢ thread_si th (tick σ).
   Proof.
-    rewrite !thread_si_unfold. iIntros "(HSI & %Hdom & Hlink & Hirq)".
+    rewrite !thread_si_unfold. iIntros "(HSI & %Hdom & Hlink & Hirq & Hhwm_win)".
     iDestruct "HSI" as (R C) "[Hsh Hth]". iNamed "Hsh". iNamed "Hth".
     assert (mie_st (tick σ) = mie_st σ) as Htk by rewrite /mie_st tick_sreg //.
-    iSplitL "Hsr Hmtcc Hm Hst HR HC Hmpie HPCa Hr Hmtdc Hlent Hmie".
+    iSplitL "Hsr Hmtcc Hm Hst HR HC Hmpie HPCa Hr Hmtdc Hlent Hmie Hmshwmb_a Hmshwm_a Hpend_si
+             Hlent_a Hzone".
     { iExists R, C. iSplitL "Hsr Hmtcc Hm Hst HR HC Hmpie".
       - iExists lsh, lmem, mpie. rewrite tick_shadowtbl. iFrame.
         iPureIntro. by apply erasure_sh_tick.
-      - iExists lpc, lreg, m, vm, mie. iFrame.
+      - iExists lpc, lreg, m, vm, mie, mshwmb_v, mshwm_v, o, L. iFrame.
         iPureIntro. split; [done | by apply erasure_th_tick]. }
     iSplit; first by rewrite tick_reg.
     iSplitL "Hlink".
     { iApply (crit_link_stable with "Hlink"); [done | by rewrite tick_sreg]. }
-    rewrite /ctx_irq_si Htk. destruct (kind_of th); iExact "Hirq".
+    iSplitL "Hirq"; first (rewrite /ctx_irq_si Htk; destruct (kind_of th); iExact "Hirq").
+    by iApply hwm_win_si_tick.
   Qed.
 
   Lemma SI_hw_tick σ : SI_hw σ ⊢ SI_hw (tick σ).

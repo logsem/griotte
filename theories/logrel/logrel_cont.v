@@ -72,6 +72,304 @@ Section logrel_pre.
     (regs[th] r)%I.
 
   Definition full_map (reg : LReg) : iProp Σ := (∀ (r : RegName), ⌜is_Some (reg !! r)⌝)%I.
+
+  (** The two high-water-mark registers, MSHWMB at [mshwmb_v] and MSHWM at [mshwm_v],
+      with [mshwmb_v ≤ mshwm_v]. *)
+  Definition hwm_res_at (mshwmb_v : Addr) (mshwm_v : Z) : iProp Σ :=
+    mshwmb ↦ₜ[th] mshwmb_v ∗
+    mshwm ↦ₜ[th] mshwm_v ∗
+    ⌜(mshwmb_v <= mshwm_v)%Z⌝.
+
+  (** The registers of the thread of [cstk], with MSHWMB at the base of the
+      thread's initial stack, and the bounds of its stack. *)
+  Definition hwm_res (cstk : CSTK) (mshwm_v : Z) : iProp Σ :=
+    hwm_res_at (cstk_hwm_base cstk) mshwm_v ∗
+    thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk).
+
+  (** The stack addresses in [b, mshwm_v) are Temporary in [W]. *)
+  Definition zone_temporary (W : WORLD) (b : Addr) (mshwm_v : Z) : Prop :=
+    ∀ a : Addr, (b <= a)%a → (a < mshwm_v)%Z → std W !! LNonHeap a = Some Temporary.
+
+  (** What untrusted code holds: the registers, with the stack addresses
+      between MSHWMB and MSHWM Temporary in [W]. *)
+  Definition hwm_res_untrusted (W : WORLD) (cstk : CSTK) : iProp Σ :=
+    ∃ mshwm_v : Z, hwm_res cstk mshwm_v ∗ ⌜zone_temporary W (cstk_hwm_base cstk) mshwm_v⌝.
+
+  (** The high-water-mark resources of the context-switch thread: its MSHWMB
+      and MSHWM at the pair it runs with, its window closed, and its last
+      owner with the halves it lends. *)
+  Definition hwm_res_ctx : iProp Σ :=
+    ∃ (mshwmb_v mshwm_v : Z) (o : option (nat * gset Addr)),
+      mshwmb ↦ₜ[th] mshwmb_v ∗
+      mshwm ↦ₜ[th] mshwm_v ∗
+      pend_frag[th] None ∗
+      lent_frag[th] (last_owner_zone o) ∗
+      ctx_last_owner_frag o.
+
+  (** The high-water-mark resources of the thread, by its kind, with MSHWM
+      at [mshwm_v] at a user thread. *)
+  Definition hwm_res_trap (cstk : CSTK) (mshwm_v : Z) : iProp Σ :=
+    match kind_of th with
+    | UserK => hwm_res cstk mshwm_v
+    | CtxK => hwm_res_ctx
+    end.
+
+  (** What the logical relation holds of the high-water mark: at a user
+      thread, the stack addresses between MSHWMB and MSHWM are Temporary in
+      [W]. *)
+  Definition hwm_res_kind (W : WORLD) (cstk : CSTK) : iProp Σ :=
+    ∃ mshwm_v : Z,
+      hwm_res_trap cstk mshwm_v ∗
+      ⌜kind_of th = UserK → zone_temporary W (cstk_hwm_base cstk) mshwm_v⌝.
+
+  (** The registers as the FTLR sees them: the order [mshwmb_v ≤ mshwm_v] only at a user
+      thread. *)
+  Definition hwm_res_ftlr (mshwmb_v mshwm_v : Z) : iProp Σ :=
+    hwm_regs (ceriseg := ceriseG_of th) mshwmb_v mshwm_v ∗
+    ⌜kind_of th = CtxK ∨ (mshwmb_v <= mshwm_v)%Z⌝.
+
+  (** What the FTLR frames around [hwm_res_ftlr]: at a user thread, the
+      base is its stack's and its stack token; at the context-switch
+      thread, the window closed and the lent halves with their owner. *)
+  Definition hwm_frame (cstk : CSTK) (mshwmb_v : Z) : iProp Σ :=
+    match kind_of th with
+    | UserK =>
+        ⌜mshwmb_v = cstk_hwm_base cstk⌝ ∗
+        thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk)
+    | CtxK =>
+        pend_frag[th] None ∗
+        ∃ o : option (nat * gset Addr), lent_frag[th] (last_owner_zone o) ∗ ctx_last_owner_frag o
+    end.
+
+  #[global] Instance hwm_res_at_timeless mshwmb_v mshwm_v : Timeless (hwm_res_at mshwmb_v mshwm_v).
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_timeless cstk mshwm_v : Timeless (hwm_res cstk mshwm_v).
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_untrusted_timeless W cstk : Timeless (hwm_res_untrusted W cstk).
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_ctx_timeless : Timeless hwm_res_ctx.
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_trap_timeless cstk mshwm_v : Timeless (hwm_res_trap cstk mshwm_v).
+  Proof. rewrite /hwm_res_trap. destruct (kind_of th); apply _. Qed.
+
+  #[global] Instance hwm_res_kind_timeless W cstk : Timeless (hwm_res_kind W cstk).
+  Proof. apply _. Qed.
+
+  #[global] Instance hwm_res_ftlr_timeless mshwmb_v mshwm_v : Timeless (hwm_res_ftlr mshwmb_v mshwm_v).
+  Proof. rewrite /hwm_res_ftlr /hwm_regs. apply _. Qed.
+
+  Lemma hwm_res_trap_user cstk mshwm_v :
+    th ≠ CtxSwitch → hwm_res_trap cstk mshwm_v ⊣⊢ hwm_res cstk mshwm_v.
+  Proof. intros Hth. by rewrite /hwm_res_trap (kind_of_user th). Qed.
+
+  Lemma hwm_res_kind_user W cstk :
+    th ≠ CtxSwitch → hwm_res_kind W cstk ⊣⊢ hwm_res_untrusted W cstk.
+  Proof.
+    intros Hth. rewrite /hwm_res_kind /hwm_res_untrusted.
+    setoid_rewrite hwm_res_trap_user; last done.
+    iSplit; iIntros "(%mshwm_v & Hres & %Hzone)"; iExists mshwm_v; iFrame; iPureIntro;
+      [by apply Hzone, (kind_of_user th) | done].
+  Qed.
+
+  Lemma hwm_res_ftlr_user (mshwmb_v : Addr) (mshwm_v : Z) :
+    th ≠ CtxSwitch → hwm_res_ftlr mshwmb_v mshwm_v ⊣⊢ hwm_res_at mshwmb_v mshwm_v.
+  Proof.
+    intros Hth. rewrite /hwm_res_ftlr /hwm_res_at /hwm_regs (kind_of_user th) //.
+    iSplit.
+    - iIntros "[ [$ $] [%Hk | %Hle] ]"; done.
+    - iIntros "($ & $ & %Hle)". by iRight.
+  Qed.
+
+  Lemma hwm_res_kind_split W cstk :
+    hwm_res_kind W cstk ⊣⊢
+    ∃ (mshwmb_v mshwm_v : Z),
+      hwm_res_ftlr mshwmb_v mshwm_v ∗
+      hwm_frame cstk mshwmb_v ∗
+      ⌜kind_of th = UserK → zone_temporary W (cstk_hwm_base cstk) mshwm_v⌝.
+  Proof.
+    iSplit.
+    - iIntros "(%mshwm_v & Hres & %Hzone)".
+      rewrite /hwm_res_trap /hwm_res_ftlr /hwm_frame /hwm_regs.
+      destruct (kind_of th) eqn:Hk.
+      + iDestruct "Hres" as "[ (Hb & Hh & %Hle) Hts]".
+        iExists (cstk_hwm_base cstk), mshwm_v. iFrame. iPureIntro. split_and!; [by right | done | done].
+      + iDestruct "Hres" as "(%mshwmb_v & %mshwm_v' & %o & Hb & Hh & Hpend & Hlent & Hlast_owner)".
+        iExists mshwmb_v, mshwm_v'. iFrame. iPureIntro. split; [by left | done].
+    - iIntros "(%mshwmb_v & %mshwm_v & Hres & Hframe & %Hzone)". iExists mshwm_v. iSplitL; last done.
+      rewrite /hwm_res_ftlr /hwm_frame /hwm_res_trap /hwm_regs.
+      destruct (kind_of th) eqn:Hk.
+      + iDestruct "Hres" as "[ [Hb Hh] [%Hctx | %Hle] ]"; first congruence.
+        iDestruct "Hframe" as "[-> Hts]". iFrame. by iPureIntro.
+      + iDestruct "Hres" as "[ [Hb Hh] _]". iDestruct "Hframe" as "(Hpend & %o & Hlent & Hlast_owner)".
+        iExists mshwmb_v, mshwm_v, o. iFrame.
+  Qed.
+
+  (** The count of the topmost frame does not change the registers. *)
+  Lemma hwm_res_set_top_count (cstk : CSTK) (n : Z) (mshwm_v : Z) :
+    hwm_res (cstack_set_top_count cstk n) mshwm_v ⊣⊢ hwm_res cstk mshwm_v.
+  Proof.
+    by rewrite /hwm_res cstk_hwm_base_set_top_count cstk_hwm_top_set_top_count.
+  Qed.
+
+  (** The stack addresses between [b] and MSHWM stay Temporary in a public
+      future world, and below a lower MSHWM. *)
+  Lemma zone_temporary_mono_pub W W' b mshwm_v :
+    related_sts_pub_world W W' → zone_temporary W b mshwm_v → zone_temporary W' b mshwm_v.
+  Proof. intros Hrel Hzone a Hb Ha. eapply related_pub_Temporary; eauto. Qed.
+
+  Lemma zone_temporary_lower W b mshwm_v mshwm_v' :
+    (mshwm_v' <= mshwm_v)%Z → zone_temporary W b mshwm_v → zone_temporary W b mshwm_v'.
+  Proof. intros Hh Hzone a Hb Ha. apply Hzone; [done|lia]. Qed.
+
+  (** Pushing a frame does not change the registers. *)
+  Lemma hwm_res_push frm cstk mshwm_v :
+    hwm_res (cstack_push frm cstk) mshwm_v ⊣⊢ hwm_res cstk mshwm_v.
+  Proof. by rewrite /hwm_res cstk_hwm_base_push cstk_hwm_top_push. Qed.
+
+  (** MSHWM at [mshwm_v], for the call stack [cstk], from the high-water-mark
+      registers that the exception path gives back. *)
+  Lemma hwm_res_of_regs (cstk : CSTK) (mshwm_v : Z) :
+    (cstk_hwm_base cstk <= mshwm_v)%Z →
+    thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk) -∗
+    hwm_regs (cstk_hwm_base cstk) mshwm_v -∗
+    hwm_res cstk mshwm_v.
+  Proof.
+    iIntros (Hbh) "#Hts [Hmshwmb Hmshwm]".
+    rewrite /hwm_res /hwm_res_at. by iFrame "Hts Hmshwmb Hmshwm".
+  Qed.
+
+  (** A cell of a stack is the cell of a Temporary key of the thread. *)
+  Lemma stack_cell_temp_cell (a : Addr) (v : LWord) :
+    stack_cell a v ⊣⊢ temp_cell th (LNonHeap a) v.
+  Proof. by rewrite temp_cell_nonheap. Qed.
+
+  (** The cells of a stack region are the cells of Temporary keys. *)
+  Lemma stack_region_temp_cells (b e : Addr) (ws : list LWord) :
+    stack_region b e ws ⊣⊢
+    [∗ list] a;v ∈ finz.seq_between b e; ws, temp_cell th (LNonHeap a) v.
+  Proof.
+    rewrite /stack_region. apply big_sepL2_proper. intros. apply stack_cell_temp_cell.
+  Qed.
+
+  (** The cell of a Temporary non-heap key is outside a stack region. *)
+  Lemma stack_region_temp_cell_notin (b e a : Addr) (ws : list LWord) (w : LWord) :
+    stack_region b e ws -∗ temp_cell th (LNonHeap a) w -∗ ⌜a ∉ finz.seq_between b e⌝.
+  Proof.
+    iIntros "Hstk Ha %Hin".
+    iDestruct (big_sepL2_length with "Hstk") as %Hlen.
+    apply list_elem_of_lookup in Hin as [i Hi].
+    destruct (lookup_lt_is_Some_2 ws i) as [wx Hwx].
+    { rewrite -Hlen. by eapply lookup_lt_Some. }
+    iDestruct (big_sepL2_lookup with "Hstk") as "Hx"; [exact Hi | exact Hwx |].
+    iDestruct (temp_cell_nonheap with "Ha") as "[Ha | (%z & Ha & _) ]".
+    - iDestruct (stack_cell_half with "Hx") as "[Hx _]".
+      iDestruct (pointsto_ne with "Ha Hx") as %Hne. done.
+    - iDestruct (stack_cell_temp_cell with "Hx") as "Hx".
+      iApply (temp_cell_zone_cell_false with "Hx [Ha]"). by iExists z.
+  Qed.
+
+  (** The cell of a Temporary key of an object: a stack cell of its
+      address, and the share of its key. *)
+  Lemma temp_cell_addr_key π a v :
+    temp_cell th (addr_key π a) v -∗ stack_cell a v ∗ key_share (addr_key π a).
+  Proof.
+    destruct π as [ι|]; cbn [addr_key].
+    - rewrite temp_cell_heap. iIntros "Hk".
+      iDestruct (addr_key_pointsto (Some ι) with "Hk") as "[Ha $]".
+      by iApply stack_cell_of_pointsto.
+    - rewrite -stack_cell_temp_cell. iIntros "$".
+  Qed.
+
+  (** The cell of a non-heap Temporary key of the thread, outside
+      [MSHWMB, MSHWM), is a points-to. *)
+  Lemma wp_temp_cell_release_nosr E e Φ (lpc : LWord) (cstk : CSTK) (mshwm_v : Z) (a : Addr) (w : LWord) :
+    to_val e = None →
+    pc_nosr lpc.(lw) = true →
+    ¬ (cstk_hwm_base cstk ≤ a < mshwm_v)%Z →
+    PC ↦ₚ lpc -∗
+    temp_cell th (LNonHeap a) w -∗
+    hwm_res cstk mshwm_v -∗
+    (PC ↦ₚ lpc -∗
+     a ↦ₐ w -∗
+     hwm_res cstk mshwm_v -∗
+     WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (He Hnsr Hout) "HPC Hcell Hhwm HΦ".
+    iDestruct (temp_cell_nonheap with "Hcell") as "[Ha | (%z & Hcell & ->) ]".
+    { iApply ("HΦ" with "HPC Ha Hhwm"). }
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hord) Htstk]".
+    iApply (wp_zone_release_nosr with "HPC Hcell Hmshwmb Hmshwm"); [done | done | done |].
+    iIntros "HPC Ha Hmshwmb Hmshwm".
+    iApply ("HΦ" with "HPC Ha [$Hmshwmb $Hmshwm $Htstk //]").
+  Qed.
+
+  (** The cells of a stack outside [MSHWMB, MSHWM) are points-to. *)
+  Lemma wp_stack_cells_release_nosr E e Φ (lpc : LWord) (cstk : CSTK) (mshwm_v : Z)
+      (la : list Addr) (lv : list LWord) :
+    to_val e = None →
+    pc_nosr lpc.(lw) = true →
+    Forall (λ a : Addr, ¬ (cstk_hwm_base cstk <= a < mshwm_v)%Z) la →
+    PC ↦ₚ lpc -∗
+    ([∗ list] a;v ∈ la;lv, stack_cell a v) -∗
+    hwm_res cstk mshwm_v -∗
+    (PC ↦ₚ lpc -∗
+     ([∗ list] a;v ∈ la;lv, a ↦ₐ v) -∗
+     hwm_res cstk mshwm_v -∗
+     WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (He Hnsr).
+    iInduction la as [|a la] "IH" forall (lv); iIntros (Hla) "HPC Hl Hhwm HΦ".
+    { iDestruct (big_sepL2_nil_inv_l with "Hl") as %->.
+      iApply ("HΦ" with "HPC [//] Hhwm"). }
+    iDestruct (big_sepL2_cons_inv_l with "Hl") as (v lv' ->) "[Ha Hl]".
+    apply Forall_cons_1 in Hla as [Ha Hla].
+    iApply ("IH" $! lv' with "[//] HPC Hl Hhwm").
+    iIntros "HPC Hl Hhwm".
+    iDestruct (stack_cell_temp_cell with "Ha") as "Ha".
+    iApply (wp_temp_cell_release_nosr with "HPC Ha Hhwm"); [done | done | done |].
+    iIntros "HPC Ha Hhwm".
+    iApply ("HΦ" with "HPC [$Ha $Hl] Hhwm").
+  Qed.
+
+  (** A write-local capability on [b, e) lies in the stack of the
+      thread. *)
+  Definition wl_in_stack (p : Perm) (b e : Addr) : iProp Σ :=
+    (if isWL p
+     then ∃ bs es : Addr, thread_stack_bounds bs es ∗ ⌜(bs <= b)%a ∧ (e <= es)%a⌝
+     else True)%I.
+
+  #[global] Instance wl_in_stack_persistent p b e : Persistent (wl_in_stack p b e).
+  Proof. rewrite /wl_in_stack. destruct (isWL p); apply _. Qed.
+
+  Lemma wl_in_stack_nonWL p b e : isWL p = false → wl_in_stack p b e ⊣⊢ True.
+  Proof. intros Hp. by rewrite /wl_in_stack Hp. Qed.
+
+  Lemma wl_in_stack_weaken p p' (b e b' e' : Addr) :
+    PermFlowsTo p' p → (b <= b')%a → (e' <= e)%a →
+    wl_in_stack p b e -∗ wl_in_stack p' b' e'.
+  Proof.
+    iIntros (Hfl Hb He) "Hwl". rewrite /wl_in_stack.
+    destruct (isWL p') eqn:Hp'; last done.
+    rewrite (isWL_flowsto _ _ Hfl Hp').
+    iDestruct "Hwl" as (bs es) "[Hts %Hbs]". iExists bs, es. iFrame "Hts".
+    iPureIntro. solve_addr.
+  Qed.
+
+  Lemma wl_in_stack_base p (b e mshwmb_v es : Addr) :
+    isWL p = true →
+    thread_stack_bounds mshwmb_v es -∗ wl_in_stack p b e -∗ ⌜(mshwmb_v <= b)%a ∧ (e <= es)%a⌝.
+  Proof.
+    iIntros (Hp) "Hts Hwl". rewrite /wl_in_stack Hp.
+    iDestruct "Hwl" as (bs es') "[Hts' %Hbs]".
+    iDestruct (thread_stack_bounds_agree with "Hts Hts'") as %[-> ->]. done.
+  Qed.
+
   (** Each register is safe. *)
   Program Definition interp_reg (interp : V) : R :=
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
@@ -215,9 +513,10 @@ Section logrel_pre.
       untrusted, the faulting registers are safe, and the logical
       relation's resources go to the trap vector. *)
   Definition untrusted_fault_pre (interp : V) (interp_cont : K)
-      (cstk : CSTK) (regs : LReg) : iProp Σ :=
+      (cstk : CSTK) (regs : LReg) (mshwm_v : Z) : iProp Σ :=
     ∃ (W : WORLD) (C : CmptName) (Ws : list WORLD) (Cs : list CmptName),
       ⌜frame_match Ws Cs cstk W C⌝ ∗
+      ⌜kind_of th = UserK → zone_temporary W (cstk_hwm_base cstk) mshwm_v⌝ ∗
       interp_reg interp W C regs ∗
       top_cmpt_untrusted interp W C cstk ∗
       world_resources W C ∗
@@ -225,25 +524,25 @@ Section logrel_pre.
       interp_cont cstk Ws Cs.
 
   #[global] Instance untrusted_fault_pre_ne n :
-    Proper (dist n ==> dist n ==> (=) ==> (=) ==> dist n) untrusted_fault_pre.
+    Proper (dist n ==> dist n ==> (=) ==> (=) ==> (=) ==> dist n) untrusted_fault_pre.
   Proof.
-    intros interp interp' Heq K K' HK cstk ? <- regs ? <-.
+    intros interp interp' Heq K K' HK cstk ? <- regs ? <- mshwm_v ? <-.
     rewrite /untrusted_fault_pre. repeat f_equiv.
     all: try apply interp_reg_ne; try apply top_cmpt_untrusted_ne; try apply HK; done.
   Qed.
 
   (** The trap vector [wvec] is safe: after trap entry from any PC [w],
-      with any call stack [cstk] and registers [regs], execution from [wvec]
-      is safe, for a fault in an untrusted compartment
+      with any call stack [cstk], registers [regs] and MSHWM [mshwm_v], execution
+      from [wvec] is safe, for a fault in an untrusted compartment
       ([untrusted_fault_pre]) or a fault that [trusted_fault] accepts. The
       trap vector runs with MIE disabled and receives the whole posture of
       the thread, with MPIE (the posture of the fault), MEPCC, mcause and
       mtval pinned at the values of trap entry. *)
   Definition trap_vector_safe_pre (interp : V) (interp_cont : K)
-      (trusted_fault : CSTK → LWord → LReg → iProp Σ) (wvec : LWord) : iProp Σ :=
-    □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord),
+      (trusted_fault : CSTK → LWord → LReg → Z → iProp Σ) (wvec : LWord) : iProp Σ :=
+    □ ∀ (cstk : CSTK) (regs : LReg) (w : LWord) (mshwm_v : Z),
       ⌜∀ r, is_Some (regs !! r)⌝ -∗
-      (untrusted_fault_pre interp interp_cont cstk regs ∨ trusted_fault cstk w regs) -∗
+      (untrusted_fault_pre interp interp_cont cstk regs mshwm_v ∨ trusted_fault cstk w regs mshwm_v) -∗
       PC ↦ₚ[th] wvec -∗
       MIE ↦ₜ[th] InterruptDisabled -∗
       (∃ (b : InterruptStatus) (c v : Z),
@@ -252,6 +551,7 @@ Section logrel_pre.
          posture_res_gen (th := th) (Some b) (Some (lmepcc_of_pc w))
            (Some (lword_of_word (WInt c))) (Some v)) -∗
       registers_pointsto regs -∗
+      hwm_res_trap cstk mshwm_v -∗
       na_own (tpool th) ⊤ -∗
       ◯(CSTK)[th] cstk -∗
       safe[th].
@@ -271,7 +571,7 @@ Section logrel_pre.
   (** The safety of the trap vector [mtcc_vec] for a fault in an untrusted
       compartment: a premise of the safe execution of the running thread. *)
   Definition untrusted_trap_safe (interp : V) (interp_cont : K) : iProp Σ :=
-    trap_vector_safe_pre interp interp_cont (λ _ _ _, False%I) (lword_of_word mtcc_vec).
+    trap_vector_safe_pre interp interp_cont (λ _ _ _ _, False%I) (lword_of_word mtcc_vec).
 
   #[global] Instance untrusted_trap_safe_persistent interp interp_cont :
     Persistent (untrusted_trap_safe interp interp_cont).
@@ -288,7 +588,7 @@ Section logrel_pre.
     trap_vector_safe_pre interp interp_cont trusted_fault (lword_of_word mtcc_vec) -∗
     untrusted_trap_safe interp interp_cont.
   Proof.
-    iIntros "#Hsafe !>" (cstk regs w Hfull) "[Hfault|[] ]".
+    iIntros "#Hsafe !>" (cstk regs w mshwm_v Hfull) "[Hfault|[] ]".
     iApply ("Hsafe" with "[//]"). by iLeft.
   Qed.
 
@@ -314,6 +614,28 @@ Section logrel_pre.
   Qed.
 
 End logrel_pre.
+
+(** The high-water-mark resources of the logical relation at the
+    context-switch thread. *)
+Section hwm_res_ctx_conv.
+  Context
+    {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {Cname : CmptNameG}
+    {sealsg : sealStoreG Σ} {stsg : STSG Σ} {relg : relGS Σ} {cstackg : CSTACKG Σ}
+    {cthreads : CmptThreads} {CL : ∀ t, CritLink Σ t} `{MP : MachineParameters}.
+
+  Lemma hwm_res_trap_ctx cstk (mshwm_v : Z) :
+    hwm_res_trap (th := CtxSwitch) cstk mshwm_v ⊣⊢ hwm_res_ctx (th := CtxSwitch).
+  Proof. done. Qed.
+
+  Lemma hwm_res_kind_ctx (W : WORLD) cstk :
+    hwm_res_kind (th := CtxSwitch) W cstk ⊣⊢ hwm_res_ctx (th := CtxSwitch).
+  Proof.
+    rewrite /hwm_res_kind. setoid_rewrite hwm_res_trap_ctx.
+    iSplit.
+    - iIntros "(%mshwm_v & $ & _)".
+    - iIntros "Hres". iExists 0%Z. iFrame. iPureIntro. discriminate.
+  Qed.
+End hwm_res_ctx_conv.
 
 Section logrel_expr.
 
@@ -353,6 +675,7 @@ Section logrel_expr.
         ∗ top_cmpt_untrusted interp W C cstk
         ∗ PC ↦ₚ[th] wpc
         ∗ registers_pointsto regs
+        ∗ hwm_res_kind W cstk
         ∗ world_resources W C
         ∗ shared_credit C
         ∗ interp_cont cstk Ws Cs
@@ -560,9 +883,11 @@ Section logrel_expr.
          (* all other register contain 0 *)
          ∗ ⌜dom regs = all_registers_s ∖ {[cra ; cgp; csp; cs0; cs1 ; ca0; ca1]}⌝
          ∗ regs₀[th] regs
-         (* points-to predicate of the stack region *)
-         ∗ [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ stk_mem_l ]]
-         ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_h ]]
+         (* the high-water mark is the caller's stack pointer *)
+         ∗ hwm_res cstk a_stk
+         (* cells of the stack region *)
+         ∗ stack_region (stk_spill_a a_stk) (stk_spill_a a_stk ^+ SpillSlot_size) stk_mem_l
+         ∗ stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) stk_mem_h
          (* The local map, open on the shared stack region, and the part of
             the world premise that holds the map of Permanent regions *)
          ∗ local_region_map th W C (open_l W (LNonHeap <$> shared_stk_region))
@@ -647,7 +972,9 @@ Section logrel_expr.
         (* Continuation for the rest of the call-stack *)
         interp_cont_aux interp ef frms' Ws' Cs' ∗
         (if is_known_to_known_frm frm
-         then True%I
+         then
+           (* the caller's stack starts at the base of the thread's stack *)
+           ⌜cf_stk_b frm = tf_stk_b ef⌝
          else
            ((* The callee stack frame must be safe, because we use the old copy of the stack to clear the stack *)
              interp_callee_part_of_the_stack interp Wt Ct
@@ -656,10 +983,21 @@ Section logrel_expr.
              (* An untrusted caller records that its topmost compartment is
                 untrusted, for the return to it; a trusted caller, the
                 continuation matching the switcher's state at return-to-caller *)
-             ∗ (if is_untrusted_caller_frm frm then top_cmpt_untrusted interp Wt Ct cstk' else
-                    (∀ W', ⌜related_sts_pub_world Wt W'⌝
-                      -∗ interp_cont_exec interp (interp_cont_aux interp ef frms' Ws' Cs')
-                           cstk' W' Ct frm))))%I
+             ∗ (if is_untrusted_caller_frm frm
+                then
+                  top_cmpt_untrusted interp Wt Ct cstk' ∗
+                  (* the stack addresses between the base of the thread's
+                     stack and the caller's cursor are Temporary in the
+                     caller's world *)
+                  ⌜zone_temporary Wt (tf_stk_b ef) (cf_caller_a frm)⌝ ∗
+                  (* the caller's stack starts at the base of the thread's
+                     stack *)
+                  ⌜cf_stk_b frm = tf_stk_b ef⌝
+                else
+                  ⌜cf_stk_b frm = tf_stk_b ef⌝ ∗
+                  (∀ W', ⌜related_sts_pub_world Wt W'⌝
+                    -∗ interp_cont_exec interp (interp_cont_aux interp ef frms' Ws' Cs')
+                         cstk' W' Ct frm))))%I
     | _,_,_ =>  False%I
     end.
   Solve All Obligations with ( solve_proper; split; intros ; (intros [?  [] ]; done) ).
@@ -677,7 +1015,8 @@ Section logrel_expr.
     apply bi.sep_ne.
     { unfold interp_callee_part_of_the_stack. apply bi.sep_ne; first reflexivity. apply Heq. }
     destruct (is_untrusted_caller_frm frm).
-    { by apply top_cmpt_untrusted_ne. }
+    { apply bi.sep_ne; [by apply top_cmpt_untrusted_ne|done]. }
+    apply bi.sep_ne; first done.
     apply bi.forall_ne; intros W'.
     apply bi.wand_ne; first reflexivity.
     exact (interp_cont_exec_ne n interp interp0 Heq _ _ (IH Cs Ws)

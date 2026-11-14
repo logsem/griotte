@@ -329,7 +329,7 @@ Section VAE_World_Call.
       interp (revoke W0) C (WSealed ot_switcher C_f) ∗
       ▷ StackRevokedResources (revoke W0) C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W0) (finz.seq_between csp_b csp_e)⌝ ∗
-      [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
+      stack_region csp_b csp_e stk_mem.
   Proof.
     iIntros "#Hseal #Hinterp_csp #Hinterp_C_f Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")

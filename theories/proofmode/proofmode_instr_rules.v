@@ -123,7 +123,7 @@ Ltac dispatch_next_ok_using s instr cont :=
     let Hsw := fresh "Hsw" in
     let Hok := fresh "Hregs_next_ok" in
     assert (∀ th, regs_instr_ok th instr') as Hsw
-      by (let th := fresh "th" in intros th; rewrite /regs_instr_ok; by apply sw_of_none);
+      by (let th := fresh "th" in intros th; rewrite /regs_instr_ok; split; [by apply sw_of_none | solve_writes_mshwmb]);
     lazymatch dst_entry with
     | Some (?dst, ?wd) =>
       let rest := regs_remove dst regs in
@@ -369,6 +369,8 @@ Ltac dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst ρ imm cont
   let Hmember := fresh "Hmem_member" in
   let Hagree := fresh "Hmem_agree" in
   let Hlift := fresh "Hmem_lift" in
+  let Hnwin := fresh "Hmem_not_window" in
+  assert (¬ hwm_window_instr instr) as Hnwin by (intros [ (? & ? & ? & ?) | ? ]; done);
   eassert (store_member exec_opt _ instr dst imm) as Hmember by solve_mem_agree;
   lazymatch type of Hmember with store_member _ ?swo _ _ _ =>
   assert (mem_store_next_ok exec_opt swo instr dst imm) as Hagree by solve_mem_agree;
@@ -386,13 +388,13 @@ Ltac dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst ρ imm cont
                   (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
                 @wp_store_next_1 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
                   (encodeInstrW instr @@? None) dq instr swo dst wd imm p g b e a ea v0 v
-                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res πd q) Hdec (Hsw _) Hnwin Hmember Hagree Hlift
                   (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
       | cont (fun E pc_a' q Hdec Hvpc Hpc_a' Hadd
                   (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
                 @wp_store_next_1_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
                   (encodeInstrW instr @@? None) instr swo dst wd imm p g b e a v
-                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res πd q) Hdec (Hsw _) Hnwin Hmember Hagree Hlift
                   (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
       | fail "No memory rule applies to" instr
              "(neither for a cell other than the instruction's, nor for the instruction's cell)" ];
@@ -407,20 +409,20 @@ Ltac dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst ρ imm cont
                   (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
                 @wp_store_next_2 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
                   (encodeInstrW instr @@? None) dq instr swo dst wd src ws imm p g b e a ea v0 v
-                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res πd q) Hdec (Hsw _) Hnwin Hmember Hagree Hlift
                   (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
       | cont (fun E pc_a' q Hdec Hvpc Hpc_a' Hadd
                   (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
                 @wp_store_next_2_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
                   (encodeInstrW instr @@? None) instr swo dst wd src ws imm p g b e a v
-                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res πd q) Hdec (Hsw _) Hnwin Hmember Hagree Hlift
                   (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
       | fail "No memory rule applies to" instr
              "(neither for a cell other than the instruction's, nor for the instruction's cell)" ]
     end
   end;
   try clear Haddr end end;
-  try clear Hmember Hagree Hlift.
+  try clear Hmember Hagree Hlift Hnwin.
 
 (* The k-ary memory rule for [instr], a [CLoad] or a [Store]. *)
 Ltac dispatch_mem instr cont :=
@@ -474,6 +476,12 @@ Ltac dispatch_instr_rule instr cont :=
   | SpecialRW ?r mtdc (inr ?r) =>
     (cont (@wp_specialrw_swap_mtdc_close) || cont (@wp_specialrw_swap_mtdc_keep) ||
      cont (@wp_specialrw_swap_mtdc_open) || cont (@wp_specialrw_swap_mtdc_ex))
+  (* SpecialRW on the stack high-water mark: csrr mshwm, csrr mshwmb,
+     csrw mshwm and csrw mshwmb *)
+  | SpecialRW _ mshwm (inr cnull) => cont (@wp_csrr_mshwm)
+  | SpecialRW _ mshwmb (inr cnull) => cont (@wp_csrr_mshwmb)
+  | SpecialRW cnull mshwm (inr _) => cont (@wp_csrw_mshwm)
+  | SpecialRW cnull mshwmb (inr _) => cont (@wp_csrw_mshwmb)
   (* SpecialRW: readsr, writesr, csrw with an immediate, swaps *)
   | SpecialRW _ _ (inr cnull) => cont (@wp_readsr_success)
   | SpecialRW cnull _ (inr _) => cont (@wp_writesr_success)

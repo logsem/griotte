@@ -89,21 +89,24 @@ Section ctx_resume.
                      ot_trusted_stacks ∗
     csp ↦ᵣ[CtxSwitch] wcsp ∗
     ca0 ↦ᵣ[CtxSwitch] wca0 ∗
+    pend_frag[CtxSwitch] None ∗
     ( ▷ ( ∀ (sb : Sealable) π,
           ⌜wca0 = WSealed ot_trusted_stacks sb @@? π⌝ ∗
           ⌜get_tag_sealable sb = true⌝ ∗
           PC ↦ₚ[CtxSwitch] switcher_pc (switcher_label_offset ".Lexception_scheduler_return" + 3) ∗
           csp ↦ᵣ[CtxSwitch] WSealable sb @@? π ∗
-          ca0 ↦ᵣ[CtxSwitch] wca0 -∗
+          ca0 ↦ᵣ[CtxSwitch] wca0 ∗
+          pend_frag[CtxSwitch] None -∗
           safe[CtxSwitch] ) ∧
       ( ⌜¬ ∃ sb π, wca0 = WSealed ot_trusted_stacks sb @@? π ∧ get_tag_sealable sb = true⌝ ∗
         csp ↦ᵣ[CtxSwitch] - ∗
         ca0 ↦ᵣ[CtxSwitch] wca0 -∗
+        pend_frag[CtxSwitch] None -∗
         trap_safe (switcher_pc (switcher_label_offset ".Lexception_scheduler_return" + 3)) ⊤
           (HO CtxSwitch) ) )
     ⊢ safe[CtxSwitch].
   Proof.
-    iIntros "(HPC & #Hswitcher & #Hkey & Hcsp & Hca0 & Hpost)".
+    iIntros "(HPC & #Hswitcher & #Hkey & Hcsp & Hca0 & Hpend & Hpost)".
     pin_thread_instances CtxSwitch.
     assert (a_sched_return =
             a_switcher_call ^+ switcher_label_offset ".Lexception_scheduler_return")%a as Hret.
@@ -170,14 +173,15 @@ Section ctx_resume.
     iDestruct "Hpost" as "[Hpost _]".
     switcher_set_pc
       (a_switcher_call ^+ (switcher_label_offset ".Lexception_scheduler_return" + 3))%a.
-    iApply "Hpost". iFrame "HPC Hcsp Hca0". done.
+    iApply "Hpost". iFrame "HPC Hcsp Hca0 Hpend". done.
   Qed.
 
   (** From the [clw] of the saved mcause to the install, for the thread [B]
       whose trusted stack is in [csp]: the read step makes [B] Resuming, mtdc
       receives [B]'s trusted stack, and [ct2] the PC to resume, one word
       further after an [ecall]. *)
-  Lemma ctx_resume_read_spec (ts : list nat) (B : nat) (g : Locality) (lreg : LReg) :
+  Lemma ctx_resume_read_spec (ts : list nat) (B : nat) (g : Locality) (lreg : LReg)
+      (o : option (nat * gset Addr)) :
     NoDup ts →
     B ∈ ts →
     mtdc_home_at (th := CtxSwitch) = ExceptionScratch (lword_of_word (WInt 0)) →
@@ -193,9 +197,12 @@ Section ctx_resume.
     mtdc_lent_at (th := CtxSwitch) ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
     handover_res (ceriseg := ceriseG_of CtxSwitch) ∗
+    ctx_last_owner_frag o ∗
     na_own (tpool CtxSwitch) ⊤ ∗
     ▷ ( ∀ (ws : list LWord) (v : resume_vals) (wpc : LWord) (lreg' : LReg),
         ⌜resume_ok_full ws v⌝ ∗
+        ⌜zone_covers v.(rv_hwmb) v.(rv_hwm) v.(rv_zone)⌝ ∗
+        ⌜∀ zn, o = Some (B, zn) → zn = v.(rv_zone)⌝ ∗
         ⌜dom lreg' = all_registers_s⌝ ∗
         ⌜lreg' !! csp = Some (lword_of_word (tstack_cap g B))⌝ ∗
         ⌜lreg' !! ct2 = Some wpc⌝ ∗
@@ -203,12 +210,17 @@ Section ctx_resume.
         PC ↦ₚ[CtxSwitch] switcher_label_pc ".Lcommon_context_install" ∗
         regs[CtxSwitch] lreg' ∗
         ⌜saved_mie_ok ws⌝ ∗
+        (∃ mshwmb_v : Z, ⌜ws !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[u B] mshwmb_v) ∗
         save_area_holed (UserThread B) ws ∗
         mtdc_lent_at (th := UserThread B) ∗
         mtdc ↦ₜ[CtxSwitch] mtdc_home_at (th := UserThread B) ∗
         MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
         handover_res (ceriseg := ceriseG_of CtxSwitch) ∗
         cur_frag (Some (UserThread B, Resuming v)) ∗
+        ctx_last_owner_frag o ∗
+        ▷ (if o is Some (B', _) then
+             (if decide (B' = B) then True else zone_halves[CtxSwitch] v.(rv_zone))
+           else zone_halves[CtxSwitch] v.(rv_zone)) ∗
         na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗
         close_Nact ∗
         ▷ ((if v.(rv_mie) is InterruptEnabled then True
@@ -220,16 +232,18 @@ Section ctx_resume.
     ⊢ safe[CtxSwitch].
   Proof.
     iIntros (Hnd HB Hhome_ctx Hhome Hdom Hcsp)
-      "(HPC & #Hswitcher & #Hpool & #Hact & Hregs & Hmtdc & Hlent & HMIE & Hho & Hna & Hpost)".
+      "(HPC & #Hswitcher & #Hpool & #Hact & Hregs & Hmtdc & Hlent & HMIE & Hho & Hlast_owner & Hna
+        & Hpost)".
     pin_thread_instances CtxSwitch.
     (* The open pool token: [cur] is [None] *)
     iMod (na_inv_acc with "Hact Hna") as "(>Hcur & Hna & Hclose)"; [done | done |].
     (* The slot of [B]: [B] becomes Resuming *)
-    iMod (pool_read ts B ⊤ Hnd HB with "Hpool Hcur")
-      as (ws v) "(Hcur & %Hok & Hsa & HlentB & Hcont)"; first done.
+    iMod (pool_read ts B o ⊤ Hnd HB with "Hpool Hcur Hlast_owner")
+      as (ws v) "(Hcur & Hlast_owner & %Hok & %Hcov & %Hlast_owner_B & Hhalves & Hsa & HlentB & Hcont)";
+      first done.
     apply resume_ok_full_eq in Hok.
     iEval (rewrite save_area_at_full) in "Hsa".
-    iDestruct "Hsa" as ">[%Hsaved Hsave]".
+    iDestruct "Hsa" as ">(%Hsaved & Hbase & Hsave)".
     iMod "HlentB".
     pose proof (trusted_stack_frames_fit (tlayout := tlayout_of (UserThread B))) as [n Hfit].
     iDestruct (big_sepL2_length with "Hsave") as %Hlen.
@@ -309,7 +323,9 @@ Section ctx_resume.
       iDestruct (big_sepM_insert_2 (λ k y, k ↦ᵣ[CtxSwitch] y)%I with "Hcsp Hregs") as "Hregs".
       subst hpost.
       iApply ("Hpost" with "[-]").
-      iFrame "HPC Hregs Hsave HlentB HMIE Hcur Hna Hclose".
+      iFrame "HPC Hregs Hbase Hsave HlentB HMIE Hcur Hlast_owner Hhalves Hna Hclose".
+      iSplit; first done.
+      iSplit; first done.
       iSplit; first done.
       iSplit.
       { iPureIntro. rewrite !dom_insert_L !dom_delete_L Hdom.
@@ -364,8 +380,10 @@ Section ctx_resume.
     iEval (rewrite /ctx_resume_specs). iIntros "!>" (W0) "#Hcsp0".
     iEval (rewrite /ctx_resume_spec). iIntros (W Hpub).
     iIntros (cstk Ws Cs regs)
-      "(Hth & Huts & #Hreg & #Htop & HPC & Hregs & Hworld & Hcred & Hcont & Hna & Hcstk
-        & %Hframe & %Hroute & HMIE & Hheld)".
+      "(Hth & Huts & #Hreg & #Htop & HPC & Hregs & Hhwm_res & Hworld & Hcred & Hcont & Hna
+        & Hcstk & %Hframe & %Hroute & HMIE & Hheld)".
+    iEval (rewrite hwm_res_kind_ctx) in "Hhwm_res".
+    iDestruct "Hhwm_res" as (mshwmb_v mshwm_v o) "(Hhwmb & Hhwm & Hpend & Hlentf & Hlast_owner)".
     iEval (rewrite held_disabled) in "Hheld".
     iDestruct "Hheld" as "[Hho [Hmtdc Hlent] ]".
     iDestruct "Hreg" as "[%Hfull #Hregv]".
@@ -379,10 +397,10 @@ Section ctx_resume.
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca0 with "Hregs")
       as "[Hca0 Hregs]"; first by simplify_map_eq.
     iApply (ctx_resume_unseal_spec wcsp wca0
-             with "[- $HPC $Hswitcher $Htstacks_key $Hcsp $Hca0]").
+             with "[- $HPC $Hswitcher $Htstacks_key $Hcsp $Hca0 $Hpend]").
     iSplit.
     - (* The handle is a trusted stack sealed with the key: it is [B]'s *)
-      iNext. iIntros (sb π) "(%Hw & %Htag & HPC & Hcsp & Hca0)".
+      iNext. iIntros (sb π) "(%Hw & %Htag & HPC & Hcsp & Hca0 & Hpend)".
       iAssert (interp (th := CtxSwitch) W C_sched wca0) as "#Hwca0".
       { by iApply "Hregv". }
       subst wca0.
@@ -394,29 +412,31 @@ Section ctx_resume.
       (* The scheduler's state, at the world of the return *)
       iDestruct (ctx_resume_world W0 W cstk Ws Cs Hpub Hframe
                   with "Hsched Hcsp0 Hworld Hcred Hcstk Hcont Htop") as "Hsched_st".
-      iApply (ctx_resume_read_spec ts B g _ Hnd HBin Hhome_ctx (Hhomes B HBin)
-               with "[- $HPC $Hswitcher $Hpool $Hact $Hregs $Hmtdc $Hlent $HMIE $Hho $Hna]").
+      iApply (ctx_resume_read_spec ts B g _ o Hnd HBin Hhome_ctx (Hhomes B HBin)
+               with "[- $HPC $Hswitcher $Hpool $Hact $Hregs $Hmtdc $Hlent $HMIE $Hho $Hlast_owner $Hna]").
       { rewrite !dom_insert_L !dom_delete_L Hdom.
         pose proof (all_registers_s_correct csp). pose proof (all_registers_s_correct ca0).
         set_solver. }
       { by rewrite lookup_insert_eq. }
       iNext. iIntros (ws v wpc lreg')
-        "(%Hok & %Hdom' & %Hcsp' & %Hct2' & %Hwpc & HPC & Hregs & %Hsaved & Hsave & HlentB
-          & Hmtdc & HMIE & Hho & Hcur & Hna & Hclose & Hcont)".
+        "(%Hok & %Hcov & %Hlast_owner_B & %Hdom' & %Hcsp' & %Hct2' & %Hwpc & HPC & Hregs & %Hsaved
+          & Hbase & Hsave & HlentB & Hmtdc & HMIE & Hho & Hcur & Hlast_owner & Hhalves & Hna & Hclose
+          & Hcont)".
       iEval (rewrite handover_res_unfold) in "Hho".
       iDestruct "Hho" as (p c zz bb) "Hho".
       (* The [iNext] stripped the later inside the scheduler's state *)
       iAssert scheduler_state with "[Hsched_st]" as "Hsched_st".
       { iDestruct "Hsched_st" as (P) "[#Hsched_own HP]". iExists P. iFrame "Hsched_own".
         by iApply bi.later_intro. }
-      iApply (ctx_install_spec B g lreg' wpc p c ws v zz bb (Hhomes B HBin) Hok Hdom' Hcsp'
-                Hct2' Hwpc
-               with "[$HPC $Hswitcher $Hregs $Hsave $HlentB $HMIE $Hmtdc $Hho $Hcur $Hsched_st
-                      $Hna $Hclose $Hcont]").
+      iApply (ctx_install_spec ts B g lreg' wpc p c ws v zz bb mshwmb_v mshwm_v o Hnd (Hhomes B HBin) Hok
+                Hcov Hlast_owner_B Hdom' Hcsp' Hct2' Hwpc
+               with "[$HPC $Hswitcher $Hpool $Hregs $Hbase $Hsave $HlentB $HMIE $Hhwmb $Hhwm
+                      $Hpend $Hlentf $Hlast_owner $Hhalves $Hmtdc $Hho $Hcur $Hsched_st $Hna $Hclose
+                      $Hcont]").
       done.
     - (* Any other word: the [clw] faults, mtdc still zero, to the trap
          vector *)
-      iIntros "(%Hnot & Hcsp & Hca0)".
+      iIntros "(%Hnot & Hcsp & Hca0) Hpend".
       iDestruct "Hcsp" as (wcsp') "Hcsp".
       iDestruct (big_sepM_insert_2 (λ k y, k ↦ᵣ[CtxSwitch] y)%I with "Hca0 Hregs") as "Hregs".
       iDestruct (big_sepM_insert_2 (λ k y, k ↦ᵣ[CtxSwitch] y)%I with "Hcsp Hregs") as "Hregs".
@@ -427,7 +447,10 @@ Section ctx_resume.
         rewrite lookup_insert_ne //.
         destruct (decide (r = ca0)) as [->|Hr2]; first by rewrite lookup_insert_eq.
         rewrite lookup_insert_ne // !lookup_delete_ne //. }
-      iModIntro. iFrame "Hregs Hna Hcstk". iSplitR; first by iRight.
+      iModIntro. iFrame "Hregs Hna Hcstk".
+      iSplitL "Hhwmb Hhwm Hpend Hlentf Hlast_owner".
+      { iExists 0%Z. rewrite hwm_res_trap_ctx. iSplitL; last by iRight.
+        iExists mshwmb_v, mshwm_v, o. iFrame. }
       iExists InterruptDisabled. iFrame "HMIE". iSplitL; last done.
       rewrite held_disabled. iFrame.
   Qed.

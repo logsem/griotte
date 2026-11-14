@@ -6,8 +6,7 @@ From griotte Require Import region_maps.
 
 Section region_maps.
   Context {Σ : gFunctors} {Cname : CmptNameG}
-    {allocg : allocRegistryG Σ} {memg : gen_heapGS Addr LWord Σ}
-    {stsg : STSG Σ} {relg : relGS Σ}.
+    {ceriseb : ceriseBaseG Σ} {stsg : STSG Σ} {relg : relGS Σ}.
   Implicit Types W : WORLD.
   Implicit Types C : CmptName.
   Implicit Types t : Thread.
@@ -94,7 +93,7 @@ Section region_maps.
     iDestruct (big_sepM_lookup _ _ (LHeap a ι) with "Hb") as "Hb"; [exact Ha|].
     rewrite decide_False //. iDestruct "Hb" as (φ) "(_ & _ & Hb)". rewrite /body_l HT.
     iDestruct "Hb" as "[(%v & _ & Hv & _)|Hq]".
-    - by iApply (heap_pointsto_valid_2 with "Hv Hv'").
+    - by iApply (temp_cell_key_pointsto_false with "Hv Hv'").
     - by iApply (heap_pointsto_quar_false with "Hv' Hq").
   Qed.
 
@@ -118,8 +117,8 @@ Section region_maps.
 
   #[local] Definition perm_entry C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_perm C) k γp.
-  #[local] Definition lentry W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
-    ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_l W C) k γp.
+  #[local] Definition lentry t W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
+    ∃ γp, ⌜M !! k = Some γp⌝ ∗ rentry (body_l t W C) k γp.
   #[local] Definition keep {A} `{!savedPredG Σ A} (M : gmap LAddr (gname * Perm))
       (k : LAddr) : iProp Σ :=
     ∃ γp (φ : A → iProp Σ), ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
@@ -128,10 +127,10 @@ Section region_maps.
     ∃ γp φ, ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ ∗
       ∃ v, PermRes C k γp.2 φ v.
-  #[local] Definition lcell W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
+  #[local] Definition lcell t W C (M : gmap LAddr (gname * Perm)) (k : LAddr) : iProp Σ :=
     ∃ γp φ, ⌜M !! k = Some γp⌝ ∗ ⌜∀ x, Persistent (φ x)⌝ ∗
       saved_pred_own γp.1 DfracDiscarded φ ∗
-      ∃ v, TmpRes W C k γp.2 φ v.
+      ∃ v, TmpRes (t:=t) W C k γp.2 φ v.
 
   (** [free] in the owned maps, with keys open: the keys of [ι] (each in the
       map that holds it, [Sg] in the map of Permanent regions, [Sl] in the
@@ -170,7 +169,7 @@ Section region_maps.
     (* stale, from the map of Permanent regions *)
     2:{ iLeft. iFrame "Hq Hg". iSplitL "HEg"; [by rewrite /perm_entry|].
         rewrite /local_region_map_M (rmap_split_set _ Ml _ Ol Sl HSl HlO). by iFrame. }
-    iDestruct (sepS_cases Sl (lentry W C Ml) (lcell W C Ml) (ι ⊒ AQuar) with "HEl")
+    iDestruct (sepS_cases Sl (lentry t W C Ml) (lcell t W C Ml) (ι ⊒ AQuar) with "HEl")
       as "[HPl|[#Hq HEl] ]".
     { intros k Hk. destruct (HHl k Hk) as [a ->].
       iIntros "(%γp & %HM & %φ & %Hp & #Hsp & Hb)". rewrite /body_l HT //.
@@ -201,6 +200,7 @@ Section region_maps.
       with "[HPl]" as "[HCl #HKl]".
     { rewrite -big_sepS_sep. iApply (big_sepS_mono with "HPl").
       iIntros (k Hk) "(%γp & %φ & %HM & %Hp & #Hsp & %v & _ & Hv & _)".
+      destruct (HHl k Hk) as [a ->]. rewrite temp_cell_heap.
       iSplitL "Hv"; [by iExists v|]. iExists γp, φ. iSplit; [done|]. by iSplit. }
     iSplitL "HCg HCl". { rewrite -Hobj big_sepS_union //. iFrame. }
     iFrame "Hg". iSplitL "Hm Hloc".

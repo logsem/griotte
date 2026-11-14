@@ -178,7 +178,8 @@ Section vae_untrusted_entry_obligations.
             (fw_nth 1 (fw_cmpts vae_untrusted_entry_firmware) default_fw_cmpt) _
             HC_l W1 C Hok eq_refl eq_refl
             ltac:(cbn; repeat apply Forall_cons_2; try apply Forall_nil_2; lia) ltac:(done)
-           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack Htstk [] Hthread_C
+             Hworld_C")
       as "(Hworld_C & #Hinterp_pcc_C & #Hinterp_cgp_C & #Hinterp_stack_C & _)".
     { iIntros "(_ & _ & #Hexports)".
       cbn [fc_name fc_imports fw_nth fw_cmpts vae_untrusted_entry_firmware].

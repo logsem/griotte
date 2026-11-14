@@ -41,11 +41,14 @@ Definition resume_pc_ok (ws : list LWord) (pc : LWord) : Prop :=
 
 (** The values that a thread parked with the save area [ws] resumes with:
     its registers as [resume_regs_of], its MIE the saved MPIE of the word
-    [mstatus], and its PC as [resume_pc_ok]. *)
+    [mstatus], its PC as [resume_pc_ok], and its MSHWMB and MSHWM the
+    addresses of the words [mshwmb] and [mshwm]. *)
 Definition resume_ok_full (ws : list LWord) (v : resume_vals) : Prop :=
   v.(rv_regs) = resume_regs_of ws ∧
   v.(rv_mie) = mpie_of (get_a (save_area_word ws TrustedStack_offset_mstatus).(lw)) ∧
-  resume_pc_ok ws v.(rv_pc).
+  resume_pc_ok ws v.(rv_pc) ∧
+  v.(rv_hwmb) = get_a (save_area_word ws TrustedStack_offset_mshwmb).(lw) ∧
+  v.(rv_hwm) = get_a (save_area_word ws TrustedStack_offset_mshwm).(lw).
 
 Lemma resume_ok_full_dom ws v :
   resume_ok_full ws v → dom v.(rv_regs) = all_registers_s.
@@ -58,7 +61,9 @@ Section context_switch_layout_instance.
   Lemma csl_full_posture_part t :
     @posture_part Σ MP (ceriseG_of (UserThread t)) (UserThread t)
       (crit_link_full (UserThread t)) (crit_route_full (UserThread t)) ⊣⊢
-    (∃ ws, ⌜saved_mie_ok ws⌝ ∗ save_area_holed (UserThread t) ws) ∗
+    (∃ ws, ⌜saved_mie_ok ws⌝ ∗
+       (∃ mshwmb_v : Z, ⌜ws !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[u t] mshwmb_v) ∗
+       save_area_holed (UserThread t) ws) ∗
     mtdc_lent_at (th := UserThread t).
   Proof.
     by rewrite (posture_part_user (UserThread t)) // /save_area_part /mtdc_lent_at /ceriseG_of.
@@ -89,10 +94,14 @@ Section context_switch_layout_instance.
     case_decide; [by iIntros "[$ _]" | done].
   Qed.
 
-  (** The save area of user thread [t] holds its saved-MIE fact. *)
+  (** The save area of user thread [t] holds its saved-MIE fact, and its
+      word [mshwmb] is the thread's stack base. *)
   #[global] Instance context_switch_layout_full :
     ContextSwitchLayout Σ crit_link_full crit_route_full := {|
-    save_area_at t ws := (⌜saved_mie_ok ws⌝ ∗ save_area_holed (UserThread t) ws)%I;
+    save_area_at t ws :=
+      (⌜saved_mie_ok ws⌝ ∗
+       (∃ mshwmb_v : Z, ⌜ws !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[u t] mshwmb_v) ∗
+       save_area_holed (UserThread t) ws)%I;
     resume_ok := resume_ok_full;
     csl_posture_part := csl_full_posture_part;
     csl_link_disabled := csl_full_link_disabled;
@@ -128,7 +137,9 @@ Section context_switch_layout_instance.
       switcher. *)
   Lemma save_area_at_full (t : nat) (ws : list LWord) :
     @save_area_at Σ MP ceriseb crit_link_full crit_route_full context_switch_layout_full t ws ⊣⊢
-    ⌜saved_mie_ok ws⌝ ∗ save_area_holed (UserThread t) ws.
+    ⌜saved_mie_ok ws⌝ ∗
+    (∃ mshwmb_v : Z, ⌜ws !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[u t] mshwmb_v) ∗
+    save_area_holed (UserThread t) ws.
   Proof. reflexivity. Qed.
 
   (** The resume values of the context-switch layout of the switcher. *)
