@@ -91,12 +91,10 @@ Section LSE_F_Blocks_1.
       by solve_addr+Hcsp_lt.
     (* Store csp cgp (-1) *)
     iInstr "Hcode".
-    { solve_not_shadow Hstk_mmio. }
     { rewrite /withinBounds; solve_addr+Hcsp_size Hstart. }
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; [solve_pure|solve_addr+Hcgp_bounds]. }
+    { solve_addr+Hcgp_bounds. }
     (* Mov ct1 2 *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

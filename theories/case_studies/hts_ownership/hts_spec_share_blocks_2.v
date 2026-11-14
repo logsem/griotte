@@ -153,12 +153,9 @@ Section HTS_Spec_Share.
     { transitivity (Some a_slot); auto. solve_addr+Hslot_start. }
     (* Store csp ca0 0. *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in;
-        [exact (disjoint_from_mmio_shadow _ _ Hstk_shadow)|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
     (* Store ca0 0 0. *)
     iInstr "Hcode".
-    { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

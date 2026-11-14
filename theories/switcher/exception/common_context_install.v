@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules rules_vcsr proofmode.
+From griotte Require Import memory_region rules traps.vcsr proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import switcher_exception_states trusted_spill_registers_spec.
 From griotte Require Import context_switch_layout_instance.

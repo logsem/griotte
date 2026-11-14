@@ -1,170 +1,455 @@
-From iris.proofmode Require Import coq_tactics.
+From iris.proofmode Require Import coq_tactics ltac_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules solve_pure machine_instructions
+From griotte Require Import rules shapes.regs shapes.memory_access solve_pure machine_instructions
   proofmode_instr_support.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
-Ltac dispatch_Get r1 r2 cont :=
-  let p := constr:((r1, r2)) in
-  lazymatch p with
-  | (?r, ?r) => cont (@wp_Get_same_success)
-  | _ => cont (@wp_Get_success)
+(** * How [iInstr] finds the rule of an instruction
+
+    [dispatch_instr_rule] matches the instruction term. GetTag (its witness
+    rule), Jalr, the system instructions, Ecall, Fail and Halt have named
+    rules; CLoad and Store go to [dispatch_mem], the memory steps in closed
+    form; every other instruction goes to [dispatch_next_ok], the register
+    steps in closed form. A fault is stepped by [dispatch_instr_failure],
+    with the fault rules of [shapes/step.v]. *)
+
+(** * The register steps in closed form
+
+    An instruction with no dedicated case is stepped with a k-ary rule of
+    [shapes/regs.v]: [wp_regs_next_1] to [wp_regs_next_4] when its
+    destination is owned, [wp_regs_jump_0] to [wp_regs_jump_3]
+    when it is [cnull] or absent. The premise of the rule ([regs_next_ok]
+    or [regs_jump_agree]) is the instruction's register step in closed
+    form, found in the hint database [regs_next_ok_db]
+    ([solve_regs_next_ok]), else a case lemma of [regs_next_ok_lax_db]
+    whose undecided facts are left as side goals ([solve_regs_next_ok_lax]),
+    or named by the client
+    ([iInstr "H" using s], [proofmode.v]). The operands are read from the
+    instruction term. *)
+
+(* The register operands of [t], from its application spine: every argument
+   of type [RegName] and every [inr r], in argument order, and the first
+   argument of type [RegName] (the destination), if any. *)
+Ltac instr_spine_operands t dst acc :=
+  lazymatch t with
+  | ?f ?x =>
+      lazymatch type of x with
+      | RegName =>
+          let d := constr:(@Some RegName x) in
+          let a := constr:(x :: acc) in
+          instr_spine_operands f d a
+      | (Z + RegName)%type =>
+          lazymatch x with
+          | inr ?r => let a := constr:(r :: acc) in instr_spine_operands f dst a
+          | _ => instr_spine_operands f dst acc
+          end
+      | _ => instr_spine_operands f dst acc
+      end
+  | _ => constr:((dst, acc))
   end.
 
-Ltac dispatch_BinOp r1 x1 x2 cont :=
-  let p := constr:((r1, x1, x2)) in
-  lazymatch p with
-  | (?r, (inr ?r), (inr ?r)) => cont (@wp_binop_success_dst_dst)
-  | (?dst, (inr ?r), (inr ?dst)) => cont (@wp_binop_success_r_dst)
-  | (?dst, (inr ?dst), (inr ?r)) => cont (@wp_binop_success_dst_r)
-  | (?dst, (inl _), (inr ?dst)) => cont (@wp_binop_success_z_dst)
-  | (?dst, (inr ?dst), (inl _)) => cont (@wp_binop_success_dst_z)
-  | (?dst, (inr ?r), (inr ?r)) => cont (@wp_binop_success_r_r_same)
-  | (?dst, (inr ?r), (inl _)) => cont (@wp_binop_success_r_z)
-  | (?dst, (inl _), (inr _)) => cont (@wp_binop_success_z_r)
-  | (?dst, (inr _), (inr _)) => cont (@wp_binop_success_r_r)
-  | (?dst, (inl _), (inl _)) => cont (@wp_binop_success_z_z)
+Ltac instr_spine_registers instr :=
+  let d := constr:(@None RegName) in
+  let a := constr:(@nil RegName) in
+  instr_spine_operands instr d a.
+
+(* The entry of the register [r] in a list of owned registers. *)
+Ltac regs_find r regs :=
+  lazymatch regs with
+  | (?r', ?w) :: ?tail =>
+      let eq := instr_same_register r' r in
+      lazymatch eq with true => constr:((r', w)) | false => regs_find r tail end
   end.
 
-(* Succeeds when the spatial context holds [r ↦ᵣ WCap …]. *)
-Ltac reg_holds_cap r :=
+(* The list of owned registers without the register [r]. *)
+Ltac regs_remove r regs :=
+  lazymatch regs with
+  | nil => regs
+  | (?r', ?w) :: ?tail =>
+      let eq := instr_same_register r' r in
+      lazymatch eq with
+      | true => tail
+      | false => let tail' := regs_remove r tail in constr:((r', w) :: tail')
+      end
+  end.
+
+(* The search in [regs_next_ok_db], else the lax search in
+   [regs_next_ok_lax_db], or the lemma [s] named by the client. *)
+Ltac regs_next_ok_solver s instr :=
+  lazymatch s with
+  | tt =>
+      first
+        [ solve_regs_next_ok
+        | solve_regs_next_ok_lax
+        | fail "No lemma in regs_next_ok_db closes" instr
+               "(name one with: iInstr ""H"" using <lemma>)" ]
+  | _ => regs_next_ok_using s
+  end.
+
+(* The owned entry of [d] in [rs], if any. *)
+Ltac regs_find_opt d rs :=
+  match constr:(tt) with
+  | _ => let e := regs_find d rs in constr:(Some e)
+  | _ => constr:(@None (RegName * LWord))
+  end.
+
+(* Whether the owned destination [d] is known not to be [cnull], as the
+   side goals of a rule are solved ([solve_pure_iinstr]). *)
+Ltac regs_dst_not_cnull d :=
+  match goal with
+  | _ =>
+      let _ := constr:(ltac:(solve [ltac2:(solve_pure_iinstr ())]) : d ≠ cnull) in
+      constr:(true)
+  | _ => constr:(false)
+  end.
+
+(* The k-ary register rule for the operands of [instr], its premise
+   [regs_next_ok] (owned destination) or [regs_jump_agree] (destination
+   [cnull], or none) proved first by the search in [regs_next_ok_db], or
+   from the lemma [s] when it is not [tt]. *)
+Ltac dispatch_next_ok_using s instr cont :=
+  let instr' := eval unfold register_file.regn, register_file.cst in instr in
+  let ops := instr_spine_registers instr' in
+  lazymatch ops with (?dsto, ?rs) =>
+  let regs := instr_register_words rs in
+  let dst_entry := lazymatch dsto with
+    | Some ?d => regs_find_opt d regs
+    | None => constr:(@None (RegName * LWord))
+    end in
   lazymatch goal with
-  | |- context [ Esnoc _ _ (r ↦ᵣ ?w)%I ] =>
-      let w' := eval cbn in (lw w) in
-      lazymatch w' with WCap _ _ _ _ _ _ => idtac end
+  | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?p ?g ?b ?e ?a @@? ?π)%I ] =>
+    let Hsw := fresh "Hsw" in
+    let Hok := fresh "Hregs_next_ok" in
+    assert (∀ th, regs_instr_ok th instr') as Hsw
+      by (let th := fresh "th" in intros th; rewrite /regs_instr_ok; by apply sw_of_none);
+    lazymatch dst_entry with
+    | Some (?dst, ?wd) =>
+      let rest := regs_remove dst regs in
+      (* A destination not known to differ from [cnull] keeps its word
+         there: the rules [wp_regs_next_k_any_dst]. *)
+      let dst_known := regs_dst_not_cnull dst in
+      lazymatch rest with
+      | [] =>
+        eassert (regs_next_ok instr' p (Cap p g b e a @@? π) {[dst := wd]} dst _ 1) as Hok;
+        [ regs_next_ok_solver s instr'
+        | rewrite ?MkLWord_eta in Hok;
+          lazymatch type of Hok with regs_next_ok _ _ _ _ _ ?v _ =>
+            lazymatch dst_known with
+            | true =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
+                      @wp_regs_next_1 _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
+            | false =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                      @wp_regs_next_1_any_dst _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hok)
+            end
+          end ]
+      | [(?r2, ?w2)] =>
+        eassert (dst ≠ r2 →
+                 regs_next_ok instr' p (Cap p g b e a @@? π) (<[dst := wd]> (<[r2 := w2]> ∅))
+                   dst _ 1) as Hok;
+        [ regs_next_ok_solver s instr'
+        | rewrite ?MkLWord_eta in Hok;
+          lazymatch type of Hok with _ → regs_next_ok _ _ _ _ _ ?v _ =>
+            lazymatch dst_known with
+            | true =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
+                      @wp_regs_next_2 _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
+            | false =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                      @wp_regs_next_2_any_dst _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hok)
+            end
+          end ]
+      | [(?r2, ?w2); (?r3, ?w3)] =>
+        eassert (dst ≠ r2 → dst ≠ r3 → r2 ≠ r3 →
+                 regs_next_ok instr' p (Cap p g b e a @@? π)
+                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> ∅))) dst _ 1) as Hok;
+        [ regs_next_ok_solver s instr'
+        | rewrite ?MkLWord_eta in Hok;
+          lazymatch type of Hok with _ → _ → _ → regs_next_ok _ _ _ _ _ ?v _ =>
+            lazymatch dst_known with
+            | true =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
+                      @wp_regs_next_3 _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 r3 w3 v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
+            | false =>
+              cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                      @wp_regs_next_3_any_dst _ _ _ _ _ E p g b e a π pc_a'
+                        (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 r3 w3 v
+                        Hdec (Hsw _) Hvpc Hpc_a' Hok)
+            end
+          end ]
+      | [(?r2, ?w2); (?r3, ?w3); (?r4, ?w4)] =>
+        eassert (dst ≠ r2 → dst ≠ r3 → dst ≠ r4 → r2 ≠ r3 → r2 ≠ r4 → r3 ≠ r4 →
+                 regs_next_ok instr' p (Cap p g b e a @@? π)
+                   (<[dst := wd]> (<[r2 := w2]> (<[r3 := w3]> (<[r4 := w4]> ∅)))) dst _ 1)
+          as Hok;
+        [ regs_next_ok_solver s instr'
+        | rewrite ?MkLWord_eta in Hok;
+          lazymatch type of Hok with _ → _ → _ → _ → _ → _ → regs_next_ok _ _ _ _ _ ?v _ =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' Hdst =>
+                    @wp_regs_next_4 _ _ _ _ _ E p g b e a π pc_a'
+                      (encodeInstrW instr' @@? None) dq instr' dst wd r2 w2 r3 w3 r4 w4 v
+                      Hdec (Hsw _) Hvpc Hpc_a' Hdst Hok)
+          end ]
+      end
+    | None =>
+      lazymatch regs with
+      | [] =>
+        eassert (regs_jump_agree instr' p (Cap p g b e a @@? π) ∅ _) as Hok;
+        [ regs_next_ok_solver s instr'
+        | lazymatch type of Hok with regs_jump_agree _ _ _ _ ?n =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                    @wp_regs_jump_0 _ _ _ _ _ E p g b e a π
+                      (encodeInstrW instr' @@? None) dq instr' n (Cap p g b e pc_a' @@? π)
+                      Hdec (Hsw _) Hvpc
+                      (incrementPC_gen_add true p g b e a pc_a' π n Hpc_a') Hok)
+          end ]
+      | [(?r1, ?w1)] =>
+        eassert (regs_jump_agree instr' p (Cap p g b e a @@? π) {[r1 := w1]} _) as Hok;
+        [ regs_next_ok_solver s instr'
+        | lazymatch type of Hok with regs_jump_agree _ _ _ _ ?n =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                    @wp_regs_jump_1 _ _ _ _ _ E p g b e a π
+                      (encodeInstrW instr' @@? None) dq instr' r1 w1 n
+                      (Cap p g b e pc_a' @@? π) Hdec (Hsw _) Hvpc
+                      (incrementPC_gen_add true p g b e a pc_a' π n Hpc_a') Hok)
+          end ]
+      | [(?r1, ?w1); (?r2, ?w2)] =>
+        eassert (r1 ≠ r2 →
+                 regs_jump_agree instr' p (Cap p g b e a @@? π)
+                   (<[r1 := w1]> (<[r2 := w2]> ∅)) _) as Hok;
+        [ regs_next_ok_solver s instr'
+        | lazymatch type of Hok with _ → regs_jump_agree _ _ _ _ ?n =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                    @wp_regs_jump_2 _ _ _ _ _ E p g b e a π
+                      (encodeInstrW instr' @@? None) dq instr' r1 w1 r2 w2 n
+                      (Cap p g b e pc_a' @@? π) Hdec (Hsw _) Hvpc
+                      (incrementPC_gen_add true p g b e a pc_a' π n Hpc_a') Hok)
+          end ]
+      | [(?r1, ?w1); (?r2, ?w2); (?r3, ?w3)] =>
+        eassert (r1 ≠ r2 → r1 ≠ r3 → r2 ≠ r3 →
+                 regs_jump_agree instr' p (Cap p g b e a @@? π)
+                   (<[r1 := w1]> (<[r2 := w2]> (<[r3 := w3]> ∅))) _) as Hok;
+        [ regs_next_ok_solver s instr'
+        | lazymatch type of Hok with _ → _ → _ → regs_jump_agree _ _ _ _ ?n =>
+            cont (fun E pc_a' dq Hdec Hvpc Hpc_a' =>
+                    @wp_regs_jump_3 _ _ _ _ _ E p g b e a π
+                      (encodeInstrW instr' @@? None) dq instr' r1 w1 r2 w2 r3 w3 n
+                      (Cap p g b e pc_a' @@? π) Hdec (Hsw _) Hvpc
+                      (incrementPC_gen_add true p g b e a pc_a' π n Hpc_a') Hok)
+          end ]
+      end
+    end;
+    try clear Hok; try clear Hsw
+  end end.
+
+Ltac dispatch_next_ok instr cont := dispatch_next_ok_using constr:(tt) instr cont.
+
+(** * The memory steps in closed form
+
+    A [CLoad] or a [Store] is stepped with a k-ary rule of
+    [shapes/memory_access.v]: [wp_load_next_1] when the load overwrites its
+    source, [wp_load_next_2] otherwise, [wp_store_next_1] when the stored
+    word reads no register other than the authority, [wp_store_next_2]
+    otherwise; their [_pc] forms when no other cell than the instruction
+    is owned at the address. The membership and agreement of the
+    instruction and the stored word are found in the hint database
+    [mem_next_ok_db] ([solve_mem_agree]). The witness of the authority is its
+    dereference resource. The permission and the bounds are marked
+    [mem_access_fact]: they are tried only once the address is known. The
+    facts that [solve_pure] does not decide are left as side goals, in this
+    order: the decoding, the PC's validity and successor, the address, the
+    permission, the bounds, the destination and the source not [cnull]. *)
+
+(* The physical capability of an owned word, from its head normal form. *)
+Ltac mem_authority_cap v :=
+  let x := eval hnf in (lw v) in
+  lazymatch x with
+  | WSealable ?s =>
+      let s' := eval hnf in s in
+      lazymatch s' with
+      | SCap true ?p ?g ?b ?e ?a => constr:((p, g, b, e, a))
+      | _ => fail "The authority of the access is not a tagged capability:" v
+      end
+  | _ => fail "The authority of the access is not a tagged capability:" v
   end.
 
-(* [Sub dst r dst]: the rule on integers, else, when [r] holds a
-   capability, the rule on any words. An integer [Sub] whose rule fails
-   still fails. *)
-Ltac dispatch_Sub r1 x1 x2 cont :=
-  let p := constr:((r1, x1, x2)) in
-  lazymatch p with
-  | (?r, (inr ?r), (inr ?r)) => dispatch_BinOp r1 x1 x2 cont
-  | (?dst, (inr ?r), (inr ?dst)) =>
-      tryif reg_holds_cap r
-      then (dispatch_BinOp r1 x1 x2 cont || cont (@wp_sub_r_dst_any))
-      else dispatch_BinOp r1 x1 x2 cont
-  | _ => dispatch_BinOp r1 x1 x2 cont
+(* At an offset that computes to [0], the address is the authority's: the
+   fact is put in the context, where [solve_pure] finds it. *)
+Ltac mem_offset_zero a imm H :=
+  let z := eval vm_compute in imm in
+  lazymatch z with
+  | Z0 => pose proof (finz_add_0 _ a : (a + imm)%f = Some a) as H
+  | _ => idtac
   end.
 
-(* A conditional jump: the rule of the taken jump, else the rule of the
-   fall-through. Each commits its comparison ([instr_commit_lint]). *)
-Ltac dispatch_JCond off x1 x2 cont :=
-  let p := constr:((off, x1, x2)) in
-  lazymatch p with
-  | (inl _, inr ?r, inr ?r) =>
-      (cont (@wp_jcond_success_jmp_r_r_same) || cont (@wp_jcond_success_next_r_r_same))
-  | (inl _, inr _, inr _) =>
-      (cont (@wp_jcond_success_jmp_r_r) || cont (@wp_jcond_success_next_r_r))
-  | (inl _, inr _, inl _) =>
-      (cont (@wp_jcond_success_jmp_r_z) || cont (@wp_jcond_success_next_r_z))
-  | (inl _, inl _, inr _) =>
-      (cont (@wp_jcond_success_jmp_z_r) || cont (@wp_jcond_success_next_z_r))
+(* The owned word of the register [r], in a list of owned registers. *)
+Ltac regs_find_word r regs :=
+  let entry := regs_find r regs in
+  lazymatch entry with (_, ?w) => w end.
+
+Ltac dispatch_mem_load pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst src imm cont :=
+  let regs := instr_register_words constr:([dst; src]) in
+  let ws := regs_find_word src regs in
+  let πs := eval hnf in (lprov ws) in
+  let Hmember := fresh "Hmem_member" in
+  let Hagree := fresh "Hmem_agree" in
+  eassert (load_member exec_opt _ instr dst src imm) as Hmember by solve_mem_agree;
+  lazymatch type of Hmember with load_member _ ?flt _ _ _ _ =>
+  assert (mem_load_next_ok exec_opt flt instr dst src imm) as Hagree by solve_mem_agree;
+  let cap := mem_authority_cap ws in
+  lazymatch cap with (?p, ?g, ?b, ?e, ?a) =>
+  let Haddr := fresh "Hmem_addr" in
+  mem_offset_zero a imm Haddr;
+  let same := instr_same_register dst src in
+  lazymatch same with
+  | true =>
+    first
+      [ cont (fun E pc_a' dq ea dq' v q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hsrc =>
+                @wp_load_next_1 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr flt src ws imm p g b e a ea dq' v
+                  (deref_res πs q) Hdec (Hsw _) Hmember Hagree (load_choice_exact _)
+                  (deref_res_live πs q ws eq_refl) Hvpc Hpc_a' Hsrc eq_refl Hadd Hperm Hwb)
+      | cont (fun E pc_a' dq q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hsrc =>
+                @wp_load_next_1_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr flt src ws imm p g b e a
+                  (deref_res πs q) Hdec (Hsw _) Hmember Hagree (load_choice_exact _)
+                  (deref_res_live πs q ws eq_refl) Hvpc Hpc_a' Hsrc eq_refl Hadd Hperm Hwb)
+      | fail "No memory rule applies to" instr
+             "(neither for a cell other than the instruction's, nor for the instruction's cell)" ]
+  | false =>
+    let wd := regs_find_word dst regs in
+    first
+      [ cont (fun E pc_a' dq ea dq' v q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst Hsrc =>
+                @wp_load_next_2 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr flt dst wd src ws imm p g b e a ea dq' v
+                  (deref_res πs q) Hdec (Hsw _) Hmember Hagree (load_choice_exact _)
+                  (deref_res_live πs q ws eq_refl) Hvpc Hpc_a' Hdst Hsrc eq_refl Hadd Hperm Hwb)
+      | cont (fun E pc_a' dq q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst Hsrc =>
+                @wp_load_next_2_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr flt dst wd src ws imm p g b e a
+                  (deref_res πs q) Hdec (Hsw _) Hmember Hagree (load_choice_exact _)
+                  (deref_res_live πs q ws eq_refl) Hvpc Hpc_a' Hdst Hsrc eq_refl Hadd Hperm Hwb)
+      | fail "No memory rule applies to" instr
+             "(neither for a cell other than the instruction's, nor for the instruction's cell)" ]
+  end;
+  try clear Haddr end end;
+  try clear Hmember Hagree.
+
+(* A stored integer: the cell holds the integer itself. *)
+Ltac instr_simpl_stored_int :=
+  lazymatch goal with
+  | |- envs_entails (Envs _ ?Γs _) _ =>
+    match Γs with
+    | context [ Esnoc _ ?H (_ ↦ₐ{_} lstore_word ?p (WInt ?z @@? ?π))%I ] =>
+        iEval (rewrite (lstore_word_int p z π)) in H
+    end
+  end.
+
+Ltac dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr Hsw dst ρ imm cont :=
+  let rs := lazymatch ρ with inr ?r => constr:([dst; r]) | _ => constr:([dst]) end in
+  let regs := instr_register_words rs in
+  let wd := regs_find_word dst regs in
+  let πd := eval hnf in (lprov wd) in
+  let Hmember := fresh "Hmem_member" in
+  let Hagree := fresh "Hmem_agree" in
+  let Hlift := fresh "Hmem_lift" in
+  eassert (store_member exec_opt _ instr dst imm) as Hmember by solve_mem_agree;
+  lazymatch type of Hmember with store_member _ ?swo _ _ _ =>
+  assert (mem_store_next_ok exec_opt swo instr dst imm) as Hagree by solve_mem_agree;
+  let cap := mem_authority_cap wd in
+  lazymatch cap with (?p, ?g, ?b, ?e, ?a) =>
+  let Haddr := fresh "Hmem_addr" in
+  mem_offset_zero a imm Haddr;
+  let rest := regs_remove dst regs in
+  lazymatch rest with
+  | [] =>
+    eassert (store_lift_exact swo _ {[dst := wd]}) as Hlift by solve_mem_agree;
+    lazymatch type of Hlift with store_lift_exact _ ?v _ =>
+    first
+      [ cont (fun E pc_a' dq ea v0 q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
+                @wp_store_next_1 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr swo dst wd imm p g b e a ea v0 v
+                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
+      | cont (fun E pc_a' q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
+                @wp_store_next_1_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) instr swo dst wd imm p g b e a v
+                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
+      | fail "No memory rule applies to" instr
+             "(neither for a cell other than the instruction's, nor for the instruction's cell)" ];
+    try instr_simpl_stored_int
+    end
+  | [(?src, ?ws)] =>
+    eassert (dst ≠ src → store_lift_exact swo _ (<[dst := wd]> (<[src := ws]> ∅))) as Hlift
+      by solve_mem_agree;
+    lazymatch type of Hlift with _ → store_lift_exact _ ?v _ =>
+    first
+      [ cont (fun E pc_a' dq ea v0 q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
+                @wp_store_next_2 _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) dq instr swo dst wd src ws imm p g b e a ea v0 v
+                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
+      | cont (fun E pc_a' q Hdec Hvpc Hpc_a' Hadd
+                  (Hperm : mem_access_fact _) (Hwb : mem_access_fact _) Hdst =>
+                @wp_store_next_2_pc _ _ _ _ _ E pc_p pc_g pc_b pc_e pc_a pc_π pc_a'
+                  (encodeInstrW instr @@? None) instr swo dst wd src ws imm p g b e a v
+                  (deref_res πd q) Hdec (Hsw _) Hmember Hagree Hlift
+                  (deref_res_live πd q wd eq_refl) Hvpc Hpc_a' Hdst eq_refl Hadd Hperm Hwb)
+      | fail "No memory rule applies to" instr
+             "(neither for a cell other than the instruction's, nor for the instruction's cell)" ]
+    end
+  end;
+  try clear Haddr end end;
+  try clear Hmember Hagree Hlift.
+
+(* The k-ary memory rule for [instr], a [CLoad] or a [Store]. *)
+Ltac dispatch_mem instr cont :=
+  let instr' := eval unfold register_file.regn, register_file.cst in instr in
+  lazymatch goal with
+  | |- context [ Esnoc _ _ (PC ↦ₚ Cap ?pc_p ?pc_g ?pc_b ?pc_e ?pc_a @@? ?pc_π)%I ] =>
+    let Hsw := fresh "Hsw" in
+    assert (∀ th, mem_instr_ok th instr') as Hsw
+      by (let th := fresh "th" in intros th; solve_mem_instr_ok);
+    lazymatch instr' with
+    | CLoad ?dst ?src ?imm =>
+        dispatch_mem_load pc_p pc_g pc_b pc_e pc_a pc_π instr' Hsw dst src imm cont
+    | Store ?dst ?ρ ?imm =>
+        dispatch_mem_store pc_p pc_g pc_b pc_e pc_a pc_π instr' Hsw dst ρ imm cont
+    end;
+    try clear Hsw
   end.
 
 Ltac dispatch_instr_rule instr cont :=
   let instr := eval unfold register_file.regn, register_file.cst in instr in
   lazymatch instr with
-  (* Mov *)
-  | Mov ?r (inr ?r) => cont (@wp_move_success_reg_same)
-  | Mov _ (inr _) => cont (@wp_move_success_reg)
-  | Mov _ (inl _) => cont (@wp_move_success_z_gen)
-  (* Get *)
-  | GetL ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetP ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetB ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetE ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetLen ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetA ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetOType ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetWType ?r1 ?r2 => dispatch_Get r1 r2 cont
-  | GetTag cnull cnull => cont (@wp_GetTag_cnull)
-  | GetTag cnull _ => cont (@wp_GetTag_to_cnull)
-  | GetTag _ cnull => cont (@wp_GetTag_from_cnull)
+  (* GetTag: the rule with the dereference witness; the cnull forms through
+     the register steps in closed form *)
+  | GetTag cnull _ => dispatch_next_ok instr cont
+  | GetTag _ cnull => dispatch_next_ok instr cont
   | GetTag _ _ => cont (@wp_gettag_success)
-  (* ClearTag *)
-  | ClearTag cnull cnull => cont (@wp_ClearTag_cnull)
-  | ClearTag cnull _ => cont (@wp_ClearTag_to_cnull)
-  | ClearTag _ cnull => cont (@wp_ClearTag_from_cnull)
-  | ClearTag ?r ?r => cont (@wp_ClearTag_same_success)
-  | ClearTag _ _ => cont (@wp_ClearTag_success)
-  (* BinOp *)
-  | Add ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Sub ?x1 ?x2 ?x3 => dispatch_Sub x1 x2 x3 cont
-  | Mul ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LAnd ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LOr ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LShiftL ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | LShiftR ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Lt ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  | Le ?x1 ?x2 ?x3 => dispatch_BinOp x1 x2 x3 cont
-  (* SetA *)
-  | SetA ?r ?r (inr _) => (cont (@wp_seta_success_reg) || cont (@wp_seta_success_reg_int))
-  | SetA ?r ?r (inl _) => (cont (@wp_seta_success_z) || cont (@wp_seta_success_z_int))
-  | SetA _ _ (inr _) =>
-    (cont (@wp_seta_success_reg_src) || cont (@wp_seta_success_reg_int_src))
-  | SetA _ _ (inl _) =>
-    (cont (@wp_seta_success_z_src) || cont (@wp_seta_success_z_int_src))
-  (* Lea *)
-  | Lea ?r ?r (inr _) => (cont (@wp_lea_success_reg) || cont (@wp_lea_success_reg_sr))
-  | Lea ?r ?r (inl _) =>
-    (cont (@wp_lea_success_z) || cont (@wp_lea_success_z_sr) || cont (@wp_lea_success_z_int))
-  | Lea ?r _ (inr ?r) => cont (@wp_lea_success_reg_dst_src)
-  | Lea _ _ (inr _) => cont (@wp_lea_success_reg_src)
-  | Lea _ _ (inl _) => (cont (@wp_lea_success_z_src) || cont (@wp_lea_success_z_int_src))
-  (* CLoad *)
-  | CLoad ?r ?r 0 =>
-    (cont (fun MP Σ ceriseg th CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w' =>
-       @wp_load_success_same_notinstr MP Σ ceriseg th CL E r1 pc_p pc_g pc_b pc_e pc_a pc_π w w'
-         (WInt 0 @@? None)) ||
-     cont (@wp_load_success_same_frominstr))
-  | CLoad _ _ 0 =>
-    (cont (@wp_load_success_notinstr) ||
-     cont (@wp_load_success_frominstr))
-  (* Store *)
-  | Store _ (inl _) 0 =>
-    (cont (fun MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z =>
-       @wp_store_success_same MP Σ ceriseg th CL E pc_p pc_g pc_b pc_e pc_a pc_π π pc_a' w dst z
-         (WInt 0 @@? None)) ||
-     cont (@wp_store_success_z))
-  | Store ?r (inr ?r) 0 =>
-    (cont (@wp_store_success_reg_same'_store_word) ||
-     cont (@wp_store_success_reg_same_store_word))
-  | Store _ (inr _) 0 =>
-    (cont (@wp_store_success_reg_same_a_store_word) ||
-     cont (@wp_store_success_reg_store_word))
-  (* Immediate accesses use the effective address in their memory resources. *)
-  | CLoad ?r ?r _ =>
-    (cont (@wp_load_success_same_notinstr_imm) ||
-     cont (@wp_load_success_same_frominstr_imm))
-  | CLoad _ _ _ =>
-    (cont (@wp_load_success_notinstr_imm) ||
-     cont (@wp_load_success_frominstr_imm))
-  (* Store *)
-  | Store _ (inl _) _ =>
-    (cont (@wp_store_success_same_imm) ||
-     cont (@wp_store_success_z_imm))
-  | Store ?r (inr ?r) _ =>
-    (cont (@wp_store_success_reg_same'_store_word_imm) ||
-     cont (@wp_store_success_reg_same_store_word_imm))
-  | Store _ (inr _) _ =>
-    (cont (@wp_store_success_reg_same_a_store_word_imm) ||
-     cont (@wp_store_success_reg_store_word_imm))
-  (* Conditional jumps; [Jne off r 0] and [Jeq off r 0] first *)
-  | Jne (inl _) (inr _) (inl 0%Z) =>
-    (cont (@wp_jnez_success_next_z) || cont (@wp_jnez_success_jmp_z))
-  | Jeq (inl _) (inr _) (inl 0%Z) =>
-    (cont (@wp_jeqz_success_jmp_z) || cont (@wp_jeqz_success_next_z))
-  | Jeq ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jne ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jlt ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  | Jle ?o ?x1 ?x2 => dispatch_JCond o x1 x2 cont
-  (* Jmp *)
-  | Jmp (inl _) => cont (@wp_jmp_success_z)
-  | Jmp (inr _) => cont (@wp_jmp_success_reg)
+  (* CLoad and Store: the memory steps in closed form *)
+  | CLoad _ _ _ => dispatch_mem instr cont
+  | Store _ _ _ => dispatch_mem instr cont
   (* Jalr *)
   (* Jalr: the rules at the core link, else the posture forms at a link with
      a routing law (the posture moves with the MIE fragment and [held]). *)
@@ -175,25 +460,6 @@ Ltac dispatch_instr_rule instr cont :=
   | Jalr cra _ => (cont (@wp_jalr_success_call) || cont (@wp_jalr_success_call_posture))
   | Jalr ?r ?r => cont (@wp_jalr_success_rdst)
   | Jalr _ _ => cont (@wp_jalr_success)
-  (* Subseg *)
-  | Subseg ?d ?d (inr ?r) (inr ?r) => (cont (@wp_subseg_success_same) || cont (@wp_subseg_success_same_sr)) (* TODO: improve using register values? *)
-  | Subseg ?d ?d (inr _) (inr _) =>
-    (cont (@wp_subseg_success) || cont (@wp_subseg_success_sr) || cont (@wp_subseg_success_root))
-  | Subseg ?d ?d (inl _) (inr _) => (cont (@wp_subseg_success_l) || cont (@wp_subseg_success_l_sr))
-  | Subseg ?d ?d (inr _) (inl _) => (cont (@wp_subseg_success_r) || cont (@wp_subseg_success_r_sr))
-  | Subseg ?d ?d (inl _) (inl _) => (cont (@wp_subseg_success_lr) || cont (@wp_subseg_success_lr_sr))
-  | Subseg _ _ (inr _) (inr _) => cont (@wp_subseg_success_src)
-  (* Restrict *)
-  | Restrict ?r ?r (inr _) => cont (@wp_restrict_success_reg)
-  | Restrict ?r ?r (inl _) => cont (@wp_restrict_success_z)
-  (* Seal *)
-  | Seal ?r _ ?r => cont (@wp_seal_r2)
-  | Seal ?r ?r _ => cont (@wp_seal_r1)
-  | Seal _ _ _ => cont (@wp_seal_success)
-  (* UnSeal *)
-  | UnSeal ?r _ ?r => cont (@wp_unseal_r2)
-  | UnSeal ?r ?r _ => cont (@wp_unseal_r1)
-  | UnSeal _ _ _ => cont (@wp_unseal_success)
   (* SpecialRW on mtdc, before the generic cases: its own ghost state. A
      write transfers the clause of the mtdc token: the ghost value comes
      back to the home value, is kept, leaves the home value, or moves
@@ -220,14 +486,15 @@ Ltac dispatch_instr_rule instr cont :=
   | Mret => cont (@wp_mret_success)
   (* Ecall: the exception entry, at the core link *)
   | Ecall => cont (@wp_ecall)
-  (* auipcc *)
-  | Auipcc _ _ => (cont (@wp_auipcc_success) || cont (@wp_auipcc_overflow))
   (* Fail *)
   | Fail => cont (@wp_fail)
   (* Halt *)
   | Halt => cont (@wp_halt)
-  (* not found *)
-  | _ => fail "No suitable rule found for instruction" instr
+  (* The register steps in closed form, else not found *)
+  | _ =>
+    first
+      [ dispatch_next_ok instr cont
+      | fail "No suitable rule found for instruction" instr ]
   end.
 
 Ltac dispatch_generic_failure instr cont :=
@@ -261,62 +528,3 @@ Ltac dispatch_instr_failure instr cont :=
   first [ dispatch_jalr_failure instr cont
         | dispatch_generic_failure instr cont
         | fail "No immediate-failure provider found for instruction" instr ].
-
-(* Like ordinary success dispatch, invalidation selects explicit-resource
-   lemmas. Add an instruction case and its necessary alias/operand variants;
-   resource preparation and side-condition handling belong to the caller. *)
-Ltac dispatch_instr_invalidation instr cont :=
-  let instr := eval cbv [regn cst] in instr in
-  lazymatch instr with
-  (* SetA: an address out of range *)
-  | SetA ?r ?r (inr _) => cont (@wp_seta_invalid_reg)
-  | SetA ?r ?r (inl _) => cont (@wp_seta_invalid_z)
-  | SetA _ _ (inr _) => cont (@wp_seta_invalid_reg_src)
-  | SetA _ _ (inl _) => cont (@wp_seta_invalid_z_src)
-  (* Lea: reuse the existing overflow rules. *)
-  | Lea ?r ?r (inr _) => (cont (@wp_lea_overflow_reg) || cont (@wp_lea_overflow_reg_sr))
-  | Lea ?r ?r (inl _) => (cont (@wp_lea_overflow_z) || cont (@wp_lea_overflow_z_sr))
-  (* Restrict *)
-  | Restrict ?r ?r (inr _) =>
-      (cont (@wp_restrict_invalidated_reg) || cont (@wp_restrict_invalidated_reg_sr))
-  | Restrict ?r ?r (inl _) =>
-      (cont (@wp_restrict_invalidated_z) || cont (@wp_restrict_invalidated_z_sr))
-  (* Subseg: conversion overflow has priority over representable rejection.
-     The explicit-mode caller requires overflow evidence before committing. *)
-  | Subseg ?d ?d (inr ?r) (inr ?r) =>
-      (cont (@wp_subseg_unrepresentable_same) ||
-       cont (@wp_subseg_unrepresentable_same_sr) ||
-       cont (@wp_subseg_invalidated_same) ||
-       cont (@wp_subseg_invalidated_same_sr))
-  | Subseg ?d ?d (inr _) (inr _) =>
-      (cont (@wp_subseg_unrepresentable) ||
-       cont (@wp_subseg_unrepresentable_sr) ||
-       cont (@wp_subseg_invalidated) ||
-       cont (@wp_subseg_invalidated_sr))
-  | Subseg ?d ?d (inl _) (inr _) =>
-      (cont (@wp_subseg_unrepresentable_l) ||
-       cont (@wp_subseg_unrepresentable_l_sr) ||
-       cont (@wp_subseg_invalidated_l) ||
-       cont (@wp_subseg_invalidated_l_sr))
-  | Subseg ?d ?d (inr _) (inl _) =>
-      (cont (@wp_subseg_unrepresentable_r) ||
-       cont (@wp_subseg_unrepresentable_r_sr) ||
-       cont (@wp_subseg_invalidated_r) ||
-       cont (@wp_subseg_invalidated_r_sr))
-  | Subseg ?d ?d (inl _) (inl _) =>
-      (cont (@wp_subseg_unrepresentable_lr) ||
-       cont (@wp_subseg_unrepresentable_lr_sr) ||
-       cont (@wp_subseg_invalidated_lr) ||
-       cont (@wp_subseg_invalidated_lr_sr))
-  (* Seal *)
-  | Seal ?r ?r ?r => cont (@wp_seal_invalidated_all)
-  | Seal _ ?r ?r => cont (@wp_seal_invalidated_same)
-  | Seal ?r ?r _ => cont (@wp_seal_invalidated_r1)
-  | Seal ?r _ ?r => cont (@wp_seal_invalidated_r2)
-  | Seal _ _ _ => cont (@wp_seal_invalidated)
-  (* UnSeal *)
-  | UnSeal ?r ?r _ => cont (@wp_unseal_invalidated_r1)
-  | UnSeal ?r _ ?r => cont (@wp_unseal_invalidated_r2)
-  | UnSeal _ _ _ => cont (@wp_unseal_invalidated)
-  | _ => fail "No invalidation rule found for instruction" instr
-  end.

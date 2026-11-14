@@ -35,7 +35,7 @@ Section CMDC_Check_Blocks_3.
     change_pc_to (a_call ^+ 1);
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode";
-    [by apply not_mmio_not_shadow | done | split; [done | solve_addr] |];
+    [solve_addr |];
     (* Mov ct1 0%Z, resp. Mov ct1 42%Z *)
     iInstr "Hcode";
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main";

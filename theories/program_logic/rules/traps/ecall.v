@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export rules_base.
+From griotte Require Export shapes.step.
 From griotte Require Import wp_core_full.
 Import core_link.
 
@@ -72,64 +72,6 @@ Section ecall_rules.
     iModIntro. iFrame "HSI Hlink". iSplitR.
     { iApply ctx_irq_post_route. rewrite Hoff'. by intros. }
     iApply "Hφ". iFrame.
-  Qed.
-
-  (** A user thread's [ecall]: the switch value [YieldV], through the
-      sequencing context. *)
-  Lemma twp_ecall E pc_p pc_g pc_b pc_e pc_a pc_π w (b : InterruptStatus) dq
-      (T1 T2 : iProp Σ) (Φ : tval (kind_of th) → iProp Σ) :
-    th ≠ CtxSwitch →
-    decodeInstrW w.(lw) = Ecall →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    link_transfer_si (mie_move b InterruptDisabled) T1 T2 →
-    ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π -∗
-    ▷ pc_a ↦ₐ{dq} w -∗
-    ▷ MIE ↦ₜ b -∗
-    ▷ vol_lent_any -∗
-    ▷ T1 -∗
-    ▷ (PC ↦ₚ lword_of_word mtcc_vec -∗
-       pc_a ↦ₐ{dq} w -∗
-       MIE ↦ₜ InterruptDisabled -∗
-       vol_lent (lmepcc_of_pc (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π))
-         (lword_of_word (WInt MCAUSE_ECALL_MACHINE)) MTVAL_NONE b -∗
-       T2 -∗
-       Φ YieldV) -∗
-    WP Exec @ E {{ Φ }}.
-  Proof.
-    iIntros (Hth Hinstr Hvpc Htr) "HPC Hpc_a Hmie Hvol HT Hφ".
-    iApply (wp_bind (@fill (tlang_ectx _) [SeqCtx])).
-    iApply (wp_ecall_link with "[$HPC $Hpc_a $Hmie $Hvol $HT]"); [done..|].
-    iIntros "!> (HPC & Hpc_a & Hmie & Hvol & HT)".
-    rewrite tval_sw_ecall_user //=.
-    iApply wp_pure_step_later; first done. iIntros "!> _".
-    iApply wp_value. iApply ("Hφ" with "HPC Hpc_a Hmie Hvol HT").
-  Qed.
-
-  (** The context-switch thread's [ecall]: an ordinary step to the
-      exception entry, at MIE disabled. *)
-  Lemma wp_ecall_cs E pc_p pc_g pc_b pc_e pc_a pc_π w dq :
-    th = CtxSwitch →
-    decodeInstrW w.(lw) = Ecall →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ MIE ↦ₜ InterruptDisabled ∗
-        ▷ vol_lent_any }}}
-      Instr Executable @ E
-      {{{ RET NextIV;
-          PC ↦ₚ lword_of_word mtcc_vec ∗
-          pc_a ↦ₐ{dq} w ∗
-          MIE ↦ₜ InterruptDisabled ∗
-          vol_lent (lmepcc_of_pc (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π))
-            (lword_of_word (WInt MCAUSE_ECALL_MACHINE)) MTVAL_NONE InterruptDisabled }}}.
-  Proof.
-    iIntros (Hth Hinstr Hvpc φ) "(HPC & Hpc_a & Hmie & Hvol) Hφ".
-    iApply (wp_ecall_link E pc_p pc_g pc_b pc_e pc_a pc_π w InterruptDisabled dq True%I True%I
-             with "[$HPC $Hpc_a $Hmie $Hvol //]");
-      [done | done | apply link_transfer_si_kept |].
-    iIntros "!> (HPC & Hpc_a & Hmie & Hvol & _)".
-    rewrite tval_sw_ecall_ctx //. iApply "Hφ". iFrame.
   Qed.
 End ecall_rules.
 

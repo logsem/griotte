@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Export rules_base si_modality.
+From griotte Require Export shapes.step si_modality.
 
 (** * Ghost steps on the state interpretation
 
@@ -240,30 +240,6 @@ Section rules_registry.
     cbn in Hw. rewrite (insert_id rg) in Her_new; last exact Hw.
     apply Her_new.
     apply reg_phys_untagged. rewrite lw_lclear_tag. apply get_tag_clear_tag.
-  Qed.
-
-  (** Every tagged, non-empty register capability with an identifier lies in
-      the heap: provenance and the registry's heap clause. *)
-  Definition regs_prov_heap (regs : LReg) : Prop :=
-    ∀ r v ι b e, regs !! r = Some v →
-      get_tag v.(lw) = true → memory_cap_bounds v.(lw) = Some (b, e) → (b < e)%a →
-      v.(lprov) = Some ι → ∀ x, x ∈ₐ [b, e) → is_heap_address x = true.
-
-  Lemma observe_regs_prov_heap E (regs : LReg) :
-    ([∗ map] k↦y ∈ regs, k ↦ᵣ y) -∗
-    |~{E}~> ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗ ⌜regs_prov_heap regs⌝.
-  Proof.
-    iIntros "Hmap".
-    iApply (si_upd_ghost _ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) with "Hmap").
-    intros σ. iApply si_ghost_update.
-    iIntros (lpc lreg lsreg lmem R C Her) "Hlr Hsr Hm Hst HR HC Hmap".
-    iDestruct (gen_heap_valid_inclSepM with "Hlr Hmap") as %Hincl.
-    iModIntro. iExists R, C. iFrame. iPureIntro. split; first done.
-    intros r v ι b e Hv Ht Hb Hlt Hι x Hx.
-    destruct (erasure_reg_word _ _ _ _ _ _ _ r v Her (lookup_weaken _ _ _ _ Hv Hincl)) as [Hprov _].
-    destruct (Hprov ι b e Ht Hb Hlt Hι) as (y & Hy & Hyb & Hye).
-    eapply (reg_ok_heap _ _ _ (er_registry _ _ _ _ _ _ _ Her)); first exact Hy.
-    rewrite /re_covers. solve_addr.
   Qed.
 
 End rules_registry.

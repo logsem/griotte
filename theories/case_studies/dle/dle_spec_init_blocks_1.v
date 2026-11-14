@@ -54,7 +54,6 @@ Section DLE_Init_Blocks_1.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
-    { solve_not_shadow Hcgp_mmio. }
     { solve_addr. }
     (* Mov ct0 cgp *)
     iInstr "Hcode".
@@ -70,14 +69,9 @@ Section DLE_Init_Blocks_1.
     (* Lea cgp cgp 1%Z *)
     iInstr "Hcode".
     { transitivity (Some (cgp_b ^+ 1)); auto; solve_addr. }
-    iPoseProof deref_res_none as "-#Hdw".
-    (* [iInstr] does not find the resources of this store *)
     (* Store cgp ct0 0 *)
-    iInstrApply "Hcode" wp_store_success_reg with "[$HPC $Hct0 $Hcgp $Hcgp_a $Hdw]"
-      as "(HPC & Hct0 & Hcgp & Hcgp_a & _)".
-    { solve_not_shadow Hcgp_mmio. }
+    iInstr "Hcode".
     { rewrite /withinBounds; solve_addr. }
-    { done. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".
     (* Lea cgp cgp (-1)%Z *)

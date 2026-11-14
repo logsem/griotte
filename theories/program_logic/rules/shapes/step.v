@@ -8,6 +8,16 @@ From griotte Require Export resource_maps instr_operands.
 From griotte Require Export named_props_extra.
 Import core_link.
 
+(** * The step of an instruction
+
+    Shape layer, generic over the step function of the instruction: the
+    thread values of a step, the lifting of a step to a WP, the lemmas that
+    close the state interpretation after a step, the outcome of a step in
+    closed form ([faulted_outcome], [step_outcome]), the fault rules
+    ([wp_fault_step], [wp_instr_faulted_0] to [wp_instr_faulted_3]), and
+    the rules of Halt and Fail ([wp_halt], [wp_fail]). Every other rules
+    file builds on it. *)
+
 (* ------------------------- the thread languages ------------------------------ *)
 
 (** The value of a configuration flag, if it is one. *)
@@ -503,34 +513,12 @@ Section griotte_lang_rules.
     - by iApply ctx_irq_post_kept.
   Qed.
 
-  (** At the core link, any closing closes a step that may change MIE or
-      mtdc. *)
-  Lemma instr_close_core σ1 σ' (X : iProp Σ) :
-    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗ X) -∗
-    |==> (cerise_state_interp σ' ∗ @crit_link Σ _ link_core σ') ∗ X.
-  Proof. iIntros ">(_ & $ & $)". done. Qed.
-
   (** Closes a step that may change MIE or mtdc from [σ0], through a
       closing from [σ1] (the state after the write): the link is
       transferred with [T1] for [T2], with the state interpretation of the
-      new state in hand, and the postcondition receives [T2]. *)
-  Lemma instr_close_link_transfer (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
-      σ0 σ1 σ' (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
-    link_transfer_si P T1 T2 →
-    (sys_kept σ1 σ' → P σ0 σ') →
-    crit_link σ0 -∗ T1 -∗
-    (|==> ⌜sys_kept σ1 σ'⌝ ∗ cerise_state_interp σ' ∗
-          from_option (λ v, T2 -∗ Ψ v) False (flag_val c)) -∗
-    |==> (cerise_state_interp σ' ∗ crit_link σ') ∗
-         from_option Ψ False (flag_val c).
-  Proof.
-    iIntros (Htr HP) "Hlink HT >(%Hk & HSI & HΨ)".
-    iMod (Htr _ σ' (HP Hk) with "[$HSI $Hlink $HT]") as "($ & $ & HT)". iModIntro.
-    destruct (flag_val c); cbn; [by iApply "HΨ" | done].
-  Qed.
-
-  (** The same, with the [ctx_irq_post] that [wp_instr_step_link] asks
-      for, from the routing law's precondition after the step. *)
+      new state in hand, and the postcondition receives [T2]; the
+      [ctx_irq_post] that [wp_instr_step_link] asks for comes from the
+      routing law's precondition after the step. *)
   Lemma instr_close_link_transfer_irq (P : ExecConf → ExecConf → Prop) (T1 T2 : iProp Σ)
       σ0 σ1 σ' i (Ψ : tval (kind_of th) → iProp Σ) (c : ConfFlag) :
     link_transfer_si P T1 T2 →
@@ -661,6 +649,64 @@ Section griotte_lang_rules.
   Qed.
 
 End griotte_lang_rules.
+
+(** What a register step does to the rest of the machine: nothing. This
+    is the place where such an effect (for example on a counter of the
+    system registers) enters; a model with one changes this definition
+    and the closers and tactics that unfold it ([regs_case] and
+    [solve_regs_member] in [ftlr_shapes.v], [wp_regs_step] in
+    [shapes/regs.v], the register steps in closed form of [regs_next_ok_db]). *)
+Definition regs_effect (φ : ExecConf) : ExecConf := φ.
+
+(** A write to [cnull] is no write. *)
+Lemma update_reg_cnull φ w : φ .[cnull :=ᵣ w] = φ.
+Proof. destruct φ. by rewrite /update_reg /= insert_reg_cnull. Qed.
+
+(** A faulted step: the PC and the owned part [s] of the state unchanged.
+    A model whose fault writes trap state changes this definition. *)
+Definition faulted_outcome {k : kind} {A} (lpc : LWord) (s : A) (lpc' : LWord) (s' : A)
+    (retv : tval k) : Prop :=
+  retv = FaultedV ∧ lpc' = lpc ∧ s' = s.
+
+Lemma faulted_outcome_refl {k : kind} {A} lpc (s : A) :
+  faulted_outcome (k := k) lpc s lpc s FaultedV.
+Proof. done. Qed.
+
+(** The closed-form outcome of a step whose result [mv] (the new PC and
+    owned part [s] of the state) is computed by a pure function, or a
+    fault. *)
+Definition step_outcome {k : kind} {A} (mv : option (LWord * A)) (lpc : LWord) (s : A)
+    (lpc' : LWord) (s' : A) (retv : tval k) : Prop :=
+  match mv with
+  | Some (l, s1) => retv = NextIV ∧ lpc' = l ∧ s' = s1
+  | None => faulted_outcome lpc s lpc' s' retv
+  end.
+
+Lemma step_outcome_next {k : kind} {A} mv lpc (s : A) lpc' (s' : A) :
+  mv = Some (lpc', s') → step_outcome (k := k) mv lpc s lpc' s' NextIV.
+Proof. by intros ->. Qed.
+
+Lemma step_outcome_fault {k : kind} {A} mv lpc (s : A) :
+  mv = None → step_outcome (k := k) mv lpc s lpc s FaultedV.
+Proof. intros ->. apply faulted_outcome_refl. Qed.
+
+Lemma step_outcome_cases {k : kind} {A} mv lpc (s : A) lpc' (s' : A) (retv : tval k) :
+  step_outcome mv lpc s lpc' s' retv →
+  (mv = Some (lpc', s') ∧ retv = NextIV) ∨
+  (mv = None ∧ faulted_outcome lpc s lpc' s' retv).
+Proof.
+  destruct mv as [ [l s1] | ]; intros Hout.
+  - destruct Hout as (-> & -> & ->). by left.
+  - right. split; [done | exact Hout].
+Qed.
+
+(** A fault: on every physical copy of the owned registers (each exact or
+    stripped) whose PC is the logical one, the step does not happen. *)
+Definition regs_fault (step : instr → Perm → ExecConf → option Conf)
+    (i : instr) (p : Perm) (lpc : LWord) (regs : LReg) : Prop :=
+  ∀ φ, pcc φ = lpc.(lw) →
+    (∀ r v, regs !! r = Some v → ∃ s, reg φ !!ᵣ r = Some (and_tag s v.(lw))) →
+    step i p φ = None.
 
 Section instruction_closing.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {k : kind}.
@@ -899,7 +945,7 @@ Ltac instr_fail_close :=
 Ltac instr_fail Hstep :=
   first [injection Hstep as <- <- | simplify_eq]; instr_fail_close.
 
-(** Pure side conditions of the map-form rules ([wp_Get_next], …) applied to
+(** Pure side conditions of the map-form rules applied to
     register maps built by [map_of_regs_k]: a small closed set of goals
     (instruction decoding, register lookups and domains, the PC increment).
     A tactic because the goals vary with the instruction class. *)
@@ -922,7 +968,7 @@ Section instruction_outcomes.
   #[local] Lemma wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π (w : LWord) i (regs : LReg) dq :
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    (∀ R r sr m st td, lregs_phys R regs r →
+    (∀ R r sr m st td, lregs_phys R regs r → (∀ v, regs !! cnull = Some v → v = lnull) →
        exec i pc_p (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td) =
          (Faulted, (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td))) →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
@@ -937,10 +983,35 @@ Section instruction_outcomes.
     iIntros (Hinstr Hvpc Hfailed φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
     iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    rewrite Hinstr (Hfailed R r sr m st td Hregs) in Hstep. simplify_eq.
+    rewrite Hinstr (Hfailed R r sr m st td Hregs) in Hstep.
+    2: { intros v0 Hv0. eapply er_cnull; [exact Her | by eapply lookup_weaken]. }
+    simplify_eq.
     iModIntro. iSplit; first (iPureIntro; apply sys_kept_refl).
     iSplitR "Hφ HPC Hpc_a Hmap"; last (cbn; iApply "Hφ"; iFrame).
     iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
+  Qed.
+
+  (** The generic fault rule: the step does not happen on any copy of the
+      owned registers; all resources are returned unchanged. *)
+  Lemma wp_fault_step E pc_p pc_g pc_b pc_e pc_a pc_π w dq i (regs : LReg) :
+    decodeInstrW w.(lw) = i →
+    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
+    regs_fault exec_opt i pc_p (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) regs →
+    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        ▷ pc_a ↦ₐ{dq} w ∗
+        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+      Instr Executable @ E
+    {{{ RET FaultedV;
+        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
+        pc_a ↦ₐ{dq} w ∗
+        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+  Proof.
+    intros Hinstr Hvpc Hfault.
+    apply (wp_instr_faulted_map _ _ _ _ _ _ _ _ i); [exact Hinstr | exact Hvpc |].
+    intros R r sr m st td Hregs Hcnull. apply exec_opt_exec_none, Hfault; first done.
+    intros x v Hx. destruct (decide (x = cnull)) as [-> | Hne].
+    - rewrite (Hcnull v Hx) lookup_reg_cnull. by exists true.
+    - rewrite lookup_reg_not_cnull //. by eapply lregs_phys_lookup.
   Qed.
 
   (* Failure with PC alone; all resources are returned unchanged. *)
@@ -958,7 +1029,7 @@ Section instruction_outcomes.
     iApply (wp_instr_faulted_map E pc_p pc_g pc_b pc_e pc_a pc_π w i ∅ with "[$HPC $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td _. apply Hfailed.
+    - intros R r sr m st td _ _. apply Hfailed.
     - by rewrite big_sepM_empty.
     - iNext. iIntros "(HPC & Hmem & _)".
       iApply "Hφ". iFrame.
@@ -981,7 +1052,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       by eapply Hfailed.
     - iNext. iIntros "(HPC & Hmem & Hmap)".
@@ -1008,7 +1079,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       by eapply Hfailed.
@@ -1046,7 +1117,7 @@ Section instruction_outcomes.
       with "[$HPC $Hmap $Hmem]").
     - exact Hinstr.
     - exact Hvpc.
-    - intros R r sr m st td Hincl.
+    - intros R r sr m st td Hincl _.
       destruct (lregs_phys_lookup _ _ r r1 w1 Hincl) as [s1 Hl1]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r2 w2 Hincl) as [s2 Hl2]; first by simplify_map_eq.
       destruct (lregs_phys_lookup _ _ r r3 w3 Hincl) as [s3 Hl3]; first by simplify_map_eq.

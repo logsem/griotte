@@ -129,9 +129,7 @@ Section Handle_Error.
     destruct (decide ((b_switcher : Z) = get_b (lw wmepcc))) as [Hin | Hnot_in].
     - (* A fault of the switcher *)
       (* Jeq .Lhandle_error_in_switcher ct0 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hctp]"
-        as "(HPC & Hct0 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.eqb_eq; lia. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_in_switcher")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -140,9 +138,7 @@ Section Handle_Error.
       iFrame "HPC Hcsp Hct0 Hct1 Hctp Hca0 Hmtdc Hlent Hframeoffset".
       iRegionMerge. iFrame.
     - (* Jeq .Lhandle_error_in_switcher ct0 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct0 $Hctp]"
-        as "(HPC & Hct0 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
+      iInstr "Hcode".
       assert ((b_trusted_stack + 2)%a = Some (b_trusted_stack ^+ 2)) as Hts_2
         by (tstack_unfold; solve_addr).
       (* CLoad ct0 csp 2 *)
@@ -157,17 +153,14 @@ Section Handle_Error.
         by (subst a_frameoffset; tstack_unfold; solve_addr).
       (* CLoad ctp csp TrustedStack_offset_frameoffset *)
       iInstr "Hcode".
-      { subst a_frameoffset; tstk_not_shadow Hts_shadow. }
-      { done. }
-      { split; auto. subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
+      { subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
       rewrite lload_word_RWL.
       (* Mov ct1 TrustedStack_offset_frames *)
       iInstr "Hcode".
       destruct (decide (ct1 = cnull)) as [Hct1_null|_]; first done.
       (* The trusted stack always has a frame: the thread does not exit *)
       (* Jeq .Lcommon_thread_exit ctp ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct1]"
-        as "(HPC & Hctp & Hct1)".
+      iInstr "Hcode" using jcond_jump_agree_next.
       { cbn [jcond_test get_a lw]; apply Z.eqb_neq; tstack_unfold; lia. }
       (* Add ctp ctp (- TrustedStackFrame_size) *)
       iInstr "Hcode".
@@ -180,8 +173,7 @@ Section Handle_Error.
       iInstr "Hcode".
       destruct (lea_result_is_Some s2 (- ErrorState_size)) as [wct0' Hlea].
       (* Lea ct0 ct0 (- ErrorState_size) *)
-      iInstrApply "Hcode" (wp_lea_success_z_any _ _ _ _ _ _ _ _ _ ct0 s2 wct0')
-        with "[$HPC $Hct0]" as "(HPC & Hct0)".
+      iInstr "Hcode".
       switcher_change_pc_label ".Lhandle_error_stack_oob".
       subst hpost.
       iDestruct "Hpost" as "[_ Hpost]".
@@ -248,10 +240,7 @@ Section Handle_Error.
       iDestruct "Hpost" as "[_ Hpost]".
       switcher_hide "Hpost" as hpost.
       (* Jne .Lcommon_force_unwind ct1 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct1 $Hctp]"
-        as "(HPC & Hct1 & Hctp)".
-      { cbn [jcond_test get_a lw]. rewrite Hfirst. apply negb_false_iff, Z.eqb_eq.
-        reflexivity. }
+      iInstr "Hcode".
       (* Mov ca0 ENOTENOUGHSTACK *)
       iInstr "Hcode".
       (* Mov ca1 0 *)
@@ -268,11 +257,9 @@ Section Handle_Error.
         by (rewrite /TrustedStack_offset_ca1; tstack_unfold; solve_addr).
       (* Store csp ca0 TrustedStack_offset_ca0 *)
       iInstr "Hcode".
-      { rewrite /TrustedStack_offset_ca0; tstk_not_shadow Hts_shadow. }
       { rewrite /withinBounds /TrustedStack_offset_ca0; tstack_unfold; solve_addr. }
       (* Store csp ca1 TrustedStack_offset_ca1 *)
       iInstr "Hcode".
-      { rewrite /TrustedStack_offset_ca1; tstk_not_shadow Hts_shadow. }
       { rewrite /withinBounds /TrustedStack_offset_ca1; tstack_unfold; solve_addr. }
       (* Jmp .Lcommon_context_install *)
       iInstr "Hcode".
@@ -284,10 +271,7 @@ Section Handle_Error.
     - (* Any other fault of the switcher: force the unwind *)
       iDestruct "Hpost" as "[Hpost _]".
       (* Jne .Lcommon_force_unwind ct1 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct1 $Hctp]"
-        as "(HPC & Hct1 & Hctp)".
-      { cbn [jcond_test get_a lw]. apply negb_true_iff, Z.eqb_neq.
-        intros Heq; apply Hnot_first; rewrite Heq; reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
           by switcher_addr_eq. }
       iApply ("Hpost" with "[//]").

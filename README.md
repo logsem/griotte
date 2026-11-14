@@ -172,6 +172,9 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
 - `erasure.v`: The erasure invariant relating the logical registers and memory
   to the physical machine state.
 
+- `capability_monotonicity.v`: The words an instruction may write (`⊑`,
+  `derivable`), on logical words too, and their lifting through the erasure.
+
 - `resources.v`: The ghost state of the machine (PC, system registers) and the
   points-to notations.
 
@@ -194,20 +197,26 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
 - `allocator_resources.v`: The initial heap memory and shadow table of the
   case studies.
 
-- `rules.v`: Imports all the Hoare triple rules for each instruction. These
-  rules are separated into separate files (located in the `rules/` folder).
-  The `rules/` folder also contains:
-  - `rules_base.v`: Contains some of the core resource algebras for the program
-    logic, namely the definition for points to predicates with permissions.
-    It also contains the Hoare triple rules for the fail cases.
-  - `rules_registry.v`: Ghost steps on the allocation registry and the
-    address claims.
-  - `rules_deref_quar.v`: Dereferencing a capability of a quarantined object
-    faults.
-  - `rules_trap_entry.v`, `rules_trap_cause.v`: Trap entry, and the exact
-    cause and value of a fault.
-  - `rules_vcsr.v`: The volatile control and status registers (`MEPCC`,
-    `mcause`, `mtval`, `mret`).
+- `rules.v`: Exports the program-logic rules of the instructions, located in
+  the `rules/` folder; its header has an index from each instruction to its
+  file. The rules are derived from a few shape rules over the machine's step:
+  - `shapes/`: the rules generic over the step function.
+    `step.v`: the lifting of a step to a WP, the outcomes of a step, and the
+    fault rules. `regs.v`: the register shape, for an instruction that writes
+    at most one register and moves the PC. `memory_access.v`: the load and
+    store shape.
+  - `instructions/`: per family of instructions (`arithmetic.v`, `cheri.v`,
+    `control.v`, `memory_accesses.v`, `system.v`), each instruction's step in
+    closed form (`<instr>_next_ok`, a pure lemma found by `iInstr` through a
+    hint database), followed by its dedicated rules when it has some (witness
+    rules, the system instructions). A new register or memory instruction
+    needs only its closed-form lemma and a hint.
+  - `devices/`: the platform devices (shadow table, timer, revoker).
+  - `traps/`: trap entry, the exact cause and value of a fault, the volatile
+    control and status registers (`MEPCC`, `mcause`, `mtval`, `mret`), and
+    `ecall`.
+  - `ghost/`: ghost steps on the allocation registry and the address claims,
+    and the fault on dereferencing a capability of a quarantined object.
 
 ## Proofmode `proofmode/`
 
@@ -229,8 +238,10 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
   and of their instructions (`focus_block`).
 
 - `proofmode.v`, `proofmode_instr_rules.v` and `proofmode_instr_support.v`
-  define tactics (`iInstr`) for automatically finding the right WP rule
-  to apply while proving the specification of known code.
+  define tactics (`iInstr`) for stepping an instruction while proving the
+  specification of known code: `iInstr` applies the register or memory shape
+  rule with the instruction's closed-form step, leaving the facts it cannot
+  decide as side goals; `iInstr "H" using s` names the closed-form lemma.
 
 ## Model of the Kripke worlds `model/`
 
@@ -322,12 +333,17 @@ otypes, and the base tactics `solve_finz` and `solve_pure`.
   - `world_interp_stack.v`: World manipulation in presence of
     safe-to-share stacks.
 
-- `fundamental.v`: Contains *Fundamental Theorem of Logical
-  Relations*. Each case (one for each instruction) is proved in a separate file
-  (located in the `ftlr/` folder), which are all imported and applied in this
-  file.
-  The `ftlr/` folder also contains `ftlr_base.v`, the shape of the cases,
-  and `ftlr_step.v`, one step of the theorem from a safe PC.
+- `fundamental.v`: Contains the *Fundamental Theorem of Logical
+  Relations*. Its cases are proved once per shape of instruction, not once
+  per instruction, in the `ftlr/` folder:
+  - `ftlr_shapes.v`: the stop and register-step shapes, each with its case
+    and the pure membership an instruction needs (a property of `exec_opt`);
+    `ftlr_mem_access.v`: the memory shape.
+  - `ftlr_dispatch.v`: the classification, which gives every instruction a
+    shape; only `Jalr.v` and `Ecall.v` are dedicated cases.
+  - `ftlr_contract.v`: the contract a case proves; `ftlr_base.v`: the WP at
+    the core link where the cases run; `ftlr_step.v`: one step of the theorem
+    from a safe PC.
 
 
 ## Switcher `switcher/`

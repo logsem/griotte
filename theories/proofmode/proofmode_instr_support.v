@@ -1,27 +1,17 @@
 From iris.proofmode Require Import coq_tactics.
 From iris.bi Require Import bi.
 Import bi.
-From griotte Require Import rules solve_pure machine_instructions.
+From griotte Require Import rules shapes.regs shapes.memory_access solve_pure machine_instructions.
 From Ltac2 Require Import Ltac2 Option.
 Set Default Proof Mode "Classic".
 
-(* Normalize proved register aliases before choosing an explicit-resource rule.
-   Prefer cnull as a representative and never decide an unknown equality. *)
-Ltac instr_normalize_register_aliases :=
-  repeat match goal with
-  | H : @eq RegName ?r1 ?r2 |- _ =>
-      tryif is_var r1 then
-        lazymatch r2 with
-        | context [r1] => fail
-        | _ => progress rewrite -> H in *
-        end
-      else (
-        is_var r2;
-        lazymatch r1 with
-        | context [r2] => fail
-        | _ => progress rewrite <- H in *
-        end)
-  end.
+(** * Support for the dispatch of [iInstr]
+
+    The tactics that [proofmode_instr_rules.v] uses to apply a rule: the
+    owned operands and their aliases, the premises of the register and
+    memory steps in closed form and their search in [regs_next_ok_db],
+    [regs_next_ok_lax_db] and [mem_next_ok_db], and the side conditions
+    left after a rule. *)
 
 (* Operand aliases share one owned entry. [cnull] needs no register
    resource. *)
@@ -217,7 +207,10 @@ Ltac2 instr_auto_arithmetic_context () :=
       first [instr_auto_arithmetic_fact P | clear h | idtac])
       (Ltac1.of_ident h)) (List.rev (Control.hyps ())).
 
+(* The local definitions of addresses are inlined first: [solve_addr] keeps
+   only the bounds of a local definition, not its body. *)
 Ltac instr_auto_solve_addr :=
+  repeat match goal with x := _ : finz _ |- _ => subst x end;
   first [solve [ltac2:(instr_auto_arithmetic_context ()); solve_addr]
         | solve_addr].
 
@@ -354,28 +347,273 @@ Ltac instr_auto_simplify_exec :=
         rewrite H /= ]
   end.
 
-Ltac instr_auto_solve_success :=
-  solve [instr_auto_solve_addr_result | instr_auto_solve_premise |
-         apply addr_add_0].
-
-Ltac instr_auto_solve_invalidation :=
-  solve [instr_auto_solve_addr_result | instr_auto_solve_premise |
-         reflexivity | apply addr_add_0].
-
 Ltac instr_auto_solve_failure :=
   solve [solve_instr_failure; instr_auto_simplify_exec;
            try instr_auto_solve_premise |
          instr_auto_solve_addr_result | instr_auto_solve_premise].
 
-(* Explicit invalidation leaves semantic premises to the caller, except that
-   Subseg conversion-overflow rules require evidence before selection. *)
-Ltac instr_guard_invalidation_premise :=
-  lazymatch goal with
-  | |- z_to_addr ?n1 = None ∨ z_to_addr ?n2 = None =>
-      without_evars n1; without_evars n2;
-      solve [solve_pure | left; solve_pure | right; solve_pure]
-  | |- z_to_otype ?n1 = None ∨ z_to_otype ?n2 = None =>
-      without_evars n1; without_evars n2;
-      solve [solve_pure | left; solve_pure | right; solve_pure]
+(** * The register steps in closed form: premises and search
+
+    The premises of an instruction's register step in closed form
+    ([shapes/regs.v], database [regs_next_ok_db]) on the literal register map
+    of a k-ary rule, solved during the search for that lemma. A case of a
+    family whose premise fails gives way to the next case. Client proofs
+    see these hints through [proofmode], which exports this file. *)
+
+(* A lookup in a literal register map, by [lookup_insert_eq] and
+   [lookup_insert_ne] only: no [simplify_map_eq], slow in large contexts. *)
+Ltac regs_lookup :=
+  first [ apply lookup_insert_eq
+        | apply lookup_singleton_eq
+        | rewrite lookup_insert_ne;
+          [ regs_lookup | first [assumption | by apply not_eq_sym] ] ].
+
+(* A premise with a constructor pattern ([Some (WCap …)]) is checked
+   syntactically against the head of the word found, so that a symbolic word
+   is neither unfolded nor matched against a constructor. A word that
+   computes to a constructor ([load_word p w] on a literal [w]) is checked on
+   its head normal form. *)
+Ltac lword_head_matches a b :=
+  lazymatch a with
+  | WInt _ => lazymatch b with WInt _ => idtac end
+  | WSealable (SCap _ _ _ _ _ _) => lazymatch b with WSealable (SCap _ _ _ _ _ _) => idtac end
+  | WSealable (SSealRange _ _ _ _ _ _) =>
+      lazymatch b with WSealable (SSealRange _ _ _ _ _ _) => idtac end
+  | WSentry _ _ _ _ _ _ _ => lazymatch b with WSentry _ _ _ _ _ _ _ => idtac end
+  | WSealed _ _ => lazymatch b with WSealed _ _ => idtac end
   | _ => idtac
   end.
+
+Ltac lword_shape_matches v w :=
+  let a := eval cbn [lw] in v.(lw) in
+  let b := eval cbn [lw] in w.(lw) in
+  first [ lword_head_matches a b
+        | let b' := eval hnf in b in lword_head_matches a b' ].
+
+(* The owned word of an operand, read in the literal map. *)
+Ltac regs_next_ok_lookup :=
+  lazymatch goal with
+  | |- ?regs !!ₗ ?r = Some ?v =>
+      first
+        [ apply llookup_reg_cnull
+        | let Hr := fresh "Hr" in
+          eassert (regs !!ₗ r = Some _) as Hr
+            by (rewrite ?llookup_reg_not_cnull //; regs_lookup);
+          lazymatch type of Hr with _ = Some ?w =>
+            tryif is_evar v then idtac else lword_shape_matches v w
+          end;
+          exact Hr ]
+  end.
+
+#[export] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_db.
+
+(* An address result: from the context, or by the [IncrFinZ] instances of
+   [solve_pure], which the search also uses. Otherwise the lemma does not
+   apply; the lax search ([solve_regs_next_ok_lax]) or [iInstr "H" using s]
+   leaves the fact as a side goal. *)
+#[export] Hint Extern 0 ((_ + _)%a = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%ot = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_addr _ = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%a = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 ((_ + _)%ot = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_addr _ = None) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_otype _ = Some _) => eassumption : regs_next_ok_db.
+#[export] Hint Extern 0 (z_to_otype _ = None) => eassumption : regs_next_ok_db.
+
+(* An untagged word: a literal, or a fact of the context. *)
+#[export] Hint Extern 1 (get_tag _ = false) =>
+  first [ reflexivity
+        | match goal with H : InCtx (get_tag _ = false) |- _ => exact H end ]
+  : regs_next_ok_db.
+
+(* Whether a word is zero: by computation, or a fact of the context. *)
+#[export] Hint Extern 1 (nonZero _ = _) =>
+  first [ reflexivity
+        | match goal with H : InCtx (nonZero _ = _) |- _ => exact H end ]
+  : regs_next_ok_db.
+
+(* An integer, a sentry or a sealed word: a literal, or a fact of the
+   context. *)
+#[export] Hint Extern 1 (is_mutable_range _ = false) =>
+  first [ reflexivity | eassumption ] : regs_next_ok_db.
+
+(* Subseg: the premise of its tag as a value, on a literal register map, and
+   endpoints out of range on literals. *)
+#[export] Hint Extern 1 (subseg_root_free _ _ _ _) =>
+  unfreeze_hyps; solve_subseg_root_free : regs_next_ok_db.
+#[export] Hint Extern 1 (z_to_addr _ = None ∨ z_to_addr _ = None) =>
+  first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
+#[export] Hint Extern 1 (z_to_otype _ = None ∨ z_to_otype _ = None) =>
+  first [ left; reflexivity | right; reflexivity ] : regs_next_ok_db.
+(* In the lax search, as in the strict one, an endpoint of Subseg is computed
+   when its integer is an address ([solve_pure]); otherwise the fact is
+   postponed. The heap premise is searched for even with unknown endpoints: a
+   fact of the context then fixes them, and their facts are checked once they
+   are known. A search that fails leaves the premise as a side goal. *)
+#[export] Hint Extern 0 (z_to_addr _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+#[export] Hint Extern 0 (z_to_otype _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+#[export] Hint Extern 0 =>
+  lazymatch goal with
+  | |- (_ = None → _ → is_heap_address _ = false) =>
+      solve [ intros [=]
+            | match goal with H : InCtx (_ = None → _ → is_heap_address _ = false) |- _ =>
+                exact H end
+            | typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances ]
+  end : regs_next_ok_lax_db.
+
+(* The comparison of two known operands: from a hypothesis (also on the words,
+   by [congruence]), or by [lia], or by [solve_addr] when addresses occur. *)
+Ltac jcond_test_arith :=
+  lazymatch goal with
+  | |- Z.eqb _ _ = true => apply Z.eqb_eq
+  | |- Z.eqb _ _ = false => apply Z.eqb_neq
+  | |- Datatypes.negb (Z.eqb _ _) = true => apply negb_true_iff, Z.eqb_neq
+  | |- Datatypes.negb (Z.eqb _ _) = false => apply negb_false_iff, Z.eqb_eq
+  | |- Z.ltb _ _ = true => apply Z.ltb_lt
+  | |- Z.ltb _ _ = false => apply Z.ltb_ge
+  | |- Z.leb _ _ = true => apply Z.leb_le
+  | |- Z.leb _ _ = false => apply Z.leb_gt
+  end;
+  first
+    [ assumption
+    | symmetry; assumption
+    | apply not_eq_sym; assumption
+    | congruence
+    | lia
+    | lazymatch goal with |- context [finz.to_z _] => solve_addr end ].
+
+(* The test of a conditional jump on known operands: by computation, from a
+   hypothesis (up to conversion), also as [nonZero w], or on the comparison
+   once the addresses of literal words are computed. An integer word is read
+   as its integer ([lz_of_argument_reg_int]): its address form is the same
+   test, rejected at once. *)
+Ltac solve_jcond_test :=
+  lazymatch goal with
+  | |- ?g => tryif has_evar g then fail "jcond_test: unknown operands" else idtac
+  end;
+  tryif (match goal with
+         | |- context [get_a (lw ?v)] =>
+             let w := eval cbn [lw] in (lw v) in lazymatch w with WInt _ => idtac end
+         end)
+  then fail "jcond_test: an integer word is read as an integer"
+  else idtac;
+  cbn [jcond_test];
+  first
+    [ reflexivity
+    | assumption
+    | lazymatch goal with
+      | |- Datatypes.negb (Z.eqb (get_a ?w) 0) = ?b => change (nonZero w = b); assumption
+      | |- Z.eqb (get_a ?w) 0 = true =>
+          apply negb_false_iff; change (nonZero w = false); assumption
+      | |- Z.eqb (get_a ?w) 0 = false =>
+          apply negb_true_iff; change (nonZero w = true); assumption
+      end
+    | cbn [get_a get_a_sealable lw]; first [reflexivity | jcond_test_arith] ].
+
+(* The test of a conditional jump, with the hypotheses of the client. *)
+#[export] Hint Extern 0 (jcond_test _ _ _ = _) =>
+  unfreeze_hyps; solve_jcond_test : regs_next_ok_db.
+
+(* The search, under frozen hypotheses (as [solve_pure_iinstr]). *)
+Ltac solve_regs_next_ok_frozen :=
+  ltac2:(griotte_freeze_hyps_once ());
+  typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances;
+  unfreeze_hyps.
+
+(* The distinctness premises of a k-ary rule. *)
+Ltac regs_next_ok_intros :=
+  repeat match goal with |- _ ≠ _ → _ => let Hne := fresh "Hne" in intros Hne end.
+
+(* The instruction's register step in closed form, for the premise
+   [regs_next_ok] or [regs_jump_agree] of a k-ary rule, under its
+   distinctness premises. *)
+Ltac solve_regs_next_ok :=
+  regs_next_ok_intros; solve_regs_next_ok_frozen.
+
+(* The lemma [s] named by the client: applied, directly or at [cnull],
+   then the search closes what it can; the other premises of [s] stay as
+   side goals, in their order. *)
+Ltac regs_next_ok_using s :=
+  regs_next_ok_intros;
+  first [ eapply s | eapply regs_next_ok_cnull_jump; eapply s ];
+  try solve_regs_next_ok_frozen.
+
+(** The lax search in [regs_next_ok_lax_db]: a case lemma whose operand
+    premises hold, its other premises postponed (shelved during the search,
+    then returned as side goals in their order). *)
+
+(* An operand premise, solved as in the strict search. *)
+#[export] Hint Extern 0 (_ !!ₗ _ = Some _) => regs_next_ok_lookup : regs_next_ok_lax_db.
+#[export] Hint Extern 0 (lz_of_argument _ _ = Some _) =>
+  solve [typeclasses eauto 8 with regs_next_ok_db solve_pure typeclass_instances]
+  : regs_next_ok_lax_db.
+
+(* Any other premise of a case lemma is postponed. *)
+Ltac regs_next_ok_postpone :=
+  lazymatch goal with
+  | |- regs_next_ok _ _ _ _ _ _ _ => fail
+  | |- regs_jump_agree _ _ _ _ _ => fail
+  | |- _ !!ₗ _ = Some _ => fail
+  | |- lz_of_argument _ _ = Some _ => fail
+  | |- _ => shelve
+  end.
+
+#[export] Hint Extern 100 => regs_next_ok_postpone : regs_next_ok_lax_db.
+
+(* A postponed premise: an evar of the lemma is shelved again; a fact with no
+   evar is tried once, from a hypothesis or by the strict search; the rest is
+   a side goal. A fact with an evar is not searched: a hint could fix the evar
+   to a value that the client does not want ([PermFlowsTo ?p p] by
+   reflexivity, for instance). *)
+Ltac regs_next_ok_postponed_premise :=
+  lazymatch goal with
+  | |- ?G =>
+      lazymatch type of G with
+      | Prop =>
+          tryif has_evar G then idtac
+          else (try solve [assumption | discriminate | solve_regs_next_ok_frozen])
+      | _ => shelve
+      end
+  end.
+
+Ltac solve_regs_next_ok_lax :=
+  regs_next_ok_intros;
+  ltac2:(griotte_freeze_hyps_once ());
+  unshelve (typeclasses eauto 8 with regs_next_ok_lax_db);
+  unfreeze_hyps;
+  [ regs_next_ok_postponed_premise .. ].
+
+(** * The memory steps in closed form: premises and search
+
+    The membership and agreement of a memory instruction ([shapes/memory_access.v],
+    database [mem_next_ok_db]), and the word that a store writes, read in the
+    literal register map of a k-ary rule. The settings are global, as for
+    [regs_next_ok_db]. *)
+
+(* The word of a store argument: an integer, or the owned word of a
+   register. *)
+#[export] Hint Extern 0 (store_lift_exact _ _ _) => apply store_lift_argument : mem_next_ok_db.
+#[export] Hint Extern 0 (lword_of_argument _ (inl _) = Some _) => reflexivity : mem_next_ok_db.
+#[export] Hint Extern 0 (lword_of_argument _ (inr _) = Some _) =>
+  cbn [lword_of_argument]; regs_next_ok_lookup : mem_next_ok_db.
+
+(* The permission and the bounds of an access, in the memory fallback of
+   [iInstr]: tried only once their address is known, so that no hypothesis
+   about another cell fixes the address ([instr_mem_fact_ready],
+   [proofmode.v]). *)
+Definition mem_access_fact (P : Prop) : Prop := P.
+
+(* A stored integer is the integer itself. *)
+Lemma lstore_word_int p z π : lstore_word p (WInt z @@? π) = WInt z @@? π.
+Proof. by rewrite /lstore_word /lift_word /= store_word_untagged. Qed.
+
+(* The search, under its distinctness premises and frozen hypotheses. *)
+Ltac solve_mem_agree :=
+  regs_next_ok_intros;
+  ltac2:(griotte_freeze_hyps_once ());
+  typeclasses eauto 8 with mem_next_ok_db;
+  unfreeze_hyps.

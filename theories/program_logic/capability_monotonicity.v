@@ -1,29 +1,25 @@
-From griotte Require Import interp_weakening.
-
-(** The projections of the erasure, and [erasure_pc_exact], take the
-    erasure only. *)
-#[local] Arguments er_registry {MP R C σ lpc lreg lsreg lmem}.
-#[local] Arguments er_regs {MP R C σ lpc lreg lsreg lmem}.
-#[local] Arguments er_pc {MP R C σ lpc lreg lsreg lmem}.
-#[local] Arguments er_pc_word {MP R C σ lpc lreg lsreg lmem}.
-#[local] Arguments er_pc_ok {MP R C σ lpc lreg lsreg lmem}.
-#[local] Arguments erasure_pc_exact {MP R C σ lpc lreg lsreg lmem}.
+From griotte Require Import erasure instr_operands.
 
 (** * Capability monotonicity
 
-    The words that an instruction may write: [word_le], no more authority
-    than a given word, and [derivable], no more authority than a register
-    or the PC of the pre-state, or a sealing by a register's authority.
-    Their counterparts on logical words, [lword_le] and [lderivable], and
-    the lifting: a derivable physical word has a derivable logical word,
-    well-formed for the erasure. *)
+    The words that an instruction may write are below a word of the
+    pre-state. The physical part: [word_le], no more authority than a
+    given word, and what the erasure needs from it ([word_shrinks]): a
+    word below a well-formed logical word is well-formed with its
+    provenance, given the heap-root clause ([lift_root_ok]). Then
+    [derivable], no more authority than a register or the PC of the
+    pre-state, or a sealing by a register's authority. The logical part:
+    the counterparts on logical words, [lword_le] and [lderivable], with
+    the heap-base premise [subseg_heap_base], and the lifting: a derivable
+    physical word has a derivable logical word, well-formed for the
+    erasure. *)
 
 Declare Scope capability_scope.
 Delimit Scope capability_scope with cap.
 
-(** ** The relations *)
+(** ** The relation *)
 
-Section capability_monotonicity.
+Section capability_word_le.
   Context `{MP : MachineParameters}.
 
   (** A capability whose bounds [b, e] became [b', e'] keeps them, or has
@@ -56,28 +52,6 @@ Section capability_monotonicity.
       SealPermFlowsTo p' p → LocalityFlowsTo g' g → (b <= b')%ot → (e' <= e)%ot →
       word_le (WSealRange t' p' g' b' e' a') (WSealRange t p g b e a).
 
-  (** A word that an instruction may write: no more authority than a
-      register or the PC of the pre-state, or a sealing by the authority of
-      a register. *)
-  Inductive derivable (φ : ExecConf) : Word → Prop :=
-  | derivable_reg r w w' : reg φ !!ᵣ r = Some w → word_le w' w → derivable φ w'
-  (* The PC as a source: Auipcc. *)
-  | derivable_pc w' : word_le w' (pcc φ) → derivable φ w'
-  (* A sealable sealed by a tagged range that permits sealing at [a]: Seal. *)
-  | derivable_seal r1 r2 t p g b e a sb :
-      reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WSealable sb) →
-      t = true → permit_seal p = true → withinBounds b e a = true →
-      derivable φ (WSealed a sb)
-  (* A sealed word unsealed by a tagged range that permits unsealing at
-     [o]: UnSeal. *)
-  | derivable_unseal r1 r2 t p g b e a o sb :
-      reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WSealed o sb) →
-      t = true → permit_unseal p = true → withinBounds b e o = true →
-      derivable φ (WSealable (unseal_sb g sb)).
-
-  Lemma derivable_untagged φ w : get_tag w = false → derivable φ w.
-  Proof. intros Ht. eapply (derivable_reg _ cnull (WInt 0)); [done | by apply wle_untagged]. Qed.
-
   #[global] Instance word_le_preorder : PreOrder word_le.
   Proof.
     split; first (intros w; apply wle_refl).
@@ -98,58 +72,15 @@ Section capability_monotonicity.
       + apply wle_sr; [auto | by etrans | by etrans | solve_addr | solve_addr].
   Qed.
 
-  (** *** The logical counterpart of [derivable]
+End capability_word_le.
 
-      The same relations on logical words: [lword_le] keeps the provenance,
-      and the erasure needs one more premise, [subseg_heap_base]: a moved
-      base of an identified capability stays in the heap. *)
-
-  Inductive lword_le : LWord → LWord → Prop :=
-  | lwle_untagged v' v : get_tag v'.(lw) = false → lword_le v' v
-  | lwle_refl v : lword_le v v
-  | lwle_cap t t' p p' g g' b b' e e' a a' π :
-      (t' = true → t = true) →
-      PermFlowsTo p' p → LocalityFlowsTo g' g → (b <= b')%a → (e' <= e)%a →
-      subseg_heap_base π b b' e' →
-      lword_le (WCap t' p' g' b' e' a' @@? π) (WCap t p g b e a @@? π)
-  | lwle_sr t t' p p' g g' b b' e e' a a' π :
-      (t' = true → t = true) →
-      SealPermFlowsTo p' p → LocalityFlowsTo g' g → (b <= b')%ot → (e' <= e)%ot →
-      lword_le (WSealRange t' p' g' b' e' a' @@? π) (WSealRange t p g b e a @@? π).
-
-  (** A logical word derivable from the logical registers [lregs] and PC
-      [lpc]: [derivable] on logical words, the provenance kept by
-      [lword_le], and a sealing or unsealing keeping the sealee's. *)
-  Inductive lderivable (lregs : LReg) (lpc : LWord) : LWord → Prop :=
-  | lderivable_reg r v v' : lregs !! r = Some v → lword_le v' v → lderivable lregs lpc v'
-  | lderivable_pc v' : lword_le v' lpc → lderivable lregs lpc v'
-  | lderivable_seal r1 r2 p g b e a πr sb π :
-      lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealable sb @@? π) →
-      permit_seal p = true → withinBounds b e a = true →
-      lderivable lregs lpc (WSealed a sb @@? π)
-  | lderivable_unseal r1 r2 p g b e a πr o sb π :
-      lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealed o sb @@? π) →
-      permit_unseal p = true → withinBounds b e o = true →
-      lderivable lregs lpc (WSealable (unseal_sb g sb) @@? π).
-
-  (** An identifier-less capability is off the heap: what [interp] gives
-      ([heap_cap_ok p b e None]). *)
-  Definition no_prov_disjoint_from_heap (v : LWord) : Prop :=
-    ∀ p g b e a x, v = Cap p g b e a @@? None → (b <= x)%a → (x < e)%a →
-      is_heap_address x = false.
-
-End capability_monotonicity.
-
-(** [w' ⊑ w]: [w'] carries no more authority than [w]; [v' ⊑ₗ v], the same
-    on logical words. *)
+(** [w' ⊑ w]: [w'] carries no more authority than [w]. *)
 Notation "w' ⊑ w" := (word_le w' w) (at level 70) : capability_scope.
-Notation "v' ⊑ₗ v" := (lword_le v' v) (at level 70) : capability_scope.
 #[local] Open Scope capability_scope.
 
+(** ** What the erasure needs from [⊑] *)
 
-(** ** Lifting: a derivable physical word has a derivable logical word *)
-
-Section capability_lift.
+Section capability_shrink.
   Context `{MP : MachineParameters}.
   Implicit Types (R : RegState) (C : gmap Addr AddrClaim) (vs : LWord) (w : Word).
 
@@ -168,12 +99,6 @@ Section capability_lift.
   Definition lift_root_ok C (π : option AId) w : Prop :=
     π = None → get_tag w = true →
     ∀ b', heap_authority_base w = Some b' → C !! b' = Some HeapRoot.
-
-  (** The lift of the physical word [w'] that a step writes: a logical word,
-      well-formed for the erasure, whose physical copy is [w'], and
-      derivable from the logical registers or PC. *)
-  Definition has_lift R C (lreg : LReg) (lpc : LWord) w' : Prop :=
-    ∃ v, reg_word_ok R C v ∧ reg_phys R v w' ∧ lderivable lreg lpc v.
 
   (** Below a tagged word is only a tagged source. *)
   Lemma word_le_tagged w w' : w' ⊑ w → get_tag w' = true → get_tag w = true.
@@ -239,6 +164,123 @@ Section capability_lift.
     pose proof (Hq ι x' Has Hι Hx Hqd) as Heq.
     by rewrite Heq get_tag_clear_tag in Hts.
   Qed.
+
+End capability_shrink.
+
+(** ** The heap base of a narrowed capability *)
+
+Section subseg_heap_base.
+  Context `{MP : MachineParameters}.
+
+  (** A narrowed capability with an identifier keeps a heap base. The world
+      does not record that objects lie in the heap, so this is a premise:
+      trivial when the base is kept, and otherwise obtained from erasure at
+      the narrowing step ([subseg_heap_base_reg]). *)
+  Definition subseg_heap_base (π : option AId) (b b' e' : Addr) : Prop :=
+    ∀ ι, π = Some ι → b ≠ b' → (b' < e')%a → is_heap_address b' = true.
+
+  Lemma subseg_heap_base_same π b e' : subseg_heap_base π b b e'.
+  Proof. by intros ι _ []. Qed.
+
+  Lemma subseg_heap_base_noid b b' e' : subseg_heap_base None b b' e'.
+  Proof. by intros ι ?. Qed.
+
+End subseg_heap_base.
+
+(** The projections of the erasure, and [erasure_pc_exact], take the
+    erasure only. *)
+#[local] Arguments er_registry {MP R C σ lpc lreg lsreg lmem}.
+#[local] Arguments er_regs {MP R C σ lpc lreg lsreg lmem}.
+#[local] Arguments er_pc {MP R C σ lpc lreg lsreg lmem}.
+#[local] Arguments er_pc_word {MP R C σ lpc lreg lsreg lmem}.
+#[local] Arguments er_pc_ok {MP R C σ lpc lreg lsreg lmem}.
+#[local] Arguments erasure_pc_exact {MP R C σ lpc lreg lsreg lmem}.
+
+(** ** Derivable words *)
+
+Section capability_monotonicity.
+  Context `{MP : MachineParameters}.
+
+  (** A word that an instruction may write: no more authority than a
+      register or the PC of the pre-state, or a sealing by the authority of
+      a register. *)
+  Inductive derivable (φ : ExecConf) : Word → Prop :=
+  | derivable_reg r w w' : reg φ !!ᵣ r = Some w → word_le w' w → derivable φ w'
+  (* The PC as a source: Auipcc. *)
+  | derivable_pc w' : word_le w' (pcc φ) → derivable φ w'
+  (* A sealable sealed by a tagged range that permits sealing at [a]: Seal. *)
+  | derivable_seal r1 r2 t p g b e a sb :
+      reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WSealable sb) →
+      t = true → permit_seal p = true → withinBounds b e a = true →
+      derivable φ (WSealed a sb)
+  (* A sealed word unsealed by a tagged range that permits unsealing at
+     [o]: UnSeal. *)
+  | derivable_unseal r1 r2 t p g b e a o sb :
+      reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WSealed o sb) →
+      t = true → permit_unseal p = true → withinBounds b e o = true →
+      derivable φ (WSealable (unseal_sb g sb)).
+
+  Lemma derivable_untagged φ w : get_tag w = false → derivable φ w.
+  Proof. intros Ht. eapply (derivable_reg _ cnull (WInt 0)); [done | by apply wle_untagged]. Qed.
+
+  (** *** The logical counterpart of [derivable]
+
+      The same relations on logical words: [lword_le] keeps the provenance,
+      and the erasure needs one more premise, [subseg_heap_base]: a moved
+      base of an identified capability stays in the heap. *)
+
+  Inductive lword_le : LWord → LWord → Prop :=
+  | lwle_untagged v' v : get_tag v'.(lw) = false → lword_le v' v
+  | lwle_refl v : lword_le v v
+  | lwle_cap t t' p p' g g' b b' e e' a a' π :
+      (t' = true → t = true) →
+      PermFlowsTo p' p → LocalityFlowsTo g' g → (b <= b')%a → (e' <= e)%a →
+      subseg_heap_base π b b' e' →
+      lword_le (WCap t' p' g' b' e' a' @@? π) (WCap t p g b e a @@? π)
+  | lwle_sr t t' p p' g g' b b' e e' a a' π :
+      (t' = true → t = true) →
+      SealPermFlowsTo p' p → LocalityFlowsTo g' g → (b <= b')%ot → (e' <= e)%ot →
+      lword_le (WSealRange t' p' g' b' e' a' @@? π) (WSealRange t p g b e a @@? π).
+
+  (** A logical word derivable from the logical registers [lregs] and PC
+      [lpc]: [derivable] on logical words, the provenance kept by
+      [lword_le], and a sealing or unsealing keeping the sealee's. *)
+  Inductive lderivable (lregs : LReg) (lpc : LWord) : LWord → Prop :=
+  | lderivable_reg r v v' : lregs !! r = Some v → lword_le v' v → lderivable lregs lpc v'
+  | lderivable_pc v' : lword_le v' lpc → lderivable lregs lpc v'
+  | lderivable_seal r1 r2 p g b e a πr sb π :
+      lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealable sb @@? π) →
+      permit_seal p = true → withinBounds b e a = true →
+      lderivable lregs lpc (WSealed a sb @@? π)
+  | lderivable_unseal r1 r2 p g b e a πr o sb π :
+      lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealed o sb @@? π) →
+      permit_unseal p = true → withinBounds b e o = true →
+      lderivable lregs lpc (WSealable (unseal_sb g sb) @@? π).
+
+  (** An identifier-less capability is off the heap: what [interp] gives
+      ([heap_cap_ok p b e None]). *)
+  Definition no_prov_disjoint_from_heap (v : LWord) : Prop :=
+    ∀ p g b e a x, v = Cap p g b e a @@? None → (b <= x)%a → (x < e)%a →
+      is_heap_address x = false.
+
+End capability_monotonicity.
+
+(** [v' ⊑ₗ v]: [v'] carries no more authority than [v], on logical
+    words. *)
+Notation "v' ⊑ₗ v" := (lword_le v' v) (at level 70) : capability_scope.
+
+
+(** ** Lifting: a derivable physical word has a derivable logical word *)
+
+Section capability_lift.
+  Context `{MP : MachineParameters}.
+  Implicit Types (R : RegState) (C : gmap Addr AddrClaim) (vs : LWord) (w : Word).
+
+  (** The lift of the physical word [w'] that a step writes: a logical word,
+      well-formed for the erasure, whose physical copy is [w'], and
+      derivable from the logical registers or PC. *)
+  Definition has_lift R C (lreg : LReg) (lpc : LWord) w' : Prop :=
+    ∃ v, reg_word_ok R C v ∧ reg_phys R v w' ∧ lderivable lreg lpc v.
 
   (** The heap-base premise of [lwle_cap], from the provenance. *)
   Lemma subseg_heap_base_reg R C st vs b e b' e' :

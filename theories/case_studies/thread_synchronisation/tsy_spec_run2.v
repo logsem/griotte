@@ -132,11 +132,12 @@ Section TSY_run2.
       { case_decide; [done | by iNext]. }
       iApply wp_fupd.
       iAssert (deref_res None 1%Qp) as "Hdr"; first by rewrite /deref_res.
-      iApply (wp_load_success_notinstr (ceriseg := ceriseG_of th) (th := th) (CL := link_core)
+      iApply (wp_load_success_notinstr_imm (ceriseg := ceriseG_of th) (th := th) (CL := link_core)
                 with "[$HPC $Hi $Hct1 $Hct0 $Hflag $Hdr]"); try solve_pure.
       { by apply not_mmio_not_shadow. }
       { done. }
       { split; first done. solve_addr. }
+      { apply finz_add_0. }
       iIntros "!> (HPC & Hct1 & _ & Hct0 & Hflag & _)".
       iMod ("Hclose" with "Hflag") as "Hcrit".
       iModIntro. iNext. iExists InterruptEnabled. iFrame. by iPureIntro. }
@@ -166,13 +167,10 @@ Section TSY_run2.
       iDestruct (tsy_handed_acc B cgp_b with "Hz") as "[ [%wb Hb] Hclose_b]".
       (* Store cgp 42%Z 0 *)
       iInstr "Hcode".
-      { by apply not_mmio_not_shadow. }
       { solve_addr. }
       (* CLoad ct0 cgp 0 *)
       iInstr "Hcode".
-      { by apply not_mmio_not_shadow. }
-      { done. }
-      { split; first done. solve_addr. }
+      { solve_addr. }
       (* Mov ct1 42%Z *)
       iInstr "Hcode".
       subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

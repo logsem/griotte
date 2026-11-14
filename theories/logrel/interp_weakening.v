@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Import memory_region monotone.
+From griotte Require Import memory_region monotone capability_monotonicity.
 From griotte Require Export logrel.
 
 Section fundamental.
@@ -543,19 +543,6 @@ Section fundamental.
     - rewrite unseal_local.
       iApply (interp_borrow_word W C (WSealable sb @@? π) with "Hth Hpayload").
   Qed.
-
-  (** A narrowed capability with an identifier keeps a heap base. The world
-      does not record that objects lie in the heap, so this is a premise:
-      trivial when the base is kept, and otherwise obtained from erasure at
-      the narrowing step (see [observe_prov_heap]). *)
-  Definition subseg_heap_base (π : option AId) (b b' e' : Addr) : Prop :=
-    ∀ ι, π = Some ι → b ≠ b' → (b' < e')%a → is_heap_address b' = true.
-
-  Lemma subseg_heap_base_same π b e' : subseg_heap_base π b b e'.
-  Proof. by intros ι _ []. Qed.
-
-  Lemma subseg_heap_base_noid b b' e' : subseg_heap_base None b b' e'.
-  Proof. by intros ι ?. Qed.
 
   Lemma heap_cap_ok_subseg p b e b' e' π :
     (b <= b')%a -> (e' <= e)%a ->

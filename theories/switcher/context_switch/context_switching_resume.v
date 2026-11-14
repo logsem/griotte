@@ -116,9 +116,6 @@ Section ctx_resume.
     { instantiate (1 := b_switcher). switcher_addr_eq. }
     (* CLoad csp csp 0 *)
     iInstr "Hcode".
-    { pose proof (switcher_data_not_shadow 0 ltac:(lia)) as Hs.
-      by rewrite finz_add_0_default in Hs. }
-    { done. }
     assert (∀ w : LWord, lload_word XSRW_ w = w) as Hload.
     { intros [w π]. rewrite /lload_word /lift_word /= load_word_no_dl_dro //. }
     iEval (rewrite Hload) in "Hcsp".
@@ -332,21 +329,16 @@ Section ctx_resume.
                       MCAUSE_ECALL_MACHINE)) as [Hc | Hc].
     - (* After an ecall, the PC to resume is one word further *)
       (* Jne 2 ct0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct0 $Hct1]"
-        as "(HPC & Hct0 & Hct1)".
-      { cbn [jcond_test]. rewrite Hc. reflexivity. }
+      iInstr "Hcode".
       destruct (lea_result_is_Some (save_area_word ws TrustedStack_offset_mepcc) 1)
         as [wpc Hlea].
       (* Lea ct2 ct2 1 *)
-      iInstrApply "Hcode" wp_lea_success_z_any with "[$HPC $Hct2]" as "(HPC & Hct2)".
-      { exact Hlea. }
+      iInstr "Hcode".
       switcher_change_pc_label ".Lcommon_context_install".
       iApply ("Hend" $! wpc with "[%] HPC Hct0 Hct1 Hct2").
       rewrite (lea_result_lw _ _ _ Hlea). by apply Hecall.
     - (* Jne 2 ct0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct0 $Hct1]"
-        as "(HPC & Hct0 & Hct1)".
-      { cbn [jcond_test]. apply negb_true_iff, Z.eqb_neq. exact Hc. }
+      iInstr "Hcode".
       switcher_change_pc_label ".Lcommon_context_install".
       iApply ("Hend" with "[%] HPC Hct0 Hct1 Hct2").
       by apply Hother.

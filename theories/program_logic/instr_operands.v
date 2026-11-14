@@ -483,7 +483,7 @@ Section load_witness.
       words with authority (variant 4), and, given a witness, untagged posts
       for quarantined identifiers (variant 2) and exact posts for live ones
       (variant 3). Witnesses are preconditions of the load rules
-      ([rules_Load.v]). *)
+      ([instructions/memory_accesses.v]). *)
   Inductive load_witness := LoadPlain | LoadQuar (ι : AId) | LoadLive (ι : AId) (q : Qp).
 
   Definition load_witness_res (wit : load_witness) : iProp Σ :=

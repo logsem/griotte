@@ -1,7 +1,12 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Store.
+From griotte Require Import instructions.memory_accesses.
 
-(** * The derived rules of the revoker *)
+(** * The derived rules of the revoker
+
+    A platform device: a store to the revoker revokes a set of
+    identifiers, which updates the registry and the address claims, so it
+    needs a rule of its own ([wp_store_revoker]), proved from the lifting
+    of [shapes/step.v]. *)
 Section mmio_revoker_rules.
   Context `{MP: MachineParameters}.
   Context `{ceriseg: ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.

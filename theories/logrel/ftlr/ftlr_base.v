@@ -2,7 +2,7 @@ From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
 From griotte Require Export logrel region_open.
-From griotte Require Import monotone interp_weakening.
+From griotte Require Import monotone interp_weakening capability_monotonicity.
 
 (** * The WP of a thread at the core link
 

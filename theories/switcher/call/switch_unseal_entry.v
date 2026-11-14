@@ -191,20 +191,17 @@ Section Switch_Unseal_Entry.
     switcher_hide "Hpost" as hpost.
     (* CLoad cs0 ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LShiftR cs0 cs0 ExportEntry_functionStart_shift *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_off.
     (* Store ctp ct1 TrustedStackFrame_offset_calleeExportTable *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lstore_word_isWL; last reflexivity.
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LShiftR ctp ctp ExportEntry_minimumStackSize_shift *)
     iInstr "Hcode".
     (* LAnd ctp ctp ExportEntry_byte_mask *)
@@ -219,9 +216,7 @@ Section Switch_Unseal_Entry.
     destruct (decide (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z)
       as [Hsmall|Hsmall].
     { (* Jlt .Lswitch_stack_too_small ct2 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct2 $Hctp]"
-        as "(HPC & Hct2 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.ltb_lt; lia. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_stack_too_small")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -229,17 +224,14 @@ Section Switch_Unseal_Entry.
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
       done. }
     (* Jlt .Lswitch_stack_too_small ct2 ctp *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hct2 $Hctp]"
-      as "(HPC & Hct2 & Hctp)".
-    { cbn [jcond_test get_a lw]; apply Z.ltb_ge; lia. }
+    iInstr "Hcode".
     (* Lea csp csp (- StackEntry_reserved_space) *)
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))); last reflexivity.
       clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
-    { done. }
-    { split; auto. rewrite /withinBounds. solve_addr. }
+    { rewrite /withinBounds. solve_addr. }
     (* LAnd ctp ctp ExportEntry_byte_mask *)
     iInstr "Hcode".
     rewrite encode_entry_point_eq_flags.
@@ -258,10 +250,10 @@ Section Switch_Unseal_Entry.
     assert ((b_tbl + ExportTable_offset_pcc)%a = Some b_tbl) as Htbl_pcc_addr by solve_addr.
     (* CLoad cgp ct1 ExportTable_offset_cgp *)
     iInstr "Hcode_load".
-    { split; auto. rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
     (* CLoad cra ct1 ExportTable_offset_pcc *)
     iInstr "Hcode_load".
-    { split; auto. rewrite /withinBounds; solve_addr. }
+    { rewrite /withinBounds; solve_addr. }
     destruct Hentry as [a_entry Hentry].
     (* Lea cra cra cs0 *)
     iInstr "Hcode_load".

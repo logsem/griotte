@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules rules_vcsr proofmode.
+From griotte Require Import memory_region rules traps.vcsr proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import call_stack switcher_exception_states switcher_error_state.
 
@@ -111,8 +111,6 @@ Section Handle_Error_Found.
     switcher_hide "Hpost" as hpost.
     (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
     iInstr "Hcode".
-    { done. }
-    { done. }
     rewrite lload_word_RWL.
     (* Add cs1 cs1 1 *)
     iInstr "Hcode".
@@ -126,8 +124,7 @@ Section Handle_Error_Found.
     iEval (rewrite Hland) in "Hcra".
     destruct (Z.even n) eqn:Hev.
     2: { (* Jeq .Lcommon_force_unwind cra 0 *)
-         iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hcra]" as "(HPC & Hcra)".
-         { reflexivity. }
+         iInstr "Hcode".
          { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
              by switcher_addr_eq. }
          subst hpost.
@@ -135,16 +132,13 @@ Section Handle_Error_Found.
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by left).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
     (* Jeq .Lcommon_force_unwind cra 0 *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hcra]" as "(HPC & Hcra)".
-    { reflexivity. }
+    iInstr "Hcode".
     (* Mov cra MAX_FAULTS_PER_COMPARTMENT_CALL *)
     iInstr "Hcode".
     destruct (decide (cra = cnull)) as [Hcra_null|_]; first done.
     destruct (Z.leb_spec (n + 1) MAX_FAULTS_PER_COMPARTMENT_CALL) as [Hmax | Hmax].
     2: { (* Jlt .Lcommon_force_unwind cra cs1 *)
-         iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcra $Hcs1]"
-           as "(HPC & Hcra & Hcs1)".
-         { cbn [jcond_test get_a lw]; apply Z.ltb_lt; rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL in Hmax; lia. }
+         iInstr "Hcode".
          { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
              by switcher_addr_eq. }
          subst hpost.
@@ -152,9 +146,7 @@ Section Handle_Error_Found.
          iApply ("Hpost" with "[] [-]"); first (iPureIntro; by right).
          iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell". }
     (* Jlt .Lcommon_force_unwind cra cs1 *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hcra $Hcs1]"
-      as "(HPC & Hcra & Hcs1)".
-    { cbn [jcond_test get_a lw]; apply Z.ltb_ge; rewrite /MAX_FAULTS_PER_COMPARTMENT_CALL in Hmax; lia. }
+    iInstr "Hcode".
     destruct Htbl as (p' & g' & e' & a' & Hw & Hread & Hbnd & Hshadow & _).
     injection Hw as <- <- <- _.
     rewrite /ExportTable_offset_errorHandlerStackless in Hbnd.
@@ -179,19 +171,15 @@ Section Handle_Error_Found.
       as [wr1 Hwr1].
     destruct (lea_result_is_Some wr1 off) as [wr2 Hwr2].
     (* SetA cra cra cs1 *)
-    iInstrApply "Hcode" (wp_seta_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr1)
-      with "[$HPC $Hcra $Hcs1]" as "(HPC & Hcs1 & Hcra)".
-    { by rewrite seta_result_lea_result. }
+    iInstr "Hcode".
     (* Lea cra cra cs0 *)
-    iInstrApply "Hcode" (wp_lea_success_reg_any _ _ _ _ _ _ _ _ _ _ _ _ wr2)
-      with "[$HPC $Hcra $Hcs0]" as "(HPC & Hcs0 & Hcra)".
+    iInstr "Hcode".
     assert (handler_word (lload_word p wpcc) off = wr2) as Hhw.
     { by rewrite /handler_word Hwr1 /= Hwr2. }
     rewrite -Hhw.
     destruct (decide (z0 = 0)) as [-> | Hz0].
     - (* Jeq .Lhandle_error_stack_setup ca0 0 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
-      { reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error_stack_setup")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -199,8 +187,8 @@ Section Handle_Error_Found.
       iApply ("Hpost" with "[//] [//]").
       iFrame "HPC Hctp Hct1 Hct2 Hcs0 Hcs1 Hcra Hcgp Hca0 Hcell".
     - (* Jeq .Lhandle_error_stack_setup ca0 0 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_z with "[$HPC $Hca0]" as "(HPC & Hca0)".
-      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
+      iInstr "Hcode".
+      { apply negb_true_iff, Z.eqb_neq; cbn; lia. }
       switcher_change_pc_label ".Lhandle_error_stackless_setup".
       subst hpost.
       iDestruct "Hpost" as "(_ & Hpost & _)".

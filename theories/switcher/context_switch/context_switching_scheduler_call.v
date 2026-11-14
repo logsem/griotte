@@ -256,9 +256,6 @@ Section ctx_scheduler_call.
     { instantiate (1 := b_switcher). switcher_addr_eq. }
     (* CLoad ca0 ca0 0 *)
     iInstr "Hcode".
-    { pose proof (switcher_data_not_shadow 0 ltac:(lia)) as Hs.
-      by rewrite finz_add_0_default in Hs. }
-    { done. }
     iEval (rewrite Hload) in "Hca0".
     (* Seal ca0 ca0 csp *)
     iInstr "Hcode".
@@ -294,21 +291,18 @@ Section ctx_scheduler_call.
     { instantiate (1 := (b_switcher ^+ 4)%a). switcher_addr_eq. }
     (* CLoad csp csp 0 *)
     iInstr "Hcode".
-    { apply (switcher_data_not_shadow 4). lia. }
     iEval (rewrite Hload) in "Hcsp".
     (* Auipcc cgp .scheduler_entry_cgp *)
     iInstr "Hcode".
     { instantiate (1 := (b_switcher ^+ 3)%a). switcher_addr_eq. }
     (* CLoad cgp cgp 0 *)
     iInstr "Hcode".
-    { apply (switcher_data_not_shadow 3). lia. }
     iEval (rewrite Hload) in "Hcgp".
     (* Auipcc cra .scheduler_entry_pcc *)
     iInstr "Hcode".
     { instantiate (1 := (b_switcher ^+ 2)%a). switcher_addr_eq. }
     (* CLoad cra cra 0 *)
     iInstr "Hcode".
-    { apply (switcher_data_not_shadow 2). lia. }
     iEval (rewrite Hload) in "Hcra".
 
     (* The other registers cleared *)

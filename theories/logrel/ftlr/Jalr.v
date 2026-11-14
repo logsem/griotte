@@ -2,8 +2,8 @@ From griotte Require Export logrel.
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre adequacy lifting.
 From stdpp Require Import base.
-From griotte Require Import ftlr_base ftlr_contract interp_weakening.
-From griotte Require Import rules_base rules_Jalr.
+From griotte Require Import ftlr_base ftlr_contract interp_weakening capability_monotonicity.
+From griotte Require Import shapes.step instructions.control.
 From griotte Require Import map_simpl register_tactics.
 Import CoreWPNotations.
 
@@ -57,12 +57,13 @@ Section fundamental.
       apply elem_of_dom. apply Hsome. }
 
     iIntros "!>" (lpc' regs' retv). iDestruct 1 as (HSpec) "(HPC & Ha & Hmap & HT)".
-    destruct HSpec as [ regs' pc_a' wsrc Hrsrc Htgt Hpca' Hregs' | wsrc Hrsrc Htgt | Hpca' ];
+    destruct (step_outcome_cases _ _ _ _ _ _ HSpec) as [ [Hnext ->] | [_ (-> & -> & ->)] ];
       cycle 1.
-    1,2: iDestruct "HT" as "[ [%Hc _] | [_ Hmie] ]"; first done;
-      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes";
-      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto;
-      iNext; iApply (ftlr_post_at_fault with "HPC Hmap Hreg Hworld_interp Hmie"); eauto.
+    { iDestruct "HT" as "[ [%Hc _] | [_ Hmie] ]"; first done.
+      iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
+      iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
+      iNext. iApply (ftlr_post_at_fault with "HPC Hmap Hreg Hworld_interp Hmie"); eauto. }
+    apply jalr_outcome_Some_inv in Hnext as (wsrc & pc_a' & Hrsrc & Htgt & Hpca' & -> & Hregs').
     iDestruct "HT" as "[ [_ Hmie] | [%Hc _] ]"; last done.
     iEval (rewrite /jalr_mie Hrsrc) in "Hmie".
 

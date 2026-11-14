@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
 From griotte Require Import ftlr_base ftlr_contract capability_monotonicity interp_weakening
-  rules_base.
+  shapes.step.
 Import CoreWPNotations.
 #[local] Open Scope capability_scope.
 
@@ -22,7 +22,7 @@ Section shapes_pure.
   Context `{MP : MachineParameters}.
 
   (** The memberships are stated for a step function [step], as in
-      [rules_mem_access.v]: the cases of the fundamental theorem take
+      [shapes/memory_access.v]: the cases of the fundamental theorem take
       [exec_opt]; another semantics reuses the definitions and tactics with
       its own. [exec_with step] is the total step, a failure being a fault, as
       [exec] is of [exec_opt]. *)
@@ -360,13 +360,6 @@ End stop.
 Section regs_pure.
   Context `{MP : MachineParameters}.
 
-  (** What a register step does to the rest of the machine: nothing. This
-      is the place where such an effect (for example on a counter of the
-      system registers) enters; a model with one changes this definition
-      and the closers and tactics that unfold it ([regs_case],
-      [solve_regs_member]). *)
-  Definition regs_effect (φ : ExecConf) : ExecConf := φ.
-
   (** Register step: a register step writes at most one derivable word to
       a register and moves the PC by an offset. A register update moves it
       by [1] ([nextPC]); a jump writes no register, as a write to [cnull]
@@ -375,10 +368,6 @@ Section regs_pure.
     ∀ p φ c, step i p φ = Some c →
       ∃ (dst : RegName) (w : Word) (n : Z),
         derivable φ w ∧ advancePC ((regs_effect φ) .[dst :=ᵣ w]) n = Some c.
-
-  (** A write to [cnull] is no write. *)
-  Lemma update_reg_cnull φ w : φ .[cnull :=ᵣ w] = φ.
-  Proof. destruct φ. by rewrite /update_reg /= insert_reg_cnull. Qed.
 
 End regs_pure.
 

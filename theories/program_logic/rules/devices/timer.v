@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import rules_Load rules_Store.
+From griotte Require Import instructions.memory_accesses shapes.memory_access.
 
 (** * The derived rules of the time devices
 
@@ -130,98 +130,62 @@ Section mmio_timer_rules.
     iApply ("Hφ" $! z). iFrame.
   Qed.
 
-  Lemma wp_store_success_mtimecmp E pc_p pc_g pc_b pc_e pc_a pc_π
-      dst src w regs lpc' p g b e a storev dq :
-    decodeInstrW w.(lw) = Store dst src 0 →
+  (** A store to a time device by a live authority [dst]: it succeeds at
+      [mtimecmp] and faults at [mtime]; either way, no resource changes. *)
+  Lemma wp_store_timedev {E pc_p pc_g pc_b pc_e pc_a pc_π pc_a' w dq dst ρ imm} {regs : LReg}
+      {p g b e a ea} {W : iProp Σ} :
+    decodeInstrW w.(lw) = Store dst ρ imm →
     isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    regs_of (Store dst src 0) ⊆ dom regs →
-    reg_allows_store regs dst p g b e a →
-    (∀ v : LWord, regs !!ₗ dst = Some v → v.(lprov) = None) →
-    lword_of_argument regs src = Some storev →
-    a = mtimecmp_addr →
-    incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) = Some lpc' →
+    reg_allows_mem_access MemAccessWrite regs dst imm p g b e a ea →
+    (∀ v, regs !! dst = Some v → live_witness W v) →
+    is_time_device_address ea = true →
+    (pc_a + 1)%a = Some pc_a' →
     {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
         ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
+        ▷ ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
+        W }}}
       Instr Executable @ E
-    {{{ RET NextIV; PC ↦ₚ lpc' ∗ pc_a ↦ₐ{dq} w ∗ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
+    {{{ retv, RET retv;
+        ((⌜retv = FaultedV⌝ ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) ∨
+         (⌜retv = NextIV⌝ ∗ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) ∗
+        pc_a ↦ₐ{dq} w ∗
+        ([∗ map] k↦y ∈ regs, k ↦ᵣ y) ∗
+        W }}}.
   Proof.
-    iIntros (Hinstr Hvpc Dregs Hallow Hnoid Harg -> Hinc φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    assert (is_time_device_address mtimecmp_addr = true) as Htdev.
-    { apply is_time_device_address_spec. by right. }
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iIntros (Hinstr Hvpc Hacc Hlive Htdev Hpca' φ) "(>HPC & >Hi & >Hmap & Hwit) Hφ".
+    iApply (wp_instr_step_nosw with "HPC Hi Hmap"); [rewrite Hinstr; by apply sw_of_none | done |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
-    rewrite Hinstr in Hstep.
-    (* The destination capability has no identifier and non-empty bounds:
-       its physical copy is exact. *)
-    pose proof Hallow as (Hdstl & Hwa & Hwb).
-    destruct (regs !!ₗ dst) as [v1|] eqn:Hv1; last done. cbn in Hdstl. simplify_eq.
-    destruct (llookup_reg_phys _ _ _ _ _ Hregs Hv1) as (s1 & Hr1 & Hrel1).
-    assert (and_tag s1 (lw v1) = lw v1) as Hex.
-    { eapply reg_phys_exact_cond; first done.
-      - intros (ι & x & Hι & _). by rewrite (Hnoid _ eq_refl) in Hι.
-      - eapply (nonempty_exact_cond v1);
-          [by rewrite Hdstl | apply withinBounds_true_iff in Hwb; solve_addr]. }
-    rewrite Hex Hdstl in Hr1.
-    destruct (lword_of_argument_phys _ _ _ _ _ Hregs Harg) as (s & Hsv & _).
-    rewrite /exec /= Hsv Hr1 /= finz_add_0 /= Hwa Hwb /= /is_mmio_address /mmio_store
-      (time_device_not_shadow_address _ Htdev) (time_device_not_revoker_address _ Htdev) Htdev /=
-      /time_dev_store bool_decide_eq_true_2 // /= in Hstep.
-    pose proof (erasure_set_timedevs _ _ _ _ _ _ _
-      (set_mtimecmp (word_to_bits (and_tag s storev.(lw))) td) Her) as Her1.
-    rewrite /set_timedevs /= in Her1 Hstep.
+    iDestruct (live_witness_cond True W regs dst R (λ _, Hlive) with "HR Hwit") as %Hlive_ok.
+    rewrite Hinstr /exec in Hstep.
+    destruct (exec_opt (Store dst ρ imm) pc_p _) as [conf|] eqn:Hexec; cycle 1.
+    { (* A fault. *)
+      simplify_eq. iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
+      iIntros "HPC Hmap". iApply "Hφ". iSplitL "HPC"; first (iLeft; by iFrame). iFrame. }
+    subst conf.
+    (* A step of the live authority is a store to the device. *)
+    assert (is_mmio_address ea = true) as Hmmio.
+    { by rewrite /is_mmio_address Htdev !orb_true_r. }
+    destruct (store_step_device_inv _ R C _ _ _ _ _ _ dst imm _ p g b e a ea Her Hlregs Hacc
+                (Hlive_ok I) Hmmio (Store_member_argument dst ρ imm pc_p _ _ Hexec))
+      as (w' & φ' & _ & Hstore & Hnext).
+    rewrite /mmio_store (time_device_not_shadow_address _ Htdev)
+      (time_device_not_revoker_address _ Htdev) Htdev /= in Hstore.
+    destruct (time_dev_store td ea w') as [td'|] eqn:Htds; simplify_eq/=.
+    assert (erasure R C (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td')
+              (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) lreg (ls_join lsreg) lmem) as Her1.
+    { exact (erasure_set_timedevs _ _ _ _ _ _ _ td' Her). }
+    assert (nextPC (MkExecConf (Cap pc_p pc_g pc_b pc_e pc_a) r sr m st td') = Some (c, σ'))
+      as Hnext' by exact Hnext.
+    assert (incrementPC (Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π) =
+              Some (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π)) as Hinc.
+    { by apply incrementPC_add. }
     destruct (erasure_incrementPC _ _ _ _ _ _ _ _ _ _ _ _ _ Her1 Hinc) as (pc'' & Hu & Her2).
-    rewrite Hu in Hstep. simplify_eq.
-    iMod (PC_update _ _ lpc' with "HPCa HPC") as "[HPCa HPC]".
+    rewrite Hu in Hnext'. simplify_eq.
+    iMod (PC_update _ _ (Cap pc_p pc_g pc_b pc_e pc_a' @@? pc_π) with "HPCa HPC") as "[HPCa HPC]".
     iModIntro. iSplit; first (iPureIntro; by apply sys_kept_same_sreg).
-    iSplitR "Hφ HPC Hpc_a Hmap".
+    iSplitR "Hφ HPC Hpc_a Hmap Hwit".
     { iApply (SI_close _ _ _ _ _ _ _ Her2 with "HPCa Hr Hsr Hm Hst HR HC"). }
-    iApply "Hφ". iFrame.
-  Qed.
-
-  Lemma wp_store_fail_timedev E pc_p pc_g pc_b pc_e pc_a pc_π
-      dst src w regs p g b e a storev dq :
-    decodeInstrW w.(lw) = Store dst src 0 →
-    isCorrectPC (Cap pc_p pc_g pc_b pc_e pc_a) →
-    regs_of (Store dst src 0) ⊆ dom regs →
-    reg_allows_store regs dst p g b e a →
-    (∀ v : LWord, regs !!ₗ dst = Some v → v.(lprov) = None) →
-    lword_of_argument regs src = Some storev →
-    is_time_device_address a = true →
-    a = mtime_addr →
-    {{{ ▷ PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗
-        ▷ pc_a ↦ₐ{dq} w ∗
-        ▷ [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}
-      Instr Executable @ E
-    {{{ RET FaultedV;
-        PC ↦ₚ Cap pc_p pc_g pc_b pc_e pc_a @@? pc_π ∗ pc_a ↦ₐ{dq} w ∗
-        [∗ map] k↦y ∈ regs, k ↦ᵣ y }}}.
-  Proof.
-    iIntros (Hinstr Hvpc Dregs Hallow Hnoid Harg Htdev Hmtime φ) "(>HPC & >Hpc_a & >Hmap) Hφ".
-    iAssert (▷ ([∗ map] k↦y ∈ (∅ : LMem), k ↦ₐ y))%I as "Hmem".
-    { iNext. by rewrite big_sepM_empty. }
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I as "Hshadow".
-    { iNext. by rewrite big_sepM_empty. }
-    iAssert ([∗ set] k ∈ (∅ : gset Addr), shadow_store_perm k)%I as "Hperms".
-    { by rewrite big_sepS_empty. }
-    iApply (wp_store_fetch _ pc_p pc_g pc_b pc_e pc_a pc_π dst src w ∅ regs ∅ ∅ dq
-      with "[$HPC $Hpc_a $Hmem $Hshadow $Hperms $Hmap]"); try done.
-    { intros p0 g0 b0 e0 a0 storev0 (Hdst0 & _) Harg0.
-      destruct Hallow as (Hdst & _). rewrite Hdst in Hdst0. simplify_eq.
-      by rewrite (time_device_not_shadow_address _ Htdev) Htdev. }
-    iNext. iIntros (lpc0 mem' shadow' retv) "(%Hspec & HPC & Hpc_a & _ & _ & _ & Hmap)".
-    destruct Hallow as (Hdst & Hwa & Hwb).
-    destruct Hspec as
-      [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 Hallow0 Hshadow0 Hlookup0 _ _ _
-      |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0 Hlookup0 _ _ _
-      |p0 g0 b0 e0 a0 ea0 v0 Harg0 (Hdst0 & Hadd0 & _) Htdev0 Hmtimecmp0 _ _ _ _
-      |_ _ Hfail ->].
-    - exfalso. by rewrite lookup_empty in Hlookup0.
-    - exfalso. by rewrite lookup_empty in Hlookup0.
-    - exfalso. rewrite Hdst in Hdst0. simplify_eq.
-      rewrite finz_add_0 in Hadd0. simplify_eq.
-      by apply mtime_mtimecmp_ne.
-    - iApply "Hφ". iFrame.
+    iApply "Hφ". iSplitL "HPC"; first (iRight; by iFrame). iFrame.
   Qed.
 
   (** A store to a time device through a capability without identifier: it
@@ -255,32 +219,14 @@ Section mmio_timer_rules.
   Proof.
     iIntros (Hinstr Hvpc Hwa Hwb Htdev Hpca' Hdst_null φ) "(>HPC & >Hi & >Hsrc & >Hdst) Hφ".
     iDestruct (map_of_regs_2 with "Hdst Hsrc") as "[Hmap %Hdst_src]".
-    iAssert (▷ ([∗ map] k↦y ∈ (∅ : LMem), k ↦ₐ y))%I as "Hmem".
-    { iNext. by rewrite big_sepM_empty. }
-    iAssert (▷ ([∗ map] k↦revoked ∈ (∅ : ShadowTbl), k ↦ₛ revoked))%I as "Hshadow".
-    { iNext. by rewrite big_sepM_empty. }
-    iAssert ([∗ set] k ∈ (∅ : gset Addr), shadow_store_perm k)%I as "Hperms".
-    { by rewrite big_sepS_empty. }
-    iApply (wp_store_fetch _ pc_p pc_g pc_b pc_e pc_a pc_π dst (inr src) w ∅ _ ∅ ∅ dq
-      with "[$HPC $Hi $Hmem $Hshadow $Hperms $Hmap]").
-    { exact Hinstr. }
-    { exact Hvpc. }
-    { rewrite /regs_of /operands_of !dom_insert_L. set_solver+. }
-    { intros p0 g0 b0 e0 a0 storev0 (Hdst0 & _) _.
-      simplify_map_eq.
-      by rewrite (time_device_not_shadow_address _ Htdev) Htdev. }
-    iNext. iIntros (lpc0 mem' shadow' retv) "(%Hspec & HPC & Hi & _ & _ & _ & Hmap)".
-    destruct Hspec as
-      [p0 g0 b0 e0 a0 ea0 v0 oldv0 Harg0 Hallow0 Hshadow0 Hlookup0 _ _ _
-      |p0 g0 b0 e0 a0 ea0 heap_a0 v0 old_status0 Harg0 Hallow0 Hshadow0 Htranslate0 Hlookup0 _ _ _
-      |p0 g0 b0 e0 a0 ea0 v0 Harg0 Hallow0 Htdev0 Hmtimecmp0 _ _ _ Hinc
-      |_ _ Hfail ->].
-    - exfalso. by rewrite lookup_empty in Hlookup0.
-    - exfalso. by rewrite lookup_empty in Hlookup0.
-    - rewrite /incrementPC /incrementPC_gen /= Hpca' in Hinc. simplify_eq.
-      iDestruct (regs_of_map_2 with "Hmap") as "(Hdst & Hsrc)"; first done.
-      iApply "Hφ". iRight. iFrame. done.
-    - iDestruct (regs_of_map_2 with "Hmap") as "(Hdst & Hsrc)"; first done.
-      iApply "Hφ". iLeft. iFrame. done.
+    iApply (wp_store_timedev (W := emp%I) with "[$HPC $Hi $Hmap]");
+      [exact Hinstr | exact Hvpc
+      | split_and!; [by rewrite llookup_reg_not_cnull // lookup_insert_eq | apply finz_add_0
+                    | exact Hwa | exact Hwb]
+      | intros v Hv; apply live_witness_no_id; by simplify_map_eq
+      | exact Htdev | exact Hpca' |].
+    iIntros "!>" (retv) "(Hout & Hi & Hmap & _)".
+    iDestruct (regs_of_map_2 with "Hmap") as "[Hdst Hsrc]"; first done.
+    iApply "Hφ". iDestruct "Hout" as "[ [-> HPC] | [-> HPC] ]"; [iLeft | iRight]; by iFrame.
   Qed.
 End mmio_timer_rules.

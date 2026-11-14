@@ -77,9 +77,10 @@ Section VAE_Init_Blocks_1.
     iDestruct (world_interp_loc_valid with "Hworld Hst") as %Hloc'.
     rewrite Hloc in Hloc'; simplify_eq.
     iPoseProof deref_res_none as "-#Hdw".
-    iInstrApply wp_store_success_z with "[$HPC $Hcgp $Hflag $Hdw]"
+    iInstrApply wp_store_success_z_imm with "[$HPC $Hcgp $Hflag $Hdw]"
       as "(HPC & Hcgp & Hflag & _)".
     { apply withinBounds_true_iff; solve_addr+Hcgp_bounds. }
+    { apply finz_add_0. }
     iMod ("Hclose" with "[$Hst $Hflag]") as "_".
     iInstrEnd.
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

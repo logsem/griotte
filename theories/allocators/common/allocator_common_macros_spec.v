@@ -126,12 +126,8 @@ Section AllocatorMacros.
     iEval (rewrite deref_witness_res_deref_res -Hπ) in "Hdw".
     (* Store rptr 0: the status witness of the capability's identifier
        keeps its copy exact. *)
-    iInstrApply "Hcode" wp_store_success_z_imm with "[$HPC $Hptr $Ha $Hdw]"
-      as "(HPC & Hptr & Ha & Hdw)".
-    { eapply disjoint_from_shadow_not_in; first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff; solve_addr. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff; solve_addr. }
-    { solve_addr. }
     iEval (rewrite Hπ -deref_witness_res_deref_res) in "Hdw".
 
     (* Lea rptr rptr 1 advances the heap cursor. *)
@@ -150,7 +146,7 @@ Section AllocatorMacros.
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jne .allocator_zero rtmp 0 repeats the loop. *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Htmp]" as "(HPC & Htmp)".
+      iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       iApply ("IH" $! (b ^+ 1) with
@@ -311,7 +307,7 @@ Section AllocatorMacros.
         Hlast finz_seq_between_empty; last solve_addr.
       rewrite big_sepL_cons big_sepL_nil. iFrame "∗".
     - (* Jne .allocator_paint rcount 0 repeats the loop. *)
-      iInstrApply "Hcode" wp_jnez_success_jmp_z with "[$HPC $Hcount]" as "(HPC & Hcount)".
+      iInstr "Hcode".
       { apply negb_true_iff, Z.eqb_neq. intros Hzero; cbn in Hzero; solve_addr. }
       { instantiate (1 := pc_a). solve_addr. }
       replace (e - b - 1)%Z with (e - (b ^+ 1))%Z by solve_addr.

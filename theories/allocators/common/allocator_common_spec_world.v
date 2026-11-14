@@ -80,7 +80,7 @@ Section AllocatorCommonWorld.
     iDestruct (big_sepL_sep with "Hpay") as "[Hpay_shadow Hpay_mem]".
     iCombine "Hpay_shadow Hpay_claims" as "Hpayload".
     rewrite -big_sepL_sep.
-    iMod (rules_registry.reg_alloc _ b finish S with "Hpayload")
+    iMod (registry.reg_alloc _ b finish S with "Hpayload")
       as (ι Hι) "(#Hobj & Htok & Hpayload)".
     iModIntro. iExists ι. iFrame "Hobj Htok Hpayload". iSplit; first done.
     iSplitL "Hhdr_mem".

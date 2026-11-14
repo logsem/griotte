@@ -122,9 +122,7 @@ Section HTS_Spec_Assert.
     iExtractList "Hrmap" [ct0;ct1] as ["[Hct0 _]";"[Hct1 _]"].
     (* CLoad ct0 cgp 0. *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow|rewrite /withinBounds; solve_addr]. }
-    { done. }
-    { split; first done. apply withinBounds_true_iff; solve_addr. }
+    { apply withinBounds_true_iff; solve_addr. }
     (* Mov ct1 0. *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

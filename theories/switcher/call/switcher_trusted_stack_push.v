@@ -137,27 +137,21 @@ Section Switcher_Trusted_Stack_Push.
     switcher_hide "Hpost" as hpost.
     (* CLoad ctp ct2 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    { rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* GetLen cs0 ct2 *)
     iInstr "Hcode".
     destruct (decide (tstack_frameoffset d < e_trusted_stack - b_trusted_stack)%Z) as [Hroom|Hroom];
       cycle 1.
     { (* Jle .Lswitch_trusted_stack_exhausted cs0 ctp *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hcs0 $Hctp]"
-        as "(HPC & Hcs0 & Hctp)".
-      { cbn [jcond_test get_a lw]; apply Z.leb_le; lia. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lswitch_trusted_stack_exhausted")%a
           by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
       iFrame "HPC Hcs0 Hcs1 Hctp Hct2 Hcsp Hframeoffset Htstk". }
     (* Jle .Lswitch_trusted_stack_exhausted cs0 ctp *)
-    iInstrApply "Hcode" with "Hlc" wp_jcond_success_next_r_r with "[$HPC $Hcs0 $Hctp]"
-      as "(HPC & Hcs0 & Hctp)".
-    { cbn [jcond_test get_a lw]; apply Z.leb_gt; lia. }
+    iInstr "Hcode" with "Hlc".
     (* Lea ctp ct2 ctp *)
     iInstr "Hcode" with "Hlc'".
     { instantiate (1 := a_tstk ^+ TrustedStackFrame_size). tstack_unfold; solve_addr. }
@@ -189,27 +183,21 @@ Section Switcher_Trusted_Stack_Push.
       as Ha_error_count by (tstack_unfold; solve_addr).
     (* Store ctp csp TrustedStackFrame_offset_csp *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     (* Store ctp 0 TrustedStackFrame_offset_errorHandlerCount *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     (* Store ctp 0 TrustedStackFrame_offset_calleeExportTable *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     (* CLoad cs1 ct2 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. rewrite /withinBounds. tstack_unfold; solve_addr. }
+    { rewrite /withinBounds. tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Add cs1 cs1 TrustedStackFrame_size *)
     iInstr "Hcode".
     (* Store ct2 cs1 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { tstk_not_shadow Hts_shadow. }
     { rewrite /withinBounds; tstack_unfold; solve_addr. }
     repeat rewrite lstore_word_isWL; try reflexivity.
     replace (tstack_frameoffset d + _)%Z with (tstack_frameoffset (S d))

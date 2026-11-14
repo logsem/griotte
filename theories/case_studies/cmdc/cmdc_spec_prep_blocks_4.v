@@ -63,7 +63,6 @@ Section CMDC_Prep_Blocks_4.
     { transitivity (Some cgp_b); auto; solve_addr. }
     (* Store cgp 42%Z 0 *)
     iInstr "Hcode".
-    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* GetA ct0 ca0 *)
     iInstr "Hcode".

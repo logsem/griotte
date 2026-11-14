@@ -1,7 +1,8 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From griotte Require Import rules_mem_access capability_monotonicity ftlr_shapes ftlr_base
-  ftlr_contract interp_weakening world_interp_cells rules_registry.
+From griotte Require Import shapes.memory_access instructions.memory_accesses
+  capability_monotonicity ftlr_shapes ftlr_base ftlr_contract interp_weakening
+  world_interp_cells ghost.registry.
 Import CoreWPNotations.
 #[local] Open Scope capability_scope.
 
@@ -18,7 +19,7 @@ Import CoreWPNotations.
     a store names its authorising register and offset, so the accessed
     region is opened before the step: a quarantined authority
     ([mem_access_quarantined]) or owned cells lent to the WP rules of
-    [rules_mem_access.v] ([mem_access_map]). A stored word is below a
+    [shapes/memory_access.v] ([mem_access_map]). A stored word is below a
     register ([store_source]), hence safe before the world closes. *)
 
 (** ** Stored words *)
@@ -104,7 +105,7 @@ Ltac solve_store_member := solve_mem_access_member_with ltac:(idtac; solve_store
 (** A memory instruction: a load, or a store of a word below a register. *)
 Definition mem_member `{MachineParameters} (step : instr → Perm → ExecConf → option Conf)
     (i : instr) : Prop :=
-  (∃ dst r imm, load_member step i dst r imm) ∨
+  (∃ dst r imm, load_member step griotte_load_filter i dst r imm) ∨
   (∃ r imm, store_member step store_source i r imm).
 
 (** Closes [mem_member step i]: a load, else a store. *)
@@ -339,7 +340,7 @@ Section ftlr_mem_access.
     iSplit; first by rewrite !dom_insert_L. iSplit; first by simplify_map_eq. iSplit.
     { iPureIntro. intros ?????? Hacc1.
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (_ & _ & _ & _ & _ & ->).
-      right. split_and!; [done | by simplify_map_eq | intros _; by simplify_map_eq]. }
+      right. split; [by simplify_map_eq | intros _; by simplify_map_eq]. }
     rewrite memMap_resource_2ne_dq //. iFrame "Hea Ha". iSplitR; iNext.
     - iIntros "!>" (????? ea1 v -> Hacc1 Hv).
       destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & _ & _ & _ & _ & ->).
@@ -402,7 +403,7 @@ Section ftlr_mem_access.
         [done..|].
       iModIntro. iRight. iApply (mem_access_map_pc with "[] Hpc_close Hw Hworld Ha"); first done.
       - intros ?????? Hacc1. destruct (reg_allows_mem_access_det Hacc Hacc1) as (_ & _ & _ & _ & _ & ->).
-        right. split_and!; [done | by simplify_map_eq | intros _; by simplify_map_eq].
+        right. split; [by simplify_map_eq | intros _; by simplify_map_eq].
       - iIntros "!> !>" (????? Hacc1). by destruct (reg_allows_mem_access_det Hacc Hacc1) as (-> & _). }
     (* Another cell, or a quarantined authority. *)
     iDestruct (mem_access_cond_of_reg with "Hth Hv") as (p'' P'' Hpers'') "[#Hrel Hacc]"; [done..|].
@@ -481,7 +482,7 @@ Section ftlr_mem_access.
   (** A load through a quarantined authority: the load faults on the cleared tag
       of [r], with the PC's cell alone. *)
   Lemma load_case_quarantined W C regs p g b e a w i dst r imm ws dq :
-    load_member exec_opt i dst r imm →
+    load_member exec_opt griotte_load_filter i dst r imm →
     not_switch_instr i →
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap p g b e a) →
@@ -496,8 +497,8 @@ Section ftlr_mem_access.
   Proof.
     iIntros (Hmember Hsw Hi HcorrectPC Hsome Hws) "#Hreg HPC Hmap Ha Hclose".
     iApply (wp_load_step (CL := link_core) ⊤ p g b e a None w i dst r imm
-              (<[a := w]> ∅) (<[a := dq]> ∅) with "[$HPC Ha $Hmap]");
-      [done | done | apply Hsw | done
+              griotte_load_filter load_exact (<[a := w]> ∅) (<[a := dq]> ∅) with "[$HPC Ha $Hmap]");
+      [done | done | apply load_choice_exact | exact (Hsw _) | done
       | apply elem_of_dom; rewrite lookup_insert_is_Some'; by left
       | right; apply elem_of_dom; rewrite lookup_insert_is_Some'; right; apply Hsome
       | by simplify_map_eq | by rewrite !dom_insert_L
@@ -515,7 +516,7 @@ Section ftlr_mem_access.
   (** A load of the memory of the access: the loaded word is safe by
       the access condition of its cell, or is an integer from a device. *)
   Lemma load_case_mem W C regs p g b e a w i dst r imm :
-    load_member exec_opt i dst r imm →
+    load_member exec_opt griotte_load_filter i dst r imm →
     not_switch_instr i →
     decodeInstrW w.(lw) = i →
     isCorrectPC (Cap p g b e a) →
@@ -530,9 +531,9 @@ Section ftlr_mem_access.
   Proof.
     iIntros (Hmember Hsw Hi HcorrectPC Hsome) "#IH #Hinv_interp #Hreg HPC Hmap Hacc".
     iDestruct "Hacc" as (mem dfracs Hdom Hpc Hok) "(Hmem & #Hval & Hclose)".
-    iApply (wp_load_step (CL := link_core) ⊤ p g b e a None w i dst r imm mem dfracs
-              with "[$HPC $Hmem $Hmap]");
-      [done | done | apply Hsw | done | apply elem_of_dom, Hsome
+    iApply (wp_load_step (CL := link_core) ⊤ p g b e a None w i dst r imm
+              griotte_load_filter load_exact mem dfracs with "[$HPC $Hmem $Hmap]");
+      [done | done | apply load_choice_exact | exact (Hsw _) | done | apply elem_of_dom, Hsome
       | right; apply elem_of_dom, Hsome | exact Hpc | exact Hdom | exact Hok |].
     iIntros "!>" (lpc' regs' retv) "(%Hres & HPC & Hmem & Hmap)".
     destruct Hres as [ (-> & -> & ->)
@@ -542,19 +543,20 @@ Section ftlr_mem_access.
       iNext. iFrame "Hreg". iApply ("Hclose" with "Hmem"). by iLeft.
     - (* A read of a cell or of a device. *)
       iApply (ftlr_contract_intro_post_next with "IH Hinv_interp HPC Hmap [Hclose Hmem]");
-        [destruct Hcases as [ (lv & _ & ->) | (w' & _ & ->) ]; by apply full_map_linsert
+        [destruct Hcases as [ (lv & v' & _ & _ & ->) | (_ & w' & _ & ->) ]; by apply full_map_linsert
         | done | exact Hinc |].
       iNext. iSplit; last (iApply ("Hclose" with "Hmem"); by iLeft).
-      destruct Hcases as [ (lv & Hlv & ->) | (w' & Ht & ->) ];
+      destruct Hcases as [ (lv & v' & Hlv & Hpost & ->) | (_ & w' & Ht & ->) ];
         iApply (interp_linsert with "Hreg"); iIntros (_).
-      + iApply ("Hval" $! _ _ _ _ _ _ _ eq_refl Hacc1 Hlv).
+      + rewrite /load_exact in Hpost. subst v'.
+        iApply ("Hval" $! _ _ _ _ _ _ _ eq_refl Hacc1 Hlv).
       + by iApply interp_untagged.
   Qed.
 
   (** A load: a quarantined authority ([load_case_quarantined]) or the memory of the
       access ([load_case_mem]). *)
   Lemma load_case m W C regs p p' g b e a w i ρ P dst r imm :
-    load_member exec_opt i dst r imm →
+    load_member exec_opt griotte_load_filter i dst r imm →
     not_switch_instr i →
     ftlr_contract m W C regs p p' g b e a w i ρ P.
   Proof.
@@ -592,7 +594,7 @@ Section ftlr_mem_access.
     iApply (wp_store_step (CL := link_core) ⊤ p g b e a None w i r imm store_source
               (lstore_source (<[r := lclear_tag ws]> regs)) (<[a := w]> ∅) (<[a := dq]> ∅)
               with "[$HPC Ha $Hmap]");
-      [done | done | apply Hsw | done
+      [done | done | exact (Hsw _) | done
       | apply elem_of_dom; rewrite lookup_insert_is_Some'; by left
       | apply store_source_lift; [intros r'; rewrite lookup_insert_is_Some'; by right | done]
       | by simplify_map_eq | by rewrite !dom_insert_L
@@ -630,7 +632,7 @@ Section ftlr_mem_access.
     { iIntros (r' v Hv). iApply (interp_no_prov_disjoint_from_heap W C). by iApply "Hreg". }
     iApply (wp_store_step (CL := link_core) ⊤ p g b e a None w i r imm store_source
               (lstore_source regs) mem dfracs with "[$HPC $Hmem $Hmap]");
-      [done | done | apply Hsw | done | apply elem_of_dom, Hsome
+      [done | done | exact (Hsw _) | done | apply elem_of_dom, Hsome
       | by apply store_source_lift | exact Hpc | exact Hdom | exact Hok |].
     iIntros "!>" (lpc' mem' retv) "(%Hres & HPC & Hmem & Hmap)".
     destruct Hres as [ (-> & -> & ->)
@@ -642,7 +644,7 @@ Section ftlr_mem_access.
       iApply (ftlr_contract_intro_post_next with "IH Hinv_interp HPC Hmap [Hclose Hmem]");
         [done | done | exact Hinc |].
       iNext. iFrame "Hreg". iApply ("Hclose" with "Hmem").
-      destruct Hcases as [ (v & Hstore_source & Hin & ->) | -> ]; last by iLeft.
+      destruct Hcases as [ (v & Hstore_source & Hin & ->) | (_ & ->) ]; last by iLeft.
       iRight. iExists p1, g1, b1, e1, a1, ea1, v. do 4 (iSplit; first done).
       by iApply (lstore_source_sound with "IH Hthread Hreg").
   Qed.

@@ -94,7 +94,6 @@ Section HTS_Spec_Malloc.
     focus_block_0 "Hcode_main" as "Hcode" "Hcont"; iHide "Hcont" as hcont.
     (* Store cgp 0 0. *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow|rewrite /withinBounds; solve_addr]. }
     { apply withinBounds_true_iff; solve_addr. }
     iExtractList "Hrmap" [ca1] as ["Hca1"].
     (* Mov ca1 1. *)

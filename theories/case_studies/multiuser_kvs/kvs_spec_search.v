@@ -122,9 +122,7 @@ Section KVS_search.
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow | rewrite /withinBounds; solve_addr]. }
-    { done. }
-    { split; [done | solve_addr]. }
+    { solve_addr. }
     (* jnez (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* mov ridx_empty ridx; *)
@@ -202,9 +200,7 @@ Section KVS_search.
     iInstr "Hcode".
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow | rewrite /withinBounds; solve_addr]. }
-    { done. }
-    { split; [done | solve_addr]. }
+    { solve_addr. }
     (* jnez (".some_index")%asm rscratch; *)
     iInstr "Hcode".
     (* lea cgp cgp 1; *)
@@ -212,9 +208,7 @@ Section KVS_search.
     { transitivity (Some (cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * n + 1))); [solve_addr | done]. }
     (* load rscratch cgp; *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hcgp_shadow | rewrite /withinBounds; solve_addr]. }
-    { done. }
-    { split; [done | solve_addr]. }
+    { solve_addr. }
     (* sub rscratch rkey rscratch; *)
     iInstr "Hcode".
     destruct (decide (fkey = kidx)) as [-> | Hneq].

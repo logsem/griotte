@@ -59,8 +59,6 @@ Section ClearHazardSlots.
     iEval (rewrite /clear_hazard_slots_instrs /clear_hazard_slots) in "Hcode".
     (* CLoad scratch ts TrustedStack_offset_hazardPointers *)
     iInstr "Hcode".
-    { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hhz_heap) //. }
-    { split; auto. }
     rewrite lload_word_RWL.
     iDestruct (big_sepL2_length with "Hslots") as %Hlen.
     rewrite finz_seq_between_length /finz.dist in Hlen.
@@ -69,12 +67,10 @@ Section ClearHazardSlots.
     iDestruct "Hslots" as "[Hw0 Hw1]".
     (* Store scratch 0 0 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hhz_slots_shadow | rewrite /withinBounds; solve_addr]. }
     { rewrite /withinBounds; solve_addr. }
     assert ((b_hz + 1)%a = Some (b_hz ^+ 1)) as Hhz_1 by solve_addr.
     (* Store scratch 0 1 *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; [exact Hhz_slots_shadow | rewrite /withinBounds; solve_addr]. }
     { rewrite /withinBounds; solve_addr. }
     iApply "Hpost".
     iFrame "HPC Hts Hscratch Hcell".

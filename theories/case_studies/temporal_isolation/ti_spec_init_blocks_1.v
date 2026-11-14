@@ -57,7 +57,6 @@ Section TI_Init_Blocks_1.
     iInstr "Hcode".
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
-    { solve_not_shadow Hcgp_mmio. }
     { solve_addr. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".

@@ -71,7 +71,6 @@ Section DLE_Overwrite_Blocks_3.
     change_pc_to (a_callB ^+ 3).
     (* Store cgp 42%Z 0 *)
     iInstr "Hcode".
-    { solve_not_shadow Hcgp_mmio. }
     { solve_addr+Hcgp_contiguous. }
     (* Mov ca0 0%Z *)
     iInstr "Hcode".

@@ -67,9 +67,7 @@ Section DLE_Assert_Blocks_4.
     change_pc_to (a_callB2 ^+ 2).
     (* CLoad ct0 cgp 0 *)
     iInstr "Hcode".
-    { solve_not_shadow Hcgp_mmio. }
-    { done. }
-    { split; [done| solve_addr]. }
+    { solve_addr. }
     (* Mov ct1 42%Z *)
     iInstr "Hcode".
     subst hcont; unfocus_block "Hcode" "Hcont" as "Hcode_main".

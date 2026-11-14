@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules rules_vcsr proofmode.
+From griotte Require Import memory_region rules traps.vcsr proofmode.
 From griotte Require Import register_tactics.
 From griotte Require Import switcher_exception_states trusted_spill_registers_spec.
 
@@ -177,26 +177,26 @@ Section Exception_Entry.
     switcher_set_pc (a_rejoin ^+ 2%nat)%a.
     pose proof (Hts_k 2 ltac:(lia)) as Hts_2.
     (* Store csp ct1 2 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     iEval (rewrite -!(vcsr_frag_pointsto (ceriseg := ceriseG_of th))) in "Hmepcc Hmcause".
     (* SpecialRW ct0 mepcc cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hct0 $Hmepcc]" as "(HPC & Hct0 & Hmepcc)".
     assert ((@b_trusted_stack (tlayout_of o) + 0)%a = Some (@b_trusted_stack (tlayout_of o)))
       as Hts_0 by solve_addr.
     (* Store csp ct0 0 *)
-    iInstr "Hcode"; [tstk_not_shadow Hts_shadow | rewrite /withinBounds; tstack_unfold; solve_addr |].
+    iInstr "Hcode"; [rewrite /withinBounds; tstack_unfold; solve_addr |].
     (* SpecialRW ct1 mstatus cnull *)
     iInstrApply "Hcode" (wp_csrr_mstatus_frag _ _ _ _ _ _ _ _ _ _ _ InterruptDisabled b)
       with "[$HPC $Hct1 $Hmie $Hmpie]" as "(HPC & Hct1 & Hmie & Hmpie)".
     pose proof (Hts_k 17 ltac:(lia)) as Hts_17.
     (* Store csp ct1 17 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     (* SpecialRW ct1 mcause cnull *)
     iInstrApply "Hcode" wp_cspecialr_vcsr with "[$HPC $Hct1 $Hmcause]" as "(HPC & Hct1 & Hmcause)".
     iEval (rewrite !vcsr_frag_pointsto) in "Hmepcc Hmcause".
     pose proof (Hts_k 18 ltac:(lia)) as Hts_18.
     (* Store csp ct1 18 *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     repeat rewrite lstore_word_isWL; try reflexivity.
     switcher_change_pc_label ".Lexception_might_handle".
     subst hpost; iApply "Hpost".
@@ -289,22 +289,17 @@ Section Exception_Entry.
       iFrame "HPC Hcsp Hct0 Hct1 Hca0 Hmtdc Hs0 Hs2 Hs17 Hs18 Hmie Hmpie Hmepcc Hmcause". }
     destruct (decide (cause = 28%Z)) as [-> | Hcause_ne].
     - (* Jeq .Lhandle_error ca0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hca0 $Hct1]"
-        as "(HPC & Hca0 & Hct1)".
-      { reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
           by switcher_addr_eq. }
       iApply ("Hpost" with "HPC Hca0 Hct1").
     - (* Jeq .Lhandle_error ca0 ct1 *)
-      iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hca0 $Hct1]"
-        as "(HPC & Hca0 & Hct1)".
-      { cbn [jcond_test get_a lw]; apply Z.eqb_neq; lia. }
+      iInstr "Hcode".
       (* Mov ca0 8 *)
       iInstr "Hcode".
       destruct (decide (ca0 = cnull)) as [Hca0_null|_]; first done.
       (* Jlt .Lhandle_error ct1 ca0 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hct1 $Hca0]"
-        as "(HPC & Hct1 & Hca0)".
+      iInstr "Hcode" using jcond_jump_agree_jmp.
       { cbn [jcond_test get_a lw]; apply Z.ltb_lt; destruct Hcause; lia. }
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lhandle_error")%a
           by switcher_addr_eq. }

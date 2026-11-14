@@ -57,7 +57,6 @@ Section IST_Init_Blocks_1.
     iInstr "Hcode".
     (* Store cgp 0%Z 0 *)
     iInstr "Hcode".
-    { by apply not_mmio_not_shadow. }
     { solve_addr. }
     (* Mov ca0 cgp *)
     iInstr "Hcode".

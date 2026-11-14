@@ -78,14 +78,9 @@ Section AllocatorMallocPrepareBlocks3.
     focus_block 2 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iPoseProof deref_res_none as "-#Hdw".
     (* CLoad ct0 cgp. *)
-    iInstrApply "Hcode" wp_load_success_exact
-      with "[$HPC $Hct0 $Hcgp $Hslot $Hdw]"
-      as "(HPC & Hct0 & Hcgp & Hslot & _)".
-    { apply allocator_cgp_not_shadow. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetA ct1 ct0. *)
@@ -137,27 +132,15 @@ Section AllocatorMallocPrepareBlocks3.
     iDestruct "Hheader" as "([%wend Hend] & [%wr1 Hr1] & [%wr2 Hr2] & _)".
     (* Store ct0 ct2. *)
     iInstr "Hcode".
-    { eapply (disjoint_from_shadow_not_in heap_b heap_e next); first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff. solve_addr. }
     { apply withinBounds_true_iff. solve_addr. }
-    iPoseProof deref_res_none as "-#Hdw".
+    assert ((next + 1)%a = Some (next ^+ 1)) as Hnext_1 by solve_addr.
     (* Store ct0 ctp 1. *)
-    iInstrApply "Hcode" (wp_store_success_reg_imm _ _ _ _ _ _ _ _ _ _ ct0 ctp wr1 _ _ _ _ _ (next ^+ 1) 1)
-      with "[$HPC $Hct0 $Hctp $Hr1 $Hdw]"
-      as "(HPC & Hctp & Hct0 & Hr1 & _)".
-    { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff. solve_addr. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { solve_addr. }
-    iPoseProof deref_res_none as "-#Hdw".
+    assert ((next + 2)%a = Some (next ^+ 2)) as Hnext_2 by solve_addr.
     (* Store ct0 0 2. *)
-    iInstrApply "Hcode" (wp_store_success_z_imm _ _ _ _ _ _ _ _ _ _ ct0 0 wr2 _ _ _ _ _ (next ^+ 2) 2)
-      with "[$HPC $Hct0 $Hr2 $Hdw]"
-      as "(HPC & Hct0 & Hr2 & _)".
-    { eapply (disjoint_from_shadow_not_in heap_b heap_e); first exact heap_shadow_disjoint.
-      apply withinBounds_true_iff. solve_addr. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { solve_addr. }
     (* Mov ca2 ca4. *)
     iInstr "Hcode".
     (* The shadow capability, at the first import. *)
@@ -169,8 +152,6 @@ Section AllocatorMallocPrepareBlocks3.
       rewrite /allocator_shadow_import_off. offsets_compute; solve_addr. }
     (* CLoad ctp ctp 0. *)
     iInstr "Hcode".
-    { eapply disjoint_from_shadow_not_in; first exact Hpc_shadow.
-      apply withinBounds_true_iff. offsets_compute; solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hctp".
     iEval (cbn [load_word]) in "Hctp".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
@@ -271,15 +252,9 @@ Section AllocatorMallocPrepareBlocks3.
     focus_block 2 "Hcode_main" of allocator_malloc_blocks at pc_a as a_prep Ha_prep
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iPoseProof deref_res_none as "-#Hdw".
     (* CLoad ct0 cgp. *)
-    iInstrApply "Hcode" wp_load_success_exact
-      with "[$HPC $Hct0 $Hcgp $Hslot $Hdw]"
-      as "(HPC & Hct0 & Hcgp & Hslot & _)".
-    { apply allocator_cgp_not_shadow. }
-    { intros _. left. apply allocator_heap_root_authority. }
+    iInstr "Hcode".
     { apply withinBounds_true_iff. solve_addr. }
-    { intros Heq. apply Hcgp_pc. rewrite Heq elem_of_finz_seq_between. solve_addr. }
     iEval (rewrite /lload_word /lift_word /=) in "Hct0".
     iEval (cbn [load_word]) in "Hct0".
     (* GetA ct1 ct0. *)

@@ -5,7 +5,7 @@ From iris.program_logic Require Export weakestpre.
 From griotte Require Export world_interp seal_store.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
-From griotte Require Import rules_base.
+From griotte Require Import shapes.step.
 From griotte Require Export clear_registers.
 
 

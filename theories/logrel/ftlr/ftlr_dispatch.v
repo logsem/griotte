@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From griotte Require Import ftlr_base ftlr_contract ftlr_shapes rules_mem_access ftlr_mem_access Jalr
+From griotte Require Import ftlr_base ftlr_contract ftlr_shapes shapes.memory_access ftlr_mem_access Jalr
   Ecall.
 Import CoreWPNotations.
 
@@ -111,7 +111,7 @@ Ltac debug_classify i :=
   debug_shape "ShapeStop: stop_member" (stop_member exec_opt i) solve_stop_member;
   debug_shape "ShapeRegs: regs_member" (regs_member exec_opt i) solve_regs_member;
   debug_shape "ShapeMem: mem_member, load"
-    (∃ dst r imm, load_member exec_opt i dst r imm)
+    (∃ dst r imm, load_member exec_opt griotte_load_filter i dst r imm)
     ltac:(idtac; do 3 eexists; solve_load_member);
   debug_shape "ShapeMem: mem_member, store"
     (∃ r imm, store_member exec_opt store_source i r imm)

@@ -212,49 +212,49 @@ Section ctx_exit.
     { intros k Hk. rewrite /withinBounds. tstack_unfold; solve_addr. }
     pose proof (Hts_k 1 ltac:(lia)) as Hts_1.
     (* Store csp 0 TrustedStack_offset_cra. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 2 ltac:(lia)) as Hts_2.
     (* Store csp 0 TrustedStack_offset_csp. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 3 ltac:(lia)) as Hts_3.
     (* Store csp 0 TrustedStack_offset_cgp. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 4 ltac:(lia)) as Hts_4.
     (* Store csp 0 TrustedStack_offset_ctp. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 5 ltac:(lia)) as Hts_5.
     (* Store csp 0 TrustedStack_offset_ct0. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 6 ltac:(lia)) as Hts_6.
     (* Store csp 0 TrustedStack_offset_ct1. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 7 ltac:(lia)) as Hts_7.
     (* Store csp 0 TrustedStack_offset_ct2. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 8 ltac:(lia)) as Hts_8.
     (* Store csp 0 TrustedStack_offset_cs0. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 9 ltac:(lia)) as Hts_9.
     (* Store csp 0 TrustedStack_offset_cs1. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 10 ltac:(lia)) as Hts_10.
     (* Store csp 0 TrustedStack_offset_ca0. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 11 ltac:(lia)) as Hts_11.
     (* Store csp 0 TrustedStack_offset_ca1. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 12 ltac:(lia)) as Hts_12.
     (* Store csp 0 TrustedStack_offset_ca2. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 13 ltac:(lia)) as Hts_13.
     (* Store csp 0 TrustedStack_offset_ca3. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 14 ltac:(lia)) as Hts_14.
     (* Store csp 0 TrustedStack_offset_ca4. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     pose proof (Hts_k 15 ltac:(lia)) as Hts_15.
     (* Store csp 0 TrustedStack_offset_ca5. *)
-    iInstr "Hcode"; [by apply Hts_k_shadow; lia | by apply Hts_k_bounds; lia |].
+    iInstr "Hcode"; [by apply Hts_k_bounds; lia |].
     clear Hts_1 Hts_2 Hts_3 Hts_4 Hts_5 Hts_6 Hts_7 Hts_8 Hts_9 Hts_10 Hts_11 Hts_12 Hts_13 Hts_14
       Hts_15.
     iSpecialize ("Hsave" with "[Hs1 Hs2 Hs3 Hs4 Hs5 Hs6 Hs7 Hs8 Hs9 Hs10 Hs11 Hs12 Hs13 Hs14 Hs15]").

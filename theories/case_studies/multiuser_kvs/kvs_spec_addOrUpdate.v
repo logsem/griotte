@@ -296,12 +296,8 @@ Section KVS_spec_addOrUpdate.
       (* lea cgp cgp 2; *)
       iInstr "Hcode".
       { transitivity ( Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx + 2)) ); last done; solve_addr+Hcgp_idx. }
-      iPoseProof deref_res_none as "-#Hdw".
       (* store cgp ca2; *)
-      iInstrApply "Hcode" rules_Store.wp_store_success_reg_store_word
-        with "[$HPC $Hca2 $Hcgp $Hcgp_val $Hdw]"
-        as "(HPC & Hca2 & Hcgp & Hcgp_val & _)".
-      { eapply disjoint_from_shadow_not_in; first exact Htable_shadow. exact Hcgp_idx. }
+      iInstr "Hcode".
       (* mov ca0 ASM_TRUE *)
       iInstr "Hcode".
       iDestruct (is_physical_kvs_open_wf with "HPKVS") as "[%_ %Hnodup_pkvs_keys]".
@@ -346,30 +342,18 @@ Section KVS_spec_addOrUpdate.
       { transitivity (Some (KVS_cgp_b ^+ ASM_SIZEOF_KVS_ENTRY * idx_empty)%a); solve_addr+ Hidx_empty Hcgp_bounds. }
       (* store cgp ASM_SOME; *)
       iInstr "Hcode".
-      { eapply disjoint_from_shadow_not_in; first exact Htable_shadow.
-        solve_addr+Hcgp_bounds. }
       { solve_addr+Hcgp_bounds. }
       (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 1))); solve_addr+ Hidx_empty Hcgp_bounds. }
-      iPoseProof deref_res_none as "-#Hdw".
       (* store cgp ca0; *)
-      iInstrApply "Hcode" rules_Store.wp_store_success_reg
-        with "[$HPC $Hca0 $Hcgp $Hcgp_key $Hdw]"
-        as "(HPC & Hca0 & Hcgp & Hcgp_key & _)".
-      { eapply disjoint_from_shadow_not_in; first exact Htable_shadow.
-        solve_addr+Hcgp_bounds. }
+      iInstr "Hcode".
       { solve_addr+Hcgp_bounds. }
       (* lea cgp cgp 1; *)
       iInstr "Hcode".
       { transitivity (Some (KVS_cgp_b ^+ (ASM_SIZEOF_KVS_ENTRY * idx_empty + 2))); solve_addr+ Hidx_empty Hcgp_bounds. }
-      iPoseProof deref_res_none as "-#Hdw".
       (* store cgp ca2; *)
-      iInstrApply "Hcode" rules_Store.wp_store_success_reg_store_word
-        with "[$HPC $Hca2 $Hcgp $Hcgp_val $Hdw]"
-        as "(HPC & Hca2 & Hcgp & Hcgp_val & _)".
-      { eapply disjoint_from_shadow_not_in; first exact Htable_shadow.
-        exact Hcgp_bounds. }
+      iInstr "Hcode".
       (* mov ca0 ASM_TRUE; *)
       iInstr "Hcode".
       (* jmp (".addOrUpdate_release")%asm; *)

@@ -1,8 +1,8 @@
 From Stdlib Require Import Eqdep_dec List.
 From griotte Require Import rules.
 From griotte Require Export iris_extra memory_region.
-From griotte Require Import classes tactics_helpers proofmode_instr_support
-  proofmode_instr_rules.
+From griotte Require Import classes tactics_helpers proofmode_instr_rules.
+From griotte Require Export shapes.regs shapes.memory_access proofmode_instr_support.
 From griotte Require Export class_instances solve_pure solve_addr_extra.
 From iris.proofmode Require Import proofmode spec_patterns coq_tactics ltac_tactics reduction.
 From griotte Require Export named_props_extra.
@@ -628,6 +628,13 @@ Qed.
   FramableMachineResource (deref_res π q).
 Qed.
 
+(* A dereference resource of any identifier, symbolic included, from a
+   hypothesis [deref_res π q] (the memory rules of [iInstr]). *)
+#[export] Instance FramableMachineResource_deref_res_hyp `{ceriseG Σ} π q :
+  FramableMachineResource (deref_res π q)
+| 20.
+Qed.
+
 #[export] Instance frame_deref_res_status `{ceriseG Σ} p ι q :
   Frame p (ι ↦st{q} ALive) (deref_res (Some ι) q) emp.
 Proof. rewrite /Frame /deref_res. iIntros "[H _]". by iApply bi.intuitionistically_if_elim. Qed.
@@ -658,7 +665,7 @@ Qed.
 
 Ltac2 Type hyp_table_kind :=
   [ PCReg | Reg | SReg | Mtdc | MtdcLent | Mie | Mpie | Held | VolLent | Mem | Codefrag
-  | CodefragPers | Claim | DerefRes ].
+  | CodefragPers | Claim | DerefRes | DerefResHyp ].
 
 (* Whether the hypothesis named [hname] is in the intuitionistic context. *)
 Ltac2 is_intuitionistic_hyp (hname: constr) :=
@@ -695,6 +702,7 @@ Ltac2 record_framed
     | (addr_alloc ?a _) => (a, Claim)
     | (st_own ?ι _ _) => (ι, DerefRes)
     | (deref_res (Some ?ι) _) => (ι, DerefRes)
+    | (deref_res ?π _) => (π, DerefResHyp)
     end in
   table.(contents) := (hname, lhs, kind) :: table.(contents).
 
@@ -747,12 +755,6 @@ Ltac iSpecializeFrameApplyStart lem :=
   |solve_to_wand tt
   |tc_solve
   |pm_reduce].
-
-Ltac iApplyHypLast H :=
-  eapply tac_apply with H _ _ _;
-  [pm_reflexivity
-  |tc_solve
-  |pm_reduce; pm_prettify].
 
 Ltac2 iApplyCapAutoT_init0 lemma :=
   let tbl := { contents := [] } in
@@ -855,6 +857,12 @@ Ltac2 name_cap_resource (name, lhs, kind) :=
     match! goal with [ |- context [ deref_res ?π ?q ] ] =>
       let π' := eval cbn in $π in
       assert_constr_eq π' '(Some $lhs);
+      ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
+        (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
+    end
+  | DerefResHyp =>
+    match! goal with [ |- context [ deref_res ?π ?q ] ] =>
+      assert_constr_eq π lhs;
       ltac1:(q π name |- change (deref_res π q) with (name ∷ (deref_res π q)))
         (Ltac1.of_constr q) (Ltac1.of_constr π) (Ltac1.of_constr name)
     end
@@ -980,7 +988,7 @@ Ltac simplify_cap_word :=
 
 (* TODO: make this extensible. Remove updatePcPerm? unfolding sometimes causes issues. *)
 Ltac2 iApplyCapAuto_cleanup () :=
-  cbn [rules_Get.denote rules_BinOp.denote updatePcPerm deref_res
+  cbn [get_denote binop_denote updatePcPerm deref_res
        get_a get_b get_e get_p get_l
        get_a_sealable get_b_sealable get_e_sealable get_p_sealable get_l_sealable
        encodePermSum
@@ -997,6 +1005,21 @@ Ltac instantiate_deref_res_none :=
     is_evar q; assert_fails (has_evar π);
     let π' := eval cbn in π in
     lazymatch π' with None => unify q 1%Qp end
+  end.
+
+(* An undetermined share of [deref_res π q] is the share of the
+   dereference resource of [π] in the spatial context, if any. *)
+Ltac instantiate_deref_res_ctx :=
+  repeat match goal with
+  | |- envs_entails (Envs _ ?Γs _) ?P =>
+    match P with
+    | context [ deref_res ?π ?q ] =>
+      is_evar q; assert_fails (has_evar π);
+      match Γs with
+      | context [ Esnoc _ _ (deref_res π ?q') ] =>
+        assert_fails (has_evar q'); unify q q'
+      end
+    end
   end.
 
 (* The resource given back for [deref_res None q] is an anonymous [emp]. *)
@@ -1031,13 +1054,24 @@ Ltac instr_not_route_imp :=
   | _ => idtac
   end.
 
+(* A fact [mem_access_fact P] of the memory fallback waits until [P] has no
+   evar: then it is unfolded and tried. *)
+Ltac instr_mem_fact_ready :=
+  lazymatch goal with
+  | |- mem_access_fact ?P =>
+      tryif has_evar P then fail else change P
+  | _ => idtac
+  end.
+
 Ltac2 iApplyCapAutoCore lemma :=
   let tbl := iApplyCapAutoT_init0 lemma in
+  on_lasts [ (fun _ => ltac1:(instantiate_deref_res_ctx)) ];
   let iFrameCap := fun () => record_framed tbl (iFrameAuto ()) in
   grepeat (fun _ =>
     Control.extend []
       (fun _ => try (Control.once (fun () =>
-                       ltac1:(instr_not_route_imp); solve_pure_iinstr ())))
+                       ltac1:(instr_not_route_imp); ltac1:(instr_mem_fact_ready);
+                       solve_pure_iinstr ())))
       [ (fun _ => try (iFrameCap ())) ]);
   on_lasts [ (fun _ =>
     ltac1:(instantiate_deref_res_none);
@@ -1140,11 +1174,6 @@ Ltac instr_get_rule_using dispatch hi cont :=
   lazymatch goal with |- context [ Esnoc _ hi (_ ↦ₐ{_} (encodeInstrW ?instr) @@? _)%I ] =>
     dispatch instr cont
   end.
-
-Ltac instr_get_rule0 hi cont :=
-  instr_get_rule_using dispatch_instr_rule hi cont.
-
-Tactic Notation "iInstr_get_rule" constr(hi) tactic(cont) := instr_get_rule0 hi cont.
 
 (* On persistent code, the instruction looked up is dropped: it is the
    persistent points-to to an instruction in the spatial context, or else an
@@ -1267,24 +1296,6 @@ Ltac instr_finish hprog hlc hlc' :=
   try wp_pure_lc hlc';
   try (iCombine_ident (INamed hlc) hlc' as (INamed hlc)).
 
-(* The comparison of a conditional jump, by computation, from a hypothesis,
-   or by [lia] on the comparison of the operands. *)
-Ltac solve_jcond_test :=
-  cbn [jcond_test];
-  first
-    [ reflexivity
-    | assumption
-    | lazymatch goal with
-      | |- Z.eqb _ _ = true => apply Z.eqb_eq; lia
-      | |- Z.eqb _ _ = false => apply Z.eqb_neq; lia
-      | |- negb (Z.eqb _ _) = true => apply negb_true_iff, Z.eqb_neq; lia
-      | |- negb (Z.eqb _ _) = false => apply negb_false_iff, Z.eqb_eq; lia
-      | |- Z.ltb _ _ = true => apply Z.ltb_lt; lia
-      | |- Z.ltb _ _ = false => apply Z.ltb_ge; lia
-      | |- Z.leb _ _ = true => apply Z.leb_le; lia
-      | |- Z.leb _ _ = false => apply Z.leb_gt; lia
-      end ].
-
 (* The premise [route_pre th b → route_pre th b'] of an MIE writer: the
    new MIE is disabled, is the old one, or the thread is not the
    context switch. Fails otherwise. The premise of a jump is guarded by
@@ -1304,8 +1315,7 @@ Ltac instr_route_imp :=
 
 (* Integer operands are matched through [IsLInt] rather than by framing a
    [WInt _] points-to, so a rule only applies if its [IsLInt] premises are
-   proved. Likewise, a conditional jump's rule (taken or not) only applies if
-   its comparison is proved. An mtdc write commits to a transfer of the clause
+   proved. An mtdc write commits to a transfer of the clause
    of the mtdc token only if the word it writes stands for a known ghost value
    (the home value, to return the token), its ghost value is known not to be
    the home value when it leaves another value, and is known to be the home
@@ -1319,7 +1329,6 @@ Ltac instr_route_imp :=
 Ltac instr_commit_lint :=
   lazymatch goal with
   | |- IsLInt _ _ => solve [ltac2:(solve_pure_iinstr ())]
-  | |- jcond_test _ _ _ = _ => solve [solve_jcond_test]
   | |- mtdc_match ?m _ =>
       tryif has_evar m then idtac else solve [assumption | done | hnf; eexists; reflexivity]
   | |- _ = mtdc_home => solve [assumption | done]
@@ -1329,6 +1338,7 @@ Ltac instr_commit_lint :=
   | |- route_pre _ _ → route_pre _ _ => try instr_route_imp
   | |- ∀ _, _ → _ → route_pre _ _ → route_pre _ _ => try instr_route_imp
   | |- _ ≠ exit_marker => try solve [ cbv [exit_marker MCAUSE_THREAD_EXIT]; congruence ]
+  | |- mem_access_fact ?P => change P
   | _ => idtac
   end.
 
@@ -1357,22 +1367,25 @@ Ltac instr_using_rule dispatch apply_rule hprog hlc :=
 Ltac instr_using dispatch hprog hlc :=
   instr_using_rule dispatch instr_apply_rule hprog hlc.
 
-(* Explicit invalidation leaves the semantic premises that automation cannot
-   prove to the caller; the Subseg conversion-overflow rules require their
-   evidence before being selected. *)
-Ltac instr_apply_invalidation hprog hlc hlc' rule :=
-  iApplyCapAuto rule;
-  [ instr_commit_lint; try instr_auto_solve_invalidation; instr_guard_invalidation_premise ..
-  | instr_finish hprog hlc hlc'; try done ].
-
 (* The success interface is the ordinary instruction-rule dispatch,
    including instructions whose specified behavior is Halt or Fail. *)
 Ltac instr_lc hprog hlc := instr_using dispatch_instr_rule hprog hlc.
-Ltac iInstr_lc hprog hlc := instr_lc hprog hlc.
 Tactic Notation "iInstr_success" constr(H) := instr_lc H "_".
 Tactic Notation "iInstr_success" constr(H) "with" constr(Hlc) := instr_lc H Hlc.
 Tactic Notation "iInstr" constr(H) := iInstr_success H.
 Tactic Notation "iInstr" constr(H) "with" constr(Hlc) := iInstr_success H with Hlc.
+
+(* The register step in closed form [s] named by the client, for a fact
+   that the search in [regs_next_ok_db] does not decide: its other premises
+   are searched for, and the rest are left as side goals before the main
+   goal. *)
+Ltac instr_next_ok_using hprog hlc s :=
+  instr_using_rule ltac:(fun instr cont => dispatch_next_ok_using s instr cont)
+    instr_apply_rule hprog hlc.
+Tactic Notation "iInstr" constr(H) "using" open_constr(s) :=
+  instr_next_ok_using H "_" s.
+Tactic Notation "iInstr" constr(H) "with" constr(Hlc) "using" open_constr(s) :=
+  instr_next_ok_using H Hlc s.
 
 (* Runtime failure of the current instruction: the PC and the operand
    registers are returned unchanged, and the goal is the fault
@@ -1383,15 +1396,6 @@ Tactic Notation "iInstr_fail" constr(H) :=
 Tactic Notation "iInstr_fail" constr(H) "with" constr(Hlc) :=
   instr_using dispatch_instr_failure H Hlc;
   try solve [instr_auto_solve_failure | by simplify_map_eq].
-
-(* The instruction executes, but its result is a capability whose validity
-   tag is cleared. *)
-Tactic Notation "iInstr_invalidate" constr(H) :=
-  instr_normalize_register_aliases;
-  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H "_".
-Tactic Notation "iInstr_invalidate" constr(H) "with" constr(Hlc) :=
-  instr_normalize_register_aliases;
-  instr_using_rule dispatch_instr_invalidation instr_apply_invalidation H Hlc.
 
 (** * Explicit instruction rules
 

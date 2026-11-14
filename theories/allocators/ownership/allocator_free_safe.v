@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel proofmode switcher_base switcher_base_ktk.
-From griotte Require Import register_tactics map_simpl rules_registry.
+From griotte Require Import register_tactics map_simpl ghost.registry.
 From griotte Require Import world_interp_stack wp_rules_interp.
 From griotte.allocators.ownership Require Import allocator allocator_preamble.
 From griotte.allocators.ownership Require Import allocator_header_spec.

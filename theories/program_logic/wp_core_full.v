@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.program_logic Require Import weakestpre.
-From griotte Require Import rules_base.
+From griotte Require Import shapes.step.
 
 (** * The full-link adapter
 

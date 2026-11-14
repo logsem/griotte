@@ -1,5 +1,5 @@
 From iris.proofmode Require Import proofmode.
-From griotte Require Import memory_region rules rules_vcsr proofmode.
+From griotte Require Import memory_region rules traps.vcsr proofmode.
 From griotte Require Export logrel switcher switcher_preamble switcher_error_handler.
 From griotte Require Import switcher_exception_states copy_context_spec switcher_registers.
 From griotte.switcher.failure Require Import common_force_unwind.

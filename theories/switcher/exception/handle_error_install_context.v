@@ -203,9 +203,7 @@ Section Handle_Error_Install_Context.
       by (subst a_frameoffset; tstack_unfold; solve_addr).
     (* CLoad ctp ct1 TrustedStack_offset_frameoffset *)
     iInstr "Hcode".
-    { subst a_frameoffset; tstk_not_shadow Hts_shadow. }
-    { done. }
-    { split; auto. subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
+    { subst a_frameoffset; rewrite /withinBounds; tstack_unfold; solve_addr. }
     rewrite lload_word_RWL.
     (* Add ctp ctp (- TrustedStackFrame_size) *)
     iInstr "Hcode".
@@ -334,9 +332,7 @@ Section Handle_Error_Install_Context.
       iInstr "Hcode".
       destruct (lea_result_is_Some wpcc (get_a v0.(lw) - get_a wpcc.(lw))) as [wpc Hwpc].
       (* SetA ct2 ct0 cra *)
-      iInstrApply "Hcode" (wp_seta_success_reg_any_src _ _ _ _ _ _ _ _ _ _ _ _ _ wpc)
-        with "[$HPC $Hct0 $Hcra $Hct2]" as "(HPC & Hct0 & Hcra & Hct2)".
-      { by rewrite seta_result_lea_result. }
+      iInstr "Hcode".
       assert (resumed_pc wpcc (get_a v0.(lw)) = wpc) as Hresumed
         by (by rewrite /resumed_pc Hwpc).
       (* Lea ca2 csp TrustedStack_offset_cra *)
@@ -410,15 +406,12 @@ Section Handle_Error_Install_Context.
           as Ha_cnt by (subst a_cnt_cell; tstack_unfold; solve_addr).
         (* CLoad cs1 ctp TrustedStackFrame_offset_errorHandlerCount *)
         iInstr "Hcode".
-        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
-        { done. }
-        { split; auto. subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
+        { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
         rewrite lload_word_RWL.
         (* Add cs1 cs1 1 *)
         iInstr "Hcode".
         (* Store ctp cs1 TrustedStackFrame_offset_errorHandlerCount *)
         iInstr "Hcode".
-        { subst a_cnt_cell; tstk_not_shadow Hts_shadow. }
         { subst a_cnt_cell; rewrite /withinBounds; tstack_unfold; solve_addr. }
         iEval (rewrite lstore_word_isWL //) in "Hcnt".
         (* Mov csp ct1 *)

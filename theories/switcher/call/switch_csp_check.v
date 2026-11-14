@@ -52,15 +52,12 @@ Section Switch_Csp_Check.
     (* GetP ct2 csp *)
     iInstr "Hcode".
     set (p0 := encodePermSum (get_p wcsp.(lw))).
-    assert (rules_Get.denote (GetP ct2 csp) wcsp.(lw) = Some p0) as Hp0 by done.
+    assert (get_denote (GetP ct2 csp) wcsp.(lw) = Some p0) as Hp0 by done.
     (* Mov ctp COMPARTMENT_STACK_PERMISSIONS *)
     iInstr "Hcode".
     destruct (decide (p0 = COMPARTMENT_STACK_PERMISSIONS)) as [Hp0'|Hp0']; cycle 1.
     { (* Jne .Lcommon_force_unwind ctp ct2 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hctp $Hct2]"
-        as "(HPC & Hctp & Hct2)".
-      { cbn [jcond_test get_a lw].
-        apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hp0'; rewrite -Heq; reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -69,22 +66,16 @@ Section Switch_Csp_Check.
       { iPureIntro; intros [Hcontra _]; rewrite Hp0 in Hcontra; simplify_eq; lia. }
       iExists _, _. iFrame "HPC Hcsp Hct2 Hctp". }
     (* Jne .Lcommon_force_unwind ctp ct2 *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct2]"
-      as "(HPC & Hctp & Hct2)".
-    { cbn [jcond_test get_a lw].
-      apply negb_false_iff, Z.eqb_eq; rewrite Hp0'; reflexivity. }
+    iInstr "Hcode".
     (* GetL ct2 csp *)
     iInstr "Hcode".
     set (g0 := encodeLoc (get_l wcsp.(lw))).
-    assert (rules_Get.denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
+    assert (get_denote (GetL ct2 csp) wcsp.(lw) = Some g0) as Hg0 by done.
     (* Mov ctp COMPARTMENT_STACK_LOCALITY *)
     iInstr "Hcode".
     destruct (decide (g0 = COMPARTMENT_STACK_LOCALITY)) as [Hg0'|Hg0']; cycle 1.
     { (* Jne .Lcommon_force_unwind ctp ct2 *)
-      iInstrApply "Hcode" wp_jcond_success_jmp_r_r with "[$HPC $Hctp $Hct2]"
-        as "(HPC & Hctp & Hct2)".
-      { cbn [jcond_test get_a lw].
-        apply negb_true_iff, Z.eqb_neq; intros Heq; apply Hg0'; rewrite -Heq; reflexivity. }
+      iInstr "Hcode".
       { jump_to (a_switcher_call ^+ switcher_label_offset ".Lcommon_force_unwind")%a
           by switcher_addr_eq. }
       subst hpost.
@@ -93,10 +84,7 @@ Section Switch_Csp_Check.
       { iPureIntro; intros [_ Hcontra]; rewrite Hg0 in Hcontra; simplify_eq; lia. }
       iExists _, _. iFrame "HPC Hcsp Hct2 Hctp". }
     (* Jne .Lcommon_force_unwind ctp ct2 *)
-    iInstrApply "Hcode" wp_jcond_success_next_r_r with "[$HPC $Hctp $Hct2]"
-      as "(HPC & Hctp & Hct2)".
-    { cbn [jcond_test get_a lw].
-      apply negb_false_iff, Z.eqb_eq; rewrite Hg0'; reflexivity. }
+    iInstr "Hcode".
     switcher_change_pc_label ".Lswitch_entry_first_spill".
     rewrite Hg0'.
     subst hpost.

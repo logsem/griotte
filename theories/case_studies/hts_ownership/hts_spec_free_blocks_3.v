@@ -177,7 +177,6 @@ Section HTS_Spec_Free.
     iSimpl in "Hdw".
     (* Store ca0 cgp 0. *)
     iInstr "Hcode".
-    { apply hts_heap_not_shadow. solve_addr. }
     { apply withinBounds_true_iff; solve_addr. }
     iDestruct ("Hdw_close" with "Hdw") as "Hb_share".
     (* Mov ca1 ca0. *)
