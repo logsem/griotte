@@ -38,11 +38,12 @@ Theorem hts_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (hts_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & allocator & B & sched & ot_alloc & <- & Hfw).
+    as (sw & assert & assert_flag & t0 & idle & boot & main & allocator & B & sched & ot_alloc
+        & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_hts_CmptNameG)
             #[allocator_ownerΣ; @seal_registryΣ CmptNames_hts_CmptNameG LAddr _ _]
             (hts_firmware ot_alloc)
-            (hts_img sw asrt t0 idle boot main allocator B sched));
+            (hts_img sw assert assert_flag t0 idle boot main allocator B sched));
     [| exact Hfw | exact Hstep].
   apply (hts_fw_obligations (B := hts_adv_B) (Sched := hts_sched)); done.
 Qed.

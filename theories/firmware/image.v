@@ -70,26 +70,26 @@ Record img_switcher : Type := MkImgSwitcher {
   ot_switcher : OType;
 }.
 
-(** The assert library: its code, the capability to its flag, and the flag. *)
-Record img_assert : Type := MkImgAssert {
-  b_assert : Addr;
-  e_assert : Addr;
-  cap_assert : Addr;
-  flag_assert : Addr;
+(** A library: its PCC region (the import table, then the code). *)
+Record img_lib : Type := MkImgLib {
+  lib_b : Addr;
+  lib_e : Addr;
 }.
 
-(** The lock library: its code. *)
-Record img_locks : Type := MkImgLocks {
-  b_locks : Addr;
-  e_locks : Addr;
+(** A shared object: its region. *)
+Record img_shared_object : Type := MkImgShared {
+  sh_b : Addr;
+  sh_e : Addr;
 }.
 
-(** An image: the compartments by name, in the order of the firmware, the
-    threads of the firmware, the idle thread and the boot stack. *)
+(** An image: the libraries, the shared objects and the compartments by
+    name, in the order of the firmware, the threads of the firmware, the
+    idle thread and the boot stack. The words of the libraries and of the
+    shared objects are determined by the firmware. *)
 Record fw_image : Type := MkFwImage {
   img_sw : img_switcher;
-  img_asrt : img_assert;
-  img_lck : img_locks;
+  img_libs : list (string * img_lib);
+  img_shared : list (string * img_shared_object);
   img_cmpts : list (string * img_cmpt);
   img_threads : list img_thread;
   img_idle : img_idle_thread;
@@ -103,7 +103,9 @@ Definition za0 : Addr := za.
 Definition default_img_cmpt : img_cmpt :=
   MkImgCmpt za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 za0 [] [] [] [] (WInt 0) (WInt 0) [].
 
-Definition default_img_locks : img_locks := MkImgLocks za0 za0.
+Definition default_img_lib : img_lib := MkImgLib za0 za0.
+
+Definition default_img_shared_object : img_shared_object := MkImgShared za0 za0.
 
 Definition default_img_thread : img_thread := MkImgThread za0 za0 za0 za0 za0 za0.
 
@@ -115,6 +117,16 @@ Fixpoint assoc {A} (n : string) (l : list (string * A)) (d : A) : A :=
 
 Definition cmpt_of (img : fw_image) (n : string) : img_cmpt :=
   assoc n (img_cmpts img) default_img_cmpt.
+
+Definition lib_of (img : fw_image) (n : string) : img_lib :=
+  assoc n (img_libs img) default_img_lib.
+
+Definition shared_of (img : fw_image) (n : string) : img_shared_object :=
+  assoc n (img_shared img) default_img_shared_object.
+
+(** The assert flag, the observable of the firmware adequacy: the base of
+    the shared object named ["assert_flag"]. *)
+Definition img_flag (img : fw_image) : Addr := sh_b (shared_of img "assert_flag").
 
 Fixpoint fw_nth {A} (k : nat) (l : list A) (d : A) : A :=
   match l, k with

@@ -74,10 +74,11 @@ Definition ti_B_adv_word : Z :=
   encode_entry_point InterruptEnabled 0 0 (Z.of_nat ti_B_adv_offset).
 
 Lemma ti_demo_ok :
-  ti_initial_state_ok (flag_assert (img_asrt ti_demo_image)) ti_demo_state.
+  ti_initial_state_ok (img_flag ti_demo_image) ti_demo_state.
 Proof.
   rewrite /ti_initial_state_ok.
-  exists (img_sw ti_demo_image), (img_asrt ti_demo_image),
+  exists (img_sw ti_demo_image), (lib_of ti_demo_image "assert"),
+    (shared_of ti_demo_image "assert_flag"),
     (thread_of ti_demo_image 0), (thread_of ti_demo_image 1),
     (img_idle ti_demo_image), (img_boot ti_demo_image),
     (cmpt_of ti_demo_image "K"), (cmpt_of ti_demo_image "B"),
@@ -118,7 +119,7 @@ Qed.
 Theorem ti_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], ti_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt ti_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag ti_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 16500%N) ti_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

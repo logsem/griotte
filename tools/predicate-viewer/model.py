@@ -262,8 +262,17 @@ FIELD_REGION = {"cmpt_imports": "PCC range", "cmpt_code": "PCC range",
                 "cmpt_exp_tbl_handler": "export table",
                 "cmpt_exp_tbl_handler_stackless": "export table"}
 CMPT_SUBS = set(FIELD_REGION.values())
-# Shown after the compartments, in this order of appearance.
-LIBRARY_OWNERS = {"switcher", "assert", "locks", "allocator"}
+# Shown after the compartments, in this order of appearance, with the
+# libraries and the shared objects of the image (Model.owner_kinds).
+LIBRARY_OWNERS = {"switcher", "allocator"}
+# The regions of a library and of a shared object, by their range or memory
+# note: "<lib>, import table and code", "shared object <name>[, …]".
+LIB_NOTE = re.compile(r"^(.+?), import table and code$")
+SHARED_NOTE = re.compile(r"^shared object (\S+?)(?:, .*)?$")
+# The record type of a library and of a shared object binder, and the
+# owner kinds they give; the old image's assert and lock libraries too.
+BINDER_KINDS = {"img_lib": "library", "img_shared_object": "shared object",
+                "img_assert": "library", "img_locks": "library"}
 FIELD_NOTE = {"cmpt_exp_tbl_handler": "error handler",
               "cmpt_exp_tbl_handler_stackless": "stackless handler"}
 EXPORT_TABLE_NO_HANDLER = 0xffff  # ExportTable_no_handler
@@ -297,6 +306,8 @@ class Model:
         self.eqs = {}          # layout: clean "A + L" -> clean B, from "A + L = Some (B)"
         self.props = []
         self.binder_owner = {}  # variable -> owner name
+        self.owner_kinds = {}   # library or shared object owner -> [display name, kind]
+        self.binder_kind = {}   # library or shared object variable -> its kind
         self.lengths = {}      # clean list term -> its length, from "length X = n"
         self.foralls = [s for s in self.all if s.get("k") == "forall"]
         for s in self.all:
@@ -306,6 +317,9 @@ class Model:
                     if isinstance(b, dict):
                         for n in b.get("names", []):
                             self.binder_owner[n] = self.owner_name(n, str(b.get("type", "")))
+                            ty = str(b.get("type", "")).split(".")[-1]
+                            if ty in BINDER_KINDS:
+                                self.binder_kind[n] = BINDER_KINDS[ty]
             elif k == "prop":
                 self.props.append(str(s.get("text", "")))
             elif k == "eq":
@@ -337,6 +351,34 @@ class Model:
                 if lhs != f"{base} + {off}":
                     self.eqs.setdefault(lhs, tgt)
                 self.incrs.append((base, off, tgt, lhs))
+        self.name_lib_binders()
+
+    def name_lib_binders(self):
+        """Name the library and shared object binders after what they lay
+        out, from the notes of their ranges and memory regions: [la] with
+        the range "assert, import table and code" based at [lib_b la] is the
+        owner "assert", [fo] with "shared object assert_flag" at [sh_b fo]
+        the owner "shared object assert_flag"."""
+        notes = []
+        for s in self.all:
+            if s.get("k") == "disjoint":
+                notes += [(rg.get("comment", ""), rg.get("b")) for rg in s.get("ranges") or [] if isinstance(rg, dict)]
+            elif s.get("k") == "eq" and isinstance(s.get("rhs"), dict) and s["rhs"].get("r") == "union":
+                notes += [(p.get("comment", ""), p.get("base")) for p in s["rhs"].get("parts") or []
+                          if isinstance(p, dict) and p.get("region")]
+        for com, b in notes:
+            ml, ms = LIB_NOTE.match(com or ""), SHARED_NOTE.match(com or "")
+            if not (ml or ms) or b is None:
+                continue
+            owner, kind = (ml.group(1), "library") if ml else (f"shared object {ms.group(1)}", "shared object")
+            toks = re.findall(r"[\w']+", clean(txt(b)))
+            var = toks[-1] if toks else None
+            if var in self.binder_kind and self.binder_owner.get(var) == var:
+                self.binder_owner[var] = owner
+            self.owner_kinds.setdefault(owner, [ml.group(1) if ml else ms.group(1), kind])
+        for var, kind in self.binder_kind.items():
+            o = self.binder_owner.get(var, var)
+            self.owner_kinds.setdefault(o, [o, kind])
 
     def owner_name(self, var, ty):
         if ty.endswith("idle_thread"):
@@ -474,10 +516,11 @@ class Model:
                      pieces=[{"term": t}], items=[], caps=[], constraints=[], implicit=False,
                      mem_comment=p.get("comment", ""), cells=[], badges=[], code_names=[], heap=True)
             self.regions.insert(0, r)
-        # the switcher and the libraries go right after the compartments,
-        # before the threads
-        lib = [r for r in self.regions if r["owner"] in LIBRARY_OWNERS]
-        rest = [r for r in self.regions if r["owner"] not in LIBRARY_OWNERS]
+        # the switcher, the libraries and the shared objects go right after
+        # the compartments, before the threads
+        libs = LIBRARY_OWNERS | set(self.owner_kinds)
+        lib = [r for r in self.regions if r["owner"] in libs]
+        rest = [r for r in self.regions if r["owner"] not in libs]
         at = max((i + 1 for i, r in enumerate(rest) if r["sub"] in CMPT_SUBS), default=len(rest))
         self.regions[:] = rest[:at] + lib + rest[at:]
 
@@ -1392,7 +1435,7 @@ class Model:
         return dict(name=self.name, predicate=pred, binders=([params] if params else []) + binders,
                     reg_title=reg_title,
                     regions=self.regions, caps=[compact(c) for c in self.caps], regs=self.regs, reg_notes=self.reg_notes,
-                    owners=self.owners, other=self.other, code=code, raw=raw,
+                    owners=self.owners, owner_kinds=self.owner_kinds, other=self.other, code=code, raw=raw,
                     schema=self.doc.get("schema"), unplaced=self.unplaced)
 
 

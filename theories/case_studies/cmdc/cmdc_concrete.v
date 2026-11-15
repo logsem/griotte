@@ -75,10 +75,11 @@ Proof. vm_compute; reflexivity. Qed.
 Definition cmdc_demo_state : ExecConf := img_state cmdc_firmware cmdc_demo_image.
 
 Lemma cmdc_demo_ok :
-  cmdc_initial_state_ok (flag_assert (img_asrt cmdc_demo_image)) cmdc_demo_state.
+  cmdc_initial_state_ok (img_flag cmdc_demo_image) cmdc_demo_state.
 Proof.
   rewrite /cmdc_initial_state_ok.
-  exists (img_sw cmdc_demo_image), (img_asrt cmdc_demo_image), (thread_of cmdc_demo_image 0),
+  exists (img_sw cmdc_demo_image), (lib_of cmdc_demo_image "assert"),
+    (shared_of cmdc_demo_image "assert_flag"), (thread_of cmdc_demo_image 0),
     (img_idle cmdc_demo_image), (img_boot cmdc_demo_image),
     (cmpt_of cmdc_demo_image "main"), (cmpt_of cmdc_demo_image "B"),
     (cmpt_of cmdc_demo_image "C"), (cmpt_of cmdc_demo_image "sched").
@@ -111,7 +112,7 @@ Qed.
 Theorem cmdc_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], cmdc_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt cmdc_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag cmdc_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 12000%N) cmdc_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

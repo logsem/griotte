@@ -49,10 +49,11 @@ Definition vae_untrusted_entry_adv_word : Z :=
 
 Lemma vae_untrusted_entry_demo_ok :
   vae_untrusted_entry_initial_state_ok
-    (flag_assert (img_asrt vae_untrusted_entry_demo_image)) vae_untrusted_entry_demo_state.
+    (img_flag vae_untrusted_entry_demo_image) vae_untrusted_entry_demo_state.
 Proof.
   rewrite /vae_untrusted_entry_initial_state_ok.
-  exists (img_sw vae_untrusted_entry_demo_image), (img_asrt vae_untrusted_entry_demo_image),
+  exists (img_sw vae_untrusted_entry_demo_image), (lib_of vae_untrusted_entry_demo_image "assert"),
+    (shared_of vae_untrusted_entry_demo_image "assert_flag"),
     (thread_of vae_untrusted_entry_demo_image 0),
     (img_idle vae_untrusted_entry_demo_image), (img_boot vae_untrusted_entry_demo_image),
     (cmpt_of vae_untrusted_entry_demo_image "main"), (cmpt_of vae_untrusted_entry_demo_image "C"),
@@ -91,7 +92,7 @@ Theorem vae_untrusted_entry_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], vae_untrusted_entry_demo_state)
       ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt vae_untrusted_entry_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag vae_untrusted_entry_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 16500%N) vae_untrusted_entry_demo_state Halted)
     as Hrun.

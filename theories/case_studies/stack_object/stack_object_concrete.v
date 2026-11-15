@@ -59,10 +59,11 @@ Proof. vm_compute; reflexivity. Qed.
 Definition so_demo_state : ExecConf := img_state so_firmware so_demo_image.
 
 Lemma so_demo_ok :
-  so_initial_state_ok (flag_assert (img_asrt so_demo_image)) so_demo_state.
+  so_initial_state_ok (img_flag so_demo_image) so_demo_state.
 Proof.
   rewrite /so_initial_state_ok.
-  exists (img_sw so_demo_image), (img_asrt so_demo_image), (thread_of so_demo_image 0),
+  exists (img_sw so_demo_image), (lib_of so_demo_image "assert"),
+    (shared_of so_demo_image "assert_flag"), (thread_of so_demo_image 0),
     (img_idle so_demo_image), (img_boot so_demo_image),
     (cmpt_of so_demo_image "main"), (cmpt_of so_demo_image "C"),
     (cmpt_of so_demo_image "sched").
@@ -93,7 +94,7 @@ Qed.
 Theorem so_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], so_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt so_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag so_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 8500%N) so_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

@@ -559,7 +559,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     [
       Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_cc_switcher;
       (kvs_service_unsealing_key_pre KVS_OTYPE);
-      Sentry FwdDisable RX Global b_locks e_locks b_locks
+      Sentry FwdDisable RX Global b_locks e_locks (b_locks ^+ 1)%a
     ].
 
   Definition length_kvs_imports := length (kvs_imports_pre za za za za za za_ot za_ot).

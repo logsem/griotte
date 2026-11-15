@@ -5,7 +5,8 @@ From griotte Require Import
   hw_lang hw_machine_run assembler fetch switcher assert allocator_resources compartment_layout
   error_handling error_handling_adequacy.
 (* Imported last: the fields of the image records. *)
-From griotte Require Import image firmware firmware_ok image_state link error_handling_firmware
+From griotte Require Import image firmware libraries firmware_ok image_state link
+  error_handling_firmware
   round_robin_scheduler_concrete.
 
 #[export] Existing Instance machine_parameters_instance.
@@ -147,11 +148,12 @@ Definition error_handling_demo_state : ExecConf :=
   img_state error_handling_firmware error_handling_demo_image.
 
 Lemma error_handling_demo_ok :
-  error_handling_initial_state_ok (flag_assert (img_asrt error_handling_demo_image))
+  error_handling_initial_state_ok (img_flag error_handling_demo_image)
     error_handling_demo_state.
 Proof.
   rewrite /error_handling_initial_state_ok.
-  exists (img_sw error_handling_demo_image), (img_asrt error_handling_demo_image),
+  exists (img_sw error_handling_demo_image), (lib_of error_handling_demo_image "assert"),
+    (shared_of error_handling_demo_image "assert_flag"),
     (thread_of error_handling_demo_image 0),
     (img_idle error_handling_demo_image), (img_boot error_handling_demo_image),
     (cmpt_of error_handling_demo_image "main"), (cmpt_of error_handling_demo_image "stats"),
@@ -186,7 +188,7 @@ Theorem error_handling_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], error_handling_demo_state)
       ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt error_handling_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag error_handling_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 16500%N) error_handling_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).
@@ -239,7 +241,7 @@ Definition error_handling_no_handler_firmware : firmware := {|
     {| fc_name          := "main";
        fc_imports       := [
          ISwitcherCall;
-         IAssert;
+         ILibCall "assert" "assert";
          IExport "adv" "adv";
          IExport "stats" "stats_read"
        ];
@@ -290,6 +292,12 @@ Definition error_handling_no_handler_firmware : firmware := {|
          sb_entry      := 3;
          sb_boot_stack := 16 |} |}
   ];
+  fw_libs       := [
+    assert_lib
+  ];
+  fw_shared     := [
+    assert_flag_object
+  ];
   fw_threads    := [
     {| ft_cmpt := "main"; ft_entry := "entry"; ft_stack_size := 100; ft_tstack_frames := 24 |}
   ];
@@ -308,14 +316,14 @@ Definition error_handling_no_handler_state : ExecConf :=
 Remark error_handling_no_handler_assert_fails :
   ∃ σ',
     rtc erased_step ([Exec], error_handling_no_handler_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z).
+    ∧ mem σ' !! img_flag error_handling_no_handler_image = Some (WInt 1%Z).
 Proof.
   pose proof (machine_run_conf_correct (N.to_nat 16500%N) Executable
                 error_handling_no_handler_state) as Hrun.
   assert (match machine_run_conf (N.to_nat 16500%N) (Executable, error_handling_no_handler_state)
           with
           | Some (Halted, σ') =>
-              mem σ' !! flag_assert (img_asrt error_handling_no_handler_image) = Some (WInt 1%Z)
+              mem σ' !! img_flag error_handling_no_handler_image = Some (WInt 1%Z)
           | _ => False
           end) as Hflag by (vm_compute; reflexivity).
   destruct (machine_run_conf _ _) as [ [ [] σ'] | ]; try done.

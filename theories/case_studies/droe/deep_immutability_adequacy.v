@@ -36,9 +36,9 @@ Theorem droe_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf
 Proof.
   intros Hok Hstep.
   destruct (droe_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & C & sched & <- & Hfw).
+    as (sw & assert & assert_flag & t0 & idle & boot & main & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_droe_CmptNameG) #[]
-            droe_firmware (droe_img sw asrt t0 idle boot main C sched));
+            droe_firmware (droe_img sw assert assert_flag t0 idle boot main C sched));
     [| exact Hfw | exact Hstep].
   apply (droe_fw_obligations (C := droe_adv_C) (Sched := droe_sched)); done.
 Qed.

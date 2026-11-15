@@ -9,12 +9,21 @@ From griotte Require Import compartment_layout.
     by what they refer to. [firmware_ok] translates a firmware into a
     condition on an image and an initial machine state. *)
 
+(** The permissions of an import of a shared object: read-only or
+    read-write data (no execute, no capability-local store). *)
+Inductive so_perm : Type := SoRO | SoRW.
+
+Definition so_perm_perm (p : so_perm) : Perm :=
+  match p with SoRO => RO | SoRW => RW end.
+
 (** An import, or another word written by the loader. *)
 Inductive fw_word : Type :=
 | FW (w : Word)                       (* a literal word *)
 | ISwitcherCall                       (* the switcher call sentry *)
-| IAssert                             (* the assert sentry *)
-| ITryLock                            (* the sentry of the lock library's try_lock *)
+| ILibCall (l : string) (e : string)  (* the sentry of the export [e] of the library [l] *)
+| ISharedObject (s : string) (p : so_perm)
+    (* a capability to exactly the shared object [s], with the
+       permissions [p] *)
 | IExport (c : string) (e : string)   (* the entry of the export [e] of [c], sealed *)
 | ISealedStatic (o : OType) (s : string)
     (* the static sealed object named [s] of the compartment itself,
@@ -98,6 +107,42 @@ Record fw_cmpt : Type := MkFwCmpt {
   fc_body : fw_body;
 }.
 
+(** A library export: its name, its offset from the base of the PCC region
+    of the library (which starts with the import table), and its posture:
+    [None] inherits the caller's, [Some s] forces [s] (CHERIoT's export
+    flags, bits 3–4). *)
+Record fw_lib_export : Type := MkFwLibExport {
+  le_name : string;
+  le_offset : nat;
+  le_posture : option InterruptStatus;
+}.
+
+(** A library, as CHERIoT lays one out: its PCC region is its import table,
+    then its code; it has no globals. Word 0 of the import table is the
+    switcher slot, which the loader always writes with the switcher call
+    sentry; [fl_imports] are the import slots after it. *)
+Record fw_lib : Type := MkFwLib {
+  fl_name : string;
+  fl_imports : list fw_word;
+  fl_code : list Word;
+  fl_exports : list fw_lib_export;
+}.
+
+(** A shared object (CHERIoT's pre-shared objects): its name and its size
+    in words. It is zero-initialised and owned by no compartment. *)
+Record fw_shared_object : Type := MkFwSharedObject {
+  so_name : string;
+  so_size : nat;
+}.
+
+(** The sentry kind of a library export of posture [p]. *)
+Definition lib_sentry_kind (p : option InterruptStatus) : SentryKind :=
+  match p with
+  | None => Inherit
+  | Some InterruptDisabled => FwdDisable
+  | Some InterruptEnabled => FwdEnable
+  end.
+
 (** A thread starts at the export named [ft_entry] of compartment
     [ft_cmpt], with a zeroed stack of [ft_stack_size] words and a trusted
     stack with room for [ft_tstack_frames] frames besides the entry
@@ -109,11 +154,14 @@ Record fw_thread : Type := MkFwThread {
   ft_tstack_frames : nat;
 }.
 
-(** A firmware: the compartments in image order, the threads, the sealing
+(** A firmware: the compartments in image order, the libraries and the
+    shared objects (each laid out iff listed), the threads, the sealing
     types handed to trusted code, and the heap roots (the bases of the heap
     capabilities the loader hands out, e.g. to the allocator). *)
 Record firmware : Type := MkFirmware {
   fw_cmpts : list fw_cmpt;
+  fw_libs : list fw_lib;
+  fw_shared : list fw_shared_object;
   fw_threads : list fw_thread;
   fw_otypes : list OType;
   fw_heap_roots : list Addr;
@@ -201,6 +249,27 @@ Fixpoint fw_find_export (e : string) (l : list fw_export) : option fw_export :=
   match l with
   | [] => None
   | x :: l => if String.eqb e (fe_name x) then Some x else fw_find_export e l
+  end.
+
+(** The library named [n], if any. *)
+Fixpoint fw_lib_of (l : list fw_lib) (n : string) : option fw_lib :=
+  match l with
+  | [] => None
+  | x :: l => if String.eqb n (fl_name x) then Some x else fw_lib_of l n
+  end.
+
+(** The shared object named [n], if any. *)
+Fixpoint fw_shared_of (l : list fw_shared_object) (n : string) : option fw_shared_object :=
+  match l with
+  | [] => None
+  | x :: l => if String.eqb n (so_name x) then Some x else fw_shared_of l n
+  end.
+
+(** The export named [e] of a library. *)
+Fixpoint fw_find_lib_export (e : string) (l : list fw_lib_export) : option fw_lib_export :=
+  match l with
+  | [] => None
+  | x :: l => if String.eqb e (le_name x) then Some x else fw_find_lib_export e l
   end.
 
 (** The scheduler of a firmware: its first compartment with a scheduler

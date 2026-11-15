@@ -62,10 +62,11 @@ Proof. vm_compute; reflexivity. Qed.
 Definition droe_demo_state : ExecConf := img_state droe_firmware droe_demo_image.
 
 Lemma droe_demo_ok :
-  droe_initial_state_ok (flag_assert (img_asrt droe_demo_image)) droe_demo_state.
+  droe_initial_state_ok (img_flag droe_demo_image) droe_demo_state.
 Proof.
   rewrite /droe_initial_state_ok.
-  exists (img_sw droe_demo_image), (img_asrt droe_demo_image), (thread_of droe_demo_image 0),
+  exists (img_sw droe_demo_image), (lib_of droe_demo_image "assert"),
+    (shared_of droe_demo_image "assert_flag"), (thread_of droe_demo_image 0),
     (img_idle droe_demo_image), (img_boot droe_demo_image),
     (cmpt_of droe_demo_image "main"), (cmpt_of droe_demo_image "C"),
     (cmpt_of droe_demo_image "sched").
@@ -97,7 +98,7 @@ Qed.
 Theorem droe_runs_and_gracefully_halts :
   ∃ σ',
     rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], droe_demo_state) ([Instr Halted], σ')
-    ∧ mem σ' !! flag_assert (img_asrt droe_demo_image) = Some (WInt 0%Z).
+    ∧ mem σ' !! img_flag droe_demo_image = Some (WInt 0%Z).
 Proof.
   pose proof (machine_run_hw_correct (N.to_nat 4500%N) droe_demo_state Halted) as Hrun.
   specialize (Hrun ltac:(vm_compute; reflexivity)).

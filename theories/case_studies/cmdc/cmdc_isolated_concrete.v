@@ -79,11 +79,12 @@ Definition cmdc_isolated_D_adv_word : Z :=
   encode_entry_point InterruptEnabled 0 0 1.
 
 Lemma cmdc_isolated_demo_ok :
-  cmdc_isolated_initial_state_ok (flag_assert (img_asrt cmdc_isolated_demo_image))
+  cmdc_isolated_initial_state_ok (img_flag cmdc_isolated_demo_image)
     cmdc_isolated_demo_state.
 Proof.
   rewrite /cmdc_isolated_initial_state_ok.
-  exists (img_sw cmdc_isolated_demo_image), (img_asrt cmdc_isolated_demo_image),
+  exists (img_sw cmdc_isolated_demo_image), (lib_of cmdc_isolated_demo_image "assert"),
+    (shared_of cmdc_isolated_demo_image "assert_flag"),
     (thread_of cmdc_isolated_demo_image 0), (thread_of cmdc_isolated_demo_image 1),
     (img_idle cmdc_isolated_demo_image), (img_boot cmdc_isolated_demo_image),
     (cmpt_of cmdc_isolated_demo_image "main"), (cmpt_of cmdc_isolated_demo_image "B"),
@@ -148,7 +149,7 @@ Theorem cmdc_isolated_runs_and_gracefully_halts :
   ∧ ∃ σ',
       rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], cmdc_isolated_demo_state)
         ([Instr Halted], σ')
-      ∧ mem σ' !! flag_assert (img_asrt cmdc_isolated_demo_image) = Some (WInt 0%Z).
+      ∧ mem σ' !! img_flag cmdc_isolated_demo_image = Some (WInt 0%Z).
 Proof.
   assert (machine_run_irq (pc_at (cmdc_isolated_irq_addr cmdc_isolated_demo_image))
             (N.to_nat 12000%N) cmdc_isolated_irq_cause (N.to_nat 20000%N)

@@ -36,9 +36,9 @@ Theorem vae_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (vae_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & t0 & idle & boot & main & C & sched & <- & Hfw).
+    as (sw & assert & assert_flag & t0 & idle & boot & main & C & sched & <- & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_vae_CmptNameG) #[]
-            vae_firmware (vae_img sw asrt t0 idle boot main C sched));
+            vae_firmware (vae_img sw assert assert_flag t0 idle boot main C sched));
     [| exact Hfw | exact Hstep].
   apply (vae_fw_obligations (C := vae_adv_C) (Sched := vae_sched)); done.
 Qed.

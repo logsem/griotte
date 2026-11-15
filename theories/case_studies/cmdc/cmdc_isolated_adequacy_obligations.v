@@ -21,6 +21,10 @@ Section cmdc_isolated_obligations.
   Context {cname : CmptNameG} {B C D Sched : CmptName}.
   Context `{MP : MachineParameters}.
 
+  (* Framing [assert_static] must not unfold it: its library code would be
+     computed. *)
+  #[local] Typeclasses Opaque assert_static.
+
   (** The threads of the compartments: the context-switch thread in the
       scheduler's [Sched], the user thread 1 in [D], the user thread 0 in
       the others; every compartment in exclusive mode. *)
@@ -79,7 +83,10 @@ Section cmdc_isolated_obligations.
       fe_offset fe_nargs fe_min_stack fe_posture tb_code tb_data tb_exports
       fc_unknown_export fw_words_unknown fw_word_unknown chunks_fw_words fw_flat_map fw_app
       fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts cmdc_isolated_firmware
-      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb]
+      fe_name ue_name ub_exports ss_name ss_word fw_map String.eqb Ascii.eqb Bool.eqb andb
+      fw_libs fw_lib_of fw_find_lib_export fw_lib_export_named fc_untrusted_lib_import
+      fl_name fl_exports le_name le_offset le_posture lib_sentry_kind
+      libraries.assert_lib assert_entry_offset]
       in Hok_main.
     destruct Hok_main as (main_imports & _ & main_code & main_data & _).
     pose proof (fw_cmpt_layout_at _ _ _ 0 _ Hok eq_refl) as Hmain_l.
@@ -114,6 +121,11 @@ Section cmdc_isolated_obligations.
     (* 3 - The resources of the image: the thread 1 takes the resources of
        D, the thread 0 the others *)
     iIntros "Hshared". iNamed "Hshared". iClear "Hswitcher_tstacks".
+    iDestruct (fw_assert_static cmdc_isolated_firmware img σ (UserThread 0) Hok ltac:(apply list_elem_of_here)
+                with "Hlibs") as "#Hassert_lib".
+    iAssert (assert_static (ceriseg := ceriseG_of (UserThread 0))
+               (@b_assert asl) (@e_assert asl) (@a_flag asl)) as "#Hassert";
+      first iExact "Hassert_lib".
     iEval (rewrite Hthreads big_sepL_cons big_sepL_singleton) in "Hswitcher_static".
     iDestruct "Hswitcher_static" as "[#Hswitcher_static #Hstatic1]".
     iEval (cbv [cmdc_isolated_firmware fw_cmpts]; rewrite !big_sepL_cons big_sepL_nil;

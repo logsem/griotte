@@ -5,7 +5,11 @@ From griotte Require Import machine_parameters assembler.
     A try-lock, entered with interrupts disabled: a compare-exchange of 0
     to 1, as the RTOS's interrupt-disabled atomics on a core without
     atomic instructions. It returns through the return sentry of its
-    caller, which restores the caller's posture. *)
+    caller, which restores the caller's posture.
+
+    A library, laid out as CHERIoT lays one out: its import table, here
+    only the switcher slot (word 0, always written by the loader), then its
+    code, entered at [try_lock_entry_offset]. *)
 
 (** The layout of the library. A class without parameter: no [Hint Mode],
     as [assertLayout]. *)
@@ -28,7 +32,9 @@ Section Locks_Code.
 int __cheri_libcall try_lock(int *l) { if (0 != *l) return -1; *l = 1; return 0; }
 >> *)
   Definition locks_try_lock_asm : list asm_code :=
-    [ load ct1 ct0;
+    [ #@".Limport_switcher"; (* the switcher slot *)
+      #"try_lock";
+      load ct1 ct0;
       jnez ("try_lock_busy")%asm ct1;
       store ct0 1;
       mov ct0 0;
@@ -43,10 +49,20 @@ int __cheri_libcall try_lock(int *l) { if (0 != *l) return -1; *l = 1; return 0;
     Eval compute in assemble locks_try_lock_asm.
   Lemma locks_try_lock_assembles : asm_ok (assemble_check locks_try_lock_asm).
   Proof. asm_check. Qed.
+
+  (** The offset of [try_lock] from the base of the library: after the
+      switcher slot. *)
+  Definition try_lock_entry_offset : nat := 1.
+  Lemma try_lock_entry_offset_label :
+    label_offset locks_try_lock_asm "try_lock" = try_lock_entry_offset.
+  Proof. reflexivity. Qed.
   Definition locks_try_lock_instrs : list Word :=
     encodeInstrsW locks_try_lock.
 End Locks_Code.
 
-(** The sentry of [try_lock]: entering it disables interrupts. *)
+(** The sentry of [try_lock]: entering it disables interrupts. The
+    address is the base of the library plus [try_lock_entry_offset],
+    written [b_locks ^+ 1] as [addr_off b try_lock_entry_offset] reduces
+    in the import words of a firmware ([fw_word_of]). *)
 Definition try_lock_entry `{locksLayout} : Word :=
-  Sentry FwdDisable RX Global b_locks e_locks b_locks.
+  Sentry FwdDisable RX Global b_locks e_locks (b_locks ^+ 1)%a.

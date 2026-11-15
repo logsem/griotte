@@ -41,13 +41,13 @@ Theorem kvs_adequacy `{MP : MachineParameters} (flag : Addr) (σ σ' : ExecConf)
 Proof.
   intros Hok Hstep.
   destruct (kvs_initial_state_ok_start _ _ Hok)
-    as (sw & asrt & lck & t0 & t1 & idle & boot & main & kvs & B & sched & ot_kvs & key_main & key_B
-        & <- & Hkeys & Hfw).
+    as (sw & assert & locks & assert_flag & t0 & t1 & idle & boot & main & kvs & B & sched & ot_kvs
+        & key_main & key_B & <- & Hkeys & Hfw).
   eapply (firmware_adequacy_closed (Cname := CmptNames_kvs_CmptNameG)
             #[gen_heapΣ user_key_t kvs_user_map; ghost_mapΣ user_key_t (option LWord);
               ghost_varΣ kvs_physical_map]
             (kvs_firmware ot_kvs key_main key_B)
-            (kvs_img sw asrt lck t0 t1 idle boot main kvs B sched));
+            (kvs_img sw assert locks assert_flag t0 t1 idle boot main kvs B sched));
     [| exact Hfw | exact Hstep].
   apply (kvs_fw_obligations (B := kvs_adv_name) (Sched := kvs_sched_name));
     [exact Hkeys | done].

@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From iris.base_logic Require Import invariants.
-From griotte Require Import switcher_base_interp assert_spec.
+From griotte Require Import switcher_base_interp.
 From griotte Require Import rules call_stack.
 From griotte Require Import mkregion_helpers memory_region disjoint_regions_tactics.
 From griotte Require Import switcher_adequacy compartment_layout.
@@ -40,58 +40,6 @@ Section adequacy_helpers.
     {stsg : STSG Σ} {relg : relGS Σ}
     {cstackg : CSTACKG Σ}
     `{MP: MachineParameters} .
-
-    Lemma initialise_assert_compartment
-      {E : coPset} (assert_cmpt : cmptAssert) :
-      ([∗ map] a↦v ∈ mk_initial_assert assert_cmpt, a ↦ₐ lword_of_word v)
-      ={E}=∗
-      inv Nassert_flag (flag_assert assert_cmpt ↦ₐ WInt 0) ∗
-      assert_static (b_assert assert_cmpt) (e_assert assert_cmpt) (flag_assert assert_cmpt).
-    Proof.
-      iIntros "Hcmpt_assert".
-      rewrite /mk_initial_assert.
-      iDestruct (big_sepM_union with "Hcmpt_assert") as "[Hassert Hassert_flag]".
-      { eapply cmpt_assert_flag_mregion_disjoint ; eauto. }
-      iDestruct (big_sepM_union with "Hassert") as "[Hassert Hassert_cap]".
-      { eapply cmpt_assert_cap_mregion_disjoint ; eauto. }
-      rewrite /cmpt_assert_flag_mregion.
-      rewrite /mkregion.
-      rewrite finz_seq_between_singleton.
-      2: { pose proof (assert_flag_size assert_cmpt) as H; solve_addr+H. }
-      cbn.
-      iDestruct (big_sepM_insert with "Hassert_flag") as "[Hassert_flag _]"; first done.
-      iMod (inv_alloc Nassert_flag E (flag_assert assert_cmpt ↦ₐ WInt 0%Z) with "Hassert_flag")%I
-        as "#Hinv_assert_flag".
-      rewrite /cmpt_assert_cap_mregion.
-      rewrite /mkregion.
-      rewrite finz_seq_between_singleton.
-      2: { pose proof (assert_cap_size assert_cmpt) as H; solve_addr+H. }
-      cbn.
-      iDestruct (big_sepM_insert with "Hassert_cap") as "[Hassert_cap _]"; first done.
-
-      rewrite /cmpt_assert_code_mregion.
-      iDestruct (mkregion_prepare with "[Hassert]") as ">Hassert"; auto.
-      { apply (assert_code_size assert_cmpt). }
-      iAssert (codefrag (b_assert assert_cmpt) assert_subroutine_instrs)
-        with "[Hassert]" as "Hassert".
-      { rewrite /codefrag /region_pointsto big_sepL2_fmap_r.
-        replace (b_assert assert_cmpt ^+ length assert_subroutine_instrs)
-          with (cap_assert assert_cmpt).
-        2: { pose proof (assert_code_size assert_cmpt); solve_addr+H. }
-        iFrame.
-      }
-      iMod (codefrag_persist with "Hassert") as "#Hassert".
-      iMod (pointsto_persist with "Hassert_cap") as "#Hassert_cap".
-      iModIntro. iFrame "Hinv_assert_flag".
-      rewrite /assert_static.
-      iSplit; first (iPureIntro; apply (assert_code_nonheap assert_cmpt)).
-      iExists (cap_assert assert_cmpt).
-      iFrame "Hassert Hassert_cap".
-      iSplit; first (iPureIntro ; apply (assert_code_size assert_cmpt)).
-      iSplit; iPureIntro.
-      + apply (assert_cap_size assert_cmpt).
-      + by rewrite (assert_flag_size assert_cmpt).
-    Qed.
 
     (** The code of the switcher and its sealing types, once for every
         thread: the code and the two keys become persistent, the sealing

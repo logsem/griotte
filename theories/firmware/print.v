@@ -475,6 +475,14 @@ Ltac2 ex_head (offs : ident list) (p : constr) : (ident * constr * constr) optio
   | _ => None
   end.
 
+(** The elements of a list [x :: … :: t] and its tail [t], unless [nil]. *)
+Ltac2 rec list_tail (c : constr) : constr list * constr option :=
+  lazy_match! c with
+  | nil => ([], None)
+  | cons ?x ?xs => let (es, t) := list_tail xs in (x :: es, t)
+  | _ => ([], Some c)
+  end.
+
 (** The walk: an existential prints its binders on a line, then its body
     one level deeper, except those of the existential offsets [offs]
     (renamed by [rename_offsets]), printed as terms. *)
@@ -492,7 +500,14 @@ Ltac2 rec walk (offs : ident list) (ind : string) (p : constr) : pline list :=
   | ranges_disjoint ?l => PText ind "ranges_disjoint" None :: indexed ind range_elem (list_of l)
   | ?l = ?r =>
       lazy_match! r with
-      | cons _ _ => PText ind (String.app (pp l) " =") None :: indexed ind elem (list_of r)
+      | cons _ _ =>
+          let (es, tl) := list_tail r in
+          PText ind (String.app (pp l) " =") None ::
+          List.append (indexed ind elem es)
+            (match tl with
+             | Some t => [PText (String.app ind "    ") (String.app "++ " (pp t)) None]
+             | None => []
+             end)
       | @union _ _ _ _ =>
           PText ind (String.app (pp l) " =") None ::
           List.mapi (fun i e =>
@@ -1102,6 +1117,90 @@ Ltac2 rename_offsets (p : constr) : constr * (ident * constr * string) list :=
   let p := go p in
   (p, List.rev (out.(contents))).
 
+(** *** The words of the libraries
+
+    The words of a library [L], laid out by [mem_region (lib_b L) ws] under
+    the note [X, import table and code], are printed once, as an equation
+    [lib_words L = ws], one word per line, in a section [X (library)] of the
+    printer before the section [X, layout]; elsewhere [ws] reads
+    [lib_words L], a variable of the printer. *)
+
+(** The Gallina string literal of [s]. *)
+Ltac2 constr_of_string (s : string) : constr :=
+  let n := String.length s in
+  let rec go i :=
+    if Int.equal i n then constr:(EmptyString)
+    else
+      let c := Char.to_int (String.get s i) in
+      let b k := if Int.equal (Int.mod (Int.div c k) 2) 1 then constr:(true) else constr:(false) in
+      let (b0, b1, b2, b3) := (b 1, b 2, b 4, b 8) in
+      let (b4, b5, b6, b7) := (b 16, b 32, b 64, b 128) in
+      let r := go (Int.add i 1) in
+      constr:(String (Ascii $b0 $b1 $b2 $b3 $b4 $b5 $b6 $b7) $r) in
+  go 0.
+
+(** [(X, L, ws)] for each library [X] laid out by [mem_region (lib_b L) ws]. *)
+Ltac2 rec lib_words_in (p : constr) : (string * constr * constr) list :=
+  let suffix := ", import table and code" in
+  let here :=
+    match app_of constr:(@note) p with
+    | Some args =>
+        if Int.equal (Array.length args) 3 then
+          let c := str (Array.get args 1) in
+          let n := String.length c in
+          let m := String.length suffix in
+          if (if Int.ge n m then sub_is c (Int.sub n m) suffix else false) then
+            Control.plus (fun () =>
+              lazy_match! (Array.get args 2) with
+              | mem_region (lib_b ?l) ?ws => [(String.sub c 0 (Int.sub n m), l, ws)]
+              end) (fun _ => [])
+          else []
+        else []
+    | None => []
+    end in
+  let sub :=
+    match Constr.Unsafe.kind p with
+    | Constr.Unsafe.App f args =>
+        List.append (lib_words_in f) (List.flat_map lib_words_in (Array.to_list args))
+    | _ => []
+    end in
+  List.append here sub.
+
+(** [c] with [old] replaced by [new] outside binders. *)
+Ltac2 rec replace_term (old : constr) (new : constr) (c : constr) : constr :=
+  if Constr.equal c old then new else
+  match Constr.Unsafe.kind c with
+  | Constr.Unsafe.App f args =>
+      Constr.Unsafe.make (Constr.Unsafe.App (replace_term old new f) (Array.map (replace_term old new) args))
+  | _ => c
+  end.
+
+(** [p] with the words of the libraries [libs] read [lw L], and the
+    equations [lw L = ws] in their sections. *)
+Ltac2 fold_lib_words (lw : constr) (libs : (string * constr * constr) list) (p : constr) : constr :=
+  let name l := Constr.Unsafe.make (Constr.Unsafe.App lw (Array.of_list [l])) in
+  let p := List.fold_left (fun p x => let (_, l, ws) := x in replace_term ws (name l) p) p libs in
+  let rec go p :=
+    match app_of constr:(@section) p with
+    | Some args =>
+        let t := str (Array.get args 0) in
+        let defs := List.flat_map (fun x =>
+                      let (n, l, ws) := x in
+                      if String.equal t (String.app n ", layout") then
+                        let lhs := name l in
+                        let h := constr_of_string (String.app n " (library)") in
+                        [constr:(section $h ($lhs = $ws))]
+                      else []) libs in
+        List.fold_right (fun d q => constr:($d ∧ $q)) defs p
+    | None =>
+    match app_of constr:(@and) p with
+    | Some args =>
+        Constr.Unsafe.make (Constr.Unsafe.App constr:(@and)
+          (Array.of_list [go (Array.get args 0); go (Array.get args 1)]))
+    | None => p
+    end end in
+  go p.
+
 (** Binder groups [(x y : T)], as many per line as fit: the first line
     starts with [first], the next ones with [cont], the last one ends with
     [last]. *)
@@ -1218,7 +1317,15 @@ Ltac2 initial_state_lines (c : constr) : string list :=
       with_goal (fun () => under_binders [] [] body (fun hs es p =>
         let (p, offs) := rename_offsets p in
         let xs := List.map (fun o => let (x, _, _) := o in x) offs in
-        r.(contents) := List.append (layout (header name hs es offs)) (layout (walk xs "  " p))));
+        let finish p :=
+          r.(contents) := List.append (layout (header name hs es offs)) (layout (walk xs "  " p)) in
+        match lib_words_in p with
+        | [] => finish p
+        | libs =>
+            let _ := Constr.in_context @lib_words constr:(img_lib → list Word) (fun () =>
+                       finish (fold_lib_words (Constr.Unsafe.make (Constr.Unsafe.Var @lib_words)) libs p)) in
+            ()
+        end));
       r.(contents)
   | _ => Control.throw (Invalid_argument (Some (Message.of_string "print_initial_state: not a constant")))
   end.
@@ -1484,20 +1591,17 @@ Section memory_map.
   (** The rows of an image, sorted by address. *)
   Definition img_rows (img : fw_image) : list map_row :=
     let sw := img_sw img in
-    let asrt := img_asrt img in
-    let lck := img_lck img in
     sort_rows
       (app
         [row (b_switcher sw) (Z.to_nat (e_switcher sw - b_switcher sw)%Z) "code" "switcher"
-           [CText "data words (sealing key), switcher_instrs"];
-         row (b_assert asrt) (Z.to_nat (e_assert asrt - b_assert asrt)%Z) "code" "assert"
-           [CText "assert_subroutine_instrs, flag capability"];
-         row (flag_assert asrt) 1 "flag" "assert" [] ]
+           [CText "data words (sealing key), switcher_instrs"] ]
         (app
-          (* The lock library, when linked: its range is empty otherwise. *)
-          (if (e_locks lck - b_locks lck =? 0)%Z then []
-           else [row (b_locks lck) (Z.to_nat (e_locks lck - b_locks lck)%Z) "code" "locks"
-                   [CText "locks_try_lock_instrs"] ])
+          (map (λ '(n, o), row (sh_b o) (Z.to_nat (sh_e o - sh_b o)%Z) "shared object" n [])
+             (img_shared img))
+          (app
+            (map (λ '(n, l), row (lib_b l) (Z.to_nat (lib_e l - lib_b l)%Z)
+                               "import table and code" n [])
+               (img_libs img))
           (app (concat (map cmpt_rows (img_cmpts img)))
              (app (concat (imap thread_rows (img_threads img)))
                 (let d := img_idle img in
@@ -1508,7 +1612,7 @@ Section memory_map.
                   row (img_b_idle_hazard d) (Z.to_nat (img_e_idle_hazard d - img_b_idle_hazard d)%Z)
                     "hazard slots" "idle thread" [];
                   row (img_b_boot_stack bs) (Z.to_nat (img_e_boot_stack bs - img_b_boot_stack bs)%Z)
-                    "boot stack" "scheduler" (map text_cell (rle (img_boot_stack_words bs)))]))))).
+                    "boot stack" "scheduler" (map text_cell (rle (img_boot_stack_words bs)))])))))).
 End memory_map.
 
 Ltac2 cell_str (c : constr) : string :=

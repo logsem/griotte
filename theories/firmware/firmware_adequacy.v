@@ -291,8 +291,9 @@ Section stages.
       saved_prop_own γ_scheduler DfracDiscarded
         (scheduler_concrete (swlayout := swl) C_sched (lword_of_word (sched_csp_word img))).
 
-  (** The first stage: the initial resources split by part; the assert
-      library, the switcher, the compartments initialised; the switcher's
+  (** The first stage: the initial resources split by part; the libraries
+      persistent, the assert flag in its invariant, the switcher, the
+      compartments initialised; the switcher's
       static facts at every user thread; the scheduler's world closed at
       the context-switch thread and its state named; the obligations of
       the firmware run; the slots of the user threads and of the idle
@@ -339,7 +340,7 @@ Section stages.
          (UserThread k) fw_world0 C ∅)
     ={⊤}=∗
     (let _ : switcherLayout := swl in [∗ list] t ↦ _ ∈ vs, slot t None) ∗
-    inv Nassert_flag (flag_assert (img_asrt img) ↦ₐ WInt 0) ∗
+    inv Nassert_flag (img_flag img ↦ₐ WInt 0) ∗
     sched_start_res fw img C_sched fc.
   Proof.
     intros swl n vs efs ots Hok Hsched Hin Htv Hhomes Hobl.
@@ -348,7 +349,8 @@ Section stages.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
     pose proof (img_wf_switcher_layout _ _ _ _ H0 Hwf) as Hsw.
     pose proof (img_wf_trusted_stack_layout _ _ _ _ H0 Hwf) as Hts.
-    pose proof (img_wf_assert_layout _ _ Hwf) as Hasrt.
+    destruct (img_wf_flag _ _ Hwf) as (o_flag & Ho_flag & Hflag_size).
+    destruct (fw_shared_of_Some _ _ _ Ho_flag) as [_ Hflag_name].
     destruct (img_wf_otypes _ _ Hwf) as [Hot_nodup _].
     apply NoDup_cons in Hot_nodup as [Hot_notin Hot_nodup].
     apply NoDup_cons in Hot_nodup as [Hot_notin' Hot_nodup].
@@ -362,17 +364,20 @@ Section stages.
     (* The memory, by part *)
     iDestruct (firmware_ok_mem_split (ceriseg := ceriseG_of (UserThread 0)) fw img σ Hok
                 with "Hmem")
-      as "(Hheap & Hsw_code & Hasrt & Hlocks_mem & Hcmpts & Hthreads_mem & Hidle_mem &
+      as "(Hheap & Hsw_code & Hshared_mem & Hlibs_mem & Hcmpts & Hthreads_mem & Hidle_mem &
            Hboot_mem)".
-    (* The code of the lock library, persistent *)
-    iAssert (|==> [∗ map] a↦w ∈ big_union (locks_code_mems fw img), a ↦ₐ□ lword_of_word w)%I
-      with "[Hlocks_mem]" as ">#Hlocks".
-    { iApply big_sepM_bupd. iApply (big_sepM_mono with "Hlocks_mem").
+    (* The libraries, persistent *)
+    iAssert (|==> [∗ list] l ∈ fw_libs fw,
+               [∗ map] a↦w ∈ lib_mem fw img l, a ↦ₐ□ lword_of_word w)%I
+      with "[Hlibs_mem]" as ">#Hlibs".
+    { iApply big_sepL_bupd. iApply (big_sepL_mono with "Hlibs_mem").
+      iIntros (k l _) "Hl". iApply big_sepM_bupd. iApply (big_sepM_mono with "Hl").
       iIntros (a w _) "Ha". iApply (pointsto_persist with "Ha"). }
-    (* The assert library *)
-    rewrite (assert_mem_layout _ Hasrt).
-    iMod (initialise_assert_compartment (th := UserThread 0) _ with "Hasrt")
-      as "[#Hflag #Hassert]".
+    (* The assert flag, in its invariant; the other shared objects *)
+    iDestruct (big_sepL_shared_of with "Hshared_mem") as "[Hflag Hshared]"; first exact Ho_flag.
+    iEval (rewrite (shared_mem_flag img o_flag Hflag_name Hflag_size) big_sepM_singleton)
+      in "Hflag".
+    iMod (inv_alloc Nassert_flag ⊤ (img_flag img ↦ₐ WInt 0) with "Hflag") as "#Hflag".
     (* The sealing types *)
     rewrite /ots big_sepS_union;
       last (apply disjoint_union_l; split; apply disjoint_singleton_l; rewrite elem_of_list_to_set;
@@ -467,9 +472,9 @@ Section stages.
       apply Hhomes. rewrite Hlen_vs. apply lookup_lt_Some in Hk. rewrite /n. lia. }
     iDestruct (big_sepL_sep with "Hallocs") as "[#Htstacks Hslot_runs]".
     (* The obligations of the firmware *)
-    iMod (Hobl with "[Hassert Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
+    iMod (Hobl with "[Hshared Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims]") as "Hruns".
     { rewrite /fw_shared_res.
-      iFrame "Htstacks Hassert Hlocks Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
+      iFrame "Htstacks Hlibs Hshared Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims".
       iApply big_sepL_intro. iIntros "!>" (k ft Hk%lookup_lt_Some). iApply "Hst".
       iPureIntro. rewrite /n. lia. }
     (* The slots of the user threads *)
@@ -656,7 +661,7 @@ Theorem firmware_adequacy (Σ : gFunctors)
   fw_obligations Σ fw →
   firmware_ok fw img σ →
   rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
-  mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
+  mem σ' !! img_flag img = Some (WInt 0).
 Proof.
   intros (cthreads & C_sched & Hin & Hexcl & Hobl) Hok Hstep.
   pose proof Hok as (_ & _ & Hstart & Hwf).
@@ -675,7 +680,7 @@ Proof.
                [idle_start_vals (swlayout := swl)]).
   assert (length vs = S n) as Hlen_vs by rewrite /vs length_app length_imap /= Nat.add_1_r //.
   apply (cerise_flag_adequacy Σ (TV := fw_trap_vector img) (swlayout := swl)
-           Nassert_flag (flag_assert (img_asrt img)) (fw_set (fw_heap_roots fw))
+           Nassert_flag (img_flag img) (fw_set (fw_heap_roots fw))
            (MkExecConf w_pc regs sregs m sh td) σ' vs es);
     [exact Hinit | exact Hnull | | exact Hmtdc | | by destruct (fw_threads fw) | | exact Hstep].
   - (* Every register has a value *)
@@ -733,7 +738,7 @@ Theorem firmware_adequacy_closed (Σcs : gFunctors) {Cname : CmptNameG}
   fw_obligations #[firmwarePreΣ; Σcs] fw →
   firmware_ok fw img σ →
   rtc (@erased_step griotte_hw_lang) ([griotte_lang.Exec], σ) (es, σ') →
-  mem σ' !! flag_assert (img_asrt img) = Some (WInt 0).
+  mem σ' !! img_flag img = Some (WInt 0).
 Proof.
   intros Hobl Hok Hstep.
   eapply (firmware_adequacy #[firmwarePreΣ; Σcs]); eauto; typeclasses eauto.

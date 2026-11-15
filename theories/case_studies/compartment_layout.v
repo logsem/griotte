@@ -1,5 +1,5 @@
 From griotte Require Import proofmode machine_parameters allocator_resources.
-From griotte Require Import switcher assert.
+From griotte Require Import switcher.
 From griotte Require Import disjoint_regions_tactics mkregion_helpers.
 
 Section CmptLayout.
@@ -375,90 +375,6 @@ Section CmptLayout.
     { rewrite /cmpt_pcc_region elem_of_finz_seq_between. solve_addr. }
     rewrite /switcher_cmpt_disjoint /cmpt_switcher_region /cmpt_region in Hdisj.
     set_solver.
-  Qed.
-
-  Record cmptAssert : Type :=
-    mkCmptAssert {
-        b_assert : Addr ;
-        e_assert : Addr ;
-        cap_assert : Addr ;
-        flag_assert : Addr ;
-
-        assert_code_size :
-        (b_assert + length assert_subroutine_instrs)%a = Some cap_assert ;
-        assert_cap_size :
-        (cap_assert + 1)%a = Some e_assert;
-
-        assert_flag_size :
-        (flag_assert + 1)%a = Some (flag_assert ^+ 1);
-
-        assert_code_nonheap : is_heap_address b_assert = false;
-
-        assert_flag_disjoint :
-        (finz.seq_between b_assert e_assert) ##
-        (finz.seq_between flag_assert (flag_assert ^+ 1));
-
-        assert_disjoint_from_mmio : disjoint_from_mmio b_assert e_assert;
-        assert_flag_disjoint_from_mmio :
-        disjoint_from_mmio flag_assert (flag_assert ^+ 1);
-        (* The assert sentry is executable: its closed bounds avoid the heap. *)
-        assert_end_not_heap : is_heap_address e_assert = false
-      }.
-
-  #[global] Instance cmptAssert_assertLayout (assert_cmpt : cmptAssert) : assertLayout.
-  Proof.
-    refine (@mkAssertLayout
-              (b_assert assert_cmpt)
-              (e_assert assert_cmpt)
-              (flag_assert assert_cmpt)
-           ).
-  Defined.
-
-  Definition cmpt_assert_code_mregion (Cassert : cmptAssert) :=
-    mkregion (b_assert Cassert) (cap_assert Cassert) assert_subroutine_instrs.
-  Definition cmpt_assert_cap_mregion (Cassert : cmptAssert) :=
-    mkregion (cap_assert Cassert) (e_assert Cassert)
-      [Cap RW Global (flag_assert Cassert) ((flag_assert Cassert) ^+1) (flag_assert Cassert)].
-  Definition cmpt_assert_flag_mregion (Cassert : cmptAssert) :=
-    mkregion (flag_assert Cassert) ((flag_assert Cassert) ^+1) [WInt 0].
-
-  Definition mk_initial_assert (Cassert : cmptAssert) : gmap Addr Word :=
-    cmpt_assert_code_mregion Cassert ∪
-    cmpt_assert_cap_mregion Cassert ∪
-    cmpt_assert_flag_mregion Cassert.
-
-  Lemma cmpt_assert_flag_mregion_disjoint (assert_cmpt : cmptAssert) :
-    cmpt_assert_code_mregion assert_cmpt ∪ cmpt_assert_cap_mregion assert_cmpt
-      ##ₘ cmpt_assert_flag_mregion assert_cmpt.
-  Proof.
-    apply map_disjoint_dom_2.
-    rewrite dom_union_L.
-    pose proof (assert_flag_disjoint assert_cmpt).
-    pose proof (assert_code_size assert_cmpt).
-    pose proof (assert_cap_size assert_cmpt).
-    pose proof (assert_flag_size assert_cmpt).
-    rewrite /cmpt_assert_code_mregion /cmpt_assert_cap_mregion.
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    rewrite (finz_seq_between_split
-               (b_assert assert_cmpt)
-               (cap_assert assert_cmpt)
-               (e_assert assert_cmpt)) in H ; last solve_addr.
-    set_solver.
-  Qed.
-
-  Lemma cmpt_assert_cap_mregion_disjoint (assert_cmpt : cmptAssert) :
-    cmpt_assert_code_mregion assert_cmpt ##ₘ cmpt_assert_cap_mregion assert_cmpt.
-  Proof.
-    apply map_disjoint_dom_2.
-    pose proof (assert_code_size assert_cmpt).
-    pose proof (assert_cap_size assert_cmpt).
-    rewrite /cmpt_assert_code_mregion /cmpt_assert_cap_mregion.
-    repeat rewrite dom_mkregion_eq; try (solve_addr).
-    apply elem_of_disjoint.
-    intros a Ha Ha'.
-    rewrite !elem_of_list_to_set in Ha,Ha'.
-    rewrite !elem_of_finz_seq_between in Ha,Ha'.
-    solve_addr.
   Qed.
 
   Lemma cmpt_exp_tbl_disjoint (B_cmpt : cmpt) :

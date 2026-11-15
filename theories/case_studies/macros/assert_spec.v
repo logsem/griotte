@@ -1,6 +1,6 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import rules proofmode.
-From griotte Require Import fetch_spec.
+From griotte Require Import fetch_spec lib_static.
 From griotte Require Export assert.
 
 (* Assert routine *)
@@ -16,25 +16,37 @@ Section Assert_subroutine.
   .
 
   (* [assert_subroutine_instrs] asserts (ct0 == ct1) and jumps back to cra.
-     It clobbers cra, ct0, ct1. It is followed in memory by:
-    cap: (RW, flag, end, flag)
-    flag: <0 or 1>
-    end:
+     It clobbers cra, ct0, ct1. It is the code of a library whose import
+     table holds, after the switcher slot, the capability to the flag:
+    cap: (RW, flag, flag + 1, flag)
   *)
 
-  (* The read-only part of the assert library: its code and the capability
-     to the flag stored right after it. *)
+  (* The read-only part of the assert library: its import table, with the
+     capability to the flag, and its code. *)
   Definition assert_static (b_assert e_assert a_flag : Addr) : iProp Σ :=
-    (⌜is_heap_address b_assert = false⌝ ∗ ∃ cap_addr,
-       codefrag_pers b_assert assert_subroutine_instrs ∗
-       ⌜(b_assert + length assert_subroutine_instrs)%a = Some cap_addr⌝ ∗
-       ⌜(cap_addr + 1)%a = Some e_assert⌝ ∗
-       ⌜is_Some (a_flag + 1)%a⌝ ∗
-       cap_addr ↦ₐ□ Cap RW Global a_flag (a_flag ^+1) a_flag).
+    ⌜is_Some (a_flag + 1)%a⌝ ∗
+    lib_static b_assert e_assert [Cap RW Global a_flag (a_flag ^+ 1) a_flag]
+      assert_subroutine_instrs.
 
   #[global] Instance assert_static_persistent b_assert e_assert a_flag :
     Persistent (assert_static b_assert e_assert a_flag).
   Proof. apply _. Qed.
+
+  (** The persistent region of the library, its switcher slot holding
+      [w_sw], is its static part. *)
+  Lemma assert_static_of_region (b_assert e_assert a_flag : Addr) (w_sw : Word) :
+    is_heap_address b_assert = false →
+    is_Some (a_flag + 1)%a →
+    (b_assert + Z.of_nat (2 + length assert_subroutine_instrs))%a = Some e_assert →
+    [[ b_assert , e_assert ]] ↦ₐ□
+      [[ lword_of_word <$> (w_sw :: Cap RW Global a_flag (a_flag ^+ 1) a_flag ::
+                            assert_subroutine_instrs) ]] -∗
+    assert_static b_assert e_assert a_flag.
+  Proof.
+    iIntros (Hheap Hflag He) "Hreg".
+    iSplit; first done.
+    by iApply (lib_static_of_region _ _ w_sw [_] with "Hreg").
+  Qed.
 
   Lemma assert_subroutine_success_spec
     (pc_g : Locality) (pc_b pc_e a_flag : Addr)
@@ -45,7 +57,7 @@ Section Assert_subroutine.
     route_pre th (default b (jalr_target_mie wret)) →
     route_pre th b →
     (  assert_static pc_b pc_e a_flag
-     ∗ PC ↦ₚ Cap RX pc_g pc_b pc_e pc_b
+     ∗ PC ↦ₚ Cap RX pc_g pc_b pc_e (pc_b ^+ 2)%a
      ∗ cra ↦ᵣ wret
      ∗ ct0 ↦ᵣ WInt n1
      ∗ ct1 ↦ᵣ WInt n2
@@ -61,11 +73,11 @@ Section Assert_subroutine.
      ⊢ WP Exec {{ φ }})%I.
   Proof.
     iIntros (Heq Htgt Hroute' Hpre) "(#Hassert & HPC & Hrdst & Hct0 & Hct1 & Hmie & Hheld & Hφ)".
-    iDestruct "Hassert" as "[%Hassert_not_heap Hassert]".
-    iDestruct "Hassert" as (cap_addr) "(Hprog & %Hcap & %Hflag & %He & Hcap)".
-    rewrite /assert_subroutine_instrs. codefrag_facts "Hprog".
+    iDestruct "Hassert" as "[%Hflag (%Hassert_not_heap & %He & _ & _ & Hprog)]".
+    change (Z.of_nat (S (length [Cap RW Global a_flag (a_flag ^+ 1) a_flag]))) with 2%Z.
+    rewrite /assert_subroutine_instrs in He |- *. codefrag_facts "Hprog".
     assert (SubBounds pc_b pc_e
-              pc_b (pc_b ^+ length assert_subroutine_instrs))
+              (pc_b ^+ 2) (pc_b ^+ 2 ^+ length (encodeInstrsW assert_subroutine)))
       as HsubBounds by solve_addr.
     (* Sub ct0 ct0 ct1. *)
     iInstr "Hprog".
@@ -131,7 +143,7 @@ Section Assert.
      ∗ MIE ↦ₜ b
      ∗ held b
      ∗ codefrag_pers pc_a assert_macro
-     ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert b_assert)
+     ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert (b_assert ^+ 2)%a)
      ∗ ▷ (PC ↦ₚ Cap pc_p pc_g pc_b pc_e a_last
           ∗ rdst ↦ᵣ WInt 0
           ∗ rscratch ↦ᵣ WInt 0
@@ -141,7 +153,7 @@ Section Assert.
           ∗ MIE ↦ₜ b
           ∗ held b
           ∗ codefrag_pers pc_a assert_macro
-          ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert b_assert)
+          ∗ (pc_b ^+ n) ↦ₐ{dq} (Sentry Inherit RX g_assert b_assert e_assert (b_assert ^+ 2)%a)
           -∗ WP Exec {{ φ }})
      ⊢ WP Exec {{ φ }})%I.
   Proof.
@@ -150,7 +162,7 @@ Section Assert.
       "(#Hassert & HPC & Hrdst & Hrscratch & Hcra & Hct0 & Hct1 & Hmie & Hheld & #Hcode_main
         & Hpc_bn & Hφ)".
     iAssert (⌜is_heap_address b_assert = false⌝)%I as %Hassert_not_heap.
-    { by iDestruct "Hassert" as "[$ _]". }
+    { by iDestruct "Hassert" as "[_ [$ _]]". }
     codefrag_facts "Hcode_main".
     rewrite assert_instrs_fetch.
     focus_block_0 "Hcode_main" as "Hfetch" "Hcont"; iHide "Hcode_main" as hcode.
@@ -192,9 +204,6 @@ Section assert_thread_indep.
     assert_static (ceriseg := ceriseG_of t) b_assert e_assert a_flag ⊣⊢
     assert_static (ceriseg := ceriseG_of t') b_assert e_assert a_flag.
   Proof.
-    rewrite /assert_static.
-    setoid_rewrite (codefrag_pers_thread_indep t t').
-    setoid_rewrite (pointsto_pers_thread_indep t t').
-    reflexivity.
+    by rewrite /assert_static (lib_static_thread_indep t t').
   Qed.
 End assert_thread_indep.
