@@ -47,31 +47,63 @@ Section ctx_support.
       [cra; csp; cgp; ctp; ct0; ct1; ct2; cs0; cs1; ca0; ca1; ca2; ca3; ca4; ca5].
 
   (** The save area [ws] after the spill of the registers [lreg], MEPCC
-      [wm], mstatus (MIE disabled, MPIE [b]) and the cause [cause]. *)
+      [wm], mstatus (MIE disabled, MPIE [b]), the cause [cause], MSHWMB
+      [mshwmb_v] and MSHWM [mshwm_v]. *)
   Definition ctx_spill (ws : list LWord) (lreg : LReg) (wm : LWord) (b : InterruptStatus)
-      (cause : Z) : list LWord :=
+      (cause mshwmb_v mshwm_v : Z) : list LWord :=
     exception_spill ws wm (spill_words lreg)
-      (lword_of_word (WInt (mstatus_enc InterruptDisabled b))) (lword_of_word (WInt cause)).
+      (lword_of_word (WInt (mstatus_enc InterruptDisabled b))) (lword_of_word (WInt cause))
+      (lword_of_word (WInt mshwm_v)) (lword_of_word (WInt mshwmb_v)).
 
   (** The save area [ws] after the rejoin alone: the stack pointer [wcsp],
-      MEPCC, mstatus and the cause; the register words are kept. *)
+      MEPCC, mstatus, the cause, MSHWM [mshwm_v] and MSHWMB [mshwmb_v]; the register
+      words are kept. *)
   Definition rejoin_spill (ws : list LWord) (wcsp wm : LWord) (b : InterruptStatus)
-      (cause : Z) : list LWord :=
+      (cause mshwmb_v mshwm_v : Z) : list LWord :=
     <[0 := wm]> (<[2 := wcsp]>
       (<[17 := lword_of_word (WInt (mstatus_enc InterruptDisabled b))]>
-        (<[18 := lword_of_word (WInt cause)]> ws))).
+        (<[18 := lword_of_word (WInt cause)]>
+          (<[19 := lword_of_word (WInt mshwm_v)]> (<[20 := lword_of_word (WInt mshwmb_v)]> ws))))).
+
+  (** The word [mshwmb] of the spilled save area is [mshwmb_v]. *)
+  Lemma ctx_spill_word_mshwmb (ws : list LWord) (lreg : LReg) (wm : LWord)
+      (b : InterruptStatus) (cause mshwmb_v mshwm_v : Z) :
+    length ws = 21%nat →
+    ctx_spill ws lreg wm b cause mshwmb_v mshwm_v !! 20%nat = Some (lword_of_word (WInt mshwmb_v)).
+  Proof.
+    intros Hlen.
+    destruct ws as
+      [|w0 [|w1 [|w2 [|w3 [|w4 [|w5 [|w6 [|w7 [|w8 [|w9 [|w10
+      [|w11 [|w12 [|w13 [|w14 [|w15 [|w16 [|w17 [|w18 [|w19 [|w20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
+      done.
+  Qed.
+
+  (** The word [mshwmb] of the rejoined save area is [mshwmb_v]. *)
+  Lemma rejoin_spill_word_mshwmb (ws : list LWord) (wcsp wm : LWord)
+      (b : InterruptStatus) (cause mshwmb_v mshwm_v : Z) :
+    length ws = 21%nat →
+    rejoin_spill ws wcsp wm b cause mshwmb_v mshwm_v !! 20%nat = Some (lword_of_word (WInt mshwmb_v)).
+  Proof.
+    intros Hlen.
+    destruct ws as
+      [|w0 [|w1 [|w2 [|w3 [|w4 [|w5 [|w6 [|w7 [|w8 [|w9 [|w10
+      [|w11 [|w12 [|w13 [|w14 [|w15 [|w16 [|w17 [|w18 [|w19 [|w20 [] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ] ];
+      done.
+  Qed.
 
   (** The words of the save area: the PC, mstatus and the cause, and the
       registers, at their offsets. *)
   Lemma resume_ok_ctx_spill (ws : list LWord) (lreg : LReg) (wm : LWord) (b : InterruptStatus)
-      (c : Z) :
+      (c mshwmb_v mshwm_v : Z) :
     length ws = 21%nat →
     dom lreg = all_registers_s →
     lreg !! cnull = Some lnull →
-    resume_regs_of (ctx_spill ws lreg wm b c) = lreg ∧
-    saved_mie_ok (ctx_spill ws lreg wm b c) ∧
-    mpie_of (get_a (save_area_word (ctx_spill ws lreg wm b c) TrustedStack_offset_mstatus).(lw))
-      = b.
+    resume_regs_of (ctx_spill ws lreg wm b c mshwmb_v mshwm_v) = lreg ∧
+    saved_mie_ok (ctx_spill ws lreg wm b c mshwmb_v mshwm_v) ∧
+    mpie_of (get_a (save_area_word (ctx_spill ws lreg wm b c mshwmb_v mshwm_v) TrustedStack_offset_mstatus).(lw))
+      = b ∧
+    get_a (save_area_word (ctx_spill ws lreg wm b c mshwmb_v mshwm_v) TrustedStack_offset_mshwmb).(lw) = mshwmb_v ∧
+    get_a (save_area_word (ctx_spill ws lreg wm b c mshwmb_v mshwm_v) TrustedStack_offset_mshwm).(lw) = mshwm_v.
   Proof.
     intros Hlen Hdom Hnull.
     destruct ws as
@@ -95,6 +127,8 @@ Section ctx_support.
     - intros w Hw. rewrite /ctx_spill /exception_spill /= in Hw. simplify_eq.
       by rewrite /= mie_of_mstatus_enc.
     - by rewrite /save_area_word /ctx_spill /exception_spill /= mpie_of_mstatus_enc.
+    - by rewrite /save_area_word /ctx_spill /exception_spill /=.
+    - by rewrite /save_area_word /ctx_spill /exception_spill /=.
   Qed.
 
   (** The save area of [th], cell by cell. *)

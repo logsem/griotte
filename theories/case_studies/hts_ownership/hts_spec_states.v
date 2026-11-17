@@ -289,7 +289,8 @@ Section HTS_States.
       ca0 ↦ᵣ[th] hts_buffer b @@ ι ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
-      [[ csp_b , stk_start_a csp_b csp_e ]] ↦ₐ [[ 0…0 ]] ∗
+      stack_ints csp_b (stk_start_a csp_b csp_e) ∗
+      hwm_res cstk (stk_start_a csp_b csp_e) ∗
       world_interp (revoke W_init_C) C ∗
       StackRevokedResources W_init_C C (finz.seq_between csp_b csp_e) ∗
       ⌜revoked_addresses (revoke W_init_C) (finz.seq_between csp_b csp_e)⌝ ∗
@@ -324,8 +325,9 @@ Section HTS_States.
       (∃ w, ca1 ↦ᵣ[th] w) ∗
       hts_zero_regs ∗
       (stk_start_a csp_b csp_e ^+ -1) ↦ₐ hts_buffer b @@ ι ∗
-      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
-                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
+      (∃ stk, stack_region (stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1))
+                (stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)) stk) ∗
+      (∃ mshwm_v : Z, hwm_res cstk mshwm_v) ∗
       world_interp (revoke Wret) C ∗
       StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
       ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗
@@ -345,8 +347,9 @@ Section HTS_States.
       ca0 ↦ᵣ[th] WInt 0 ∗
       ca1 ↦ᵣ[th] WInt 0 ∗
       hts_zero_regs ∗
-      (∃ stk, [[stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1),
-                stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)]] ↦ₐ [[stk]]) ∗
+      (∃ stk, stack_region (stk_free_b csp_b (stk_start_a csp_b csp_e ^+ -1))
+                (stk_free_e csp_e (stk_start_a csp_b csp_e ^+ -1)) stk) ∗
+      (∃ mshwm_v : Z, hwm_res cstk mshwm_v) ∗
       world_interp_open (revoke Wret) C [LHeap b ι] ∗
       StackRevokedResources Wret C (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1)) ∗
       ⌜revoked_addresses (revoke Wret) (stk_free csp_b csp_e (stk_start_a csp_b csp_e ^+ -1))⌝ ∗

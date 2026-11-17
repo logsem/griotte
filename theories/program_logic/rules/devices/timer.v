@@ -39,7 +39,7 @@ Section mmio_timer_rules.
   Proof.
     iIntros (Hinstr Hvpc Dregs Hmem Hallow Hnoid Htdev Hinc φ) "(>HPC & >Hmem & >Hmap) Hφ".
     iDestruct (big_sepM_lookup_acc with "Hmem") as "[Hpc_a Hmem]"; first exact Hmem.
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr in Hstep.
     (* The source capability has no identifier and non-empty bounds: its
@@ -153,7 +153,7 @@ Section mmio_timer_rules.
         W }}}.
   Proof.
     iIntros (Hinstr Hvpc Hacc Hlive Htdev Hpca' φ) "(>HPC & >Hi & >Hmap & Hwit) Hφ".
-    iApply (wp_instr_step_nosw with "HPC Hi Hmap"); [rewrite Hinstr; by apply sw_of_none | done |].
+    iApply (wp_instr_step_nosw with "HPC Hi Hmap"); [rewrite Hinstr; by apply sw_of_none | done | solve_writes_mshwmb |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (live_witness_cond True W regs dst R (λ _, Hlive) with "HR Hwit") as %Hlive_ok.
     rewrite Hinstr /exec in Hstep.

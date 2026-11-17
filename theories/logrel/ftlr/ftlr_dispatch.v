@@ -116,6 +116,8 @@ Ltac debug_classify i :=
   debug_shape "ShapeMem: mem_member, store"
     (∃ r imm, store_member exec_opt store_source i r imm)
     ltac:(idtac; do 2 eexists; solve_store_member);
+  debug_shape "ShapeMem: mem_member, store: not an instruction of the HWM window"
+    (¬ hwm_window_instr i) solve_not_hwm_window_instr;
   debug_shape "ShapeRegs, ShapeMem: not_switch_instr" (not_switch_instr i)
     solve_not_switch_instr;
   idtac "ShapeDedicated";

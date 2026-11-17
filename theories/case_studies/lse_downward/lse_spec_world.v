@@ -42,7 +42,7 @@ Section LSE_World.
       world_interp (revoke W0) C ∗
       interp (revoke W0) C (WSealed ot_switcher C_f) ∗
       ▷ StackRevokedResources (revoke W0) C (finz.seq_between csp_b csp_e) ∗
-      [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
+      stack_region csp_b csp_e stk_mem.
   Proof.
     iIntros "#Hseal_switcher #Hinterp_csp #Hinterp_C_f Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")
@@ -69,7 +69,7 @@ Section LSE_World.
          (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) (revoke W0))⌝ ∗
       world_interp (revoke W0) C ∗
       ▷ RevokedResources W0 C l ∗
-      [[csp_b, csp_e]] ↦ₐ [[stk_mem]].
+      stack_region csp_b csp_e stk_mem.
   Proof.
     iIntros "#Hinterp_csp Hworld_interp_C".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")

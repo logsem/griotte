@@ -653,54 +653,6 @@ Section exposed_mmio.
 
 End exposed_mmio.
 
-Section cells_store.
-  Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
-
-  (** The stores of [ws] to the cells from [a], through a capability of
-      permission [p], end [e] and identifier [π]. [D i] holds once the
-      first [i] cells are written. Each store of a cell below [e] gets cell
-      [i], outside the shadow table, with the liveness of [π], and gives it
-      back with the stored word. Or cell [i] is an exposed device, reached
-      without identifier: [D i] is kept, for a store that faults, and a
-      store that succeeds gives [D (S i)] back from it. *)
-  Definition cells_store_acc (D : nat → iProp Σ) (p : Perm) (e a : Addr)
-    (π : option AId) (ws : list LWord) : iProp Σ :=
-    □ ∀ i : nat,
-      ⌜(i < length ws)%nat⌝ -∗
-      ⌜(a + i < e)%Z⌝ -∗
-      D i
-      ={⊤}=∗
-      (∃ (v : LWord) (q : Qp),
-        ⌜is_shadow_address (a ^+ i) = false⌝ ∗
-        (a ^+ i) ↦ₐ v ∗
-        deref_res π q ∗
-        ▷ ((a ^+ i) ↦ₐ lstore_word p (ws !!! i) -∗
-           deref_res π q
-           ={⊤}=∗
-           D (S i))) ∨
-      (⌜is_exposed_mmio_address (a ^+ i) = true⌝ ∗
-       ⌜π = None⌝ ∗
-       D i ∗
-       ▷ (D i ={⊤}=∗ D (S i))).
-
-  #[global] Instance cells_store_acc_persistent D p e a π ws :
-    Persistent (cells_store_acc D p e a π ws).
-  Proof. apply _. Qed.
-
-  (** The stores of [w :: ws] from [a], without the first: those of [ws]
-      from [a ^+ 1]. *)
-  Lemma cells_store_acc_tail (D : nat → iProp Σ) (p : Perm) (e a : Addr)
-    (π : option AId) (w : LWord) (ws : list LWord) :
-    cells_store_acc D p e a π (w :: ws) -∗
-    cells_store_acc (λ i, D (S i)) p e (a ^+ 1) π ws.
-  Proof.
-    iIntros "#Hacc !>" (i Hi Hie) "HD".
-    rewrite (_ : (a ^+ 1) ^+ i = a ^+ S i); last solve_addr.
-    iApply ("Hacc" $! (S i) with "[%] [%] HD"); [cbn; lia | solve_addr].
-  Qed.
-
-End cells_store.
-
 Section cells_load.
   Context {Σ:gFunctors} {ceriseg:ceriseG Σ} `{MP: MachineParameters}.
 

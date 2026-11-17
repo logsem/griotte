@@ -315,8 +315,11 @@ Proof.
     iSplit; first done.
     iApply (interp_monotone_cap_nonheap with "Hcallee"); naive_solver.
   - destruct (is_untrusted_caller_frm frm).
-    { by iApply (top_cmpt_untrusted_mono_pub with "Htopmost_frm"). }
-    iIntros (W'' Hrel'). iApply "Htopmost_frm". iPureIntro.
+    { iDestruct "Htopmost_frm" as "(Htop & %Hzone & %Hbase)".
+      iSplitL "Htop"; first by iApply (top_cmpt_untrusted_mono_pub with "Htop").
+      iPureIntro. split; last done. by eapply zone_temporary_mono_pub. }
+    iDestruct "Htopmost_frm" as "[%Hbase Hexec]". iSplit; first done.
+    iIntros (W'' Hrel'). iApply "Hexec". iPureIntro.
     eapply related_sts_pub_trans_world; eauto.
 Qed.
 

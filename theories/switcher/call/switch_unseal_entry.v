@@ -31,22 +31,25 @@ Section Switch_Unseal_Entry.
     PC ↦ₚ[th] switcher_label_pc ".Lswitch_unseal_entry" ∗
     cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
     ct1 ↦ᵣ[th] wct1 ∗
+    hwm_closed (kind_of th) ∗
     switcher_code ∗
     ( ▷ ( ∀ wsb π,
           ⌜ wct1 = WSealed ot_switcher wsb @@? π ⌝ ∗
           ⌜ get_tag_sealable wsb = true ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitcher_decode_entry" ∗
           cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
-          ct1 ↦ᵣ[th] WSealable wsb @@? π -∗
+          ct1 ↦ᵣ[th] WSealable wsb @@? π ∗
+          hwm_closed (kind_of th) -∗
           safe[th] ) ∧
       ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
         cs0 ↦ᵣ[th] SealRange (true, true) Global ot_switcher (ot_switcher ^+ 1) ot_switcher ∗
         ct1 ↦ᵣ[th] - -∗
+        hwm_closed (kind_of th) -∗
         trap_safe (switcher_label_pc ".Lswitcher_decode_entry") ⊤
           (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros "(HPC & Hcs0 & Hct1 & #Hswitcher & Hpost)".
+    iIntros "(HPC & Hcs0 & Hct1 & Hclosed & #Hswitcher & Hpost)".
     switcher_open_label ".Lswitch_unseal_entry" "Hswitcher" as "Hcode" a_unseal Ha_unseal.
     assert (a_unseal ^+ 1 =
             (a_switcher_call ^+ switcher_label_offset ".Lswitcher_decode_entry")%a)
@@ -102,21 +105,24 @@ Section Switch_Unseal_Entry.
     iClear "Hi".
     iDestruct "Hpost" as "[Hpost _]".
     iEval (rewrite Hpc_decode) in "HPC".
-    iApply "Hpost"; iFrame "HPC Hcs0 Hct1"; done.
+    iApply "Hpost"; iFrame "HPC Hcs0 Hct1 Hclosed"; done.
   Qed.
 
   (** From [.Lswitcher_decode_entry]: read the entry of the export table,
       store the export table in the frame at [a_frame], check the size of
       the callee's stack, whose cursor is at its top, move the cursor below
-      the reserved space, read the flags of the entry, and load the CGP and
-      the PCC of the callee. When the callee's stack is smaller than the
+      the reserved space, write the cursor to MSHWM, read the flags of the
+      entry, and load the CGP and the PCC of the callee. A raise of MSHWM
+      takes the cells of the zone between MSHWMB, or the old MSHWM when it is
+      above, and the new value. When the callee's stack is smaller than the
       minimum stack size of the entry plus the reserved space, the PC is at
       [.Lswitch_stack_too_small]. *)
   Lemma switcher_decode_entry_spec
     (wcs0 wcs1 wct2 wcgp wcra : LWord) (g_tstk : Locality) (a_frame : Addr) (wtbl : LWord)
     (g_tbl : Locality) (b_tbl e_tbl a_tbl bpcc epcc : Addr) (wcgp_tgt : Word)
     (b_stk e_stk a_stk : Addr)
-    (posture : InterruptStatus) (nargs minstk : nat) (off : Z) :
+    (posture : InterruptStatus) (nargs minstk : nat) (off : Z)
+    (mshwmb_v mshwm_v : Z) (lo : Addr) :
     let a_export_table := (a_frame ^+ TrustedStackFrame_offset_calleeExportTable) in
     let a_tbl_cgp := (b_tbl ^+ ExportTable_offset_cgp) in
     (a_tbl ∈ₐ [b_tbl, e_tbl)) ->
@@ -132,6 +138,7 @@ Section Switch_Unseal_Entry.
     (b_trusted_stack <= a_frame)%a ->
     (a_export_table < e_trusted_stack)%a ->
     a_stk = e_stk ->
+    (Z.max mshwmb_v mshwm_v = lo)%Z ->
 
     b_tbl ↦ₐ□ Cap RX Global bpcc epcc bpcc ∗
     a_tbl_cgp ↦ₐ□ wcgp_tgt ∗
@@ -146,6 +153,13 @@ Section Switch_Unseal_Entry.
     cgp ↦ᵣ[th] wcgp ∗
     cra ↦ᵣ[th] wcra ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
+    hwm_regs mshwmb_v mshwm_v ∗
+    (* the cells that a raise of MSHWM to the callee's stack pointer covers,
+       unless the callee's stack ends below the reserved space (then too
+       small) *)
+    (⌜(e_stk < StackEntry_reserved_space)%Z⌝ ∨
+     [∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
+       zone_cell[th] a') ∗
     switcher_code ∗
     ▷ ( ( ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_load_zero_arguments_start" ∗
@@ -157,7 +171,10 @@ Section Switch_Unseal_Entry.
           a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
           cgp ↦ᵣ[th] wcgp_tgt ∗
           cra ↦ᵣ[th] Cap RX Global bpcc epcc (bpcc ^+ off) ∗
-          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space)) )
+          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space)) ∗
+          hwm_regs mshwmb_v (a_stk ^+ (- StackEntry_reserved_space)) ∗
+          ([∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
+             zone_cell[th] a') )
         ∨
         ( ⌜ (e_stk - b_stk < Z.of_nat minstk + StackEntry_reserved_space)%Z ⌝ ∗
           PC ↦ₚ[th] switcher_label_pc ".Lswitch_stack_too_small" ∗
@@ -169,16 +186,20 @@ Section Switch_Unseal_Entry.
           a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
           cgp ↦ᵣ[th] - ∗
           cra ↦ᵣ[th] - ∗
-          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk )
+          csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
+          hwm_regs mshwmb_v mshwm_v ∗
+          (⌜(e_stk < StackEntry_reserved_space)%Z⌝ ∨
+           [∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
+             zone_cell[th] a') )
         -∗
         safe[th] )
     ⊢ safe[th].
   Proof.
     intros a_export_table a_tbl_cgp; subst a_export_table a_tbl_cgp.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
-               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk)
+               Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk Hlo)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2
-      & Hctp & Ha_export_table & Hcgp & Hcra & Hcsp & #Hswitcher & Hpost)".
+      & Hctp & Ha_export_table & Hcgp & Hcra & Hcsp & Hhwm & Hcells & #Hswitcher & Hpost)".
     iAssert switcher_code as "Hswitcher_load"; first iFrame "Hswitcher".
     pose proof trusted_stack_disjoint_from_shadow as Hts_shadow.
     assert ((a_frame + TrustedStackFrame_offset_calleeExportTable)%a
@@ -221,7 +242,7 @@ Section Switch_Unseal_Entry.
           by switcher_addr_eq. }
       subst hpost.
       iApply "Hpost"; iRight.
-      iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
+      iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp Hhwm Hcells".
       done. }
     (* Jlt .Lswitch_stack_too_small ct2 ctp *)
     iInstr "Hcode".
@@ -229,6 +250,19 @@ Section Switch_Unseal_Entry.
     iInstr "Hcode".
     { transitivity (Some (a_stk ^+ (- StackEntry_reserved_space))); last reflexivity.
       clear -Ha_stk Hsmall; subst a_stk; unfold StackEntry_reserved_space in *; solve_addr. }
+    (* The callee's stack holds the reserved space: the zone cells are given *)
+    iDestruct "Hcells" as "[%Hsmall_e | Hcells]".
+    { exfalso. clear -Hsmall Hsmall_e Ha_stk. subst a_stk.
+      unfold StackEntry_reserved_space in *. solve_addr. }
+    (* The raise frames the zone cells at their values *)
+    iDestruct (zone_cells_exist with "Hcells") as (zs) "Hcells".
+    (* SpecialRW cnull MSHWM (inr csp) *)
+    iInstrApply "Hcode" wp_csrw_mshwm_gen with "[$HPC $Hcsp $Hhwm $Hcells]"
+      as "(HPC & Hcsp & Hhwm & Hcells)".
+    { done. }
+    iAssert ([∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
+               zone_cell[th] a')%I with "[Hcells]" as "Hcells".
+    { rewrite zone_cells_exist. by iExists zs. }
     (* CLoad ctp ct1 0 *)
     iInstr "Hcode".
     { rewrite /withinBounds. solve_addr. }
@@ -261,7 +295,7 @@ Section Switch_Unseal_Entry.
     switcher_change_pc_label ".Lswitch_load_zero_arguments_start".
     subst hpost.
     iApply "Hpost"; iLeft.
-    iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp".
+    iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Ha_export_table Hcgp Hcra Hcsp Hhwm Hcells".
     iPureIntro; lia.
   Qed.
 

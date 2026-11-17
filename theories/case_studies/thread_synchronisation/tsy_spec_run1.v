@@ -109,12 +109,13 @@ Section TSY_run1.
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a tsy_K_code
       ∗ cgp_b ↦ₐ lword_of_word (WInt 0)
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
+      ∗ stack_region csp_b csp_e csp_content
 
       ∗ world_interp W_init B
 
       ∗ interp_continuation (K_entry_cstack csp_b csp_e w_K_tbl) Ws Cs
       ∗ ◯(CSTK)[th] (K_entry_cstack csp_b csp_e w_K_tbl)
+      ∗ hwm_res (K_entry_cstack csp_b csp_e w_K_tbl) csp_e
 
       ∗ interp W_init B (WSealed ot_switcher B_f)
       ∗ B_f ↦ₑ□{nargs} 1
@@ -151,7 +152,7 @@ Section TSY_run1.
       "(#Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_b & Hcsp_stk
-      & Hworld_B & HK & Hcstk_frag
+      & Hworld_B & HK & Hcstk_frag & Hhwm
       & #Hinterp_Winit_B_f & #HentryB_f
       & Hstack_revoked & #Hflag_inv & Hmie & Hheld)".
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
@@ -191,7 +192,7 @@ Section TSY_run1.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
-    iDestruct (stk_start_region_split with "Hcsp_stk")
+    iDestruct (stk_start_stack_region_split with "Hcsp_stk")
       as (stk_mem_free stk_res) "[Hcsp_stk _]";
       first exact Hstk_res_size.
     iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked".
@@ -204,11 +205,13 @@ Section TSY_run1.
               B_f stk_mem_free arg_rmap rmap' _ Ws Cs 1 with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $Hworld_B $Hstack_revoked $Hcstk_frag
+              $Hcsp_stk $Hhwm $Hworld_B $Hstack_revoked $Hcstk_frag
               $Hinterp_B_f $HentryB_f $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { reflexivity. }
@@ -229,7 +232,7 @@ Section TSY_run1.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & _ & _ & %Hrestored & %Hroute_B & Hmie & Hheld)".
+      & Hrmap & _ & _ & _ & %Hrestored & %Hroute_B & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_heap /=; reflexivity].

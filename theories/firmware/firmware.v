@@ -99,7 +99,7 @@ Record fw_cmpt : Type := MkFwCmpt {
 }.
 
 (** A thread starts at the export named [ft_entry] of compartment
-    [ft_cmpt], with a zeroed stack of [ft_stack_size] words and a trusted
+    [ft_cmpt], with a stack of [ft_stack_size] integers and a trusted
     stack with room for [ft_tstack_frames] frames besides the entry
     frame. *)
 Record fw_thread : Type := MkFwThread {
@@ -160,10 +160,6 @@ Definition initial_data_word (b e : Addr) (w : Word) : Prop :=
     imports). *)
 Definition sched_data_word (b e : Addr) (hs : list Word) (w : Word) : Prop :=
   initial_data_word b e w ∨ w ∈ hs.
-
-(** A word of the boot stack: an integer, or one of the thread handles [hs]. *)
-Definition boot_stack_word (hs : list Word) (w : Word) : Prop :=
-  is_int w ∨ w ∈ hs.
 
 (** ** Lookups in a firmware *)
 

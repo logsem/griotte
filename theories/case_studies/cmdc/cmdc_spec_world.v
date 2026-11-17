@@ -43,7 +43,7 @@ Section CMDC_World.
     StackRevokedResources W C stk -∗
     interp W C (WSealed ot_switcher target) -∗
     a ↦ₐ WInt 0 -∗
-    [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]]
+    stack_region csp_b csp_e stk_mem
     ={⊤}=∗
     world_interp W C ∗
     (LNonHeap a) ↪ᵖ[C]{RW} (safeGC interp_nonlocal) ∗
@@ -52,12 +52,12 @@ Section CMDC_World.
     StackRevokedResources W C stk ∗
     ⌜ revoked_addresses W stk ⌝ ∗
     ⌜ a ∉ stk ⌝ ∗
-    [[ csp_b , csp_e ]] ↦ₐ [[ stk_mem ]].
+    stack_region csp_b csp_e stk_mem.
   Proof.
     intros stk.
     iIntros (Ha_e Ha_mmio Ha_heap Hrevoked_stk)
       "Hworld Hstack_revoked #Htarget Ha Hstk".
-    iDestruct (big_sepL2_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
+    iDestruct (stack_region_disjoint_pointsto with "[$Hstk $Ha]") as "%Ha_stk".
 
     (* Relinquish [a] into the world, as a Permanent region *)
     iDestruct (init_PermRes C (LNonHeap a) RW (safeGC interp_nonlocal) with "[$Ha] []") as "Ha".
@@ -93,7 +93,8 @@ Section CMDC_World.
             * assert (mtimecmp_addr = a) as Heq by solve_addr+Ha' Ha_e.
               rewrite -Heq bool_decide_eq_false in Ha_mtimecmp.
               by apply Ha_mtimecmp.
-        - iApply heap_cap_ok_disjoint.
+        - iSplit; last done.
+          iApply heap_cap_ok_disjoint.
           rewrite /disjoint_from_heap elem_of_disjoint.
           intros a' Ha' Hr; apply elem_of_finz_seq_between in Ha', Hr.
           assert (a' = a) as -> by solve_addr+Ha' Ha_e.

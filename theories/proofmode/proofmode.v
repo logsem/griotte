@@ -50,9 +50,6 @@ End codefrag.
     once the kind of [th] is known. The rewritten value keeps the type
     [tval (kind_of th)], so the language of the WP does not move. *)
 Section tval_sw_kind.
-  Lemma kind_of_user th : th ≠ CtxSwitch → kind_of th = UserK.
-  Proof. intros Hth. destruct th as [t|]; [done | contradiction]. Qed.
-
   (* Not a switch instruction of the thread's kind: the value itself. *)
   Lemma tval_sw_kind_none th k i v :
     kind_of th = k → sw_of k i = None →

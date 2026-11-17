@@ -132,9 +132,16 @@ Section Switcher_entry_point.
          ∗ (execute_entry_point_register wcgp
               (Cap RWL Local b_stk e_stk (stk_start_a b_stk e_stk)) nargs b W C regs)
          ∗ registers_pointsto regs
+         (* MSHWM is the callee's initial stack pointer; the stack addresses
+            between MSHWMB and it are Temporary *)
+         ∗ hwm_res cstk (stk_start_a b_stk e_stk)
+         ∗ ⌜zone_temporary W (cstk_hwm_base cstk) (stk_start_a b_stk e_stk)⌝
          ∗ world_resources W C
          ∗ shared_credit C
          ∗ ⌜csp_sync cstk b_stk e_stk⌝
+         (* The callee's stack starts at the base of the thread's stack, which
+            the switcher checked against MSHWMB *)
+         ∗ ⌜b_stk = cstk_hwm_base cstk⌝
          (* The switcher checked that the callee's stack holds the minimum
             stack size of the entry point plus the space reserved at its
             top. *)

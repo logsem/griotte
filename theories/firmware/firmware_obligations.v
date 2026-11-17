@@ -92,8 +92,7 @@ Section obligation_facts.
     trusted_stack_layout (b_trusted_stack (thread_of img 0)) (e_trusted_stack (thread_of img 0))
       (b_hazard (thread_of img 0)) (e_hazard (thread_of img 0))
       (fw_tstack_content fw img 0 (fw_thread0 fw)) ∧
-    img_switcher_layout (img_sw img) (thread_of img 0)
-      (replicate (ft_stack_size (fw_thread0 fw)) (WInt 0)).
+    img_switcher_layout (img_sw img) (thread_of img 0) (stack_words (thread_of img 0)).
   Proof.
     intros Hok. pose proof Hok as (_ & _ & _ & Hwf).
     pose proof (firmware_ok_thread0 _ _ _ Hok) as H0.
@@ -242,7 +241,7 @@ Lemma fw_switcher_layouts_at `{MP : MachineParameters} fw img σ k ft :
   trusted_stack_layout (b_trusted_stack (thread_of img k)) (e_trusted_stack (thread_of img k))
     (b_hazard (thread_of img k)) (e_hazard (thread_of img k))
     (fw_tstack_content fw img k ft) ∧
-  img_switcher_layout (img_sw img) (thread_of img k) (replicate (ft_stack_size ft) (WInt 0)).
+  img_switcher_layout (img_sw img) (thread_of img k) (stack_words (thread_of img k)).
 Proof.
   intros (_ & _ & _ & Hwf) Hk.
   split; [exact (img_wf_trusted_stack_layout _ _ _ _ Hk Hwf)
@@ -695,8 +694,8 @@ Section adversary.
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
-    [[ b_stack t, e_stack t ]] ↦ₐ
-      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    stack_region (b_stack t) (e_stack t) (lword_of_word <$> stack_words t) -∗
+    thread_stack_bounds (b_stack t) (e_stack t) -∗
     ((interp W C (cmpt_pcc_cap C_cmpt) ∗
       interp W C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W C v)) -∗
@@ -713,7 +712,8 @@ Section adversary.
       interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack Himports #Hthread Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack #Htstk Himports #Hthread
+      Hworld".
     iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
@@ -722,13 +722,16 @@ Section adversary.
     destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W C Hok Hin Hbody Hnargs)
       as (Hcode & Hdata & Hexports).
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
-           with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hthread Hworld")
+           with "Hseal Himp Hcode Hdata Hstack Htstk [] [Himports] Hthread Hworld")
       as "($ & $ & $ & $ & #Hexp)".
     - by eapply (fw_switcher_cmpt_disjoint_at _ _ _ Hok).
     - exact Hfree.
     - exact Hcode.
     - exact Hdata.
-    - by apply Forall_replicate.
+    - pose proof Hok as (_ & _ & _ & Hwf).
+      destruct (img_wf_stack_words _ _ _ _ (firmware_ok_thread0 _ _ _ Hok) Hwf)
+        as [_ Hstack_ints].
+      exact Hstack_ints.
     - iApply (Hexports with "Hswitcher Hpers").
     - iIntros "H". iApply fw_imports_safe_words; first exact Hfc_ok. by iApply "Himports".
     - iModIntro. by iApply (fw_adv_exports_interp with "Hexp").
@@ -752,8 +755,8 @@ Section adversary.
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
-    [[ b_stack t, e_stack t ]] ↦ₐ
-      [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] -∗
+    stack_region (b_stack t) (e_stack t) (lword_of_word <$> stack_words t) -∗
+    thread_stack_bounds (b_stack t) (e_stack t) -∗
     ((interp W C (cmpt_pcc_cap C_cmpt) ∗
       interp W C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W C v)) -∗
@@ -766,9 +769,9 @@ Section adversary.
     [∗ list] k ↦ _ ∈ ub_exports ub, interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c k)).
   Proof.
     intros swl c C_cmpt t Wadv Hok Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack Himports #Hthread Hworld".
+    iIntros "#Hswitcher #Hstatic Hmem #Hpers Hstack #Htstk Himports #Hthread Hworld".
     by iMod (fw_close_adv_world_entry fw img σ i fc ub Hc W C Hok Hi Hbody Hnargs Hfree
-           with "Hswitcher Hstatic Hmem Hpers Hstack Himports Hthread Hworld")
+           with "Hswitcher Hstatic Hmem Hpers Hstack Htstk Himports Hthread Hworld")
       as "($ & _ & _ & $ & $)".
   Qed.
 
@@ -843,8 +846,8 @@ Section adversary.
     switcher_static (swlayout := swl) -∗
     fw_cmpt_mem_res c -∗
     fw_cmpt_pers_res img fc -∗
-    [[ b_stack t, e_stack t ]] ↦ₐ
-      [[ lword_of_word <$> replicate (ft_stack_size ft) (WInt 0) ]] -∗
+    stack_region (b_stack t) (e_stack t) (lword_of_word <$> stack_words t) -∗
+    thread_stack_bounds (b_stack t) (e_stack t) -∗
     ((interp W C (cmpt_pcc_cap C_cmpt) ∗
       interp W C (cmpt_cgp_cap C_cmpt) ∗
       ([∗ set] v ∈ exported_entries_sealed (swlayout := swl) C_cmpt, interp W C v)) -∗
@@ -861,7 +864,8 @@ Section adversary.
       interp Wadv C (WSealed (ot_switcher (img_sw img)) (cmpt_export_sb c j)).
   Proof.
     intros swl c C_cmpt t Wadv Hok Hk Hi Hbody Hnargs Hfree.
-    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack Himports #Hthread Hworld".
+    iIntros "#Hswitcher #Hstatic (Himp & Hcode & Hdata) #Hpers Hstack #Htstk Himports #Hthread
+      Hworld".
     iDestruct (switcher_static_seal_pred with "Hstatic") as "#Hseal".
     pose proof (list_elem_of_lookup_2 _ _ _ Hi) as Hin.
     pose proof (fw_cmpt_ok_at _ _ _ _ _ Hok Hi) as Hfc_ok.
@@ -870,13 +874,15 @@ Section adversary.
     destruct (fw_adv_cmpt_facts fw img σ fc ub Hc W C Hok Hin Hbody Hnargs)
       as (Hcode & Hdata & Hexports).
     iMod (initialise_adversary_world (swlayout := swl) W swc C_cmpt C
-           with "Hseal Himp Hcode Hdata Hstack [] [Himports] Hthread Hworld")
+           with "Hseal Himp Hcode Hdata Hstack Htstk [] [Himports] Hthread Hworld")
       as "($ & $ & $ & $ & #Hexp)".
     - by eapply (fw_switcher_cmpt_disjoint_thread _ _ _ _ _ Hok Hk).
     - exact Hfree.
     - exact Hcode.
     - exact Hdata.
-    - by apply Forall_replicate.
+    - pose proof Hok as (_ & _ & _ & Hwf).
+      destruct (img_wf_stack_words _ _ _ _ Hk Hwf) as [_ Hstack_ints].
+      exact Hstack_ints.
     - iApply (Hexports with "Hswitcher Hpers").
     - iIntros "Hinterp". iApply fw_imports_safe_words; first exact Hfc_ok.
       by iApply "Himports".

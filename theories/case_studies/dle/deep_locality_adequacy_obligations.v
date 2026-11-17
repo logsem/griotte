@@ -90,10 +90,16 @@ Section dle_obligations.
     (* 4 - Close the world of C: its compartment becomes Permanent regions, and the
        stack temporary, because main shares it with C; its export is safe
        to share. *)
+    (* The bounds of the stack of the thread, from its MSHWMB and MSHWM. *)
+    iAssert (thread_stack_bounds (th := UserThread 0)
+               (image.b_stack (thread_of img 0)) (image.e_stack (thread_of img 0)))
+      as "#Htstk".
+    { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 1 (fw_nth 1 (fw_cmpts dle_firmware) default_fw_cmpt) _
             HC_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static HC HC_pers Hstack Htstk [] Hthread_C
+             Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
       by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
@@ -110,7 +116,7 @@ Section dle_obligations.
                         $Hworld_C
                         $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Hinterp_C $Hcstk
+                        $Hinterp_C $Hcstk $Hhwm
                         $Hentry_Cf $Hinterp_stack_C
                         $HMIE $Hheld
                         ]") as "Hspec";

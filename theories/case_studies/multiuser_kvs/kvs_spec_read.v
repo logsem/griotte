@@ -796,10 +796,11 @@ Section KVS_spec_read.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "(#Hkvs_static & #Hlock)" (arg_rmap' rmap')
       "(_ & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hheld
+       & Hargs & Hrmap & Hstk & Hhwm & Hcstk & %Hroute & Hmie & Hheld
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
     iEval (cbn) in "HPC".
+    iDestruct (stack_ints_region with "Hstk") as (stk_mem) "Hstk".
 
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
       as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -849,8 +850,7 @@ Section KVS_spec_read.
     set (rmap_ret := <[ct0 := wct0']> rmap_ret8).
     iEval (cbn) in "HPC".
 
-    iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) w rmap_ret
-              (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
+    iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) w rmap_ret stk_mem).
     iSplit.
     { iPureIntro.
       rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5

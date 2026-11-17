@@ -32,7 +32,7 @@ Section logrel.
     iIntros (HnonO) "Hinterp".
     rewrite interp_unfold interp1_eq HnonO.
     destruct (has_sreg_access p); first done.
-    iDestruct "Hinterp" as "[ [_ [%Hregions #Hok] ] | %Hexp]".
+    iDestruct "Hinterp" as "[ [_ [%Hregions [#Hok _] ] ] | %Hexp]".
     - iFrame "Hok". iPureIntro. left. naive_solver.
     - iSplit; first (iPureIntro; by right).
       iIntros "%Hne". destruct Hexp as (-> & Hexp_rest).
@@ -64,7 +64,7 @@ Section logrel.
     rewrite interp_unfold interp1_eq.
     destruct (isO p); first by iIntros "$".
     destruct (has_sreg_access p); first by iIntros "H".
-    iIntros "[ [#Hlist [%Hconditions #Hok] ] | %Hexp]"; cycle 1.
+    iIntros "[ [#Hlist [%Hconditions [#Hok _] ] ] | %Hexp]"; cycle 1.
     { rewrite /heap_cap_O_valid. iSplit.
       - iIntros "%Hne". destruct Hexp as (-> & Hexp_rest).
         iPureIntro. eapply exposed_mmio_cap_disjoint_heap. split; [done|exact Hexp_rest].
@@ -460,6 +460,20 @@ Section logrel.
     iDestruct (writeLocalAllowed_valid_cap_implies_full_cap with "Hinterp") as "Htmp"; first done.
     iApply (big_sepL_impl with "Htmp"); iIntros "!>" (k a' Ha') "%Htmp".
     by rewrite (Forall_lookup_1 _ _ _ _ Hkeys Ha') in Htmp.
+  Qed.
+
+  (** A valid write-local capability lies in the stack of the thread. *)
+  Lemma interp_wl_in_stack W C p g b e a π :
+    isWL p = true →
+    interp W C (Cap p g b e a @@? π) -∗ wl_in_stack p b e.
+  Proof.
+    iIntros (Hwl) "Hinterp".
+    rewrite interp_unfold interp1_eq (isWL_nonO _ Hwl).
+    destruct (has_sreg_access p); first done.
+    iDestruct "Hinterp" as "[ (_ & _ & _ & Hwls) | %Hexp]".
+    - iExact "Hwls".
+    - (* an exposed MMIO capability is not write-local *)
+      destruct Hexp as (_ & _ & Hnwl & _). congruence.
   Qed.
 
   (** A register file can read (resp. write) the address [a] through a word

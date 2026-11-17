@@ -305,7 +305,7 @@ Section translation.
         note "arbitrary error handler offsets"
           (∃ eh ehs : Z, cmpt_exp_tbl_handler c = WInt eh ∧ cmpt_exp_tbl_handler_stackless c = WInt ehs) ∧
         note "arbitrary offsets, inside the PCC range, and minimum stack sizes" (hole_exports c (fw_map ue_nargs (ub_exports b)) (λ ws, cmpt_exp_tbl_entries c = ws))
-    | SchedulerBody _ =>
+    | SchedulerBody sb =>
         note "arbitrary, any length" (Forall is_int (cmpt_code c)) ∧
         note "arbitrary, any length: initial globals, thread handles or imported time-device capabilities"
           (Forall (sched_data_word (cmpt_b_cgp c) (cmpt_e_cgp c)
@@ -314,8 +314,8 @@ Section translation.
           (cmpt_exp_tbl_handler c = WInt ExportTable_no_handler ∧
            cmpt_exp_tbl_handler_stackless c = WInt ExportTable_no_handler) ∧
         note "no export: its exception entry is in the switcher" (cmpt_exp_tbl_entries c = []) ∧
-        note "the boot stack: integers or thread handles"
-          (Forall (boot_stack_word thread_handles) (img_boot_stack_words (img_boot img)))
+        note "the boot stack: arbitrary integers, below its high-water mark"
+          (Forall is_int (img_boot_stack_words (img_boot img)))
     end.
 
   Definition cmpt_ok (fc : fw_cmpt) : Prop :=
@@ -371,11 +371,13 @@ Section translation.
       sentry (a return from the entry exits the thread), [csp] its stack
       pointer, [cgp] the globals of its compartment, the other registers
       zero, [hazardPointers] the store-only capability to its hazard slots,
-      [mstatus] with MIE disabled and MPIE the posture of the entry, and
-      [mcause] zero. The entry frame holds the stack pointer and the export
+      [mstatus] with MIE disabled and MPIE the posture of the entry,
+      [mcause] zero, and [mshwm] and [mshwmb] the top and the base of its
+      stack. The entry frame holds the stack pointer and the export
       table of the compartment it starts in, read-write and global. Its
-      [threadID] is [i + 1] (0 is the idle thread). The stack and the hazard
-      slots are zeroed. *)
+      [threadID] is [i + 1] (0 is the idle thread). The stack holds the
+      words of the image, integers ([thread_layout_ok]); the hazard slots
+      are zeroed. *)
   Definition thread_mem (i : nat) (ft : fw_thread) : Mem :=
     let t := thread_of img i in
     let c := cmpt_of img (ft_cmpt ft) in
@@ -389,18 +391,20 @@ Section translation.
                (Cap RWL Local (b_stack t) (e_stack t) (e_stack t ^+ (- StackEntry_reserved_space)))
                (Cap RW Global (cmpt_b_cgp c) (cmpt_e_cgp c) (cmpt_b_cgp c))
                (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
-               (WInt (mstatus_enc InterruptDisabled posture)))
+               (WInt (mstatus_enc InterruptDisabled posture))
+               (WInt (e_stack t)) (WInt (b_stack t)))
             (Cap RWL Local (b_stack t) (e_stack t) (e_stack t ^+ (- StackEntry_reserved_space)))
             (Cap RW Global (cmpt_exp_tbl_pcc c) (cmpt_exp_tbl_entries_end c) (cmpt_exp_tbl_pcc c))
             (S i) (ft_tstack_frames ft))) ∪
     note ("thread " ++ nat_str i ++ ", stack")
-      (mem_region (b_stack t) (replicate (ft_stack_size ft) (WInt 0))) ∪
+      (mem_region (b_stack t) (stack_words t)) ∪
     note ("thread " ++ nat_str i ++ ", hazard slots")
       (mem_region (b_hazard t) [WInt 0; WInt 0]).
 
   (** The idle thread: its trusted stack holds a save area at the loop of an
       exited thread, the last two words of the switcher, with every register
-      zero, MIE disabled and MPIE enabled; its [threadID] is 0; its entry
+      zero, MIE disabled and MPIE enabled, and its high-water-mark pair
+      zero; its [threadID] is 0; its entry
       frame and its hazard slots are zeroed. *)
   Definition idle_mem : Mem :=
     let sw := img_sw img in
@@ -414,13 +418,14 @@ Section translation.
             (save_area_content (Cap RX Local a_loop (a_loop ^+ 2)%a a_loop)
                (WInt 0) (WInt 0) (WInt 0)
                (Cap WO Global (img_b_idle_hazard d) (img_e_idle_hazard d) (img_b_idle_hazard d))
-               (WInt (mstatus_enc InterruptDisabled InterruptEnabled)))
+               (WInt (mstatus_enc InterruptDisabled InterruptEnabled))
+               (WInt 0) (WInt 0))
             (WInt 0) (WInt 0) 0 0)) ∪
     note "idle thread, hazard slots"
       (mem_region (img_b_idle_hazard d) [WInt 0; WInt 0]).
 
-  (** The boot stack: the words the loader, the initialisers and the
-      scheduler's initialisation leave on it. *)
+  (** The boot stack, integers ([body_ok]): the context-switch thread's
+      zone. *)
   Definition boot_mem : Mem :=
     let bs := img_boot img in
     note "boot stack, the scheduler's stack"
@@ -446,10 +451,13 @@ Section translation.
       [mtdc] is zero, interrupts are disabled; [cra], [cgp] and [csp] hold
       the scheduler's three words, [ca0] the idle thread's handle and
       [ca1]–[ca3] integers (the trap's cause, the address of its PC, its
-      [mtval]); the other registers are zero. [mepcc], [mcause] and [mtval]
-      are integers, dead until the resume path writes them. *)
+      [mtval]); the other registers are zero. MSHWMB and MSHWM hold the
+      base and the top of the boot stack, the scheduler's stack. [mepcc],
+      [mcause] and [mtval] are integers, dead until the resume path writes
+      them. *)
   Definition start_ok (σ : ExecConf) : Prop :=
     let sw := img_sw img in
+    let bs := img_boot img in
     note "the switcher's call of the scheduler"
       (pcc σ = Cap XSRW_ Local (b_switcher sw) (e_switcher sw)
                  (a_switcher_call sw ^+
@@ -472,6 +480,10 @@ Section translation.
               (a_switcher_call sw ^+
                  assembler.Asm_Griotte.label_offset_from (concat switcher_asm)
                    ".Lswitch_csp_check" "exception_entry_asm")%a) ∧
+    note "the stack high-water-mark base: the base of the boot stack"
+      (sreg σ !! mshwmb = Some (WInt (img_b_boot_stack bs))) ∧
+    note "the stack high-water mark: the top of the boot stack, the scheduler's stack pointer"
+      (sreg σ !! mshwm = Some (WInt (img_e_boot_stack bs))) ∧
     note "interrupts disabled, MPIE arbitrary"
       (∃ mpie : InterruptStatus, sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled mpie))) ∧
     note "arbitrary integers, dead until the resume path"
@@ -595,7 +607,8 @@ Section translation.
        range_ok (b_locks lck) (e_locks lck) ∧
        note "closed bounds outside the heap" (is_heap_address (e_locks lck) = false)).
 
-  (** The layout of the thread [i]: its stack, its trusted stack with room
+  (** The layout of the thread [i]: its stack, of [ft_stack_size] integers,
+      its trusted stack with room
       for the entry frame and [ft_tstack_frames] frames ([tstack_frame_offset]
       giving the offset of a frame), and its two hazard slots. [min_stack] is
       the condition that the stack holds the minimum stack size of the entry
@@ -610,7 +623,10 @@ Section translation.
     note "trusted stack not at address 0" ((b_trusted_stack t : Z) ≠ 0) ∧
     min_stack ∧
     (b_hazard t + 2)%a = Some (e_hazard t) ∧
-    note "hazard slots" (range_ok (b_hazard t) (e_hazard t)).
+    note "hazard slots" (range_ok (b_hazard t) (e_hazard t)) ∧
+    note "the size of the stack" (length (stack_words t) = ft_stack_size ft) ∧
+    note "the stack: arbitrary integers, below its high-water mark"
+      (Forall is_int (stack_words t)).
 
   (** The layout of the thread [i], which starts at an export of a
       compartment of the firmware. The minimum stack size of a trusted

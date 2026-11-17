@@ -210,13 +210,13 @@ Section SO_World_Object.
     ([∗ list] a ∈ l, ∃ p' P, region_rel W C (addr_key π a) p' P p g ∗ ▷ zcond P C) -∗
     ([∗ list] a ∈ l,
        ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
-         ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
+         ∃ wa, ⌜isO pa = false⌝ ∗ temp_cell th (addr_key π a) wa ∗
                ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)) -∗
     world_interp_open W1 C s ∗
     ([∗ list] a ∈ l,
        ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
          ▷ zcond (safeUC Φa) C ∗
-         ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
+         ∃ wa, ⌜isO pa = false⌝ ∗ temp_cell th (addr_key π a) wa ∗
                ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W, C, wa)).
   Proof.
     iInduction l as [|a l] "IH"; cbn; iIntros (Hs) "Hw #Hinterp Hl"; first by iFrame.
@@ -227,7 +227,7 @@ Section SO_World_Object.
     iDestruct (region_rel_parts with "Hrel'") as (ρ) "Hpart".
     destruct ρ; cbn.
     - iExFalso. rewrite /region_rel_perm.
-      iApply (world_interp_open_rel_perm_cell_false with "Hw Hpart Hv"). done.
+      iApply (world_interp_open_rel_perm_temp_cell_false with "Hw Hpart Hv"). done.
     - iDestruct "Hpart" as "(Hrel'' & _ & _)".
       iDestruct (rel_l_agree with "Hrel Hrel''") as "[_ #Heq]".
       iFrame "Hw". iExists pa, Φa. iFrame "Hrel %".
@@ -262,20 +262,20 @@ Section SO_World_Object.
     ∗ interp W0 C (WCap t p g b e cur @@? π)
     ∗ world_interp W1 C
     ∗ ▷ RevokedResources W0 C l_revoked
-    ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
+    ∗ stack_region csp_b csp_e stk_mem
     ∗ £ 1
     ={⊤}=∗
     (∃ object_mem,
       ⌜length object_mem = length object⌝
       ∗ ⌜object ≡ₚ perms ++ temps⌝
-      ∗ ([∗ list] a;v ∈ perms ++ temps;object_mem, a ↦ₐ v)
+      ∗ ([∗ list] a;v ∈ perms ++ temps;object_mem, stack_cell a v)
       ∗ ▷ (
           (⌜Forall (fun w => exists z : Z, w.(lw) = WInt z) object_mem⌝
            ∗ ([∗ list] a;v ∈ perms ++ temps;object_mem, a ↦ₐ v)
            ={⊤}=∗
            world_interp (close_list (addr_key π <$> temps) W1) C
            ∗ RevokedResources W0 C rest
-           ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]
+           ∗ stack_region csp_b csp_e stk_mem
            ∗ interp
                (close_list (addr_key π <$> temps) W1) C
                (WCap t p g b e (finz.max b e) @@? π))
@@ -284,12 +284,12 @@ Section SO_World_Object.
            ={⊤}=∗
            world_interp W1 C
            ∗ RevokedResources W0 C l_revoked
-           ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]])))
+           ∗ stack_region csp_b csp_e stk_mem)))
     ∨ (∃ ι,
         ⌜t = true⌝ ∗ ⌜π = Some ι⌝ ∗ ⌜(b < e)%a⌝ ∗ ι ⊒ AQuar
         ∗ world_interp W1 C
         ∗ RevokedResources W0 C l_revoked
-        ∗ [[csp_b, csp_e]] ↦ₐ [[stk_mem]]).
+        ∗ stack_region csp_b csp_e stk_mem).
   Proof.
     intros W1 object temps perms rest.
     iIntros (Hextract Hobject_stack Hread Hobject_nexp Htag_or_empty)
@@ -361,7 +361,7 @@ Section SO_World_Object.
              ([∗ list] a ∈ temps,
                heap_key_resource (addr_key π a)
                  (∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
-                    ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
+                    ∃ wa, ⌜isO pa = false⌝ ∗ temp_cell th (addr_key π a) wa ∗
                           ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa))))%I
       with "[Hrevoked_temps]" as "[#Htemps_rels Hrevoked_temps]".
     { rewrite -big_sepL_sep. iApply (big_sepL_impl with "Hrevoked_temps").
@@ -439,7 +439,7 @@ Section SO_World_Object.
         (([∗ list] '(a,p0,φ) ∈ wca0_invs, ∃ v, ⌜isO p0 = false⌝ ∗ a ↦ₖ v ∗ ▷ φ (C, v))
          ∗ ([∗ list] a ∈ temps,
               ∃ pa Φa, ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗ addr_key π a ↪ˡ[C]{pa} Φa ∗
-                ∃ wa, ⌜isO pa = false⌝ ∗ addr_key π a ↦ₖ wa ∗
+                ∃ wa, ⌜isO pa = false⌝ ∗ temp_cell th (addr_key π a) wa ∗
                       ▷ future_pub_mono C Φa wa ∗ ▷ Φa (W0, C, wa)))
         ∨ (∃ ι, ⌜π = Some ι⌝ ∗ ⌜wca0_invs ≠ [] ∨ temps ≠ []⌝ ∗ ι ⊒ AQuar))%I
       with "[Hperms_res Hrevoked_temps]"
@@ -530,7 +530,7 @@ Section SO_World_Object.
           ∗ ([∗ list] a;pφ ∈ temps;(zip lp lφ), addr_key π a ↪ˡ[C]{pφ.1} pφ.2)
           ∗ ([∗ list] φ ∈ lφ, ▷ zcond (safeUC φ) C)
           ∗ ([∗ list] p0 ∈ lp, ⌜isO p0 = false⌝)
-          ∗ ([∗ list] a;v ∈ temps;lv, a ↦ₐ v)
+          ∗ ([∗ list] a;v ∈ temps;lv, stack_cell a v)
           ∗ ([∗ list] a ∈ temps, key_share (addr_key π a))
           ∗ ([∗ list] lpφ;v ∈ (zip lp lφ);lv, ▷ future_pub_mono C lpφ.2 v)
           ∗ ([∗ list] φ;v ∈ lφ;lv, ▷ φ (W0, C, v)))%I
@@ -546,7 +546,7 @@ Section SO_World_Object.
         iDestruct ("IH" with "Hl") as "Hl".
         iDestruct "Ha" as (p0 P HpersP) "(Hrel_a & Hz_a & Ha)".
         iDestruct "Ha" as (v) "(HpO & Hv & HmonoP & HP)".
-        iDestruct (addr_key_pointsto with "Hv") as "[Hv Hsh]".
+        iDestruct (temp_cell_addr_key with "Hv") as "[Hv Hsh]".
         iDestruct "Hl" as (lp0 lP lv)
           "(% & % & % & %Hpers_lP & Hrels & Hzs & HpOs & Hvs & Hshs & Hmonos & HPs)".
         iExists (p0 :: lp0), (P :: lP), (v :: lv).
@@ -555,8 +555,10 @@ Section SO_World_Object.
     }
     iDestruct (big_sepL_later_2 with "Hzcond_lφ") as "#Hzcond_lφ_later".
     iClear "Hzcond_lφ".
-    (* Present [checkints] with one points-to list.  Its address order may be
+    (* Present the object as one list of cells.  Its address order may be
        permuted, but the object contents and length remain unchanged. *)
+    iDestruct (big_sepL2_mono _ (λ _ a v, stack_cell a v) with "Hperms_lv") as "Hperms_lv".
+    { iIntros (k a v _ _) "Ha". by iApply stack_cell_of_pointsto. }
     iDestruct (big_sepL2_app with "Hperms_lv Htemps_lv") as "Hobject_mem".
 
     iModIntro. iLeft.
@@ -615,6 +617,7 @@ Section SO_World_Object.
         iDestruct "Hlpφ_rels" as "[Hrel_a Hlpφ_rels]".
         iDestruct "Htemps_shares" as "[Hsh_a Htemps_shares]".
         iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
+        iDestruct (temp_cell_pointsto th with "Hlv_a") as "Hlv_a".
         iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
         { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
           iApply heap_key_resource_intro. iExists v. by iFrame. }
@@ -675,7 +678,6 @@ Section SO_World_Object.
         iSpecialize ("Hz" $! W0 W1 z π0). cbn.
         iApply "Hz"; auto.
     }
-    iDestruct (big_sepL2_disjoint with "[$Hstk $Htemps_lv]") as %Htemps_stack.
     iAssert (RevokedResources W1 C (addr_key π <$> temps))%I
       with "[Hlφ_pers HlpO Hlpφ_mono Htemps_lv Htemps_shares Hlφ_lv]"
       as "Htemps_closing_resources".
@@ -701,6 +703,7 @@ Section SO_World_Object.
       iDestruct "Hlpφ_rels" as "[Hrel_a Hlpφ_rels]".
       iDestruct "Htemps_shares" as "[Hsh_a Htemps_shares]".
       iDestruct (addr_key_pointsto with "[$Hlv_a $Hsh_a]") as "Hlv_a".
+      iDestruct (temp_cell_pointsto th with "Hlv_a") as "Hlv_a".
       iSplitL "Hmono_a Hlv_a Hφ_a Hrel_a".
       { iExists p0, φ. iFrame "Hrel_a". iSplit; first done.
         iApply heap_key_resource_intro. iExists v. by iFrame. }
@@ -779,26 +782,26 @@ Section SO_World_Object.
       ▷ StackRevokedResources W0 C (finz.seq_between csp_b csp_e) ∗
       ((∃ la object_mem,
       ⌜la ≡ₚ finz.seq_between b e⌝ ∗
-      ([∗ list] a;v ∈ la;object_mem, a ↦ₐ v) ∗
+      ([∗ list] a;v ∈ la;object_mem, stack_cell a v) ∗
       ▷ ((⌜Forall (fun w => exists z : Z, w.(lw) = WInt z) object_mem⌝ ∗
            ([∗ list] a;v ∈ la;object_mem, a ↦ₐ v)
            ={⊤}=∗
            world_interp
              (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)) C ∗
            RevokedResources W0 C (so_revoked_without_object W0 π b e l_revoked) ∗
-           [[csp_b, csp_e]] ↦ₐ [[stk_mem]] ∗
+           stack_region csp_b csp_e stk_mem ∗
            interp (close_list (addr_key π <$> so_object_temporaries W0 π b e) (revoke W0)) C
              (WCap t p g b e (finz.max b e) @@? π)) ∧
          (([∗ list] a;v ∈ la;object_mem, a ↦ₐ v)
            ={⊤}=∗
            world_interp (revoke W0) C ∗
            RevokedResources W0 C l_revoked ∗
-           [[csp_b, csp_e]] ↦ₐ [[stk_mem]])))
+           stack_region csp_b csp_e stk_mem)))
        ∨ (∃ ι,
            ⌜t = true⌝ ∗ ⌜π = Some ι⌝ ∗ ⌜(b < e)%a⌝ ∗ ι ⊒ AQuar ∗
            world_interp (revoke W0) C ∗
            RevokedResources W0 C l_revoked ∗
-           [[csp_b, csp_e]] ↦ₐ [[stk_mem]])).
+           stack_region csp_b csp_e stk_mem)).
   Proof.
     iIntros (Hp Hobject_nexp Htag_or_empty Hno_overlap) "#Hthread #Hinterp_csp #Hinterp_object Hworld_interp_C Hlc".
     iMod (world_interp_revoke_stack with "[$Hinterp_csp $Hworld_interp_C]")

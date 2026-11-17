@@ -37,6 +37,7 @@ Section Switcher.
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (wca0 wca1 wcsp : LWord)
     (b : InterruptStatus)
+    (mshwm_v : Z)
     :
     let Wfixed := (close_list (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) Wcur) in
     related_sts_pub_world W0 Wfixed ->
@@ -46,6 +47,8 @@ Section Switcher.
     (* NOTE: there is only one side of the implication... *)
     NoDup (l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
     (∀ a : LAddr, (std W0) !! a = Some Temporary -> a ∈ l ++ (LNonHeap <$> finz.seq_between csp_b csp_e)) ->
+    (* MSHWM is in the callee's stack, or below *)
+    (mshwm_v <= csp_e)%Z ->
 
     (* The thread runs in the callee's compartment *)
     thread_in th C
@@ -53,7 +56,8 @@ Section Switcher.
     ∗ switcher_trap_safety
     ∗ interp Wfixed C wca0
     ∗ interp Wfixed C wca1
-    ∗ [[csp_b,csp_e]]↦ₐ[[stk_mem]]
+    ∗ stack_region csp_b csp_e stk_mem
+    ∗ hwm_res cstk mshwm_v
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
     ∗ world_resources Wcur C
@@ -73,19 +77,24 @@ Section Switcher.
        - when the frame to pop is the entry frame, the thread exits:
          [switcher_return_exit_path_spec], [regs_total_of], [switcher_HO_exit]
          (the trusted-stack invariant stays open);
-       - otherwise, [switcher_return_path_world_spec]: pop the trusted
-         stack; obtain the callee-save area
+       - otherwise, the cells of the callee's stack below MSHWM hold
+         integers ([wp_stack_region_below_hwm]); [switcher_return_path_world_spec]:
+         pop the trusted stack; obtain the callee-save area
          ([open_world_interp_cframe_gen]); restore the callee-save
-         registers, clear the stack frame and the registers, and jump to
-         the caller;
+         registers, clear the stack frame from MSHWM and the registers, set
+         MSHWM to the caller's stack pointer, and jump to the caller; the
+         zeroing does not fault, since the caller's stack starts at the base
+         of the thread's stack;
        - close the trusted-stack invariant ([switcher_return_pop_close]) and fix
          the local map ([local_stack_fixing]);
        - when the caller is trusted, use the continuation;
        - when the caller is untrusted, [switcher_jump_to_caller_cases_spec]. *)
     intros Wfixed.
-    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked)
-      "(#Hthread & #Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hcstk & HK
-       & Hworld_res & Hna & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp & Hmie & Hheld)".
+    iIntros (Hrelated_pub_W0_Wfixed Hrmap Hframe Hcsp_sync Hnodup_revoked Htemp_revoked Hh_e)
+      "(#Hthread & #Hsafety & #Hinterp_Wfixed_wca0 & #Hinterp_Wfixed_wca1 & Hstk & Hhwm & Hcstk
+       & HK & Hworld_res & Hna & HPC & Hclose_list_res & Hrmap & Hca0 & Hca1 & Hcsp & Hmie
+       & Hheld)".
+    iDestruct "Hhwm" as "[(Hmshwmb & Hmshwm & %Hhb_h) #Hts]".
     iDestruct (world_resources_split with "Hworld_res") as "[Hlocal Hperm]".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hswitcher #Hstatic]".
     iPoseProof "Hstatic" as "[#Hcode _]".
@@ -158,14 +167,27 @@ Section Switcher.
     stk_unfold.
     iDestruct "HK" as "(Hcont_K & #Hinterp_callee_wstk & Htopmost_frm)".
     iDestruct "Hinterp_callee_wstk" as "[%Hstk_nonheap #Hinterp_callee_wstk]".
+    (* The caller's stack starts at the base of the thread's stack *)
+    iAssert (⌜b_stk = tf_stk_b ef⌝)%I as %Hbase.
+    { destruct (is_untrusted_caller ccrel).
+      - iDestruct "Htopmost_frm" as "(_ & _ & %Hb)". iPureIntro. exact Hb.
+      - iDestruct "Htopmost_frm" as "[%Hb _]". iPureIntro. exact Hb. }
+    rewrite /cstk_hwm_base /= in Hhb_h.
+    iEval (rewrite /cstk_hwm_base /=) in "Hmshwmb".
+
+    (* The cells of the callee's stack below MSHWM hold integers *)
+    iPoseProof (hwm_closed_user th Huser) as "Hcl".
+    iApply (wp_stack_region_below_hwm with "Hcl Hstk [$Hmshwmb $Hmshwm]");
+      [done | rewrite -Hbase; solve_addr |].
+    iIntros (Hints_stk) "_ Hstk Hhwm_regs".
 
     (* Pop the trusted stack, restore, clear and return *)
     destruct Hlen_cstk as [Hlen_cstk Ha_tstk_e].
     iApply (switcher_return_path_world_spec Wcur Wfixed C ccrel (length frms)
               _ _ _ _ _ _ _ _ _ _ b with
-      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp $Hcode
-        $Hmie $Hheld]");
-      [done|done|done|done|done|done|done|apply Hpre|].
+      "[- $HPC $Hcsp $Hcgp $Hcra $Hcs0 $Hcs1 $Hrmap $Hmtdc $Hframeoffset $Hhazard $Htf_csp
+        $Hhwm_regs $Hcode $Hmie $Hheld]");
+      [done|done|done|done|done|done|done|apply Hpre| split; [solve_addr|lia] |].
     iIntros "!> (Hmtdc & Hframeoffset & Hhazard & Htf_csp & Hlc)".
 
     (* Obtain the callee-save area *)
@@ -175,8 +197,18 @@ Section Switcher.
             Ha_stk & Ha_stk1 & Ha_stk2 & Ha_stk3 & %Hwastks & #Hinterp_wfrm & Hrevoked)";eauto.
     stk_unfold.
     iEval (rewrite -(open_l_nil Wcur)) in "Hlocal".
-    iAssert (switcher_stk_cells (stk_spill_a a_stk) wastk wastk1 wastk2 wastk3)
-      with "[$Ha_stk $Ha_stk1 $Ha_stk2 $Ha_stk3]" as "Hcells".
+    iAssert (stack_region (a_stk ^- 4) ((a_stk ^- 4) ^+ SpillSlot_size)
+               [wastk; wastk1; wastk2; wastk3])
+      with "[Ha_stk Ha_stk1 Ha_stk2 Ha_stk3]" as "Hcells".
+    { rewrite /stack_region /SpillSlot_size.
+      rewrite (finz_seq_between_cons _ ((a_stk ^- 4) ^+ 4)); last solve_addr.
+      rewrite (finz_seq_between_cons _ ((a_stk ^- 4) ^+ 4)); last solve_addr.
+      rewrite (finz_seq_between_cons _ ((a_stk ^- 4) ^+ 4)); last solve_addr.
+      rewrite (finz_seq_between_cons _ ((a_stk ^- 4) ^+ 4)); last solve_addr.
+      rewrite (finz_seq_between_empty _ ((a_stk ^- 4) ^+ 4)); last solve_addr.
+      rewrite /= (_ : ((a_stk ^- 4) ^+ 1) ^+ 1 = (a_stk ^- 4) ^+ 2); last solve_addr.
+      rewrite (_ : ((a_stk ^- 4) ^+ 2) ^+ 1 = (a_stk ^- 4) ^+ 3); last solve_addr.
+      by iFrame "Ha_stk Ha_stk1 Ha_stk2 Ha_stk3". }
     iModIntro.
     iExists [], wastk, wastk1, wastk2, wastk3, stk_mem.
     iFrame "Hcells Hstk Hlocal Hperm".
@@ -184,10 +216,30 @@ Section Switcher.
     { destruct (is_untrusted_caller ccrel); last done.
       iDestruct "Hinterp_wfrm" as "(Hw0 & Hw1 & Hw2 & Hw3)".
       iFrame "Hw2 Hw3 Hw1 Hw0". }
-    iNext; iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
-      "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & Hlocal & Hperm & Hinterp_loaded & %Harg_rmap'
-      & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hrmap & Hlc)".
+    iNext; iSplit; cycle 1.
+    { (* The caller's stack starts at the base of the thread's stack, at or
+         below MSHWM: the zeroing does not fault *)
+      iIntros (rmap1 rcgp rcra rcs1 rcs0 off) "(_ & %Hlt & _)". exfalso.
+      rewrite Hbase in Hlt; lia. }
+    iIntros (arg_rmap' rstk3 rstk2 rstk1 rstk0)
+      "((%Hr3 & %Hr2 & %Hr1 & %Hr0) & _ & Hlocal & Hperm & Hinterp_loaded & %Harg_rmap'
+      & Hcra & Hcgp & Hcs0 & Hcs1 & Hcsp & Hstk' & Hstk & Hhwm_regs & Hrmap & Hlc)".
     iEval (rewrite open_l_nil) in "Hlocal".
+    (* The spill area is above MSHWM: it is zeroed. The cells of the
+       callee's stack below MSHWM hold integers: it holds integers *)
+    iEval (rewrite stack_zeroed_from_below; last solve_addr) in "Hstk'".
+    apply stack_zeroed_from_ints in Hints_stk.
+    iDestruct (stack_ints_of_region _ _ _ Hints_stk with "Hstk") as "Hstk".
+    iEval (rewrite (_ : replicate (length [wastk; wastk1; wastk2; wastk3]) (lword_of_word (WInt 0))
+                         = region_addrs_zeroes (a_stk ^- 4) ((a_stk ^- 4) ^+ SpillSlot_size));
+           last (rewrite /region_addrs_zeroes /SpillSlot_size /finz.dist; f_equal; cbn;
+                 solve_addr)) in "Hstk'".
+    (* MSHWM is the caller's cursor *)
+    iAssert (hwm_res {| cstk_entry := ef; cstk_frames := frms |} a_stk)%I
+      with "[Hhwm_regs]" as "Hhwm".
+    { iDestruct "Hhwm_regs" as "[Hmshwmb Hmshwm]".
+      rewrite /hwm_res /hwm_res_at /cstk_hwm_base /cstk_hwm_top /=.
+      iFrame "Hmshwmb Hmshwm Hts". iPureIntro. solve_addr. }
     iDestruct "Hlc" as "(Hlc & Hlc'')".
 
     (* Depop the topmost frame of the call-stack, close the switcher's
@@ -199,7 +251,9 @@ Section Switcher.
                local_region_map th Wfixed C ∅ ∗
                (if is_untrusted_caller ccrel
                 then True
-                else [[ stk_spill_a a_stk , stk_spill_a a_stk ^+ SpillSlot_size ]] ↦ₐ [[ 0…0 ]]))%I
+                else stack_region (stk_spill_a a_stk) (stk_spill_a a_stk ^+ SpillSlot_size)
+                      (region_addrs_zeroes (stk_spill_a a_stk)
+                         (stk_spill_a a_stk ^+ SpillSlot_size))))%I
       with "[Hna Hmtdc Hframeoffset Hhazard HthreadID Htf_csp Htf_tbl Htf_cnt Htstk
              Hcstk_full Hstk_interp_next Hcstk Hclose_switcher_inv
              Hlocal Hstk' Hstk Hrevoked Hlc'']" as "Hupd".
@@ -244,17 +298,19 @@ Section Switcher.
       iDestruct (lc_fupd_elim_later with "[$] [$Hres]") as ">Hres".
 
       rewrite app_nil_r.
-
+      iDestruct "Htopmost_frm" as "[_ Htopmost_frm]".
       iEval (rewrite /interp_cont_exec /is_untrusted_caller_frm /=)
         in "Htopmost_frm".
       stk_unfold.
+      iEval (rewrite -stack_region_temp_cells) in "Hstk".
       (* The caller resumes at the posture of its return sentry, from [b] *)
       iSpecialize ("Htopmost_frm" $! Wfixed with "[//]").
       iSpecialize ("Htopmost_frm" $! _ _ _ _ _ _ _ _ _ b).
       iApply ("Htopmost_frm" with
                "[%] [%] [%] [%] [$HPC $Hcra $Hcsp $Hcgp $Hcs0 $Hcs1 $Hca0 $Hca1
                  $Hinterp_Wfixed_wca0 $Hinterp_Wfixed_wca1
-      $Hrmap $Hlocal $Hperm $Hstk $Hstk' $Hres $Hcont_K $Hcstk_frag $Hna $Hthread $Hmie $Hheld]");
+      $Hrmap $Hhwm $Hstk' $Hstk $Hlocal $Hperm $Hres $Hcont_K $Hcstk_frag $Hna $Hthread $Hmie
+      $Hheld]");
         [exact Hr3|exact Hr2|exact Hr0|exact Hr1|].
       iSplit; last (iPureIntro; apply Hpre).
       iPureIntro;rewrite Harg_rmap'; set_solver.
@@ -264,14 +320,19 @@ Section Switcher.
         "#(Hinterp_wstk3 & Hinterp_wstk2 & Hinterp_wstk1 & Hinterp_wstk0)".
       (* The untrusted caller recorded that its topmost compartment is
          untrusted *)
-      iDestruct "Htopmost_frm" as "#Htop_caller".
+      (* The untrusted caller recorded that its topmost compartment is
+         untrusted, and that its stack addresses between the base of the
+         thread's stack and its cursor are Temporary *)
+      iDestruct "Htopmost_frm" as "(#Htop_caller & %Hzone & _)".
       iDestruct (top_cmpt_untrusted_mono_pub with "Htop_caller") as "#Htop";
         first exact Hrelated_pub_W0_Wfixed.
       iApply (switcher_jump_to_caller_cases_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ b with
                "Htrap Hthread Hinterp_wstk2 Hinterp_wstk3 Hinterp_wstk0 Hinterp_wstk1 Hinterp_callee_wstk'
                 Hinterp_Wfixed_wca0 Hinterp_Wfixed_wca1 Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
-                Hrmap Hcont_K Hlc [Hupd Hperm]"); [done| |apply Hpre|apply Hpre|].
+                Hrmap [Hhwm] Hcont_K Hlc [Hupd Hperm]"); [done|done| |apply Hpre|apply Hpre| |].
       { eapply frame_match_mono; eauto. }
+      { iExists a_stk. iFrame "Hhwm". iPureIntro.
+        by eapply zone_temporary_mono_pub. }
       iMod "Hupd" as "(Hna & Hcstk_frag & Hlocal & _)".
       iModIntro. rewrite world_resources_split. by iFrame.
       Unshelve. all: exact Wcur.

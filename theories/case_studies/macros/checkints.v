@@ -114,6 +114,7 @@ Section Checkints_spec.
     let checkints_loop := (checkints_loop_instrs r r1 r2) in
     let a_last := (pc_a ^+ length (checkints_loop_instrs r r1 r2)) in
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
     a ∈ₐ [b, e) ->
@@ -151,7 +152,7 @@ Section Checkints_spec.
     ⊢ WP Exec {{ v, φ v }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hnsr Hcont Hl Hae Hra Hdisjoint Hall Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hk)".
     iLöb as "IH" forall ( a Hae Hall w1 w2).
     iDestruct (big_sepL2_length with "Hmem") as %Hlength_mem.
@@ -322,6 +323,7 @@ Section Checkints_spec.
     (w1 w2 : LWord) (p : Perm) (g : Locality) (b e a : Addr) (π : option AId)
     (φ : tval (kind_of th) → iPropI Σ) :
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a (pc_a ^+ length (checkints_instrs r r1 r2)) →
     (b < e)%a →
     r ≠ cnull → r1 ≠ cnull → r2 ≠ cnull →
@@ -335,7 +337,7 @@ Section Checkints_spec.
           trap_safe (Cap pc_p pc_g pc_b pc_e (pc_a ^+ checkints_loop_offset)) ⊤ φ )
     ⊢ WP Exec {{ φ }}.
   Proof.
-    iIntros (Hvpc Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hnsr Hcont Hbe Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & Hfailed)".
     codefrag_facts "Hcode_main".
     rename H into HcontRegion; clear H0.
@@ -375,6 +377,7 @@ Section Checkints_spec.
     let checkints := (checkints_instrs r r1 r2) in
     let a_last := (pc_a ^+ length checkints) in
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a a_last →
     l ≡ₚ (finz.seq_between b e) ->
     readAllowed p = true ->
@@ -408,7 +411,7 @@ Section Checkints_spec.
     ⊢ WP Exec {{ φ }}.
   Proof.
     intros checkints a_last ; subst checkints a_last.
-    iIntros (Hvpc Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
+    iIntros (Hvpc Hnsr Hcont Hl Hra Hdisjoint Hrcnull Hr1cnull Hr2cnull)
       "(>HPC & >Hr & >Hr1 & >Hr2 & >#Hcode_main & >Hmem & Hk)".
     codefrag_facts "Hcode_main".
     rename H into HcontRegion; clear H0.

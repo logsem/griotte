@@ -30,15 +30,17 @@ Section ctx_scheduler_valid.
     ctp ↦ᵣ[CtxSwitch] wctp ∗
     ct2 ↦ᵣ[CtxSwitch] wct2 ∗
     mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
+    pend_frag[CtxSwitch] None ∗
     switcher_code_at CtxSwitch ∗
     (∀ w : LWord,
        ctp ↦ᵣ[CtxSwitch] lword_of_word (WInt 0) -∗
        ct2 ↦ᵣ[CtxSwitch] wct2 -∗
        mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) -∗
+       pend_frag[CtxSwitch] None -∗
        trap_safe w ⊤ (HO CtxSwitch))
     ⊢ safe[CtxSwitch].
   Proof.
-    iIntros "(HPC & Hctp & Hct2 & Hmtdc & #Hswitcher & Hcont)".
+    iIntros "(HPC & Hctp & Hct2 & Hmtdc & Hpend & #Hswitcher & Hcont)".
     pin_thread_instances CtxSwitch.
     switcher_open_label "switcher_after_compartment_call" "Hswitcher" as "Hcode" a_ret Ha_ret.
     (* SpecialRW ctp mtdc cnull *)
@@ -53,7 +55,7 @@ Section ctx_scheduler_valid.
       as "(HPC & Hct2 & Hctp)".
     { done. }
     iDestruct ("Hcont" with "Hctp Hct2 Hmtdc") as "Hts".
-    iTrap.
+    iTrap with "Hts".
   Qed.
 
   (** From [.Lswitch_trusted_stack_load] at the context-switch thread: [ct2]
@@ -64,15 +66,17 @@ Section ctx_scheduler_valid.
     ct2 ↦ᵣ[CtxSwitch] wct2 ∗
     ctp ↦ᵣ[CtxSwitch] wctp ∗
     mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
+    pend_frag[CtxSwitch] None ∗
     switcher_code_at CtxSwitch ∗
     (∀ w : LWord,
        ct2 ↦ᵣ[CtxSwitch] lword_of_word (WInt 0) -∗
        ctp ↦ᵣ[CtxSwitch] wctp -∗
        mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) -∗
+       pend_frag[CtxSwitch] None -∗
        trap_safe w ⊤ (HO CtxSwitch))
     ⊢ safe[CtxSwitch].
   Proof.
-    iIntros "(HPC & Hct2 & Hctp & Hmtdc & #Hswitcher & Hcont)".
+    iIntros "(HPC & Hct2 & Hctp & Hmtdc & Hpend & #Hswitcher & Hcont)".
     pin_thread_instances CtxSwitch.
     switcher_open_label ".Lswitch_trusted_stack_load" "Hswitcher" as "Hcode" a_load Ha_load.
     (* SpecialRW ct2 mtdc cnull *)
@@ -87,7 +91,7 @@ Section ctx_scheduler_valid.
       as "(HPC & Hctp & Hct2)".
     { done. }
     iDestruct ("Hcont" with "Hct2 Hctp Hmtdc") as "Hts".
-    iTrap.
+    iTrap with "Hts".
   Qed.
 
   (** From [.Lcommon_force_unwind] at the context-switch thread: the
@@ -100,6 +104,7 @@ Section ctx_scheduler_valid.
     ctp ↦ᵣ[CtxSwitch] wctp ∗
     ct2 ↦ᵣ[CtxSwitch] wct2 ∗
     mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
+    pend_frag[CtxSwitch] None ∗
     switcher_code_at CtxSwitch ∗
     (∀ w : LWord,
        ca0 ↦ᵣ[CtxSwitch] lword_of_word (WInt ECOMPARTMENTFAIL) -∗
@@ -107,16 +112,18 @@ Section ctx_scheduler_valid.
        ctp ↦ᵣ[CtxSwitch] lword_of_word (WInt 0) -∗
        ct2 ↦ᵣ[CtxSwitch] wct2 -∗
        mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) -∗
+       pend_frag[CtxSwitch] None -∗
        trap_safe w ⊤ (HO CtxSwitch))
     ⊢ safe[CtxSwitch].
   Proof.
-    iIntros "(HPC & Hca0 & Hca1 & Hctp & Hct2 & Hmtdc & #Hswitcher & Hcont)".
+    iIntros "(HPC & Hca0 & Hca1 & Hctp & Hct2 & Hmtdc & Hpend & #Hswitcher & Hcont)".
     pin_thread_instances CtxSwitch.
     iApply (common_force_unwind_spec (th := CtxSwitch) with "[- $HPC $Hca0 $Hca1 $Hswitcher]").
     iIntros "!> (HPC & Hca0 & Hca1)".
-    iApply (ctx_after_call_fault with "[$HPC $Hctp $Hct2 $Hmtdc $Hswitcher Hca0 Hca1 Hcont]").
-    iIntros (w) "Hctp Hct2 Hmtdc".
-    iApply ("Hcont" with "Hca0 Hca1 Hctp Hct2 Hmtdc").
+    iApply (ctx_after_call_fault
+             with "[$HPC $Hctp $Hct2 $Hmtdc $Hpend $Hswitcher Hca0 Hca1 Hcont]").
+    iIntros (w) "Hctp Hct2 Hmtdc Hpend".
+    iApply ("Hcont" with "Hca0 Hca1 Hctp Hct2 Hmtdc Hpend").
   Qed.
 
   (** The call through the switcher's call sentry at the context-switch
@@ -130,11 +137,16 @@ Section ctx_scheduler_valid.
         (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "[#Htrap #Hswitcher] %cstk %Ws %Cs %regs
-      (_ & _ & Hregs & _ & HPC & Hrmap & Hworld_res & _ & _ & Hna & Hcstk & _ & _ & Hmie & Hheld)".
+      (_ & _ & Hregs & _ & HPC & Hrmap & Hhwm_res & Hworld_res & _ & _ & Hna & Hcstk & _ & _ & Hmie
+       & Hheld)".
     iDestruct "Hregs" as "[%Hfull_rmap #Hreg]".
     pin_thread_instances CtxSwitch.
     iEval (rewrite held_disabled) in "Hheld".
     iDestruct "Hheld" as "(Hho & Hmtdc & Hlent)".
+    iEval (rewrite hwm_res_kind_ctx) in "Hhwm_res".
+    iDestruct "Hhwm_res" as (mshwmb_v mshwm_v o) "(Hhwmb & Hhwm & Hpend & Hlentf & Hlast_owner)".
+    iAssert (hwm_closed (kind_of CtxSwitch)) with "[Hpend]" as "Hclosed".
+    { rewrite /hwm_closed /=. iExact "Hpend". }
 
     (* The registers of the call path, and the return values *)
     destruct (Hfull_rmap ca0) as [wca0 Hwca0].
@@ -156,18 +168,22 @@ Section ctx_scheduler_valid.
       [by rewrite !lookup_delete_ne..|].
 
     (* A fault goes to the trap vector, which is safe for any fault; the
-       world's resources and the opened stack are dropped *)
-    iAssert (∀ (w wcsp' wct2' wctp' wcs0' wcs1' wcra' wcgp' wct1' wca0' wca1' : LWord),
+       world's resources and the opened stack are dropped. MSHWM may have
+       been lowered by the spill; the closed window comes last, as the trap
+       hands it back *)
+    iAssert (∀ (w wcsp' wct2' wctp' wcs0' wcs1' wcra' wcgp' wct1' wca0' wca1' : LWord) (mshwm_v' : Z),
                csp ↦ᵣ[CtxSwitch] wcsp' -∗ ct2 ↦ᵣ[CtxSwitch] wct2' -∗
                ctp ↦ᵣ[CtxSwitch] wctp' -∗ cs0 ↦ᵣ[CtxSwitch] wcs0' -∗
                cs1 ↦ᵣ[CtxSwitch] wcs1' -∗ cra ↦ᵣ[CtxSwitch] wcra' -∗
                cgp ↦ᵣ[CtxSwitch] wcgp' -∗ ct1 ↦ᵣ[CtxSwitch] wct1' -∗
                ca0 ↦ᵣ[CtxSwitch] wca0' -∗ ca1 ↦ᵣ[CtxSwitch] wca1' -∗
                mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) -∗
+               mshwmb ↦ₜ[CtxSwitch] mshwmb_v -∗ mshwm ↦ₜ[CtxSwitch] mshwm_v' -∗
+               hwm_closed (kind_of CtxSwitch) -∗
                trap_safe w ⊤ (HO CtxSwitch))%I
-      with "[Hrmap Hna Hcstk Hmie Hho Hlent]" as "Hfault".
-    { iIntros (w wcsp' wct2' wctp' wcs0' wcs1' wcra' wcgp' wct1' wca0' wca1')
-        "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc".
+      with "[Hrmap Hna Hcstk Hmie Hho Hlent Hlentf Hlast_owner]" as "Hfault".
+    { iIntros (w wcsp' wct2' wctp' wcs0' wcs1' wcra' wcgp' wct1' wca0' wca1' mshwm_v')
+        "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb Hhwm Hclosed".
       iDestruct (call_regs_insert with "Hrmap Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1")
         as "Hrmap".
       iDestruct (big_sepM_insert_2 (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca1 with "Hca1 Hrmap")
@@ -175,7 +191,10 @@ Section ctx_scheduler_valid.
       iDestruct (big_sepM_insert_2 (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ ca0 with "Hca0 Hrmap")
         as "Hrmap".
       iApply (interp_trap_safe (th := CtxSwitch) with "Htrap"); cycle 1.
-      { iModIntro. iFrame "Hrmap Hna Hcstk". iSplitR; first by iRight.
+      { iModIntro. iFrame "Hrmap Hna Hcstk".
+        iSplitL "Hhwmb Hhwm Hclosed Hlentf Hlast_owner".
+        { iExists 0%Z. rewrite hwm_res_trap_ctx. iSplitL; last by iRight.
+          iExists mshwmb_v, mshwm_v', o. rewrite /hwm_closed /=. iFrame. }
         iExists InterruptDisabled. rewrite held_disabled. iFrame. done. }
       intros r. rewrite /call_regs_with !lookup_insert_is_Some'.
       destruct (decide (r = ca0)) as [|Hr0]; first naive_solver.
@@ -198,26 +217,42 @@ Section ctx_scheduler_valid.
         + iPureIntro; right; intros ??? Heq; inversion Heq; subst; solve_addr.
       - iPureIntro; right; intros ??? Heq; inversion Heq; subst; tauto. }
     - (* A valid stack: the spill faults when it does not fit; otherwise the
-         read of mtdc's zero, at [.Lswitch_trusted_stack_load], faults *)
+         read of mtdc's zero, at [.Lswitch_trusted_stack_load], faults. A base
+         other than MSHWMB's fails the check, and the return routine faults
+         at mtdc's zero *)
       iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio _]; first done.
       iDestruct (world_resources_split with "Hworld_res") as "[Hlocal _]".
       iDestruct (local_call_stk_open _ _ b e a (stk_free_b b a) (stk_free_e e a)
                   with "Hspv Hlocal")
         as (lv) "(Hstk & _)"; [rewrite /stk_free_b; solve_addr | exact Hae |].
       iApply (switch_csp_check_spec (th := CtxSwitch)
-               with "[- $HPC $Hcsp $Hct2 $Hctp $Hswitcher]").
-      iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
-        last (exfalso; apply Hcontra, switcher_csp_checked_stk).
-      iApply (switch_entry_first_spill_spec (th := CtxSwitch)
-               with "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hswitcher]");
-        [exact Hstk_mmio | exact Hae |].
-      iSplit.
-      + iIntros "!> (HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & _)".
-        iApply (ctx_tstack_load_fault with "[- $HPC $Hct2 $Hctp $Hmtdc $Hswitcher]").
-        iIntros (w) "Hct2 Hctp Hmtdc".
-        iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
-      + iIntros (_) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & _)".
-        iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
+               with "[- $HPC $Hcsp $Hct2 $Hctp $Hhwmb $Hswitcher]").
+      iNext; iIntros "[(_ & _ & HPC & Hcsp & Hct2 & Hctp & Hhwmb)
+                      | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & Hhwmb)]".
+      + iAssert (hwm_regs (ceriseg := ceriseG_of CtxSwitch) mshwmb_v mshwm_v)
+          with "[$Hhwmb $Hhwm]" as "Hhwm_regs".
+        iApply (switch_entry_first_spill_spec (th := CtxSwitch)
+                 with "[- $HPC $Hcs0 $Hcs1 $Hcra $Hcgp $Hcsp $Hstk $Hhwm_regs $Hclosed
+                        $Hswitcher]");
+          [exact Hstk_mmio | exact Hae |].
+        iSplit.
+        * iIntros "!> %mshwm_v' %Hh' (HPC & Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & _ & _ & [Hhwmb Hhwm]
+                    & Hclosed & _)".
+          iEval (rewrite /hwm_closed /=) in "Hclosed".
+          iApply (ctx_tstack_load_fault
+                   with "[- $HPC $Hct2 $Hctp $Hmtdc $Hclosed $Hswitcher]").
+          iIntros (w) "Hct2 Hctp Hmtdc Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
+        * iIntros (_) "(Hcs0 & Hcs1 & Hcra & Hcgp & Hcsp & _ & [Hhwmb Hhwm]) Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
+      + iEval (rewrite /hwm_closed /=) in "Hclosed".
+        iApply (ctx_force_unwind_fault
+                 with "[- $HPC $Hca0 $Hca1 $Hctp $Hct2 $Hmtdc $Hclosed $Hswitcher]").
+        iIntros (w) "Hca0 Hca1 Hctp Hct2 Hmtdc Hclosed".
+        iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                  Hhwm Hclosed").
     - (* Not a valid stack: is the furthest cell of the spill within its
          bounds? *)
       iAssert (⌜(∃ b e a, wcsp = Cap RWL Local b e a ∧
@@ -239,7 +274,7 @@ Section ctx_scheduler_valid.
         iPureIntro; left; exists b, e, a; split; first done.
         stk_unfold. split; solve_addr. }
       + (* The cursor is above the top, and the furthest cell within bounds:
-           the store at the top faults *)
+           the store at the top faults, or the check fails *)
         destruct (Hnot_stk b e a eq_refl) as [Heb|Hea];
           first (revert Ha4_in; stk_unfold; solve_addr).
         iDestruct (interp_cap_disjoint_wl with "Hspv") as %[Hstk_mmio _]; first done.
@@ -247,28 +282,41 @@ Section ctx_scheduler_valid.
         iDestruct (local_call_stk_open _ _ b e a (stk_spill_a a) e with "Hspv Hlocal")
           as (lv) "(Hstk & _)"; [solve_addr | solve_addr |].
         iApply (switch_csp_check_spec (th := CtxSwitch)
-                 with "[- $HPC $Hcsp $Hct2 $Hctp $Hswitcher]").
-        iNext; iIntros "[(_ & HPC & Hcsp & Hct2 & Hctp) | (%Hcontra & _)]";
-          last (exfalso; apply Hcontra, switcher_csp_checked_stk).
-        iApply (switch_entry_first_spill_above_spec (th := CtxSwitch)
-                 with "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hswitcher]");
-          [exact Hstk_mmio | done..|].
-        iIntros (k off _ _) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & _)".
-        iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
+                 with "[- $HPC $Hcsp $Hct2 $Hctp $Hhwmb $Hswitcher]").
+        iNext; iIntros "[(_ & _ & HPC & Hcsp & Hct2 & Hctp & Hhwmb)
+                        | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & Hhwmb)]".
+        * iAssert (hwm_regs (ceriseg := ceriseG_of CtxSwitch) mshwmb_v mshwm_v)
+            with "[$Hhwmb $Hhwm]" as "Hhwm_regs".
+          iApply (switch_entry_first_spill_above_spec (th := CtxSwitch)
+                   with "[- $HPC $Hcsp $Hcs0 $Hcs1 $Hcgp $Hcra $Hstk $Hhwm_regs $Hclosed
+                          $Hswitcher]");
+            [exact Hstk_mmio | done..|].
+          iIntros (k off mshwm_v' _ _ _) "(Hcsp & Hcs0 & Hcs1 & Hcgp & Hcra & _ & [Hhwmb Hhwm]) Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
+        * iEval (rewrite /hwm_closed /=) in "Hclosed".
+          iApply (ctx_force_unwind_fault
+                   with "[- $HPC $Hca0 $Hca1 $Hctp $Hct2 $Hmtdc $Hclosed $Hswitcher]").
+          iIntros (w) "Hca0 Hca1 Hctp Hct2 Hmtdc Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
       + (* The checks fail and the return routine faults at mtdc's zero, or
            the first store faults *)
         iApply (switch_csp_check_spec (th := CtxSwitch)
-                 with "[- $HPC $Hcsp $Hct2 $Hctp $Hswitcher]").
-        iNext; iIntros "[(%Hchecked & HPC & Hcsp & Hct2 & Hctp)
-                        | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp)]".
+                 with "[- $HPC $Hcsp $Hct2 $Hctp $Hhwmb $Hswitcher]").
+        iNext; iIntros "[(%Hchecked & _ & HPC & Hcsp & Hct2 & Hctp & Hhwmb)
+                        | (_ & %zct2 & %zctp & HPC & Hcsp & Hct2 & Hctp & Hhwmb)]".
         * iApply (switch_entry_first_spill_fail_spec (th := CtxSwitch)
-                   with "[- $HPC $Hcsp $Hcs0 $Hswitcher]"); [done | done |].
-          iIntros "[Hcsp Hcs0]".
-          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
-        * iApply (ctx_force_unwind_fault
-                   with "[- $HPC $Hca0 $Hca1 $Hctp $Hct2 $Hmtdc $Hswitcher]").
-          iIntros (w) "Hca0 Hca1 Hctp Hct2 Hmtdc".
-          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc").
+                   with "[- $HPC $Hcsp $Hcs0 $Hclosed $Hswitcher]"); [done | done |].
+          iIntros "[Hcsp Hcs0] Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
+        * iEval (rewrite /hwm_closed /=) in "Hclosed".
+          iApply (ctx_force_unwind_fault
+                   with "[- $HPC $Hca0 $Hca1 $Hctp $Hct2 $Hmtdc $Hclosed $Hswitcher]").
+          iIntros (w) "Hca0 Hca1 Hctp Hct2 Hmtdc Hclosed".
+          iApply ("Hfault" with "Hcsp Hct2 Hctp Hcs0 Hcs1 Hcra Hcgp Hct1 Hca0 Hca1 Hmtdc Hhwmb
+                    Hhwm Hclosed").
   Qed.
 
   (** The switcher's call sentry is valid at the context-switch thread:

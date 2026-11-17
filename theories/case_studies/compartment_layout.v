@@ -155,12 +155,15 @@ Section CmptLayout.
   (** The register save area of a thread as the loader writes it: [mepcc]
       [w_mepcc], then the registers [cra] [w_cra], [csp] [w_csp], [cgp]
       [w_cgp], the other registers zero, [hazardPointers] [w_hazard],
-      [mstatus] [w_mstatus], and [mcause] and the words after it zero. *)
-  Definition save_area_content (w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus : Word) : list Word :=
+      [mstatus] [w_mstatus], [mcause] zero, and the stack high-water mark
+      [mshwm] [w_mshwm] and its base [mshwmb] [w_mshwmb]. *)
+  Definition save_area_content
+      (w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb : Word) : list Word :=
     [w_mepcc; w_cra; w_csp; w_cgp] ++
     replicate (Z.to_nat (TrustedStack_offset_hazardPointers - TrustedStack_offset_ctp)) (WInt 0) ++
     [w_hazard; w_mstatus] ++
-    replicate (Z.to_nat (TSTACK_REGFRAME_SZ - TrustedStack_offset_mcause)) (WInt 0).
+    replicate (Z.to_nat (TrustedStack_offset_mshwm - TrustedStack_offset_mcause)) (WInt 0) ++
+    [w_mshwm; w_mshwmb].
 
   (** The initial contents of a trusted stack with room for the entry frame
       and [n] frames: the register save area [save], [frameoffset] pointing
@@ -192,14 +195,26 @@ Section CmptLayout.
   Qed.
 
   (** The length of a register save area. *)
-  Lemma length_save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus :
-    length (save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus) = 21.
+  Lemma length_save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb :
+    length (save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb) = 21.
   Proof. reflexivity. Qed.
 
   (** The word [hazardPointers] of a register save area. *)
-  Lemma save_area_content_hazard w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus :
-    save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus
+  Lemma save_area_content_hazard w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb :
+    save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb
       !! Z.to_nat TrustedStack_offset_hazardPointers = Some w_hazard.
+  Proof. reflexivity. Qed.
+
+  (** The words [mshwm] and [mshwmb] of a register save area: the loader
+      writes the top and the base of the thread's stack. *)
+  Lemma save_area_content_mshwm w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb :
+    save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb
+      !! Z.to_nat TrustedStack_offset_mshwm = Some w_mshwm.
+  Proof. reflexivity. Qed.
+
+  Lemma save_area_content_mshwmb w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb :
+    save_area_content w_mepcc w_cra w_csp w_cgp w_hazard w_mstatus w_mshwm w_mshwmb
+      !! Z.to_nat TrustedStack_offset_mshwmb = Some w_mshwmb.
   Proof. reflexivity. Qed.
 
   Record cmptSwitcher : Type :=

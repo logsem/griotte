@@ -159,17 +159,23 @@ Section VAE_Return_Repair.
     apply Forall_cons in Hdom as [Hk_dom Hdom].
     iDestruct "Hl" as "[(%pa & %Φa & %Hpers & #Hrel & %wa & HpO & Hk & HΦ & Hmono) Hl]".
     iMod ("IH" with "[//] Hworld Hl") as "(Hworld & Hl & %Hl_rev)".
-    iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
-               (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I
-      with "[Hk]" as (q) "(Hshare & Hk & Hk_back)".
-    { destruct k as [a|a ι]; cbn.
-      - iExists 1%Qp. iFrame "Hk". by iIntros "_ $".
-      - iDestruct "Hk" as "[Ha (%b & %e & %Hin & #Hobj & Hst)]".
-        iExists _. iFrame "Hst Ha". iIntros "Hst Ha". iFrame "Ha".
-        iExists b, e. by iFrame "Hobj Hst". }
-    iMod (world_interp_revoked_by_separation with "[$Hshare $Hworld $Hk]")
-      as "(Hshare & Hworld & Hk & %Hk_rev)"; first done.
-    iDestruct ("Hk_back" with "Hshare Hk") as "Hk".
+    iAssert (|={⊤}=> world_interp Wcur C ∗ temp_cell th k wa ∗ ⌜std Wcur !! k = Some Revoked⌝)%I
+      with "[Hworld Hk]" as ">(Hworld & Hk & %Hk_rev)".
+    { iDestruct "Hk" as "[Hk | (%a' & %z & -> & Hcell & ->)]".
+      - iAssert (∃ q, heap_key_live_share k q ∗ laddr_addr k ↦ₐ wa ∗
+                   (heap_key_live_share k q -∗ laddr_addr k ↦ₐ wa -∗ k ↦ₖ wa))%I
+          with "[Hk]" as (q) "(Hshare & Hk & Hk_back)".
+        { destruct k as [a|a ι]; cbn.
+          - iExists 1%Qp. iFrame "Hk". by iIntros "_ $".
+          - iDestruct "Hk" as "[Ha (%b & %e & %Hin & #Hobj & Hst)]".
+            iExists _. iFrame "Hst Ha". iIntros "Hst Ha". iFrame "Ha".
+            iExists b, e. by iFrame "Hobj Hst". }
+        iMod (world_interp_revoked_by_separation with "[$Hshare $Hworld $Hk]")
+          as "(Hshare & $ & Hk & $)"; first done.
+        iModIntro. iLeft. iApply ("Hk_back" with "Hshare Hk").
+      - iMod (world_interp_revoked_by_zone_cell with "[$Hworld $Hcell]")
+          as "($ & Hcell & $)"; first done.
+        iModIntro. by iApply temp_cell_zone. }
     iModIntro. iFrame "Hworld". iSplitL; [|iPureIntro; by constructor].
     iFrame "Hl". iExists pa, Φa. iFrame "Hrel". iSplit; first done.
     iExists wa. iFrame.

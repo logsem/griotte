@@ -19,13 +19,14 @@ Section Switcher_KtK.
   .
 
   (** The unwind continuation of a known callee's frame [frame], pushed on
-      [cstk], with the callee's stack $[b_callee, e_callee)$: the switcher
-      force-unwinds a fault of the callee and returns ECOMPARTMENTFAIL to
-      the caller, which needs the callee's whole stack back. *)
+      [cstk], with the callee's stack $[b_callee, e_callee)$, at any MSHWM:
+      the switcher force-unwinds a fault of the callee and returns
+      ECOMPARTMENTFAIL to the caller, which needs the callee's whole stack
+      back. *)
   Definition ktk_fault_cont (F : coPset) (frame : cframe) (cstk : CSTK)
     (b_callee e_callee : Addr) : iProp Σ :=
-    unwind_cont F (cstack_push frame cstk)
-      (∃ stk_mem : list LWord, [[ b_callee , e_callee ]] ↦ₐ [[ stk_mem ]]).
+    ∀ mshwm_v : Z, unwind_cont F (cstack_push frame cstk) mshwm_v
+      (∃ stk_mem : list LWord, stack_region b_callee e_callee stk_mem).
 
   (** Shape of the higher-order specification for entry points
       in the case of known-to-known cross-compartment calls.
@@ -85,7 +86,8 @@ Section Switcher_KtK.
              ∗ ca0 ↦ᵣ[th] wca0
              ∗ ca1 ↦ᵣ[th] wca1
              ∗ regs[th] rmap_ret
-             ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ stk_mem_ret ]]
+             ∗ stack_region (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk) stk_mem_ret
+             ∗ (∃ mshwm_v : Z, hwm_res (cstack_set_top_count (cstack_push frame cstk) n) mshwm_v)
              ∗ ◯(CSTK)[th] (cstack_set_top_count (cstack_push frame cstk) n)
              ∗ MIE ↦ₜ[th] b
              ∗ held (th := th) b
@@ -115,7 +117,9 @@ Section Switcher_KtK.
               then ⌜ arg_rmap !! rarg = Some warg ⌝
               else ⌜ warg = WInt 0 ⌝)
        ∗ regs₀[th] rmap'
-       ∗ [[ stk_callee_b b_stk a_stk , stk_callee_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]]
+       ∗ stack_ints (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk)
+       ∗ hwm_res (cstack_push frame cstk)
+           (stk_start_a (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))
        ∗ ◯(CSTK)[th] (cstack_push frame cstk)
        ∗ ⌜route_pre th posture_tgt⌝
        ∗ MIE ↦ₜ[th] posture_tgt
@@ -151,6 +155,7 @@ Section Switcher_KtK.
     (bcgp_tgt ecgp_tgt : Addr)
     (off_tgt : Z) (posture_tgt : InterruptStatus)
     (may_fault : bool) (P : iProp Σ) (Q : LWord -> LWord -> iProp Σ)
+    (mshwm_v : Z)
     :
     let a_tbl_cgp := (btbl_tgt ^+ ExportTable_offset_cgp) in
     let a_tbl_ehs := (btbl_tgt ^+ ExportTable_offset_errorHandlerStackless) in
@@ -173,7 +178,8 @@ Section Switcher_KtK.
          ∗ "Hca0" ∷ ca0 ↦ᵣ[th] wca0_ret
          ∗ "Hca1" ∷ ca1 ↦ᵣ[th] wca1_ret
          ∗ "Hrmap" ∷ regs₀[th] rmap_ret
-         ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]]
+         ∗ "Hstk" ∷ stack_ints (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)
+         ∗ "Hhwm" ∷ hwm_res cstk a_stk
          ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "Hmie" ∷ MIE ↦ₜ[th] default b_ret (jalr_target_mie rcra.(lw))
          ∗ "Hheld" ∷ held (th := th) (default b_ret (jalr_target_mie rcra.(lw)))
@@ -197,7 +203,8 @@ Section Switcher_KtK.
          ∗ "Hca0" ∷ ca0 ↦ᵣ[th] WInt ENOTENOUGHTRUSTEDSTACK
          ∗ "Hca1" ∷ ca1 ↦ᵣ[th] WInt 0
          ∗ "Hrmap" ∷ regs₀[th] rmap_ret
-         ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem' ]]
+         ∗ "Hstk" ∷ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem'
+         ∗ "Hhwm" ∷ (∃ mshwm_v', ⌜(mshwm_v' <= mshwm_v)%Z⌝ ∗ hwm_res cstk mshwm_v')
          ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "Hmie" ∷ MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw))
          ∗ "Hheld" ∷ held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw)))
@@ -222,7 +229,8 @@ Section Switcher_KtK.
          ∗ "Hca0" ∷ ca0 ↦ᵣ[th] WInt ECOMPARTMENTFAIL
          ∗ "Hca1" ∷ ca1 ↦ᵣ[th] WInt 0
          ∗ "Hrmap" ∷ regs₀[th] rmap_ret
-         ∗ "Hstk" ∷ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]]
+         ∗ "Hstk" ∷ stack_ints (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)
+         ∗ "Hhwm" ∷ hwm_res cstk a_stk
          ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
          ∗ "Hmie" ∷ MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw))
          ∗ "Hheld" ∷ held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw)))
@@ -233,6 +241,8 @@ Section Switcher_KtK.
     disjoint_from_mmio b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
+    (* The caller's stack starts at the base of the thread's stack *)
+    b_stk = cstk_hwm_base cstk ->
     is_shadow_address atbl_tgt = false ->
     is_shadow_address btbl_tgt = false ->
     is_shadow_address a_tbl_cgp = false ->
@@ -271,7 +281,8 @@ Section Switcher_KtK.
     ∗ cs1 ↦ᵣ[th] wcs1_caller
     ∗ regs[th] arg_rmap
     ∗ regs[th] rmap
-    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+    ∗ hwm_res cstk mshwm_v
     ∗ ◯(CSTK)[th] cstk
     ∗ MIE ↦ₜ[th] InterruptDisabled
     ∗ held (th := th) InterruptDisabled
@@ -290,33 +301,34 @@ Section Switcher_KtK.
     intros a_tbl_cgp a_tbl_ehs wct1_caller returned stack_exhausted callee_faulted.
     subst a_tbl_cgp a_tbl_ehs.
     subst returned stack_exhausted callee_faulted.
-    iIntros (Hstk_heap Hstk_shadow Hb_a Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow
+    iIntros (Hstk_heap Hstk_shadow Hb_a Hbase Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow Htbl_shadow
              Hbpcc_nonheap Hbcgp_nonheap
              HE Hatbl Hbtbl_cgp Hbtbl_ehs Hnargs Hentry Hminstk Hdom Harg_rmap Hret_jalr Hret_heap)
       "(#Hswitcher & #Hstatic & #Hinv_pcc & #Hinv_cgp & #Hinv_entry
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & Hcs0 & Hcs1
-       & Hargs & Hregs & Hstk & Hcstk & Hmie & Hheld & HP & Hf & Hpost)".
+       & Hargs & Hregs & Hstk & Hhwm & Hcstk & Hmie & Hheld & HP & Hf & Hpost)".
 
     iApply (switcher_cc_specification_known_to_known
               wcgp_caller wcra_caller wcs0_caller wcs1_caller
               b_stk e_stk a_stk stk_mem arg_rmap rmap cstk nargs minstk_tgt F
               btbl_tgt atbl_tgt etbl_tgt
-              bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt);
+              bpcc_tgt epcc_tgt bcgp_tgt ecgp_tgt off_tgt posture_tgt mshwm_v);
       try assumption.
     iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
-            Hargs Hregs Hstk Hcstk Hmie Hheld".
+            Hargs Hregs Hstk Hhwm Hcstk Hmie Hheld".
     iNext.
     iIntros "[
       (%arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'
-       & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hregs & Hstk & Hcstk & %Hpre_tgt & Hmie & Hheld)
+       & Hna & HPC & Hcgp & Hcra & Hcsp & Hargs & Hregs & Hstk & Hhwm & Hcstk & %Hpre_tgt & Hmie
+       & Hheld)
       |
       (%rmap' & %stk_mem' & %rcgp & %rcra & %rcs0 & %rcs1 & %Hrmap'
        & Hna & HPC & Hcgp & Hcra & Hcsp & Hcs0 & Hcs1
-       & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld & %Hrestored)
+       & Hca0 & Hca1 & Hregs & Hstk & Hhwm & Hcstk & Hmie & Hheld & %Hrestored)
       ]".
     - iApply ("Hf" $! arg_rmap' rmap').
-      iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hcstk HP Hmie Hheld".
+      iFrame "Hna HPC Hcgp Hcra Hcsp Hargs Hregs Hstk Hhwm Hcstk HP Hmie Hheld".
       iSplit.
       { iPureIntro. apply stk_callee_fits_callee; last done.
         by apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia |]. }
@@ -331,7 +343,7 @@ Section Switcher_KtK.
         iNext.
         iIntros (n wca0 wca1 rmap_ret stk_mem_ret b)
           "(%Hrmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
-           & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld & HQ)".
+           & Hcsp & Hca0 & Hca1 & Hregs & Hstk & [%h_ret Hhwm] & Hcstk & Hmie & Hheld & HQ)".
         iAssert (
           ▷ (∀ (rmap_final : LReg) rcgp rcra rcs0 rcs1,
                ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
@@ -350,7 +362,8 @@ Section Switcher_KtK.
                ∗ ca1 ↦ᵣ wca1
                ∗ ([∗ map] r↦w ∈ rmap_final,
                     r ↦ᵣ w ∗ ⌜ w = WInt 0 ⌝)
-               ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ 0…0 ]]
+               ∗ stack_ints (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk)
+               ∗ hwm_res cstk a_stk
                ∗ cstack_frag cstk
                ∗ MIE ↦ₜ default b (jalr_target_mie rcra.(lw))
                ∗ held (th := th) (default b (jalr_target_mie rcra.(lw)))
@@ -360,7 +373,7 @@ Section Switcher_KtK.
         { iNext.
           iIntros (rmap_final rcgp rcra rcs0 rcs1)
             "(%Hrestored & %Hrmap_final & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
-             & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld)".
+             & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hhwm & Hcstk & Hmie & Hheld)".
           iApply "Hpost".
           destruct may_fault; iLeft;
             iExists rcgp, rcra, rcs0, rcs1, wca0, wca1, rmap_final, b;
@@ -369,20 +382,22 @@ Section Switcher_KtK.
         iApply (switcher_cc_specification_return_known_to_known_gen
                   wcgp_caller wcra_caller wcs0_caller wcs1_caller
                   wca0 wca1 b_stk e_stk a_stk stk_mem_ret rmap_ret cstk
-                  (Cap RO Global btbl_tgt etbl_tgt atbl_tgt) F n b
+                  (Cap RO Global btbl_tgt etbl_tgt atbl_tgt) F n b h_ret
                   with
                   "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
-                    $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hcstk $Hmie $Hheld $Hretpost]").
+                    $Hcsp $Hca0 $Hca1 $Hregs $Hstk $Hhwm $Hcstk $Hmie $Hheld $Hretpost]").
         { exact Hstk_heap. }
         { exact Hstk_shadow. }
         { apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]. }
+        { exact Hbase. }
         { exact HE. }
         { exact Hrmap_ret. }
       }
       (* The callee faults: the exception entry returns ECOMPARTMENTFAIL *)
       destruct may_fault; last done.
-      iIntros (n rmap_fault Hfull_rmap_fault Hca0' Hca1')
-        "HPC Hrmap_fault Hcstk [%stk_mem_ret Hstk] Hna Hmie Hheld".
+      iIntros (h_fault n rmap_fault Hfull_rmap_fault Hca0' Hca1')
+        "HPC Hrmap_fault Hcstk Hhwm [%stk_mem_ret Hstk] Hna Hmie Hheld".
+      iEval (rewrite -(hwm_res_set_top_count _ n)) in "Hhwm".
       rewrite /registers_pointsto.
       getRegValList [cgp;cra;cs0;cs1;csp].
       iExtractList "Hrmap_fault" [cgp;cra;cs0;cs1;csp;ca0;ca1]
@@ -390,17 +405,18 @@ Section Switcher_KtK.
       iApply (switcher_cc_specification_return_known_to_known_gen
                 wcgp_caller wcra_caller wcs0_caller wcs1_caller
                 (WInt ECOMPARTMENTFAIL) (WInt 0) b_stk e_stk a_stk stk_mem_ret _ cstk
-                (Cap RO Global btbl_tgt etbl_tgt atbl_tgt) F n InterruptDisabled
+                (Cap RO Global btbl_tgt etbl_tgt atbl_tgt) F n InterruptDisabled h_fault
                 with
                 "[$Hswitcher $Hstatic $Hna $HPC $Hcgp $Hcra $Hcs0 $Hcs1
-                  $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hcstk $Hmie $Hheld Hpost]");
+                  $Hcsp $Hca0 $Hca1 $Hrmap_fault $Hstk $Hhwm $Hcstk $Hmie $Hheld Hpost]");
         [exact Hstk_heap | exact Hstk_shadow
-        | apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk] | exact HE | |].
+        | apply (stk_callee_fits_spill_ok b_stk e_stk a_stk minstk_tgt); [lia | exact Hminstk]
+        | exact Hbase | exact HE | |].
       { rewrite !dom_delete_L (lregmap_full_dom _ Hfull_rmap_fault). set_solver. }
       iNext.
       iIntros (rmap_final rcgp rcra rcs0 rcs1)
         "(%Hrestored & %Hrmap_final & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1
-         & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hcstk & Hmie & Hheld)".
+         & Hcsp & Hca0 & Hca1 & Hregs & Hstk & Hhwm & Hcstk & Hmie & Hheld)".
       iApply "Hpost".
       iRight; iRight.
       iExists rmap_final, rcgp, rcra, rcs0, rcs1.

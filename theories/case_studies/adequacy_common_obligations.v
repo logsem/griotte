@@ -103,10 +103,14 @@ Section initial_rootedness.
     sreg σ !! mtcc = Some mtcc_vec →
     (∃ z, sreg σ !! mtval = Some (WInt z)) →
     (∃ mie mpie, sreg σ !! mstatus = Some (WInt (mstatus_enc mie mpie))) →
+    (∃ zb zh : Addr,
+       sreg σ !! mshwmb = Some (WInt zb) ∧ sreg σ !! mshwm = Some (WInt zh) ∧
+       (zb <= zh)%a ∧
+       ∀ a : Addr, (zb <= a < zh)%a → ∃ z, mem σ !! a = Some (WInt z)) →
     ghost_init_cond σ R.
   Proof.
     intros Hσsh HR Hm Hpc Hreg Hsreg Hmmio Hheap Hnull Hmx Hpcx Hregx Hsregx Hpcok Hsregok
-      Hreserved Hmtcc Hmtval Hmstatus.
+      Hreserved Hmtcc Hmtval Hmstatus Hhwm.
     assert (∀ a, is_heap_address a = true →
       initial_heap_shadow !! a = Some ShadowLive) as Hsh.
     { intros a Ha. rewrite /initial_heap_shadow lookup_fmap /initial_heap_memory
@@ -133,6 +137,7 @@ Section initial_rootedness.
     - exact Hmtcc.
     - exact Hmtval.
     - exact Hmstatus.
+    - exact Hhwm.
   Qed.
 
 End initial_rootedness.
@@ -183,13 +188,11 @@ Section world_resources_init_all.
       other compartments stay. *)
   Lemma world_resources_init_all (E : coPset) (Cs : gset CmptName) :
     ([∗ set] C ∈ Cs,
-       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅)
+       perm_region_map C ∅)
     ={E}=∗
     ([∗ set] C ∈ shared_of Cs, wg_inv C) ∗
     ([∗ set] C ∈ filter (λ C, cmpt_shared C = false) Cs,
-       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-         (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅).
+       perm_region_map C ∅).
   Proof.
     iIntros "Hperms".
     rewrite /shared_of !big_sepS_filter' -big_sepS_sep.
@@ -263,15 +266,16 @@ Section adversary_world.
 
   (** A stack outside of the mmio and heap regions, whose addresses are
       temporary in the world, with [interp_in_mem] safety invariants, is safe
-      to share. *)
+      to share. It is the stack of the thread. *)
   Lemma interp_stack_temporary (W : WORLD) (C : CmptName) (b e : Addr) :
     disjoint_from_mmio b e →
     disjoint_from_heap b e →
     Forall (λ a, std W !! LNonHeap a = Some Temporary) (finz.seq_between b e) →
     ([∗ list] a ∈ finz.seq_between b e, (LNonHeap a) ↪ˡ[C]{RWL} interp_in_memC) -∗
+    thread_stack_bounds b e -∗
     interp W C (Cap RWL Local b e (stk_start_a b e)).
   Proof.
-    iIntros (Hmmio Hheap Htemp) "#Hrel".
+    iIntros (Hmmio Hheap Htemp) "#Hrel #Htstk".
     rewrite /stk_start_a.
     iEval (rewrite interp_unfold /=). iLeft.
     iSplit.
@@ -291,7 +295,8 @@ Section adversary_world.
       iSplit; first (iNext ; by iApply rcond_l_interp_in_mem_nodl).
       iNext ; by iApply wcond_wl_interp_in_mem. }
     iSplit; first done.
-    by iApply heap_cap_ok_disjoint.
+    iSplit; first by iApply heap_cap_ok_disjoint.
+    rewrite /wl_in_stack /=. iExists b, e. iFrame "Htstk". iPureIntro; solve_addr.
   Qed.
 
   (** ** Sealed entries exported by an adversary *)
@@ -458,7 +463,8 @@ Section adversary_world.
     [[ cmpt_b_pcc C_cmpt, cmpt_a_code C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_imports C_cmpt ]] -∗
     [[ cmpt_a_code C_cmpt, cmpt_e_pcc C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_code C_cmpt ]] -∗
     [[ cmpt_b_cgp C_cmpt, cmpt_e_cgp C_cmpt ]] ↦ₐ [[ lword_of_word <$> cmpt_data C_cmpt ]] -∗
-    [[ b_stack sw, e_stack sw ]] ↦ₐ [[ lword_of_word <$> stack_content sw ]] -∗
+    stack_region (b_stack sw) (e_stack sw) (lword_of_word <$> stack_content sw) -∗
+    thread_stack_bounds (b_stack sw) (e_stack sw) -∗
     □ (∀ i a, ⌜cmpt_exp_tbl_addrs C_cmpt !! i = Some a⌝ -∗
         interp W C (cmpt_pcc_cap C_cmpt) -∗
         interp W C (cmpt_cgp_cap C_cmpt) -∗
@@ -478,7 +484,8 @@ Section adversary_world.
     intros Wadv Hsw Hfree Hcode Hdata Hstack.
     assert (Forall (λ k, std W !! LNonHeap k = None) (stack_addrs sw)) as Hfree_stack.
     { apply Forall_forall; intros a Ha; apply Hfree; by right. }
-    iIntros "#Hseal_pred HC_imports HC_code HC_data Hstack #Hexports Himports #Hthread Hworld".
+    iIntros "#Hseal_pred HC_imports HC_code HC_data Hstack #Htstk #Hexports Himports #Hthread
+      Hworld".
     iMod (alloc_adversary_compartment with
            "Hseal_pred HC_imports HC_code HC_data Hexports Himports Hthread Hworld")
       as "(Hworld & #Hpcc & #Hcgp & #Hexp)"; eauto.
@@ -488,10 +495,10 @@ Section adversary_world.
     { done. }
     { exact Hfree_stack. }
     { rewrite big_sepL2_fmap_r.
-      iEval (rewrite /region_pointsto big_sepL2_fmap_r) in "Hstack".
+      iEval (rewrite /stack_region big_sepL2_fmap_r) in "Hstack".
       iApply (big_sepL2_mono ((fun (_ : nat) (k : finz.finz MemNum) (v : Word) =>
-        pointsto k (DfracOwn (pos_to_Qp 1)) (lword_of_word v))) with "Hstack").
-      intros k v1 v2 Hv1 Hv2. cbn. iIntros "Hv". rewrite /TmpRes key_pointsto_nonheap.
+        stack_cell k (lword_of_word v))) with "Hstack").
+      intros k v1 v2 Hv1 Hv2. cbn. iIntros "Hv". rewrite /TmpRes -stack_cell_temp_cell.
       iFrame "Hv".
       pose proof (Forall_lookup_1 _ _ _ _ Hstack Hv2) as Hncap.
       destruct v2; [| by inversion Hncap..].
@@ -510,7 +517,7 @@ Section adversary_world.
     iSplit; first (iApply (interp_monotone_nl with "[] [] Hpcc"); eauto).
     iSplit; first (iApply (interp_monotone_nl with "[] [] Hcgp"); eauto).
     iSplit.
-    { iApply interp_stack_temporary; last done.
+    { iApply (interp_stack_temporary _ _ (b_stack sw) (e_stack sw) with "Hrel_stk Htstk").
       - apply stack_disjoint_from_mmio.
       - apply stack_disjoint_from_heap.
       - apply Forall_forall; intros a Ha.
@@ -866,24 +873,34 @@ End main_sizes.
 
 (** ** The words of a save area, by computation *)
 
-Lemma save_area_lookup_mstatus a b c d h m :
-  (lword_of_word <$> save_area_content a b c d h m) !! Z.to_nat TrustedStack_offset_mstatus =
+Lemma save_area_lookup_mstatus a b c d mshwm_v m x y :
+  (lword_of_word <$> save_area_content a b c d mshwm_v m x y) !! Z.to_nat TrustedStack_offset_mstatus =
   Some (lword_of_word m).
 Proof. reflexivity. Qed.
 
-Lemma save_area_word_mstatus a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mstatus =
+Lemma save_area_word_mstatus a b c d mshwm_v m x y :
+  save_area_word (lword_of_word <$> save_area_content a b c d mshwm_v m x y) TrustedStack_offset_mstatus =
   lword_of_word m.
 Proof. reflexivity. Qed.
 
-Lemma save_area_word_mepcc a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mepcc =
+Lemma save_area_word_mepcc a b c d mshwm_v m x y :
+  save_area_word (lword_of_word <$> save_area_content a b c d mshwm_v m x y) TrustedStack_offset_mepcc =
   lword_of_word a.
 Proof. reflexivity. Qed.
 
-Lemma save_area_word_mcause a b c d h m :
-  save_area_word (lword_of_word <$> save_area_content a b c d h m) TrustedStack_offset_mcause =
+Lemma save_area_word_mcause a b c d mshwm_v m x y :
+  save_area_word (lword_of_word <$> save_area_content a b c d mshwm_v m x y) TrustedStack_offset_mcause =
   lnull.
+Proof. reflexivity. Qed.
+
+Lemma save_area_word_mshwm a b c d mshwm_v m x y :
+  save_area_word (lword_of_word <$> save_area_content a b c d mshwm_v m x y) TrustedStack_offset_mshwm =
+  lword_of_word x.
+Proof. reflexivity. Qed.
+
+Lemma save_area_word_mshwmb a b c d mshwm_v m x y :
+  save_area_word (lword_of_word <$> save_area_content a b c d mshwm_v m x y) TrustedStack_offset_mshwmb =
+  lword_of_word y.
 Proof. reflexivity. Qed.
 
 (** A lookup in [resume_regs_of]. *)

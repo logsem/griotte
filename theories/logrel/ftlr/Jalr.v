@@ -35,10 +35,10 @@ Section fundamental.
   Proof.
     apply ftlr_contract_intro_at.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
+    iIntros (mshwmb_v mshwm_v) "@".
     iDestruct (thread_in_elim with "Hthread") as %Hth_in.
 
-    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
 
     (* A tagged target keeps the thread at a posture where it may run. *)
     iAssert (⌜∀ wsrc, regs !!ₗ rsrc = Some wsrc → jalr_target_ok rdst rsrc wsrc.(lw) = true →
@@ -62,7 +62,7 @@ Section fundamental.
     { iDestruct "HT" as "[ [%Hc _] | [_ Hmie] ]"; first done.
       iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
       iDestruct (pc_close with "Hworld_interp Hinva WorldRes") as "Hworld_interp"; eauto.
-      iNext. iApply (ftlr_post_at_fault with "HPC Hmap Hreg Hworld_interp Hmie"); eauto. }
+      iNext. iApply (ftlr_post_at_fault with "HPC Hmap Hhwm Hreg Hworld_interp Hmie"); eauto. }
     apply jalr_outcome_Some_inv in Hnext as (wsrc & pc_a' & Hrsrc & Htgt & Hpca' & -> & Hregs').
     iDestruct "HT" as "[ [_ Hmie] | [%Hc _] ]"; last done.
     iEval (rewrite /jalr_mie Hrsrc) in "Hmie".
@@ -139,7 +139,7 @@ Section fundamental.
       all: iSplit; last done.
       all: iNext; iApply interp_expression_at; iApply "IH"; iExact "Hwsrc". }
     iNext.
-    iApply (ftlr_post_at_next with "HPC Hmap Hreg' Hnext Hworld_interp Hmie"); done.
+    iApply (ftlr_post_at_next with "HPC Hmap Hhwm Hreg' Hnext Hworld_interp Hmie"); done.
   Qed.
 
 End fundamental.

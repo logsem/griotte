@@ -47,8 +47,8 @@ Section fundamental.
     ftlr_contract m W C regs p p' g b e a w Ecall ρ P.
   Proof.
     intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
-    iIntros "@".
-    iDestruct (pc_open_acc with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
+    iIntros (mshwmb_v mshwm_v) "@".
+    iDestruct (pc_open_acc_fetch with "WorldRes") as " [ (Ha & Hinterp) WorldRes ]".
     iApply (wp_ecall (th := th) with "[$HPC $Ha $Hmie $Hvol]"); [done | done |].
     iIntros "!> (HPC & Ha & Hmie & Hvol)".
     iDestruct ("WorldRes" with "[$Ha $Hinterp]") as "WorldRes".
@@ -61,6 +61,8 @@ Section fundamental.
     iLeft.
     iExists m, (Cap p g b e a), regs. iFrame "Hvol HPC Hmap Hreg".
     iSplit; first done. iSplit; first done. iSplit; first done. iSplit; first done.
+    (* the environment call does not touch the high-water mark *)
+    iSplitL "Hhwm"; first (iExists mshwm_v; iFrame "Hhwm"; by iPureIntro).
     rewrite lmepcc_of_pc_correct //.
     assert (is_Some (a + 1)%a) as [a' Ha'].
     { inversion HcorrectPC; solve_addr. }

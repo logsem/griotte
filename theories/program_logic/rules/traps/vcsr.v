@@ -227,7 +227,8 @@ Section vcsr.
            else True) }}}.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Dregs Hen φ) "(>HPC & >Hpc_a & >Hmap & >Hres) Hφ".
-    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; eauto.
+    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap");
+      [rewrite Hinstr; by apply sw_of_none | done | intros _; rewrite Hinstr; by destruct src |].
     iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     destruct (erasure_mie_st _ _ _ _ _ _ _ Her) as [Hmie_st _].
     set (vold := lword_of_word (WInt (mstatus_enc (ls_mie lsreg) (ls_mpie lsreg)))).

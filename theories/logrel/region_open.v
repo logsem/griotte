@@ -31,13 +31,14 @@ Section fundamental.
     end.
 
   (** The opened region of the PC, at key [k] of part [ρ], holding [w]: its
-      safety resources, with the predicate now. *)
+      safety resources, with the predicate now. A Temporary region holds the
+      cell of a Temporary key, a points-to or a zone cell. *)
   Definition pc_open_def (W : WORLD) (C : CmptName) (k : LAddr) (p' : Perm) (P : V)
       (w : LWord) (ρ : region_part) : iProp Σ :=
     match ρ with
     | InPerm => ⌜std W !! k ≠ Some Temporary⌝ ∗ ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeGC P (C, w)
     | InLocal =>
-        ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
+        ⌜isO p' = false⌝ ∗ temp_cell th k w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
     end.
   #[local] Definition pc_open_aux : seal (@pc_open_def). Proof. by eexists. Qed.
 
@@ -47,12 +48,26 @@ Section fundamental.
   (** The cell of the PC, with its content. *)
   Lemma pc_open_acc W C k p' P w ρ :
     pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ).
+    (region_cell ρ k w ∗ pc_content ρ W C P w) ∗
+    (region_cell ρ k w ∗ pc_content ρ W C P w -∗ pc_open W C k p' P w ρ).
   Proof.
     rewrite pc_open_unseal. destruct ρ; cbn.
     - iIntros "($ & %HpO & $ & $)". iIntros "[$ $]". done.
     - iIntros "(%HpO & $ & $ & #Hmono)". iIntros "[$ $]". by iFrame "#".
+  Qed.
+
+  (** Half of the points-to of the PC's address, enough to fetch from it,
+      whether its region holds a points-to or a zone cell, with its
+      content. *)
+  Lemma pc_open_acc_fetch W C (a : Addr) p' P w ρ :
+    pc_open W C (LNonHeap a) p' P w ρ -∗
+    (a ↦ₐ{DfracOwn (1/2)} w ∗ pc_content ρ W C P w) ∗
+    (a ↦ₐ{DfracOwn (1/2)} w ∗ pc_content ρ W C P w -∗ pc_open W C (LNonHeap a) p' P w ρ).
+  Proof.
+    iIntros "Hopen". iDestruct (pc_open_acc with "Hopen") as "[ [Hcell HP] Hclose]".
+    iDestruct (region_cell_fetch with "Hcell") as "[Ha Hrest]".
+    iFrame "Ha HP". iIntros "[Ha HP]". iApply "Hclose". iFrame "HP".
+    by iApply "Hrest".
   Qed.
 
   (** Opening the region of the PC. *)
@@ -61,7 +76,7 @@ Section fundamental.
     match ρ with
     | InPerm => ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeGC P (C, w)
     | InLocal =>
-        ⌜isO p' = false⌝ ∗ k ↦ₖ w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
+        ⌜isO p' = false⌝ ∗ temp_cell th k w ∗ safeC P (W, C, w) ∗ future_pub_mono C (safeC P) w
     end -∗
     pc_open W C k p' P w ρ.
   Proof.
@@ -105,15 +120,16 @@ Section fundamental.
     iApply (pc_open_intro with "[Hk HP]"); first done.
     destruct ρ; cbn.
     - by iFrame "∗%".
-    - iDestruct "Hpart" as "(_ & _ & #Hmono)". iFrame "∗%". iApply "Hmono".
+    - iDestruct "Hpart" as "(_ & _ & #Hmono)".
+      iDestruct (temp_cell_pointsto th with "Hk") as "Hk". iFrame "∗%". iApply "Hmono".
   Qed.
 
   (** The cell of an opened region, with its content, for any new word. *)
   Lemma pc_open_acc_forall W C k p' P w ρ :
     region_rel_part ρ W C k p' P -∗
     pc_open W C k p' P w ρ -∗
-    (k ↦ₖ w ∗ pc_content ρ W C P w) ∗
-    (∀ w', k ↦ₖ w' ∗ pc_content ρ W C P w' -∗ pc_open W C k p' P w' ρ).
+    (region_cell ρ k w ∗ pc_content ρ W C P w) ∗
+    (∀ w', region_cell ρ k w' ∗ pc_content ρ W C P w' -∗ pc_open W C k p' P w' ρ).
   Proof.
     rewrite pc_open_unseal. iIntros "#Hrel". destruct ρ; cbn.
     - iIntros "(%HnT & %HpO & Hc & HP)". iFrame "Hc HP".

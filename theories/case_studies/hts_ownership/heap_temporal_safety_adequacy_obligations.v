@@ -234,10 +234,16 @@ Section hts_obligations.
     (* 11 - Close the world of B: its compartment becomes Permanent regions,
        and the stack temporary, because main shares it with B; the imports
        of B are safe; its export is safe to share. *)
+    (* The bounds of the stack of the thread, from its MSHWMB and MSHWM. *)
+    iAssert (thread_stack_bounds (th := UserThread 0)
+               (image.b_stack (thread_of img 0)) (image.e_stack (thread_of img 0)))
+      as "#Htstk".
+    { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts (hts_firmware ot_alloc)) default_fw_cmpt) _
             HB_l fw_world0 B Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia) ltac:(done)
-           with "Hswitcher_threads_B Hswitcher_static HB HB_pers Hstack [] Hthread_B Hworld_B")
+           with "Hswitcher_threads_B Hswitcher_static HB HB_pers Hstack Htstk [] Hthread_B
+             Hworld_B")
       as "(Hworld_B & #Hinterp_stack_B & [#Hinterp_B_f _])".
     { iIntros "_".
       rewrite -(fw_imports_safe_words _ _
@@ -288,7 +294,7 @@ Section hts_obligations.
                         $Halloc_etbl_pcc $Halloc_etbl_cgp $Hexport_malloc $Hexport_free
                         $Hna $Hid_main $Hmain_owner $HPC $Hcgp $Hcsp $Hcra $Hregs
                         $Hmain_imports $Hmain_code $Hmain_data
-                        $Hworld_B $Hcstk
+                        $Hworld_B $Hcstk $Hhwm
                         $Hinterp_B_f $Hentry_Bf $Hinterp_stack_B $HMIE $Hheld]")
       as "Hspec";
       last (iModIntro; iExact "Hspec").

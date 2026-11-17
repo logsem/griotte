@@ -91,12 +91,13 @@ Section TI.
       ∗ [[ pc_b , pc_a ]] ↦ₐ□ [[ lword_of_word <$> imports ]]
       ∗ codefrag_pers pc_a ti_K_code
       ∗ [[ cgp_b , cgp_e ]] ↦ₐ [[ lword_of_word <$> ti_K_data ]]
-      ∗ [[ csp_b , csp_e ]] ↦ₐ [[ csp_content ]]
+      ∗ stack_region csp_b csp_e csp_content
 
       ∗ world_resources W_init B
 
       ∗ interp_continuation (K_entry_cstack csp_b csp_e w_K_tbl) Ws Cs
       ∗ ◯(CSTK)[th] (K_entry_cstack csp_b csp_e w_K_tbl)
+      ∗ hwm_res (K_entry_cstack csp_b csp_e w_K_tbl) csp_e
 
       ∗ interp W_init B (WSealed ot_switcher B_f)
       ∗ B_f ↦ₑ□{nargs} 1
@@ -124,7 +125,7 @@ Section TI.
       "(#Hassert & #Hthread & #Hswitcher & #Hswitcher_static & Hna
       & HPC & Hcgp & Hcsp & Hcra & Hrmap
       & Himports_main & Hcode_main & Hcgp_main & Hcsp_stk
-      & Hworld_B & HK & Hcstk_frag
+      & Hworld_B & HK & Hcstk_frag & Hhwm
       & #Hinterp_Winit_B_f & #HentryB_f
       & #Hstack_revoked & Hmie & Hheld)".
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
@@ -164,8 +165,8 @@ Section TI.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
-    iDestruct (stk_start_region_split with "Hcsp_stk")
-      as (stk_mem_free stk_res) "[Hcsp_stk _]";
+    iDestruct (stk_start_stack_region_split with "Hcsp_stk")
+      as (stk_mem_free stk_res) "[Hcsp_stk Hstk_res]";
       first exact Hstk_res_size.
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W1")
       as "[Hstack_revoked_W1_free _]".
@@ -176,11 +177,13 @@ Section TI.
     iApply (switcher_cc_specification_shared with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hcsp_stk $Hworld_B $Hstack_revoked_W1_free $Hcstk_frag
+              $Hcsp_stk $Hhwm $Hworld_B $Hstack_revoked_W1_free $Hcstk_frag
               $Hinterp_B_f $HentryB_f $HK $Hmie $Hheld]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct b; reflexivity. }
@@ -201,7 +204,7 @@ Section TI.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & _ & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
+      & Hrmap & Hcsp_stk & (%mshwm_v1 & %Hh1 & Hhwm) & _ & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=;
@@ -215,6 +218,17 @@ Section TI.
     (* Get b back from the revoked addresses *)
     iMod (ti_world_return W_init W2 B cgp_b csp_b csp_e l' with "Hrevoked_l'")
       as "[%wcgp_b Hcgp_b]"; [exact Hcsp_bounds|done|done|done|].
+    (* [b] is a points-to, or a zone cell: then it is outside the stack, so
+       outside [MSHWMB, MSHWM), and it leaves the zone *)
+    iDestruct (stack_region_temp_cell_notin with "Hcsp_stk Hcgp_b") as %Hnin_free.
+    iDestruct (stack_region_temp_cell_notin with "Hstk_res Hcgp_b") as %Hnin_res.
+    iApply (wp_temp_cell_release_nosr with "HPC Hcgp_b Hhwm"); [done | solve_pc_nosr | |].
+    { rewrite /cstk_hwm_base /=.
+      rewrite !elem_of_finz_seq_between in Hnin_free Hnin_res.
+      rewrite /stk_start_a in Hh1 Hnin_free Hnin_res.
+      unfold StackEntry_reserved_space in *.
+      rewrite /stk_free_b /stk_free_e in Hnin_free. solve_addr. }
+    iIntros "HPC Hcgp_b _".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ctp;ct0;ct1;ct2;ca2]
       as ["Hctp";"Hct0";"Hct1";"Hct2";"Hca2"].

@@ -99,6 +99,7 @@ Section DLE.
       ∗ interp_continuation (main_entry_cstack csp_b csp_e w_main_tbl) Ws Cs
 
       ∗ ◯(CSTK)[th] (main_entry_cstack csp_b csp_e w_main_tbl)
+      ∗ hwm_res (main_entry_cstack csp_b csp_e w_main_tbl) csp_e
 
       ∗ interp W0 C (WSealed ot_switcher C_f)
       ∗ C_f ↦ₑ□{nargs} 1
@@ -131,6 +132,7 @@ Section DLE.
       & Hworld_interp_C
       & HK
       & Hcstk_frag
+      & Hhwm
       & #Hinterp_W0_C_f
       & #HentryC_f
       & #Hinterp_W0_csp
@@ -177,7 +179,7 @@ Section DLE.
     (* The free part of the stack, below the space reserved at its top *)
     assert (csp_b + StackEntry_reserved_space <= csp_e)%Z as Hstk_res_size
       by (unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min).
-    iDestruct (stk_start_region_split with "Hstk")
+    iDestruct (stk_start_stack_region_split with "Hstk")
       as (stk_mem_free stk_res) "[Hstk Hstk_res]";
       first exact Hstk_res_size.
     iDestruct (stk_start_revoked_split _ _ _ _ Hstk_res_size with "Hstack_revoked_W3")
@@ -189,11 +191,13 @@ Section DLE.
     iApply (switcher_cc_specification with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
+              $Hstk $Hhwm $Hworld_interp_C $Hstack_revoked_W3_free $Hcstk_frag
               $Hinterp_W3_C_f $HentryC_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { destruct b; reflexivity. }
@@ -215,7 +219,7 @@ Section DLE.
       & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
       & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-      & Hrmap & Hstk & HK & %Hrestored & %Hroute' & Hmie & Hheld)".
+      & Hrmap & Hstk & (%mshwm_v1 & %Hh1 & Hhwm) & HK & %Hrestored & %Hroute' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & Hrcs1).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].
@@ -229,6 +233,17 @@ Section DLE.
     (* Revoke the world to get b back *)
     iMod (dle_world_return with "Hseal_switcher Hrevoked_l' Hinterp_W3_C_f Hstack_revoked_W4")
       as "([%wcgp_b Hcgp_b] & #Hinterp_W5_C_f & #Hstack_revoked_W5)"; eauto.
+    (* [b] is a points-to, or a zone cell: then it is outside the stack, so
+       outside [MSHWMB, MSHWM), and it leaves the zone *)
+    iDestruct (stack_region_temp_cell_notin with "Hstk Hcgp_b") as %Hnin_free.
+    iDestruct (stack_region_temp_cell_notin with "Hstk_res Hcgp_b") as %Hnin_res.
+    iApply (wp_temp_cell_release_nosr with "HPC Hcgp_b Hhwm"); [done | solve_pc_nosr | |].
+    { rewrite /cstk_hwm_base /=.
+      rewrite !elem_of_finz_seq_between in Hnin_free Hnin_res.
+      rewrite /stk_start_a in Hh1 Hnin_free Hnin_res.
+      unfold StackEntry_reserved_space in *.
+      rewrite /stk_free_b /stk_free_e in Hnin_free. solve_addr. }
+    iIntros "HPC Hcgp_b Hhwm".
     iDestruct (big_sepM_sep with "Hrmap") as "[Hrmap _]".
     iExtractList "Hrmap" [ct0;ct1;ct2] as ["Hct0"; "Hct1"; "Hct2"].
 
@@ -249,11 +264,13 @@ Section DLE.
     iApply (switcher_cc_specification with
              "[- $Hthread $Hswitcher $Hswitcher_static $Hna
               $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-              $Hstk $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
+              $Hstk $Hhwm $Hworld_interp_C $Hstack_revoked_W5 $Hcstk_frag
               $Hinterp_W5_C_f $HentryC_f $HK $Hmie $Hheld]").
     { exact Hstk_mmio. }
     { exact Hstk_heap. }
     { apply stk_start_cursor_ok; unfold SpillSlot_size in Hstk_min; solve_addr+Hstk_min. }
+    { reflexivity. }
+    { rewrite /cstk_hwm_top /=. solve_addr. }
     { exact Hrmap'_dom. }
     { exact Harg_rmap. }
     { by rewrite /= ?jalr_target_ok_ret_kind. }
@@ -271,7 +288,7 @@ Section DLE.
       "( _ & _ & _ & _ & _ & %Hrmap_dom & _ & _
       & Hna & _ & _ & Hcstk_frag
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & [%warg0_ret [Hca0 _] ] & [%warg1_ret [Hca1 _] ]
-      & Hrmap & _ & _ & %Hrestored & %Hroute'' & Hmie & Hheld)".
+      & Hrmap & _ & _ & _ & %Hrestored & %Hroute'' & Hmie & Hheld)".
     destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
     apply load_heap_nonheap in Hrcgp;
       [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= (proj1 Hcgp_range) /=; reflexivity].

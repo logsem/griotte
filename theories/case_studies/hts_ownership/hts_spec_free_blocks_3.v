@@ -96,6 +96,7 @@ Section HTS_Spec_Free.
 
   Lemma hts_spec_free :
     cstk.(cstk_frames) = [] ->
+    cstk_hwm_base cstk = csp_b ->
     is_shadow_address owner_a = false ->
     withinBounds owner_a (owner_a ^+ 1) owner_a = true ->
     is_heap_address owner_a = false ->
@@ -113,7 +114,7 @@ Section HTS_Spec_Free.
      safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros (Hframes Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap
+    iIntros (Hframes Hbase Howner_shadow Howner_bounds Howner_nonheap Hpc_shadow Hpc_nonheap Hcgp_heap
       Hstk_shadow Hstk_heap Hstk_min HsubBounds
       Himports_contiguous) "(#Hctx & Hret & Hcontinue)".
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
@@ -121,7 +122,7 @@ Section HTS_Spec_Free.
        & #Hadv & #Hentry & %Hshared)".
     iDestruct "Hret" as (ι b Wret) "(%Hbounds & %Hstk_nonempty
       & %Hrelated_share_ret & #Hrel_b & Hframe & [%w0 Hca0] & [%w1 Hca1]
-      & Hregs & Hslot & [%stk Hstk] & Hworld & Hstack_revoked_ret
+      & Hregs & Hslot & [%stk Hstk] & [%mshwm_v Hhwm] & Hworld & Hstack_revoked_ret
       & %Hstack_revoked_ret & HK & Howner & #Hobj & Hright)".
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
       & Hcs0
@@ -319,10 +320,11 @@ Section HTS_Spec_Free.
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-        $Hfree_arg $Hrmap $Hstk $Hcstk $Hfree_fun $Hmie $Hheld]").
+        $Hfree_arg $Hrmap $Hstk $Hhwm $Hcstk $Hfree_fun $Hmie $Hheld]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { stk_unfold; solve_addr. }
+    { by rewrite Hbase. }
     { apply hts_export_tbl_not_shadow.
       rewrite /allocator_free_exp_tbl_off /allocator_entry_free. solve_addr. }
     { apply hts_export_tbl_not_shadow. solve_addr. }
@@ -369,6 +371,7 @@ Section HTS_Spec_Free.
       iDestruct "HQ" as
         "(#Hquar & _ & Howner_word & %Hfree_values)".
       destruct Hfree_values as [-> ->].
+      iDestruct (stack_ints_region with "Hstk") as (stk_ret) "Hstk".
       iApply "Hcontinue".
       iRight. iExists ι, b, Wret.
       iFrame "∗#%".

@@ -328,8 +328,9 @@ Definition regs_outcome `{MachineParameters} {k : kind} (mv : option LWord) (lpc
   end.
 
 (** The per-instruction side condition of the register rules: the
-    instruction does not switch threads. *)
-Definition regs_instr_ok (th : Thread) (i : instr) : Prop := sw_of (kind_of th) i = None.
+    instruction does not switch threads, and does not write MSHWMB. *)
+Definition regs_instr_ok (th : Thread) (i : instr) : Prop :=
+  sw_of (kind_of th) i = None ∧ writes_mshwmb i = false.
 
 Section regs_rules.
   Context `{MP : MachineParameters} `{ceriseg : ceriseG Σ} {th : Thread} {CL : CritLink Σ th}.
@@ -365,7 +366,8 @@ Section regs_rules.
         [∗ map] k↦y ∈ regs', k ↦ᵣ y }}}.
   Proof.
     iIntros (Hdec Hsw Hvpc Hsrc Hagree Hdst Hwitness Φ) "(>HPC & >Hpc_a & Hwit & >Hmap) HΦ".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [by rewrite Hdec | done |].
+    destruct Hsw as [Hsw Hwr].
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [by rewrite Hdec | done | by rewrite Hdec |].
     iNext; iIntros (r sr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (Hwitness with "HR HC Hwit") as %Hwit_ok.
     (* The strip bits of the owned registers. *)

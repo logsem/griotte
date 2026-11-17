@@ -99,10 +99,11 @@ Section adequacy_helpers.
         the sealing type of the trusted stacks the predicate of their
         handles. The three words of the scheduler after the keys become
         persistent. The layout is the class [swlayout], as in the
-        switcher's specifications. *)
+        switcher's specifications. The base [mshwmb_v] of the high-water mark of
+        [th] and its stack [mshwmb_v, es) are those of the thread. *)
     Lemma initialise_switcher_shared
       {swlayout : switcherLayout} {swlayoutwf : switcherLayoutWf} {E : coPset}
-      (w_pcc w_cgp w_csp : Word) :
+      (w_pcc w_cgp w_csp : Word) (mshwmb_v es : Addr) :
       mtcc_vec = switcher_label_pc "exception_entry_asm" ->
       ([∗ map] k↦y ∈ mkregion switcher.b_switcher switcher.a_switcher_call
                        (switcher_data_words switcher.ot_switcher w_pcc w_cgp w_csp) ∪
@@ -110,7 +111,9 @@ Section adequacy_helpers.
          k ↦ₐ lword_of_word y) -∗
       can_alloc_pred switcher.ot_switcher -∗
       can_alloc_pred (switcher.ot_switcher ^+ 1) -∗
-      saved_prop_own (γ_exit th) DfracDiscarded exit_concrete
+      saved_prop_own (γ_exit th) DfracDiscarded exit_concrete -∗
+      hwm_base[th] mshwmb_v -∗
+      thread_stack_bounds mshwmb_v es
       ={E}=∗
       switcher.ot_switcher ↪ₒ{SealGlobal} ot_switcher_propC ∗
       ot_trusted_stacks ↪ₒ{SealGlobal} tstack_handle_propC ∗
@@ -120,7 +123,7 @@ Section adequacy_helpers.
       (switcher.b_switcher ^+ 4)%a ↦ₐ□ lword_of_word w_csp.
     Proof.
       intros Hmtcc.
-      iIntros "Hswitcher Hseal_store Hseal_store_ts #Hexit".
+      iIntros "Hswitcher Hseal_store Hseal_store_ts #Hexit #Hhwm_base #Htstk".
       pose proof switcher.switcher_call_entry_point as Hcall.
       pose proof switcher.switcher_size as Hsize.
       iDestruct (big_sepM_union with "Hswitcher") as "[Hswitcher_sealing Hswitcher]".
@@ -169,7 +172,7 @@ Section adequacy_helpers.
         by solve_addr+Hcall.
       iFrame "Hsealed_pred_ot_switcher Hsealed_pred_tstacks Hw_pcc Hw_cgp Hw_csp".
       rewrite /switcher_static /switcher_sealing_inv.
-      iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hexit".
+      iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hexit Hhwm_base Htstk".
       iPureIntro. split; [done | split; [apply switcher.ot_switcher_size |
                                          apply switcher.ot_trusted_stacks_size] ].
     Qed.

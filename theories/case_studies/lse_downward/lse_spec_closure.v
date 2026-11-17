@@ -113,7 +113,8 @@ Section LSE.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
-      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
+      & Hhwm & %Hzone & Hworld_interp_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
+      & %Hroute & Hmie & Hheld)".
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & _ & _)".
@@ -140,12 +141,15 @@ Section LSE.
     iRegionSplit "Himports_main" as "(Himport_switcher & Himport_assert & Himport_C_f)".
     rewrite /length_lse_main_imports.
     change_pc_to (pc_a ^+ lse_label_offset ".Llse_f")%a.
+    rewrite -Hstk_base.
     iApply (lse_f_blocks_1_spec with
-             "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hcode_main]");
+             "[- $HPC $Hcgp $Hcsp $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcgp_b $Hstk $Hhwm $Hcode_main]");
       [done|done|done|done| |solve_addr+Hstk_min|].
     { by eapply switcher_disjoint_subseg; [| |split; eassumption]; solve_addr. }
-    iNext; iIntros (stk_mem' wcs0' wcs1')
-      "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & _)".
+    iNext; iIntros (stk_mem' wcs0' wcs1' mshwm_v')
+      "(HPC & Hcgp & Hcsp & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcgp_b & Hstk & Hhwm & %Hh' & _)".
+    assert (mshwm_v' <= csp_e)%Z as Hh'_e.
+    { rewrite /stk_start_a in Hh'. unfold StackEntry_reserved_space in *. solve_addr. }
 
     (* Blocks 5-6: assert that [a] contains [2], and return *)
     iApply (lse_f_blocks_2_spec with
@@ -162,7 +166,7 @@ Section LSE.
     (* Return to the caller of [f] *)
     iDestruct (RevokedResources_mono_pub W0 _ C l l Hpub_W0_Wfixed with "Hrevoked_l") as "Hrevoked_l".
     iApply (switcher_ret_specification W0 (revoke W0) with
-             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
+             "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hhwm $Hcstk $HK $Hworld_interp_C $Hna $HPC $Hrevoked_l
               $Hrmap $Hca0 $Hca1 $Hcsp $Hmie]"); auto.
     { rewrite !dom_insert_L !dom_delete_L Hrmap_dom; set_solver+. }
     { destruct Hextract; auto. }

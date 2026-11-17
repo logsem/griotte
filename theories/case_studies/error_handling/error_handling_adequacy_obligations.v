@@ -198,11 +198,17 @@ Section error_handling_obligations.
     (* 7 - Close the world of [adv]: its compartment becomes Permanent regions, and
        the stack temporary; [stats_read] is safe to import; the export of
        [adv] is safe to share. *)
+    (* The bounds of the stack of the thread, from its MSHWMB and MSHWM. *)
+    iAssert (thread_stack_bounds (th := UserThread 0)
+               (image.b_stack (thread_of img 0)) (image.e_stack (thread_of img 0)))
+      as "#Htstk".
+    { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
     iMod (fw_close_adv_world (th := UserThread 0)
             _ _ _ 2 (fw_nth 2 (fw_cmpts error_handling_firmware) default_fw_cmpt)
             _ Hadv_l fw_world0 C Hok eq_refl eq_refl ltac:(apply Forall_singleton; cbn; lia)
             ltac:(done)
-           with "Hswitcher_threads_C Hswitcher_static Hadv Hadv_pers Hstack [] Hthread_C Hworld_C")
+           with "Hswitcher_threads_C Hswitcher_static Hadv Hadv_pers Hstack Htstk [] Hthread_C
+             Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_adv _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts error_handling_firmware].
       iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
@@ -231,7 +237,7 @@ Section error_handling_obligations.
                   _ _ _ _ _ _ _ _ adv_f _ [] [] _
                  with "[$Hassert $Hthread_C $Hswitcher $Hswitcher_static $Hstats_static $Hinv_stats
                         $Hna $HPC $Hcgp $Hcsp $Hcra $Hregs $Hmain_imports $Hmain_code $Hmain_data
-                        $Hworld_C $Hcstk $Hinterp_adv $Hentry_adv $Hinterp_stack_C
+                        $Hworld_C $Hcstk $Hhwm $Hinterp_adv $Hentry_adv $Hinterp_stack_C
                         $HMIE $Hheld]")
       as "Hspec".
     all: [> exact Hstats_switcher

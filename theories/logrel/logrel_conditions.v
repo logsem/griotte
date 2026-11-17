@@ -4,6 +4,7 @@ From griotte Require Export memory_region.
 From iris.algebra Require Export gmap agree auth excl_auth.
 From iris.base_logic Require Export invariants na_invariants saved_prop.
 From griotte Require Export state_interp shapes.step traps.entry machine_instructions call_stack.
+From griotte Require Export stack_cells.
 From griotte Require Export world_ghost_theory.
 From griotte Require Import ghost.registry.
 Import uPred.
@@ -180,6 +181,55 @@ Section logrel_expr.
       iExists (DerefLive ι _). iFrame "Htok". iSplit; first done.
       iIntros "Htok". iExists b, e. by iFrame "∗#".
     - iExists DerefNoId. iSplit; first done. iSplit; first done. by iIntros.
+  Qed.
+
+  (** The cell of a region at a capability's address: the key's points-to,
+      or, for a Temporary region without identifier, a zone cell holding an
+      integer. *)
+  Lemma region_cell_cases ρ π (a : Addr) w :
+    region_cell ρ (addr_key π a) w -∗
+    addr_key π a ↦ₖ w ∨
+    (∃ z, ⌜π = None ∧ ρ = InLocal ∧ w = lword_of_word (WInt z)⌝ ∗ zone_cell_v[th] a z).
+  Proof.
+    destruct ρ; cbn [region_cell]; [by iIntros "$"|].
+    iIntros "[$ | (%a' & %z & %Hk & Hcell & ->)]".
+    destruct π; cbn in Hk; simplify_eq. iRight. iExists z. by iFrame.
+  Qed.
+
+  (** A zone cell is the cell of a Temporary region without identifier. *)
+  Lemma region_cell_zone (a : Addr) (z : Z) :
+    zone_cell_v[th] a z -∗ region_cell InLocal (addr_key None a) (lword_of_word (WInt z)).
+  Proof. iIntros "Hcell". by iApply temp_cell_zone. Qed.
+
+  (** A full points-to is the cell of any region without identifier. *)
+  Lemma region_cell_nonheap ρ (a : Addr) w :
+    a ↦ₐ w -∗ region_cell ρ (addr_key None a) w.
+  Proof. iIntros "Ha". by iApply region_cell_pointsto. Qed.
+
+  (** The cell of a region at a capability's address, for a load: a
+      fraction of the address's points-to, full unless the region holds a
+      zone cell (then the key has no identifier), and the cell back. *)
+  Lemma region_cell_load_acc ρ π (ea : Addr) w :
+    region_cell ρ (addr_key π ea) w -∗
+    ∃ dq, ea ↦ₐ{dq} w ∗ ⌜π = None ∨ dq = DfracOwn 1⌝ ∗
+      (ea ↦ₐ{dq} w -∗ region_cell ρ (addr_key π ea) w).
+  Proof.
+    iIntros "Hc". iDestruct (region_cell_cases with "Hc") as "[Hk | (%z & [-> [-> ->] ] & Hcell)]".
+    - iDestruct (addr_key_pointsto with "Hk") as "[Ha Hshare]".
+      iExists (DfracOwn 1). iFrame "Ha". iSplit; first by iRight.
+      iIntros "Ha". iApply region_cell_pointsto. iApply (addr_key_pointsto_join with "Ha Hshare").
+    - iDestruct (zone_cell_v_unfold with "Hcell") as "[Htok Hhalf]".
+      iExists (DfracOwn (1/2)). iFrame "Hhalf". iSplit; first by iLeft.
+      iIntros "Hhalf". iApply region_cell_zone. rewrite zone_cell_v_unfold. iFrame.
+  Qed.
+
+  (** A full points-to and half of one are at different addresses. *)
+  Lemma pointsto_full_half_ne (a a' : Addr) w w' :
+    a ↦ₐ w -∗ a' ↦ₐ{DfracOwn (1/2)} w' -∗ ⌜a ≠ a'⌝.
+  Proof.
+    iIntros "Ha Ha'". destruct (decide (a = a')) as [->|Hne]; last done.
+    iDestruct (pointsto_valid_2 with "Ha Ha'") as %[Hv _].
+    rewrite dfrac_op_own dfrac_valid_own in Hv. by apply Qp.not_add_le_l in Hv.
   Qed.
 
   (** The region of a key reached through a capability. A Permanent region

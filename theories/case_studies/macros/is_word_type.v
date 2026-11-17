@@ -76,6 +76,7 @@ Section Is_WordType_spec.
     let is_int := (is_int_instrs r r1) in
     let a_last := (pc_a ^+ length is_int) in
     executeAllowed pc_p = true →
+    has_sreg_access pc_p = false →
     SubBounds pc_b pc_e pc_a a_last →
     r ≠ cnull ->
     r1 ≠ cnull ->
@@ -96,7 +97,7 @@ Section Is_WordType_spec.
     ⊢ WP Exec {{ φ }}.
   Proof.
     intros is_int a_last ; subst is_int a_last.
-    iIntros (Hvpc Hcont Hrcnull Hr1cnull)
+    iIntros (Hvpc Hnsr Hcont Hrcnull Hr1cnull)
       "(>HPC & >Hr & >Hr1 & >#Hprog & Hk)".
     codefrag_facts "Hprog".
     rename H into HcontRegion; clear H0.

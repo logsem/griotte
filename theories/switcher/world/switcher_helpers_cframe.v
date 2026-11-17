@@ -50,7 +50,7 @@ Section switcher_helpers_cframe.
     ∃ wastk wastk1 wastk2 wastk3,
       let la := (if (is_untrusted_caller ccrel) then finz.seq_between s (s ^+ SpillSlot_size) else []) in
       let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
-      ([[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ [wastk;wastk1;wastk2;wastk3] ]])
+      stack_region s (s ^+ SpillSlot_size) [wastk;wastk1;wastk2;wastk3]
       ∗ ▷ StackOpenWorldResources interp W C la lv
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
@@ -66,6 +66,7 @@ Section switcher_helpers_cframe.
       iFrame "Hlocal".
       rewrite /StackOpenWorldResources /StackWorldResources.
       iSplitL "Hcframe_interp"; auto.
+      iApply stack_region_of_pointsto.
       iDestruct "Hcframe_interp" as "(?&?&?&?)".
       iApply (region_pointsto_cons _ (s ^+ 1)); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
       iApply (region_pointsto_cons _ (s ^+ 2)); [solve_addr+Hs4|solve_addr+Hs4|]; iFrame.
@@ -91,14 +92,17 @@ Section switcher_helpers_cframe.
       destruct lv as [|w [|w0 [|w1 [|w2 [|] ] ] ] ]; try done.
       iExists w, w0, w1, w2.
       iFrame "Hres".
+      rewrite /stack_region.
       replace ( [s; (s ^+ 1); (s ^+ 2); (s ^+ 3)] )
-        with (finz.seq_between s (s ^+4)); first done.
-      repeat (rewrite finz_seq_between_cons; last solve_addr+Hs4).
-      replace ( (s ^+ 1) ^+ 1 ) with ((s ^+ 2))%a by solve_addr+Hs4.
-      replace ( (s ^+ 2) ^+ 1 ) with ((s ^+ 3))%a by solve_addr+Hs4.
-      replace ( (s ^+ 3) ^+ 1 ) with ((s ^+ 4))%a by solve_addr+Hs4.
-      rewrite finz_seq_between_empty; last solve_addr+Hs4.
-      done.
+        with (finz.seq_between s (s ^+4)).
+      2:{ repeat (rewrite finz_seq_between_cons; last solve_addr+Hs4).
+          replace ( (s ^+ 1) ^+ 1 ) with ((s ^+ 2))%a by solve_addr+Hs4.
+          replace ( (s ^+ 2) ^+ 1 ) with ((s ^+ 3))%a by solve_addr+Hs4.
+          replace ( (s ^+ 3) ^+ 1 ) with ((s ^+ 4))%a by solve_addr+Hs4.
+          rewrite finz_seq_between_empty; last solve_addr+Hs4.
+          done. }
+      iApply (big_sepL2_mono with "Hlv").
+      iIntros (k a v _ _) "Hv". by rewrite stack_cell_temp_cell.
   Qed.
 
   #[local] Lemma local_open_callee_stack_aux (W : WORLD) (C : CmptName)
@@ -122,7 +126,7 @@ Section switcher_helpers_cframe.
     local_region_map th W C
       (open_l W (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area))) ∗
     (∃ (lv : list LWord),
-        ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
+        ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, temp_cell th (LNonHeap a) v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
     )
   .
@@ -179,7 +183,7 @@ Section switcher_helpers_cframe.
     ∃ wastk wastk1 wastk2 wastk3,
       let la := (if (is_untrusted_caller ccrel) then finz.seq_between s (s ^+ SpillSlot_size) else []) in
       let lv := (if (is_untrusted_caller ccrel) then [wastk;wastk1;wastk2;wastk3] else []) in
-      ([[ s , s ^+ SpillSlot_size ]] ↦ₐ [[ [wastk;wastk1;wastk2;wastk3] ]])
+      stack_region s (s ^+ SpillSlot_size) [wastk;wastk1;wastk2;wastk3]
       ∗ ▷ StackOpenWorldResources interp W C la lv
       ∗ (⌜if (is_untrusted_caller ccrel)
          then True
@@ -219,7 +223,7 @@ Section switcher_helpers_cframe.
     local_region_map th W C
       (open_l W (LNonHeap <$> (l_callee_stack_frame ++ l_register_save_area))) ∗
     (∃ (lv : list LWord),
-        ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, a ↦ₐ v)
+        ([∗ list] a ; v ∈ l_callee_stack_frame ; lv, temp_cell th (LNonHeap a) v)
         ∗ ▷ StackOpenWorldResources interp W C l_callee_stack_frame lv
     )
   .
@@ -284,10 +288,10 @@ Section switcher_helpers_cframe.
       (
         |={⊤}=>
           ∃ wastk wastk1 wastk2 wastk3,
-          a_stk ↦ₐ wastk
-          ∗ (a_stk ^+ 1) ↦ₐ wastk1
-          ∗ (a_stk ^+ 2) ↦ₐ wastk2
-          ∗ (a_stk ^+ 3) ↦ₐ wastk3
+          stack_cell a_stk wastk
+          ∗ stack_cell (a_stk ^+ 1) wastk1
+          ∗ stack_cell (a_stk ^+ 2) wastk2
+          ∗ stack_cell (a_stk ^+ 3) wastk3
           ∗ (⌜if (is_untrusted_caller ccrel)
              then True
              else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wcgp ∧ wastk3 = wret)⌝)
@@ -402,10 +406,10 @@ Section switcher_helpers_cframe.
               ⌜ l ≡ₚ (LNonHeap <$> [a_stk;(a_stk ^+ 1);(a_stk ^+ 2);(a_stk ^+ 3)])++l' ⌝
               ∗ RevokedResources Wfixed C l'
               ∗ (∃ wastk wastk1 wastk2 wastk3,
-                    a_stk ↦ₐ wastk
-                    ∗ (a_stk ^+ 1) ↦ₐ wastk1
-                    ∗ (a_stk ^+ 2) ↦ₐ wastk2
-                    ∗ (a_stk ^+ 3) ↦ₐ wastk3
+                    stack_cell a_stk wastk
+                    ∗ stack_cell (a_stk ^+ 1) wastk1
+                    ∗ stack_cell (a_stk ^+ 2) wastk2
+                    ∗ stack_cell (a_stk ^+ 3) wastk3
                     ∗ (∃ W0', ⌜ related_sts_pub_world W0' Wfixed⌝ ∗ (interp_in_mem RWL W0' C wastk))
                     ∗ (∃ W1', ⌜ related_sts_pub_world W1' Wfixed⌝ ∗ (interp_in_mem RWL W1' C wastk1))
                     ∗ (∃ W2', ⌜ related_sts_pub_world W2' Wfixed⌝ ∗ (interp_in_mem RWL W2' C wastk2))
@@ -470,10 +474,11 @@ Section switcher_helpers_cframe.
       iDestruct "Hv3" as (p_v3 P3 Hpers_P3) "(#Hrel3 & Hv3)".
       iClear "Hinterp_callee_wstk".
       iFrame "Hrel0". iFrame "Hrel1". iFrame "Hrel2". iFrame "Hrel3".
-      iDestruct "Hv0" as (v0) "(%Hnot_O0 & $ & H0' & H0)".
-      iDestruct "Hv1" as (v1) "(%Hnot_O1 & $ & H1' & H1)".
-      iDestruct "Hv2" as (v2) "(%Hnot_O2 & $ & H2' & H2)".
-      iDestruct "Hv3" as (v3) "(%Hnot_O3 & $ & H3' & H3)".
+      iDestruct "Hv0" as (v0) "(%Hnot_O0 & Hc0 & H0' & H0)".
+      iDestruct "Hv1" as (v1) "(%Hnot_O1 & Hc1 & H1' & H1)".
+      iDestruct "Hv2" as (v2) "(%Hnot_O2 & Hc2 & H2' & H2)".
+      iDestruct "Hv3" as (v3) "(%Hnot_O3 & Hc3 & H3' & H3)".
+      rewrite -!stack_cell_temp_cell. iFrame "Hc0 Hc1 Hc2 Hc3".
       pose (W0' := Wfixed). pose (W1' := Wfixed).
       pose (W2' := Wfixed). pose (W3' := Wfixed).
       assert (related_sts_pub_world W0' Wfixed) as HW0' by apply related_sts_pub_refl_world.
@@ -606,10 +611,10 @@ Section switcher_helpers_cframe.
       (
         |={⊤}=>
           ∃ wastk wastk1 wastk2 wastk3,
-          s ↦ₐ wastk
-          ∗ (s ^+ 1) ↦ₐ wastk1
-          ∗ (s ^+ 2) ↦ₐ wastk2
-          ∗ (s ^+ 3) ↦ₐ wastk3
+          stack_cell s wastk
+          ∗ stack_cell (s ^+ 1) wastk1
+          ∗ stack_cell (s ^+ 2) wastk2
+          ∗ stack_cell (s ^+ 3) wastk3
           ∗ (⌜if (is_untrusted_caller ccrel)
              then True
              else (wastk = wcs0 ∧ wastk1 = wcs1 ∧ wastk2 = wcgp ∧ wastk3 = wret)⌝)

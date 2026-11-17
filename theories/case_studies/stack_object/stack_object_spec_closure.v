@@ -175,7 +175,8 @@ Section SO.
     assert (t' = th) as -> by set_solver.
     iIntros (W0) "!> %cstk %Ws %Cs %rmap %csp_b %csp_e".
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
-      & Hworld_interp_C & _ & %Hsync_csp & %Hstk_min & Hcstk & Hna & %Hroute & Hmie & Hheld)".
+      & Hhwm & %Hzone & Hworld_interp_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
+      & %Hroute & Hmie & Hheld)".
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
@@ -183,6 +184,11 @@ Section SO.
       iPureIntro. by apply tf_export_tbl_ok_nonzero. }
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
+    (* The stack ends in the stack of the thread *)
+    iAssert (thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk)) as "#Htstk".
+    { iDestruct "Hhwm" as "[_ $]". }
+    iDestruct (wl_in_stack_base RWL with "Htstk [Hinterp_W0_csp]") as %[_ Hstk_top];
+      [done | by iApply (interp_wl_in_stack with "Hinterp_W0_csp") |].
     rewrite /registers_pointsto.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
@@ -279,7 +285,8 @@ Section SO.
       StackRevokedResources W0 C (finz.seq_between csp_b csp_e) -∗
       world_interp (close_list (addr_key π <$> so_object_temporaries W0 π bo eo) (revoke W0)) C -∗
       RevokedResources W0 C (so_revoked_without_object W0 π bo eo l_revoked) -∗
-      [[csp_b, csp_e]] ↦ₐ [[stk_mem]] -∗
+      stack_region csp_b csp_e stk_mem -∗
+      hwm_res cstk (stk_start_a csp_b csp_e) -∗
       PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a -∗
       ca0 ↦ᵣ[th] wca0' -∗
       cs0 ↦ᵣ[th] WInt 0 -∗
@@ -300,7 +307,7 @@ Section SO.
       safe[th])%I with "[]" as "#Htail".
     { iIntros "!>" (bo eo wca0' l_revoked stk_mem Hextract Hno_overlap_object)
         "#Hinterp_object_W2 #Hwca0_valid Hstack_revoked Hworld_interp_C Hrevoked_l_rest Hstk
-         HPC Hca0 Hcs0 Hcs1 Hcsp Hca1 Hct0 Hct1 Hcra Hcgp Hrmap Hmie Hheld Hna Hcstk HK".
+         Hhwm HPC Hca0 Hcs0 Hcs1 Hcsp Hca1 Hct0 Hct1 Hcra Hcgp Hrmap Hmie Hheld Hna Hcstk HK".
       (* Close the quarantined revoked keys *)
       iMod (so_world_quarantine W0 _ C with "Hworld_interp_C Hrevoked_l_rest")
         as (l0_live l0_quarantined) "(%Hl0_partition & %Hl0_quarantined
@@ -314,11 +321,11 @@ Section SO.
 
       (* Blocks 7-9: push the secret, allocate [z], jump to the switcher *)
       iApply (so_call_blocks_3_spec with
-               "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Himport_switcher
+               "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Hhwm $Himport_switcher
                 $Hcode_main $Hmie $Hheld]"); [done|done|done|solve_addr+Hstk_min|done|].
-      iNext; iIntros (a_stk1 a_stk2 stk_tail stk_res)
+      iNext; iIntros (a_stk1 a_stk2 stk_tail stk_res mshwm_v1)
         "(%Hastk1 & %Hastk2 & %Hcsp_b_astk2 & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
-        & Hcra & Hres & Hsecret & Hastk2 & Hstk & _ & _ & Hmie & Hheld)".
+        & Hcra & Hres & Hsecret & Hastk2 & Hstk & Hhwm & %Hh1 & _ & _ & Hmie & Hheld)".
 
       (* Reinstate [z] in the world of the call *)
       iDestruct (switcher_static_seal_pred with "Hswitcher_static") as "#Hseal_switcher".
@@ -339,11 +346,13 @@ Section SO.
       iApply (switcher_cc_specification_alt with
                "[- $Hthread $Hswitcher $Hswitcher_static $Hna
                 $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-                $Hstk $Hworld_interp_C $Hstack_revoked $Hcstk
+                $Hstk $Hhwm $Hworld_interp_C $Hstack_revoked $Hcstk
                 $Hinterp_wct1 $HK $Hmie $Hheld]").
       { exact Hstk_mmio. }
       { exact Hstk_heap. }
       { stk_unfold; solve_addr+ Hastk1 Hastk2. }
+      { exact Hstk_base. }
+      { exact Hstk_top. }
       { exact Hrmap'_dom. }
       { exact Harg_rmap. }
       { by rewrite /= ?jalr_target_ok_ret_kind. }
@@ -363,7 +372,7 @@ Section SO.
         & Hcstk
         & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp
         & [%warg0 [Hca0 _] ] & [%warg1 [Hca1 _] ]
-        & Hrmap & Hstk & HK & %Hrestored & _ & Hmie & Hheld)".
+        & Hrmap & Hstk & (%h2 & %Hh2 & Hhwm) & HK & %Hrestored & _ & Hmie & Hheld)".
       destruct Hrestored as (Hrcgp & Hrcra & Hrcs0 & _).
       apply load_heap_nonheap in Hrcgp;
         [|rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap /=; reflexivity].
@@ -405,10 +414,16 @@ Section SO.
               & Hclosing & Hstk)";
         [done..|].
 
-      (* Return to the caller of [f] *)
+      (* Return to the caller of [f]: MSHWM is at most the cursor of the
+         call, in the stack *)
+      assert (h2 <= csp_e)%Z as Hh2_e.
+      { assert (stk_start_a csp_b csp_e <= csp_e)%Z
+          by (rewrite /stk_start_a; unfold StackEntry_reserved_space in *; solve_addr).
+        assert (a_stk2 < csp_e)%Z by (unfold StackEntry_reserved_space in *; solve_addr).
+        lia. }
       iApply (switcher_ret_specification W0 (revoke W4) with
-               "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hcstk $HK $Hworld_interp_C $Hna $HPC
-                $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing $Hmie]"); eauto.
+               "[$Hthread $Hswitcher $Hswitcher_static $Hstk $Hhwm $Hcstk $HK $Hworld_interp_C $Hna
+                $HPC $Hrmap $Hca0 $Hca1 $Hcsp $Hclosing $Hmie]"); eauto.
       { rewrite !dom_insert_L !dom_delete_L Hrmap''_dom; set_solver+. }
       { iSplit; iApply interp_int. } }
 
@@ -450,7 +465,8 @@ Section SO.
         rewrite filter_cons_True; last set_solver. by rewrite IH. }
       iSpecialize ("Htail" $! b b (Cap p g b e (finz.max b e)) l_revoked stk_mem).
       iEval (rewrite Htemps_nil Hrest fmap_nil close_list_empty) in "Htail".
-      iApply ("Htail" with "[%] [%] [] [] Hstack_revoked Hworld_interp_C Hl_revoked Hstk
+      iEval (rewrite -Hstk_base) in "Hcsp".
+      iApply ("Htail" with "[%] [%] [] [] Hstack_revoked Hworld_interp_C Hl_revoked Hstk Hhwm
                 HPC Hca0 Hcs0 Hcs1 Hcsp Hca1 Hct0 Hct1 Hcra Hcgp Hrmap Hmie Hheld Hna Hcstk HK").
       - done.
       - rewrite finz_seq_between_empty; [apply disjoint_nil_l | solve_addr].
@@ -459,6 +475,8 @@ Section SO.
       - iIntros "!>" (W') "_". iApply ("Hinterp_exposed" $! W' b e (finz.max b e)). done. }
 
     (* Revoke the world and open the region of [in] *)
+    iEval (rewrite -Hstk_base) in "Hcsp".
+    rewrite -Hstk_base in Hno_overlap.
     iMod (so_world_open_object with "Hthread Hinterp_W0_csp Hinterp_wca0 Hworld_interp_C Hlc")
       as (l_revoked stk_mem) "(%Hextract & Hstack_revoked & Hopen_object)";
       [done|done|done|done|].
@@ -485,8 +503,9 @@ Section SO.
       iIntros "(Hca0 & [%wcs0' Hcs0] & [%wcs1' Hcs1])".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l_revoked stk_mem
-                cstk Ws Cs with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
-      8: { iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
+                cstk Ws Cs _ (stk_start_a csp_b csp_e)
+                with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
+      9: { iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
            iModIntro; iFrame "∗ %". }
       { exact Hpub_W0_Wrevoked. }
@@ -496,7 +515,20 @@ Section SO.
       { destruct Hextract as [Hnodup _]; exact Hnodup. }
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
+      { rewrite /stk_start_a; unfold StackEntry_reserved_space in *; solve_addr. }
       { by apply trap_no_resume_cap. } }
+
+    (* The cells of [in] are outside the stack frame, so outside
+       [MSHWMB, MSHWM): they are points-to *)
+    iApply (wp_stack_cells_release_nosr with "HPC Hobject Hhwm"); [done | solve_pc_nosr | |].
+    { apply Forall_forall. intros x Hx.
+      rewrite Hla in Hx.
+      rewrite elem_of_disjoint in Hno_overlap.
+      intros Hx_stk. apply (Hno_overlap x); first done.
+      rewrite -Hstk_base /stk_start_a in Hx_stk.
+      rewrite elem_of_finz_seq_between; unfold StackEntry_reserved_space in *.
+      solve_addr. }
+    iIntros "HPC Hobject Hhwm".
 
     (* Block 6: [in] only contains integers *)
     iApply (so_checkints_blocks_2_spec with
@@ -508,8 +540,9 @@ Section SO.
       iDestruct "Hclose_object" as "[_ Hclose_object]".
       iInsertRegs "Hrmap" ["Hcs1";"Hcs0";"Hct1";"Hct0";"Hcra";"Hcgp"].
       iApply (trap_safe_return W0 (revoke W0) C _ csp_e csp_b l_revoked stk_mem
-                cstk Ws Cs with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
-      8: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
+                cstk Ws Cs _ (stk_start_a csp_b csp_e)
+                with "Hthread Hswitcher Hswitcher_static Hno_handler [-]").
+      9: { iMod ("Hclose_object" with "Hobject") as "(Hworld_interp_C & Hrevoked & Hstk)".
            iDestruct (RevokedResources_mono_pub W0 _ C l_revoked [] Hpub_W0_Wrevoked
                        with "Hrevoked") as "Hrevoked".
            iModIntro; iFrame "∗ %". }
@@ -520,6 +553,7 @@ Section SO.
       { destruct Hextract as [Hnodup _]; exact Hnodup. }
       { intros a' Ha'; destruct Hextract as [_ Htemp].
         destruct (Htemp a') as [Hin _]; exact (Hin Ha'). }
+      { rewrite /stk_start_a; unfold StackEntry_reserved_space in *; solve_addr. }
       { by apply trap_no_resume_cap. } }
     iNext; iIntros "(%Hints & HPC & Hca0 & Hcs0 & Hcs1 & Hobject & _ & _)".
 
@@ -529,7 +563,7 @@ Section SO.
       as "(Hworld_interp_C & Hrevoked_l_rest & Hstk & #Hinterp_wca0_W2)"; first done.
     iApply ("Htail" $! b e (WCap t p g b e (finz.max b e) @@? π) l_revoked stk_mem
              with "[%] [%] Hinterp_wca0_W2 [] Hstack_revoked Hworld_interp_C Hrevoked_l_rest Hstk
-                   HPC Hca0 Hcs0 Hcs1 Hcsp Hca1 Hct0 Hct1 Hcra Hcgp Hrmap Hmie Hheld Hna Hcstk HK");
+                   Hhwm HPC Hca0 Hcs0 Hcs1 Hcsp Hca1 Hct0 Hct1 Hcra Hcgp Hrmap Hmie Hheld Hna Hcstk HK");
       [done|done|by iIntros "!>" (W') "?"].
   Qed.
 

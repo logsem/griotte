@@ -167,6 +167,32 @@ Section Fresh_stack.
     { stk_unfold; solve_addr+Hsize. }
     { rewrite -Hlen finz_seq_between_length. done. }
   Qed.
+
+  (** [stk_start_region_split], for the cells of a stack. *)
+  Lemma stk_start_stack_region_split (b e : Addr) (stk_mem : list LWord) :
+    (b + StackEntry_reserved_space <= e)%Z ->
+    stack_region b e stk_mem -∗
+    ∃ stk_mem' stk_res,
+      stack_region (stk_free_b b (stk_start_a b e)) (stk_free_e e (stk_start_a b e)) stk_mem' ∗
+      stack_region (stk_start_a b e) e stk_res.
+  Proof.
+    iIntros (Hsize) "Hstk".
+    rewrite /stack_region (stk_start_seq_split b e Hsize).
+    iDestruct (big_sepL2_app_inv_l with "Hstk") as (stk_mem' stk_res ->) "[Hstk Hres]".
+    iExists _, _. iFrame "Hstk Hres".
+  Qed.
+
+  (** [stk_start_region_join], for the cells of a stack. *)
+  Lemma stk_start_stack_region_join (b e : Addr) (stk_mem stk_res : list LWord) :
+    (b + StackEntry_reserved_space <= e)%Z ->
+    stack_region (stk_free_b b (stk_start_a b e)) (stk_free_e e (stk_start_a b e)) stk_mem -∗
+    stack_region (stk_start_a b e) e stk_res -∗
+    stack_region b e (stk_mem ++ stk_res).
+  Proof.
+    iIntros (Hsize) "Hstk Hres".
+    rewrite /stack_region (stk_start_seq_split b e Hsize).
+    iApply (big_sepL2_app with "Hstk Hres").
+  Qed.
 End Fresh_stack.
 
 (** A sub-range of a range outside the shadow table. *)
@@ -353,7 +379,7 @@ Section Revoked_Cells.
       ∃ pa Φa,
         ⌜∀ WCv, Persistent (Φa WCv)⌝ ∗
         a ↪ˡ[C]{pa} Φa ∗
-        ∃ wa, TmpRes W C a pa Φa wa.
+        ∃ wa, TmpRes (t := th) W C a pa Φa wa.
 
   Lemma RevokedCells_RevokedResources (W : WORLD) (C : CmptName) (s : list LAddr) :
     RevokedCells W C s -∗ RevokedResources W C s.
@@ -364,3 +390,4 @@ Section Revoked_Cells.
     iApply heap_key_resource_intro. by iFrame.
   Qed.
 End Revoked_Cells.
+

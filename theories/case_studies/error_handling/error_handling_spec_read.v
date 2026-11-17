@@ -102,12 +102,12 @@ Section Error_Handling_Read.
       rewrite /stats_handler_pcc_off. cbn in Hsize_code |- *. solve_addr.
   Qed.
 
-  (** The continuations that a fault site gives the handler, at mcause [c]
-      and mtval [v]: the retry and the unwind. *)
-  Definition stats_fault_conts (cstk : CSTK) (rfault : LReg) (c v : Z) : iProp Σ :=
-    (⌜stats_retries c v rfault⌝ -∗ stats_retry_cont (⊤ ∖ ↑Nstats) cstk rfault v) ∧
+  (** The continuations that a fault site gives the handler, at mcause [c],
+      mtval [v] and MSHWM [mshwm_v]: the retry and the unwind. *)
+  Definition stats_fault_conts (cstk : CSTK) (rfault : LReg) (c v mshwm_v : Z) : iProp Σ :=
+    (⌜stats_retries c v rfault⌝ -∗ stats_retry_cont (⊤ ∖ ↑Nstats) cstk rfault v mshwm_v) ∧
     (⌜¬ stats_retries c v rfault⌝ -∗
-     unwind_cont (⊤ ∖ ↑Nstats) cstk (error_state_area rfault ∗ stats_inv)).
+     unwind_cont (⊤ ∖ ↑Nstats) cstk mshwm_v (error_state_area rfault ∗ stats_inv)).
 
   (** The fault site of [stats]: a fault at the load, with mcause in
       [P_mcause] and mtval in [P_mtval], with the lock held,
@@ -118,7 +118,7 @@ Section Error_Handling_Read.
       fault, and its continuations. The switcher invokes the handler, so
       the site gives the switcher no unwind continuation. *)
   Lemma stats_read_fault_safe (P_mcause P_mtval : Z → Prop) (cstk : CSTK) (rfault : LReg)
-    (g : Locality) (b e a : Addr) (mie : InterruptStatus) :
+    (g : Locality) (b e a : Addr) (mie : InterruptStatus) (mshwm_v : Z) :
     (∀ c, P_mcause c → mcause_ok c) →
     STATS_pcc_b ≠ b_switcher →
     (∀ r, is_Some (rfault !! r)) →
@@ -139,32 +139,35 @@ Section Error_Handling_Read.
     stats_static -∗
     registers_pointsto rfault -∗
     ◯(CSTK)[th] cstk -∗
+    hwm_res cstk mshwm_v -∗
     na_own (tpool th) (⊤ ∖ ↑Nstats) -∗
     STATS_cgp_b ↦ₐ WInt 1 -∗
     error_state_area rfault -∗
     MIE ↦ₜ[th] mie -∗
     held (th := th) mie -∗
-    (∀ c v, ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ ▷ stats_fault_conts cstk rfault c v) -∗
+    (∀ c v mshwm_v', ⌜P_mcause c⌝ -∗ ⌜P_mtval v⌝ -∗ ⌜(mshwm_v' <= mshwm_v)%Z⌝ -∗
+       ▷ stats_fault_conts cstk rfault c v mshwm_v') -∗
     trap_safe_cause P_mcause P_mtval (stats_pcc stats_load_addr) ⊤
       (HO th).
   Proof.
     iIntros (HP_mcause Hswitcher Hfull Hcsp Hcgp Hcra Hba Hae Hmmio
                Htbl Heven Hmax Htbl_set Hsaved Hroute)
-      "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hna Hlock Harea Hmie Hheld Hcont".
+      "#Hinv_switcher #Hswitcher_static #Hstatic Hregs Hcstk Hhwm Hna Hlock Harea Hmie Hheld
+       Hcont".
     pose proof (disjoint_from_mmio_shadow _ _ Hmmio) as Hshadow.
     pose proof (disjoint_from_mmio_exposed _ _ Hmmio) as Hnexp.
     pose proof Ntstack_Nstats as Hdisj_stats.
     iApply (trap_safe_exception_entry P_mcause P_mtval (⊤ ∖ ↑Nstats)
               with "Hinv_switcher Hswitcher_static");
       [done | solve_ndisj |].
-    iModIntro. iExists rfault, cstk, mie. iFrame "Hna Hregs Hcstk Hmie Hheld".
+    iModIntro. iExists rfault, cstk, mie, mshwm_v. iFrame "Hna Hregs Hcstk Hhwm Hmie Hheld".
     iSplit; first done. iSplitL; last done.
     iDestruct (stats_trusted_handler with "Hstatic") as "#Hhandler".
     iPoseProof "Hstatic" as "Hstatic'". iNamed "Hstatic'".
     rewrite -Htbl.
     assert (error_state_stores_ok (rfault !!! csp)) as Hstores.
     { by rewrite /error_state_stores_ok Hcsp /=. }
-    iApply (trap_handler_ok_handler _ _ _ _ _ _ stats_P_fault stats_handler_pcc_off
+    iApply (trap_handler_ok_handler _ _ _ _ _ _ _ stats_P_fault stats_handler_pcc_off
              with "Hhandler Htbl_eh [Harea] [-]").
     { rewrite /trap_no_resume /lmepcc_of_pc /= get_b_mepcc_of_pc /=.
       left. intros Hb. apply Hswitcher. solve_addr. }
@@ -182,7 +185,7 @@ Section Error_Handling_Read.
     - (* The switcher invokes the handler: no unwind *)
       iLeft. iExists stats_handler_pcc_off, stats_wpcc. iFrame "Htbl_eh Htbl_pcc".
       iPureIntro. by eapply stats_read_handler_runs.
-    - iIntros (mcause mtval Hc Hv). rewrite /stats_P_fault. iFrame "Hlock".
+    - iIntros (mcause mtval mshwm_v' Hc Hv Hh'). rewrite /stats_P_fault. iFrame "Hlock".
       iSplit.
       { iPureIntro. rewrite /stats_fault_facts. split_and!; try done. by exists g, b, e, a. }
       iSplit; first done.
@@ -517,7 +520,7 @@ Section Error_Handling_Read.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros (arg_rmap' rmap')
       "(%Hminstk & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hheld & HP & Hret)".
+       & Hargs & Hrmap & Hstk & Hhwm & Hcstk & %Hroute & Hmie & Hheld & HP & Hret)".
     set (frm := {| cf_tframe := _ ; cf_saved := _ ; ccrel := Known_to_Known |}).
     set (wret := Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher
                    a_switcher_return).
@@ -586,18 +589,16 @@ Section Error_Handling_Read.
       split_and!; solve_addr. }
     rewrite /ErrorState_size in Hes_cur.
     (* The callee's stack, from the slot and the parts around it *)
-    iAssert (□ ∀ ws, ⌜length ws = Z.to_nat ErrorState_size⌝ -∗
-               [[ bc , es ]] ↦ₐ [[ 0…0 ]] -∗
-               [[ es , cur ]] ↦ₐ [[ ws ]] -∗
-               [[ cur , ec ]] ↦ₐ [[ 0…0 ]] -∗
-               ∃ stk_mem, [[ bc , ec ]] ↦ₐ [[ stk_mem ]])%I as "#Hstk_join".
-    { iIntros "!>" (ws Hws) "Hstk_lo Hslot Hstk_hi".
-      iDestruct (region_pointsto_split es ec cur with "[$Hslot $Hstk_hi]") as "Hstk".
-      { solve_addr. }
-      { rewrite Hws /finz.dist /ErrorState_size. solve_addr. }
-      iDestruct (region_pointsto_split bc ec es with "[$Hstk_lo $Hstk]") as "Hstk".
-      { solve_addr. }
-      { by rewrite /region_addrs_zeroes length_replicate. }
+    iAssert (□ ∀ ws_lo ws ws_hi, ⌜length ws = Z.to_nat ErrorState_size⌝ -∗
+               stack_region bc es ws_lo -∗
+               stack_region es cur ws -∗
+               stack_region cur ec ws_hi -∗
+               ∃ stk_mem, stack_region bc ec stk_mem)%I as "#Hstk_join".
+    { iIntros "!>" (ws_lo ws ws_hi Hws) "Hstk_lo Hslot Hstk_hi".
+      iDestruct (stack_region_join es cur ec with "[$Hslot $Hstk_hi]")
+        as "Hstk"; [solve_addr | solve_addr |].
+      iDestruct (stack_region_join bc es ec with "[$Hstk_lo $Hstk]")
+        as "Hstk"; [solve_addr | solve_addr |].
       by iExists _. }
     rewrite /stats_arg_pre.
     destruct wptr as [w π].
@@ -625,6 +626,7 @@ Section Error_Handling_Read.
         { done. }
         iNext. iIntros "HPC Hregs Hna Hmie Hheld".
         (* The return, at count 0 *)
+        iDestruct (stack_ints_region with "Hstk") as (stk_mem) "Hstk".
         iDestruct (registers_pointsto_switcher_return with "Hregs") as (rmap_ret)
           "(%Hdom_ret & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap)".
         { intros r. rewrite !lookup_insert_is_Some'. by right; right. }
@@ -656,17 +658,17 @@ Section Error_Handling_Read.
           by rewrite /= Hbounds. }
         assert (stats_saved_cap rtake (fault_mtval f) ca0 p g b e a None) as Hsaved.
         { split; last done. by rewrite /f /= mtval_reg_field_encode cheri_reg_num_gpr. }
-        rewrite (region_addrs_zeroes_split bc es ec); last solve_addr.
-        rewrite (region_addrs_zeroes_split es cur ec); last solve_addr.
-        iDestruct (region_pointsto_split bc ec es with "Hstk") as "[Hstk_lo Hstk]".
-        { solve_addr. }
-        { by rewrite /region_addrs_zeroes length_replicate. }
-        iDestruct (region_pointsto_split es ec cur with "Hstk") as "[Hslot Hstk_hi]".
-        { solve_addr. }
-        { by rewrite /region_addrs_zeroes length_replicate. }
+        (* The callee's stack around the slot, at the integers it holds *)
+        iDestruct (stack_ints_split bc es ec with "Hstk") as "[Hstk_lo Hstk]";
+          [solve_addr | solve_addr |].
+        iDestruct (stack_ints_split es cur ec with "Hstk") as "[Hslot Hstk_hi]";
+          [solve_addr | solve_addr |].
+        iDestruct (stack_ints_region with "Hstk_lo") as (ws_lo) "Hstk_lo".
+        iDestruct (stack_ints_region with "Hslot") as (ws_slot) "Hslot".
+        iDestruct (stack_ints_region with "Hstk_hi") as (ws_hi) "Hstk_hi".
         (* The base is outside the [ErrorState] slot: the caller lends its
            cell, the callee holds the slot *)
-        iDestruct (big_sepL2_disjoint_pointsto with "[$Hslot $Ha]") as %Hb_slot.
+        iDestruct (stack_region_disjoint_pointsto with "[$Hslot $Ha]") as %Hb_slot.
         assert (stats_outside_slot rtake b) as Hb_out.
         { rewrite elem_of_finz_seq_between in Hb_slot.
           rewrite /stats_outside_slot Hcsp_take /=.
@@ -677,8 +679,8 @@ Section Error_Handling_Read.
         iIntros "Hca0".
         iDestruct ("Hregs" with "Hca0") as "Hregs".
         rewrite insert_id; last exact Hca0_take.
-        iApply (stats_read_fault_safe _ _ (cstack_push frm cstk) rtake Local bc ec cur
-                 with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Hslot]
+        iApply (stats_read_fault_safe _ _ (cstack_push frm cstk) rtake Local bc ec cur _ _
+                 with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hhwm Hna Hlock [Hslot]
                        Hmie Hheld [-]").
         { by intros c [Hok _]. }
         1-3: done.
@@ -694,10 +696,12 @@ Section Error_Handling_Read.
           - by exists ca0, p, g, b, e, a, None.
           - exfalso. revert Hstrip. apply stats_not_may_strip. by right. }
         { done. }
-        { rewrite /error_state_area Hcsp_take /=. iExists _. iFrame "Hslot".
-          iPureIntro. rewrite /region_addrs_zeroes length_replicate /finz.dist.
+        { rewrite /error_state_area Hcsp_take /=.
+          iDestruct (stack_region_length with "Hslot") as %Hlen_slot.
+          iExists _. iFrame "Hslot".
+          iPureIntro. rewrite -Hlen_slot finz_seq_between_length /finz.dist.
           rewrite /ErrorState_size. solve_addr. }
-        iIntros (c v' [Hok ->] [-> | [Hstrip _] ]);
+        iIntros (c v' mshwm_v' [Hok ->] [-> | [Hstrip _] ] Hh');
           last (exfalso; revert Hstrip; apply stats_not_may_strip; by right).
         iNext. rewrite /stats_fault_conts. iSplit; last first.
         { iIntros (Hnot). exfalso. apply Hnot. split.
@@ -712,7 +716,7 @@ Section Error_Handling_Read.
         rewrite Hca0_take in Hr'. injection Hr' as <- <- <- <- <- <-.
         destruct Hw' as [-> | [Hheap _] ];
           last by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hb_heap in Hheap.
-        iIntros (_) "HPC Hregs Hcstk Hna".
+        iIntros (_) "HPC Hregs Hhwm Hcstk Hna".
         rewrite /stats_retry_regs /=.
         iDestruct (registers_pointsto_extract _ ca0 with "Hregs") as "[Hca0 Hregs]";
           first by simplify_map_eq.
@@ -765,22 +769,22 @@ Section Error_Handling_Read.
       assert (¬ stats_repairable (fault_mcause f) (fault_mtval f)) as Hnrep.
       { intros (_ & Hcode & _). rewrite /f /= mtval_code_field_encode in Hcode.
         by apply (inj cause_code_num) in Hcode. }
-      rewrite (region_addrs_zeroes_split bc es ec); last solve_addr.
-      rewrite (region_addrs_zeroes_split es cur ec); last solve_addr.
-      iDestruct (region_pointsto_split bc ec es with "Hstk") as "[Hstk_lo Hstk]".
-      { solve_addr. }
-      { by rewrite /region_addrs_zeroes length_replicate. }
-      iDestruct (region_pointsto_split es ec cur with "Hstk") as "[Hslot Hstk_hi]".
-      { solve_addr. }
-      { by rewrite /region_addrs_zeroes length_replicate. }
+      (* The callee's stack around the slot, at the integers it holds *)
+      iDestruct (stack_ints_split bc es ec with "Hstk") as "[Hstk_lo Hstk]";
+        [solve_addr | solve_addr |].
+      iDestruct (stack_ints_split es cur ec with "Hstk") as "[Hslot Hstk_hi]";
+        [solve_addr | solve_addr |].
+      iDestruct (stack_ints_region with "Hstk_lo") as (ws_lo) "Hstk_lo".
+      iDestruct (stack_ints_region with "Hslot") as (ws_slot) "Hslot".
+      iDestruct (stack_ints_region with "Hstk_hi") as (ws_hi) "Hstk_hi".
       (* CLoad ca0 ca0 0 *)
       iApply (stats_read_load_fault_spec _ f with "[- $HPC $Hca0 $Hcode_stats]");
         first done.
       iIntros "Hca0".
       iDestruct ("Hregs" with "Hca0") as "Hregs".
       rewrite insert_id; last exact Hca0_take.
-      iApply (stats_read_fault_safe _ _ (cstack_push frm cstk) rtake Local bc ec cur
-               with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hna Hlock [Hslot]
+      iApply (stats_read_fault_safe _ _ (cstack_push frm cstk) rtake Local bc ec cur _ _
+               with "Hinv_switcher Hswitcher_static Hstatic Hregs Hcstk Hhwm Hna Hlock [Hslot]
                      Hmie Hheld [-]").
       { by intros c [Hok _]. }
       1-3: done.
@@ -796,21 +800,24 @@ Section Error_Handling_Read.
         - by exfalso.
         - exfalso. revert Hstrip. apply stats_not_may_strip. by left. }
       { done. }
-      { rewrite /error_state_area Hcsp_take /=. iExists _. iFrame "Hslot".
-        iPureIntro. rewrite /region_addrs_zeroes length_replicate /finz.dist.
+      { rewrite /error_state_area Hcsp_take /=.
+        iDestruct (stack_region_length with "Hslot") as %Hlen_slot.
+        iExists _. iFrame "Hslot".
+        iPureIntro. rewrite -Hlen_slot finz_seq_between_length /finz.dist.
         rewrite /ErrorState_size. solve_addr. }
-      iIntros (c v' [Hok ->] [-> | [Hstrip _] ]);
+      iIntros (c v' mshwm_v' [Hok ->] [-> | [Hstrip _] ] Hh');
         last (exfalso; revert Hstrip; apply stats_not_may_strip; by left).
       iNext. rewrite /stats_fault_conts. iSplit.
       { iIntros ([Hrep _]). by exfalso. }
       (* The unwind: close [stats_inv], give back the stack *)
       iIntros (_ n rmap Hfull_rmap Hca0_rmap Hca1_rmap)
-        "HPC Hregs Hcstk [Harea Hinv] Hna Hmie Hheld".
+        "HPC Hregs Hcstk Hhwm [Harea Hinv] Hna Hmie Hheld".
       iMod ("Hclose" with "[$Hinv $Hna]") as "Hna".
       rewrite /error_state_area Hcsp_take /=.
       iDestruct "Harea" as (ws) "[%Hws Hslot]".
       iDestruct ("Hstk_join" with "[//] Hstk_lo Hslot Hstk_hi") as "Hstk".
-      iApply ("Hfault_cont" $! n rmap with "[//] [//] [//] HPC Hregs Hcstk Hstk Hna Hmie Hheld").
+      iApply ("Hfault_cont" $! mshwm_v' n rmap
+               with "[//] [//] [//] HPC Hregs Hcstk Hhwm Hstk Hna Hmie Hheld").
   Qed.
 
 End Error_Handling_Read.

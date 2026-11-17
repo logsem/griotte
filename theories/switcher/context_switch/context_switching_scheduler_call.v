@@ -46,6 +46,7 @@ Section ctx_scheduler_call.
          interp (th := CtxSwitch) (CL := crit_link_full) (CR := crit_route_full) W C_sched w) ∗
     regs[CtxSwitch] lreg ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
+    hwm_res_ctx (th := CtxSwitch) ∗
     mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
     mtdc_lent_at (th := CtxSwitch) ∗
     handover_res (ceriseg := ceriseG_of CtxSwitch) ∗
@@ -61,8 +62,9 @@ Section ctx_scheduler_call.
     ⊢ safe[CtxSwitch].
   Proof.
     iIntros (Hsched_in Hdom Hcra Hcsp Hcgp Hzero Hframe)
-      "(HPC & #Hswitcher & #Hentry & #Htrap & #Hresume & #Hargs & Hregs & HMIE & Hmtdc & Hlent
-        & Hho & Hna & Hworld & Hcred & Hcstk & Hcont & #Htop & #Hcsp_v)".
+      "(HPC & #Hswitcher & #Hentry & #Htrap & #Hresume & #Hargs & Hregs & HMIE
+        & (%mshwmb_v & %mshwm_v & %o & Hhwmb & Hhwm & Hpend & Hlentf & Hlast_owner) & Hmtdc & Hlent & Hho & Hna
+        & Hworld & Hcred & Hcstk & Hcont & #Htop & #Hcsp_v)".
     pin_thread_instances CtxSwitch.
     switcher_open_label ".Lexception_scheduler_call" "Hswitcher" as "Hcode" a_call Ha_call.
     switcher_pc_in_block ".Lexception_scheduler_call" ".Lexception_scheduler_cjalr" "HPC".
@@ -96,14 +98,20 @@ Section ctx_scheduler_call.
 
     iAssert (held (th := CtxSwitch) InterruptDisabled) with "[Hho Hmtdc Hlent]" as "Hheld".
     { rewrite held_disabled. iFrame. }
-    (* A fault goes to the trap vector, which is safe for any fault *)
+    (* A fault goes to the trap vector, which is safe for any fault; the
+       closed window comes last, as the trap hands it back *)
     iAssert (∀ (w : LWord) (rmap : LReg), ⌜∀ r, is_Some (rmap !! r)⌝ -∗
                regs[CtxSwitch] rmap -∗ na_own (tpool CtxSwitch) ⊤ -∗ ◯(CSTK)[CtxSwitch] cstk -∗
                MIE ↦ₜ[CtxSwitch] InterruptDisabled -∗ held (th := CtxSwitch) InterruptDisabled -∗
+               mshwmb ↦ₜ[CtxSwitch] mshwmb_v -∗ mshwm ↦ₜ[CtxSwitch] mshwm_v -∗
+               lent_frag[CtxSwitch] (last_owner_zone o) -∗ ctx_last_owner_frag o -∗
+               pend_frag[CtxSwitch] None -∗
                trap_safe w ⊤ (HO CtxSwitch))%I as "Hfault".
-    { iIntros (w rmap Hrmap) "Hrmap Hna Hcstk HMIE Hheld".
+    { iIntros (w rmap Hrmap) "Hrmap Hna Hcstk HMIE Hheld Hhwmb Hhwm Hlentf Hlast_owner Hpend".
       iApply (interp_trap_safe (th := CtxSwitch) with "Htrap"); first done.
-      iModIntro. iFrame "Hrmap Hna Hcstk". iSplitR; first by iRight.
+      iModIntro. iFrame "Hrmap Hna Hcstk". iSplitR "HMIE Hheld".
+      { iExists 0%Z. rewrite hwm_res_trap_ctx. iSplitL; last by iRight.
+        iExists mshwmb_v, mshwm_v, o. iFrame. }
       iExists InterruptDisabled. iFrame. done. }
 
     iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cra with "Hregs")
@@ -121,8 +129,8 @@ Section ctx_scheduler_call.
       iDestruct (big_sepM_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I _ cra with "[$Hcra $Hregs]")
         as "Hregs"; first exact Hcra.
       iDestruct ("Hfault" $! (Cap XSRW_ Local b_switcher e_switcher a_sched_cjalr @@? None)
-                  with "[//] Hregs Hna Hcstk HMIE Hheld") as "Hts".
-      iTrap. }
+                  with "[//] Hregs Hna Hcstk HMIE Hheld Hhwmb Hhwm Hlentf Hlast_owner") as "Hts".
+      iTrap with "Hts". }
     assert (get_tag w_pcc.(lw) = true) as Htag.
     { rewrite /jalr_target_ok in Htgt. by destruct (get_tag (lw w_pcc)). }
     iPoseProof (sched_entry_disabled C_sched w_pcc w_cgp Hsched_in Htag with "Hentry") as "%Hdis".
@@ -153,8 +161,11 @@ Section ctx_scheduler_call.
         iModIntro. by iApply "Hresume". }
       iDestruct (big_sepM_insert_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I with "[$Hcra $Hregs]")
         as "Hregs".
+      iAssert (hwm_res_kind (th := CtxSwitch) W cstk)%I
+        with "[Hhwmb Hhwm Hpend Hlentf Hlast_owner]" as "Hhwm".
+      { rewrite hwm_res_kind_ctx. iExists mshwmb_v, mshwm_v, o. iFrame. }
       iApply ("Hexpr" $! cstk Ws Cs with "[-]").
-      iFrame "HPC Hregs Hworld Hcred Hcont Hna Hcstk HMIE Hheld Htop".
+      iFrame "HPC Hregs Hhwm Hworld Hcred Hcont Hna Hcstk HMIE Hheld Htop".
       iSplit; first by iApply thread_in_intro.
       iSplit; first by iApply (trap_vector_safe_pre_untrusted with "Htrap").
       iSplit.
@@ -178,7 +189,7 @@ Section ctx_scheduler_call.
       iDestruct (big_sepM_insert_delete (λ k y, k ↦ᵣ[CtxSwitch] y)%I with "[$Hcra $Hregs]")
         as "Hregs".
       iApply "Hjmp". iFrame "HPC".
-      iApply ("Hfault" with "[%] Hregs Hna Hcstk HMIE Hheld").
+      iApply ("Hfault" with "[%] Hregs Hna Hcstk HMIE Hheld Hhwmb Hhwm Hlentf Hlast_owner Hpend").
       intros r. destruct (decide (r = cra)) as [->|Hne]; first by rewrite lookup_insert_eq.
       rewrite lookup_insert_ne //.
   Qed.
@@ -203,6 +214,7 @@ Section ctx_scheduler_call.
     ctx_resume_specs C_sched w_csp ∗
     regs[CtxSwitch] lreg ∗
     MIE ↦ₜ[CtxSwitch] InterruptDisabled ∗
+    hwm_res_ctx (th := CtxSwitch) ∗
     mtdc ↦ₜ[CtxSwitch] ExceptionScratch (lword_of_word (WInt 0)) ∗
     mtdc_lent_at (th := CtxSwitch) ∗
     handover_at (ceriseg := ceriseG_of CtxSwitch) wm (lword_of_word (WInt cause)) vt b ∗
@@ -211,8 +223,8 @@ Section ctx_scheduler_call.
     ⊢ safe[CtxSwitch].
   Proof.
     iIntros (Ht Hsched_in Hdom Hcsp Hct0 Hct1)
-      "(HPC & #Hstatic & #Hwords & #Hentry & #Htrap & #Hresume & Hregs & HMIE & Hmtdc
-        & Hlent & Hho & Hna & Hsched)".
+      "(HPC & #Hstatic & #Hwords & #Hentry & #Htrap & #Hresume & Hregs & HMIE & Hhwm_res
+        & Hmtdc & Hlent & Hho & Hna & Hsched)".
     iAssert (□ ∀ W : WORLD, interp (th := CtxSwitch) W C_sched
                (lword_of_word (Sealed ot_trusted_stacks RWL g_tstk
                   (@b_trusted_stack (tlayout_of (UserThread t)))
@@ -367,8 +379,8 @@ Section ctx_scheduler_call.
     iPoseProof (codefrag_pers_thread_indep (UserThread t) CtxSwitch with "Hswitcher_code")
       as "#Hswitcher".
     iApply (ctx_scheduler_jump_spec W cstk Ws Cs with
-             "[$HPC $Hswitcher $Hentry $Htrap $Hresume $Hregs $HMIE $Hmtdc $Hlent $Hho $Hna
-               $Hworld $Hcred $Hcstk $Hcont $Htop $Hcsp]").
+             "[$HPC $Hswitcher $Hentry $Htrap $Hresume $Hregs $HMIE $Hhwm_res $Hmtdc $Hlent $Hho
+               $Hna $Hworld $Hcred $Hcstk $Hcont $Htop $Hcsp]").
     { done. }
     { apply set_eq. intros r. rewrite elem_of_dom.
       split; first (intros _; apply all_registers_s_correct).
@@ -407,6 +419,7 @@ Section ctx_scheduler_call.
   Proof.
     iIntros "Henv #Hresume Hpre".
     iNamed "Hpre".
+    iRename "Hlent" into "Hlent_z".
     iDestruct "Hsched" as (P) "[HP_own HP]".
     iNamed "Henv".
     iDestruct "Hparked" as (c) "Hparked". iNamed "Hparked".
@@ -428,7 +441,7 @@ Section ctx_scheduler_call.
                with "Hposture") as "[Hho Hpart]".
     iDestruct "Hho" as (wm wc vt b) "(%Hb & %Hwm & %Hwc & %Hvt & Hho)".
     cbn in Hb, Hwm, Hwc, Hvt. subst b wm wc vt.
-    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & Hsave) Hlent_t]".
+    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & _ & Hsave) Hlent_t]".
     iDestruct (handover_at_thread_indep (UserThread t) CtxSwitch with "Hho") as "Hho".
     (* The interrupted PC is a valid PC *)
     iEval (rewrite /handover_at /volatile_csr_at) in "Hho".
@@ -458,9 +471,9 @@ Section ctx_scheduler_call.
 
     (* The spill *)
     iApply (ctx_spill_spec t v.(rv_regs) ws InterruptEnabled (lword_of_word v.(rv_pc).(lw)) c
-              MTVAL_NONE with "[-]"); [done | done | done |].
-    iFrame "HPC Hstatic_t Hregs Hmtdc Hsave HMIE Hho".
-    iNext. iIntros (g_tstk) "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hho)".
+              MTVAL_NONE v.(rv_hwmb) v.(rv_hwm) with "[-]"); [done | done | done |].
+    iFrame "HPC Hstatic_t Hregs Hmtdc Hsave HMIE Hhwmb Hhwm Hho".
+    iNext. iIntros (g_tstk) "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hhwmb & Hhwm & Hho)".
 
     (* The dispatch *)
     iEval (rewrite /switcher_static) in "Hstatic_t". iNamed "Hstatic_t".
@@ -483,14 +496,16 @@ Section ctx_scheduler_call.
 
     (* The park: [cur] becomes [None], and [Nact] closes *)
     iMod (ctx_park_irq_spec ts t v ws c Hnd Hlen21 Hmie Hc Hdom Hwnull Hpc_ok Hpc
-           with "Hpool Hcur Hsave Hlent_t Hna Hclose") as "Hna".
+           with "Hpool Hcur Hsave Hlent_t Hbase Hna Hclose") as "Hna".
 
     (* The scheduler call *)
     iDestruct (big_sepL_elem_of with "Hstatic") as "#Hstatic_t"; first exact Ht_in.
+    iAssert (hwm_res_ctx (th := CtxSwitch)) with "[Hhwmb Hhwm Hpend Hlent_z Hlast_owner]" as "Hhwm_res".
+    { iExists v.(rv_hwmb), v.(rv_hwm), (Some (t, v.(rv_zone))). iFrame. }
     iApply (ctx_scheduler_call_spec t g_tstk _ (lword_of_word v.(rv_pc).(lw)) InterruptEnabled c
               MTVAL_NONE Ht Hsched_in
-             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hmtdc $Hlent
-                    $Hho $Hna $Hconc]").
+             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hhwm_res
+                    $Hmtdc $Hlent $Hho $Hna $Hconc]").
     - rewrite !dom_insert_L dom_delete_L !dom_insert_L Hdom.
       pose proof (all_registers_s_correct ct1). pose proof (all_registers_s_correct ca0).
       pose proof (all_registers_s_correct csp). pose proof (all_registers_s_correct ct0).
@@ -512,6 +527,7 @@ Section ctx_scheduler_call.
   Proof.
     iIntros "Henv #Hresume Hpre".
     iNamed "Hpre".
+    iRename "Hlent" into "Hlent_z".
     iDestruct "Hsched" as (P) "[HP_own HP]".
     iNamed "Henv".
     iNamed "Hparked". destruct Hv as [Hpc Hmie].
@@ -533,7 +549,7 @@ Section ctx_scheduler_call.
                with "Hposture") as "[Hho Hpart]".
     iDestruct "Hho" as (wm wc vt b') "(%Hb & %Hwm & %Hwc & _ & Hho)".
     cbn in Hb, Hwm, Hwc. subst b' wm wc.
-    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & Hsave) Hlent_t]".
+    iDestruct (csl_full_posture_part t with "Hpart") as "[(%ws & _ & _ & Hsave) Hlent_t]".
     iDestruct (handover_at_thread_indep (UserThread t) CtxSwitch with "Hho") as "Hho".
     (* [cnull] holds [lnull] *)
     assert (∀ r, is_Some (v.(rv_regs) !! r)) as Hsome.
@@ -553,10 +569,11 @@ Section ctx_scheduler_call.
     clear Hlen.
 
     (* The spill *)
-    iApply (ctx_spill_spec t v.(rv_regs) ws b p MCAUSE_ECALL_MACHINE vt with "[-]");
+    iApply (ctx_spill_spec t v.(rv_regs) ws b p MCAUSE_ECALL_MACHINE vt v.(rv_hwmb) v.(rv_hwm)
+              with "[-]");
       [done | done | done |].
-    iFrame "HPC Hstatic_t Hregs Hmtdc Hsave HMIE Hho".
-    iNext. iIntros (g_tstk) "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hho)".
+    iFrame "HPC Hstatic_t Hregs Hmtdc Hsave HMIE Hhwmb Hhwm Hho".
+    iNext. iIntros (g_tstk) "(HPC & Hregs & Hmtdc & Hlent & Hsave & HMIE & Hhwmb & Hhwm & Hho)".
 
     (* The dispatch *)
     iEval (rewrite /switcher_static) in "Hstatic_t". iNamed "Hstatic_t".
@@ -579,13 +596,15 @@ Section ctx_scheduler_call.
 
     (* The park: [cur] becomes [None], and [Nact] closes *)
     iMod (ctx_park_yield_spec ts t b p v ws Hnd Hlen21 Hpc Hmie Hdom Hwnull
-           with "Hpool Hcur Hsave Hlent_t HMIE_t HPC_t Hna Hclose") as "Hna".
+           with "Hpool Hcur Hsave Hlent_t Hbase HMIE_t HPC_t Hna Hclose") as "Hna".
 
     (* The scheduler call *)
     iDestruct (big_sepL_elem_of with "Hstatic") as "#Hstatic_t"; first exact Ht_in.
+    iAssert (hwm_res_ctx (th := CtxSwitch)) with "[Hhwmb Hhwm Hpend Hlent_z Hlast_owner]" as "Hhwm_res".
+    { iExists v.(rv_hwmb), v.(rv_hwm), (Some (t, v.(rv_zone))). iFrame. }
     iApply (ctx_scheduler_call_spec t g_tstk _ p b MCAUSE_ECALL_MACHINE vt Ht Hsched_in
-             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hmtdc $Hlent
-                    $Hho $Hna $Hconc]").
+             with "[$HPC $Hstatic_t $Hwords $Hentry $Htrap $Hresume $Hregs $HMIE $Hhwm_res
+                    $Hmtdc $Hlent $Hho $Hna $Hconc]").
     - rewrite !dom_insert_L dom_delete_L !dom_insert_L Hdom.
       pose proof (all_registers_s_correct ct1). pose proof (all_registers_s_correct ca0).
       pose proof (all_registers_s_correct csp). pose proof (all_registers_s_correct ct0).

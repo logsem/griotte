@@ -52,6 +52,7 @@ Section Handle_Error_Handler_Invoke.
     switcher_code ∗
     MIE ↦ₜ[th] InterruptDisabled ∗
     held (th := th) InterruptDisabled ∗
+    hwm_closed (kind_of th) ∗
     ▷ ( ( ⌜jalr_target_ok cra cra wcra.(lw) = true⌝ -∗
           ∀ rmap' : LReg,
           ⌜dom rmap' = dom rmap⌝ -∗
@@ -68,11 +69,12 @@ Section Handle_Error_Handler_Invoke.
           cra ↦ᵣ[th] wcra ∗
           regs₀[th] rmap' ∗
           MIE ↦ₜ[th] InterruptEnabled -∗
+          hwm_closed (kind_of th) -∗
           trap_safe (switcher_label_pc ".Lhandle_error_handler_cjalr") ⊤
             (HO th) ) )
     ⊢ safe[th].
   Proof.
-    iIntros (Hdom Hpre) "(HPC & Hcra & Hrmap & #Hswitcher & Hmie & Hheld & Hpost)".
+    iIntros (Hdom Hpre) "(HPC & Hcra & Hrmap & #Hswitcher & Hmie & Hheld & Hclosed & Hpost)".
     switcher_open_label ".Lhandle_error_handler_invoke" "Hswitcher" as "Hcode" pc_a Hpc_a.
     iAssert (codefrag_pers pc_a handle_error_handler_invoke_instrs) as "Hcode_all";
       first iExact "Hcode".

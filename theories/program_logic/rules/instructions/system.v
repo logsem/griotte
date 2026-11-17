@@ -3,6 +3,7 @@ From iris.program_logic Require Export weakestpre ectx_lifting.
 From iris.proofmode Require Import proofmode.
 From iris.algebra Require Import frac.
 From griotte Require Export shapes.step.
+From griotte Require Import si_modality.
 Import core_link.
 
 (** * The system instructions: Mret, SetMIE and SpecialRW
@@ -273,7 +274,7 @@ Section griotte_lang_rules_ctx.
     iDestruct (map_of_sregs_1 with "Hepcc") as "Hsmap".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
     iApply (wp_instr_step_link E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0");
-      first done.
+      [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     rewrite Hinstr.
     iDestruct (sys_interp_mie_agree with "Hsr Hmie") as %Hmie.
@@ -701,7 +702,22 @@ Section griotte_lang_rules.
     }}}.
   Proof.
     iIntros (Hinstr Hvpc Dregs Dsregs φ) "(>HPC & >Hpc_a & >Hmap & >Hsmap) Hφ".
-    iApply (wp_instr_step with "HPC Hpc_a Hmap"); eauto.
+    (* The points-to of [sr] is not at MSHWMB, so the step does not write
+       it. *)
+    iAssert (|~{Ep}~> ⌜has_sreg_access pc_p = true → sr ≠ mshwmb⌝ ∗
+                       [∗ map] k↦y ∈ sregs, k ↦ₓ y)%I
+      with "[Hsmap]" as "Hsmap".
+    { iApply (si_upd_ghost with "Hsmap"). iIntros (σ) "Hσ Hsmap".
+      iDestruct (SI_open with "Hσ") as "Hσ". iNamed "Hσ".
+      iDestruct (sys_interp_not_hwm_map with "Hsr Hsmap") as %Hnot.
+      iModIntro. iSplitR "Hsmap".
+      - iApply (SI_close _ _ _ _ _ _ _ Her with "HPCa Hr Hsr Hm Hst HR HC").
+      - iFrame "Hsmap". iPureIntro. intros Hx. rewrite Hx /sregs_of in Dsregs.
+        apply Hnot. set_solver. }
+    iMod "Hsmap" as "[%Hnot_hwmb Hsmap]".
+    iApply (wp_instr_step with "HPC Hpc_a Hmap"); first done.
+    { intros Hx. rewrite Hinstr /writes_mshwmb.
+      specialize (Hnot_hwmb Hx). destruct src; by rewrite bool_decide_false. }
     iNext; iIntros (r psr m st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_valid with "Hsr Hsmap") as %[Hlsregs Hdomsys].
     rewrite Hinstr /exec in Hstep. rewrite Hinstr.
@@ -712,6 +728,9 @@ Section griotte_lang_rules.
       first (rewrite /sregs_of; set_solver).
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hvold') as (wold & Hwold & Hrelold).
     destruct (Hdomsys sr) as [Hsr_mtdc Hsr_mst]; first by eapply elem_of_dom_2.
+    iAssert (⌜sr ≠ mshwm ∧ sr ≠ mshwmb⌝)%I as %[Hsr_hwm Hsr_hwmb].
+    { iDestruct (big_sepM_lookup_acc with "Hsmap") as "[Hp _]"; first exact Hvold.
+      iApply (sys_interp_not_hwm with "Hsr Hp"). }
     destruct (specialrw_sregs_phys R C _ r psr m st td _ lreg (ls_join lsreg) lmem regs sregs sr src
                 vold Her Hlregs Hregs Hlsregs)
       as (sregs' & psr' & lsreg' & Hsregs' & Hφ1 & Her1 & Hup).
@@ -904,7 +923,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Htag φ) "(>HPC & >Hpc_a & >Hsrc & >HU) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mtcc with "Hsr HU") as %Htcc.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Htcc) as (wold & Hwold & _).
@@ -934,9 +953,13 @@ Section griotte_lang_rules.
     iMod (mtcc_wedge_update (ls_sh lsreg) (llegalise mtcc (lword_of_word wsrc))
             with "[$Hsr $Hmtcc $Hpend $HU]") as "(Hsr & Hmtcc & #Hwedged)"; first done.
     iAssert (sys_interp (ls_insert_sh lsreg mtcc (llegalise mtcc (lword_of_word wsrc))))
-      with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie]" as "Hsr".
-    { iFrame. iSplit; first done. iPureIntro. destruct Hlsh as [Hn1 Hn2].
-      rewrite /ls_insert_sh /= !lookup_insert_ne //. }
+      with "[Hsr Hmtcc Hmpie Hmtdc Hlent Hmie Hmshwmb_a Hmshwm_a Hpend_si Hlent_a Hzone]"
+      as "Hsr".
+    { iFrame. iSplit; first done. iSplit.
+      - iPureIntro. destruct Hlsh as [Hn1 Hn2].
+        rewrite /ls_insert_sh /= !lookup_insert_ne //.
+      - iPureIntro. destruct Hlsh_hwm as [Hn3 Hn4].
+        rewrite /ls_insert_sh /= !lookup_insert_ne //. }
     rewrite -ls_join_insert_sh // in Her1.
     pose proof (specialrw_sys_kept _ r psr mm st td psr' mtcc (inr src)
                   ltac:(done) ltac:(done) Hφ1) as Hkept.
@@ -1143,7 +1166,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hdst φ) "(>HPC & >Hpc_a & >Hdst & >Hmtdc_f) Hφ".
     iDestruct (map_of_regs_1 with "Hdst") as "Hmap".
-    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc_f") as %[Hmeq Hmatch].
     pose proof (ls_join_mtdc lsreg) as Hv.
@@ -1198,7 +1221,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hsrc Hm' Htr Hcl φ)
       "(>HPC & >Hpc_a & >Hsrc & >Hmtdc_f & HT & HL) Hφ".
     iDestruct (map_of_regs_1 with "Hsrc") as "Hmap".
-    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & _).
@@ -1266,7 +1289,7 @@ Section griotte_lang_rules.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hr Hm' Htr Hcl φ)
       "(>HPC & >Hpc_a & >Hr & >Hmtdc_f & HT & HL) Hφ".
     iDestruct (map_of_regs_1 with "Hr") as "Hmap".
-    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_link_nosw with "HPC Hpc_a Hmap"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (rf psr mm st td lreg lsreg lmem R C c σ') "@".
     iDestruct (sys_interp_mtdc_agree with "Hsr Hmtdc_f") as %[Hmeq Hmatch].
     pose proof (ls_join_mtdc lsreg) as Hv.
@@ -1334,7 +1357,7 @@ Section griotte_lang_rules.
   Proof.
     iIntros (Hinstr Hvpc Hxsr Hpca' Hm' Htr Hcl φ) "(>HPC & >Hpc_a & >Hmtdc_f & HT & HL) Hφ".
     iAssert ([∗ map] k↦y ∈ (∅ : LReg), k ↦ᵣ y)%I as "Hmap0"; first by rewrite big_sepM_empty.
-    iApply (wp_instr_step_link_nosw E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0"); [rewrite Hinstr; by apply sw_of_none|..]; first done.
+    iApply (wp_instr_step_link_nosw E pc_p pc_g pc_b pc_e pc_a pc_π w dq ∅ with "HPC Hpc_a Hmap0"); [rewrite Hinstr; by apply sw_of_none|..]; [done | solve_writes_mshwmb |].
     iNext; iIntros (r psr mm st td lreg lsreg lmem R C c σ') "@".
     pose proof (ls_join_mtdc lsreg) as Hv.
     destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hv) as (wold & Hwold & _).

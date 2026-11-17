@@ -49,7 +49,7 @@ Section region_alloc_cmpt.
     iIntros "#Hrel_pcc #Hrel_data".
     iSplit.
     - iEval (rewrite interp_unfold /=). iLeft.
-      iSplitR; last (iSplit; [iPureIntro; exact Hpcc_shadow|iApply heap_cap_ok_disjoint; exact Hpcc_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hpcc_shadow| iSplit; [iApply heap_cap_ok_disjoint; exact Hpcc_heap | by rewrite wl_in_stack_nonWL] ]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       rewrite /addr_key.
@@ -69,7 +69,7 @@ Section region_alloc_cmpt.
       iSplit; first (iNext ; by iApply rcond_g_interp_cmpt_threads).
       done.
     - iEval (rewrite interp_unfold /=). iLeft.
-      iSplitR; last (iSplit; [iPureIntro; exact Hcgp_shadow|iApply heap_cap_ok_disjoint; exact Hcgp_heap]).
+      iSplitR; last (iSplit; [iPureIntro; exact Hcgp_shadow| iSplit; [iApply heap_cap_ok_disjoint; exact Hcgp_heap | by rewrite wl_in_stack_nonWL] ]).
       iApply big_sepL_intro; iModIntro.
       iIntros (ka a Ha).
       rewrite /addr_key.
@@ -198,7 +198,8 @@ Section region_alloc_cmpt.
           iSplit.
           - iPureIntro. split; first done.
             eapply disjoint_from_mmio_weaken; [| | exact Hcgp_shadow]; solve_addr.
-          - iApply heap_cap_ok_disjoint.
+          - iSplit; last by rewrite wl_in_stack_nonWL.
+            iApply heap_cap_ok_disjoint.
             rewrite /disjoint_from_heap in Hcgp_heap |- *.
             set_solver+Hbounds Hcgp_heap.
         }

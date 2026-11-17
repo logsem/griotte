@@ -18,8 +18,8 @@ From griotte Require Import image firmware.
 
 (** The registers that a save area of [save_area_content] resumes with:
     [cra], [csp], [cgp] its words 1–3, every other register zero. *)
-#[local] Lemma resume_regs_of_save_area `{MP : MachineParameters} a b c d h m :
-  resume_regs_of (lword_of_word <$> save_area_content a b c d h m) =
+#[local] Lemma resume_regs_of_save_area `{MP : MachineParameters} a b c d h m x y :
+  resume_regs_of (lword_of_word <$> save_area_content a b c d h m x y) =
   <[cra := lword_of_word b]> (<[csp := lword_of_word c]> (<[cgp := lword_of_word d]> fw_cleared_regs)).
 Proof.
   apply map_eq. intros r. rewrite resume_regs_of_lookup.
@@ -30,22 +30,29 @@ Proof.
 Qed.
 
 (** A save area of [save_area_content] whose PC word is a legal PC, with
-    MIE disabled, MPIE [mpie] and [mcause] 0, resumes with its words. *)
+    MIE disabled, MPIE [mpie], [mcause] 0 and the high-water-mark pair [mshwm_v]
+    and [mshwmb_v], resumes with its words, in any zone [zone]. *)
 #[local] Lemma save_area_resume_ok `{MP : MachineParameters}
-    (wpc w_cra w_csp w_cgp w_hz : Word) (mpie : InterruptStatus) :
+    (wpc w_cra w_csp w_cgp w_hz : Word) (mpie : InterruptStatus) (mshwmb_v mshwm_v : Z)
+    (zone : gset Addr) :
   pc_ok wpc →
   saved_mie_ok
     (lword_of_word <$>
-       save_area_content wpc w_cra w_csp w_cgp w_hz (WInt (mstatus_enc InterruptDisabled mpie))) ∧
+       save_area_content wpc w_cra w_csp w_cgp w_hz (WInt (mstatus_enc InterruptDisabled mpie))
+         (WInt mshwm_v) (WInt mshwmb_v)) ∧
   resume_ok_full
     (lword_of_word <$>
-       save_area_content wpc w_cra w_csp w_cgp w_hz (WInt (mstatus_enc InterruptDisabled mpie)))
+       save_area_content wpc w_cra w_csp w_cgp w_hz (WInt (mstatus_enc InterruptDisabled mpie))
+         (WInt mshwm_v) (WInt mshwmb_v))
     {| rv_regs := <[cra := lword_of_word w_cra]>
                     (<[csp := lword_of_word w_csp]> (<[cgp := lword_of_word w_cgp]> fw_cleared_regs));
        rv_pc := lword_of_word wpc;
-       rv_mie := mpie |}.
+       rv_mie := mpie;
+       rv_hwmb := mshwmb_v;
+       rv_hwm := mshwm_v;
+       rv_zone := zone |}.
 Proof.
-  intros Hpc. split; [|split; [|split] ].
+  intros Hpc. split; [|split; [|split; [|split; [|split] ] ] ].
   - intros w Hw. rewrite save_area_lookup_mstatus in Hw. injection Hw as <-.
     exact (mie_of_mstatus_enc InterruptDisabled mpie).
   - cbn [rv_regs]. by rewrite resume_regs_of_save_area.
@@ -56,6 +63,8 @@ Proof.
       case_decide as Hc; first (vm_compute in Hc; discriminate Hc).
       cbv beta iota zeta. symmetry. apply legalise_pc_ok_id. exact Hpc.
     + intros _. reflexivity.
+  - cbn [rv_hwmb]. by rewrite save_area_word_mshwmb.
+  - cbn [rv_hwm]. by rewrite save_area_word_mshwm.
 Qed.
 
 Section save_area.
@@ -67,16 +76,28 @@ Section save_area.
     lword_of_word <$>
       save_area_content (fw_entry_pc fw img i) (fw_thread_cra img) (fw_thread_csp img i)
         (fw_entry_cgp fw img i) (Cap WO Global (b_hazard t) (e_hazard t) (b_hazard t))
-        (WInt (mstatus_enc InterruptDisabled (fw_entry_posture fw img i))).
+        (WInt (mstatus_enc InterruptDisabled (fw_entry_posture fw img i)))
+        (WInt (e_stack t)) (WInt (b_stack t)).
+
+  (** The word [mshwmb] of the save area of the firmware thread [i]: the
+      base of its stack. *)
+  Lemma fw_save_area_mshwmb fw img i :
+    fw_save_area fw img i !! 20%nat = Some (lword_of_word (WInt (b_stack (thread_of img i)))).
+  Proof. reflexivity. Qed.
 
   (** The start values of the firmware thread [i]: the values of
-      [fw_thread_res]. *)
+      [fw_thread_res]. Its stack is the zone of its high-water mark: MSHWMB
+      at its base, MSHWM at its top. *)
   Definition fw_start_vals (fw : firmware) (img : fw_image) (i : nat) : resume_vals :=
+    let t := thread_of img i in
     {| rv_regs := <[cra := lword_of_word (fw_thread_cra img)]>
                     (<[csp := lword_of_word (fw_thread_csp img i)]>
                        (<[cgp := lword_of_word (fw_entry_cgp fw img i)]> fw_cleared_regs));
        rv_pc := lword_of_word (fw_entry_pc fw img i);
-       rv_mie := fw_entry_posture fw img i |}.
+       rv_mie := fw_entry_posture fw img i;
+       rv_hwmb := b_stack t;
+       rv_hwm := e_stack t;
+       rv_zone := list_to_set (finz.seq_between (b_stack t) (e_stack t)) |}.
 
   Lemma fw_save_area_resume_ok fw img i :
     saved_mie_ok (fw_save_area fw img i) ∧
@@ -189,7 +210,8 @@ Section sched_world_alloc.
         iSplit.
         - iPureIntro. split; first done.
           eapply disjoint_from_mmio_weaken; [| | exact Hcgp_shadow]; solve_addr.
-        - iApply heap_cap_ok_disjoint.
+        - iSplit; last by rewrite wl_in_stack_nonWL.
+          iApply heap_cap_ok_disjoint.
           rewrite /disjoint_from_heap in Hcgp_heap |- *.
           set_solver+Hbounds Hcgp_heap. }
       iApply big_sepL_intro; iModIntro.
@@ -404,8 +426,8 @@ Section sched_world.
 
   (** The world of the scheduler's compartment [fc] at the context-switch
       thread, owned by [C_sched]: its imports, code and globals become
-      permanent, the boot stack temporary. Its PCC, its globals and its
-      stack are then valid in that world. *)
+      permanent, the boot stack, the zone of its high-water mark, temporary.
+      Its PCC, its globals and its stack are then valid in that world. *)
   Lemma fw_close_sched_world {E : coPset} fw img σ fc sb (C_sched : CmptName) :
     let swl := fw_switcher_layout img in
     let s := cmpt_of img (fc_name fc) in
@@ -420,11 +442,12 @@ Section sched_world.
     ([∗ list] t ∈ seq 0 (S (length (fw_threads fw))),
        switcher_static (th := UserThread t) (swlayout := swl)) -∗
     fw_cmpt_mem_res (th := UserThread 0) s -∗
-    region_pointsto (ceriseg := ceriseG_of CtxSwitch) (img_b_boot_stack bs) (img_e_boot_stack bs)
-      (lword_of_word <$> img_boot_stack_words bs) -∗
-    world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch) fw_world0 C_sched
+    ([∗ list] a ∈ finz.seq_between (img_b_boot_stack bs) (img_e_boot_stack bs),
+       zone_cell[CtxSwitch] a) -∗
+    thread_stack_bounds (th := CtxSwitch) (img_b_boot_stack bs) (img_e_boot_stack bs) -∗
+    world_interp (th := CtxSwitch) fw_world0 C_sched
     ={E}=∗
-    world_interp (ceriseg := ceriseG_of CtxSwitch) (th := CtxSwitch) W_init C_sched ∗
+    world_interp (th := CtxSwitch) W_init C_sched ∗
     interp (th := CtxSwitch) (CL := crit_link_full (swlayout := swl)) (CR := crit_route_full (swlayout := swl))
       W_init C_sched (lword_of_word (Cap RX Global (cmpt_b_pcc s) (cmpt_e_pcc s) (cmpt_b_pcc s))) ∗
     interp (th := CtxSwitch) (CL := crit_link_full (swlayout := swl)) (CR := crit_route_full (swlayout := swl))
@@ -440,31 +463,27 @@ Section sched_world.
     pose proof (Hcmpts_ok fc Hfc_in) as Hfc_ok.
     destruct (cmpt_ok_inv _ _ _ Hfc_ok) as (_ & _ & _ & Hbody_ok).
     rewrite Hbody in Hbody_ok.
-    destruct Hbody_ok as (Hcode & Hdata & _ & _ & Hboot).
+    destruct Hbody_ok as (Hcode & Hdata & _ & _ & _).
     destruct (img_wf_idle_boot _ _ Hwf) as [_ (_ & _ & Hrange)].
     destruct (img_wf_sched_imports _ _ _ _ Hwf Hsched) as [Himps Hss].
-    iIntros "#Hswitcher #Htrap #Hstatics (Himports & Hcode_mem & Hdata_mem) Hboot Hworld".
-    (* The boot stack, Temporary *)
+    iIntros "#Hswitcher #Htrap #Hstatics (Himports & Hcode_mem & Hdata_mem) Hboot #Htstk Hworld".
+    (* The boot stack, the zone of the high-water mark, Temporary, at the
+       integers its cells hold *)
+    iDestruct (zone_cells_exist with "Hboot") as (zs) "Hboot".
     iMod (world_interp_extend_temp_sepL2 (th := CtxSwitch) fw_world0 C_sched
             (finz.seq_between (img_b_boot_stack bs) (img_e_boot_stack bs))
-            (lword_of_word <$> img_boot_stack_words bs) RWL
+            ((λ z, lword_of_word (WInt z)) <$> zs) RWL
             (safeC (interp_in_mem (th := CtxSwitch) (CL := crit_link_full (swlayout := swl))
                       (CR := crit_route_full (swlayout := swl)) RWL))
            with "Hworld [Hboot]") as "(Hworld & #Hrel_stk)".
     { done. }
     { apply Forall_forall. intros a _. rewrite /fw_world0 /=. by rewrite lookup_empty. }
     { rewrite big_sepL2_fmap_r.
-      iEval (rewrite /region_pointsto big_sepL2_fmap_r) in "Hboot".
       iApply (big_sepL2_impl with "Hboot").
-      iIntros "!>" (k a w Ha Hw) "Hv". rewrite /TmpRes key_pointsto_nonheap.
-      iFrame "Hv". iSplit; first done.
+      iIntros "!>" (k a z Ha Hz) "Hcell". rewrite /TmpRes.
+      iDestruct (temp_cell_zone with "Hcell") as "$". iSplit; first done.
       iSplit; last (iApply bi.later_intro; iApply mono_pub_interp_in_mem).
-      iNext. iApply interp_to_in_mem.
-      destruct (Forall_lookup_1 _ _ _ _ Hboot Hw) as [Hz | Hh].
-      - destruct w; try done. iApply interp_int.
-      - iDestruct (sched_hs_valid fw img σ fw_world0 C_sched w with "Hstatics") as "[_ $]";
-          first exact Hok.
-        rewrite fw_app_eq elem_of_app. by left. }
+      iNext. iApply interp_to_in_mem. iApply interp_int. }
     (* The compartment, Permanent *)
     iMod (initialise_scheduler_world (th := CtxSwitch) (swlayout := swl) W_init
             (layout_cmpt_of s Hc) C_sched (fw_app (thread_handles fw img) (sched_time_dev_words fw))
@@ -490,11 +509,10 @@ Section sched_world.
       iApply (interp_weakening_same_bounds_same_loc W_init C_sched true RWL RWL Local _ _
                 (stk_start_a (img_b_boot_stack bs) (img_e_boot_stack bs)) with "[]");
         [done | done | done |].
-      iApply interp_stack_temporary.
+      iApply (interp_stack_temporary with "Hrel_stk Htstk").
       + exact (range_ok_mmio _ _ Hrange).
       + exact (proj2 (range_ok_not_heap _ _ Hrange)).
       + apply Forall_forall. intros a Ha. by apply std_sta_update_multiple_lookup_in_i.
-      + iExact "Hrel_stk".
   Qed.
 End sched_world.
 
@@ -551,8 +569,7 @@ Section resources_pt.
     "Hotypes" ∷ ([∗ list] o ∈ fw_otypes fw, can_alloc_pred o) ∗
     "Hworlds" ∷
       ([∗ set] C ∈ CNames ∖ {[C_sched]},
-         perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-           (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅) ∗
+         perm_region_map C ∅) ∗
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c).
@@ -643,11 +660,17 @@ Section prepared_pt.
       thread, run as the thread [th], with the compartments but the
       scheduler's initialised, the worlds of the compartments but
       [C_sched], and the first thread at the code of its compartment, at
-      the posture of its entry. *)
+      the posture of its entry. Its stack is the zone of the stack
+      high-water mark: MSHWMB at its base, MSHWM at its top. *)
   Definition fw_init_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     let m := fw_entry_cmpt fw img 0 in
     let t := thread_of img 0 in
+    let ef :=
+      {| tf_csp := Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
+         tf_export_tbl :=
+           Cap RW Global (cmpt_exp_tbl_pcc m) (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
+         tf_error_count := 0 |} in
     "#Hswitcher" ∷
       na_inv (tpool th) Ntstack (trusted_stack_inv (swlayout := fw_switcher_layout img)) ∗
     "#Hswitcher_static" ∷ switcher_static (swlayout := fw_switcher_layout img) ∗
@@ -664,19 +687,12 @@ Section prepared_pt.
       csp ↦ᵣ[th] Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t)) ∗
     "Hcra" ∷ cra ↦ᵣ[th] thread_return_sentry (swlayout := fw_switcher_layout img) ∗
     "Hregs" ∷ regs[th] fw_cleared_regs ∗
-    "Hstack" ∷
-      [[ b_stack t, e_stack t ]] ↦ₐ
-        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]] ∗
+    "Hstack" ∷ stack_region (b_stack t) (e_stack t) (lword_of_word <$> stack_words t) ∗
+    "Hhwm" ∷ hwm_res (entry_cstack ef) (e_stack t) ∗
     "%Hstack_min" ∷
       ⌜ (b_stack t + Z.of_nat (fw_entry_min_stack fw 0) + StackEntry_reserved_space
          <= e_stack t)%Z ⌝ ∗
-    "Hcstk" ∷
-      ◯(CSTK)[th]
-        (entry_cstack {| tf_csp := Cap RWL Local (b_stack t) (e_stack t) (stk_start_a (b_stack t) (e_stack t));
-                         tf_export_tbl :=
-                           Cap RW Global (cmpt_exp_tbl_pcc m)
-                             (cmpt_exp_tbl_entries_end m) (cmpt_exp_tbl_pcc m);
-                         tf_error_count := 0 |}) ∗
+    "Hcstk" ∷ ◯(CSTK)[th] (entry_cstack ef) ∗
     "Hna" ∷ na_own (tpool th) ⊤ ∗
     "HMIE" ∷ MIE ↦ₜ[th] fw_entry_posture fw img 0 ∗
     "Hheld" ∷
@@ -688,8 +704,8 @@ Section prepared_pt.
   (** The resources of [fw_init_res] that set up the worlds: those of a
       firmware whose first thread starts in an untrusted compartment,
       without the thread's registers, call stack and non-atomic token
-      ([fw_obligations_of_untrusted]). The stack is there: the case study
-      closes it in the world of the entry compartment. *)
+      ([fw_obligations_of_untrusted]). The stack is there, with its token:
+      the case study closes it in the world of the entry compartment. *)
   Definition fw_setup_res (fw : firmware) (img : fw_image) (C_sched : CmptName) : iProp Σ :=
     let asrt := img_asrt img in
     let t := thread_of img 0 in
@@ -703,9 +719,8 @@ Section prepared_pt.
     "Hheap" ∷ ([∗ map] a↦w ∈ initial_heap_memory, a ↦ₐ lword_of_word w) ∗
     "Hshadow" ∷ ([∗ map] a↦s ∈ initial_heap_shadow, a ↦ₛ s) ∗
     "Hclaims" ∷ ([∗ map] a↦c ∈ init_claims (fw_set (fw_heap_roots fw)), addr_alloc a c) ∗
-    "Hstack" ∷
-      [[ b_stack t, e_stack t ]] ↦ₐ
-        [[ lword_of_word <$> replicate (ft_stack_size (fw_thread0 fw)) (WInt 0) ]].
+    "Hstack" ∷ stack_region (b_stack t) (e_stack t) (lword_of_word <$> stack_words t) ∗
+    "#Htstk" ∷ thread_stack_bounds (b_stack t) (e_stack t).
 
   (** The export table of a compartment that is not the scheduler, beside
       the compartments. *)
@@ -733,12 +748,10 @@ Section worlds_join.
       of Permanent regions and the local maps of [t]. *)
   Lemma fw_worlds_join (t : Thread) (S : gset CmptName) (W : WORLD) :
     ([∗ set] C ∈ S,
-       perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
-         (memg := @mem_gen_memG Σ (ceriseG_of t)) C ∅) -∗
+       perm_region_map C ∅) -∗
     ([∗ set] C ∈ S,
-       local_region_map (allocg := @cerise_registryG Σ (ceriseG_of t))
-         (memg := @mem_gen_memG Σ (ceriseG_of t)) t W C ∅) -∗
-    [∗ set] C ∈ S, world_interp (ceriseg := ceriseG_of t) (th := t) W C.
+       local_region_map t W C ∅) -∗
+    [∗ set] C ∈ S, world_interp (th := t) W C.
   Proof.
     iIntros "Hperms Hlocals".
     iCombine "Hperms Hlocals" as "H".
@@ -781,7 +794,6 @@ Proof.
   iDestruct (fw_worlds_join (UserThread 0) with "Hworlds Hlocals") as "Hworlds".
   iEval (rewrite (fw_entry_pc_code fw img σ Hentry Hok)) in "HPC".
   iEval (rewrite fw_thread_cra_eq) in "Hcra".
-  iEval (rewrite fw_thread_of_0) in "Hstack".
   pose proof (fw_entry_min_stack_ok _ _ _ Hok) as Hstack_min.
   iApply (Hprep img σ ceriseb sealsg stsg relg cstackg Hok).
   iDestruct "Hswitcher_static" as "#Hswitcher_static".
@@ -855,7 +867,7 @@ Lemma fw_obligations_of_untrusted (Σ : gFunctors) {Cname : CmptNameG} {cthreads
        ={⊤}=∗
        ∃ (W : WORLD) (C : CmptName),
          ⌜C ≠ C_sched⌝ ∗
-         world_interp (ceriseg := ceriseG_of (UserThread 0)) (th := UserThread 0) W C ∗
+         world_interp (th := UserThread 0) W C ∗
          interp (th := UserThread 0)
            (CL := crit_link_full (swlayout := fw_switcher_layout img))
            (CR := crit_route_full (swlayout := fw_switcher_layout img))
@@ -904,7 +916,10 @@ Proof.
   iEval (rewrite /fw_cmpt_pers_res /fw_handler_res Hbody Hm Hcgp_eq) in "Hpers".
   iDestruct "Hpers" as "(#Htbl_pcc & #Htbl_cgp & (%eh & %ehs & #Heh & #Hehs) & _)".
   (* The case study's worlds *)
-  iEval (rewrite fw_thread_of_0) in "Hstack".
+  iAssert (thread_stack_bounds (th := UserThread 0)
+             (b_stack (thread_of img 0)) (e_stack (thread_of img 0)))
+    as "#Htstk".
+  { iEval (rewrite /hwm_res) in "Hhwm". by iDestruct "Hhwm" as "[_ $]". }
   iMod (Hsetup img σ ceriseb sealsg stsg relg cstackg Hok
          with "[Hcmpts Hotypes Hworlds Hheap Hshadow Hclaims Hstack]")
     as (W C) "(%HC & Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i)".
@@ -921,6 +936,18 @@ Proof.
     iExists RWL, Local, _, _, _.
     iSplit; first done. iSplit; first done.
     iModIntro. iExact "Hcsp_i". }
+  (* The thread's stack is Temporary *)
+  iAssert (⌜zone_temporary W (b_stack (thread_of img 0)) (e_stack (thread_of img 0))⌝)%I
+    as %Hzone.
+  { iEval (rewrite /fw_thread_csp) in "Hcsp_i".
+    iDestruct (writeLocalAllowed_valid_cap_implies_full_cap_nonheap with "Hcsp_i")
+      as "Htemp"; first done.
+    iDestruct (big_sepL_pure_1 with "Htemp") as %Htemp.
+    iPureIntro. intros a Hba Hae.
+    assert (a ∈ finz.seq_between (b_stack (thread_of img 0)) (e_stack (thread_of img 0)))
+      as Ha by (apply elem_of_finz_seq_between; solve_addr).
+    apply list_elem_of_lookup_1 in Ha as [k Hk].
+    exact (Htemp k a Hk). }
   (* The registers *)
   set (regs := <[cra := lword_of_word (fw_thread_cra img)]>
                  (<[csp := lword_of_word (fw_thread_csp img 0)]>
@@ -957,7 +984,7 @@ Proof.
             (swlayoutWf := Hswl_wf) W C (fw_entry_frame fw img 0)
             _ _ _ _ _ eh ehs regs (fw_entry_posture fw img 0) Hcgp_heap
            with "Hthread0 Hswitcher Hswitcher_static Htbl_pcc Htbl_cgp Heh Hehs Hpcc_i Hcgp_i Hstk
-                 HPC Hrmap Hworld Hna Hcstk [%] HMIE Hheld").
+                 HPC Hrmap Hhwm Hworld Hna Hcstk [%] HMIE Hheld").
   - by rewrite /fw_entry_frame /fw_entry_tbl.
   - exact Hfull.
   - by rewrite /regs; simplify_map_eq.
@@ -965,6 +992,7 @@ Proof.
   - rewrite /regs lookup_insert_eq. by rewrite fw_thread_cra_eq.
   - exact Hzero.
   - exact (Hshared C).
+  - exact Hzone.
   - by intros [=].
 Qed.
 
@@ -994,8 +1022,7 @@ Lemma fw_isolated_thread_obligation {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}
   cmpt_shared C = false →
   ⊢ switcher_static (th := UserThread k) (swlayout := swl) -∗
     fw_cmpt_res (th := UserThread 0) img fc -∗
-    perm_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread 0)))
-      (memg := @mem_gen_memG Σ (ceriseG_of (UserThread 0))) C ∅ -∗
+    perm_region_map C ∅ -∗
     (fw_thread_res fw img k -∗
      £ 1
      ={⊤}=∗
@@ -1030,10 +1057,9 @@ Proof.
   iDestruct "Hswitcher" as "#Hswitcher".
   (* The compartment and the world of [C], at the thread [k] *)
   iEval (rewrite (fw_cmpt_res_thread_indep (UserThread 0) (UserThread k))) in "Hcmpt".
-  iEval (rewrite (perm_region_map_thread_indep (UserThread 0) (UserThread k))) in "Hperm".
   iDestruct (big_sepS_elem_of _ _ C with "Hlocals") as "Hlocal".
   { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
-  iAssert (world_interp (ceriseg := ceriseG_of (UserThread k)) (th := UserThread k) fw_world0 C)
+  iAssert (world_interp (th := UserThread k) fw_world0 C)
     with "[Hperm Hlocal]" as "Hworld".
   { rewrite world_interp_eq. iFrame. }
   (* The thread [k] is the only thread of [C] *)
@@ -1049,10 +1075,13 @@ Proof.
   iEval (rewrite /fw_cmpt_pers_res /fw_handler_res Hbody Hm Hcgp_eq) in "Hpers_tbl".
   iDestruct "Hpers_tbl" as "(#Htbl_pcc & #Htbl_cgp & (%eh & %ehs & #Heh & #Hehs) & _)".
   (* The world of [C], closed with the stack of the thread [k] *)
-  iEval (rewrite (fw_thread_of_lookup _ _ _ Hk)) in "Hstack".
+  iAssert (thread_stack_bounds (th := UserThread k)
+             (b_stack (thread_of img k)) (e_stack (thread_of img k)))
+    as "#Htstk".
+  { iEval (rewrite /hwm_res) in "Hhwm". iDestruct "Hhwm" as "[_ #Htstk]". iExact "Htstk". }
   iMod (fw_close_adv_world_entry_at (th := UserThread k) (E := ⊤) fw img σ k ft j
           (fw_entry_fc fw k) ub Hc fw_world0 C Hok Hk Hj Hbody Hnargs Hfree
-         with "Hswitcher_threads Hstatic Hmem Hpers Hstack [] Hthread_in Hworld")
+         with "Hswitcher_threads Hstatic Hmem Hpers Hstack Htstk [] Hthread_in Hworld")
     as "(Hworld & #Hpcc_i & #Hcgp_i & #Hcsp_i & _)".
   { iIntros "_". iApply big_sepL_intro. iIntros "!>" (n w Hw).
     pose proof (Forall_lookup_1 _ _ _ _ Himports Hw) as ->.
@@ -1061,6 +1090,11 @@ Proof.
   set (Wadv := std_update_multiple fw_world0
                  (finz.seq_between (b_stack (thread_of img k)) (e_stack (thread_of img k)))
                  Temporary).
+  (* The thread's stack is Temporary *)
+  assert (zone_temporary Wadv (b_stack (thread_of img k)) (e_stack (thread_of img k)))
+    as Hzone.
+  { intros a Hba Hae. apply std_sta_update_multiple_lookup_in_i.
+    apply elem_of_finz_seq_between. solve_addr. }
   iEval (rewrite Hpcc_eq) in "Hpcc_i".
   iEval (rewrite Hcgp_cap_eq) in "Hcgp_i".
   (* The thread's stack, outside the heap *)
@@ -1109,7 +1143,7 @@ Proof.
             (swlayoutWf := Hswl_wf) Wadv C (fw_entry_frame fw img k)
             _ _ _ _ _ eh ehs regs (fw_entry_posture fw img k) Hcgp_heap
            with "Hthread_in Hswitcher Hstatic Htbl_pcc Htbl_cgp Heh Hehs Hpcc_i Hcgp_i Hstk
-                 HPC Hrmap Hworld Hna Hcstk [%] HMIE Hheld").
+                 HPC Hrmap Hhwm Hworld Hna Hcstk [%] HMIE Hheld").
   - by rewrite /fw_entry_frame /fw_entry_tbl.
   - exact Hfull.
   - by rewrite /regs; simplify_map_eq.
@@ -1117,6 +1151,7 @@ Proof.
   - rewrite /regs lookup_insert_eq. by rewrite fw_thread_cra_eq.
   - exact Hzero.
   - exact Hexcl.
+  - exact Hzone.
   - by intros [=].
 Qed.
 
@@ -1190,11 +1225,17 @@ Proof.
   (* The local map of [C], closed with the stack of the thread [k] *)
   iDestruct (big_sepS_elem_of _ _ C with "Hlocals") as "Hlocal".
   { rewrite /CNames elem_of_list_to_set. apply finite.elem_of_enum. }
-  iEval (rewrite (fw_thread_of_lookup _ _ _ Hk)) in "Hstack".
+  pose proof Hok as (_ & _ & _ & Hwf).
+  destruct (img_wf_stack_words _ _ _ _ Hk Hwf) as [_ Hstack_ints].
+  rewrite Forall_lookup in Hstack_ints.
+  iAssert (thread_stack_bounds (th := UserThread k)
+             (b_stack (thread_of img k)) (e_stack (thread_of img k)))
+    as "#Htstk".
+  { iEval (rewrite /hwm_res) in "Hhwm". iDestruct "Hhwm" as "[_ #Htstk]". iExact "Htstk". }
   assert (Forall (λ a, std fw_world0 !! LNonHeap a = None) la) as Hfree_stack.
   { apply Forall_forall. intros a _. by rewrite /fw_world0 lookup_empty. }
-  iMod (local_extend_temp_sepL2 (ceriseg := ceriseG_of (UserThread k)) (th := UserThread k)
-          fw_world0 C la (lword_of_word <$> replicate (ft_stack_size ft) (WInt 0)) RWL
+  iMod (local_extend_temp_sepL2 (th := UserThread k)
+          fw_world0 C la (lword_of_word <$> stack_words (thread_of img k)) RWL
           (safeC (interp_in_mem (th := UserThread k)
              (CL := crit_link_full (swlayout := fw_switcher_layout img))
              (CR := crit_route_full (swlayout := fw_switcher_layout img)) RWL))
@@ -1202,11 +1243,11 @@ Proof.
   { done. }
   { exact Hfree_stack. }
   { rewrite big_sepL2_fmap_r.
-    iEval (rewrite /region_pointsto big_sepL2_fmap_r) in "Hstack".
+    iEval (rewrite /stack_region big_sepL2_fmap_r) in "Hstack".
     iApply (big_sepL2_mono with "Hstack").
     intros n a w Ha Hw. cbn. iIntros "Hv".
-    apply lookup_replicate in Hw as [-> _].
-    rewrite /TmpRes key_pointsto_nonheap.
+    destruct (is_int_inv _ (Hstack_ints _ _ Hw)) as [z ->].
+    rewrite /TmpRes -stack_cell_temp_cell.
     iFrame "Hv".
     iSplit; first done.
     iSplit.
@@ -1228,7 +1269,7 @@ Proof.
                (CR := crit_route_full (swlayout := fw_switcher_layout img))
                Wadv C (fw_thread_csp img k)) as "#Hcsp_i".
     { iApply (interp_stack_temporary (th := UserThread k) (swlayout := fw_switcher_layout img)
-                Wadv C with "Hrel_stk").
+                Wadv C with "Hrel_stk Htstk").
       - exact (stack_disjoint_from_mmio (fw_switcher_cmpt_at fw img σ k ft Hok Hk)).
       - exact (stack_disjoint_from_heap (fw_switcher_cmpt_at fw img σ k ft Hok Hk)).
       - apply Forall_forall. intros a Ha.
@@ -1238,6 +1279,11 @@ Proof.
     iExists RWL, Local, _, _, _.
     iSplit; first done. iSplit; first done.
     iModIntro. iExact "Hcsp_i". }
+  (* The thread's stack is Temporary *)
+  assert (zone_temporary Wadv (b_stack (thread_of img k)) (e_stack (thread_of img k)))
+    as Hzone.
+  { intros a Hba Hae. apply std_sta_update_multiple_lookup_in_i.
+    apply elem_of_finz_seq_between. solve_addr. }
   (* The registers *)
   set (regs := <[cra := lword_of_word (fw_thread_cra img)]>
                  (<[csp := lword_of_word (fw_thread_csp img k)]>
@@ -1274,7 +1320,7 @@ Proof.
             Wadv C (fw_entry_frame fw img k)
             _ _ _ _ _ eh ehs regs (fw_entry_posture fw img k) Hcgp_heap
            with "Hthread_in Hswitcher Hstatic Htbl_pcc Htbl_cgp Heh Hehs Hpcc_i Hcgp_i Hstk
-                 HPC Hrmap Hworld Hcred Hna Hcstk [%] HMIE Hheld").
+                 HPC Hrmap Hhwm Hworld Hcred Hna Hcstk [%] HMIE Hheld").
   - by rewrite /fw_entry_frame /fw_entry_tbl.
   - exact Hfull.
   - by rewrite /regs; simplify_map_eq.
@@ -1282,6 +1328,7 @@ Proof.
   - rewrite /regs lookup_insert_eq. by rewrite fw_thread_cra_eq.
   - exact Hzero.
   - exact Hsh.
+  - exact Hzone.
   - by intros [=].
 Qed.
 
@@ -1298,8 +1345,7 @@ Lemma fw_shared_caller_world {Σ : gFunctors} {ceriseb : ceriseBaseG Σ}
   let Wk := std_update_multiple fw_world0 la Revoked in
   cmpt_shared C = true →
   wg_inv C -∗
-  local_region_map (allocg := @cerise_registryG Σ (ceriseG_of (UserThread k)))
-    (memg := @mem_gen_memG Σ (ceriseG_of (UserThread k))) (UserThread k) fw_world0 C ∅
+  local_region_map (UserThread k) fw_world0 C ∅
   ={E}=∗
   world_resources (th := UserThread k) Wk C ∗
   StackRevokedResources (th := UserThread k)
@@ -1309,7 +1355,7 @@ Proof.
   iIntros (t la Wk Hsh) "#Hinv Hlocal".
   assert (Forall (λ a, std fw_world0 !! LNonHeap a = None) la) as Hfree_stack.
   { apply Forall_forall. intros a _. by rewrite /fw_world0 lookup_empty. }
-  iMod (local_extend_revoked_sepL2 (ceriseg := ceriseG_of (UserThread k)) (th := UserThread k)
+  iMod (local_extend_revoked_sepL2 (th := UserThread k)
           fw_world0 C la RWL
           (safeC (interp_in_mem (th := UserThread k)
              (CL := crit_link_full (swlayout := fw_switcher_layout img))

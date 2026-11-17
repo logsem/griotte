@@ -166,7 +166,7 @@ Section cmdc_obligations.
                     $Hworld_B $Hworld_C
                     $HPC $Hcgp $Hcsp $Hcra $Hregs
                     $Hmain_imports $Hmain_code $Hmain_data $Hstack
-                    $Hinterp_B $Hinterp_C $Hcstk $Hrevoked_stack_B $Hrevoked_stack_C
+                    $Hinterp_B $Hinterp_C $Hcstk $Hhwm $Hrevoked_stack_B $Hrevoked_stack_C
                     $Hentry_Bf $Hentry_Cg
                     $HMIE $Hheld
                     ]"); eauto using fw_cleared_regs_dom.

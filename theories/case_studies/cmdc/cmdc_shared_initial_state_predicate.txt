@@ -78,16 +78,8 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   cmpt_exp_tbl_handler_stackless sched = WInt ExportTable_no_handler
   cmpt_exp_tbl_entries sched           = []
       -- no export: its exception entry is in the switcher
-  Forall
-      -- the boot stack: integers or thread handles
-    (boot_stack_word
-       [{ ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t0, e_trusted_stack t0, b_trusted_stack t0) };
-                                                                                          -- thread 0, handle
-        { ot_switcher sw ^+ 1, (RWL, Global, b_trusted_stack t1, e_trusted_stack t1, b_trusted_stack t1) };
-                                                                                          -- thread 1, handle
-        { ot_switcher sw ^+ 1,                                                            -- idle thread, handle
-          (RWL, Global, img_b_idle_trusted_stack idle, img_e_idle_trusted_stack idle, img_b_idle_trusted_stack idle) }])
-    (img_boot_stack_words boot)
+  Forall is_int (img_boot_stack_words boot)
+      -- the boot stack: arbitrary integers, below its high-water mark
 ── Memory ──────────────────────────────────────────────────────────────────
   mem σ =
         initial_heap_memory                                                    -- heap, zeroed
@@ -150,13 +142,15 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
                 (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space)    -- csp
                 (RW, Global, cmpt_b_cgp main, cmpt_e_cgp main, cmpt_b_cgp main)                  -- cgp
                 (WO, Global, b_hazard t0, e_hazard t0, b_hazard t0)                              -- hazard
-                (WInt (mstatus_enc InterruptDisabled InterruptEnabled)))                         -- mstatus
+                (WInt (mstatus_enc InterruptDisabled InterruptEnabled))                          -- mstatus
+                (WInt (e_stack t0))                                                              -- mshwm
+                (WInt (b_stack t0)))                                                             -- mshwmb
              (RWL, Local, b_stack t0, e_stack t0, e_stack t0 ^- StackEntry_reserved_space)       -- csp
              (RW, Global, cmpt_exp_tbl_pcc main, cmpt_exp_tbl_entries_end main, cmpt_exp_tbl_pcc main)
                                                                                                  -- export_table
              1                                                                                   -- thread_id
              24)                                                                                 -- n
-      ∪ mem_region (b_stack t0) (replicate 100 (WInt 0))                       -- thread 0, stack
+      ∪ mem_region (b_stack t0) (stack_words t0)                               -- thread 0, stack
       ∪ mem_region (b_hazard t0) [WInt 0; WInt 0]                              -- thread 0, hazard slots
       ∪ mem_region (b_trusted_stack t1)
           -- thread 1, trusted stack, saved at its entry in C
@@ -171,13 +165,15 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
                 (RWL, Local, b_stack t1, e_stack t1, e_stack t1 ^- StackEntry_reserved_space)    -- csp
                 (RW, Global, cmpt_b_cgp C, cmpt_e_cgp C, cmpt_b_cgp C)                           -- cgp
                 (WO, Global, b_hazard t1, e_hazard t1, b_hazard t1)                              -- hazard
-                (WInt (mstatus_enc InterruptDisabled (export_entry_posture (img_entry_word C 1)))))
+                (WInt (mstatus_enc InterruptDisabled (export_entry_posture (img_entry_word C 1))))
                                                                                                  -- mstatus
+                (WInt (e_stack t1))                                                              -- mshwm
+                (WInt (b_stack t1)))                                                             -- mshwmb
              (RWL, Local, b_stack t1, e_stack t1, e_stack t1 ^- StackEntry_reserved_space)       -- csp
              (RW, Global, cmpt_exp_tbl_pcc C, cmpt_exp_tbl_entries_end C, cmpt_exp_tbl_pcc C)    -- export_table
              2                                                                                   -- thread_id
              24)                                                                                 -- n
-      ∪ mem_region (b_stack t1) (replicate 100 (WInt 0))                       -- thread 1, stack
+      ∪ mem_region (b_stack t1) (stack_words t1)                               -- thread 1, stack
       ∪ mem_region (b_hazard t1) [WInt 0; WInt 0]                              -- thread 1, hazard slots
       ∪ mem_region (img_b_idle_trusted_stack idle)
           -- idle thread, trusted stack, saved at the loop of an exited thread
@@ -193,7 +189,9 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
                 (WInt 0)                                                       -- cgp
                 (WO, Global, img_b_idle_hazard idle, img_e_idle_hazard idle, img_b_idle_hazard idle)
                                                                                -- hazard
-                (WInt (mstatus_enc InterruptDisabled InterruptEnabled)))       -- mstatus
+                (WInt (mstatus_enc InterruptDisabled InterruptEnabled))        -- mstatus
+                (WInt 0)                                                       -- mshwm
+                (WInt 0))                                                      -- mshwmb
              (WInt 0)                                                          -- csp
              (WInt 0)                                                          -- export_table
              0                                                                 -- thread_id
@@ -223,6 +221,10 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   sreg σ !! mtdc = Some (WInt 0)
   sreg σ !! mtcc = Some (XSRW_, Local, b_switcher sw, e_switcher sw, a_switcher_call sw ^+ label "exception_entry_asm")
                              -- exception entry
+  sreg σ !! mshwmb = Some (WInt (img_b_boot_stack boot))
+                             -- the stack high-water-mark base: the base of the boot stack
+  sreg σ !! mshwm  = Some (WInt (img_e_boot_stack boot))
+      -- the stack high-water mark: the top of the boot stack, the scheduler's stack pointer
   ∃ mpie : InterruptStatus,  -- interrupts disabled, MPIE arbitrary
     sreg σ !! mstatus = Some (WInt (mstatus_enc InterruptDisabled mpie))
   ∃ z1 z2 z3 : Z,            -- arbitrary integers, dead until the resume path
@@ -443,6 +445,9 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   revoker_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
   mtime_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
   mtimecmp_addr ∉ finz.seq_between (b_hazard t0) (e_hazard t0)
+  length (stack_words t0) = 100                             -- the size of the stack
+  Forall is_int (stack_words t0)
+      -- the stack: arbitrary integers, below its high-water mark
 ── thread 1, layout ────────────────────────────────────────────────────────
   b_stack t1 + 100%nat                        = Some (e_stack t1)
   b_trusted_stack t1 + tstack_frame_offset 25 = Some (e_trusted_stack t1)
@@ -467,6 +472,9 @@ cmdc_shared_initial_state_ok (flag : Addr) (σ : ExecConf) :=
   revoker_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
   mtime_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
   mtimecmp_addr ∉ finz.seq_between (b_hazard t1) (e_hazard t1)
+  length (stack_words t1) = 100                             -- the size of the stack
+  Forall is_int (stack_words t1)
+      -- the stack: arbitrary integers, below its high-water mark
 ── image, layout ───────────────────────────────────────────────────────────
   ranges_disjoint                                                           -- pairwise disjoint
       [00]  [b_switcher sw, e_switcher sw)                                  -- switcher

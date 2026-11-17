@@ -843,10 +843,11 @@ Section KVS_spec_addOrUpdate.
     rewrite /switcher_cc_specification_known_to_known_function.
     iIntros "(#Hkvs_static & #Hlock)" (arg_rmap' rmap')
        "(_ & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
-       & Hargs & Hrmap & Hstk & Hcstk & %Hroute & Hmie & Hheld
+       & Hargs & Hrmap & Hstk & Hhwm & Hcstk & %Hroute & Hmie & Hheld
        & (Huser_key & Huser_kvs & Hkey)
        & Hpost)".
     iEval (cbn) in "HPC".
+    iDestruct (stack_ints_region with "Hstk") as (stk_mem) "Hstk".
 
     iExtractList "Hargs" [ca0;ca1;ca2;ca3;ca4;ca5;ct0]
       as ["[Hca0 %Hwca0]";"[Hca1 %Hwca1]";"[Hca2 %Hwca2]";
@@ -897,8 +898,7 @@ Section KVS_spec_addOrUpdate.
     iEval (cbn) in "HPC".
 
     iDestruct "Hres" as "[(Hca0 & Hkey) | (Hca0 & Hkey)]".
-    - iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) (WInt 0) rmap_ret
-                (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
+    - iApply ("Hpost" $! 0%Z (WInt ASM_TRUE) (WInt 0) rmap_ret stk_mem).
       iSplit.
       { iPureIntro.
         rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5
@@ -909,8 +909,7 @@ Section KVS_spec_addOrUpdate.
       iFrame.
       iFrame. iSplit; first done. iLeft.
       iSplit; first done. iFrame.
-    - iApply ("Hpost" $! 0%Z (WInt ASM_FALSE) (WInt 0) rmap_ret
-                (region_addrs_zeroes (stk_callee_b b_stk a_stk) (stk_callee_e e_stk a_stk))).
+    - iApply ("Hpost" $! 0%Z (WInt ASM_FALSE) (WInt 0) rmap_ret stk_mem).
       iSplit.
       { iPureIntro.
         rewrite /rmap_ret /rmap_ret8 /rmap_ret7 /rmap_ret6 /rmap_ret5

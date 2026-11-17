@@ -44,9 +44,13 @@ Section switcher_link.
                          (@b_trusted_stack (tlayout_of th) ^+ TSTACK_REGFRAME_SZ)%a; ws,
       if decide (k = Z.to_nat TrustedStack_offset_hazardPointers) then emp else a ↦ₐ w.
 
-  (** The save area in the posture: its saved MIE is InterruptDisabled. *)
+  (** The save area in the posture: its saved MIE is InterruptDisabled, and
+      its word [mshwmb] is the thread's stack base. *)
   Definition save_area_part (th : Thread) : iProp Σ :=
-    ∃ ws : list LWord, ⌜saved_mie_ok ws⌝ ∗ save_area_holed th ws.
+    ∃ ws : list LWord,
+      ⌜saved_mie_ok ws⌝ ∗
+      (∃ mshwmb_v : Z, ⌜ws !! 20%nat = Some (lword_of_word (WInt mshwmb_v))⌝ ∗ hwm_base[th] mshwmb_v) ∗
+      save_area_holed th ws.
 
   Definition posture_part_of (th : Thread) : iProp Σ :=
     match th with

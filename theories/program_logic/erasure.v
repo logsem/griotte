@@ -1096,6 +1096,54 @@ Section erasure.
                                   (mie_of (get_a (sreg_word σ mstatus)))))]>
             (<[mepcc := lmepcc_of_pc lpc]> lsreg))).
 
+  (** *** The stack high-water mark *)
+
+  (** A logical system register holding an integer is the physical one. *)
+  Lemma erasure_lookup_sreg_int R C σ lpc lreg lsreg lmem x (z : Z) :
+    erasure R C σ lpc lreg lsreg lmem →
+    lsreg !! x = Some (lword_of_word (WInt z)) →
+    sreg σ !! x = Some (WInt z).
+  Proof.
+    intros Her Hx.
+    destruct (erasure_lookup_sreg _ _ _ _ _ _ _ _ _ Her Hx) as (w & Hw & Hrel).
+    rewrite Hw. f_equal. by apply reg_phys_no_bounds in Hrel.
+  Qed.
+
+  (** A store at [ea] outside [MSHWMB, MSHWM) leaves MSHWM. *)
+  Lemma erasure_hwm_update R C pc r sr m st td lpc lreg lsreg lmem (ea : Addr) (mshwmb_v mshwm_v : Z) :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg lsreg lmem →
+    lsreg !! mshwmb = Some (lword_of_word (WInt mshwmb_v)) →
+    lsreg !! mshwm = Some (lword_of_word (WInt mshwm_v)) →
+    ¬ (mshwmb_v ≤ ea < mshwm_v)%Z →
+    erasure R C (MkExecConf pc r (hwm_update ea sr) m st td) lpc lreg lsreg lmem.
+  Proof.
+    intros Her Hb Hh Hout.
+    pose proof (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her Hb) as Hpb.
+    pose proof (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her Hh) as Hph.
+    cbn in Hpb, Hph.
+    rewrite hwm_update_id //. intros wb wh Hwb Hwh.
+    rewrite Hpb in Hwb. rewrite Hph in Hwh. by simplify_eq.
+  Qed.
+
+  (** A store at [ea] in [mshwmb_v, mshwm_v) lowers MSHWM to [ea]. *)
+  Lemma erasure_hwm_update_lower R C pc r sr m st td lpc lreg lsreg lmem
+      (ea : Addr) (mshwmb_v mshwm_v : Z) :
+    erasure R C (MkExecConf pc r sr m st td) lpc lreg lsreg lmem →
+    lsreg !! mshwmb = Some (lword_of_word (WInt mshwmb_v)) →
+    lsreg !! mshwm = Some (lword_of_word (WInt mshwm_v)) →
+    (mshwmb_v ≤ ea < mshwm_v)%Z →
+    erasure R C (MkExecConf pc r (hwm_update ea sr) m st td) lpc lreg
+      (<[mshwm := lword_of_word (WInt ea)]> lsreg) lmem.
+  Proof.
+    intros Her Hb Hh Hin.
+    pose proof (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her Hb) as Hpb.
+    pose proof (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her Hh) as Hph.
+    cbn in Hpb, Hph.
+    rewrite /hwm_update Hpb Hph /= decide_True //.
+    apply erasure_insert_sreg; [done | apply reg_word_ok_int | by intros | done |].
+    apply reg_phys_lword_of_word.
+  Qed.
+
   (** Trap entry: the PC receives MTCC. *)
   Lemma erasure_enter_exc R C σ lpc lreg lsreg lmem cv vtcc :
     erasure R C σ lpc lreg lsreg lmem →
@@ -1842,13 +1890,13 @@ End erasure.
 
     The state interpretation is split into a part shared by the threads and
     a part of the running thread. Each part has its own erasure: the shared
-    one for the shared system registers, which exclude MTDC and mstatus, and
-    memory; the one of the thread for its registers, its PC and its mtdc
-    word. mstatus is not a logical system register of either part: each part
-    pins its own bit, MPIE in the shared part and MIE in the part of the
-    thread. Together they give today's [erasure], whose logical system
-    registers are the shared ones with mtdc and the mstatus word
-    ([lsregs_join]). *)
+    one for the shared system registers, which exclude MTDC, mstatus, MSHWM
+    and MSHWMB, and memory; the one of the thread for its registers, its PC,
+    its mtdc word, and the integers of MSHWMB and MSHWM. mstatus is not a
+    logical system register of either part: each part pins its own bit,
+    MPIE in the shared part and MIE in the part of the thread. Together they
+    give today's [erasure], whose logical system registers are the shared
+    ones with mtdc, MSHWMB, MSHWM and the mstatus word ([lsregs_join]). *)
 
 (** mstatus is present and holds [mstatus_enc mie mpie]. *)
 Definition mstatus_ok (σ : ExecConf) (mie mpie : InterruptStatus) : Prop :=
@@ -1862,20 +1910,40 @@ Proof.
 Qed.
 
 (** The logical system registers of [erasure]: the shared ones, the logical
-    mtdc word [vm] and the mstatus word. *)
-Definition lsregs_join (lsh : LSReg) (vm : LWord) (mie mpie : InterruptStatus) : LSReg :=
-  <[mstatus := lword_of_word (WInt (mstatus_enc mie mpie))]> (<[mtdc := vm]> lsh).
+    mtdc word [vm], the integers [mshwmb_v] and [mshwm_v] of MSHWMB and MSHWM, and the
+    mstatus word. *)
+Definition lsregs_join (lsh : LSReg) (vm : LWord) (mshwmb_v mshwm_v : Z) (mie mpie : InterruptStatus)
+    : LSReg :=
+  <[mstatus := lword_of_word (WInt (mstatus_enc mie mpie))]>
+    (<[mtdc := vm]>
+       (<[mshwmb := lword_of_word (WInt mshwmb_v)]> (<[mshwm := lword_of_word (WInt mshwm_v)]> lsh))).
 
-Lemma lsregs_join_mstatus lsh vm mie mpie :
-  lsregs_join lsh vm mie mpie !! mstatus = Some (lword_of_word (WInt (mstatus_enc mie mpie))).
+Lemma lsregs_join_mstatus lsh vm mshwmb_v mshwm_v mie mpie :
+  lsregs_join lsh vm mshwmb_v mshwm_v mie mpie !! mstatus =
+    Some (lword_of_word (WInt (mstatus_enc mie mpie))).
 Proof. by rewrite /lsregs_join lookup_insert_eq. Qed.
 
-Lemma lsregs_join_mtdc lsh vm mie mpie : lsregs_join lsh vm mie mpie !! mtdc = Some vm.
+Lemma lsregs_join_mtdc lsh vm mshwmb_v mshwm_v mie mpie : lsregs_join lsh vm mshwmb_v mshwm_v mie mpie !! mtdc = Some vm.
 Proof. by rewrite /lsregs_join lookup_insert_ne // lookup_insert_eq. Qed.
 
-Lemma lsregs_join_ne lsh vm mie mpie sr :
-  sr ≠ mtdc → sr ≠ mstatus → lsregs_join lsh vm mie mpie !! sr = lsh !! sr.
-Proof. intros H1 H2. by rewrite /lsregs_join !lookup_insert_ne. Qed.
+Lemma lsregs_join_mshwmb lsh vm mshwmb_v mshwm_v mie mpie :
+  lsregs_join lsh vm mshwmb_v mshwm_v mie mpie !! mshwmb = Some (lword_of_word (WInt mshwmb_v)).
+Proof.
+  by rewrite /lsregs_join (lookup_insert_ne _ mstatus) // (lookup_insert_ne _ mtdc) //
+    lookup_insert_eq.
+Qed.
+
+Lemma lsregs_join_mshwm lsh vm mshwmb_v mshwm_v mie mpie :
+  lsregs_join lsh vm mshwmb_v mshwm_v mie mpie !! mshwm = Some (lword_of_word (WInt mshwm_v)).
+Proof.
+  by rewrite /lsregs_join (lookup_insert_ne _ mstatus) // (lookup_insert_ne _ mtdc) //
+    (lookup_insert_ne _ mshwmb) // lookup_insert_eq.
+Qed.
+
+Lemma lsregs_join_ne lsh vm mshwmb_v mshwm_v mie mpie sr :
+  sr ≠ mtdc → sr ≠ mstatus → sr ≠ mshwm → sr ≠ mshwmb →
+  lsregs_join lsh vm mshwmb_v mshwm_v mie mpie !! sr = lsh !! sr.
+Proof. intros H1 H2 H3 H4. by rewrite /lsregs_join !lookup_insert_ne. Qed.
 
 Section erasure_split.
   Context `{MP : MachineParameters}.
@@ -1896,12 +1964,15 @@ Section erasure_split.
     es_mmio : mem_avoids_mmio (mem σ);
     es_heap_mapped : heap_mapped (mem σ);
     es_mstatus : ∃ mie, mstatus_ok σ mie mpie;
+    es_no_mshwm : lsh !! mshwm = None;
+    es_no_mshwmb : lsh !! mshwmb = None;
   }.
 
   (** The part of a thread: its registers, its PC, its logical mtdc word
-      [vm], and MIE. *)
+      [vm], MIE, and the values [mshwmb_v] and [mshwm_v] of MSHWMB and MSHWM, which the
+      physical registers hold. *)
   Record erasure_th R C (σ : ExecConf) (lpc : LWord) (lreg : LReg) (vm : LWord)
-      (mie : InterruptStatus) : Prop := {
+      (mie : InterruptStatus) (mshwmb_v mshwm_v : Z) : Prop := {
     et_regs : dom (reg σ) = dom lreg ∧ lregs_phys R lreg (reg σ);
     et_cnull v : lreg !! cnull = Some v → v = lnull;
     et_reg_words r v : lreg !! r = Some v → reg_word_ok R C v;
@@ -1911,16 +1982,18 @@ Section erasure_split.
     et_pc_word : reg_word_ok R C lpc;
     et_pc_ok : pc_ok lpc.(lw);
     et_mstatus : ∃ mpie, mstatus_ok σ mie mpie;
+    et_hwmb : sreg σ !! mshwmb = Some (WInt mshwmb_v);
+    et_hwm : sreg σ !! mshwm = Some (WInt mshwm_v);
   }.
 
   (** The two parts give today's record. *)
-  Lemma erasure_join R C σ lpc lreg lsh vm mie mpie lmem :
-    erasure_sh R C σ lsh lmem mpie → erasure_th R C σ lpc lreg vm mie →
-    erasure R C σ lpc lreg (lsregs_join lsh vm mie mpie) lmem.
+  Lemma erasure_join R C σ lpc lreg lsh vm mie mpie mshwmb_v mshwm_v lmem :
+    erasure_sh R C σ lsh lmem mpie → erasure_th R C σ lpc lreg vm mie mshwmb_v mshwm_v →
+    erasure R C σ lpc lreg (lsregs_join lsh vm mshwmb_v mshwm_v mie mpie) lmem.
   Proof.
     intros Hsh Hth.
-    destruct Hsh as [Hreg Hnm Hns Hsr Hsrw Hsrid Hsrpc Hmd Hmw Hmmio Hhm [mie' Hst1] ].
-    destruct Hth as [Hregs Hcnull Hrw Hmt Hmtw Hpc Hpcw Hpcok [mpie' Hst2] ].
+    destruct Hsh as [Hreg Hnm Hns Hsr Hsrw Hsrid Hsrpc Hmd Hmw Hmmio Hhm [mie' Hst1] Hnh Hnhb].
+    destruct Hth as [Hregs Hcnull Hrw Hmt Hmtw Hpc Hpcw Hpcok [mpie' Hst2] Hhb Hh].
     destruct (mstatus_ok_agree _ _ _ _ _ Hst1 Hst2) as [<- <-].
     constructor; try done.
     - intros sr v. rewrite /lsregs_join.
@@ -1929,22 +2002,44 @@ Section erasure_split.
         apply reg_phys_lword_of_word. }
       rewrite lookup_insert_ne //.
       destruct (decide (sr = mtdc)) as [->|Hne2].
-      + rewrite lookup_insert_eq. intros [=<-]. done.
-      + rewrite lookup_insert_ne //. apply Hsr.
+      { rewrite lookup_insert_eq. intros [=<-]. done. }
+      rewrite lookup_insert_ne //.
+      destruct (decide (sr = mshwmb)) as [->|Hne3].
+      { rewrite lookup_insert_eq. intros [=<-]. eexists. split; first exact Hhb.
+        apply reg_phys_lword_of_word. }
+      rewrite lookup_insert_ne //.
+      destruct (decide (sr = mshwm)) as [->|Hne4].
+      { rewrite lookup_insert_eq. intros [=<-]. eexists. split; first exact Hh.
+        apply reg_phys_lword_of_word. }
+      rewrite lookup_insert_ne //. apply Hsr.
     - intros sr v. rewrite /lsregs_join.
       destruct (decide (sr = mstatus)) as [->|Hne1].
       { rewrite lookup_insert_eq. intros [=<-]. apply reg_word_ok_int. }
       rewrite lookup_insert_ne //.
       destruct (decide (sr = mtdc)) as [->|Hne2].
-      + rewrite lookup_insert_eq. intros [=<-]. done.
-      + rewrite lookup_insert_ne //. eauto.
+      { rewrite lookup_insert_eq. intros [=<-]. done. }
+      rewrite lookup_insert_ne //.
+      destruct (decide (sr = mshwmb)) as [->|Hne3].
+      { rewrite lookup_insert_eq. intros [=<-]. apply reg_word_ok_int. }
+      rewrite lookup_insert_ne //.
+      destruct (decide (sr = mshwm)) as [->|Hne4].
+      { rewrite lookup_insert_eq. intros [=<-]. apply reg_word_ok_int. }
+      rewrite lookup_insert_ne //. eauto.
     - intros sr v Hne. rewrite /lsregs_join.
       destruct (decide (sr = mstatus)) as [->|Hne1].
       { rewrite lookup_insert_eq. intros [=<-] Ha. by inversion Ha. }
-      rewrite !lookup_insert_ne //. eauto.
+      rewrite !(lookup_insert_ne _ mstatus) // (lookup_insert_ne _ mtdc) //.
+      destruct (decide (sr = mshwmb)) as [->|Hne3].
+      { rewrite lookup_insert_eq. intros [=<-] Ha. by inversion Ha. }
+      rewrite lookup_insert_ne //.
+      destruct (decide (sr = mshwm)) as [->|Hne4].
+      { rewrite lookup_insert_eq. intros [=<-] Ha. by inversion Ha. }
+      rewrite lookup_insert_ne //. eauto.
     - intros sr v Hpcs. rewrite /lsregs_join.
       destruct (decide (sr = mstatus)) as [->|Hne1]; first done.
       destruct (decide (sr = mtdc)) as [->|Hne2]; first done.
+      destruct (decide (sr = mshwmb)) as [->|Hne3]; first done.
+      destruct (decide (sr = mshwm)) as [->|Hne4]; first done.
       rewrite !lookup_insert_ne //. eauto.
   Qed.
 
@@ -1953,20 +2048,21 @@ Section erasure_split.
     erasure_sh R C σ lsh lmem mpie → erasure_sh R C (tick σ) lsh lmem mpie.
   Proof. by intros []; constructor. Qed.
 
-  Lemma erasure_th_tick R C σ lpc lreg vm mie :
-    erasure_th R C σ lpc lreg vm mie → erasure_th R C (tick σ) lpc lreg vm mie.
+  Lemma erasure_th_tick R C σ lpc lreg vm mie mshwmb_v mshwm_v :
+    erasure_th R C σ lpc lreg vm mie mshwmb_v mshwm_v → erasure_th R C (tick σ) lpc lreg vm mie mshwmb_v mshwm_v.
   Proof. by intros []; constructor. Qed.
 
-  (** And conversely, for shared system registers without MTDC and
-      mstatus. *)
-  Lemma erasure_split R C σ lpc lreg lsh vm mie mpie lmem :
+  (** And conversely, for shared system registers without MTDC, mstatus,
+      MSHWM and MSHWMB. *)
+  Lemma erasure_split R C σ lpc lreg lsh vm mie mpie mshwmb_v mshwm_v lmem :
     lsh !! mtdc = None → lsh !! mstatus = None →
-    erasure R C σ lpc lreg (lsregs_join lsh vm mie mpie) lmem →
-    erasure_sh R C σ lsh lmem mpie ∧ erasure_th R C σ lpc lreg vm mie.
+    lsh !! mshwm = None → lsh !! mshwmb = None →
+    erasure R C σ lpc lreg (lsregs_join lsh vm mshwmb_v mshwm_v mie mpie) lmem →
+    erasure_sh R C σ lsh lmem mpie ∧ erasure_th R C σ lpc lreg vm mie mshwmb_v mshwm_v.
   Proof.
-    intros Hmtdc Hmst Her.
+    intros Hmtdc Hmst Hnh Hnhb Her.
     assert (mstatus_ok σ mie mpie) as Hok.
-    { destruct (er_sregs _ _ _ _ _ _ _ Her mstatus _ (lsregs_join_mstatus _ _ _ _))
+    { destruct (er_sregs _ _ _ _ _ _ _ Her mstatus _ (lsregs_join_mstatus _ _ _ _ _ _))
         as (w & Hw & Hrel).
       rewrite /mstatus_ok Hw. f_equal. by apply reg_phys_no_bounds in Hrel. }
     split; constructor; try apply Her; try done; try by eexists.
@@ -1980,5 +2076,7 @@ Section erasure_split.
       rewrite lsregs_join_ne //; congruence.
     - apply lsregs_join_mtdc.
     - apply (er_sreg_words _ _ _ _ _ _ _ Her mtdc). apply lsregs_join_mtdc.
+    - apply (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her). apply lsregs_join_mshwmb.
+    - apply (erasure_lookup_sreg_int _ _ _ _ _ _ _ _ _ Her). apply lsregs_join_mshwm.
   Qed.
 End erasure_split.

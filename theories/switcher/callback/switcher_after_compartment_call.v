@@ -215,7 +215,7 @@ Section Switcher_After_Compartment_Call.
 
   (** From [.Lswitch_callee_save_restore]: reload the callee-save registers from
       the spill area at the cursor [a_stk], and move the cursor past it. *)
-  Lemma switcher_restore_spill_spec
+  Lemma switcher_restore_spill_spec {dq : dfrac}
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
     disjoint_from_mmio b_stk e_stk ->
@@ -229,7 +229,7 @@ Section Switcher_After_Compartment_Call.
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
-    switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+    switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
     switcher_code ∗
     ▷ ( ∀ rcgp rcra rcs1 rcs0,
         ⌜load_heap wcgp rcgp ∧
@@ -242,7 +242,7 @@ Section Switcher_After_Compartment_Call.
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
         csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
-        switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+        switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
         safe[th] )
     ⊢ safe[th].
@@ -308,7 +308,7 @@ Section Switcher_After_Compartment_Call.
   (** [switcher_restore_spill_spec] where the loads observe the heap of the
       world [Wval], through the open world [Wworld], from saved words that
       are safe in [Wval]: the restored registers are safe. *)
-  #[local] Lemma switcher_restore_spill_interp_spec
+  #[local] Lemma switcher_restore_spill_interp_spec {dq : dfrac}
     Wworld Wval C opened
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
@@ -323,7 +323,7 @@ Section Switcher_After_Compartment_Call.
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
-    switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+    switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
     local_region_map th Wworld C (open_l Wworld opened) ∗
     perm_resources C ∗
     interp_in_mem RWL Wval C wcgp ∗
@@ -348,7 +348,7 @@ Section Switcher_After_Compartment_Call.
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
         csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
-        switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+        switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
         safe[th] )
     ⊢ safe[th].
@@ -418,7 +418,7 @@ Section Switcher_After_Compartment_Call.
       world [Wval], through the open world [Wworld]. When the caller is
       untrusted, the saved words are safe, and so are the restored
       registers. *)
-  Lemma switcher_restore_spill_world_spec
+  Lemma switcher_restore_spill_world_spec {dq : dfrac}
     Wworld Wval C opened (ccrel : caller_callee_relation)
     (b_stk e_stk a_stk : Addr)
     (wcgp wcra wcs1 wcs0 wcgp_old wcra_old wcs1_old wcs0_old : LWord) :
@@ -433,7 +433,7 @@ Section Switcher_After_Compartment_Call.
     cs1 ↦ᵣ[th] wcs1_old ∗
     cs0 ↦ᵣ[th] wcs0_old ∗
     csp ↦ᵣ[th] Cap RWL Local b_stk e_stk a_stk ∗
-    switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+    switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
     local_region_map th Wworld C (open_l Wworld opened) ∗
     perm_resources C ∗
     (if is_untrusted_caller ccrel then
@@ -462,7 +462,7 @@ Section Switcher_After_Compartment_Call.
         cs1 ↦ᵣ[th] rcs1 ∗
         cs0 ↦ᵣ[th] rcs0 ∗
         csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ SpillSlot_size) ∗
-        switcher_stk_cells a_stk wcs0 wcs1 wcgp wcra ∗
+        switcher_stk_cells_dq dq a_stk wcs0 wcs1 wcgp wcra ∗
         £ 2 -∗
         safe[th] )
     ⊢ safe[th].

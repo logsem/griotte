@@ -580,10 +580,12 @@ Section trap_cause.
   Lemma wp_trap_fault_frac E Φ w (lregs : LReg) (lm : gmap Addr (dfrac * LWord)) :
     lfault_known w lregs (snd <$> lm) →
     PC ↦ₚ w -∗
+    hwm_closed (kind_of th) -∗
     ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
     (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
      ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     hwm_closed (kind_of th) -∗
      trap_safe_cause
        (λ c : Z, (mcause_ok c ∧ c = lcause w lregs (snd <$> lm))%type)
        (λ v : Z, (∃ f, fault_ok w lregs (snd <$> lm) f ∧ v = fault_mtval f)%type)
@@ -606,6 +608,55 @@ Section trap_cause.
   Lemma wp_trap_fault E Φ w (lregs : LReg) (lm : LMem) dq :
     lfault_known w lregs lm →
     PC ↦ₚ w -∗
+    hwm_closed (kind_of th) -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
+     hwm_closed (kind_of th) -∗
+     trap_safe_cause
+       (λ c : Z, (mcause_ok c ∧ c = lcause w lregs lm)%type)
+       (λ v : Z, (∃ f, fault_ok w lregs lm f ∧ v = fault_mtval f)%type)
+       w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    iIntros (Hknown) "HPC Hclosed Hregs Hmem Hsafe".
+    iApply (wp_trap_fault_frac _ _ _ _ ((λ x, (dq, x)) <$> lm)
+             with "HPC Hclosed Hregs [Hmem] [Hsafe]").
+    - by rewrite -map_fmap_compose map_fmap_id.
+    - by rewrite big_sepM_fmap.
+    - rewrite big_sepM_fmap /= -map_fmap_compose map_fmap_id. iExact "Hsafe".
+  Qed.
+
+  (** [wp_trap_fault_frac] from a PC without the system-register
+      permission: no window to close. *)
+  Lemma wp_trap_fault_frac_nosr E Φ w (lregs : LReg) (lm : gmap Addr (dfrac * LWord)) :
+    pc_nosr w.(lw) = true →
+    lfault_known w lregs (snd <$> lm) →
+    PC ↦ₚ w -∗
+    ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+    ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+    (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
+     ([∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2) -∗
+     trap_safe_cause
+       (λ c : Z, (mcause_ok c ∧ c = lcause w lregs (snd <$> lm))%type)
+       (λ v : Z, (∃ f, fault_ok w lregs (snd <$> lm) f ∧ v = fault_mtval f)%type)
+       w E Φ) -∗
+    WP Seq (Instr Faulted) @ E {{ Φ }}.
+  Proof.
+    intros Hnsr Hknown. iApply wp_trap_gen_frac_nosr; first exact Hnsr.
+    intros R C σ lreg lsreg lmem Her Hregs Hmem. split_and!.
+    - apply trap_cause_ok.
+    - rewrite (erasure_trap_cause _ _ _ _ _ _ _ Her). by apply lcause_frag.
+    - exists (trap_fault σ). split; last done.
+      eapply fault_ok_frag; [done | done | done |]. by eapply erasure_trap_fault.
+  Qed.
+
+  (** [wp_trap_fault] from a PC without the system-register permission. *)
+  Lemma wp_trap_fault_nosr E Φ w (lregs : LReg) (lm : LMem) dq :
+    pc_nosr w.(lw) = true →
+    lfault_known w lregs lm →
+    PC ↦ₚ w -∗
     ([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
     ([∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x) -∗
     (([∗ map] r ↦ x ∈ lregs, r ↦ᵣ x) -∗
@@ -616,9 +667,9 @@ Section trap_cause.
        w E Φ) -∗
     WP Seq (Instr Faulted) @ E {{ Φ }}.
   Proof.
-    iIntros (Hknown) "HPC Hregs Hmem Hsafe".
-    iApply (wp_trap_fault_frac _ _ _ _ ((λ x, (dq, x)) <$> lm)
-             with "HPC Hregs [Hmem] [Hsafe]").
+    iIntros (Hnsr Hknown) "HPC Hregs Hmem Hsafe".
+    iApply (wp_trap_fault_frac_nosr _ _ _ _ ((λ x, (dq, x)) <$> lm)
+             with "HPC Hregs [Hmem] [Hsafe]"); first exact Hnsr.
     - by rewrite -map_fmap_compose map_fmap_id.
     - by rewrite big_sepM_fmap.
     - rewrite big_sepM_fmap /= -map_fmap_compose map_fmap_id. iExact "Hsafe".
@@ -633,9 +684,9 @@ End trap_cause.
    [wp_trap_fault_frac] when each cell has its own fraction
    ([[∗ map] a ↦ qx ∈ lm, a ↦ₐ{qx.1} qx.2]), with [wp_trap_fault] when all
    have one ([[∗ map] a ↦ x ∈ lm, a ↦ₐ{dq} x]). The side condition
-   [lfault_known] is left to the caller, first; the maps come back under the
-   same names, for the obligation [trap_safe_cause] with the exact cause and
-   value. *)
+   [lfault_known] is left to the caller, first; the closed window is taken
+   as by [iTrap]; the maps come back under the same names, for the
+   obligation [trap_safe_cause] with the exact cause and value. *)
 Tactic Notation "iTrap" "cause" "with" constr(Hregs) constr(Hmem) :=
   lazymatch goal with
   | |- envs_entails _ (wp _ _ (@Seq ?k ?e) _) => unify e (@Instr k Faulted)
@@ -643,9 +694,20 @@ Tactic Notation "iTrap" "cause" "with" constr(Hregs) constr(Hmem) :=
   end;
   let hpc := instr_trap_pc in
   first
-    [ iApply (wp_trap_fault_frac with
-               [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
-    | iApply (wp_trap_fault with
-               [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
-    | fail "iTrap cause: no register map" Hregs "or no memory map" Hmem ];
-  last (iIntros Hregs; iIntros Hmem).
+    [ let hcl := instr_trap_closed in
+      first
+        [ iApply (wp_trap_fault_frac with
+                   [SIdent hpc nil; hcl; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
+        | iApply (wp_trap_fault with
+                   [SIdent hpc nil; hcl; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil]) ];
+      [ .. | solve_hwm_closed | ];
+      last (iIntros Hregs; iIntros Hmem; iIntros "?")
+    | first
+        [ iApply (wp_trap_fault_frac_nosr with
+                   [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil])
+        | iApply (wp_trap_fault_nosr with
+                   [SIdent hpc nil; SIdent (INamed Hregs) nil; SIdent (INamed Hmem) nil]) ];
+      [ solve_pc_nosr | .. ];
+      last (iIntros Hregs; iIntros Hmem)
+    | fail "iTrap cause: no register map" Hregs "or no memory map" Hmem
+        "or no closed window and the PC may have the system-register permission" ].

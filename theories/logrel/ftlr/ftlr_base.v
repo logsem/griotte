@@ -55,23 +55,28 @@ Section fundamental.
            interp (th := t) W C w -∗ interp_expression (th := t) W C w).
 
   (** The post-state of an instruction step in a case of the fundamental
-      theorem, at the post-world [W]: after [NextIV], the PC and the
-      registers, the registers safe and the PC safe to execute; after
-      [FaultedV], the PC and the registers, safe up to the world's filter;
-      after [HaltedV], nothing; a switch value: [False]. *)
-  Definition ftlr_post (W : WORLD) (C : CmptName) (v : tval (kind_of th)) : iProp Σ :=
+      theorem, at the post-world [W], with MSHWMB holding [mshwmb_v] and MSHWM at
+      most [mshwm_v]: after [NextIV], the PC, the registers and
+      the two high-water-mark registers, the registers safe and the PC safe
+      to execute; after [FaultedV], the PC, the registers and the two
+      high-water-mark registers, safe up to the world's filter; after
+      [HaltedV], nothing; a switch value: [False]. *)
+  Definition ftlr_post (W : WORLD) (C : CmptName) (mshwmb_v mshwm_v : Z)
+      (v : tval (kind_of th)) : iProp Σ :=
     match v with
     | NextIV =>
         ∃ (regs : LReg) (pc : LWord),
           ⌜∀ r, is_Some (regs !! r)⌝ ∗
           PC ↦ₚ[th] pc ∗
           regs[th] regs ∗
+          (∃ mshwm_v', hwm_res_ftlr mshwmb_v mshwm_v' ∗ ⌜(mshwm_v' <= mshwm_v)%Z⌝) ∗
           (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
           interp_expression W C pc
     | FaultedV =>
         ∃ (regs : LReg) (pc : LWord),
           PC ↦ₚ[th] pc ∗
           regs[th] regs ∗
+          (∃ mshwm_v', hwm_res_ftlr mshwmb_v mshwm_v' ∗ ⌜(mshwm_v' <= mshwm_v)%Z⌝) ∗
           interp_reg interp W C regs
     | HaltedV => True
     | TSwV _ => False
@@ -81,44 +86,48 @@ Section fundamental.
       after [NextIV], the PC is safe to execute at the post-step posture
       [m]; otherwise as [ftlr_post]. *)
   Definition ftlr_post_at (m : InterruptStatus) (W : WORLD) (C : CmptName)
-      (v : tval (kind_of th)) : iProp Σ :=
+      (mshwmb_v mshwm_v : Z) (v : tval (kind_of th)) : iProp Σ :=
     match v with
     | NextIV =>
         ∃ (regs : LReg) (pc : LWord),
           ⌜∀ r, is_Some (regs !! r)⌝ ∗
           PC ↦ₚ[th] pc ∗
           regs[th] regs ∗
+          (∃ mshwm_v', hwm_res_ftlr mshwmb_v mshwm_v' ∗ ⌜(mshwm_v' <= mshwm_v)%Z⌝) ∗
           (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) ∗
           interp_expr_at m interp interp_continuation W C pc
-    | _ => ftlr_post W C v
+    | _ => ftlr_post W C mshwmb_v mshwm_v v
     end.
 
   (** The hand-off of a case, after the next instruction. *)
-  Lemma ftlr_post_next W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_next W C mshwmb_v mshwm_v (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     interp_expression W C pc -∗
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C NextIV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C mshwmb_v mshwm_v NextIV.
   Proof.
-    iIntros (Hfull) "HPC Hregs Hreg Hpc Hworld".
-    iExists W. iFrame. iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
-    by iPureIntro.
+    iIntros (Hfull) "HPC Hregs Hhwm Hreg Hpc Hworld".
+    iExists W. iFrame. iPureIntro. split_and!; [apply related_sts_pub_refl_world|done|lia].
   Qed.
 
   (** The hand-off of a case, after a fault. *)
-  Lemma ftlr_post_fault W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_fault W C mshwmb_v mshwm_v (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C FaultedV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C mshwmb_v mshwm_v FaultedV.
   Proof.
-    iIntros (Hfull) "HPC Hregs Hreg Hworld".
-    iExists W. iFrame "HPC Hregs Hworld". iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iIntros (Hfull) "HPC Hregs Hhwm Hreg Hworld".
+    iExists W. iFrame "HPC Hregs Hworld".
+    iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
+    iSplitL "Hhwm"; first (iExists mshwm_v; iFrame; by iPureIntro).
     by iApply (interp_reg_intro with "Hreg").
   Qed.
 
@@ -146,57 +155,75 @@ Section fundamental.
 
   (** The post-state of [ftlr_post_at] is that of [ftlr_post] after a
       fault or a halt. *)
-  Lemma ftlr_post_at_eq m W C v : v ≠ NextIV → ftlr_post_at m W C v ⊣⊢ ftlr_post W C v.
+  Lemma ftlr_post_at_eq m W C mshwmb_v mshwm_v v :
+    v ≠ NextIV → ftlr_post_at m W C mshwmb_v mshwm_v v ⊣⊢ ftlr_post W C mshwmb_v mshwm_v v.
   Proof. by destruct v. Qed.
 
   (** The hand-off of a case that sees the posture, after the next
       instruction at the posture [m]. *)
-  Lemma ftlr_post_at_next m W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_at_next m W C mshwmb_v mshwm_v (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     route_pre th m →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     interp_expr_at m interp interp_continuation W C pc -∗
     world_interp W C -∗
     MIE ↦ₜ[th] m -∗
     ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
-             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C NextIV.
+             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C mshwmb_v mshwm_v NextIV.
   Proof.
-    iIntros (Hfull Hpre) "HPC Hregs Hreg Hpc Hworld Hmie".
+    iIntros (Hfull Hpre) "HPC Hregs Hhwm Hreg Hpc Hworld Hmie".
     iExists W, m. iFrame "Hworld Hmie".
     iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
     iSplit; first done.
-    rewrite /ftlr_post_at. iExists regs, pc. iFrame. by iPureIntro.
+    rewrite /ftlr_post_at. iExists regs, pc. iFrame. iPureIntro. split; [done|lia].
   Qed.
 
   (** The hand-off of a case that sees the posture, after a fault at the
       posture [m]. *)
-  Lemma ftlr_post_at_fault m W C (regs : LReg) (pc : LWord) :
+  Lemma ftlr_post_at_fault m W C mshwmb_v mshwm_v (regs : LReg) (pc : LWord) :
     (∀ r, is_Some (regs !! r)) →
     route_pre th m →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     (∀ (r : RegName) (v : LWord), ⌜regs !! r = Some v⌝ → interp W C v) -∗
     world_interp W C -∗
     MIE ↦ₜ[th] m -∗
     ∃ W' m', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗
-             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C FaultedV.
+             MIE ↦ₜ[th] m' ∗ ⌜route_pre th m'⌝ ∗ ftlr_post_at m' W' C mshwmb_v mshwm_v FaultedV.
   Proof.
-    iIntros (Hfull Hpre) "HPC Hregs Hreg Hworld Hmie".
+    iIntros (Hfull Hpre) "HPC Hregs Hhwm Hreg Hworld Hmie".
     iExists W, m. rewrite ftlr_post_at_eq //. iFrame "HPC Hregs Hworld Hmie".
     iSplit; first (iPureIntro; apply related_sts_pub_refl_world).
     iSplit; first done.
+    iSplitL "Hhwm"; first (iExists mshwm_v; iFrame; by iPureIntro).
     by iApply (interp_reg_intro with "Hreg").
   Qed.
 
   (** The hand-off of a case, after a halt. *)
-  Lemma ftlr_post_halt W C :
+  Lemma ftlr_post_halt W C mshwmb_v mshwm_v :
     world_interp W C -∗
-    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C HaltedV.
+    ∃ W', ⌜related_sts_pub_world W W'⌝ ∗ world_interp W' C ∗ ftlr_post W' C mshwmb_v mshwm_v HaltedV.
   Proof.
     iIntros "Hworld". iExists W. iFrame. iPureIntro.
     apply related_sts_pub_refl_world.
+  Qed.
+
+  (** A post-state with a lower bound on MSHWM is one with a higher bound. *)
+  Lemma ftlr_post_le W C mshwmb_v mshwm_v mshwm_v' v :
+    (mshwm_v' <= mshwm_v)%Z →
+    ftlr_post W C mshwmb_v mshwm_v' v -∗ ftlr_post W C mshwmb_v mshwm_v v.
+  Proof.
+    iIntros (Hh) "Hpost". destruct v; cbn; try done.
+    (* a switch value: [False] *)
+    all: try iDestruct "Hpost" as %[].
+    all: first
+      [ iDestruct "Hpost" as (regs pc) "(Hfull & HPC & Hregs & (%mshwm_v'' & Hhwm & %Hh'') & Hrest)"
+      | iDestruct "Hpost" as (regs pc) "(HPC & Hregs & (%mshwm_v'' & Hhwm & %Hh'') & Hrest)" ].
+    all: iExists regs, pc; iFrame; iPureIntro; lia.
   Qed.
 
 End fundamental.

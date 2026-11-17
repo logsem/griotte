@@ -56,7 +56,7 @@ Ltac solve_not_switch_instr := intros ?; first [by apply sw_of_none | reject_sha
 
 (** [SI_close] takes the erasure only. *)
 #[local] Arguments SI_close {MP Σ pcG0 gen_heapGS0 gen_heapGS1 gen_heapGS2 gen_heapGS3
-  allocRegistryG0 addrAllocG0 H mtdcG0 mieG0 mpieG0 postureG0 mtdcLentG0 σ lpc lreg ls lmem R C}.
+  allocRegistryG0 addrAllocG0 H mtdcG0 mieG0 mpieG0 postureG0 mtdcLentG0 hwmG0 σ lpc lreg ls lmem R C}.
 
 Section shapes_shared.
   Context
@@ -153,55 +153,70 @@ Section shapes_shared.
   Qed.
 
   (** The post-state after a fault. *)
-  Lemma ftlr_contract_intro_post_fault W C regs pc :
+  Lemma ftlr_contract_intro_post_fault W C mshwmb_v mshwm_v regs pc :
     (∀ r, is_Some (regs !! r)) →
     PC ↦ₚ[th] pc -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     ▷ ((∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗ world_interp W C) -∗
-    ftlr_contract_intro_post W C FaultedV.
+    ftlr_contract_intro_post W C mshwmb_v mshwm_v FaultedV.
   Proof.
-    iIntros (Hfull) "HPC Hmap Hpost !>". iDestruct "Hpost" as "[Hreg Hworld]".
-    iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld"); done.
+    iIntros (Hfull) "HPC Hmap Hhwm Hpost !>". iDestruct "Hpost" as "[Hreg Hworld]".
+    iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld"); done.
   Qed.
 
   (** The post-state after a step that moves a safe PC by [n]. *)
-  Lemma ftlr_contract_intro_post_next W C regs p g b e a n lpc' :
+  Lemma ftlr_contract_intro_post_next W C mshwmb_v mshwm_v regs p g b e a n lpc' :
     (∀ r, is_Some (regs !! r)) →
     isCorrectPC (Cap p g b e a) → incrementPC_gen (Cap p g b e a) n = Some lpc' →
     ftlr_IH -∗
     interp W C (Cap p g b e a) -∗
     PC ↦ₚ[th] lpc' -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     ▷ ((∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) ∗ world_interp W C) -∗
-    ftlr_contract_intro_post W C NextIV.
+    ftlr_contract_intro_post W C mshwmb_v mshwm_v NextIV.
   Proof.
-    iIntros (Hfull Hcorrect Hinc) "#IH #Hpc HPC Hmap Hpost".
+    iIntros (Hfull Hcorrect Hinc) "#IH #Hpc HPC Hmap Hhwm Hpost".
     apply incrementPC_gen_Some_inv in Hinc
       as (t'' & p'' & g'' & b'' & e'' & a'' & a_next & π'' & Hpc & Ha_next & ->).
     injection Hpc as <- <- <- <- <- <- <-.
     iNext. iDestruct "Hpost" as "[Hreg Hworld]".
-    iApply (ftlr_post_next with "HPC Hmap Hreg [] Hworld"); first done.
+    iApply (ftlr_post_next with "HPC Hmap Hhwm Hreg [] Hworld"); first done.
     iApply "IH". by iApply (interp_next_PC with "Hpc").
   Qed.
 
-  (** The closing of the PC's region, at the fraction [dq] of the PC's
-      cell, for any word left in it. *)
-  Definition pc_cell_close W C (a : Addr) (dq : dfrac) (P : D) (ρ : region_part) : iProp Σ :=
+  (** A post-state with a lower bound on MSHWM is one with a higher
+      bound. *)
+  Lemma ftlr_contract_intro_post_le W C mshwmb_v mshwm_v mshwm_v' v :
+    (mshwm_v' <= mshwm_v)%Z →
+    ftlr_contract_intro_post W C mshwmb_v mshwm_v' v -∗
+    ftlr_contract_intro_post W C mshwmb_v mshwm_v v.
+  Proof.
+    iIntros (Hh) "Hpost !>". iDestruct "Hpost" as (W') "(%Hrel & Hworld & Hpost)".
+    iExists W'. iFrame "Hworld". iSplit; first done.
+    by iApply (ftlr_post_le with "Hpost").
+  Qed.
+
+  (** The closing of the PC's region, from the cell of its region, for any
+      word left in it. *)
+  Definition pc_cell_close W C (a : Addr) (P : D) (ρ : region_part) : iProp Σ :=
     ∀ w',
       world_interp_open W C [LNonHeap a] -∗
-      a ↦ₐ{dq} w' -∗
+      region_cell ρ (LNonHeap a) w' -∗
       pc_content ρ W C P w' -∗
       world_interp W C.
 
-  (** The PC's cell, with its content and the closing of the PC's region,
-      for a step that may write the cell: the memory accesses. *)
+  (** The cell of the PC's region, a points-to or a zone cell, with its
+      content and the closing of the PC's region, for a step that may write
+      the cell: the memory accesses. *)
   Lemma pc_cell_open W C a p' P w ρ :
     persistent_cond P →
     region_rel_part ρ W C (LNonHeap a) p' P -∗
     ▷ pc_open W C (LNonHeap a) p' P w ρ -∗
-    ▷ (a ↦ₐ w ∗
+    ▷ (region_cell ρ (LNonHeap a) w ∗
        pc_content ρ W C P w ∗
-       pc_cell_close W C a (DfracOwn 1) P ρ).
+       pc_cell_close W C a P ρ).
   Proof.
     iIntros (Hpers) "#Hinva WorldRes !>".
     iDestruct (pc_open_acc_forall with "Hinva WorldRes") as "[ [$ $] Hreopen]".
@@ -209,8 +224,9 @@ Section shapes_shared.
     iApply (pc_close with "Hworld_interp Hinva (Hreopen [$Ha $Hcontent])"); first done.
   Qed.
 
-  (** The PC's cell at a fraction [dq], with the closing of the PC's region
-      at the same word, for a step that only fetches the instruction. *)
+  (** Half of the PC's cell, whether its region holds a points-to or a zone
+      cell, with the closing of the PC's region at the same word, for a step
+      that only fetches the instruction. *)
   Lemma pc_cell_fetch W C a p' P w ρ :
     persistent_cond P →
     region_rel_part ρ W C (LNonHeap a) p' P -∗
@@ -221,23 +237,29 @@ Section shapes_shared.
   Proof.
     iIntros (Hpers) "#Hinva WorldRes".
     iDestruct (pc_cell_open with "Hinva WorldRes") as "Hcell"; first done.
-    iExists (DfracOwn 1). iNext. iDestruct "Hcell" as "($ & Hcontent & Hclose)".
-    iIntros "Hworld_interp Ha". iApply ("Hclose" with "Hworld_interp Ha Hcontent").
+    iExists (DfracOwn (1/2)). iNext. iDestruct "Hcell" as "(Hc & Hcontent & Hclose)".
+    iDestruct (region_cell_fetch with "Hc") as "[$ Hrest]".
+    iIntros "Hworld_interp Ha". iApply ("Hclose" with "Hworld_interp (Hrest Ha) Hcontent").
   Qed.
 
   (** The step of a case whose instruction is not a switch instruction: the
       PC's cell is lent to the step and given back, and a failed step is
       closed. The continuation gets a successful step, the world open at
-      the PC and the closing of the PC's region. *)
-  Lemma ftlr_case_step_not_switch_instr W C (regs : LReg) p p' g b e a w i ρ P :
+      the PC and the closing of the PC's region. The instruction does not
+      write MSHWMB with the system-register permission, as [wp_instr_step]
+      requires. *)
+  Lemma ftlr_case_step_not_switch_instr W C mshwmb_v mshwm_v (regs : LReg)
+      p p' g b e a w i ρ P :
     not_switch_instr i → decodeInstrW w.(lw) = i → isCorrectPC (Cap p g b e a) → persistent_cond P →
     (∀ x : RegName, is_Some (regs !! x)) →
+    (has_sreg_access p = true → writes_mshwmb i = false) →
     (∀ (r : RegName) v, ⌜regs !! r = Some v⌝ → interp W C v) -∗
     region_rel_part ρ W C (LNonHeap a) p' P -∗
     ▷ pc_open W C (LNonHeap a) p' P w ρ -∗
     world_interp_open W C [LNonHeap a] -∗
     PC ↦ₚ[th] (Cap p g b e a) -∗
     regs[th] regs -∗
+    hwm_res_ftlr mshwmb_v mshwm_v -∗
     ▷ (∀ r sr m st td lsreg lmem R claims c σ',
          ⌜erasure R claims (MkExecConf (Cap p g b e a) r sr m st td) (Cap p g b e a) regs
             (ls_join lsreg) lmem⌝ -∗
@@ -251,17 +273,20 @@ Section shapes_shared.
          addr_alloc_auth claims -∗
          PC ↦ₚ[th] (Cap p g b e a) -∗
          regs[th] regs -∗
+         hwm_res_ftlr mshwmb_v mshwm_v -∗
          world_interp_open W C [LNonHeap a] -∗
          (world_interp_open W C [LNonHeap a] -∗ world_interp W C)
          ==∗
          ⌜sys_kept (MkExecConf (Cap p g b e a) r sr m st td) σ'⌝ ∗
          cerise_state_interp σ' ∗
-         from_option (ftlr_contract_intro_post W C) False (flag_val c)) -∗
-    WP Instr Executable @core[th] {{ ftlr_contract_intro_post W C }}.
+         from_option (ftlr_contract_intro_post W C mshwmb_v mshwm_v) False (flag_val c)) -∗
+    WP Instr Executable @core[th] {{ ftlr_contract_intro_post W C mshwmb_v mshwm_v }}.
   Proof.
-    iIntros (Hsw Hi HcorrectPC Hpers Hsome) "#Hreg #Hinva WorldRes Hworld_interp HPC Hmap Hcont".
+    iIntros (Hsw Hi HcorrectPC Hpers Hsome Hwr) "#Hreg #Hinva WorldRes Hworld_interp HPC Hmap Hhwm
+      Hcont".
     iDestruct (pc_cell_fetch with "Hinva WorldRes") as (dq) "[Ha Hpc_close]"; first done.
-    iApply (wp_instr_step_nosw (CL := link_core) with "HPC Ha Hmap"); [by rewrite Hi | done |].
+    iApply (wp_instr_step_nosw (CL := link_core) with "HPC Ha Hmap");
+      [by rewrite Hi | done | by rewrite Hi |].
     iNext. iIntros (r sr m st td lreg lsreg lmem R claims c σ') "@".
     pose proof (full_regs_incl_eq regs lreg Hsome Hlregs) as ->.
     rewrite Hi /exec in Hstep.
@@ -270,9 +295,9 @@ Section shapes_shared.
       iDestruct ("Hpc_close" with "Hworld_interp Hpc_a") as "Hworld_interp".
       iApply (instr_close_fail with "HPCa Hr Hsr Hm Hst HR HC HPC Hmap"); first done.
       iIntros "HPC Hmap".
-      iApply (ftlr_contract_intro_post_fault with "HPC Hmap [$Hreg $Hworld_interp]"); done. }
+      iApply (ftlr_contract_intro_post_fault with "HPC Hmap Hhwm [$Hreg $Hworld_interp]"); done. }
     subst conf.
-    iApply ("Hcont" with "[//] [//] HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hworld_interp").
+    iApply ("Hcont" with "[//] [//] HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hhwm Hworld_interp").
     iIntros "Hworld_interp". iApply ("Hpc_close" with "Hworld_interp Hpc_a").
   Qed.
 
@@ -328,11 +353,12 @@ Section stop.
     ftlr_contract m W C regs p p' g b e a w i ρ P.
   Proof.
     intros Hstop. apply ftlr_contract_intro. clear m.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi mshwmb_v mshwm_v.
     iIntros "@".
     iDestruct (interp_pc_no_sreg_access with "Hinv_interp") as %Hnsr; first apply Hp.
     iDestruct (pc_cell_fetch with "Hinva WorldRes") as (dq) "[Ha Hpc_close]"; first done.
-    iApply (wp_instr_step (CL := link_core) with "HPC Ha Hmap"); first done.
+    iApply (wp_instr_step (CL := link_core) with "HPC Ha Hmap");
+      [done | intros Hsr; by rewrite Hnsr in Hsr |].
     iNext. iIntros (r sr m st td lreg lsreg lmem R claims c σ') "@".
     iDestruct ("Hpc_close" with "Hworld_interp Hpc_a") as "Hworld_interp".
     iModIntro.
@@ -340,9 +366,9 @@ Section stop.
     destruct (Hstop p (MkExecConf (Cap p g b e a) r sr m st td) (proj1 Hp) Hnsr) as [Hex | Hex];
       rewrite Hex in Hstep; simplify_eq.
     - iSplit; first (iPureIntro; apply sys_kept_refl).
-      iSplitR "HPC Hmap Hworld_interp".
+      iSplitR "HPC Hmap Hhwm Hworld_interp".
       { iApply (SI_close Her with "HPCa Hr Hsr Hm Hst HR HC"). }
-      iNext. iApply (ftlr_post_fault with "HPC Hmap Hreg Hworld_interp"); done.
+      iNext. iApply (ftlr_post_fault with "HPC Hmap Hhwm Hreg Hworld_interp"); done.
     - iSplit; first (iPureIntro; apply sys_kept_refl).
       iSplitR "Hworld_interp".
       { iApply (SI_close Her with "HPCa Hr Hsr Hm Hst HR HC"). }
@@ -489,13 +515,15 @@ Section regs.
     ftlr_contract m W C regs p p' g b e a w i ρ P.
   Proof.
     intros Hmember Hsw. apply ftlr_contract_intro. clear m.
-    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi.
+    intros Hp Hsome HcorrectPC Hbae Hfp Hpers Hi mshwmb_v mshwm_v.
     iIntros "@".
+    iDestruct (interp_pc_no_sreg_access with "Hinv_interp") as %Hnsr; first apply Hp.
     iAssert (⌜∀ r v, regs !! r = Some v → no_prov_disjoint_from_heap v⌝)%I as %Hnoid.
     { iIntros (r v Hv). iApply interp_no_prov_disjoint_from_heap. by iApply "Hreg". }
-    iApply (ftlr_case_step_not_switch_instr with "Hreg Hinva WorldRes Hworld_interp HPC Hmap"); [done..|].
+    iApply (ftlr_case_step_not_switch_instr with "Hreg Hinva WorldRes Hworld_interp HPC Hmap Hhwm");
+      [done.. | intros Hsr; by rewrite Hnsr in Hsr |].
     iIntros "!>" (r sr m st td lsreg lmem R claims c σ' Her Hexec)
-      "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hworld_interp Hclose_pc".
+      "HPCa Hr Hsr Hm Hst HR HC HPC Hmap Hhwm Hworld_interp Hclose_pc".
     destruct (Hmember _ _ _ Hexec) as (dst & w' & n & Hder & Hadv).
     rewrite /regs_effect in Hadv.
     destruct (derivable_lift Her Hnoid w' Hder) as (v & Hok & Hphys & Hlder).
@@ -515,12 +543,13 @@ Section regs.
     { intros lpc' Hinc. by left. }
     { intros Hinc. by right. }
     iIntros (lpc' regs' retv [ (-> & Hinc & ->) | (-> & -> & ->) ]) "HPC Hmap".
-    - iApply (ftlr_contract_intro_post_next with "IH Hinv_interp HPC Hmap [Hv_world Hclose_pc]");
+    - iApply (ftlr_contract_intro_post_next
+                with "IH Hinv_interp HPC Hmap Hhwm [Hv_world Hclose_pc]");
         [by apply full_map_linsert | done | exact Hinc |].
       iNext. iDestruct "Hv_world" as "[#Hv Hworld_interp]". iSplit.
       + iApply (interp_linsert with "Hreg"). by iIntros (_).
       + by iApply "Hclose_pc".
-    - iApply (ftlr_contract_intro_post_fault with "HPC Hmap [Hv_world Hclose_pc]"); first done.
+    - iApply (ftlr_contract_intro_post_fault with "HPC Hmap Hhwm [Hv_world Hclose_pc]"); first done.
       iNext. iDestruct "Hv_world" as "[_ Hworld_interp]". iFrame "Hreg".
       by iApply "Hclose_pc".
   Qed.

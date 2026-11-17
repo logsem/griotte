@@ -268,6 +268,21 @@ Definition top_tframe (cstk : cstack) : trusted_frame :=
   | [] => cstk.(cstk_entry)
   end.
 
+(** The base of the stack high-water mark of the thread of [cstk]: the base
+    of its initial stack, which the entry frame holds. *)
+Definition cstk_hwm_base (cstk : cstack) : Addr := tf_stk_b cstk.(cstk_entry).
+
+(** The end of the entry stack of the thread of [cstk]. *)
+Definition cstk_hwm_top (cstk : cstack) : Addr := tf_stk_e cstk.(cstk_entry).
+
+Lemma cstk_hwm_base_push frm cstk :
+  cstk_hwm_base (cstack_push frm cstk) = cstk_hwm_base cstk.
+Proof. done. Qed.
+
+Lemma cstk_hwm_top_push frm cstk :
+  cstk_hwm_top (cstack_push frm cstk) = cstk_hwm_top cstk.
+Proof. done. Qed.
+
 (** The base of the export table of the callee of the topmost frame. *)
 Definition top_export_tbl (cstk : cstack) : Addr := tf_export_tbl_b (top_tframe cstk).
 
@@ -295,6 +310,12 @@ Definition cstack_set_top_count (cstk : cstack) (n : Z) : cstack :=
 Definition top_is_entry (cstk : cstack) : bool :=
   match cstk.(cstk_frames) with [] => true | _ :: _ => false end.
 
+Lemma cstk_hwm_base_set_top_count cstk n :
+  cstk_hwm_base (cstack_set_top_count cstk n) = cstk_hwm_base cstk.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
+Lemma cstk_hwm_top_set_top_count cstk n :
+  cstk_hwm_top (cstack_set_top_count cstk n) = cstk_hwm_top cstk.
+Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 Lemma top_tframe_set_count cstk n :
   top_tframe (cstack_set_top_count cstk n) = tf_set_count (top_tframe cstk) n.
 Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
@@ -318,20 +339,26 @@ Proof. by destruct cstk as [ef [|frm frms] ]. Qed.
 Inductive handler_kind := Stackful | Stackless.
 
 Definition cstackUR := excl_authUR CSTK.
+(** The bounds of the stack of a thread, fixed. *)
+Definition thread_stack_boundsR := agreeR (prodO (leibnizO Addr) (leibnizO Addr)).
 
 Class CSTACK_preG Σ :=
-  { cstack_preG :: inG Σ cstackUR; }.
+  { cstack_preG :: inG Σ cstackUR;
+    thread_stack_bounds_preG :: inG Σ thread_stack_boundsR; }.
 #[export] Hint Mode CSTACK_preG - : typeclass_instances.
 
-(** The ghost name of the call stack of each thread. *)
+(** The ghost names of the call stack and of the stack bounds of each
+    thread. *)
 Class CSTACKG Σ :=
   { cstack_inG :: inG Σ cstackUR;
+    thread_stack_bounds_inG :: inG Σ thread_stack_boundsR;
     γcstack : Thread → gname;
+    γthread_stack_bounds : Thread → gname;
   }.
 #[export] Hint Mode CSTACKG - : typeclass_instances.
 
 Definition CSTACK_preΣ :=
-  #[ GFunctor cstackUR ].
+  #[ GFunctor cstackUR; GFunctor thread_stack_boundsR ].
 
 #[export] Instance subG_CSTACK_preΣ {Σ} :
   subG CSTACK_preΣ Σ → CSTACK_preG Σ.
@@ -357,6 +384,23 @@ Section CStack.
     iCombine "Hfull Hfrag" as "H".
     iDestruct (own_valid with "H") as "%H".
     by apply excl_auth_agree_L in H.
+  Qed.
+
+  (** The stack of the section's thread is [bs, es). *)
+  Definition thread_stack_bounds (bs es : Addr) : iProp Σ :=
+    own (γthread_stack_bounds th) (to_agree ((bs, es) : prodO (leibnizO Addr) (leibnizO Addr))).
+
+  #[global] Instance thread_stack_bounds_persistent bs es : Persistent (thread_stack_bounds bs es).
+  Proof. apply _. Qed.
+  #[global] Instance thread_stack_bounds_timeless bs es : Timeless (thread_stack_bounds bs es).
+  Proof. apply _. Qed.
+
+  Lemma thread_stack_bounds_agree bs es bs' es' :
+    thread_stack_bounds bs es -∗ thread_stack_bounds bs' es' -∗ ⌜bs = bs' ∧ es = es'⌝.
+  Proof.
+    iIntros "H1 H2". rewrite /thread_stack_bounds.
+    iCombine "H1 H2" gives %Hv%to_agree_op_valid_L.
+    by inversion Hv.
   Qed.
 
   Lemma cstack_update (cstk cstk' cstk'' : cstack) :
@@ -386,33 +430,50 @@ Notation "◯(CSTK)[ th ] cs" := (cstack_frag (th := th) cs)
   (at level 20, th custom thread, format "◯(CSTK)[ th ]  cs") : bi_scope.
 
 (** The call stacks of the context-switch thread and of the user threads
-    [k]; the other user threads get a call stack [cs_c] each, which is
-    dropped. *)
+    [k], with the stack bounds of each; the other user threads get a call
+    stack [cs_c] each, which is dropped. *)
+(* The context-switch thread's [thread_stack_bounds] is at the bounds of [cs_c]'s
+   entry frame: the boot stack's bounds, given by the firmware. *)
 Lemma gen_cstack_init_ctx {Σ : gFunctors} {cstack_preg : CSTACK_preG Σ}
     (cs_c : cstack) (css : list cstack) :
   ⊢ |==> ∃ (cstackg : CSTACKG Σ),
     ●(CSTK)[CtxSwitch] cs_c ∗ ◯(CSTK)[CtxSwitch] cs_c ∗
-    [∗ list] k ↦ cs ∈ css, ●(CSTK)[u k] cs ∗ ◯(CSTK)[u k] cs.
+    thread_stack_bounds (th := CtxSwitch) (cstk_hwm_base cs_c) (cstk_hwm_top cs_c) ∗
+    [∗ list] k ↦ cs ∈ css, ●(CSTK)[u k] cs ∗ ◯(CSTK)[u k] cs ∗
+      thread_stack_bounds (th := UserThread k) (cstk_hwm_base cs) (cstk_hwm_top cs).
 Proof.
   iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
     as (γc) "[Hfull Hfrag]"; first by apply excl_auth_valid.
   iMod (own_alloc (A:=cstackUR) (●E (cs_c : leibnizO _) ⋅ ◯E (cs_c : leibnizO _)))
     as (γd) "_"; first by apply excl_auth_valid.
-  iAssert (|==> ∃ γs : list gname, [∗ list] k ↦ cs ∈ css,
-             own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR))%I
-    as ">[%γs Hcss]".
+  iMod (own_alloc (A:=thread_stack_boundsR) (to_agree ((cstk_hwm_base cs_c, cstk_hwm_top cs_c)
+                                       : prodO (leibnizO Addr) (leibnizO Addr))))
+    as (δc) "Hts"; first done.
+  iMod (own_alloc (A:=thread_stack_boundsR) (to_agree ((cstk_hwm_base cs_c, cstk_hwm_top cs_c)
+                                       : prodO (leibnizO Addr) (leibnizO Addr))))
+    as (δd) "_"; first done.
+  iAssert (|==> ∃ γs δs : list gname, [∗ list] k ↦ cs ∈ css,
+             own (nth k γs γd) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _) : cstackUR) ∗
+             own (nth k δs δd) (to_agree ((cstk_hwm_base cs, cstk_hwm_top cs)
+                                          : prodO (leibnizO Addr) (leibnizO Addr)) : thread_stack_boundsR))%I
+    as ">(%γs & %δs & Hcss)".
   { iClear "∗". iInduction css as [|cs css] "IH".
-    - iModIntro. by iExists [].
+    - iModIntro. by iExists [], [].
     - iMod (own_alloc (A:=cstackUR) (●E (cs : leibnizO _) ⋅ ◯E (cs : leibnizO _)))
         as (γ) "Hγ"; first by apply excl_auth_valid.
-      iMod "IH" as (γs) "Hcss".
-      iModIntro. iExists (γ :: γs). by iFrame. }
+      iMod (own_alloc (A:=thread_stack_boundsR) (to_agree ((cstk_hwm_base cs, cstk_hwm_top cs)
+                                               : prodO (leibnizO Addr) (leibnizO Addr))))
+        as (δ) "Hδ"; first done.
+      iMod "IH" as (γs δs) "Hcss".
+      iModIntro. iExists (γ :: γs), (δ :: δs). by iFrame. }
   iModIntro.
-  iExists (Build_CSTACKG _ _
-    (λ th, match th with UserThread k => nth k γs γd | CtxSwitch => γc end)).
-  iFrame "Hfull Hfrag".
+  iExists (Build_CSTACKG _ _ _
+    (λ th, match th with UserThread k => nth k γs γd | CtxSwitch => γc end)
+    (λ th, match th with UserThread k => nth k δs δd | CtxSwitch => δc end)).
+  iFrame "Hfull Hfrag Hts".
   iApply (big_sepL_impl with "Hcss").
-  iIntros "!>" (k cs _) "Hcs". rewrite /cstack_full /cstack_frag -own_op //.
+  iIntros "!>" (k cs _) "[Hcs Hts]". rewrite /cstack_full /cstack_frag /thread_stack_bounds assoc -own_op.
+  iFrame.
 Qed.
 
 Section Handler_projections.

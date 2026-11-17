@@ -89,7 +89,8 @@ Section logrel_fix.
                 => False
               | WCap t p g b e a =>
                   (interp_cap_body interp th W C p g b e w.(lprov)
-                   ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov))
+                   ∗ ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e w.(lprov)
+                   ∗ wl_in_stack (th := th) p b e)
                   ∨ ⌜exposed_mmio_cap p b e w.(lprov)⌝
               | _ => False
               end)%I.
@@ -170,10 +171,10 @@ Section logrel_fix.
     | |- context [WCap _ ?p ?g _ _ _] =>
         change (dist n
           ((interp_cap_body x th W C p g b e π ∗
-            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π ∗ wl_in_stack (th := th) p b e)
            ∨ ⌜exposed_mmio_cap p b e π⌝)%I
           ((interp_cap_body y th W C p g b e π ∗
-            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+            ⌜disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π ∗ wl_in_stack (th := th) p b e)
            ∨ ⌜exposed_mmio_cap p b e π⌝)%I);
         apply bi.or_ne;
         [f_equiv; exact (interp_cap_body_contractive th W C p g b e π n x y Hdist)|done]
@@ -264,12 +265,15 @@ Section logrel_fix.
                              else wcond_nwl P C (interp th))
                        else True))
                ∗ ⌜(if isWL p then g = Local else True) ∧
-                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π)
+                    disjoint_from_mmio b e⌝ ∗ heap_cap_ok p b e π
+               ∗ wl_in_stack (th := th) p b e)
                ∨ ⌜exposed_mmio_cap p b e π⌝)%I).
   Proof.
     (* Rewriting the pure conjunctions with [bi.pure_and] unfolds
        [disjoint_from_mmio]: rewrite them as propositions instead. *)
     pose proof (interp_cap_body_eq interp th W C p g b e π) as Hbody.
+    (* The write-local conjunct is kept abstract across the case split. *)
+    remember (wl_in_stack (th := th) p b e) as Xwl eqn:HXwl.
     destruct p as [rx wp dl dro].
     destruct rx, wp, g; cbn [isO has_sreg_access isWL].
     all: rewrite -?Hbody.
@@ -279,13 +283,13 @@ Section logrel_fix.
               [|naive_solver]).
     all: try (rewrite (_ : ((Global = Local ∧ disjoint_from_mmio b e) ↔ False));
               [|naive_solver]).
-    all: try reflexivity.
+    all: try (subst Xwl; reflexivity).
     (* A write-local Global capability: both disjuncts are false. *)
     all: rewrite (_ : (exposed_mmio_cap _ b e π ↔ False));
       [|split; [intros (_ & _ & Hwl & _); discriminate|done] ].
     all: rewrite ?bi.False_sep ?bi.sep_False ?bi.False_or ?bi.or_False.
     all: rewrite (comm bi_sep _ False%I) ?bi.sep_False ?bi.False_sep.
-    all: reflexivity.
+    all: subst Xwl; reflexivity.
   Qed.
 
 End logrel_fix.

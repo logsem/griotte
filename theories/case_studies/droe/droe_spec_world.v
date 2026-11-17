@@ -78,7 +78,8 @@ Section DROE_World.
         pose proof (switcher_disjoint_subseg cgp_b cgp_e cgp_b (cgp_b ^+ 1)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
-        iSplit; [iPureIntro; exact Hsub_shadow|iApply heap_cap_ok_disjoint; exact Hsub_heap]).
+        iSplit; [iPureIntro; exact Hsub_shadow|
+          iSplit; [iApply heap_cap_ok_disjoint; exact Hsub_heap | done] ]).
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b)%a); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 1)); last solve_addr.
@@ -130,7 +131,8 @@ Section DROE_World.
         pose proof (switcher_disjoint_subseg cgp_b cgp_e (cgp_b ^+ 1) (cgp_b ^+ 2)
           ltac:(solve_addr) ltac:(solve_addr) (conj Hcgp_shadow Hcgp_heap))
           as [Hsub_shadow Hsub_heap];
-        iSplit; [iPureIntro; exact Hsub_shadow|iApply heap_cap_ok_disjoint; exact Hsub_heap]).
+        iSplit; [iPureIntro; exact Hsub_shadow|
+          iSplit; [iApply heap_cap_ok_disjoint; exact Hsub_heap | done] ]).
       rewrite /interp_cap_body.
       rewrite (finz_seq_between_cons (cgp_b ^+ 1)); last solve_addr.
       rewrite (finz_seq_between_empty _ (cgp_b ^+ 2)); last solve_addr.

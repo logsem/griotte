@@ -33,12 +33,17 @@ Section Switcher.
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (nargs : nat)
+    (mshwm_v : Z)
     :
     let wct1_caller := WSealed ot_switcher w_entry_point in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
+    (* The caller's stack starts at the base of the thread's stack, and ends
+       in it *)
+    b_stk = cstk_hwm_base cstk ->
+    (e_stk <= cstk_hwm_top cstk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -75,7 +80,9 @@ Section Switcher.
     ∗ regs[th] rmap
 
     (* Stack frame *)
-    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+    (* The high-water-mark registers *)
+    ∗ hwm_res cstk mshwm_v
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
@@ -117,7 +124,10 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
             ∗ regs₀[th] rmap'
-            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+            (* MSHWM is the caller's stack pointer when the call went
+               through, and at most its value at the call otherwise *)
+            ∗ (∃ mshwm_v' : Z, ⌜ (mshwm_v' <= Z.max mshwm_v a_stk)%Z ⌝ ∗ hwm_res cstk mshwm_v')
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
@@ -129,22 +139,22 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          b_stk e_stk a_stk stk_mem cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem cstk Ws Cs mshwm_v )
 
     ⊢ safe[th].
   Proof.
-    iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap Hsh)
+    iIntros (target Hstk_shadow Hstk_heap Hb_a Hbase Htop Hdom Hrdom Hret_jalr Hret_heap Hsh)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
-    & Hmie & Hheld & Hpost)".
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hhwm & Hworld_interp & Hstk_val & % & Hcstk
+    & Hcont & Hmie & Hheld & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iEval (rewrite -(world_resources_exclusive W C Hsh)) in "Hworld_interp".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
-    1-7: eauto.
+      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true mshwm_v).
+    1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
     iFrame "Hentry".
     iFrame "%".
     iSplitR.
@@ -159,7 +169,7 @@ Section Switcher.
       "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
-      & Hrmap & Hstk & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
+      & Hrmap & Hstk & Hhwm & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
     destruct Hloaded as (Hgp & Hra & Hs0 & Hs1).
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
@@ -169,7 +179,7 @@ Section Switcher.
       rewrite world_interp_eq. iDestruct "Hworld" as "[$ $]". }
     iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
-        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
+        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hhwm $Hcont $Hmie $Hheld]").
     iFrame "%".
   Qed.
 
@@ -186,12 +196,17 @@ Section Switcher.
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
     (nargs : nat)
+    (mshwm_v : Z)
     :
     let wct1_caller := WSealed ot_switcher w_entry_point in
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
+    (* The caller's stack starts at the base of the thread's stack, and ends
+       in it *)
+    b_stk = cstk_hwm_base cstk ->
+    (e_stk <= cstk_hwm_top cstk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -226,7 +241,9 @@ Section Switcher.
     ∗ regs[th] rmap
 
     (* Stack frame *)
-    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+    (* The high-water-mark registers *)
+    ∗ hwm_res cstk mshwm_v
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_resources W C
@@ -268,7 +285,10 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
             ∗ regs₀[th] rmap'
-            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+            (* MSHWM is the caller's stack pointer when the call went
+               through, and at most its value at the call otherwise *)
+            ∗ (∃ mshwm_v' : Z, ⌜ (mshwm_v' <= Z.max mshwm_v a_stk)%Z ⌝ ∗ hwm_res cstk mshwm_v')
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
                 load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
@@ -280,21 +300,21 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          b_stk e_stk a_stk stk_mem cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem cstk Ws Cs mshwm_v )
 
     ⊢ safe[th].
   Proof.
-    iIntros (target Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap)
+    iIntros (target Hstk_shadow Hstk_heap Hb_a Hbase Htop Hdom Hrdom Hret_jalr Hret_heap)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
-    & Hmie & Hheld & Hpost)".
+    & #Hentry & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hhwm & Hworld_interp & Hstk_val & % & Hcstk
+    & Hcont & Hmie & Hheld & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller target
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true).
-    1-7: eauto.
+      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true mshwm_v).
+    1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
     iFrame "Hentry".
     iFrame "%".
     iSplitR.
@@ -309,14 +329,14 @@ Section Switcher.
       "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
-      & Hrmap & Hstk & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
+      & Hrmap & Hstk & Hhwm & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
     destruct Hloaded as (Hgp & Hra & Hs0 & Hs1).
     assert (load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
             load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1)
       as Hloaded by (repeat split; assumption).
     iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
-        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
+        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hhwm $Hcont $Hmie $Hheld]").
     iFrame "%".
   Qed.
 
@@ -328,11 +348,16 @@ Section Switcher.
     (stk_mem : list LWord)
     (arg_rmap rmap : LReg)
     (cstk : CSTK) (Ws : list WORLD) (Cs : list CmptName)
+    (mshwm_v : Z)
     :
     disjoint_from_mmio b_stk e_stk ->
     disjoint_from_heap b_stk e_stk ->
     (* The caller's stack pointer is in the stack, on the side of its used part *)
     stk_cursor_ok b_stk e_stk a_stk ->
+    (* The caller's stack starts at the base of the thread's stack, and ends
+       in it *)
+    b_stk = cstk_hwm_base cstk ->
+    (e_stk <= cstk_hwm_top cstk)%a ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ]} ∪ dom_arg_rmap 8) ->
     is_arg_rmap arg_rmap 8 ->
     (* The caller returns to a valid target, outside the heap *)
@@ -365,7 +390,9 @@ Section Switcher.
     ∗ regs[th] rmap
 
     (* Stack frame *)
-    ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+    ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+    (* The high-water-mark registers *)
+    ∗ hwm_res cstk mshwm_v
 
     (* Interpretation of the world and stack, at the moment of the switcher_call *)
     ∗ world_interp W C
@@ -407,7 +434,10 @@ Section Switcher.
             ∗ (∃ warg0, ca0 ↦ᵣ[th] warg0 ∗ interp W2 C warg0)
             ∗ (∃ warg1, ca1 ↦ᵣ[th] warg1 ∗ interp W2 C warg1)
             ∗ regs₀[th] rmap'
-            ∗ [[ stk_free_b b_stk a_stk , stk_free_e e_stk a_stk ]] ↦ₐ [[ stk_mem ]]
+            ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
+            (* MSHWM is the caller's stack pointer when the call went
+               through, and at most its value at the call otherwise *)
+            ∗ (∃ mshwm_v' : Z, ⌜ (mshwm_v' <= Z.max mshwm_v a_stk)%Z ⌝ ∗ hwm_res cstk mshwm_v')
             ∗ interp_continuation cstk Ws Cs
               ∗ ⌜load_heap wcgp_caller rcgp ∧
                 load_heap wcra_caller rcra ∧
@@ -421,22 +451,22 @@ Section Switcher.
         ∧
         (* FAULT --- the callee-save registers do not fit on the caller's stack *)
         switcher_cc_fault W C wcgp_caller wcra_caller wcs0_caller wcs1_caller
-          b_stk e_stk a_stk stk_mem cstk Ws Cs )
+          b_stk e_stk a_stk stk_mem cstk Ws Cs mshwm_v )
 
     ⊢ safe[th].
   Proof.
-    iIntros (Hstk_shadow Hstk_heap Hb_a Hdom Hrdom Hret_jalr Hret_heap Hsh)
+    iIntros (Hstk_shadow Hstk_heap Hb_a Hbase Htop Hdom Hrdom Hret_jalr Hret_heap Hsh)
       "(#Hthread & #Hswitcher & #Hstatic & Hna & HPC & Hcgp & Hcra & Hcsp & Hct1 & #Htarget_v
-    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hworld_interp & Hstk_val & % & Hcstk & Hcont
+    & Hcs0 & Hcs1 & Hargs & Hregs & Hstk & Hhwm & Hworld_interp & Hstk_val & % & Hcstk & Hcont
     & Hmie & Hheld & Hpost)".
     iPoseProof (switcher_trap_safety_intro with "[$Hswitcher $Hstatic]") as "#Hsafety".
     iEval (rewrite -(world_resources_exclusive W C Hsh)) in "Hworld_interp".
     iApply (switcher_cc_specification_gen_revoked W C
       wcgp_caller wcra_caller wcs0_caller wcs1_caller wct1_caller
-      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false).
-    1-7: eauto.
+      b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false mshwm_v).
+    1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
     iFrame "Htarget_v".
     iFrame "%".
     iSplit; last by iDestruct "Hpost" as "[_ $]".
@@ -447,13 +477,13 @@ Section Switcher.
       "(%Hextract & Hrev & %Hrevoked & %Hrelated & Hstd & %Hdom_ret
       & Hstack & %Hrevstack & Hna & %Hbounds & Hworld & Hcstk
       & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Harg0 & Harg1
-      & Hrmap & Hstk & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
+      & Hrmap & Hstk & Hhwm & Hcont & %Hloaded & %Hpre_ret & Hmie & Hheld)".
     iAssert (world_interp (revoke W2) C) with "[Hworld]" as "Hworld".
     { iEval (rewrite world_resources_split perm_resources_exclusive //) in "Hworld".
       rewrite world_interp_eq. iDestruct "Hworld" as "[$ $]". }
     iApply ("Hpost" $! W2 rmap' stk_mem0 l' rcgp rcra rcs0 rcs1 m with
       "[$Hrev $Hstd $Hstack $Hna $Hworld $Hcstk $HPC $Hcgp $Hcra
-        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hcont $Hmie $Hheld]").
+        $Hcs0 $Hcs1 $Hcsp $Harg0 $Harg1 $Hrmap $Hstk $Hhwm $Hcont $Hmie $Hheld]").
     iFrame "%".
   Qed.
 

@@ -79,6 +79,7 @@ Section DLE_World.
           as [Hsub_shadow Hsub_heap];
           [solve_addr + Hcgp_contiguous | solve_addr + Hcgp_contiguous | split; auto |].
         iSplit; first (iPureIntro; done).
+        iSplit; last done.
         iApply heap_cap_ok_disjoint; done.
       }
       rewrite /interp_cap_body.
@@ -143,6 +144,7 @@ Section DLE_World.
           as [Hsub_shadow Hsub_heap];
           [solve_addr + Hcgp_contiguous | solve_addr + Hcgp_contiguous | split; auto |].
         iSplit; first (iPureIntro; done).
+        iSplit; last done.
         iApply heap_cap_ok_disjoint; done.
       }
       rewrite /interp_cap_body.
@@ -201,7 +203,7 @@ Section DLE_World.
     RevokedResources W4 C l -∗
     interp W3 C (WSealed ot_switcher C_f) -∗
     StackRevokedResources W4 C stk_f -∗
-    ◇ ( (∃ w, cgp_b ↦ₐ w) ∗
+    ◇ ( (∃ w, temp_cell th (LNonHeap cgp_b) w) ∗
         interp (revoke W4) C (WSealed ot_switcher C_f) ∗
         StackRevokedResources (revoke W4) C stk_f ).
   Proof.
@@ -226,7 +228,7 @@ Section DLE_World.
 
     (* Extract [cgp_b] out of the revoked addresses *)
     iDestruct (big_sepL_elem_of_extract _
-      (fun k => (∀ a', ⌜k = LNonHeap a'⌝ -∗ ▷ ∃ v, a' ↦ₐ v)%I) (LNonHeap cgp_b)
+      (fun k => (∀ a', ⌜k = LNonHeap a'⌝ -∗ ▷ ∃ v, temp_cell th (LNonHeap a') v)%I) (LNonHeap cgp_b)
       with "[] [$Hrevoked_l]")
       as (l'') "(_ & _ & Hcgp_b_nonheap)".
     { assert (std W4 !! LNonHeap cgp_b = Some Temporary) as HW4.

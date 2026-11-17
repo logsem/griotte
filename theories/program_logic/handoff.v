@@ -94,13 +94,16 @@ Section cur.
 End cur.
 
 (** One thread's authorities, home value and mtdc token, at the instance of
-    the thread: take them at another thread with [(th := …)]. *)
+    the thread: take them at another thread with [(th := …)]. The
+    authorities include MSHWMB, MSHWM and the zone, and the window and
+    lending ghosts at rest. *)
 Section thread_parts.
   Context {Σ : gFunctors} {ceriseb : ceriseBaseG Σ} {th : Thread}.
 
   Definition thread_auths (lpc : LWord) (lreg : LReg) (m : mtdc_val) (mie : InterruptStatus)
-    : iProp Σ :=
-    PC_auth lpc ∗ gen_heap_interp lreg ∗ mtdc_auth m ∗ MIE_auth mie.
+      (mshwmb_v mshwm_v : Z) (zn : gset Addr) : iProp Σ :=
+    PC_auth lpc ∗ gen_heap_interp lreg ∗ mtdc_auth m ∗ MIE_auth mie ∗
+    mshwmb_auth mshwmb_v ∗ mshwm_auth mshwm_v ∗ zone_auth zn ∗ hwm_rest.
   Definition mtdc_home_at : mtdc_val := mtdc_home.
   Definition mtdc_lent_at : iProp Σ := mtdc_lent.
 End thread_parts.
@@ -139,9 +142,10 @@ Section handoff.
     exit_part th.
 
   (** [ResumedV] of the context-switch thread: [B] is Resuming with [v];
-      the thread's fragments at [v] (its mtdc at B's home), B's posture
-      part at InterruptEnabled, the scheduler's state, the open pool token
-      with its closer, and B's run. *)
+      the thread's fragments at [v] (its mtdc at B's home, its MSHWMB and
+      MSHWM at B's, its window closed, B's halves lent, no last owner), B's
+      posture part at InterruptEnabled, the scheduler's state, the open
+      pool token with its closer, and B's run. *)
   Definition resumed_body (S : TV) : iProp Σ :=
     ∃ (B : nat) (v : resume_vals),
       "Hcur" ∷ cur_frag (Some (UserThread B, Resuming v)) ∗
@@ -150,6 +154,11 @@ Section handoff.
       "HPC" ∷ @PC_fragq Σ (@cerise_pcG Σ (ceriseG_of CtxSwitch)) (pc_dq v.(rv_mie)) v.(rv_pc) ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] v.(rv_mie) ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] (mtdc_home_at (th := UserThread B)) ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] v.(rv_hwmb) ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] v.(rv_hwm) ∗
+      "Hpend" ∷ pend_frag[CtxSwitch] None ∗
+      "Hlent" ∷ lent_frag[CtxSwitch] v.(rv_zone) ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hpart" ∷ (if v.(rv_mie) is InterruptEnabled
                  then @posture_part Σ MP (ceriseG_of (UserThread B)) (UserThread B)
                         (CL (UserThread B)) (CR (UserThread B))
@@ -185,16 +194,22 @@ Section handoff.
   Definition HO (th : Thread) : tval (kind_of th) → iProp Σ := HO_pre safe th.
 
   (** The context-switch thread while another thread runs: its authorities
-      and fragments with a total register map, its mtdc token, the
-      scheduler's state, and its open pool token with the closer. *)
+      and fragments with a total register map, the halves of its own zone
+      and no last owner, its mtdc token, the scheduler's state, and its
+      open pool token with the closer. *)
   Definition idle_CtxSwitch : iProp Σ :=
-    ∃ (lpc : LWord) (lreg : LReg) (m : mtdc_val) (mie : InterruptStatus),
+    ∃ (lpc : LWord) (lreg : LReg) (m : mtdc_val) (mie : InterruptStatus)
+      (mshwmb_v mshwm_v : Z) (zc : gset Addr),
       "%Hdom" ∷ ⌜dom lreg = all_registers_s⌝ ∗
-      "Hauths" ∷ thread_auths (th := CtxSwitch) lpc lreg m mie ∗
+      "Hauths" ∷ thread_auths (th := CtxSwitch) lpc lreg m mie mshwmb_v mshwm_v zc ∗
       "HPC" ∷ PC ↦ₚ[CtxSwitch] lpc ∗
       "Hregs" ∷ regs[CtxSwitch] lreg ∗
       "Hmtdc" ∷ mtdc ↦ₜ[CtxSwitch] m ∗
       "HMIE" ∷ MIE ↦ₜ[CtxSwitch] mie ∗
+      "Hhwmb" ∷ mshwmb ↦ₜ[CtxSwitch] mshwmb_v ∗
+      "Hhwm" ∷ mshwm ↦ₜ[CtxSwitch] mshwm_v ∗
+      "Hzc" ∷ zone_halves[CtxSwitch] zc ∗
+      "Hlast_owner" ∷ ctx_last_owner_frag None ∗
       "Hlent" ∷ mtdc_lent_at (th := CtxSwitch) ∗
       "Hsched" ∷ scheduler_state ∗
       "Hna" ∷ na_own (tpool CtxSwitch) (⊤ ∖ ↑Nact) ∗

@@ -55,8 +55,18 @@ Section helpers_switcher_adequacy.
       "(#Hthread & #Htv & Hcont & %Hfreq & (%Hcstk_ne & %Htop_tbl & _ & %Htbl_ok) & HPC
                      & ( %Hfullmap & %Hregs_cgp & %Hregs_cra
                      & %Hregs_csp & Hinterp_csp & Hregs_interp & Hregs_zeros)
-                     & Hrmap & Hworld_res & Hcred & %Hcsp_sync & _ & Htframe & Hna
-                     & %Hroute & HMIE & Hheld)".
+                     & Hrmap & Hhwm & %Hzone & Hworld_res & Hcred & %Hcsp_sync & %Hstk_base
+                     & _ & Htframe & Hna & %Hroute & HMIE & Hheld)".
+    (* Only a user thread has a trusted stack: the callee runs at a user
+       thread, where its high-water-mark resources are those of untrusted
+       code *)
+    iMod (na_inv_acc with "Hinv_switcher Hna") as "(Htsi & Hna & Hclose)"; [done|done|].
+    iAssert (▷ (trusted_stack_inv ∗ ⌜th ≠ CtxSwitch⌝))%I with "[Htsi]" as "[Htsi >%Huser]".
+    { iNext. iDestruct "Htsi" as (a_tstk cstk' tstk_next) "[%Huser Hrest]".
+      iSplitL; last done. iExists a_tstk, cstk', tstk_next. by iFrame. }
+    iMod ("Hclose" with "[$Htsi $Hna]") as "Hna".
+    iAssert (hwm_res_kind W' cstk) with "[Hhwm]" as "Hhwm".
+    { rewrite hwm_res_kind_user //. iExists _. by iFrame. }
     (* The callee, whose export table is at [b_tbl], is the topmost
        compartment, and it is untrusted *)
     iAssert (top_cmpt_untrusted interp W' C cstk) as "#Htop".
@@ -102,7 +112,8 @@ Section helpers_switcher_adequacy.
       PCC of the compartment's table, its registers are safe (the table's
       CGP, the thread's stack, the switcher's return sentry in [cra],
       zeroes), and its entry compartment, at the top of its call stack, is
-      untrusted. The world premise and the carried credit are those of the
+      untrusted. MSHWM starts at the top of the thread's stack, whose
+      addresses are Temporary. The world premise and the carried credit are those of the
       compartment's regime. *)
   Lemma fundamental_untrusted_thread_gen
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
@@ -116,6 +127,7 @@ Section helpers_switcher_adequacy.
     regs !! csp = Some ef.(tf_csp) →
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
+    zone_temporary W (tf_stk_b ef) (tf_stk_e ef) →
     thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
@@ -128,6 +140,7 @@ Section helpers_switcher_adequacy.
     entry_stack_interp interp W C ef -∗
     PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
     registers_pointsto regs -∗
+    hwm_res (entry_cstack ef) (tf_stk_e ef) -∗
     world_resources W C -∗
     shared_credit C -∗
     na_own (tpool th) ⊤ -∗
@@ -137,9 +150,20 @@ Section helpers_switcher_adequacy.
     held (th := th) b -∗
     safe[th].
   Proof.
-    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero.
+    intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+      Hzone.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
-      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hcred Hna Hcstk %Hroute HMIE Hheld".
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hhwm Hworld Hcred Hna Hcstk %Hroute HMIE Hheld".
+    (* Only a user thread has a trusted stack: MSHWM at the top of the
+       thread's stack, with the zone Temporary, is what untrusted code
+       holds *)
+    iMod (na_inv_acc with "Hinv_switcher Hna") as "(Htsi & Hna & Hclose)"; [done|done|].
+    iAssert (▷ (trusted_stack_inv ∗ ⌜th ≠ CtxSwitch⌝))%I with "[Htsi]" as "[Htsi >%Huser]".
+    { iNext. iDestruct "Htsi" as (a_tstk cstk' tstk_next) "[%Huser Hrest]".
+      iSplitL; last done. iExists a_tstk, cstk', tstk_next. by iFrame. }
+    iMod ("Hclose" with "[$Htsi $Hna]") as "Hna".
+    iAssert (hwm_res_kind W (entry_cstack ef)) with "[Hhwm]" as "Hhwm".
+    { rewrite hwm_res_kind_user //. iExists (tf_stk_e ef). iFrame "Hhwm". by iPureIntro. }
     iPoseProof (switcher_mtcc_vec_safe with "[$Hinv_switcher $Hswitcher_static]")
       as "#Htrap".
     iDestruct (trap_vector_safe_untrusted with "Htrap") as "#Htv".
@@ -182,7 +206,8 @@ Section helpers_switcher_adequacy.
   Qed.
 
   (** A thread that starts at an export of an untrusted compartment in
-      exclusive mode runs safely by the FTLR. *)
+      exclusive mode runs safely by the FTLR. MSHWM starts at the top of the
+      thread's stack, whose addresses are Temporary. *)
   Lemma fundamental_untrusted_thread
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
     (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
@@ -196,6 +221,7 @@ Section helpers_switcher_adequacy.
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
     cmpt_shared C = false →
+    zone_temporary W (tf_stk_b ef) (tf_stk_e ef) →
     thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
@@ -208,6 +234,7 @@ Section helpers_switcher_adequacy.
     entry_stack_interp interp W C ef -∗
     PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
     registers_pointsto regs -∗
+    hwm_res (entry_cstack ef) (tf_stk_e ef) -∗
     world_interp W C -∗
     na_own (tpool th) ⊤ -∗
     ◯(CSTK)[th] (entry_cstack ef) -∗
@@ -217,15 +244,15 @@ Section helpers_switcher_adequacy.
     safe[th].
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
-      Hshared.
+      Hshared Hzone.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
-      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hna Hcstk Hroute HMIE Hheld".
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hhwm Hworld Hna Hcstk Hroute HMIE Hheld".
     iEval (rewrite -(world_resources_exclusive _ _ Hshared)) in "Hworld".
     iPoseProof (shared_credit_exclusive C Hshared) as "Hcred".
     iApply (fundamental_untrusted_thread_gen W C ef b_pcc e_pcc b_cgp e_cgp a_pc eh ehs regs b
-              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero Hzone
              with "Hthread Hinv_switcher Hswitcher_static Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs
-                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hcred Hna Hcstk Hroute HMIE
+                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hhwm Hworld Hcred Hna Hcstk Hroute HMIE
                    Hheld").
   Qed.
 
@@ -235,7 +262,8 @@ Section helpers_switcher_adequacy.
       invariant of [C] being allocated before the threads split
       ([world_resources_init_all]). A thread that starts in [C] has taken no
       step yet, so it brings the later credit that the world accessor spends
-      on the invariant of [C]. *)
+      on the invariant of [C]. MSHWM starts at the top of the thread's
+      stack, whose addresses are Temporary. *)
   Lemma fundamental_untrusted_thread_shared
     (W : WORLD) (C : CmptName) (ef : trusted_frame)
     (b_pcc e_pcc b_cgp e_cgp a_pc : Addr) (eh ehs : Z) (regs : LReg) (b : InterruptStatus) :
@@ -249,6 +277,7 @@ Section helpers_switcher_adequacy.
     regs !! cra = Some (lword_of_word thread_return_sentry) →
     (∀ r, r ∉ ({[cra; cgp; csp]} : gset RegName) → regs !! r = Some (lword_of_word (WInt 0))) →
     cmpt_shared C = true →
+    zone_temporary W (tf_stk_b ef) (tf_stk_e ef) →
     thread_in th C -∗
     na_inv (tpool th) Ntstack trusted_stack_inv -∗
     switcher_static -∗
@@ -261,6 +290,7 @@ Section helpers_switcher_adequacy.
     entry_stack_interp interp W C ef -∗
     PC ↦ₚ[th] Cap RX Global b_pcc e_pcc a_pc -∗
     registers_pointsto regs -∗
+    hwm_res (entry_cstack ef) (tf_stk_e ef) -∗
     world_resources W C -∗
     £ 1 -∗
     na_own (tpool th) ⊤ -∗
@@ -271,14 +301,14 @@ Section helpers_switcher_adequacy.
     safe[th].
   Proof.
     intros b_tbl a_tbl_cgp Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
-      Hshared.
+      Hshared Hzone.
     iIntros "#Hthread #Hinv_switcher #Hswitcher_static #Htbl_pcc #Htbl_cgp #Htbl_eh #Htbl_ehs
-      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hworld Hlc Hna Hcstk Hroute HMIE Hheld".
+      #Hinterp_pcc #Hinterp_cgp #Hstk HPC Hrmap Hhwm Hworld Hlc Hna Hcstk Hroute HMIE Hheld".
     iEval (rewrite -(shared_credit_shared C Hshared)) in "Hlc".
     iApply (fundamental_untrusted_thread_gen W C ef b_pcc e_pcc b_cgp e_cgp a_pc eh ehs regs b
-              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero
+              Hcgp_heap Htbl_set Hfull Hregs_cgp Hregs_csp Hregs_cra Hregs_zero Hzone
              with "Hthread Hinv_switcher Hswitcher_static Htbl_pcc Htbl_cgp Htbl_eh Htbl_ehs
-                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hworld Hlc Hna Hcstk Hroute HMIE Hheld").
+                   Hinterp_pcc Hinterp_cgp Hstk HPC Hrmap Hhwm Hworld Hlc Hna Hcstk Hroute HMIE Hheld").
   Qed.
 
 End helpers_switcher_adequacy.
