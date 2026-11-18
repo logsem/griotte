@@ -106,6 +106,15 @@ development takes around 1 to 2 hours to compile.
 The command `make check-admitted` will grep for `'admit\|Admitted\|ADMITTED'` in
 the Rocq files.
 
+# For ECOOP27
+For ECOOP27, we highlight more specifically:
+- The directory `theories/case_studies/multiser_kvs` containing the KVS example.
+- The file `theories/model/sealing_invariants.v` containing our adaptation of the world for
+  non-persistent sealing predicates.
+- The file `theories/model/world_ghost_theory.v:891` containing
+  the interface used by the user to interact with Kripke worlds,
+  and the lemmas specifics to sealing.
+
 # Organisation
 
 The organisation of the `theories/` folder is as follows.
@@ -355,11 +364,3 @@ In the model:
 | public transition  | std_rel_pub             |
 | private transition | std_rel_priv            |
 
-# For CPP27
-For CPP27, we highlight more specifically:
-- The directory `theories/case_studies/multiser_kvs` containing the KVS example.
-- The file `theories/model/sealing_invariants.v` containing our adaptation of the world for
-  non-persistent sealing predicates.
-- The file `theories/model/world_ghost_theory.v:891` containing
-  the interface used by the user to interact with Kripke worlds,
-  and the lemmas specifics to sealing.
