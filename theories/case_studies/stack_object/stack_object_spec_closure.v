@@ -177,6 +177,9 @@ Section SO.
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
       & Hhwm & %Hzone & Hworld_interp_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
       & %Hroute & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
+    iDestruct (thread_in_elim with "Hthread") as %Hth_C.
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iAssert (no_handler (top_export_tbl cstk) ∗
              ⌜(top_tframe cstk).(tf_export_tbl) ≠ lword_of_word (WInt 0)⌝)%I as "#Hno_handler".
@@ -322,7 +325,7 @@ Section SO.
       (* Blocks 7-9: push the secret, allocate [z], jump to the switcher *)
       iApply (so_call_blocks_3_spec with
                "[- $HPC $Hcsp $Hca1 $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hstk $Hhwm $Himport_switcher
-                $Hcode_main $Hmie $Hheld]"); [done|done|done|solve_addr+Hstk_min|done|].
+                $Hcode_main $Hmie $Hheld]"); [done|done|done|solve_addr+Hstk_min|done|done|].
       iNext; iIntros (a_stk1 a_stk2 stk_tail stk_res mshwm_v1)
         "(%Hastk1 & %Hastk2 & %Hcsp_b_astk2 & HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1
         & Hcra & Hres & Hsecret & Hastk2 & Hstk & Hhwm & %Hh1 & _ & _ & Hmie & Hheld)".
@@ -338,6 +341,8 @@ Section SO.
       iDestruct ("Hwca0_valid" with "Hinterp_object_W3") as "#Hinterp_wca0_W3".
       iDestruct (so_call_args _ _ _ _ _ with "Hswitcher Hswitcher_static Hca0 Hinterp_wca0_W3 Hca1 Hinterp_z Hct0 Hrmap")
         as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
+      { intros Hctx. destruct th as [k|]; last by destruct Huser.
+        by eapply cmpt_threads_sep. }
       { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
       { intros r Hr.
         rewrite !lookup_delete_ne; [by apply Hzero|set_solver+Hr..]. }

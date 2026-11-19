@@ -195,7 +195,7 @@ Section translation.
     | FW w => w
     | ISwitcherCall =>
         note "switcher call"
-          (Sentry FwdDisable XSRW_ Local
+          (Sentry FwdEnable XSRW_ Local
              (b_switcher (img_sw img)) (e_switcher (img_sw img))
              (a_switcher_call (img_sw img)))
     | IAssert =>
@@ -582,9 +582,9 @@ Section translation.
   Definition switcher_wf : Prop :=
     let sw := img_sw img in
     section "switcher, layout"
-      ((b_switcher sw + 5)%a = Some (a_switcher_call sw) ∧
+      ((b_switcher sw + 6)%a = Some (a_switcher_call sw) ∧
        (a_switcher_call sw + Z.of_nat (length switcher_instrs))%a = Some (e_switcher sw) ∧
-       (b_switcher sw + (5 + Z.of_nat (length switcher_call_instrs)))%a =
+       (b_switcher sw + (6 + Z.of_nat (length switcher_call_instrs)))%a =
          Some (a_switcher_return sw) ∧
        range_ok (b_switcher sw) (e_switcher sw) ∧
        note "closed bounds outside the heap" (is_heap_address (e_switcher sw) = false)).
@@ -730,10 +730,10 @@ Section translation.
                             (match fw_sched_of (fw_cmpts fw), Nat.eqb (fw_sched_count (fw_cmpts fw)) 1 with
                              | Some (fc, _), true =>
                                  match fc_imports fc, fc_static_sealed fc with
-                                 | [ISwitcherCall], [] => []
-                                 | [ISwitcherCall; IMtime; IMtimecmp], [] => []
+                                 | [], [] => []
+                                 | [IMtime; IMtimecmp], [] => []
                                  | _, _ =>
-                                     [note "the scheduler imports the switcher call, and the two time devices or neither, and has no static sealed object"
+                                     [note "the scheduler imports the two time devices or nothing, and has no static sealed object"
                                         False]
                                  end
                              | _, _ => [note "exactly one scheduler" False]

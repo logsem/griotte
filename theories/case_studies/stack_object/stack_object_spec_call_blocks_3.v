@@ -32,6 +32,7 @@ Section SO_Call_Blocks_3.
        the top of the stack *)
     (csp_b + 2 + StackEntry_reserved_space <= csp_e)%Z ->
     route_pre th mie ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ so_label_offset ".Lso_f_alloc")%a ∗
     csp ↦ᵣ[th] Cap RWL Local csp_b csp_e (stk_start_a csp_b csp_e) ∗
     ca1 ↦ᵣ[th] wca1 ∗
@@ -66,13 +67,13 @@ Section SO_Call_Blocks_3.
         ⌜(mshwm_v' <= mshwm_v)%Z⌝ ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         codefrag_pers pc_a so_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hstk_shadow Hstk_heap
-      Hstk_size Hroute)
+      Hstk_size Hroute Hth)
       "(HPC & Hcsp & Hca1 & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hstk & Hhwm & Himport_switcher
       & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

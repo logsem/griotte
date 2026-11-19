@@ -10,30 +10,34 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 
 Section AllocatorMallocExitBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ} {MP : MachineParameters}.
-  Context {th : Thread} {CL : CritLink Σ th}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   (** Block 2: return. *)
   Lemma allocator_malloc_exit_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 2) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
        £ 1
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow) Htgt Hkeep.
-    iIntros "(HPC & Hcra & Hmie & #Hcode_main & Hφ)".
+    intros (Hpc & Hpc_shadow) Htgt Hpre Hpre_ret.
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -41,9 +45,9 @@ Section AllocatorMallocExitBlocks.
     focus_block 2 "Hcode_main" of allocator_malloc_exit_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with
-      "[- $HPC $Hcra $Hmie $Hcode]"); [solve_addr|done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
+    iApply (allocator_return_spec _ _ _ _ _ _ Rrel with
+      "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hcode]"); [solve_addr|done|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
@@ -51,20 +55,24 @@ Section AllocatorMallocExitBlocks.
   (** Blocks 0 and 2: set [ALLOC_INVALID] and return. *)
   Lemma allocator_malloc_exit_reject_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
@@ -72,8 +80,8 @@ Section AllocatorMallocExitBlocks.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt Hkeep. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hpre Hpre_ret. pose proof Hbounds as (Hpc & Hpc_shadow).
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & Hca0 & Hca1 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -89,29 +97,34 @@ Section AllocatorMallocExitBlocks.
     destruct (decide (ca0 = cnull)) as [|_]; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2).
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hcode_main]");
-      [done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
+    iApply (allocator_malloc_exit_return_spec _ _ _ _ _ _ Rrel
+              with "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hcode_main]");
+      [done|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 
   (** Blocks 1 and 2: set [ALLOC_NO_MEMORY] and return. *)
   Lemma allocator_malloc_exit_oom_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_malloc_exit_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_malloc_exit_block_offset 1) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_malloc_exit_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_NO_MEMORY ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_malloc_exit_code ∗
@@ -119,8 +132,8 @@ Section AllocatorMallocExitBlocks.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt Hkeep. pose proof Hbounds as (Hpc & Hpc_shadow).
-    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hpre Hpre_ret. pose proof Hbounds as (Hpc & Hpc_shadow).
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & Hca0 & Hca1 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_malloc_exit_unfold_code "Hcode_main".
 
@@ -135,9 +148,10 @@ Section AllocatorMallocExitBlocks.
     destruct (decide (ca0 = cnull)) as [|_]; first done.
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     change_pc_to (pc_a ^+ allocator_malloc_exit_block_offset 2).
-    iApply (allocator_malloc_exit_return_spec with "[- $HPC $Hcra $Hmie $Hcode_main]");
-      [done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
+    iApply (allocator_malloc_exit_return_spec _ _ _ _ _ _ Rrel
+              with "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hcode_main]");
+      [done|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

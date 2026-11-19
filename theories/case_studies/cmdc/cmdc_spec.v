@@ -167,6 +167,8 @@ Section CMDC.
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
@@ -188,7 +190,7 @@ Section CMDC.
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]"); [done|done|].
+              $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main & Hmie & Hheld)".
 
@@ -280,7 +282,7 @@ Section CMDC.
     (* Blocks 6-8: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_C_g $Hcode_main $Hmie $Hheld]"); [done|done|].
+              $Himport_switcher $Himport_C_g $Hcode_main $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main & Hmie & Hheld)".
 

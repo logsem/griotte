@@ -487,9 +487,16 @@ Section opsem.
     wr2 ← (reg φ) !!ᵣ r2;
     match wr1,wr2 with
     | WSealRange ta p g b e a, WSealable sb =>
-      let new_tag := ta && get_tag_sealable sb && permit_seal p && withinBounds b e a in
-      let sb' := if new_tag then sb else clear_tag_sealable sb in
-      φ .[dst :=ᵣ WSealed a sb'] |> nextPC
+      match seal_sentry_kind a sb, sb with
+      (* An executable capability sealed with a sentry otype is a sentry. *)
+      | Some k, SCap t' p' g' b' e' a' =>
+          let new_tag := ta && t' && permit_seal p && withinBounds b e a in
+          φ .[dst :=ᵣ WSentry k new_tag p' g' b' e' a'] |> nextPC
+      | _, _ =>
+          let new_tag := ta && get_tag_sealable sb && permit_seal p && withinBounds b e a in
+          let sb' := if new_tag then sb else clear_tag_sealable sb in
+          φ .[dst :=ᵣ WSealed a sb'] |> nextPC
+      end
     (* Without a sealing range and a sealable, the sealee loses its tag and is
        not sealed. *)
     | _, _ => φ .[dst :=ᵣ clear_tag wr2] |> nextPC

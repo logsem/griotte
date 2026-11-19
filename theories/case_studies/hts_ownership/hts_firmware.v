@@ -87,14 +87,13 @@ Definition hts_firmware `{MP : MachineParameters} (ot_alloc : OType) : firmware 
          ] |} |};
     {| fc_name          := "sched";
        fc_imports       := [
-         ISwitcherCall;
          IMtime;
          IMtimecmp
        ];
        fc_static_sealed := [];
        fc_body          := SchedulerBody {|
-         (* the exception entry after the 3 imports; the code is arbitrary *)
-         sb_entry      := 3;
+         (* the exception entry after the 2 imports; the code is arbitrary *)
+         sb_entry      := 2;
          sb_boot_stack := 16 |} |}
   ];
   fw_threads    := [

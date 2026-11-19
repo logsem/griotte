@@ -11,24 +11,28 @@ From griotte.allocators.common Require Import allocator_common_free_spec_tail_bl
 Section AllocatorFreeReturnBlocks4.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout}.
-  Context {th : Thread} {CL : CritLink Σ th}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   Lemma allocator_free_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_free_code_bounds pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_invalid_offset) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_free_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_free_code ∗
@@ -36,16 +40,16 @@ Section AllocatorFreeReturnBlocks4.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros Hbounds Htgt Hkeep. pose proof Hbounds as (Hpc & _ & _).
-    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros Hbounds Htgt Hpre Hpre_ret. pose proof Hbounds as (Hpc & _ & _).
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & Hca0 & Hca1 & #Hcode_main & Hφ)".
     iDestruct (allocator_free_tail_acc with "Hcode_main") as "#Hcode".
     assert (pc_a ^+ allocator_free_invalid_offset =
       (pc_a ^+ allocator_free_block_offset 5) ^+ allocator_free_tail_block_offset 5)
       as -> by (cbn in Hpc; offsets_compute; solve_addr).
-    iApply (allocator_free_tail_invalid_spec with
-      "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hcode]");
-      [by apply allocator_free_tail_bounds | done | done |].
-    iNext. iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & _ & Hlc)".
+    iApply (allocator_free_tail_invalid_spec _ _ _ _ _ _ _ _ Rrel with
+      "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hca0 $Hca1 $Hcode]");
+      [by apply allocator_free_tail_bounds | done | done | done |].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & _ & Hlc)".
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
 

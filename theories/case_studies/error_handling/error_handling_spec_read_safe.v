@@ -571,6 +571,8 @@ Section Error_Handling_Read_Safe.
     iIntros "(#Hthread & _ & HK & %Hframe_match & %Htop_tbl & HPC & Hregister_state & Hrmap
       & Hhwm & %Hzone & Hworld_C & _ & %Hsync_csp & %Hstk_base & %Hminstk & Hcstk & Hna & %Hroute
       & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_C".
     iDestruct "Hregister_state" as
       "(%Hfull & %Hcgp & %Hcra & %Hcsp & #Hinterp_csp & #Hinterp_rmap & _)".
@@ -578,7 +580,7 @@ Section Error_Handling_Read_Safe.
     destruct Htop_tbl as (Hframes & Htbl & Hcount & Htbl_ok).
     rewrite /stats_read_min_stack in Hminstk.
     set (wret :=
-      Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher a_switcher_return).
+      Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return).
     destruct (Hfull ca0) as [wptr Hwptr].
     iAssert (interp W0 C wptr) as "#Hinterp_wptr".
     { iApply "Hinterp_rmap"; iPureIntro; last exact Hwptr.
@@ -770,8 +772,7 @@ Section Error_Handling_Read_Safe.
           { rewrite lookup_total_insert_ne // /rretry /stats_retry_regs
               !lookup_total_insert_ne // Hcra_fault.
             apply jalr_target_ok_switcher_return_sentry. }
-          { intros _. rewrite lookup_total_insert_ne // /rretry /stats_retry_regs
-              !lookup_total_insert_ne // Hcra_fault /wret. done. }
+          { intros Hcs. by destruct Huser. }
           { done. }
           iNext. iIntros "HPC Hregs Hna Hmie Hheld".
           set (M := <[ca1:=lword_of_word (WInt 0)]> (<[ca0:=wload]> rretry)).
@@ -804,7 +805,7 @@ Section Error_Handling_Read_Safe.
       { intros r. rewrite lookup_insert_is_Some'. by right. }
       { by rewrite lookup_insert_ne. }
       { rewrite lookup_total_insert_ne // Hcra_take. apply jalr_target_ok_switcher_return_sentry. }
-      { intros _. rewrite lookup_total_insert_ne // Hcra_take /wret. done. }
+      { intros Hcs. by destruct Huser. }
       { done. }
       iNext. iIntros "HPC Hregs Hna Hmie Hheld".
       iDestruct "Hstk" as (stk_mem) "Hstk".

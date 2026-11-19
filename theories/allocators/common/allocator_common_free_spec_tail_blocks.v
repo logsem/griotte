@@ -25,7 +25,7 @@ From griotte.allocators.common Require Import allocator_common_spec_states.
 Section AllocatorFreeTailBlocks.
   Context {Σ : gFunctors} {ceriseg : ceriseG Σ}
     {MP : MachineParameters} {layout : allocatorLayout} {layout_wf : allocatorCommonLayoutWf}.
-  Context {th : Thread} {CL : CritLink Σ th}.
+  Context {th : Thread} {CL : CritLink Σ th} {CR : CritRoute Σ th CL}.
 
   Lemma allocator_free_quarantine_spec
     (E : coPset) (pc_b pc_e pc_a b e : Addr) (ι : AId) (wreq wca1 : LWord)
@@ -345,25 +345,29 @@ Section AllocatorFreeTailBlocks.
 
   Lemma allocator_free_return_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 4) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
        £ 1
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow) Htgt Hkeep.
-    iIntros "(HPC & Hcra & Hmie & #Hcode_main & Hφ)".
+    intros (Hpc & Hpc_shadow) Htgt Hpre Hpre_ret.
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
 
@@ -381,9 +385,10 @@ Section AllocatorFreeTailBlocks.
     focus_block 6 "Hcode_main" of allocator_free_tail_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with
-      "[- $HPC $Hcra $Hmie $Hcode]"); [solve_addr|done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
+    iApply (allocator_return_spec _ _ _ _ _ _ Rrel with
+      "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hcode]");
+      [solve_addr|done|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.
@@ -391,20 +396,24 @@ Section AllocatorFreeTailBlocks.
   (** Blocks 5 and 6: set [ALLOC_INVALID] and return. *)
   Lemma allocator_free_tail_invalid_spec
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret wreq wca1 : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
     allocator_segment_bounds allocator_free_tail_code pc_b pc_e pc_a ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     PC ↦ₚ Cap RX Global pc_b pc_e (pc_a ^+ allocator_free_tail_block_offset 5) ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     ca0 ↦ᵣ wreq ∗
     ca1 ↦ᵣ wca1 ∗
     codefrag_pers pc_a allocator_free_tail_code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
        cra ↦ᵣ wret ∗
-       MIE ↦ₜ mie ∗
+       MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+       held (default mie (jalr_target_mie wret.(lw))) ∗
        ca0 ↦ᵣ WInt ALLOC_INVALID ∗
        ca1 ↦ᵣ WInt 0 ∗
        codefrag_pers pc_a allocator_free_tail_code ∗
@@ -412,8 +421,8 @@ Section AllocatorFreeTailBlocks.
        -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros (Hpc & Hpc_shadow) Htgt Hkeep.
-    iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & #Hcode_main & Hφ)".
+    intros (Hpc & Hpc_shadow) Htgt Hpre Hpre_ret.
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & Hca0 & Hca1 & #Hcode_main & Hφ)".
     codefrag_facts "Hcode_main".
     allocator_free_tail_unfold_code "Hcode_main".
 
@@ -432,9 +441,10 @@ Section AllocatorFreeTailBlocks.
     focus_block 6 "Hcode_main" of allocator_free_tail_blocks at pc_a as a_ret Ha_ret
       "Hcode" "Hcont".
     iHide "Hcode_main" as hcode.
-    iApply (allocator_return_spec with
-      "[- $HPC $Hcra $Hmie $Hcode]"); [solve_addr|done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
+    iApply (allocator_return_spec _ _ _ _ _ _ Rrel with
+      "[- $HPC $Hcra $Hmie $HRrel $Hrelease $Hcode]");
+      [solve_addr|done|done|done|done|].
+    iNext. iIntros "(HPC & Hcra & Hmie & Hheld & _ & Hlc)".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
     iApply "Hφ". iFrame "∗ Hcode_main".
   Qed.

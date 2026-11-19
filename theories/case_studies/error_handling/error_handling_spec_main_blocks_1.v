@@ -32,6 +32,7 @@ Section Error_Handling_Main_Blocks_1.
     main_code_bounds pc_b pc_e pc_a ->
     is_heap_cap (WSealed ot_switcher adv_f) = false ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -49,12 +50,12 @@ Section Error_Handling_Main_Blocks_1.
                  (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
         cs0 ↦ᵣ[th] wcra ∗
         codefrag_pers pc_a error_handling_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hsealed_nonheap Hroute Hth)
       "(HPC & Hctp & Hct1 & Hcra & Hcs0 & #Himport_switcher & #Himport_adv & #Hcode_main
       & Hmie & Hheld & Hpost)".
     iDestruct (codefrag_contiguous_region_pers with "Hcode_main") as %Hpc_contiguous;
@@ -108,6 +109,7 @@ Section Error_Handling_Main_Blocks_1.
     main_code_bounds pc_b pc_e pc_a ->
     (cgp_b + 1)%a = Some cgp_e ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_ret_adv")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -127,12 +129,12 @@ Section Error_Handling_Main_Blocks_1.
         cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_1")%a ∗
         codefrag_pers pc_a error_handling_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_size Hroute Hth)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
       & #Himport_switcher & #Himport_read & #Hcode_main & Hmie & Hheld & Hpost)".
     assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap

@@ -199,6 +199,8 @@ Section KVS_main_spec.
        & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1 & Hrmap
        & Hstk & Hhwm & Hcstk & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & _ & _ & _ & _ & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iEval (cbn [kvs_main_add_phase_instrs]) in "HPC".
     iEval (rewrite /kvs_main_code) in "Hcode_main".
 
@@ -238,6 +240,7 @@ Section KVS_main_spec.
     (* Jalr cra ctp *)
     iInstr "Hcode".
     unfocus_block "Hcode" "Hcont" as "Hcode_main"; subst hcode.
+    iEval (cbn [jalr_target_mie default sentry_kind_mie lw id switcher_entry_call]) in "Hmie Hheld".
 
     (* -- Prepare registers  -- *)
     (* -- separate argument registers -- *)
@@ -282,8 +285,10 @@ Section KVS_main_spec.
          | ].
     iFrame "Hthread Hswitcher Hswitcher_static Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hrmap
       Hca0 Hca1 Hca2 Hca3 Hca4 Hca5 Hct0 Hstk Hhwm Hworld_B Hcstk
-      Hstack_revoked_free Hinterp_W0_B_f HentryB_f HK Hmie Hheld".
+      Hstack_revoked_free Hinterp_W0_B_f HentryB_f HK Hmie".
     iFrame "%".
+    iSplitR; first done.
+    iClear "Hheld".
     clear dependent rmap.
     clear csp_content.
     iNext.

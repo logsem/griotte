@@ -31,6 +31,7 @@ Section VAE_Init_Blocks_1.
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     loc W !! i = Some (encode false) ->
     route_pre th mie ->
+    th ≠ CtxSwitch ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
@@ -55,13 +56,13 @@ Section VAE_Init_Blocks_1.
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a vae_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hsealed_nonheap Hloc Hroute)
+               Hcgp_shadow Hsealed_nonheap Hloc Hroute Hth)
       "(#Hawk & Hworld & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
       & Himport_switcher & Himport_C_f & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

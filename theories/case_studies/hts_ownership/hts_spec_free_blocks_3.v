@@ -127,6 +127,8 @@ Section HTS_Spec_Free.
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
       & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free & Himport_alloc_cap)".
@@ -320,7 +322,7 @@ Section HTS_Spec_Free.
       allocator_cgp_b allocator_cgp_e allocator_free_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_free
         $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-        $Hfree_arg $Hrmap $Hstk $Hhwm $Hcstk $Hfree_fun $Hmie $Hheld]").
+        $Hfree_arg $Hrmap $Hstk $Hhwm $Hcstk $Hfree_fun $Hmie]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { stk_unfold; solve_addr. }
@@ -352,6 +354,7 @@ Section HTS_Spec_Free.
       reflexivity. }
     iFrame "Hobj Hright Hfree_mem Howner Howner_word".
     iSplitR; first (iPureIntro; set_solver+).
+    iClear "Hheld".
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

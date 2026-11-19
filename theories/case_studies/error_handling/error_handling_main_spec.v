@@ -141,8 +141,8 @@ Section Error_Handling_Main_Spec.
     hwm_res cstk mshwm_v ∗
     ◯(CSTK)[th] cstk ∗
     stats_arg_pre wptr v ∗
-    MIE ↦ₜ[th] InterruptDisabled ∗
-    held (th := th) InterruptDisabled ∗
+    MIE ↦ₜ[th] InterruptEnabled ∗
+    held (th := th) InterruptEnabled ∗
     ▷ (∀ (wca0 : LWord) (rmap_ret : LReg) (stk_mem' : list LWord) (rcs1 : LWord)
          (b : InterruptStatus) (mshwm_v' : Z),
         ⌜dom rmap_ret = all_registers_s ∖ {[ cgp; cra; csp; ca0; ca1; cs0; cs1 ]}⌝ ∗
@@ -203,7 +203,7 @@ Section Error_Handling_Main_Spec.
               stats_read_pcc_off InterruptDisabled (stats_may_fault wptr)
              with "[$Hinv_switcher $Hswitcher_static $Htbl_pcc $Htbl_cgp $Htbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-                 $Hargs $Hrmap $Hstk $Hhwm $Hcstk $Hread $HP $Hmie $Hheld Hpost]").
+                 $Hargs $Hrmap $Hstk $Hhwm $Hcstk $Hread $HP $Hmie Hpost]").
     all: [> exact Hstk_heap | exact Hstk_mmio
       | apply stk_start_cursor_ok;
         rewrite /SpillSlot_size /StackEntry_reserved_space in Hstk_min |- *;
@@ -339,10 +339,12 @@ Section Error_Handling_Main_Spec.
 
     (* Blocks 15-18: the capability of [x] in [ca0], and the jump to the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iApply (main_call_read_3_spec with
              "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
                $Hmie $Hheld]");
-      [exact Hbounds | exact Hroute |].
+      [exact Hbounds | exact Hroute | done |].
     iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
 
     iInsertList "Hrmap" [ctp].
@@ -352,7 +354,7 @@ Section Error_Handling_Main_Spec.
               (WInt X_INIT)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                     $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hhwm $Hcstk Hx
-                    $Hmie $Hheld]");
+                    $Hmie]");
       [done | done | | exact thread_return_sentry_not_heap | done | done | done
       | symmetry; exact Hbase | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
@@ -364,6 +366,7 @@ Section Error_Handling_Main_Spec.
         last (apply withinBounds_true_iff; solve_addr+Hcgp_size).
       iFrame "Hx". iPureIntro.
       split_and!; [done | solve_addr+Hcgp_size | done | done | done]. }
+    iSplitR; first done.
     iIntros "!>" (wret rmap_ret stk_mem' rcs1 b' mshwm_v')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
       & Hrmap & Hstk & Hhwm & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
@@ -446,10 +449,12 @@ Section Error_Handling_Main_Spec.
     (* Blocks 9-12: the untagged capability of [x] in [ca0], and the jump to
        the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iApply (main_call_read_2_spec with
              "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
                $Hmie $Hheld]");
-      [exact Hbounds | exact Hroute |].
+      [exact Hbounds | exact Hroute | done |].
     iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
     iInsertList "Hrmap" [ctp].
 
@@ -459,12 +464,13 @@ Section Error_Handling_Main_Spec.
               (WInt 0)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                     $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hhwm $Hcstk Hx
-                    $Hmie $Hheld]");
+                    $Hmie]");
       [done | done | | exact thread_return_sentry_not_heap | done | done | done
       | symmetry; exact Hbase | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
     { rewrite dom_insert_L dom_delete_L Hdom_rmap.
       pose proof (all_registers_s_correct ctp). set_solver. }
+    iSplitR; first done.
     iIntros "!>" (wret rmap_ret stk_mem' rcs1 b' mshwm_v')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
       & Hrmap & Hstk & Hhwm & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
@@ -560,10 +566,12 @@ Section Error_Handling_Main_Spec.
     (* Blocks 3-6: the capability of [x] one past its end in [ca0], and the jump
        to the switcher *)
     iExtractList "Hrmap" [ctp; ct1] as ["Hctp"; "Hct1"].
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iApply (main_call_read_1_spec with
              "[- $HPC $Hcgp $Hca0 $Hctp $Hct1 $Hcra $Himport_switcher $Himport_read $Hcode_main
                $Hmie $Hheld]");
-      [exact Hbounds | exact Hcgp_size | exact Hroute |].
+      [exact Hbounds | exact Hcgp_size | exact Hroute | done |].
     iIntros "!> (HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra & _ & Hmie & Hheld)".
 
     iInsertList "Hrmap" [ctp].
@@ -573,7 +581,7 @@ Section Error_Handling_Main_Spec.
               (WInt X_INIT)
              with "[$Hinv_switcher $Hswitcher_static $Hstats_static $Hinv_stats $Hna $HPC
                     $Hcgp $Hcra $Hcs0 $Hcs1 $Hcsp $Hct1 $Hca0 $Hca1 $Hrmap $Hstk $Hhwm $Hcstk Hx
-                    $Hmie $Hheld]");
+                    $Hmie]");
       [done | done | | exact thread_return_sentry_not_heap | done | done | done
       | symmetry; exact Hbase | | exact Hroute |].
     { by rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hcgp_nonheap. }
@@ -585,6 +593,7 @@ Section Error_Handling_Main_Spec.
         last (apply not_true_iff_false; rewrite withinBounds_true_iff; solve_addr+Hcgp_size).
       iFrame "Hx". iPureIntro.
       split_and!; [done | solve_addr+Hcgp_size | done | done | done]. }
+    iSplitR; first done.
     iIntros "!>" (wret rmap_ret stk_mem' rcs1 b' mshwm_v')
       "(%Hdom_rmap_ret & Hna & HPC & Hcgp & Hcra & Hcs0 & Hcs1 & Hcsp & Hca0 & Hca1
       & Hrmap & Hstk & Hhwm & Hcstk & %Hroute' & Hmie & Hheld & Hret)".
@@ -735,10 +744,12 @@ Section Error_Handling_Main_Spec.
       pose proof (elem_of_dom_2 _ _ _ Hr) as Hr_dom.
       rewrite Hrmap_zero in Hr; [by simplify_eq | done]. }
     iExtractList "Hrmap" [ctp; ct1; cs0] as ["[Hctp _]"; "[Hct1 _]"; "[Hcs0 _]"].
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iApply (main_call_adv_spec with
              "[- $HPC $Hctp $Hct1 $Hcra $Hcs0 $Himport_switcher $Himport_adv $Hcode_main
                $Hmie $Hheld]");
-      [exact Hbounds | exact Hadv_nonheap | exact Hroute |].
+      [exact Hbounds | exact Hadv_nonheap | exact Hroute | done |].
     iIntros "!> (HPC & Hctp & Hct1 & Hcra & Hcs0 & _ & Hmie & Hheld)".
 
     (* The call to [adv], unknown to [main]: [stats_inv] is closed *)
@@ -755,7 +766,7 @@ Section Error_Handling_Main_Spec.
               stk_mem_free main_adv_arg_rmap _ cstk0 Ws Cs 0 csp_e with
              "[$Hthread $Hinv_switcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1
                $Hcs0 $Hcs1 $Hrmap $Hstk $Hhwm $Hworld $Hstack_revoked_W1_free $Hcstk $HK
-               $Hinterp_W1_adv $Hmie $Hheld Hargs Hx]").
+               $Hinterp_W1_adv $Hmie Hargs Hx]").
     all: [> exact Hstk_mmio | exact Hstk_heap | apply stk_start_cursor_ok, Hstk_res_size
       | reflexivity
       | rewrite /cstk0 /cstk_hwm_top /=; solve_addr
@@ -769,6 +780,7 @@ Section Error_Handling_Main_Spec.
     iSplitR; first iExact "Hentry_adv".
     iSplitL "Hargs".
     { iApply (big_sepM_impl with "Hargs"). iIntros "!>" (r w Hr) "[Hr _]". iFrame. }
+    iSplitR; first done.
     iSplitR; first done.
     (* The spill of the switcher call cannot fault: the stack holds it *)
     iSplit; last (iApply switcher_cc_fault_stack_fits; apply stk_start_spill_fits;

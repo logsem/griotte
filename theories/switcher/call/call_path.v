@@ -322,9 +322,9 @@ Section Call_Path.
 
   (** From [.Lswitcher_decode_entry]: read the entry of the export table,
       check the size of the callee's stack, write the callee's stack pointer
-      to MSHWM, load the callee, clear the
-      registers that the callee does not use, enable interrupts if its
-      posture asks for it, and jump to the callee. When the callee's stack
+      to MSHWM, load the callee, clear the registers that the callee does
+      not use, seal it into an interrupt-disabling sentry if its posture
+      asks for it, and jump to the callee. When the callee's stack
       is smaller than the minimum stack size of the entry plus the space
       reserved at its top, the PC is at [.Lswitch_stack_too_small]
       instead. *)
@@ -352,7 +352,7 @@ Section Call_Path.
     a_stk = e_stk ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
-    route_pre th posture ->
+    th ≠ CtxSwitch ->
     (Z.max mshwmb_v mshwm_v = lo)%Z ->
 
     b_tbl ↦ₐ□ Cap RX Global bpcc epcc bpcc ∗
@@ -378,16 +378,18 @@ Section Call_Path.
     ( [∗ map] r↦w ∈ arg_rmap,
         r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
     regs[th] rmap ∗
+    (b_switcher ^+ 5) ↦ₐ□ SealRange (true,false) Local ot_interrupt_sentries
+      (ot_interrupt_sentries ^+ 1) ot_interrupt_sentries ∗
     switcher_code ∗
-    MIE ↦ₜ[th] InterruptDisabled ∗
-    held (th := th) InterruptDisabled ∗
+    MIE ↦ₜ[th] InterruptEnabled ∗
+    held (th := th) InterruptEnabled ∗
     ▷ ( ( ∀ (arg_rmap' rmap' : LReg),
           ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
           ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
           PC ↦ₚ[th] Cap RX Global bpcc epcc (bpcc ^+ off) ∗
           cgp ↦ᵣ[th] wcgp_tgt ∗
-          cra ↦ᵣ[th] Sentry (ret_kind posture) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+          cra ↦ᵣ[th] Sentry RetEnable XSRW_ Local b_switcher e_switcher a_switcher_return ∗
           csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space)) ∗
           hwm_regs mshwmb_v (a_stk ^+ (- StackEntry_reserved_space)) ∗
           ([∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
@@ -419,8 +421,8 @@ Section Call_Path.
           ( [∗ map] r↦w ∈ arg_rmap,
               r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
           regs[th] rmap ∗
-          MIE ↦ₜ[th] InterruptDisabled ∗
-          held (th := th) InterruptDisabled -∗
+          MIE ↦ₜ[th] InterruptEnabled ∗
+          held (th := th) InterruptEnabled -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
@@ -428,8 +430,8 @@ Section Call_Path.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
                Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk Hargs Hdom Hpre Hlo)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
-      & Ha_export_table & Hcgp & Hcra & Hcsp & Hhwm & Hcells & Hargs & Hregs & #Hswitcher
-      & Hmie & Hheld & Hpost)".
+      & Ha_export_table & Hcgp & Hcra & Hcsp & Hhwm & Hcells & Hargs & Hregs & #Hsentries_key
+      & #Hswitcher & Hmie & Hheld & Hpost)".
     iApply (switcher_decode_entry_spec with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Ha_export_table
           $Hcgp $Hcra $Hcsp $Hhwm $Hcells $Hswitcher]");
@@ -442,12 +444,15 @@ Section Call_Path.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply "Hpost".
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Hcgp Hcra Hcsp Hhwm Hcells Ha_export_table Hargs
-        Hregs Hmie Hheld".
+        Hregs Hmie".
       done. }
     iDestruct "Hpost" as "[Hpost _]".
     iApply (switcher_clear_unused_args_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hargs $Hregs $Hswitcher $Hmie $Hheld]");
+      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hargs $Hregs $Hsentries_key $Hswitcher
+          $Hmie]");
       [done..|].
+    iSplitR; first done.
+    iClear "Hheld".
     iNext; iIntros (arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & HPC & Hcra & Hargs & Hregs & Hmie & Hheld & Hlc)".
     iApply ("Hpost" $! arg_rmap' rmap').
@@ -482,7 +487,7 @@ Section Call_Path.
     a_stk = e_stk ->
     is_arg_rmap arg_rmap 8 ->
     dom rmap = all_registers_s ∖ ({[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ct2 ; ctp ]} ∪ dom_arg_rmap 8) ->
-    route_pre th posture ->
+    th ≠ CtxSwitch ->
     (Z.max mshwmb_v mshwm_v = lo)%Z ->
 
     b_tbl ↦ₐ□ Cap RX Global bpcc epcc bpcc ∗
@@ -507,16 +512,18 @@ Section Call_Path.
        zone_cell[th] a') ∗
     regs[th] arg_rmap ∗
     regs[th] rmap ∗
+    (b_switcher ^+ 5) ↦ₐ□ SealRange (true,false) Local ot_interrupt_sentries
+      (ot_interrupt_sentries ^+ 1) ot_interrupt_sentries ∗
     switcher_code ∗
-    MIE ↦ₜ[th] InterruptDisabled ∗
-    held (th := th) InterruptDisabled ∗
+    MIE ↦ₜ[th] InterruptEnabled ∗
+    held (th := th) InterruptEnabled ∗
     ▷ ( ( ∀ (arg_rmap' rmap' : LReg),
           ⌜ (Z.of_nat minstk + StackEntry_reserved_space <= e_stk - b_stk)%Z ⌝ ∗
           ⌜ is_arg_rmap arg_rmap' 8 ⌝ ∗
           ⌜ dom rmap' = all_registers_s ∖ (dom_arg_rmap 8 ∪ {[ cra ; cgp ; csp ]}) ⌝ ∗
           PC ↦ₚ[th] Cap RX Global bpcc epcc (bpcc ^+ off) ∗
           cgp ↦ᵣ[th] wcgp_tgt ∗
-          cra ↦ᵣ[th] Sentry (ret_kind posture) XSRW_ Local b_switcher e_switcher a_switcher_return ∗
+          cra ↦ᵣ[th] Sentry RetEnable XSRW_ Local b_switcher e_switcher a_switcher_return ∗
           csp ↦ᵣ[th] Cap RWL Local b_stk e_stk (a_stk ^+ (- StackEntry_reserved_space)) ∗
           hwm_regs mshwmb_v (a_stk ^+ (- StackEntry_reserved_space)) ∗
           ([∗ list] a' ∈ finz.seq_between lo (a_stk ^+ (- StackEntry_reserved_space)),
@@ -548,8 +555,8 @@ Section Call_Path.
           a_export_table ↦ₐ Cap RO g_tbl b_tbl e_tbl a_tbl ∗
           regs[th] arg_rmap ∗
           regs[th] rmap ∗
-          MIE ↦ₜ[th] InterruptDisabled ∗
-          held (th := th) InterruptDisabled -∗
+          MIE ↦ₜ[th] InterruptEnabled ∗
+          held (th := th) InterruptEnabled -∗
           safe[th] ) )
     ⊢ safe[th].
   Proof.
@@ -557,8 +564,8 @@ Section Call_Path.
     iIntros (Htbl Htbl_cgp Hentry Hnargs Hminstk Hatbl_shadow Hbtbl_shadow Hbtbl_cgp_shadow
                Hbpcc_heap Hwcgp_heap Ha_frame_b Ha_frame_e Ha_stk Hargs Hdom Hpre Hlo)
       "(#Htbl_pcc & #Htbl_cgp & #Htbl_entry & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp
-      & Ha_export_table & Hcgp & Hcra & Hcsp & Hhwm & Hcells & Hargs & Hregs & #Hswitcher
-      & Hmie & Hheld & Hpost)".
+      & Ha_export_table & Hcgp & Hcra & Hcsp & Hhwm & Hcells & Hargs & Hregs & #Hsentries_key
+      & #Hswitcher & Hmie & Hheld & Hpost)".
     iApply (switcher_decode_entry_spec with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Ha_export_table
           $Hcgp $Hcra $Hcsp $Hhwm $Hcells $Hswitcher]");
@@ -571,12 +578,15 @@ Section Call_Path.
       iDestruct "Hpost" as "[_ Hpost]".
       iApply "Hpost".
       iFrame "HPC Hcs0 Hcs1 Hct1 Hct2 Hctp Hcgp Hcra Hcsp Hhwm Hcells Ha_export_table Hargs
-        Hregs Hmie Hheld".
+        Hregs Hmie".
       done. }
     iDestruct "Hpost" as "[Hpost _]".
     iApply (switcher_clear_unused_args_known_spec with
-      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hargs $Hregs $Hswitcher $Hmie $Hheld]");
+      "[- $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hcra $Hargs $Hregs $Hsentries_key $Hswitcher
+          $Hmie]");
       [done..|].
+    iSplitR; first done.
+    iClear "Hheld".
     iNext; iIntros (arg_rmap' rmap')
       "(%Harg_rmap' & %Hrmap' & HPC & Hcra & Hargs & Hregs & Hmie & Hheld)".
     iApply ("Hpost" $! arg_rmap' rmap').
@@ -608,8 +618,8 @@ Section Call_Path.
     switcher_stk_cells (stk_spill_a a) wcs0 wcs1 wcgp wcra ∗
     regs[th] rmap ∗
     switcher_code ∗
-    MIE ↦ₜ[th] InterruptDisabled ∗
-    held (th := th) InterruptDisabled ∗
+    MIE ↦ₜ[th] InterruptEnabled ∗
+    held (th := th) InterruptEnabled ∗
     ▷ ( ∀ (rmap' : LReg) rcgp rcra rcs0 rcs1,
         ⌜ load_heap wcgp rcgp ∧ load_heap wcra rcra ∧
           load_heap wcs0 rcs0 ∧ load_heap wcs1 rcs1 ⌝ ∗
@@ -625,13 +635,13 @@ Section Call_Path.
         regs₀[th] rmap' ∗
         £ 1 -∗
         ( PC ↦ₚ[th] lupdatePcPerm rcra ∗
-          MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw)) ∗
-          held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw))) ∗
+          MIE ↦ₜ[th] default InterruptEnabled (jalr_target_mie rcra.(lw)) ∗
+          held (th := th) (default InterruptEnabled (jalr_target_mie rcra.(lw))) ∗
           £ 1 -∗
           safe[th] ) ∧
         ( ⌜ jalr_target_ok cnull cra rcra.(lw) = false ⌝ -∗
-          MIE ↦ₜ[th] InterruptDisabled -∗
-          held (th := th) InterruptDisabled -∗
+          MIE ↦ₜ[th] InterruptEnabled -∗
+          held (th := th) InterruptEnabled -∗
           trap_safe (switcher_label_pc ".Lswitch_just_return") ⊤
             (HO th) ) )
     ⊢ safe[th].
@@ -651,8 +661,10 @@ Section Call_Path.
     iIntros (rcgp rcra rcs0 rcs1 Hrestored)
       "(HPC & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1 & Hcsp & Hcells & Hlc)".
     iEval (rewrite Hspill_top) in "Hcsp".
-    iApply (switch_callee_dead_zeros_spec _ _ InterruptDisabled with
-      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie $Hheld]"); [done|done|done|].
+    iApply (switch_callee_dead_zeros_spec _ _ InterruptEnabled with
+      "[- $HPC $Hcra $Hrmap $Hswitcher $Hmie]");
+      [done|done|intros Hcs; by destruct Hth|].
+    iSplitR; first done.
     iNext; iIntros (rmap') "(%Hrmap' & Hcra & Hrmap)".
     iApply ("Hpost" $! rmap' rcgp rcra rcs0 rcs1).
     iFrame "Hcs0 Hcs1 Hcgp Hcra Hca0 Hca1 Hcsp Hcells Hrmap Hlc".

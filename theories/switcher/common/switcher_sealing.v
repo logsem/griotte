@@ -40,7 +40,7 @@ Section Switcher_entry_point.
     λne (W : WORLD) (C : CmptName) (reg : leibnizO LReg),
       (full_map reg
        ∧ ⌜ reg !! cgp = Some wcgp ⌝
-       ∧ ⌜ reg !! cra = Some (lword_of_word (Sentry (ret_kind b) XSRW_ Local
+       ∧ ⌜ reg !! cra = Some (lword_of_word (Sentry RetEnable XSRW_ Local
                                                    b_switcher e_switcher a_switcher_return)) ⌝
        ∧ ⌜ reg !! csp = Some wstk ⌝
        ∗ interp W C wstk
@@ -89,7 +89,7 @@ Section Switcher_entry_point.
 
       [b] is the interrupt posture of the entry: the callee starts with MIE
       at [b] and what the thread holds at [b], and its return sentry
-      restores [b].
+      enables interrupts, the posture of the switcher.
 
       [b_tbl] is the base of the callee's export table: the switcher has pushed a
       frame for this call, so the call stack has a frame above the entry

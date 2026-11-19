@@ -95,6 +95,8 @@ Section HTS_Spec_Share.
     iDestruct "Hframe" as "(Hna & HPC & [%mie_ret (%Hroute & Hcra & Hmie & Hheld)] & Hcgp & Hcsp
       & Hcs0
       & [%wcs1 Hcs1] & Hcstk & Himports & Hcode_main & Hp & Howner_word)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
        & Himport_free & Himport_alloc_cap)".
@@ -282,7 +284,7 @@ Section HTS_Spec_Share.
       adv_arg adv_other cstk Ws Cs 1 mshwm_v1
       with "[- $Hthread $Hswitcher $Hswitcher_static $Hna $HPC $Hcgp $Hcra $Hcsp
         $Hct1 $Hentry $Hcs0 $Hcs1 $Hadv_arg $Hrmap $Hstk $Hhwm
-        $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share $Hmie $Hheld]").
+        $Hworld $Hstack_revoked_share $Hcstk $HK $Hinterp_adv_share $Hmie]").
     { exact Hstk_shadow. }
     { exact Hstk_heap. }
     { stk_unfold; solve_addr. }
@@ -295,6 +297,8 @@ Section HTS_Spec_Share.
       reflexivity. }
     { exact Hshared. }
     iSplitR; first (iPureIntro; exact Hstack_revoked_share).
+    iSplitR; first done.
+    iClear "Hheld".
     iSplit; last first.
     { (* The spill cannot fault: the stack holds it *)
       iApply switcher_cc_fault_stack_fits; stk_unfold; solve_addr+Hstk_min. }

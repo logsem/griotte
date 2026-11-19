@@ -25,6 +25,7 @@ Section IST_Call_Blocks_2.
     (wctp wct1 wcra : LWord) (b : InterruptStatus) :
     ist_code_bounds pc_b pc_e pc_a B_f ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ ist_label_offset ".Lstatus_fetch_switcher")%a ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -42,13 +43,13 @@ Section IST_Call_Blocks_2.
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher B_f ∗
         codefrag_pers pc_a ist_K_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap)
-             Hroute)
+             Hroute Hth)
       "(HPC & Hctp & Hct1 & Hcra & Himport_switcher & Himport_B_f
       & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

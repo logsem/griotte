@@ -252,7 +252,7 @@ Section hts_obligations.
       change (image.cmpt_imports (cmpt_of img (fc_name _))) with (cmpt_imports B_cmpt).
       rewrite B_imports.
       iSplit; first by iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B")
-                                 with "Hswitcher_threads_B").
+                                 with "Hswitcher_threads_B"); [done | eapply cmpt_threads_sep; eauto].
       iEval (rewrite !big_sepL_cons) in "Hseal_alloc".
       iDestruct "Hseal_alloc" as "(Hinterp_malloc & Hinterp_free & _)".
       iSplit.

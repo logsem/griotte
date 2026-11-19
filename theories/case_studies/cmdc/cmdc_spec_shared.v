@@ -1,7 +1,7 @@
 From iris.proofmode Require Import proofmode.
 From griotte Require Import logrel rules monotone interp_weakening.
 From griotte Require Import fetch_spec assert_spec switcher_base cmdc.
-From griotte Require Import world_ghost_theory world_interp_stack.
+From griotte Require Import world_ghost_theory world_interp_stack wp_core_full.
 From griotte Require Import proofmode register_tactics.
 From griotte Require Import cmdc_spec_states cmdc_spec_world
   cmdc_spec_init_blocks_1 cmdc_spec_call_blocks_2 cmdc_spec_check_blocks_3
@@ -175,6 +175,8 @@ Section CMDC_shared.
       & #Hinterp_Winit_B_f & #Hinterp_Winit_C_g
       & #HentryB_f & #HentryC_g
       & Hstack_revoked_B & Hstack_revoked_C & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     assert (rmap !! cs1 = Some (lword_of_word (WInt 0))) as Hcs1_init.
     { apply Hrmap_init. rewrite Hrmap_dom; set_solver+. }
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
@@ -196,7 +198,7 @@ Section CMDC_shared.
     (* Blocks 1-3: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_B with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]"); [done|done|].
+              $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main & Hmie & Hheld)".
 
@@ -288,25 +290,31 @@ Section CMDC_shared.
     (* Blocks 6-8: fetch the imports and jump to the switcher *)
     iApply (cmdc_call_blocks_2_spec cmdc_call_C with
              "[- $HPC $Hctp $Hct1 $Hcra
-              $Himport_switcher $Himport_C_g $Hcode_main $Hmie $Hheld]"); [done|done|].
+              $Himport_switcher $Himport_C_g $Hcode_main $Hmie $Hheld]"); [done|done|done|].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_C_g & Hcode_main & Hmie & Hheld)".
 
     iDestruct (stk_start_stack_region_join with "Hcsp_stk Hstk_res") as "Hcsp_stk";
       first exact Hstk_res_size.
 
-    (* Share c in the world of C, opened with the token lent out of the
-       posture and the carried credit of C *)
-    iDestruct (held_crit with "Hheld") as "[Hcrit Hheld_back]".
-    iMod (world_resources_acc_credit ⊤ ⊤ W_init_C C with "Hworld_C Hcred_C Hcrit")
-      as "(Hworld_interp_C & Hcrit & [Hclose_C _])"; [solve_ndisj | solve_ndisj |].
-    iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2) with
-           "Hworld_interp_C Hstack_revoked_C Hinterp_Winit_C_g Hcgp_c Hcsp_stk")
-      as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
-           & Hstack_revoked_C & %Hrevoked_C & _ & Hcsp_stk)";
-      [solve_addr|done..|].
-    iMod ("Hclose_C" $! W_init_C with "Hworld_interp_C Hcrit") as "[Hworld_C Hcrit]".
-    iDestruct ("Hheld_back" with "Hcrit") as "Hheld".
+    (* Share c in the world of C, opened with the token borrowed from the
+       link and the carried credit of C *)
+    iApply (wp_crit_borrow ⊤ _ InterruptEnabled _
+             with "Hheld Hmie [Hworld_C Hcred_C Hcgp_c Hcsp_stk Hstack_revoked_C]");
+      [done | intros Hcs; by destruct Huser | |].
+    { iIntros "Hcrit".
+      iMod (world_resources_acc_credit ⊤ ⊤ W_init_C C with "Hworld_C Hcred_C Hcrit")
+        as "(Hworld_interp_C & Hcrit & [Hclose_C _])"; [solve_ndisj | solve_ndisj |].
+      iMod (cmdc_world_share _ _ _ (cgp_b ^+ 2) with
+             "Hworld_interp_C Hstack_revoked_C Hinterp_Winit_C_g Hcgp_c Hcsp_stk")
+        as "(Hworld_interp_C & _ & #Hinterp_ca0_C & #Hinterp_C_g
+             & Hstack_revoked_C & _ & _ & Hcsp_stk)";
+        [solve_addr|done..|].
+      iMod ("Hclose_C" $! W_init_C with "Hworld_interp_C Hcrit") as "[Hworld_C Hcrit]".
+      iModIntro. iSplitL "Hcrit"; first done.
+      iCombine "Hworld_C Hinterp_ca0_C Hinterp_C_g Hstack_revoked_C Hcsp_stk" as "HP".
+      iExact "HP". }
+    iIntros "Hheld Hmie (Hworld_C & #Hinterp_ca0_C & #Hinterp_C_g & Hstack_revoked_C & Hcsp_stk)".
     iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"; "Hct2"; "Hca2"].
     iDestruct (switcher_call_args_1 with "Hca0 Hinterp_ca0_C Hrmap")
       as (arg_rmap rmap') "(%Hrmap'_dom & %Harg_rmap & Hrmap_arg & Hrmap)".
@@ -318,7 +326,7 @@ Section CMDC_shared.
       first exact Hstk_res_size.
     iEval (rewrite (stk_start_revoked_split _ _ _ _ Hstk_res_size)) in "Hstack_revoked_C".
     iDestruct "Hstack_revoked_C" as "[Hstack_revoked_C _]".
-    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_C) as Hrevoked_C_free.
+    pose proof (stk_start_revoked_addresses _ _ _ Hstk_res_size Hrevoked_stack_C) as Hrevoked_C_free.
 
     (* Call to C.g *)
     iApply (switcher_cc_specification_shared W_init_C C _ _ _ _ csp_b csp_e (stk_start_a csp_b csp_e)

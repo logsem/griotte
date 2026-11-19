@@ -134,6 +134,8 @@ Section IST.
       & Hworld_B & HK & Hcstk_frag & Hhwm
       & #Hinterp_Winit_B_f & #HentryB_f
       & Hstack_revoked & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iExtractList "Hrmap" [ca0;ca1;ctp;ct0;ct1;cs0;cs1]
       as ["Hca0";"Hca1";"Hctp";"Hct0";"Hct1";"Hcs0";"Hcs1"].
     iEval (cbn [fmap list_fmap ist_K_data ist_K_imports]) in "Hcgp_main Himports_main".
@@ -169,7 +171,7 @@ Section IST.
     iApply (ist_call_blocks_2_spec with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]");
-      [done| by intros _ |].
+      [done| by intros _ | done |].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"].

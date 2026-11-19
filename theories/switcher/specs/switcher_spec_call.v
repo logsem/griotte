@@ -90,9 +90,9 @@ Section Switcher.
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
-    (* The switcher's entry disables interrupts *)
-    ∗ MIE ↦ₜ[th] InterruptDisabled
-    ∗ held (th := th) InterruptDisabled
+    (* The switcher is entered with interrupts enabled *)
+    ∗ MIE ↦ₜ[th] InterruptEnabled
+    ∗ held (th := th) InterruptEnabled
 
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1
@@ -154,13 +154,15 @@ Section Switcher.
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true mshwm_v).
     1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie".
     iFrame "Hentry".
     iFrame "%".
     iSplitR.
     { subst target; cbn.
       destruct ((ot_switcher =? ot_switcher)%Z); eauto. }
     iSplitR; first done.
+    iSplitR; first done.
+    iClear "Hheld".
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iNext.
@@ -251,9 +253,9 @@ Section Switcher.
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
-    (* The switcher's entry disables interrupts *)
-    ∗ MIE ↦ₜ[th] InterruptDisabled
-    ∗ held (th := th) InterruptDisabled
+    (* The switcher is entered with interrupts enabled *)
+    ∗ MIE ↦ₜ[th] InterruptEnabled
+    ∗ held (th := th) InterruptEnabled
 
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1
@@ -314,13 +316,15 @@ Section Switcher.
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs true mshwm_v).
     1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie".
     iFrame "Hentry".
     iFrame "%".
     iSplitR.
     { subst target; cbn.
       destruct ((ot_switcher =? ot_switcher)%Z); eauto. }
     iSplitR; first done.
+    iSplitR; first done.
+    iClear "Hheld".
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iNext.
@@ -400,9 +404,9 @@ Section Switcher.
     ∗ ⌜ revoked_addresses W (stk_free b_stk e_stk a_stk) ⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
-    (* The switcher's entry disables interrupts *)
-    ∗ MIE ↦ₜ[th] InterruptDisabled
-    ∗ held (th := th) InterruptDisabled
+    (* The switcher is entered with interrupts enabled *)
+    ∗ MIE ↦ₜ[th] InterruptEnabled
+    ∗ held (th := th) InterruptEnabled
 
     (* POST-CONDITION *)
     ∗ ( ▷ ( ∀ (W2 : WORLD) (rmap' : LReg) (stk_mem : list LWord) l' rcgp rcra rcs0 rcs1
@@ -466,9 +470,11 @@ Section Switcher.
       b_stk e_stk a_stk stk_mem arg_rmap rmap cstk Ws Cs false mshwm_v).
     1-9: eauto.
     iFrame "Hthread Hsafety Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1 Hargs Hregs
-      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie Hheld".
+      Hstk Hhwm Hworld_interp Hstk_val Hcstk Hcont Hmie".
     iFrame "Htarget_v".
     iFrame "%".
+    iSplitR; first done.
+    iClear "Hheld".
     iSplit; last by iDestruct "Hpost" as "[_ $]".
     iDestruct "Hpost" as "[Hpost _]".
     iNext.

@@ -138,6 +138,8 @@ Section DLE.
       & #Hinterp_W0_csp
       & Hmie & Hheld
       )".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iExtractList "Hrmap" [ca0;ca1;ct0;ct1;ct2;cs0;cs1]
       as ["Hca0"; "Hca1"; "Hct0"; "Hct1"; "Hct2"; "Hcs0"; "Hcs1"].
     iEval (cbn [fmap list_fmap dle_main_data dle_main_imports]) in "Hcgp_main Himports_main".
@@ -162,7 +164,7 @@ Section DLE.
     iAssert (dle_static_mem pc_b pc_a C_f) with "[$Himports $Hcode_main]" as "Hmem".
     iApply (dle_share_blocks_2_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcs1 $Hcra $Hmem $Hmie $Hheld]");
-      [rewrite /dle_code_bounds; eauto 10|done|].
+      [rewrite /dle_code_bounds; eauto 10|done|done|].
     iNext; iIntros "(HPC & Hcra & Hct0 & Hct1 & Hcs0 & Hcs1 & Hmem & Hmie & Hheld)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
 
@@ -251,7 +253,7 @@ Section DLE.
     iApply (dle_overwrite_blocks_3_spec with
              "[- $HPC $Hcgp $Hca0 $Hct0 $Hct1 $Hcra $Hcs0 $Hcs1 $Hcgp_b $Himport_switcher
               $Hcode_main $Hmie $Hheld]");
-      [rewrite /dle_code_bounds; eauto 10|done|done|done|].
+      [rewrite /dle_code_bounds; eauto 10|done|done|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hca0 & Hct0 & Hct1 & Hcra & Hcs0 & Hcs1 & Hcgp_b
                             & Himport_switcher & Hcode_main & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hca1"; "Hct0"; "Hct2"].

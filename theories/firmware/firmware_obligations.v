@@ -547,14 +547,16 @@ Section adversary.
     intros swl Hok c. rewrite (cmpt_ok_imports _ _ _ Hok) -list_fmap_compose big_sepL_fmap //.
   Qed.
 
-  (** The switcher call sentry is safe to import. *)
+  (** The switcher call sentry, which enables interrupts, is safe to
+      import in a compartment without the context-switch thread. *)
   Lemma fw_switcher_call_safe fw img σ c C :
     let swl := fw_switcher_layout img in
     firmware_ok fw img σ →
+    CtxSwitch ∉ cmpt_threads C →
     switcher_threads (swlayout := swl) C -∗
     fw_import_safe C (fw_word_of fw img [] c ISwitcherCall).
   Proof.
-    intros swl Hok.
+    intros swl Hok Hctx.
     pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
     iIntros "#Hswitcher_threads".
     rewrite /fw_import_safe /fw_word_of /note.
@@ -562,7 +564,8 @@ Section adversary.
     iIntros "!>" (t') "#Ht'".
     iDestruct ("Hswitcher_threads" $! t' with "Ht'") as "[Hswitcher Hswitcher_static]".
     iApply (interp_switcher_call (th := t') (swlayout := fw_switcher_layout img));
-      iFrame "Hswitcher Hswitcher_static".
+      first exact Hctx.
+    iFrame "Hswitcher Hswitcher_static".
   Qed.
 
   (** A time-device import is safe in any compartment: it reaches only

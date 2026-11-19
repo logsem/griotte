@@ -72,8 +72,8 @@ Section Switcher_unwind.
     hwm_res cstk mshwm_v ∗
     na_own (tpool th) ⊤ ∗
     ◯(CSTK)[th] cstk ∗
-    MIE ↦ₜ[th] InterruptDisabled ∗
-    held (th := th) InterruptDisabled
+    MIE ↦ₜ[th] InterruptEnabled ∗
+    held (th := th) InterruptEnabled
     ⊢ safe[th].
   Proof.
     iIntros (Hfull_rmap Hframe)
@@ -89,9 +89,9 @@ Section Switcher_unwind.
     iNext; iIntros "(HPC & Hca0 & Hca1)".
     iEval (rewrite -switcher_return_offset) in "HPC".
     iInsertList "Hrmap" [ca0;ca1].
-    iApply (switcher_return_unwind _ _ _ _ _ _ _ _ _ InterruptDisabled mshwm_v with
+    iApply (switcher_return_unwind _ _ _ _ _ _ _ _ _ InterruptEnabled mshwm_v with
              "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_res $Hcont $Hhwm $Hna
-               $Hcstk $Hmie $Hheld]");
+               $Hcstk $Hmie]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
     iSplit; iApply interp_int.

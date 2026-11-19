@@ -142,8 +142,10 @@ Section adequacy_helpers.
       rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1)); last solve_addr.
       rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1));
         last solve_addr.
+      rewrite (finz_seq_between_cons (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1));
+        last solve_addr.
       iDestruct "Hswitcher_data"
-        as "(Htstacks_key & Hswitcher_sealing & Hw_pcc & Hw_cgp & Hw_csp & _)".
+        as "(Htstacks_key & Hswitcher_sealing & Hw_pcc & Hw_cgp & Hw_csp & Hsentries_key & _)".
       iDestruct (mkregion_prepare with "[Hswitcher]") as ">Hswitcher"; auto.
       { exact Hsize. }
       iMod (seal_store_update_alloc _ SealGlobal ot_switcher_propC with "Hseal_store")
@@ -163,6 +165,7 @@ Section adequacy_helpers.
       iMod (pointsto_persist with "Hw_pcc") as "#Hw_pcc".
       iMod (pointsto_persist with "Hw_cgp") as "#Hw_cgp".
       iMod (pointsto_persist with "Hw_csp") as "#Hw_csp".
+      iMod (pointsto_persist with "Hsentries_key") as "#Hsentries_key".
       iModIntro.
       replace (switcher.b_switcher ^+ 2)%a with (switcher.b_switcher ^+ 1 ^+ 1)%a
         by solve_addr+Hcall.
@@ -170,9 +173,12 @@ Section adequacy_helpers.
         by solve_addr+Hcall.
       replace (switcher.b_switcher ^+ 4)%a with (switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a
         by solve_addr+Hcall.
+      assert ((switcher.b_switcher ^+ 1 ^+ 1 ^+ 1 ^+ 1 ^+ 1)%a = (switcher.b_switcher ^+ 5)%a)
+        as Hsentries_key_addr by solve_addr+Hcall.
+      iEval (rewrite Hsentries_key_addr) in "Hsentries_key".
       iFrame "Hsealed_pred_ot_switcher Hsealed_pred_tstacks Hw_pcc Hw_cgp Hw_csp".
       rewrite /switcher_static /switcher_sealing_inv.
-      iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hexit Hhwm_base Htstk".
+      iFrame "Hswitcher_code Hswitcher_sealing Htstacks_key Hsentries_key Hexit Hhwm_base Htstk".
       iPureIntro. split; [done | split; [apply switcher.ot_switcher_size |
                                          apply switcher.ot_trusted_stacks_size] ].
     Qed.

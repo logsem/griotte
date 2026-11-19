@@ -239,7 +239,7 @@ Section tsy_obligations.
            with "Hswitcher_threads_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"); [done | eapply cmpt_threads_sep; eauto]. }
     cbn [fc_name fw_nth fw_cmpts tsy_firmware]. rewrite HsbB.
     fw_fold_cmpt K_cmpt. fw_fold_cmpt B_cmpt.
     set (Wk := std_update_multiple fw_world0

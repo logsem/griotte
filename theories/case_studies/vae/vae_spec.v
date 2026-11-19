@@ -150,6 +150,8 @@ Section VAE.
       & #Hinterp_W0_csp
       & Hmie & Hheld
       )".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     assert (vae_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /vae_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
@@ -169,7 +171,7 @@ Section VAE.
     iApply (vae_init_blocks_1_spec with
              "[- $Hawk_inv $Hworld_interp_C $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra
               $Himport_switcher $Himport_C_f $Hcode_main $Hmie $Hheld]");
-      [done..|exact Hloc_i_0|done|].
+      [done..|exact Hloc_i_0|done|done|].
     iNext; iIntros "(Hworld_interp_C & HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
                     & _ & _ & _ & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hct0"].

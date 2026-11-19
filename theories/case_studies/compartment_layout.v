@@ -233,10 +233,10 @@ Section CmptLayout.
         (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
 
         switcher_call_entry_point :
-        (b_switcher + 5)%a = Some a_switcher_call ;
+        (b_switcher + 6)%a = Some a_switcher_call ;
 
         switcher_return_entry_point :
-        (b_switcher + (5 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+        (b_switcher + (6 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
         ot_switcher_size :
         (ot_switcher < ot_switcher ^+ 1)%ot;

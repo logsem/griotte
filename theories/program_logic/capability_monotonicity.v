@@ -213,6 +213,13 @@ Section capability_monotonicity.
       reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WSealable sb) →
       t = true → permit_seal p = true → withinBounds b e a = true →
       derivable φ (WSealed a sb)
+  (* An executable capability sealed into a sentry by a tagged range that
+     permits sealing at a sentry otype [a]: Seal. *)
+  | derivable_seal_sentry r1 r2 t p g b e a t' p' g' b' e' a' k :
+      reg φ !!ᵣ r1 = Some (WSealRange t p g b e a) → reg φ !!ᵣ r2 = Some (WCap t' p' g' b' e' a') →
+      t = true → t' = true → permit_seal p = true → withinBounds b e a = true →
+      executeAllowed p' = true → sentry_kind_of_otype a = Some k →
+      derivable φ (Sentry k p' g' b' e' a')
   (* A sealed word unsealed by a tagged range that permits unsealing at
      [o]: UnSeal. *)
   | derivable_unseal r1 r2 t p g b e a o sb :
@@ -252,6 +259,12 @@ Section capability_monotonicity.
       lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealable sb @@? π) →
       permit_seal p = true → withinBounds b e a = true →
       lderivable lregs lpc (WSealed a sb @@? π)
+  | lderivable_seal_sentry r1 r2 p g b e a πr p' g' b' e' a' π k :
+      lregs !! r1 = Some (SealRange p g b e a @@? πr) →
+      lregs !! r2 = Some (Cap p' g' b' e' a' @@? π) →
+      permit_seal p = true → withinBounds b e a = true →
+      executeAllowed p' = true → sentry_kind_of_otype a = Some k →
+      lderivable lregs lpc (Sentry k p' g' b' e' a' @@? π)
   | lderivable_unseal r1 r2 p g b e a πr o sb π :
       lregs !! r1 = Some (SealRange p g b e a @@? πr) → lregs !! r2 = Some (WSealed o sb @@? π) →
       permit_unseal p = true → withinBounds b e o = true →
@@ -426,6 +439,26 @@ Section capability_lift.
       - by eapply lderivable_seal.
     Qed.
 
+    (** A sealing into a sentry: the sentry keeps the provenance and the
+        bounds of the capability; the range is exact. *)
+    Lemma lift_seal_sentry r1 r2 p g b e a p' g' b' e' a' k :
+      reg φ !!ᵣ r1 = Some (WSealRange true p g b e a) → reg φ !!ᵣ r2 = Some (Cap p' g' b' e' a') →
+      permit_seal p = true → withinBounds b e a = true →
+      executeAllowed p' = true → sentry_kind_of_otype a = Some k →
+      has_lift R C lreg lpc (Sentry k p' g' b' e' a').
+    Proof.
+      intros Hr1 Hr2 Hps Hwb Hexec Hkind.
+      destruct (erasure_reg_tagged Her Hr1 eq_refl) as ([w1 π1] & Hv1 & Hw1 & _ & _).
+      cbn in Hw1; subst w1.
+      destruct (erasure_reg_tagged Her Hr2 eq_refl) as ([w2 π2] & Hv2 & Hw2 & Hok & Hp).
+      cbn in Hw2; subst w2.
+      exists (Sentry k p' g' b' e' a' @@? π2). split_and!.
+      - by apply (reg_word_ok_derive _ _ (Cap p' g' b' e' a' @@? π2)); [left | | |].
+      - eapply (reg_phys_derive_eq _ (Cap p' g' b' e' a' @@? π2) true);
+          [by rewrite and_tag_true | done | done | by rewrite and_tag_true].
+      - by eapply lderivable_seal_sentry.
+    Qed.
+
     (** An unsealing: the sealed word keeps its provenance; the range is
         exact. *)
     Lemma lift_unseal r1 r2 p g b e a o sb :
@@ -454,10 +487,12 @@ Section capability_lift.
       intros Hder. destruct (get_tag w') eqn:Ht; last by apply lift_untagged.
       destruct Hder as [r w w' Hr Hle | w' Hle
                        | r1 r2 t p g b e a sb Hr1 Hr2 -> Hps Hwb
+                       | r1 r2 t p g b e a t' p' g' b' e' a' k Hr1 Hr2 -> -> Hps Hwb Hexec Hkind
                        | r1 r2 t p g b e a o sb Hr1 Hr2 -> Hps Hwb].
       - by eapply lift_reg.
       - by apply lift_pc.
       - by eapply lift_seal.
+      - by eapply lift_seal_sentry.
       - by eapply lift_unseal.
     Qed.
   End lifts.

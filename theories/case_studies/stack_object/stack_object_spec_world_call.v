@@ -360,6 +360,7 @@ Section SO_World_Call.
       (in [ca0]) and [z] (in [ca1]), the entry point of the switcher (in
       [ct0]), and the cleared argument registers. *)
   Lemma so_call_args W C (rmap : LReg) (wca0 wca1 : LWord) :
+    CtxSwitch ∉ cmpt_threads C ->
     dom rmap = all_registers_s ∖ {[ cgp ; cra ; csp ; ct1 ; cs0 ; cs1 ; ca0 ; ca1 ; ct0 ]} ->
     (∀ r, r ∈ ({[ ca2 ; ca3 ; ca4 ; ca5 ]} : gset RegName) →
           rmap !! r = Some (lword_of_word (WInt 0))) ->
@@ -377,7 +378,7 @@ Section SO_World_Call.
       ([∗ map] rarg↦warg ∈ arg_rmap, rarg ↦ᵣ[th] warg ∗ interp W C warg) ∗
       regs[th] rmap'.
   Proof.
-    iIntros (Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
+    iIntros (Hctx Hrmap_dom Hzero) "#Hswitcher #Hswitcher_static Hca0 #Hinterp_ca0 Hca1 #Hinterp_ca1 Hct0 Hrmap".
     iDestruct (big_sepM_delete _ _ ca2 with "Hrmap") as "[Hca2 Hrmap]".
     { apply Hzero; set_solver+. }
     iDestruct (big_sepM_delete _ _ ca3 with "Hrmap") as "[Hca3 Hrmap]".
@@ -398,7 +399,7 @@ Section SO_World_Call.
     iSplit; first by rewrite /is_arg_rmap.
     iAssert (interp W C (WInt 0)) as "#Hinterp_0"; first iApply interp_int.
     iAssert (interp W C switcher_entry_call) as "#Hinterp_switcher".
-    { iApply interp_switcher_call. iFrame "Hswitcher Hswitcher_static". }
+    { iApply interp_switcher_call; first exact Hctx. iFrame "Hswitcher Hswitcher_static". }
     repeat (iApply big_sepM_insert; [done|iFrame "∗#"]).
     done.
   Qed.

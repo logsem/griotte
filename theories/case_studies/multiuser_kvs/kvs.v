@@ -557,7 +557,7 @@ void __cheri_compartment("kvs") erase(Sealed<UKeyT> suk, MKeyT mk)
     (b_locks e_locks : Addr) (KVS_OTYPE : OType) (ot_switcher : OType)
     : list Word :=
     [
-      Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_cc_switcher;
+      Sentry FwdEnable XSRW_ Local b_switcher e_switcher a_cc_switcher;
       (kvs_service_unsealing_key_pre KVS_OTYPE);
       Sentry FwdDisable RX Global b_locks e_locks b_locks
     ].

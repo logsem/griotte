@@ -71,6 +71,7 @@ Section CMDC_Call_Blocks_2.
     (wctp wct1 wcra : LWord) (b : InterruptStatus) :
     cmdc_code_bounds pc_b pc_e pc_a B_f C_g ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ cmdc_label_offset (cmdc_call_label c)) ∗
     ctp ↦ᵣ[th] wctp ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -88,14 +89,14 @@ Section CMDC_Call_Blocks_2.
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ cmdc_call_import c) ↦ₐ□ WSealed ot_switcher (cmdc_call_target c B_f C_g) ∗
         codefrag_pers pc_a cmdc_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     destruct c; cbn [cmdc_call_label cmdc_return_label cmdc_call_import cmdc_call_target].
     all: iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & HB_f_nonheap
-                   & HC_g_nonheap) Hroute)
+                   & HC_g_nonheap) Hroute Hth)
       "(HPC & Hctp & Hct1 & Hcra & Himport_switcher & Himport_target
       & Hcode_main & Hmie & Hheld & Hpost)".
     all: codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

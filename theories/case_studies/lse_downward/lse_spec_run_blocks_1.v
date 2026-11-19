@@ -31,6 +31,7 @@ Section LSE_Run_Blocks_1.
     is_shadow_address cgp_b = false ->
     is_heap_cap (WSealed ot_switcher C_f) = false ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e pc_a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ct0 ↦ᵣ[th] wct0 ∗
@@ -54,13 +55,13 @@ Section LSE_Run_Blocks_1.
         pc_b ↦ₐ□ switcher_entry_call ∗
         (pc_b ^+ 2) ↦ₐ□ WSealed ot_switcher C_f ∗
         codefrag_pers pc_a lse_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds Hcgp_shadow
-               Hsealed_nonheap Hroute)
+               Hsealed_nonheap Hroute Hth)
       "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra
       & Hcgp_b & Himport_switcher & Himport_C_f & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
