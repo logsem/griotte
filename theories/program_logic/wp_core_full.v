@@ -139,4 +139,35 @@ Section wp_core_full.
     iExists b'. iFrame "Hm HΨ". destruct b'; [done|].
     rewrite held_disabled. iFrame.
   Qed.
+
+  (** A ghost update with the critical-section token, before a step: the
+      token comes out of the link (or of what the thread holds at
+      InterruptDisabled) by the routing law, and goes back with the state
+      unchanged. *)
+  Lemma wp_crit_borrow E e b (P : iProp Σ) Φ :
+    language.to_val e = None →
+    route_pre th b →
+    held b -∗
+    MIE ↦ₜ b -∗
+    (na_own crit ⊤ ={E}=∗ na_own crit ⊤ ∗ P) -∗
+    (held b -∗ MIE ↦ₜ b -∗ P -∗ WP e @ E {{ Φ }}) -∗
+    WP e @ E {{ Φ }}.
+  Proof.
+    iIntros (Hval Hpre) "Hh Hm Hupd HK".
+    rewrite !wp_unfold /wp_pre /= Hval.
+    iIntros (σ ns κ κs nt) "(Hσ & Hrdom & Hl & Hirq)".
+    iDestruct (SI_mie_st with "Hσ Hm") as %Hb.
+    iMod (crit_route σ with "Hl [Hh]") as "[Hho Hrestore]"; [by rewrite Hb | by rewrite Hb |].
+    iDestruct (handover_res_crit with "Hho") as "[Htok Hback]".
+    iMod ("Hupd" with "Htok") as "[Htok HP]".
+    iSpecialize ("Hback" with "Htok").
+    destruct b.
+    - iMod ("Hrestore" with "Hσ [Hback]") as "(Hσ & Hl & _)"; first by rewrite Hb.
+      iSpecialize ("HK" with "[//] Hm HP").
+      iApply ("HK" $! σ ns κ κs nt). by iFrame.
+    - iMod ("Hrestore" with "Hσ []") as "(Hσ & Hl & Hp)"; first by rewrite Hb.
+      rewrite Hb.
+      iSpecialize ("HK" with "[Hback Hp] Hm HP"); first (rewrite held_disabled; iFrame).
+      iApply ("HK" $! σ ns κ κs nt). by iFrame.
+  Qed.
 End wp_core_full.

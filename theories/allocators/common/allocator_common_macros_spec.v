@@ -36,35 +36,45 @@ Section AllocatorMacros.
   (** The existing fetch macro proof specialized to an arbitrary WP mask, so
       allocator calls can keep the non-atomic service invariant open. *)
 
-  Lemma allocator_return_spec
+  (** The return through [cra]: the release [Rrel ={E}=∗ held mie] runs
+      before the jump, which may change the posture (a return sentry that
+      enables interrupts ends the critical section). *)
+  Lemma allocator_return_spec `{CR : !CritRoute Σ th CL}
     (E : coPset) (pc_b pc_e pc_a : Addr) (wret : LWord)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Rrel : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
 
     let code := encodeInstrsW [Jalr cnull cra] in
     SubBounds pc_b pc_e pc_a (pc_a ^+ length code) ->
     disjoint_from_shadow pc_b pc_e ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
 
     PC ↦ₚ Cap RX Global pc_b pc_e pc_a ∗
     cra ↦ᵣ wret ∗
     MIE ↦ₜ mie ∗
+    Rrel ∗
+    (Rrel ={E}=∗ held mie) ∗
     codefrag_pers pc_a code ∗
     ▷ (PC ↦ₚ lupdatePcPerm wret ∗
          cra ↦ᵣ wret ∗
-         MIE ↦ₜ mie ∗
+         MIE ↦ₜ default mie (jalr_target_mie wret.(lw)) ∗
+         held (default mie (jalr_target_mie wret.(lw))) ∗
          codefrag_pers pc_a code ∗
          £ 1
          -∗ WP Exec @ E {{ φ }})
     ⊢ WP Exec @ E {{ φ }}.
   Proof.
-    intros code Hpc Hdisjoint Htgt Hkeep; subst code.
-    iIntros "(HPC & Hcra & Hmie & #Hcode & Hφ)".
+    intros code Hpc Hdisjoint Htgt Hpre Hpre_ret; subst code.
+    iIntros "(HPC & Hcra & Hmie & HRrel & Hrelease & #Hcode & Hφ)".
+    iMod ("Hrelease" with "HRrel") as "Hheld".
     codefrag_facts "Hcode".
     (* Jalr cnull cra. *)
-    iInstrApply "Hcode" with "Hlc" (wp_jalr_success_cnull_kept _ _ _ _ _ _ _ _ _ cra wret mie)
-      with "[$HPC $Hcra $Hmie]" as "(HPC & Hcra & Hmie)".
+    iInstrApply "Hcode" with "Hlc"
+      (wp_jalr_success_cnull_posture _ _ _ _ _ _ _ _ _ cra wret mie)
+      with "[$HPC $Hcra $Hmie $Hheld]" as "(HPC & Hcra & Hmie & Hheld)".
+    { intros _; exact Hpre_ret. }
     iApply "Hφ". iFrame "∗ Hcode".
   Qed.
 

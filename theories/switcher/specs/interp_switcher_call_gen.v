@@ -283,8 +283,8 @@ Section fundamental.
     interp_cont interp cstk Ws Cs -∗
     hwm_res cstk mshwm_v -∗
     ◯(CSTK)[th] cstk -∗
-    MIE ↦ₜ[th] InterruptDisabled -∗
-    held (th := th) InterruptDisabled -∗
+    MIE ↦ₜ[th] InterruptEnabled -∗
+    held (th := th) InterruptEnabled -∗
     safe[th].
   Proof.
     intros a_frameoffset a_next; subst a_frameoffset a_next.
@@ -311,7 +311,7 @@ Section fundamental.
     iDestruct (big_sepM_insert_2 _ _ ca0 with "[Hca0] Hrmap") as "Hrmap"; first iExact "Hca0".
     iApply (switcher_return_unwind with
              "[$HPC $Hrmap $Hthread $Hinv_switcher $Hstatic $Htrap $Hworld_res $Hcont $Hhwm $Hna
-               $Hcstk $Hmie $Hheld]");
+               $Hcstk $Hmie]");
       [|by simplify_map_eq|by simplify_map_eq|done|].
     { intros r. rewrite !lookup_insert_is_Some'.
       destruct (decide (r = ca0)); first naive_solver.
@@ -352,8 +352,8 @@ Section fundamental.
     regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
-    MIE ↦ₜ[th] InterruptDisabled -∗
-    held (th := th) InterruptDisabled -∗
+    MIE ↦ₜ[th] InterruptEnabled -∗
+    held (th := th) InterruptEnabled -∗
     thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk) -∗
     ( ⌜ switcher_stk_bounds b e a ⌝ ∗
       ⌜ (mshwm_v' = mshwm_v ∨ (cstk_hwm_base cstk <= mshwm_v' < mshwm_v ∧ stk_spill_a a <= mshwm_v' < a))%Z ⌝ ∗
@@ -398,8 +398,9 @@ Section fundamental.
       as (wca0 wca1 rmap0) "(Hca0 & Hca1 & %Hrmap0 & Hrmap0)"; first done.
     iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     iApply (switch_trusted_stack_exhausted_path_spec with
-      "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hmie $Hheld]");
+      "[- $HPC $Hcsp $Hcells $Hrmap0 $Hcode $Hcs0 $Hcs1 $Hcgp $Hcra $Hca0 $Hca1 $Hmie]");
       [done|done|done|done|].
+    iSplitR; first done.
     iNext; iIntros (rmap' rcgp rcra rcs0 rcs1)
       "((%Hrcgp & %Hrcra & %Hrcs0 & %Hrcs1) & %Hrmap' & Hcs0 & Hcs1 & Hcgp & Hcra & Hca0 & Hca1
       & Hcsp & Hcells & Hrmap & Hlc)".
@@ -417,10 +418,11 @@ Section fundamental.
 
     (* Jump back to the caller, or unwind the call when the jump faults;
        close the trusted-stack invariant first *)
-    iApply (switcher_jump_to_caller_cases_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ InterruptDisabled with
+    iApply (switcher_jump_to_caller_cases_spec _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ InterruptEnabled with
              "Htrap Hthread Hrcrav Hrcgpv Hrcs0v Hrcs1v Hspv [] [] Htop Hcra Hcgp Hcs0 Hcs1 Hcsp Hca0 Hca1
               Hrmap Hhwm Hcont Hlc [-]");
-      [done|done|done|by intros|intros Hcs; by destruct Huser|iApply interp_int|iApply interp_int|].
+      [done|done|done|intros Hcs; by destruct Huser|intros Hcs; by destruct Huser
+      |iApply interp_int|iApply interp_int|].
     iMod (trusted_stack_inv_opened_close with "Hopened Hmtdc Hframeoffset Hhazard Htstk") as "Hna".
     iModIntro.
     rewrite world_resources_split.
@@ -457,8 +459,8 @@ Section fundamental.
     regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
-    MIE ↦ₜ[th] InterruptDisabled -∗
-    held (th := th) InterruptDisabled -∗
+    MIE ↦ₜ[th] InterruptEnabled -∗
+    held (th := th) InterruptEnabled -∗
     thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk) -∗
     ( ⌜ ¬ stk_spill_fits b e a ⌝ ∗
       csp ↦ᵣ[th] Cap RWL Local b e a ∗
@@ -483,8 +485,8 @@ Section fundamental.
       "#Hthread #Hsafety #Hreg #Htop Hopened Hstk_opened Hperm Hrmap Hcont Hcstk Hmie Hheld #Hts
       (_ & Hcsp & Hct2 & Hctp & Hcs0 & Hcs1 & Hcra & Hcgp & Hct1 & Hstk & Hhwm_regs
       & Hmtdc & Hframeoffset & Hhazard & Htstk)".
-    iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
+    iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
     iDestruct (hwm_res_untrusted_of_regs W cstk mshwm_v with "Hts Hhwm_regs") as "Hhwm";
       [done|done|].
     iEval (rewrite -(hwm_res_kind_user _ _ Huser)) in "Hhwm".
@@ -503,7 +505,7 @@ Section fundamental.
     iModIntro.
     rewrite world_resources_split.
     iFrame "Hrmap Hhwm Hlocal Hperm Hcont Hna Hcstk".
-    iExists InterruptDisabled; iFrame "Hmie Hheld"; iPureIntro; by intros.
+    iExists InterruptEnabled; iFrame "Hmie Hheld"; iPureIntro; intros Hcs; by destruct Huser.
   Qed.
 
   (** Fault of the unsealing: close the caller's stack, push the frame,
@@ -542,8 +544,8 @@ Section fundamental.
     regs[th] call_regs_without regs -∗
     interp_cont interp cstk Ws Cs -∗
     ◯(CSTK)[th] cstk -∗
-    MIE ↦ₜ[th] InterruptDisabled -∗
-    held (th := th) InterruptDisabled -∗
+    MIE ↦ₜ[th] InterruptEnabled -∗
+    held (th := th) InterruptEnabled -∗
     thread_stack_bounds (cstk_hwm_base cstk) (cstk_hwm_top cstk) -∗
     ( ⌜ ¬ ∃ wsb π, wct1 = WSealed ot_switcher wsb @@? π ∧ get_tag_sealable wsb = true ⌝ ∗
       ⌜ switcher_stk_bounds b e a ⌝ ∗
@@ -583,6 +585,7 @@ Section fundamental.
          & [%wct2' Hct2] & Hctp
        & Hcsp & Hcra & Hcgp & [%wct1' Hct1] & Hcells & Hstk & Hhwm_regs & Hmtdc & Hframeoffset
        & Hhazard & Hframe_csp & [%wtbl Hframe_tbl] & Hframe_cnt & [%tstk_next' Htstk] & _)".
+    iAssert (⌜th ≠ CtxSwitch⌝)%I as %Huser; first (iNamed "Hopened"; done).
     set (frame := interp_call_frame b e a (lword_of_word (WInt 0))).
     (* Close the caller's stack frame: the words of the callee's stack below
        MSHWM are unchanged, and those above are 0 *)
@@ -613,7 +616,7 @@ Section fundamental.
     rewrite world_resources_split.
     iFrame "Hrmap Hhwm Hlocal Hperm Hcstk Hna".
     iSplitL "Hcont"; first (iApply (interp_call_cont_frame with "Hspv Htop Hcont"); done).
-    iExists InterruptDisabled; iFrame "Hmie Hheld"; iPureIntro; by intros.
+    iExists InterruptEnabled; iFrame "Hmie Hheld"; iPureIntro; intros Hcs; by destruct Huser.
   Qed.
 
   (** The callee's stack is too small: push the frame, whose table cell
@@ -671,8 +674,8 @@ Section fundamental.
       ( [∗ map] r↦w ∈ arg_rmap,
           r ↦ᵣ[th] w ∗ if decide (r ∈ dom_arg_rmap nargs) then interp W C w else True ) ∗
       regs[th] rmap ∗
-      MIE ↦ₜ[th] InterruptDisabled ∗
-      held (th := th) InterruptDisabled -∗
+      MIE ↦ₜ[th] InterruptEnabled ∗
+      held (th := th) InterruptEnabled -∗
       safe[th] ).
   Proof.
     intros frame a_frameoffset a_next a_free a_csp a_export_table a_error_count.
@@ -693,8 +696,7 @@ Section fundamental.
                 with "Hspv Htop Hcont") as "Hcont"; [done|done|done|].
     iApply (switcher_call_stack_too_small_unwind_of_safety _ _ (cstack_push frame cstk)
              (W :: Ws) (C :: Cs) regs mshwm_v
-             with "[$HPC $Hregs $Hthread $Hsafety $Hworld_res $Hhwm $Hna $Hcstk $Hcont $Hmie
-                    $Hheld]");
+             with "[$HPC $Hregs $Hthread $Hsafety $Hworld_res $Hhwm $Hna $Hcstk $Hcont $Hmie]");
       first done.
     simpl. split; [apply related_sts_pub_refl_world|done].
   Qed.
@@ -703,7 +705,7 @@ Section fundamental.
 
   Lemma interp_expr_switcher_call_gen (W : WORLD) (C : CmptName) :
     switcher_trap_safety
-    ⊢ interp_expr_at InterruptDisabled interp (interp_cont interp) W C
+    ⊢ interp_expr_at InterruptEnabled interp (interp_cont interp) W C
         (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     (* Outline of the proof:
@@ -741,7 +743,7 @@ Section fundamental.
     iDestruct "Hregs" as "[%Hfull_rmap #Hreg]".
     iPoseProof (switcher_trap_safety_res with "Hsafety") as "[#Hinv_switcher #Hstatic]".
     iPoseProof (switcher_mtcc_vec_safe_of_safety with "Hsafety") as "#Htrap".
-    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _)".
+    iPoseProof "Hstatic" as "(#Hcode & #Hb_switcher & _ & _ & _ & #Hsentries_key & _)".
 
     (* Open the trusted-stack invariant *)
     iMod (trusted_stack_inv_open_call with "Hinv_switcher Hna")
@@ -840,7 +842,8 @@ Section fundamental.
                     with "Htrap Hthread [] Htop [-]");
              [ |done| |iModIntro;
                         iFrame "Hrmap Hhwm Hworld_res Hcont Hna Hcstk";
-                        iExists InterruptDisabled; iFrame "Hmie Hheld"; iPureIntro; by intros].
+                        iExists InterruptEnabled; iFrame "Hmie Hheld"; iPureIntro;
+                        intros Hcs; by destruct Huser].
            { intros r. rewrite !lookup_insert_is_Some'. naive_solver. }
            (* A fault of the first spill: the registers are safe *)
            by iApply interp_call_regs_scratch. }
@@ -899,7 +902,8 @@ Section fundamental.
            [by apply call_regs_with_full|done| |
             |iModIntro; rewrite world_resources_split;
              iFrame "Hrmap Hlocal Hperm Hcont Hhwm Hna Hcstk";
-             iExists InterruptDisabled; iFrame "Hmie Hheld"; iPureIntro; by intros].
+             iExists InterruptEnabled; iFrame "Hmie Hheld"; iPureIntro;
+                        intros Hcs; by destruct Huser].
          { (* A fault of a later store of the spill is not resumed *)
            exact Hoff. }
          (* The fault is in the switcher *)
@@ -1057,7 +1061,7 @@ Section fundamental.
          too small, and the decoding takes no cell of the zone *)
       iApply (switcher_decode_entry_path_spec W C _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ lo
         with "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra
-            $Hcsp $Hmshwmb $Hmshwm $Hparams $Hrest $Hcode $Hmie $Hheld]");
+            $Hcsp $Hmshwmb $Hmshwm $Hparams $Hrest $Hsentries_key $Hcode $Hmie]");
         [done|clear -Hbtbl_header; solve_addr|done|clear -Hnargs; lia|clear -Hminstk; lia|done|done|done|done| | | |done|done|done
         |intros Hcs; by destruct Huser| |].
       { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
@@ -1068,6 +1072,8 @@ Section fundamental.
         clear -Hlo Hbase Hcallee_h'. stk_unfold. solve_addr. }
       iSplitR.
       { iLeft. iPureIntro. clear -Hwrap. stk_unfold. solve_addr. }
+      iSplitR; first done.
+      iClear "Hheld".
       iNext; iSplit.
       { iIntros (arg_rmap_s rmap_s) "(%Hbig & _)". exfalso. clear -Hbig Hwrap. stk_unfold.
         rewrite /StackEntry_reserved_space in Hbig Hwrap. solve_addr. }
@@ -1099,7 +1105,7 @@ Section fundamental.
     (* [.Lswitcher_decode_entry]: load the callee and jump to it *)
     iApply (switcher_decode_entry_path_spec W C _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ lo with
       "[- $Htbl_pcc $Htbl_cgp $Htbl_entry $HPC $Hcs0 $Hcs1 $Hct1 $Hct2 $Hctp $Hframe_tbl $Hcgp $Hcra $Hcsp
-          $Hmshwmb $Hmshwm $Hparams $Hrest $Hcode $Hmie $Hheld]");
+          $Hmshwmb $Hmshwm $Hparams $Hrest $Hsentries_key $Hcode $Hmie]");
       [done|clear -Hbtbl_header; solve_addr|done|clear -Hnargs; lia|clear -Hminstk; lia|done|done|done|done| | | |done|done|done
       |intros Hcs; by destruct Huser| |].
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hbcgp_heap /=.
@@ -1109,6 +1115,8 @@ Section fundamental.
     { rewrite Hlo. clear -Hbase Hcallee_h'. stk_unfold. solve_addr. }
     iSplitL "Hzone".
     { iRight. iExact "Hzone". }
+    iSplitR; first done.
+    iClear "Hheld".
     iNext; iSplit; cycle 1.
     { (* The callee's stack is too small *)
       iIntros "(_ & HPC & Hcs0 & Hcs1 & Hct1 & Hct2 & Hctp & Hcgp & Hcra & Hcsp

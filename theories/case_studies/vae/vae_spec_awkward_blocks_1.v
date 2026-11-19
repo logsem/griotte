@@ -32,6 +32,7 @@ Section VAE_Awkward_Blocks_1.
     revoke_condition W ->
     related_sts_priv_world W (<l[i:=false]l>W) ->
     route_pre th mie ->
+    th ≠ CtxSwitch ->
     inv Nawk (awk_inv C i cgp_b) ∗
     world_interp W C ∗
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ vae_label_offset ".Lvae_awkward")%a ∗
@@ -57,13 +58,13 @@ Section VAE_Awkward_Blocks_1.
         cs1 ↦ᵣ[th] wca0 ∗
         pc_b ↦ₐ□ switcher_entry_call ∗
         codefrag_pers pc_a vae_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
     iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hcgp_bounds
-               Hcgp_shadow Hrevoke Hpriv Hroute)
+               Hcgp_shadow Hrevoke Hpriv Hroute Hth)
       "(#Hawk & Hworld & HPC & Hcgp & Hcra & Hca0 & Hct0 & Hct1 & Hcs0 & Hcs1
       & Himport_switcher & Hcode_main & Hmie & Hheld & Hpost)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

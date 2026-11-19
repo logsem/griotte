@@ -181,7 +181,7 @@ Section TSY_run1.
     iApply (tsy_call_blocks_2_spec with
              "[- $HPC $Hctp $Hct1 $Hcra
               $Himport_switcher $Himport_B_f $Hcode_main $Hmie $Hheld]");
-      [done | by intros ?%Hth |].
+      [done | by intros ?%Hth | done |].
     iNext; iIntros "(HPC & Hctp & Hct1 & Hcra
                     & Himport_switcher & Himport_B_f & Hcode_main & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hca1"; "Hctp"; "Hct0"].

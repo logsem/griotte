@@ -521,8 +521,10 @@ Section Error_Handling_Read.
     iIntros (arg_rmap' rmap')
       "(%Hminstk & %Harg_rmap' & %Hrmap' & Hna & HPC & Hcgp & Hcra & Hcsp
        & Hargs & Hrmap & Hstk & Hhwm & Hcstk & %Hroute & Hmie & Hheld & HP & Hret)".
+    iMod (trusted_stack_inv_user ⊤ with "Hinv_switcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     set (frm := {| cf_tframe := _ ; cf_saved := _ ; ccrel := Known_to_Known |}).
-    set (wret := Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher
+    set (wret := Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher
                    a_switcher_return).
     rewrite /stats_read_min_stack in Hminstk.
 
@@ -622,7 +624,7 @@ Section Error_Handling_Read.
         { by rewrite lookup_insert_ne. }
         { rewrite lookup_total_insert_ne // Hcra_take.
           apply jalr_target_ok_switcher_return_sentry. }
-        { intros _. rewrite lookup_total_insert_ne // Hcra_take /wret. done. }
+        { intros Hcs. by destruct Huser. }
         { done. }
         iNext. iIntros "HPC Hregs Hna Hmie Hheld".
         (* The return, at count 0 *)
@@ -732,7 +734,7 @@ Section Error_Handling_Read.
         { by simplify_map_eq. }
         { rewrite lookup_total_insert_ne // lookup_total_insert_ne // Hcra_take.
           apply jalr_target_ok_switcher_return_sentry. }
-        { intros _. rewrite lookup_total_insert_ne // lookup_total_insert_ne // Hcra_take /wret. done. }
+        { intros Hcs. by destruct Huser. }
         { done. }
         iNext. iIntros "HPC Hregs Hna Hmie Hheld".
         (* The return, at count 2 *)

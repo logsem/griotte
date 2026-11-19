@@ -47,6 +47,8 @@ Section Heap_Temporal_Safety_Interp.
     iIntros (cstk Ws Cs regs b_stk e_stk)
       "(#Hthread & #_ & Hcont & %Hframe & %Htop_tbl & HPCr & Hregister & Hrmap & Hhwm & %Hzone
         & Hworld & Hcred & %Hsync & %Hstk_base & %Hstk_min & Hcstk & Hna & %_ & Hmie & Hposture)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     (* MSHWM at the callee's stack pointer, in its stack *)
     assert (stk_start_a b_stk e_stk <= e_stk)%Z as Hh_e.
     { rewrite /stk_start_a. unfold StackEntry_reserved_space in *. solve_addr. }
@@ -116,18 +118,21 @@ Section Heap_Temporal_Safety_Interp.
     destruct Hsize_dec as [Hvalid|Hinvalid].
     2: { (* Reject an invalid size and return ALLOC_INVALID. *)
       iApply (allocator_malloc_invalid_correct ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id wca1
-        (Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
+        (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
         InterruptDisabled with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hinvalid
-        | apply jalr_target_ok_switcher_return_sentry | reflexivity |].
+        | apply jalr_target_ok_switcher_return_sentry | by intros
+        | intros Hcs; by destruct Huser |].
       iFrame "Hservice Hstatic Hcrit Ha_owner HPCr Hcgpr Hcrar Hmie Hca0 Hca1 Hca2".
       iFrame "Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
+      (* Before the return, close the registry and give the posture back. *)
+      iSplitL "Hclose Hid Hrights Hheld_back".
+      { iIntros "[Hcrit Ha_owner]".
+        iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hcrit]") as "Hcrit".
+        iModIntro. iApply ("Hheld_back" with "Hcrit"). }
       iNext.
-      iIntros "(Hcrit & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hca0 & Hca1 & Hca2 &
+      iIntros "(HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca0 & Hca1 & Hca2 &
         Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp)".
-      (* Close the registry. *)
-      iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hcrit]") as "Hcrit".
-      iDestruct ("Hheld_back" with "Hcrit") as "Hposture".
       iDestruct "Hstack_mem" as (stk_mem) "Hstk".
       iDestruct "Hca2" as (wca2') "Hca2".
       iDestruct "Hct0" as (wct0') "Hct0".
@@ -170,21 +175,32 @@ Section Heap_Temporal_Safety_Interp.
       destruct Hvalid as (n & Hwa1 & Hpositive). cbn in Hwa1. subst wa1.
       iApply (allocator_malloc_valid_correct
         (heap_ids (dom (std (revoke W)))) ⊤ (⊤ ∖ ↑Nallocator_otype) g_owner a_owner id Ω n π1
-        (Sentry (ret_kind InterruptDisabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
-        InterruptDisabled with "[-]");
+        (Sentry (ret_kind InterruptEnabled) XSRW_ Local b_switcher e_switcher a_switcher_return)
+        InterruptDisabled (λ _, True)%I with "[-]");
         [ solve_ndisj | solve_ndisj | exact Hshadow_owner | exact Hbounds_owner | exact Hpositive
-        | apply jalr_target_ok_switcher_return_sentry | reflexivity |].
+        | apply jalr_target_ok_switcher_return_sentry | by intros
+        | intros Hcs; by destruct Huser |].
       iFrame "Hservice Hstatic Hcrit Hid Ha_owner HPCr Hcgpr Hcrar Hmie Hca0".
       iFrame "Hca1 Hca2 Hct0 Hct1 Hct2 Hct3 Hct4 Hctp".
+      (* Before the return, close the registry, with the right to free the
+         new object if any, and give the posture back. *)
+      iSplitL "Hclose Hrights Hheld_back".
+      { iIntros (o) "(Hcrit & Ha_owner & Ho)".
+        destruct o as [ι|].
+        - iDestruct "Ho" as "(%Hι_Ω & Hid & Hright)".
+          iDestruct (allocator_owned_rights_insert with "Hrights Hright")
+            as "Hrights"; first exact Hι_Ω.
+          iMod ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights $Hcrit]")
+            as "Hcrit".
+          iModIntro. iSplitL; last done. iApply ("Hheld_back" with "Hcrit").
+        - iMod ("Hclose" $! Ω with "[$Ha_owner $Ho $Hrights $Hcrit]") as "Hcrit".
+          iModIntro. iSplitL; last done. iApply ("Hheld_back" with "Hcrit"). }
       iNext.
-      iIntros "(Hcrit & Ha_owner & HPCr & Hcgpr & Hcrar & Hmie & Hca2 & Hct0 & Hct1 &
+      iIntros "(HPCr & Hcgpr & Hcrar & Hmie & Hposture & Hca2 & Hct0 & Hct1 &
         Hct2 & Hct3 & Hct4 & Hctp & Hresult)".
       iDestruct "Hresult" as "[Hoom|Hsuccess]".
       + (* Capacity exhausted: restore the caller and return ALLOC_NO_MEMORY. *)
-        iDestruct "Hoom" as "(Hid & Hca0 & Hca1)".
-        (* Close the registry. *)
-        iMod ("Hclose" $! Ω with "[$Ha_owner $Hid $Hrights $Hcrit]") as "Hcrit".
-        iDestruct ("Hheld_back" with "Hcrit") as "Hposture".
+        iDestruct "Hoom" as "(Hca0 & Hca1 & _)".
         iDestruct "Hstack_mem" as (stk_mem) "Hstk".
         iDestruct "Hca2" as (wca2') "Hca2".
         iDestruct "Hct0" as (wct0') "Hct0".
@@ -224,14 +240,7 @@ Section Heap_Temporal_Safety_Interp.
         { exact Hh_e. }
       + (* Allocate the fresh heap object and install its zeroed payload. *)
         iDestruct "Hsuccess" as (ι b e)
-          "(%Hbounds_size & %Hι_new & %Hι_Ω & Hca0 & Hca1 & #Hobj & Hright & Hid & Hcells)".
-        (* Close the registry, which now also holds the right to
-           free the new object. *)
-        iDestruct (allocator_owned_rights_insert with "Hrights Hright")
-          as "Hrights"; first exact Hι_Ω.
-        iMod ("Hclose" $! (Ω ∪ {[ι]}) with "[$Ha_owner $Hid $Hrights $Hcrit]")
-          as "Hcrit".
-        iDestruct ("Hheld_back" with "Hcrit") as "Hposture".
+          "(%Hbounds_size & %Hι_new & %Hι_Ω & Hca0 & Hca1 & #Hobj & Hcells & _)".
         destruct Hbounds_size as [Hbounds Hsize].
         (* The cells of [ι] become Permanent regions: the world is unchanged. *)
         set (lk := (λ a, LHeap a ι) <$> finz.seq_between b e).

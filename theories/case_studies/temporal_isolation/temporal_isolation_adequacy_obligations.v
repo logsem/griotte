@@ -110,7 +110,7 @@ Section ti_obligations.
            with "Hswitcher_threads_B Hswitcher_static HB_mem HB_pers [] Hthread_B Hperm_B")
       as "(Hperm_B & #Hpcc_B & #Hcgp_B & #Hinterp_B_exports)".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"); [done | eapply cmpt_threads_sep; eauto]. }
     iEval (cbn [ub_exports]; rewrite big_sepL_cons) in "Hinterp_B_exports".
     iDestruct "Hinterp_B_exports" as "[#Hinterp_B_f _]".
     iMod (world_resources_init_all ⊤ {[B]} with "[Hperm_B]") as "[Hinv_B _]".

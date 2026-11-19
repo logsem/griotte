@@ -159,7 +159,7 @@ Section so_obligations.
              Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "(_ & _ & #Hexports)". cbn [fc_name fc_imports fw_nth fw_cmpts so_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"); [done | eapply cmpt_threads_sep; eauto].
       rewrite /fw_import_safe /fw_word_of /note.
       iSplit; last iSplit; last done.
       - (* main.f *)

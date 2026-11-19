@@ -31,7 +31,7 @@ Section fundamental.
   Lemma interp_expr_switcher_call (W : WORLD) (C : CmptName) :
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
-    ⊢ interp_expr_at InterruptDisabled interp (interp_cont interp) W C
+    ⊢ interp_expr_at InterruptEnabled interp (interp_cont interp) W C
         (Cap XSRW_ Local b_switcher e_switcher a_switcher_call).
   Proof.
     iIntros "Hres".
@@ -39,16 +39,19 @@ Section fundamental.
     by iApply switcher_trap_safety_intro.
   Qed.
 
+  (** The switcher's call entry point enables interrupts: it is valid in a
+      compartment without the context-switch thread. *)
   Lemma interp_switcher_call (W : WORLD) (C : CmptName) :
+    CtxSwitch ∉ cmpt_threads C →
     na_inv (tpool th) Ntstack trusted_stack_inv ∗
     switcher_static
     ⊢ interp W C switcher_entry_call.
   Proof.
-    iIntros "[#Hinv #Hstatic]".
+    iIntros (Hctx) "[#Hinv #Hstatic]".
     rewrite interp_unfold /=.
     iSplit; first (iPureIntro; exact switcher_not_heap_range).
-    (* An interrupt-disabling sentry *)
-    iSplit; last (iPureIntro; done).
+    (* An interrupt-enabling sentry *)
+    iSplit; last (iPureIntro; intros _; exact Hctx).
     iIntros "!> %W' %Hrelated %g' %Hflows".
     destruct g'; first done.
     iIntros (m); cbn [default sentry_kind_mie].

@@ -206,8 +206,8 @@ Section KVS_Main_Blocks.
     ∗ ⌜revoked_addresses W (stk_free b_stk e_stk a_stk)⌝
     ∗ ◯(CSTK)[th] cstk
     ∗ interp_continuation cstk Ws Cs
-    ∗ MIE ↦ₜ[th] InterruptDisabled
-    ∗ held (th := th) InterruptDisabled
+    ∗ MIE ↦ₜ[th] InterruptEnabled
+    ∗ held (th := th) InterruptEnabled
     ∗ ▷ (∀ (W2 : WORLD) (rmap' : LReg) (stk_mem' : list LWord) l' rcgp rcra rcs0 rcs1
            (m : InterruptStatus),
         ⌜extract_temporaries_condition
@@ -417,6 +417,8 @@ Section KVS_Main_Blocks.
        & #Himport_sealed_user_key & #Hcode_main
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & Hstk & Hhwm & Hcstk_frag & Hmie & Hheld & Hpost)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     iExtractList "Hrmap" [ca0;ca1;ca2;ctp;ct0;ct1;cs0;cs1]
@@ -538,7 +540,7 @@ Section KVS_Main_Blocks.
              with
              "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_addOrUpdate
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-                 $Hstk $Hhwm $Hcstk_frag $HKVS_f $Hmie $Hheld
+                 $Hstk $Hhwm $Hcstk_frag $HKVS_f $Hmie
                  Hstatic_sealed_b HLUKVS Hkvs_1 Hpost]").
     all: [> exact Hstk_heap | exact Hstk_shadow
       | apply stk_start_cursor_ok;
@@ -743,6 +745,8 @@ Section KVS_Main_Blocks.
        & Hstatic_sealed_b & HLUKVS & Hkvs_1
        & #Himport_switcher & #Himport_kvs_read & #Himport_assert
        & #Hcode_main & Hmie & Hheld)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     pose proof (disjoint_from_mmio_shadow _ _ Hstk_shadow) as Hstk_shadow'.
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.
     pose proof kvs_exp_tbl_size as Hkvs_exp_tbl_size.
@@ -855,7 +859,7 @@ Section KVS_Main_Blocks.
              with
              "[$Hswitcher $Hswitcher_static $Hkvs_exp_tbl_pcc $Hkvs_exp_tbl_cgp $Hkvs_exp_tbl_read
                  $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1
-                 $Hrmap_arg_read $Hrmap $Hstk $Hhwm $Hcstk_frag $HKVS_f $Hmie $Hheld
+                 $Hrmap_arg_read $Hrmap $Hstk $Hhwm $Hcstk_frag $HKVS_f $Hmie
                  Hstatic_sealed_b HLUKVS Hkvs_1]").
     all: [> exact Hstk_heap | exact Hstk_shadow
       | apply stk_start_cursor_ok;

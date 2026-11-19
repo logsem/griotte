@@ -25,7 +25,7 @@ Section TI_K.
      pc  := (RX, Global, b_K, e_K, b_K_code)
      cgp := (RW, Global, b, b+1, b)
 
-     b_K + 0 : Sentry FwdDisable XSRW_ b_switcher e_switcher a_cc_switcher
+     b_K + 0 : Sentry FwdEnable XSRW_ b_switcher e_switcher a_cc_switcher
      b_K + 1 : Sentry Inherit RX b_assert e_assert a_assert
      b_K + 2 : WSealed ot_switcher B.f
    *)

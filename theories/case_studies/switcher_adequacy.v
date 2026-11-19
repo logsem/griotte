@@ -92,8 +92,9 @@ Section helpers_switcher_adequacy.
     destruct (decide (r = cra)) as [-> | Hrcra].
     { rewrite Hregs_cra in Hr ; simplify_eq.
       iDestruct (thread_in_elim with "Hthread") as %Hth_in.
-      iApply (interp_switcher_return with "[$Hinv_switcher $Hswitcher_static]").
-      intros ->. destruct th as [t|]; last by specialize (Hroute eq_refl).
+      iApply (interp_switcher_return _ _ InterruptEnabled
+                with "[$Hinv_switcher $Hswitcher_static]").
+      intros _. destruct th as [t|]; last by destruct Huser.
       by eapply cmpt_threads_sep.
     }
     destruct (decide (r = csp)) as [-> | Hrcsp].

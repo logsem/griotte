@@ -162,7 +162,7 @@ Section lse_obligations.
              Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". cbn [fc_name fc_imports fw_nth fw_cmpts lse_firmware].
-      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C").
+      iSplit; first by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"); [done | eapply cmpt_threads_sep; eauto].
       iSplit; last done.
       rewrite /fw_import_safe /fw_word_of /note.
       cbv [fw_export_index fw_body_export_index fw_index_of fw_cmpt_of fw_cmpts lse_firmware

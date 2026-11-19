@@ -51,7 +51,8 @@ Section AllocatorFree.
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     ⊢ (
        allocator_service_ctx ∗
        allocator_service_static ∗
@@ -64,6 +65,8 @@ Section AllocatorFree.
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        MIE ↦ₜ[th] mie ∗
+       (* the caller's release, run before the return *)
+       (na_own crit F ∗ P ∗ a_owner ↦ₐ WInt o ={E}=∗ held mie) ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
        ca1 ↦ᵣ[th] wreq ∗
        ca2 ↦ᵣ[th] - ∗
@@ -73,14 +76,12 @@ Section AllocatorFree.
        ca3 ↦ᵣ[th] - ∗
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
-       ▷ (na_own crit F ∗
-          P ∗
-          a_owner ↦ₐ WInt o ∗
-          PC ↦ₚ[th] lupdatePcPerm wret ∗
+       ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
-          MIE ↦ₜ[th] mie ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -93,8 +94,8 @@ Section AllocatorFree.
           -∗ WP Exec @[th] E {{ φ }})
        -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
-    intros Hreject_request HEservice HFservice Hshadow_a Hbounds_a Htgt Hkeep.
-    iIntros "(#Hservice & #Hstatic & Hna & HP & Howner & HPC & Hcgp & Hcra & Hmie &
+    intros Hreject_request HEservice HFservice Hshadow_a Hbounds_a Htgt Hpre Hpre_ret.
+    iIntros "(#Hservice & #Hstatic & Hna & HP & Howner & HPC & Hcgp & Hcra & Hmie & Hrelease &
       Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     (* Open the service invariant and focus on the code of [free]. *)
     iMod (na_inv_acc with "Hservice Hna") as "(Hinv & Hna & Hclose)";
@@ -143,12 +144,23 @@ Section AllocatorFree.
       as "Hreject".
     { iIntros "(HPC & Hcgp & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp &
         Hslot & Hheaders & Htoks & Howners & Hcells & HP)".
-      iApply (allocator_free_invalid_spec with
-        "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hfree_code]");
-        [done|done|done|].
-      iNext. iIntros "(HPC & Hcra & Hmie & Hca0 & Hca1 & _ & _)".
-      iMod ("Hclose" with "[$Hna Hslot Hheaders Htoks Howners Hcells]") as "Hna".
-      { iNext. iExists next, allocations, live, issued, Cs. iFrame "∗". done. }
+      (* Close the service invariant and release before the return. *)
+      iApply (allocator_free_invalid_spec _ _ _ _ _ _ _ _
+                (na_own crit (F ∖ ↑Nallocator_service) ∗
+                 allocator_cgp_b ↦ₐ Cap RW Global heap_b heap_e next ∗
+                 allocator_headers (heap_b ^+ 1) next allocations ∗
+                 allocator_entries_res live allocations ∗
+                 allocator_service_owners allocations ∗
+                 allocator_cells Cs ∗ P ∗ a_owner ↦ₐ WInt o)%I with
+        "[- $HPC $Hcra $Hmie $Hca0 $Hca1 $Hfree_code $Hna $Hslot $Hheaders $Htoks $Howners
+            $Hcells $HP $Howner]");
+        [done|done|done|done|].
+      iSplitL "Hclose Hrelease".
+      { iIntros "(Hna & Hslot & Hheaders & Htoks & Howners & Hcells & HP & Howner)".
+        iMod ("Hclose" with "[$Hna Hslot Hheaders Htoks Howners Hcells]") as "Hna".
+        { iNext. iExists next, allocations, live, issued, Cs. iFrame "∗". done. }
+        iApply ("Hrelease" with "[$Hna $HP $Howner]"). }
+      iNext. iIntros "(HPC & Hcra & Hmie & Hheld & Hca0 & Hca1 & _ & _)".
       iApply "Hpost". iFrame "∗". }
     destruct (decide (allocator_free_in_prefix next wreq.(lw))) as [Hprefix|Hprefix].
     - (* Blocks 1 and 2: the request is a capability in the allocated prefix.
@@ -215,7 +227,8 @@ Section AllocatorFree.
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     ⊢ (
        allocator_service_ctx ∗
        allocator_service_static ∗
@@ -228,6 +241,8 @@ Section AllocatorFree.
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        MIE ↦ₜ[th] mie ∗
+       (* the caller's release, run before the return *)
+       (na_own crit F ∗ a_owner ↦ₐ WInt o ={E}=∗ held mie) ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
        ca1 ↦ᵣ[th] (Cap p g b' e' a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
@@ -237,13 +252,12 @@ Section AllocatorFree.
        ca3 ↦ᵣ[th] - ∗
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
-       ▷ (na_own crit F ∗
-          a_owner ↦ₐ WInt o ∗
-          PC ↦ₚ[th] lupdatePcPerm wret ∗
+       ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
-          MIE ↦ₜ[th] mie ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -257,14 +271,14 @@ Section AllocatorFree.
        -∗ WP Exec @[th] E {{ φ }})%I.
 
   Proof.
-    intros Hbounds Hneq HEservice HFservice Hshadow_a Hbounds_a Htgt Hkeep.
+    intros Hbounds Hneq HEservice HFservice Hshadow_a Hbounds_a Htgt Hpre Hpre_ret.
     iIntros "(#Hservice & #Hstatic & Hna & #Hobj & Howner & Hrest)".
-    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hca0 & Hca1 & Hca2 & Hct0 &
+    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hrelease & Hca0 & Hca1 & Hca2 & Hct0 &
       Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     iApply (allocator_free_reject_correct E F g_owner a_owner o ((Cap p g b' e' a) @@ ι) wret
       (alloc_obj ι b e) mie φ with "[-]");
       [|exact HEservice|exact HFservice|exact Hshadow_a|exact Hbounds_a|exact Htgt
-      |exact Hkeep|].
+      |exact Hpre|exact Hpre_ret|].
     { intros next allocations live issued Cs Hnext Hchain Hwf Hcwf Hprefix Hobs.
       iIntros "#Hobj Htoks Howners Hcells".
       destruct Hprefix as (p0 & g0 & b0 & e0 & a0 & Heq & Hin). cbn in Heq.
@@ -289,7 +303,9 @@ Section AllocatorFree.
         (ex_intro _ (o, r1) (ex_intro _ ι1 Hmember))). }
     iFrame "Hservice Hstatic Hna Hobj Howner HPC Hcgp Hcra Hmie Hca0 Hca1 Hca2 Hct0 Hct1
       Hct2 Hct3 Hct4 Hctp".
-    iNext. iIntros "(Hna & _ & Hrest)". iApply "Hpost". iFrame.
+    iSplitL "Hrelease".
+    { iIntros "(Hna & _ & Howner)". iApply ("Hrelease" with "[$Hna $Howner]"). }
+    iNext. iIntros "Hrest". iApply "Hpost". iFrame.
   Qed.
 
   (** An allocation of another owner is rejected: [ι] is not in the owner set
@@ -309,7 +325,8 @@ Section AllocatorFree.
     withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     ι ∉ Ω ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
     ⊢ (
        allocator_service_ctx ∗
        allocator_service_static ∗
@@ -323,6 +340,8 @@ Section AllocatorFree.
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        MIE ↦ₜ[th] mie ∗
+       (* the caller's release, run before the return *)
+       (na_own crit F ∗ allocator_owner_id id Ω ∗ a_owner ↦ₐ WInt id ={E}=∗ held mie) ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
        ca1 ↦ᵣ[th] (Cap p g b e a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
@@ -332,14 +351,12 @@ Section AllocatorFree.
        ca3 ↦ᵣ[th] - ∗
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
-       ▷ (na_own crit F ∗
-          allocator_owner_id id Ω ∗
-          a_owner ↦ₐ WInt id ∗
-          PC ↦ₚ[th] lupdatePcPerm wret ∗
+       ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
-          MIE ↦ₜ[th] mie ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -353,14 +370,14 @@ Section AllocatorFree.
        -∗ WP Exec @[th] E {{ φ }})%I.
 
   Proof.
-    intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Htgt Hkeep.
+    intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Htgt Hpre Hpre_ret.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & #Hobj & Howner & Hrest)".
-    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hca0 & Hca1 & Hca2 & Hct0 &
+    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hrelease & Hca0 & Hca1 & Hca2 & Hct0 &
       Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     iApply (allocator_free_reject_correct E F g_owner a_owner id ((Cap p g b e a) @@ ι) wret
       (allocator_owner_id id Ω ∗ alloc_obj ι b e) mie φ with "[-]");
       [|exact HEservice|exact HFservice|exact Hshadow_a|exact Hbounds_a|exact Htgt
-      |exact Hkeep|].
+      |exact Hpre|exact Hpre_ret|].
     { intros next allocations live issued Cs Hnext Hchain Hwf Hcwf Hprefix Hobs.
       iIntros "[Hid #Hobj] Htoks Howners Hcells".
       destruct Hprefix as (p0 & g0 & b0 & e0 & a0 & Heq & Hin). cbn in Heq.
@@ -389,7 +406,9 @@ Section AllocatorFree.
     iFrame "Hservice Hstatic Hna Hid Hobj Howner HPC Hcgp Hcra Hmie Hca0 Hca1 Hca2 Hct0
       Hct1 Hct2 Hct3 Hct4
       Hctp".
-    iNext. iIntros "(Hna & [Hid _] & Hrest)". iApply "Hpost". iFrame.
+    iSplitL "Hrelease".
+    { iIntros "(Hna & [Hid _] & Howner)". iApply ("Hrelease" with "[$Hna $Hid $Howner]"). }
+    iNext. iIntros "Hrest". iApply "Hpost". iFrame.
   Qed.
 
   (** A call with an invalid request leaves client memory untouched and returns
@@ -409,7 +428,8 @@ Section AllocatorFree.
     is_shadow_address a_owner = false ->
     withinBounds a_owner (a_owner ^+ 1) a_owner = true ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
 
     ⊢ (
        allocator_service_ctx ∗
@@ -424,6 +444,8 @@ Section AllocatorFree.
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        MIE ↦ₜ[th] mie ∗
+       (* the caller's release, run before the return *)
+       (na_own crit F ∗ a_owner ↦ₐ WInt o ={E}=∗ held mie) ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
        ca1 ↦ᵣ[th] wreq ∗
        ca2 ↦ᵣ[th] - ∗
@@ -434,13 +456,12 @@ Section AllocatorFree.
        ca4 ↦ᵣ[th] - ∗
        ctp ↦ᵣ[th] - ∗
 
-       ▷ (na_own crit F ∗
-          a_owner ↦ₐ WInt o ∗
-          PC ↦ₚ[th] lupdatePcPerm wret ∗
+       ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
-          MIE ↦ₜ[th] mie ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
           ca0 ↦ᵣ[th] WInt ALLOC_INVALID ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -454,19 +475,21 @@ Section AllocatorFree.
           -∗ WP Exec @[th] E {{ φ }})
        -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
-    intros Hinvalid HEservice HFservice Hshadow_a Hbounds_a Htgt Hkeep.
+    intros Hinvalid HEservice HFservice Hshadow_a Hbounds_a Htgt Hpre Hpre_ret.
     iIntros "(#Hservice & #Hstatic & Hna & Howner & Hrest)".
-    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hca0 & Hca1 & Hca2 & Hct0 &
+    iDestruct "Hrest" as "(HPC & Hcgp & Hcra & Hmie & Hrelease & Hca0 & Hca1 & Hca2 & Hct0 &
       Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hpost)".
     iApply (allocator_free_reject_correct E F g_owner a_owner o wreq wret emp%I mie φ with "[-]");
       [|exact HEservice|exact HFservice|exact Hshadow_a|exact Hbounds_a|exact Htgt
-      |exact Hkeep|].
+      |exact Hpre|exact Hpre_ret|].
     { intros next allocations live issued Cs Hnext Hchain _ _ _ _.
       iIntros "_ Htoks Howners Hcells". iApply si_upd_intro. iFrame.
       iPureIntro. exact (Hinvalid next allocations Hnext Hchain). }
     iFrame "Hservice Hstatic Hna Howner HPC Hcgp Hcra Hmie Hca0 Hca1 Hca2 Hct0 Hct1
       Hct2 Hct3 Hct4 Hctp".
-    iNext. iIntros "(Hna & _ & Hrest)". iApply "Hpost". iFrame.
+    iSplitL "Hrelease".
+    { iIntros "(Hna & _ & Howner)". iApply ("Hrelease" with "[$Hna $Howner]"). }
+    iNext. iIntros "Hrest". iApply "Hpost". iFrame.
   Qed.
 
   (** The functional [free]. The capability in [ca1] carries [ι]: observing
@@ -490,7 +513,7 @@ Section AllocatorFree.
     (E F : coPset) (g_owner : Locality) (a_owner : Addr) (id : Z) (Ω : gset AId)
     (p : Perm) (g : Locality) (ι : AId) (b e a : Addr)
     (ws : list LWord) (wret : LWord) (m : mtdc_val) (rmap : LReg)
-    (mie : InterruptStatus)
+    (mie : InterruptStatus) (Φ : iProp Σ)
     (φ : tval (kind_of th) → iPropI Σ) :
 
     ↑Nallocator_service ⊆ E ->
@@ -506,7 +529,8 @@ Section AllocatorFree.
     (has_authority wret.(lw) -> wret.(lprov) = None) ->
     (∀ vm, mtdc_match m vm -> has_authority vm.(lw) -> vm.(lprov) = None) ->
     jalr_target_ok cnull cra wret.(lw) = true ->
-    default mie (jalr_target_mie wret.(lw)) = mie ->
+    route_pre th mie ->
+    route_pre th (default mie (jalr_target_mie wret.(lw))) ->
 
     ⊢ (
 
@@ -525,6 +549,9 @@ Section AllocatorFree.
          allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
        cra ↦ᵣ[th] wret ∗
        MIE ↦ₜ[th] mie ∗
+       (* the caller's release, run before the return *)
+       (na_own crit F ∗ allocator_owner_id id Ω ∗ a_owner ↦ₐ WInt id ∗ ι ⊒ AQuar
+          ={E}=∗ held mie ∗ Φ) ∗
        ca0 ↦ᵣ[th] allocator_capability g_owner a_owner ∗
        ca1 ↦ᵣ[th] (Cap p g b e a) @@ ι ∗
        ca2 ↦ᵣ[th] - ∗
@@ -538,14 +565,13 @@ Section AllocatorFree.
        mtdc ↦ₜ[th] m ∗
        [[b, e]] ↦ₕ[ι] [[ws]] ∗
 
-       ▷ (na_own crit F ∗
-          allocator_owner_id id Ω ∗
-          a_owner ↦ₐ WInt id ∗
-          PC ↦ₚ[th] lupdatePcPerm wret ∗
+       ▷ (PC ↦ₚ[th] lupdatePcPerm wret ∗
           cgp ↦ᵣ[th] Cap RW Global
             allocator_cgp_b allocator_cgp_e allocator_cgp_b ∗
           cra ↦ᵣ[th] wret ∗
-          MIE ↦ₜ[th] mie ∗
+          MIE ↦ₜ[th] default mie (jalr_target_mie wret.(lw)) ∗
+          held (th := th) (default mie (jalr_target_mie wret.(lw))) ∗
+          Φ ∗
           ca0 ↦ᵣ[th] WInt ALLOC_OK ∗
           ca1 ↦ᵣ[th] WInt 0 ∗
           ca2 ↦ᵣ[th] - ∗
@@ -564,9 +590,9 @@ Section AllocatorFree.
        -∗ WP Exec @[th] E {{ φ }})%I.
   Proof.
     intros HEservice HFservice Hshadow_a Hbounds_a HιΩ Hbounds Hlen Hdom Hclean Hclean_ret
-      Hclean_mtdc Htgt Hkeep.
+      Hclean_mtdc Htgt Hpre Hpre_ret.
     iIntros "(#Hservice & #Hstatic & Hna & Hid & Howner & #Hobj & Hheld & HPC & Hcgp & Hcra &
-      Hmie & Hca0 & Hca1 &
+      Hmie & Hrelease & Hca0 & Hca1 &
       Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 & Hctp & Hrmap & Hmtdc & Hheap & Hpost)".
     (* Split the cells into their memory and their status shares. *)
     iDestruct (heap_region_pointsto_split with "Hobj") as "[Hto _]".
@@ -653,16 +679,19 @@ Section AllocatorFree.
     iNext. iIntros "(HPC & Hcgp & Hcra & Hca0 & Hca1 & Hca2 & Hct0 & Hct1 & Hct2 & Hct3 & Hct4 &
       Hctp & Hrmap & Hmtdc & Hdead & #Hq & Hcells_free & _)".
     (* Return. *)
-    iApply (allocator_free_return_spec with "[- $HPC $Hcra $Hmie $Htail_code]");
-      [done|done|done|].
-    iNext. iIntros "(HPC & Hcra & Hmie & _ & Hlc)".
-    (* Release the entry of [ι] and close the service invariant. *)
+    (* Before the return, release the entry of [ι], close the service
+       invariant, and run the caller's release. *)
     iDestruct ("Hcells_close" with "Hcells_free Hmem") as "Hcells".
     iDestruct (allocator_free_release with
       "Hslot Hheaders Howners Hcells Htoks_close Hdead Hq") as "Hdata";
       [done|done|done|done|done|].
     iMod ("Hclose" with "[$Hna Hdata]") as "Hna".
     { iNext. iExists next. iFrame "Hdata". }
+    iMod ("Hrelease" with "[$Hna $Hid $Howner $Hq]") as "[Hheld_mie HΦ]".
+    iApply (allocator_free_return_spec _ _ _ _ _ _ (held mie) with
+      "[- $HPC $Hcra $Hmie $Hheld_mie $Htail_code]"); [done|done|done|done|].
+    iSplitR; first by iIntros "$".
+    iNext. iIntros "(HPC & Hcra & Hmie & Hposture & _ & Hlc)".
     iApply "Hpost". iFrame "∗ Hq".
   Qed.
 

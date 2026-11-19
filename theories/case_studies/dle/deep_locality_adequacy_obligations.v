@@ -102,7 +102,7 @@ Section dle_obligations.
              Hworld_C")
       as "(Hworld_C & #Hinterp_stack_C & [#Hinterp_C _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"); [done | eapply cmpt_threads_sep; eauto]. }
     iEval (rewrite /fw_thread_csp) in "Hinterp_stack_C".
     cbn [fc_name fw_nth fw_cmpts dle_firmware]. rewrite HsbC.
     fw_fold_cmpt main_cmpt. fw_fold_cmpt C_cmpt.

@@ -26,6 +26,7 @@ Section DLE_Share_Blocks_2.
     (wct0 wct1 wcs0 wcs1 wcra : LWord) (b : InterruptStatus) :
     dle_code_bounds pc_b pc_e pc_a C_f ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ dle_label_offset ".Ldle_fetch_switcher")%a ∗
     ct0 ↦ᵣ[th] wct0 ∗
     ct1 ↦ᵣ[th] wct1 ∗
@@ -43,12 +44,12 @@ Section DLE_Share_Blocks_2.
         cs0 ↦ᵣ[th] wcra ∗
         cs1 ↦ᵣ[th] WSealed ot_switcher C_f ∗
         dle_static_mem pc_b pc_a C_f ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap) Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap & Hsealed_nonheap) Hroute Hth)
       "(HPC & Hct0 & Hct1 & Hcs0 & Hcs1 & Hcra & Hmem & Hmie & Hheld & Hpost)".
     iDestruct "Hmem" as "((Himport_switcher & Himport_assert & Himport_C_f) & Hcode_main)".
     codefrag_facts "Hcode_main"; rename H into Hpc_contiguous; clear H0.

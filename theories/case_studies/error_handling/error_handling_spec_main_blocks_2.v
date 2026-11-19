@@ -130,6 +130,7 @@ Section Error_Handling_Main_Blocks_2.
     (wca0 wctp wct1 wcra : LWord) (b : InterruptStatus) :
     main_code_bounds pc_b pc_e pc_a ->
     route_pre th b ->
+    th ≠ CtxSwitch ->
     PC ↦ₚ[th] Cap RX Global pc_b pc_e (pc_a ^+ main_label_offset ".Lmain_arg_2")%a ∗
     cgp ↦ᵣ[th] Cap RW Global cgp_b cgp_e cgp_b ∗
     ca0 ↦ᵣ[th] wca0 ∗
@@ -149,12 +150,12 @@ Section Error_Handling_Main_Blocks_2.
         cra ↦ᵣ[th] Sentry (ret_kind b) RX Global pc_b pc_e
                  (pc_a ^+ main_label_offset ".Lmain_ret_read_2")%a ∗
         codefrag_pers pc_a error_handling_main_code ∗
-        MIE ↦ₜ[th] InterruptDisabled ∗
-        held (th := th) InterruptDisabled
+        MIE ↦ₜ[th] InterruptEnabled ∗
+        held (th := th) InterruptEnabled
         -∗ safe[th])
     ⊢ safe[th].
   Proof.
-    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hroute)
+    iIntros ((HsubBounds & Himports_contiguous & Hpc_shadow & Hpc_nonheap) Hroute Hth)
       "(HPC & Hcgp & Hca0 & Hctp & Hct1 & Hcra
       & #Himport_switcher & #Himport_read & #Hcode_main & Hmie & Hheld & Hpost)".
     assert (is_heap_cap (WSealed ot_switcher (STATS_read Global)) = false) as Hsealed_nonheap

@@ -135,7 +135,7 @@ Section cmdc_shared_obligations.
            with "Hswitcher_threads_C Hswitcher_static HC_mem HC_pers [] Hthread_C Hperm_C")
       as "(Hperm_C & #Hpcc_C & #Hcgp_C & #Hinterp_C_exports)".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_C"); [done | eapply cmpt_threads_sep; eauto]. }
     iEval (cbn [ub_exports]; rewrite big_sepL_cons) in "Hinterp_C_exports".
     iDestruct "Hinterp_C_exports" as "[#Hinterp_C_g _]".
     iMod (world_resources_init_all ⊤ {[C]} with "[Hperm_C]") as "[Hinv_C _]".
@@ -220,7 +220,7 @@ Section cmdc_shared_obligations.
            with "Hswitcher_threads_B Hswitcher_static HB HB_pers [] Hthread_B Hworld_B")
       as "(Hworld_B & Hrevoked_stack_B & [#Hinterp_B _])".
     { iIntros "_". iSplit; last done.
-      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"). }
+      by iApply (fw_switcher_call_safe with "Hswitcher_threads_B"); [done | eapply cmpt_threads_sep; eauto]. }
     iEval (cbn [fc_name fw_nth fw_cmpts cmdc_shared_firmware]; rewrite HsbC) in "Hinterp_C_g".
     iDestruct (interp_sealed_global_kind_world_free fw_world0 Wk C _ _ _ None
                 with "[] Hinterp_C_g") as "#Hinterp_C".

@@ -141,6 +141,8 @@ Section SO.
       & #Hinterp_W0_csp
       & Hmie & Hheld
       )".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     assert (so_code_bounds pc_b pc_e pc_a C_f) as Hbounds
       by (rewrite /so_code_bounds; eauto 10).
     iDestruct (interp_cap_disjoint_wl with "Hinterp_W0_csp")
@@ -157,7 +159,7 @@ Section SO.
     (* Blocks 0-2: fetch the imports and jump to the switcher *)
     iApply (so_run_blocks_1_spec with
              "[- $HPC $Hct0 $Hct1 $Hcs0 $Hcra $Himport_switcher $Himport_C_f
-              $Hcode_main $Hmie $Hheld]"); [done|done|done|].
+              $Hcode_main $Hmie $Hheld]"); [done|done|done|done|].
     iNext; iIntros "(HPC & Hct0 & Hct1 & Hcs0 & Hcra & _ & _
                     & _ & Hmie & Hheld)".
     iInsertRegs "Hrmap" ["Hct0"].

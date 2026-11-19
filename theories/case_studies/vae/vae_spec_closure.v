@@ -152,6 +152,9 @@ Section VAE.
     iIntros "(#Hthread & _ & HK & %Hframe_match & _ & HPC & Hregister_state & Hrmap
       & Hhwm & %Hzone & Hworld_interp_C & _ & %Hsync_csp & %Hstk_base & %Hstk_min & Hcstk & Hna
       & %Hroute & Hmie & Hheld)".
+    iDestruct (thread_in_elim with "Hthread") as %Hth_C.
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iEval (rewrite (world_resources_exclusive _ _ Hshared)) in "Hworld_interp_C".
     iDestruct "Hregister_state" as
       "(%Hrmap_init & %Hcgp & %Hcra & %Hcsp & #Hinterp_W0_csp & #Hinterp_rmap & #Hzeroed_rmap)".
@@ -230,6 +233,8 @@ Section VAE.
       [done|by case_match|].
     iDestruct (vae_call_args W2q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap1) "(%Hrmap1_dom & Hrmap_arg & Hrmap)".
+    { intros Hctx. destruct th as [k|]; last by destruct Huser.
+      by eapply cmpt_threads_sep. }
     { rewrite !dom_delete_L Hrmap_dom; set_solver+. }
     { intros r Hr.
       rewrite !lookup_delete_ne; [apply Hzero; set_solver+Hr|set_solver+Hr..]. }
@@ -320,6 +325,8 @@ Section VAE.
       as "#Hinterp_W5q_wca0"; [done..|].
     iDestruct (vae_call_args W5q C _ with "Hswitcher Hswitcher_static Hca0 Hca1 Hct0 Hrmap")
       as (rmap5) "(%Hrmap5_dom & Hrmap_arg & Hrmap)".
+    { intros Hctx. destruct th as [k|]; last by destruct Huser.
+      by eapply cmpt_threads_sep. }
     { rewrite !dom_delete_L Hrmap3_dom; set_solver+. }
     { by apply vae_rmap_zero. }
 

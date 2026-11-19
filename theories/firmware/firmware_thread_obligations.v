@@ -302,28 +302,6 @@ Section sched_world.
     `{MP : MachineParameters}.
   #[local] Remove Hints ceriseG_of : typeclass_instances.
 
-  (** The switcher's call sentry is safe to import in the scheduler's
-      compartment [C_sched]: its only thread is the context-switch thread,
-      at which the call faults. *)
-  Lemma fw_switcher_call_safe_ctx fw img σ c (C_sched : CmptName) :
-    let swl := fw_switcher_layout img in
-    firmware_ok fw img σ →
-    CtxSwitch ∈ cmpt_threads C_sched →
-    switcher_code_at CtxSwitch -∗
-    ctx_trap_vector_safe (swlayout := swl) -∗
-    fw_import_safe (swlayout := swl) C_sched (fw_word_of fw img [] c ISwitcherCall).
-  Proof.
-    intros swl Hok Hin.
-    pose proof (fw_switcher_layout_wf_of _ _ _ Hok) as Hswl_wf.
-    iIntros "#Hcode #Htrap".
-    rewrite /fw_import_safe /fw_word_of /note.
-    iEval (cbn [fst snd]; rewrite /interp_cmpt_threads /=).
-    iIntros "!>" (t') "Ht'". iDestruct (thread_in_elim with "Ht'") as %Ht'.
-    destruct t' as [k|].
-    - exfalso. exact (cmpt_threads_sep C_sched k Ht' Hin).
-    - iApply (interp_switcher_call_ctx (swlayout := swl) with "[$Hcode $Htrap]").
-  Qed.
-
   (** The handle of the user thread [j], or of the idle thread when [j] is
       the number of threads, is valid at the context-switch thread. *)
   Lemma thread_handle_valid fw img σ j W C :
@@ -407,12 +385,12 @@ Section sched_world.
         iApply time_dev_cap_valid; auto.
   Qed.
 
-  (** The scheduler's imports, written by the firmware: the switcher call,
-      and the two time devices or neither; no static sealed object. *)
+  (** The scheduler's imports, written by the firmware: the two time
+      devices or nothing; no static sealed object. *)
   Lemma img_wf_sched_imports fw img fc sb :
     img_wf fw img →
     fw_sched_of (fw_cmpts fw) = Some (fc, sb) →
-    (fc_imports fc = [ISwitcherCall] ∨ fc_imports fc = [ISwitcherCall; IMtime; IMtimecmp]) ∧
+    (fc_imports fc = [] ∨ fc_imports fc = [IMtime; IMtimecmp]) ∧
     fc_static_sealed fc = [].
   Proof.
     intros (_ & _ & _ & _ & Himg) Hsched.
@@ -494,10 +472,9 @@ Section sched_world.
       by iApply (sched_hs_valid with "Hstatics"). }
     { iApply fw_imports_safe_words; first exact Hfc_ok.
       rewrite Hss.
-      destruct Himps as [Himps_eq | Himps_eq]; rewrite Himps_eq !big_sepL_cons.
-      - iSplit; last done. by iApply (fw_switcher_call_safe_ctx with "Hswitcher Htrap").
-      - iSplit; first by iApply (fw_switcher_call_safe_ctx with "Hswitcher Htrap").
-        iSplit; first by iApply fw_time_dev_import_safe; left.
+      destruct Himps as [Himps_eq | Himps_eq]; rewrite Himps_eq ?big_sepL_cons.
+      - done.
+      - iSplit; first by iApply fw_time_dev_import_safe; left.
         iSplit; last done. by iApply fw_time_dev_import_safe; right. }
     { iExact "Himports". }
     { iExact "Hcode_mem". }
@@ -1086,7 +1063,8 @@ Proof.
   { iIntros "_". iApply big_sepL_intro. iIntros "!>" (n w Hw).
     pose proof (Forall_lookup_1 _ _ _ _ Himports Hw) as ->.
     iApply (fw_switcher_call_safe fw img σ (cmpt_of img (fc_name (fw_entry_fc fw k))) C Hok
-             with "Hswitcher_threads"). }
+             with "Hswitcher_threads").
+    rewrite Hpin. set_solver. }
   set (Wadv := std_update_multiple fw_world0
                  (finz.seq_between (b_stack (thread_of img k)) (e_stack (thread_of img k)))
                  Temporary).

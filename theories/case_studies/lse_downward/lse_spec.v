@@ -145,6 +145,8 @@ Section LSE.
       & #Hinterp_W0_csp
       & Hmie & Hheld
       )".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     assert (lse_code_bounds pc_b pc_e pc_a C_f) as Hbounds by (rewrite /lse_code_bounds; eauto 10).
     assert (cgp_b < cgp_e)%a as Hcgp_bounds by (cbn in Hcgp_contiguous; solve_addr).
     iMod (na_inv_acc with "Hlse Hna")
@@ -167,7 +169,7 @@ Section LSE.
     iApply (lse_run_blocks_1_spec with
              "[- $HPC $Hcgp $Hct0 $Hct1 $Hcs0 $Hcra $Hcgp_b
               $Himport_switcher $Himport_C_f $Hcode_main $Hmie $Hheld]");
-      [done|done|done|done|done|].
+      [done|done|done|done|done|done|].
     iNext; iIntros "(HPC & Hcgp & Hct0 & Hct1 & Hcs0 & Hcra & Hcgp_b
                     & _ & _ & _ & Hmie & Hheld)".
     iMod ("Hlse_close" with "[$Hna $Hcgp_b]") as "Hna".

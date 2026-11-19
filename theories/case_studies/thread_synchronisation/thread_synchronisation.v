@@ -32,7 +32,7 @@ Section TSY_K.
      pc  := (RX, Global, b_K, e_K, the entry)
      cgp := (RW, Global, b, b+2, b)     (b at b, flag at b+1)
 
-     b_K + 0 : Sentry FwdDisable XSRW_ b_switcher e_switcher a_cc_switcher
+     b_K + 0 : Sentry FwdEnable XSRW_ b_switcher e_switcher a_cc_switcher
      b_K + 1 : Sentry Inherit RX b_assert e_assert a_assert
      b_K + 2 : WSealed ot_switcher B.f
    *)

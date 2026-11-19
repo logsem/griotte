@@ -45,9 +45,14 @@ Class switcherLayout : Type :=
       swl_thread : nat → threadLayout;
     }.
 
-(** The sentry of the switcher's call entry point. *)
+(** The sentry of the switcher's call entry point: it enables
+    interrupts. *)
 Definition switcher_entry_call `{switcherLayout} : Word :=
-  Sentry FwdDisable XSRW_ Local b_switcher e_switcher a_switcher_call.
+  Sentry FwdEnable XSRW_ Local b_switcher e_switcher a_switcher_call.
+
+(** The otype of the interrupt-disabling forward sentries, cheriot-sail's
+    sentry otype 2, as CHERIoT's [SentryDisabling]. *)
+Definition ot_interrupt_sentries : OType := @finz.FinZ ONum 2 eq_refl eq_refl.
 
 (** The otype of the sealed trusted stacks, the handles of the threads that
     the scheduler receives: the one after [ot_switcher], as CHERIoT's
@@ -217,7 +222,9 @@ Section Switcher.
         #@".unsealing_key_import_tables";
         #@".scheduler_entry_pcc";
         #@".scheduler_entry_cgp";
-        #@".scheduler_entry_csp" ]
+        #@".scheduler_entry_csp";
+        (* [deviation] CHERIoT places this key third, after the two others *)
+        #@".sealing_key_interrupt_sentries" ]
       ++
       [ #".Lswitch_csp_check";
         (* cgetperm t2, csp *)
@@ -368,12 +375,15 @@ Section Switcher.
       rclear_asm registers_pre_call_skip ++
       [ (* andi t1, tp, ExportEntryInterruptStatusSwitcherMask *)
         land ct1 ctp ExportEntryInterruptStatusSwitcherMask;
-        (* bnez t1, .Lswitch_skip_interrupt_enable *)
-        jnez (".Lswitch_skip_interrupt_enable")%asm ct1;
-        (* csrsi mstatus, 0x8 *)
-        csrsi mstatus (Z.shiftl 1 MIE_BIT)
+        (* beqz t1, .Lswitch_skip_interrupt_disable *)
+        jeqz (".Lswitch_skip_interrupt_disable")%asm ct1;
+        (* LoadCapPCC ctp, .Lsealing_key_interrupt_sentries *)
+        auipcc ctp (".sealing_key_interrupt_sentries")%asm;
+        load ctp ctp;
+        (* cseal cra, cra, ctp *)
+        seal cra ctp cra
       ]
-      ; (#".Lswitch_skip_interrupt_enable" ::
+      ; (#".Lswitch_skip_interrupt_disable" ::
        #".Lswitch_caller_dead_zeros" ::
        (* zeroRegisters tp, t1, t2, s0, s1 *)
        clear_registers_pre_call_asm)
@@ -766,6 +776,8 @@ Section Switcher.
            (* cjalr cra *)
            jalr cra cra ])
       ; [ #".Lhandle_error_handler_return";
+        (* Kept, unlike CHERIoT's PR #779: the InstallContext path writes the
+           spill frame, which must not be preempted. *)
         (* csrci mstatus, 0x8 *)
         csrci mstatus (Z.shiftl 1 MIE_BIT);
         #".Lhandle_error_handler_return_irqs";
@@ -1026,10 +1038,13 @@ Section Switcher.
       the otype after [ot], as CHERIoT's loader writes it; Griotte's key at
       [.unsealing_key_import_tables]; then the scheduler's exception entry
       [w_pcc], its globals [w_cgp] and its stack [w_csp], as the loader
-      writes them. *)
+      writes them; last, the key of the interrupt-disabling sentries at
+      [.sealing_key_interrupt_sentries], Seal only. *)
   Definition switcher_data_words (ot : OType) (w_pcc w_cgp w_csp : Word) : list Word :=
     [SealRange (true, true) Global (ot ^+ 1) (ot ^+ 1 ^+ 1) (ot ^+ 1);
-     SealRange (true, true) Global ot (ot ^+ 1) ot; w_pcc; w_cgp; w_csp].
+     SealRange (true, true) Global ot (ot ^+ 1) ot; w_pcc; w_cgp; w_csp;
+     SealRange (true, false) Local ot_interrupt_sentries (ot_interrupt_sentries ^+ 1)
+       ot_interrupt_sentries].
 
   (** The well-formedness of the layout of a user thread. *)
   Class threadLayoutWf {tlayout : threadLayout} : Type :=
@@ -1060,10 +1075,10 @@ Section Switcher.
         (a_switcher_call + length switcher_instrs)%a = Some e_switcher ;
 
         switcher_call_entry_point :
-        (b_switcher + 5)%a = Some a_switcher_call ;
+        (b_switcher + 6)%a = Some a_switcher_call ;
 
         switcher_return_entry_point :
-        (b_switcher + (5 + length switcher_call_instrs) )%a = Some a_switcher_return ;
+        (b_switcher + (6 + length switcher_call_instrs) )%a = Some a_switcher_return ;
 
         ot_switcher_size :
         (ot_switcher < ot_switcher ^+ 1)%ot;
@@ -1096,9 +1111,9 @@ Section Switcher.
                              ".Lexception_scheduler_return")%a
         = Some a_sched_return;
 
-        (* The five data words before the code are not shadow addresses. *)
+        (* The six data words before the code are not shadow addresses. *)
         switcher_data_not_shadow :
-        ∀ i : nat, i < 5 → is_shadow_address (b_switcher ^+ i) = false;
+        ∀ i : nat, i < 6 → is_shadow_address (b_switcher ^+ i) = false;
         switcher_not_heap_range : not_heap_range b_switcher e_switcher;
         (* The layout of every user thread is well formed. *)
         swl_thread_wf : ∀ i, threadLayoutWf (tlayout := swl_thread i)

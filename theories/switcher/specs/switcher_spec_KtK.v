@@ -108,7 +108,7 @@ Section Switcher_KtK.
        ∗ na_own (tpool th) F
        ∗ PC ↦ₚ[th] Cap RX Global bpcc_tgt epcc_tgt (bpcc_tgt ^+ off_tgt)
        ∗ cgp ↦ᵣ[th] Cap RW Global bcgp_tgt ecgp_tgt bcgp_tgt
-       ∗ cra ↦ᵣ[th] Sentry (ret_kind posture_tgt) XSRW_ Local b_switcher e_switcher
+       ∗ cra ↦ᵣ[th] Sentry RetEnable XSRW_ Local b_switcher e_switcher
          a_switcher_return
        ∗ csp ↦ᵣ[th] callee_csp b_stk e_stk a_stk
        ∗ ([∗ map] rarg↦warg ∈ arg_rmap',
@@ -206,8 +206,8 @@ Section Switcher_KtK.
          ∗ "Hstk" ∷ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem'
          ∗ "Hhwm" ∷ (∃ mshwm_v', ⌜(mshwm_v' <= mshwm_v)%Z⌝ ∗ hwm_res cstk mshwm_v')
          ∗ "Hcstk" ∷ ◯(CSTK)[th] cstk
-         ∗ "Hmie" ∷ MIE ↦ₜ[th] default InterruptDisabled (jalr_target_mie rcra.(lw))
-         ∗ "Hheld" ∷ held (th := th) (default InterruptDisabled (jalr_target_mie rcra.(lw)))
+         ∗ "Hmie" ∷ MIE ↦ₜ[th] default InterruptEnabled (jalr_target_mie rcra.(lw))
+         ∗ "Hheld" ∷ held (th := th) (default InterruptEnabled (jalr_target_mie rcra.(lw)))
          ∗ "%Hrestored" ∷ ⌜load_heap wcgp_caller rcgp ∧ load_heap wcra_caller rcra ∧
              load_heap wcs0_caller rcs0 ∧ load_heap wcs1_caller rcs1⌝
          ∗ "HP" ∷ P)%I
@@ -284,8 +284,8 @@ Section Switcher_KtK.
     ∗ stack_region (stk_free_b b_stk a_stk) (stk_free_e e_stk a_stk) stk_mem
     ∗ hwm_res cstk mshwm_v
     ∗ ◯(CSTK)[th] cstk
-    ∗ MIE ↦ₜ[th] InterruptDisabled
-    ∗ held (th := th) InterruptDisabled
+    ∗ MIE ↦ₜ[th] InterruptEnabled
+    ∗ held (th := th) InterruptEnabled
     ∗ P
     ∗ switcher_cc_specification_known_to_known_function
         may_fault P Q wcgp_caller wcra_caller wcs0_caller wcs1_caller
@@ -316,7 +316,9 @@ Section Switcher_KtK.
       try assumption.
     iFrame "Hswitcher Hstatic Hinv_pcc Hinv_cgp Hinv_entry
             Hna HPC Hcgp Hcra Hcsp Hct1 Hcs0 Hcs1
-            Hargs Hregs Hstk Hhwm Hcstk Hmie Hheld".
+            Hargs Hregs Hstk Hhwm Hcstk Hmie".
+    iSplitR; first done.
+    iClear "Hheld".
     iNext.
     iIntros "[
       (%arg_rmap' & %rmap' & %Harg_rmap' & %Hrmap'

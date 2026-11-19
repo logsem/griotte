@@ -86,6 +86,8 @@ Section HTS_Spec_Malloc.
     iDestruct "Hctx" as "(#Hassert & #Hservice & #Hservice_static & #Hswitcher & #Hswitcher_static
        & #Hexport_pcc & #Hexport_cgp & #Hexport_malloc & #Hexport_free
        & #Hadv & #Hentry & %Hshared)".
+    iMod (trusted_stack_inv_user ⊤ with "Hswitcher Hna") as "[%Huser Hna]";
+      first solve_ndisj.
     iDestruct "Hstatic" as "(Himports & Hcode_main & Hp & Howner_word)".
     iDestruct "Himports" as
       "(Himport_switcher & Himport_assert & Himport_adv & Himport_malloc
@@ -209,6 +211,7 @@ Section HTS_Spec_Malloc.
       thread_return_sentry wcs1 csp_b csp_e (stk_start_a csp_b csp_e) rmap_arg cstk
       with "[$Hservice $Hservice_static]") as "Hmalloc_fun".
     { lia. }
+    { exact Huser. }
     { exact Howner_shadow. }
     { exact Howner_bounds. }
     { subst rmap_arg. reflexivity. }
@@ -241,7 +244,7 @@ Section HTS_Spec_Malloc.
       allocator_cgp_b allocator_cgp_e allocator_malloc_pcc_off _ false
       with "[- $Hswitcher $Hswitcher_static $Hexport_pcc $Hexport_cgp $Hexport_malloc
          $Hna $HPC $Hcgp $Hcra $Hcsp $Hct1 $Hcs0 $Hcs1 $Hrmap_arg $Hrmap
-         $Hstk $Hhwm $Hcstk $Hmalloc_fun $Hmie $Hheld]").
+         $Hstk $Hhwm $Hcstk $Hmalloc_fun $Hmie]").
     { exact Hstk_heap. }
     { exact Hstk_shadow. }
     { apply stk_start_cursor_ok.
@@ -271,6 +274,7 @@ Section HTS_Spec_Malloc.
     { rewrite /is_heap_cap /heap_cap_base /memory_cap_base /= Hpc_nonheap /=.
       reflexivity. }
     iFrame "Howner Howner_word".
+    iClear "Hheld".
     iNext.
     iIntros "[Hcall|Hcall]".
     - iNamed "Hcall".

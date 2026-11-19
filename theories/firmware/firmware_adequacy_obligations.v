@@ -344,9 +344,9 @@ Section layout_bridges.
     MkImgSwitcherLayout {
     isl_switcher_size :
       (a_switcher_call sw + length switcher_instrs)%a = Some (e_switcher sw);
-    isl_call_entry_point : (b_switcher sw + 5)%a = Some (a_switcher_call sw);
+    isl_call_entry_point : (b_switcher sw + 6)%a = Some (a_switcher_call sw);
     isl_return_entry_point :
-      (b_switcher sw + (5 + length switcher_call_instrs))%a = Some (a_switcher_return sw);
+      (b_switcher sw + (6 + length switcher_call_instrs))%a = Some (a_switcher_return sw);
     isl_ot_switcher_size : (ot_switcher sw < ot_switcher sw ^+ 1)%ot;
     isl_stack_size : (b_stack t + length ss)%a = Some (e_stack t);
     isl_disjointness :
@@ -376,7 +376,7 @@ Section layout_bridges.
     isl_hazard_not_heap : not_heap_range (b_hazard t) (e_hazard t);
     isl_ot_trusted_stacks_size : (ot_switcher sw ^+ 1 < ot_switcher sw ^+ 1 ^+ 1)%ot;
     isl_switcher_data_not_shadow :
-      ∀ i : nat, i < 5 → is_shadow_address (b_switcher sw ^+ i) = false;
+      ∀ i : nat, i < 6 → is_shadow_address (b_switcher sw ^+ i) = false;
   }.
 
   Definition layout_switcher_of (sw : img_switcher) (t : img_thread) (ts ss : list Word)
@@ -527,8 +527,8 @@ Section layout_memory.
   Proof.
     rewrite /switcher_mem /cmpt_switcher_code_mregion /=.
     pose proof (isl_switcher_size _ _ _ Hsw). pose proof (isl_call_entry_point _ _ _ Hsw).
-    change (?w1 :: ?w2 :: ?w3 :: ?w4 :: ?w5 :: switcher_instrs)
-      with ([w1; w2; w3; w4; w5] ++ switcher_instrs).
+    change (?w1 :: ?w2 :: ?w3 :: ?w4 :: ?w5 :: ?w6 :: switcher_instrs)
+      with ([w1; w2; w3; w4; w5; w6] ++ switcher_instrs).
     by apply mem_region_app.
   Qed.
 
@@ -2076,6 +2076,7 @@ Section ghost_init.
       apply Forall_cons; split; first by apply Htsw.
       apply Forall_cons; split; first by apply Htsw.
       apply Forall_cons; split; first by apply Htsw.
+      apply Forall_cons; split; first by apply word_rooted_nonheap.
       rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
       intros l. apply word_rooted_instrs.
     - by apply Htsw.
@@ -2116,6 +2117,7 @@ Section ghost_init.
       apply Forall_cons; split; first by apply Htsw.
       apply Forall_cons; split; first by apply Htsw.
       apply Forall_cons; split; first by apply Htsw.
+      apply Forall_cons; split; first by apply word_exec_ok_not_executable.
       rewrite /switcher_instrs. apply Forall_concat, Forall_fmap, Forall_true.
       intros l. apply word_exec_ok_instrs.
     - by apply Htsw.

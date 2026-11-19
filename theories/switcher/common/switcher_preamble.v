@@ -554,8 +554,8 @@ Section Switcher_preamble.
       and the unsealing capability of the switcher's otype; the fact that
       the trap vector is the exception entry of the switcher; the global
       part of the switcher's invariant; the key of the trusted stacks; the
-      exit part of the thread; and the base of MSHWMB of the thread, which is
-      the base of its stack. *)
+      key of the interrupt-disabling sentries; the exit part of the thread;
+      and the base of MSHWMB of the thread, which is the base of its stack. *)
   Definition switcher_static : iProp Σ :=
     "#Hswitcher_code" ∷ codefrag_pers a_switcher_call switcher_instrs ∗
     "#Hswitcher_key" ∷ (b_switcher ^+ 1) ↦ₐ□ SealRange (true,true) Global ot_switcher (ot_switcher^+1) ot_switcher ∗
@@ -565,6 +565,8 @@ Section Switcher_preamble.
     "#Hswitcher_sealing" ∷ switcher_sealing_inv ∗
     "#Htstacks_key" ∷ b_switcher ↦ₐ□ SealRange (true,true) Global ot_trusted_stacks (ot_trusted_stacks ^+ 1)
                      ot_trusted_stacks ∗
+    "#Hsentries_key" ∷ (b_switcher ^+ 5) ↦ₐ□ SealRange (true,false) Local ot_interrupt_sentries
+                         (ot_interrupt_sentries ^+ 1) ot_interrupt_sentries ∗
     "#Hexit_prop" ∷ saved_prop_own (γ_exit th) DfracDiscarded exit_concrete ∗
     "#Hhwm_base" ∷ ∃ (mshwmb_v es : Addr), hwm_base[th] mshwmb_v ∗ thread_stack_bounds mshwmb_v es.
 
@@ -635,6 +637,7 @@ Section switcher_static_thread.
     iSplitR; [iPureIntro; exact Hmtcc_vec|].
     iSplitR; [iExact "Hswitcher_sealing"|].
     iSplitR; [iExact "Htstacks_key"|].
+    iSplitR; [iExact "Hsentries_key"|].
     iSplitR; [iExact "Hexit_prop'"|].
     iExact "Hhwm_base'".
   Qed.

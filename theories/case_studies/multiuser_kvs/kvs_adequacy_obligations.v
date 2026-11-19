@@ -172,7 +172,7 @@ Section kvs_obligations.
         /kvs_user_seal_key /kvs_user_seal_key_scap.
       done. }
     assert (cmpt_imports B_cmpt =
-              [Sentry FwdDisable XSRW_ Local
+              [Sentry FwdEnable XSRW_ Local
                  switcher.b_switcher switcher.e_switcher switcher.a_switcher_call;
                WSealed switcher.ot_switcher kvs_addOrUpdate;
                WSealed switcher.ot_switcher kvs_read;
@@ -372,7 +372,8 @@ Section kvs_obligations.
       (* Switcher cross-compartment *)
       iApply big_sepL_cons; iSplitL.
       { iApply (fw_switcher_call_safe _ _ _ (cmpt_of img "B") with "Hswitcher_threads_B").
-        exact Hok. }
+        - exact Hok.
+        - eapply cmpt_threads_sep; eauto. }
       (* The KVS entries and the sealed user key are Global: valid in every
          world, at every thread *)
       iApply big_sepL_cons; iSplitL.
