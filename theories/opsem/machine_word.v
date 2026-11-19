@@ -393,6 +393,29 @@ Definition sentry_kind_mie (k : SentryKind) : option InterruptStatus :=
   | Inherit => None
   end.
 
+(** The sentry kind of an otype: cheriot-sail's sentry otypes 1 to 5. *)
+Definition sentry_kind_of_otype (o : OType) : option SentryKind :=
+  match finz.to_z o with
+  | 1%Z => Some Inherit
+  | 2%Z => Some FwdDisable
+  | 3%Z => Some FwdEnable
+  | 4%Z => Some RetDisable
+  | 5%Z => Some RetEnable
+  | _ => None
+  end.
+
+(** The kind of the sentry that sealing [sb] with the otype [o] makes, as
+    cheriot-sail's [cseal]: an executable capability sealed with a sentry
+    otype. *)
+Definition seal_sentry_kind (o : OType) (sb : Sealable) : option SentryKind :=
+  match sb with
+  | SCap _ p _ _ _ _ =>
+      if executeAllowed p
+      then sentry_kind_of_otype o
+      else None
+  | SSealRange _ _ _ _ _ _ => None
+  end.
+
 (** The interrupt status a jump to [w] sets, if any: only sentries change it. *)
 Definition jalr_target_mie (w : Word) : option InterruptStatus :=
   match w with

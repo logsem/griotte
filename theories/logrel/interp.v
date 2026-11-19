@@ -193,7 +193,8 @@ Section logrel_fix.
        (if permit_unseal sr then safe_to_unseal C y b e else True))%I).
     apply bi.sep_ne.
     - destruct (permit_seal sr); last done. rewrite /safe_to_seal.
-      apply big_sepL_ne; intros i o Ho. do 2 (apply bi.exist_ne; intros ?).
+      apply big_sepL_ne; intros i o Ho. apply bi.sep_ne; first done.
+      do 2 (apply bi.exist_ne; intros ?).
       do 2 (apply bi.sep_ne; [done|]). by apply seal_contractive.
     - destruct (permit_unseal sr); last done. rewrite /safe_to_unseal.
       apply big_sepL_ne; intros i o Ho. do 2 (apply bi.exist_ne; intros ?).

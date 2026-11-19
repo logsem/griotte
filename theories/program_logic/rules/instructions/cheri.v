@@ -1160,19 +1160,21 @@ Section seal_next_ok.
   Lemma seal_next_ok p0 lpc regs dst r1 r2 (ta : bool) p g b e a πs sb π :
     regs !!ₗ r1 = Some (WSealRange ta p g b e a @@? πs) →
     regs !!ₗ r2 = Some (WSealable sb @@? π) →
+    seal_sentry_kind a sb = None →
     regs_next_ok (Seal dst r1 r2) p0 lpc regs dst
       (WSealed a (and_tag_sealable (ta && get_tag_sealable sb && permit_seal p && withinBounds b e a) sb)
          @@? π) 1.
   Proof.
-    intros H1 H2. exists (λ S, S r2). split.
+    intros H1 H2 Hnot_sentry. exists (λ S, S r2). split.
     { apply (lsource_derive _ _ _ _ _ H2); destruct sb; cbn; try solve [auto];
         by intros [_ Ht]%andb_prop. }
     intros φ S _ Hcopy.
     rewrite /= (regs_copy_llookup _ _ _ _ _ Hcopy H1) (regs_copy_llookup _ _ _ _ _ Hcopy H2).
     destruct (S r1) eqn:Hs1.
     - rewrite /= /regs_effect.
-      destruct (S r2), sb as [t' ? ? ? ? ? | t' ? ? ? ? ?], ta, t', (permit_seal p),
-        (withinBounds b e a); done.
+      destruct sb as [t' ? ? ? ? ? | t' ? ? ? ? ?]; cbn in Hnot_sentry |- *;
+        rewrite ?Hnot_sentry;
+        destruct (S r2), ta, t', (permit_seal p), (withinBounds b e a); done.
     - exfalso. rewrite /llookup_reg in H1. case_decide; first done.
       destruct (Hcopy r1 _ H1) as [_ Hstrip]. by destruct (Hstrip Hs1).
   Qed.
@@ -1185,11 +1187,53 @@ Section seal_next_ok.
     get_tag_sealable sb = true →
     permit_seal p = true →
     withinBounds b e a = true →
+    seal_sentry_kind a sb = None →
     regs_next_ok (Seal dst r1 r2) p0 lpc regs dst (WSealed a sb @@? π) 1.
   Proof.
-    intros H1 H2 Htag Hperm Hwb.
-    pose proof (seal_next_ok p0 lpc regs dst r1 r2 true p g b e a πs sb π H1 H2) as Hok.
+    intros H1 H2 Htag Hperm Hwb Hnot_sentry.
+    pose proof (seal_next_ok p0 lpc regs dst r1 r2 true p g b e a πs sb π H1 H2 Hnot_sentry)
+      as Hok.
     by rewrite Htag Hperm Hwb /= and_tag_sealable_true in Hok.
+  Qed.
+
+  (** A sealing range with a sentry otype and an executable capability: a
+      sentry, tagged if the range permits it; derived from the
+      capability. *)
+  Lemma seal_sentry_next_ok p0 lpc regs dst r1 r2 (ta : bool) p g b e a πs
+      (t' : bool) p' g' b' e' a' π k :
+    regs !!ₗ r1 = Some (WSealRange ta p g b e a @@? πs) →
+    regs !!ₗ r2 = Some (WCap t' p' g' b' e' a' @@? π) →
+    seal_sentry_kind a (SCap t' p' g' b' e' a') = Some k →
+    regs_next_ok (Seal dst r1 r2) p0 lpc regs dst
+      (WSentry k (ta && t' && permit_seal p && withinBounds b e a) p' g' b' e' a' @@? π) 1.
+  Proof.
+    intros H1 H2 Hsentry. exists (λ S, S r2). split.
+    { apply (lsource_derive _ _ _ _ _ H2); cbn; [done | | done].
+      by intros [ [ [_ Ht]%andb_prop _]%andb_prop _]%andb_prop. }
+    intros φ S _ Hcopy.
+    rewrite /= (regs_copy_llookup _ _ _ _ _ Hcopy H1) (regs_copy_llookup _ _ _ _ _ Hcopy H2).
+    destruct (S r1) eqn:Hs1.
+    - rewrite /= /regs_effect. cbn in Hsentry.
+      destruct (executeAllowed p'); last done. rewrite Hsentry.
+      by destruct (S r2), ta, t'.
+    - exfalso. rewrite /llookup_reg in H1. case_decide; first done.
+      destruct (Hcopy r1 _ H1) as [_ Hstrip]. by destruct (Hstrip Hs1).
+  Qed.
+
+  (** A tagged executable capability sealed by a range that permits sealing
+      at a sentry otype: the sentry, tagged. *)
+  Lemma seal_sentry_next_ok_tagged p0 lpc regs dst r1 r2 p g b e a πs p' g' b' e' a' π k :
+    regs !!ₗ r1 = Some (SealRange p g b e a @@? πs) →
+    regs !!ₗ r2 = Some (Cap p' g' b' e' a' @@? π) →
+    permit_seal p = true →
+    withinBounds b e a = true →
+    seal_sentry_kind a (SCap true p' g' b' e' a') = Some k →
+    regs_next_ok (Seal dst r1 r2) p0 lpc regs dst (Sentry k p' g' b' e' a' @@? π) 1.
+  Proof.
+    intros H1 H2 Hperm Hwb Hsentry.
+    pose proof (seal_sentry_next_ok p0 lpc regs dst r1 r2 true p g b e a πs true p' g' b' e' a' π k
+                  H1 H2 Hsentry) as Hok.
+    by rewrite Hperm Hwb in Hok.
   Qed.
 
   (** Without a sealing range and a sealable, the sealee loses its tag. *)
@@ -1217,6 +1261,12 @@ End seal_next_ok.
 #[export] Hint Resolve seal_next_ok_other | 5 : regs_next_ok_db.
 #[export] Hint Extern 1 (is_sealr _ && is_sealb _ = false) =>
   first [ reflexivity | eassumption ] : regs_next_ok_db.
+(* A sealee that is not an executable capability, or an otype that is not a
+   sentry otype. *)
+#[export] Hint Extern 1 (seal_sentry_kind _ _ = None) =>
+  first [ reflexivity | eassumption ] : regs_next_ok_db.
+#[export] Hint Extern 1 (seal_sentry_kind _ _ = None) =>
+  first [ reflexivity | eassumption ] : regs_next_ok_lax_db.
 
 (** ** UnSeal *)
 

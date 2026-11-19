@@ -501,7 +501,7 @@ Section fundamental.
     apply seq_between_dist_Some in Hwb.
     iDestruct (big_sepL_elem_of_acc with "Hss") as "[HSa0 _]"; eauto.
     { rewrite list_elem_of_lookup; eauto. }
-    iDestruct "HSa0" as "(%κ & %Po & #Hsealpred & #Hok & #Hwcond_Po)".
+    iDestruct "HSa0" as "(_ & %κ & %Po & #Hsealpred & #Hok & #Hwcond_Po)".
     iEval (rewrite interp_unfold /= Htag /interp_sb).
     iSplit.
     - iExists κ, Po. iFrame "Hsealpred Hok". iNext.
@@ -510,6 +510,21 @@ Section fundamental.
       destruct sb as [t q l b' e' a'|t q l b' e' a']; destruct t;
         cbn in Htag; try discriminate; last done.
       by iDestruct (interp_cap_heap_conditions with "HVsb") as "[$ _]".
+  Qed.
+
+  (** A safe sealing range does not seal at a sentry otype. *)
+  Lemma interp_seal_range_not_sentry W C p g b e a πr :
+    permit_seal p = true ->
+    withinBounds b e a = true ->
+    interp W C (SealRange p g b e a @@? πr) -∗
+    ⌜sentry_kind_of_otype a = None⌝.
+  Proof.
+    iIntros (Hseal Hwb) "#HVsr".
+    rewrite (interp_unfold W C (SealRange _ _ _ _ _ @@? _)).
+    iDestruct "HVsr" as "[Hss _]"; rewrite /= Hseal.
+    apply seq_between_dist_Some in Hwb.
+    iDestruct (big_sepL_elem_of_acc with "Hss") as "[ [%Hnot_sentry _] _]"; eauto.
+    rewrite list_elem_of_lookup; eauto.
   Qed.
 
   (* Proving the meaning of unsealing in the LR sane. Note the use of the later in the result. *)

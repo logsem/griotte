@@ -130,6 +130,7 @@ Section shapes_shared.
     iIntros (Hder) "#IH #Hthread #Hpc #Hreg Hworld".
     destruct Hder as [r v0 v Hr Hle | v Hle
                      | r1 r2 p g b e a πr sb π Hr1 Hr2 Hps Hwb
+                     | r1 r2 p g b e a πr p' g' b' e' a' π k Hr1 Hr2 Hps Hwb Hexec Hkind
                      | r1 r2 p g b e a πr o sb π Hr1 Hr2 Hps Hwb].
     - iFrame "Hworld". iApply (lword_le_sound with "IH Hthread"); first exact Hle.
       by iApply "Hreg".
@@ -138,6 +139,10 @@ Section shapes_shared.
       iApply (sealing_preserves_interp with "Hthread [] []"); [done | done | |].
       + by iApply "Hreg".
       + by iApply "Hreg".
+    - (* A safe sealing range has no sentry otype. *)
+      iDestruct (interp_seal_range_not_sentry with "[]") as %Hnot_sentry;
+        [done | done | by iApply "Hreg" |].
+      congruence.
     - iApply (unsealing_preserves_interp with "Hthread [] [] Hworld"); [done | done | |].
       + by iApply "Hreg".
       + by iApply "Hreg".
@@ -432,6 +437,7 @@ Ltac solve_derivable :=
   try match goal with
     | |- derivable _ (WCap (?t && ?c) _ _ _ _ _) => destruct (t && c) eqn:Htag
     | |- derivable _ (WSealRange (?t && ?c) _ _ _ _ _) => destruct (t && c) eqn:Htag
+    | |- derivable _ (WSentry _ (?t && ?c) _ _ _ _ _) => destruct (t && c) eqn:Htag
     end;
   repeat match goal with
     | H : _ && _ = true |- _ => apply andb_true_iff in H as [? ?]
@@ -444,6 +450,7 @@ Ltac solve_derivable :=
       | H : reg _ !!ᵣ _ = Some _ |- _ => eapply derivable_reg; [exact H | solve_word_le]
       end
     | eapply derivable_seal; eassumption
+    | eapply derivable_seal_sentry; eassumption
     | eapply derivable_unseal; eassumption
     | apply derivable_pc; match goal with H : pcc _ = _ |- _ => rewrite H end; solve_word_le
     | reject_shape "the written word is not derivable from a register or the PC" ].
